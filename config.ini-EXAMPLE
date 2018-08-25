@@ -1,0 +1,6 @@
+[DEFAULT]
+discord_key = YOURAPIKEYHERE
+helper_roles = testers, Helper, Staff
+mod_roles = Admin, Mod
+require_teams = True
+command_prefix = $
