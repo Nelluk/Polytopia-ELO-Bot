@@ -235,9 +235,21 @@ async def paginate(ctx, title, message_list, page_start=0, page_end=10, page_siz
         if page_end < len(message_list):
             await sent_message.add_reaction('⏩')
 
+        # def check(reaction, user):
+        #     e = str(reaction.emoji)
+        #     return user == ctx.message.author and e.startswith(('⏪', '⏩'))
+
         def check(reaction, user):
             e = str(reaction.emoji)
-            return user == ctx.message.author and e.startswith(('⏪', '⏩'))
+            if page_start > 0 and page_end < len(message_list):
+                compare = e.startswith(('⏪', '⏩'))
+            elif page_end >= len(message_list):
+                compare = e.startswith('⏪')
+            elif page_start <= 0:
+                compare = e.startswith('⏩')
+            else:
+                compare = False
+            return ((user == ctx.message.author) and (reaction.message.id == sent_message.id) and compare)
 
         try:
             reaction, user = await bot.wait_for('reaction_add', timeout=30.0, check=check)
@@ -246,6 +258,7 @@ async def paginate(ctx, title, message_list, page_start=0, page_end=10, page_siz
             # print('Unable to clear message reaction due to insufficient permissions')
             break
         else:
+            print('here')
             if '⏪' in str(reaction.emoji):
 
                 page_start = 0 if (page_start - page_size < 0) else (page_start - page_size)
