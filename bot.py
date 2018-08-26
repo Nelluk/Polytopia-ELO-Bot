@@ -15,9 +15,6 @@ command_prefix = config['DEFAULT']['command_prefix']
 require_teams = config.getboolean('DEFAULT', 'require_teams')
 
 date_cutoff = datetime.datetime.today() - datetime.timedelta(days=90)  # Players who haven't played since cutoff are not included in leaderboards
-require_teams = True
-# Set require_teams to True to require all players be matched to a team by a discord.Role
-# set require_teams to False to allow team-less players or to use on a server that isn't team-based
 
 bot = commands.Bot(command_prefix=command_prefix)
 bot.remove_command('help')
@@ -111,8 +108,8 @@ def example_game_data():
         game.declare_winner(winning_team=t1, losing_team=t2)
 
 
-# create_tables()
-# initialize_data()
+create_tables()
+initialize_data()
 # example_game_data()
 
 
