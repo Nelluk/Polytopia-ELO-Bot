@@ -2,27 +2,35 @@ import discord
 import asyncio
 import websockets
 import configparser
+import argparse
 from discord.ext import commands
 from models import *
 
 config = configparser.ConfigParser()
 config.read('config.ini')
 
-discord_key = config['DEFAULT']['discord_key']
-helper_roles = (config['DEFAULT']['helper_roles']).split(',')
-mod_roles = (config['DEFAULT']['mod_roles']).split(',') + helper_roles
-command_prefix = config['DEFAULT']['command_prefix']
-require_teams = config.getboolean('DEFAULT', 'require_teams')
+try:
+    discord_key = config['DEFAULT']['discord_key']
+    helper_roles = (config['DEFAULT']['helper_roles']).split(',')
+    mod_roles = (config['DEFAULT']['mod_roles']).split(',') + helper_roles
+    command_prefix = config['DEFAULT']['command_prefix']
+    require_teams = config.getboolean('DEFAULT', 'require_teams')
+except KeyError:
+    print('Error finding required settings in config.ini file - discord_key / helper_roles / mod_roles / command_prefix / require_teams')
+    exit(0)
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--add_default_data', action='store_true')
+parser.add_argument('--add_example_games', action='store_true')
+
 
 date_cutoff = datetime.datetime.today() - datetime.timedelta(days=90)  # Players who haven't played since cutoff are not included in leaderboards
 
+with db:
+    db.create_tables([Team, Game, Player, Lineup, Tribe, Squad, SquadGame, SquadMember])
+
 bot = commands.Bot(command_prefix=command_prefix)
 bot.remove_command('help')
-
-
-def create_tables():
-    with db:
-        db.create_tables([Team, Game, Player, Lineup, Tribe, Squad, SquadGame, SquadMember])
 
 
 def initialize_data():
@@ -44,11 +52,13 @@ def initialize_data():
     db.connect()
     for team, emoji, image_url in team_list:
         try:
+            print('Adding team {}'.format(team))
             team = Team.create(teamname=team, emoji=emoji, image_url=image_url)
         except IntegrityError:
             pass
     for tribe in tribe_list:
         try:
+            print('Adding tribe {}'.format(tribe))
             Tribe.create(name=tribe)
         except IntegrityError:
             pass
@@ -106,11 +116,6 @@ def example_game_data():
             Squad.upsert_squad(player_list=team2_players, game=game, team=t2)
 
         game.declare_winner(winning_team=t1, losing_team=t2)
-
-
-create_tables()
-initialize_data()
-# example_game_data()
 
 
 def get_member_from_mention(mention_str):
@@ -185,6 +190,13 @@ def upsert_player_and_lineup(player_discord, player_team, game_side=None, new_ga
         if new_game is not None:
             Lineup.create(game=new_game, player=player, team=game_side)
         return player, created
+
+
+args = parser.parse_args()
+if args.add_default_data:
+    initialize_data()
+if args.add_example_games:
+    example_game_data()
 
 
 # DISCORD COMMANDS BELOW

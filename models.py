@@ -239,8 +239,7 @@ class Squad(BaseModel):
     def get_matching_squad(player_list):
         # Takes [List, of, Player, Records] (not names)
         # Returns squad with exactly the same participating players. See https://stackoverflow.com/q/52010522/1281743
-        query = Squad.select().join(SquadMember).group_by(SquadMember.squad).having
-        (
+        query = Squad.select().join(SquadMember).group_by(SquadMember.squad).having(
             (fn.SUM(SquadMember.player.in_(player_list)) == len(player_list)) & (fn.SUM(SquadMember.player.not_in(player_list)) == 0)
         )
         return query
