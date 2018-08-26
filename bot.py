@@ -213,6 +213,52 @@ async def globally_block_dms(ctx):
     return ctx.guild is not None
 
 
+async def paginate(ctx, title, message_list, page_start=0, page_end=10, page_size=10):
+    # Allows user to page through a long list of messages with reactions
+
+    page_end = page_end if len(message_list) > page_end else len(message_list)
+
+    first_loop = True
+    while True:
+        embed = discord.Embed(title=title)
+        for entry in range(page_start, page_end):
+            embed.add_field(name=message_list[entry], value='\u200b', inline=False)
+
+        if first_loop is True:
+            sent_message = await ctx.send(embed=embed)
+        else:
+            await sent_message.clear_reactions()
+            await sent_message.edit(embed=embed)
+
+        if page_start > 0:
+            await sent_message.add_reaction('⏪')
+        if page_end < len(message_list):
+            await sent_message.add_reaction('⏩')
+
+        def check(reaction, user):
+            e = str(reaction.emoji)
+            return user == ctx.message.author and e.startswith(('⏪', '⏩'))
+
+        try:
+            reaction, user = await bot.wait_for('reaction_add', timeout=30.0, check=check)
+        except asyncio.TimeoutError:
+            await sent_message.clear_reactions()
+            # print('Unable to clear message reaction due to insufficient permissions')
+            break
+        else:
+            if '⏪' in str(reaction.emoji):
+
+                page_start = 0 if (page_start - page_size < 0) else (page_start - page_size)
+                page_end = page_start + page_size if (page_start + page_size <= len(message_list)) else len(message_list)
+
+            elif '⏩' in str(reaction.emoji):
+
+                page_end = len(message_list) if (page_end + page_size > len(message_list)) else (page_end + page_size)
+                page_start = page_end - page_size if (page_end - page_size) >= 0 else 0
+
+            first_loop = False
+
+
 @bot.command(aliases=['endgame', 'win', 'winner'])
 @commands.has_any_role(*helper_roles)
 async def wingame(ctx, game_id: int, winning_team_name: str):
@@ -539,14 +585,14 @@ async def leaderboard_team(ctx):
 @bot.command(aliases=['leaderboard', 'lbi', 'lb'])
 async def leaderboard_individual(ctx):
 
-    embed = discord.Embed(title='**Individual Leaderboard**')
+    leaderboard = []
     with db:
         players_with_recent_games = Player.select().join(Lineup).join(Game).where(Game.timestamp > date_cutoff).distinct().order_by(-Player.elo)
-        # all_players = Player.select().order_by(-Player.elo)
-        for counter, player in enumerate(players_with_recent_games[:20]):
+        for counter, player in enumerate(players_with_recent_games[:500]):
             wins, losses = player.get_record()
-            embed.add_field(name='`{1:>3}. {0.discord_name:30}  (ELO: {0.elo:4})  W {2} / L {3}`'.format(player, counter + 1, wins, losses), value='\u200b', inline=False)
-    await ctx.send(embed=embed)
+            leaderboard.append('`{1:>3}. {0.discord_name:30}  (ELO: {0.elo:4})  W {2} / L {3}`'.format(player, counter + 1, wins, losses))
+
+    await paginate(ctx, title='**Individual Leaderboards**', message_list=leaderboard, page_start=0, page_end=10, page_size=10)
 
 
 @bot.command(aliases=['lbsquad', 'leaderboardsquad'])
@@ -771,8 +817,9 @@ async def team_name(ctx, old_team_name: str, new_team_name: str):
 
 @bot.command(aliases=['elohelp'])
 async def help(ctx):
-    commands = [('leaderboard', 'Show individual leaderboard\n`Aliases: lb, leaderboard_individual`'),
-                ('leaderboard_team', 'Show team leaderboard\n`Aliases: lbteam, leaderboardteam`'),
+    commands = [('lb', 'Show individual leaderboard\n`Aliases: leaderboard`'),
+                ('lbteam', 'Show team leaderboard'),
+                ('lbsquad', 'Show squad leaderboard'),
                 ('team `TEAMNAME`', 'Display stats for a given team.\n`Aliases: teaminfo`'),
                 ('player @player', 'Display stats for a given player. Also lets you search by game code/name.\n`Aliases: playerinfo`'),
                 ('game `GAMEID`', 'Display stats for a given game\n`Aliases: gameinfo`'),
@@ -793,7 +840,8 @@ async def help_staff(ctx):
     commands = [('newgame @player1 @player2 VS @player3 @player4', 'Start a new game between listed players.\n`Aliases: startgame`'),
                 ('wingame `GAMEID` \"winning team\"', 'Declare winner of open game.\n`Aliases: win, winner`'),
                 ('setcode `@user POLYTOPIACODE`', 'Change or add the code of another user to the bot.'),
-                ('setname `PLAYER IN-GAME-NAME`', 'Change or add the in-game name of another user to the bot.')]
+                ('setname `PLAYER IN-GAME-NAME`', 'Change or add the in-game name of another user to the bot.'),
+                ('settribe `GAMEID PLAYER TRIBENAME`', 'Mark what tribe a player has chosen in a given game.\nExample: `{}settribe 5 Nelluk Bardur`'.format(command_prefix))]
 
     mod_commands = [('deletegame `GAMEID`', 'Delete game and roll back relevant ELO changes'),
                     ('team_add \"Team Name\"', 'Add team to bot. Be sure to use full name - must have a matching **Discord role** of identical name.'),
