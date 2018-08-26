@@ -543,7 +543,10 @@ async def player(ctx, player_mention: str):
             try:
                 player = Player.select().where((Player.polytopia_id == player_mention) | (Player.polytopia_name == player_mention)).get()
             except DoesNotExist:
-                await ctx.send('Could not find \"{}\" by Discord name, Polytopia name, or Polytopia ID.'.format(player_mention))
+                if len(matching_players) > 1:
+                    await ctx.send('There is more than one player found with that name. Specify user with @Mention.'.format(player_mention))
+                else:
+                    await ctx.send('Could not find \"{}\" by Discord name, Polytopia name, or Polytopia ID.'.format(player_mention))
                 return
 
         # TODO: Add ranking within individual leaderboard, start from https://stackoverflow.com/a/907458
