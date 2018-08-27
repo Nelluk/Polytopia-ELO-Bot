@@ -195,8 +195,10 @@ def upsert_player_and_lineup(player_discord, player_team, game_side=None, new_ga
 args = parser.parse_args()
 if args.add_default_data:
     initialize_data()
+    exit(0)
 if args.add_example_games:
     example_game_data()
+    exit(0)
 
 
 # DISCORD COMMANDS BELOW
@@ -258,7 +260,6 @@ async def paginate(ctx, title, message_list, page_start=0, page_end=10, page_siz
             # print('Unable to clear message reaction due to insufficient permissions')
             break
         else:
-            print('here')
             if '⏪' in str(reaction.emoji):
 
                 page_start = 0 if (page_start - page_size < 0) else (page_start - page_size)
@@ -312,20 +313,27 @@ async def wingame(ctx, game_id: int, winning_team_name: str):
         if winning_team.image_url:
             embed.set_thumbnail(url=winning_team.image_url)
 
-        embed.add_field(name='**VICTORS**: {0.teamname} ELO: {0.elo} (+{1})'.format(winning_team, winning_game.winner_delta), value='\u200b', inline=False)
-        # TODO: Hide ELO and delta if teams are home/away
+        if winning_team.teamname != 'Home' and winning_team.teamname != 'Away':
+            winner_elo_str = 'Team ELO: {0.elo} (+{1})'.format(winning_team, winning_game.winner_delta)
+            loser_elo_str = 'Team ELO: {0.elo} ({1})'.format(losing_team, winning_game.loser_delta)
+        else:
+            # Hide team ELO if its just generic Home/Away
+            winner_elo_str = loser_elo_str = '\u200b'
+
+        embed.add_field(name='**VICTORS**: {0.teamname}'.format(winning_team), value=winner_elo_str, inline=False)
+
         winning_players = winning_game.get_roster(winning_team)  # returns [(player, elo_delta), ...]
         losing_players = winning_game.get_roster(losing_team)
 
         mention_str = 'Game Roster: '
         for winning_player, elo_delta, tribe_emoji in winning_players:
-            embed.add_field(name='{0.discord_name} {1}  (ELO: {0.elo})'.format(winning_player, tribe_emoji), value='+{}'.format(elo_delta), inline=True)
+            embed.add_field(name='{0.discord_name} {1}'.format(winning_player, tribe_emoji), value='ELO: {0.elo} (+{1})'.format(winning_player, elo_delta), inline=True)
             mention_str += '<@{}> '.format(winning_player.discord_id)
 
-        embed.add_field(name='**LOSERS**: {0.teamname} ELO: {0.elo} ({1})'.format(losing_team, winning_game.loser_delta), value='\u200b', inline=False)
+        embed.add_field(name='**LOSERS**: {0.teamname}'.format(losing_team), value=loser_elo_str, inline=False)
 
         for losing_player, elo_delta, tribe_emoji in losing_players:
-            embed.add_field(name='{0.discord_name} {1} (ELO: {0.elo})'.format(losing_player, tribe_emoji), value='{}'.format(elo_delta), inline=True)
+            embed.add_field(name='{0.discord_name} {1}'.format(losing_player, tribe_emoji), value='ELO: {0.elo} ({1})'.format(losing_player, elo_delta), inline=True)
             mention_str += '<@{}> '.format(losing_player.discord_id)
 
     await ctx.send(content=mention_str, embed=embed)
@@ -343,7 +351,7 @@ async def startgame(ctx, *args):
     side_home = args[:int(len(args) / 2)]
     side_away = args[int(len(args) / 2) + 1:]
 
-    if len(side_home) > len(set(side_home)) or len(side_away) > len(set(side_away)):
+    if len(side_home + side_away) > len(set(side_home + side_away)):
         await ctx.send('Duplicate players detected. Example usage for a 2v2 game: `{}startgame @player1 @player2 VS @player3 @player4`'.format(command_prefix))
         # Disabling this check would be a decent way to enable uneven teams ie 2v1, with the same person listed twice on one side.
         return
@@ -408,15 +416,14 @@ async def startgame(ctx, *args):
             home_elo_str = 'Squad ELO: {}'.format(home_squad.elo)
             away_elo_str = 'Squad ELO: {}'.format(away_squad.elo)
         else:
-            home_elo_str = 'Player ELO: {}'.format(side_home_players[0].elo)
-            away_elo_str = 'Player ELO: {}'.format(side_away_players[0].elo)
+            home_elo_str = away_elo_str = '\u200b'
 
     embed = discord.Embed(title='Game {0}: {1.emoji}  **{1.teamname}**   *VS*   **{2.teamname}**  {2.emoji}'.format(newgame.id, home_side_team, away_side_team))
     embed.add_field(name='Lineup for Team *{}*'.format(home_side_team.teamname), value=home_elo_str, inline=False)
     mention_str = 'Game Roster: '
 
     for player in side_home_players:
-        embed.add_field(name='**{0.discord_name}**'.format(player), value='\u200b')
+        embed.add_field(name='**{0.discord_name}**'.format(player), value='ELO: {}'.format(player.elo))
         mention_str += '<@{}> '.format(player.discord_id)
 
     embed.add_field(value='\u200b', name=' \u200b', inline=False)
@@ -424,7 +431,7 @@ async def startgame(ctx, *args):
     embed.add_field(name='Lineup for Team *{}*'.format(away_side_team.teamname), value=away_elo_str, inline=False)
 
     for player in side_away_players:
-        embed.add_field(name='**{0.discord_name}**'.format(player), value='\u200b')
+        embed.add_field(name='**{0.discord_name}**'.format(player), value='ELO: {}'.format(player.elo))
         mention_str += '<@{}> '.format(player.discord_id)
 
     await ctx.send(content=mention_str, embed=embed)
@@ -509,8 +516,6 @@ async def team(ctx, team_string: str):
 
     recent_games = Game.select().where((Game.home_team == team) | (Game.away_team == team)).order_by(-Game.timestamp)[:10]
 
-    # TODO: Add ranking within individual leaderboard, start from https://stackoverflow.com/a/907458
-
     # TODO: Add 'most frequent players'
     wins, losses = team.get_record()
 
@@ -548,8 +553,6 @@ async def player(ctx, player_mention: str):
                 else:
                     await ctx.send('Could not find \"{}\" by Discord name, Polytopia name, or Polytopia ID.'.format(player_mention))
                 return
-
-        # TODO: Add ranking within individual leaderboard, start from https://stackoverflow.com/a/907458
 
         wins, losses = player.get_record()
 
@@ -615,15 +618,16 @@ async def leaderboard_individual(ctx):
 async def leaderboard_squad(ctx):
     embed = discord.Embed(title='**Squad Leaderboard**')
 
+    leaderboard = []
     with db:
-        squads = Squad.select().join(SquadGame).group_by(Squad.id).having(fn.COUNT(SquadGame.id) > 2).order_by(-Squad.elo)
+        squads = Squad.select().join(SquadGame).group_by(Squad.id).having(fn.COUNT(SquadGame.id) > 1).order_by(-Squad.elo)
         # TODO: Could limit inclusion to date_cutoff although ths might make the board too sparse
-        for counter, sq in enumerate(squads)[:20]:
+        for counter, sq in enumerate(squads[:200]):
             wins, losses = sq.get_record()
             squad_members = sq.get_names()
             squad_names = ' / '.join(squad_members)
-            embed.add_field(name='`{0:>3}. {1:40}  (ELO: {2:4})  W {3} / L {4}`'.format(counter + 1, squad_names, sq.elo, wins, losses), value='\u200b', inline=False)
-    await ctx.send(embed=embed)
+            leaderboard.append('`{0:>3}. {1:40}  (ELO: {2:4})  W {3} / L {4}`'.format(counter + 1, squad_names, sq.elo, wins, losses))
+    await paginate(ctx, title='**Squad Leaderboards**', message_list=leaderboard, page_start=0, page_end=10, page_size=10)
 
 
 @bot.command()

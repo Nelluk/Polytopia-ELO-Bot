@@ -8,13 +8,6 @@ db = SqliteDatabase('bot_database.db', pragmas={
     'synchronous': 0})
 
 
-def calc_squad_elo(players_in_squad):
-    # Given [Player1, Player2, ...], calculate ELO and return as an int
-    list_of_elos = [player.elo for player in players_in_squad]
-    ave_elo = round(sum(list_of_elos) / len(list_of_elos))
-    return ave_elo
-
-
 class BaseModel(Model):
     class Meta:
         database = db
@@ -247,6 +240,13 @@ class Squad(BaseModel):
     def upsert_squad(player_list, game, team):
 
         squads = Squad.get_matching_squad(player_list)
+
+        def calc_squad_elo(players_in_squad):
+            # Given [Player1, Player2, ...], calculate ELO and return as an int
+            # Right now just a simple average. May change later.
+            list_of_elos = [player.elo for player in players_in_squad]
+            ave_elo = round(sum(list_of_elos) / len(list_of_elos))
+            return ave_elo
 
         if len(squads) == 0:
             # Insert new squad based on this combination of players
