@@ -239,7 +239,10 @@ async def paginate(ctx, title, message_list, page_start=0, page_end=10, page_siz
         if first_loop is True:
             sent_message = await ctx.send(embed=embed)
         else:
-            await sent_message.clear_reactions()
+            try:
+                await sent_message.clear_reactions()
+            except (discord.ext.commands.errors.CommandInvokeError, discord.errors.Forbidden):
+                print('Unable to clear message reaction due to insufficient permissions. Giving bot \'Manage Messages\' permission will improve usability.')
             await sent_message.edit(embed=embed)
 
         if page_start > 0:
@@ -264,11 +267,14 @@ async def paginate(ctx, title, message_list, page_start=0, page_end=10, page_siz
             return ((user == ctx.message.author) and (reaction.message.id == sent_message.id) and compare)
 
         try:
-            reaction, user = await bot.wait_for('reaction_add', timeout=30.0, check=check)
+            reaction, user = await bot.wait_for('reaction_add', timeout=20.0, check=check)
         except asyncio.TimeoutError:
-            await sent_message.clear_reactions()
-            # print('Unable to clear message reaction due to insufficient permissions')
-            break
+            try:
+                await sent_message.clear_reactions()
+            except (discord.ext.commands.errors.CommandInvokeError, discord.errors.Forbidden):
+                print('Unable to clear message reaction due to insufficient permissions. Giving bot \'Manage Messages\' permission will improve usability.')
+            finally:
+                break
         else:
             if '⏪' in str(reaction.emoji):
 
