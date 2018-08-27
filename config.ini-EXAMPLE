@@ -4,3 +4,16 @@ helper_roles = testers, Helper, Staff
 mod_roles = Admin, Mod
 require_teams = True
 command_prefix = $
+bot_channels = 1234567, 89109876
+
+# helper_roles : list of Discord roles that can give staff-level commands
+
+# mod_roles : list of Discord roles that can issue mod-only commands
+
+# require_teams : Set to True to require that only players who are matched
+#	to a Team based on their discord roles are allowed to join a match.
+#	Set to False to allow any server member to join a match. 
+
+# bot_channels = list of channel ID numbers where bot will respond to commands.
+# 	if this is left out bot will respond in any channel.
+# 	by default only leaderboard commands are set to respect this setting

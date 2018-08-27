@@ -22,7 +22,6 @@ class Team(BaseModel):
     def change_elo_after_game(self, opponent_elo, is_winner):
 
         max_elo_delta = 75
-        print('Team Opponent ELO: {}'.format(opponent_elo))
         chance_of_winning = round(1 / (1 + (10 ** ((opponent_elo - self.elo) / 400))), 3)
 
         if is_winner is True:
@@ -32,7 +31,7 @@ class Team(BaseModel):
             new_elo = round(self.elo + (max_elo_delta * (0 - chance_of_winning)), 0)
 
         elo_delta = int(new_elo - self.elo)
-        print('Team chance of winning: {} current ELO {}, new elo {}, elo_delta {}'.format(chance_of_winning, self.elo, new_elo, elo_delta))
+        print('Team chance of winning: {} opponent elo {} current ELO {}, new elo {}, elo_delta {}'.format(chance_of_winning, opponent_elo, self.elo, new_elo, elo_delta))
 
         self.elo = int(self.elo + elo_delta)
         self.save()
@@ -152,8 +151,6 @@ class Player(BaseModel):
 
     def change_elo_after_game(self, game, opponent_elo, is_winner):
         game_lineup = Lineup.get(Lineup.game == game, Lineup.player == self)
-        print('Squad opponent elo: {}'.format(opponent_elo))
-
         max_elo_delta = 75
         chance_of_winning = round(1 / (1 + (10 ** ((opponent_elo - self.elo) / 400))), 3)
 
@@ -196,8 +193,6 @@ class Squad(BaseModel):
 
     def change_elo_after_game(self, game, opponent_elo, is_winner):
         squadgame = SquadGame.get(SquadGame.game == game, SquadGame.squad == self)
-        print('Squad opponent elo: {}'.format(opponent_elo))
-
         max_elo_delta = 75
         chance_of_winning = round(1 / (1 + (10 ** ((opponent_elo - self.elo) / 400))), 3)
 

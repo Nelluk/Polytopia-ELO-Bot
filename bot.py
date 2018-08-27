@@ -13,23 +13,25 @@ try:
     discord_key = config['DEFAULT']['discord_key']
     helper_roles = (config['DEFAULT']['helper_roles']).split(',')
     mod_roles = (config['DEFAULT']['mod_roles']).split(',') + helper_roles
-    command_prefix = config['DEFAULT']['command_prefix']
-    require_teams = config.getboolean('DEFAULT', 'require_teams')
 except KeyError:
-    print('Error finding required settings in config.ini file - discord_key / helper_roles / mod_roles / command_prefix / require_teams')
+    print('Error finding required settings in config.ini file - discord_key / helper_roles / mod_roles')
     exit(0)
+
+bot_channels = config['DEFAULT'].get('bot_channels', None)
+command_prefix = config['DEFAULT'].get('command_prefix', '$')
+require_teams = True if config['DEFAULT'].get('require_teams') == 'True' else False
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--add_default_data', action='store_true')
 parser.add_argument('--add_example_games', action='store_true')
 
-
 date_cutoff = datetime.datetime.today() - datetime.timedelta(days=90)  # Players who haven't played since cutoff are not included in leaderboards
 
 with db:
     db.create_tables([Team, Game, Player, Lineup, Tribe, Squad, SquadGame, SquadMember])
+    # Only creates missing tables so should be safe to run each time
 
-bot = commands.Bot(command_prefix=command_prefix)
+bot = commands.Bot(command_prefix=commands.when_mentioned_or(command_prefix))
 bot.remove_command('help')
 
 
@@ -190,6 +192,14 @@ def upsert_player_and_lineup(player_discord, player_team, game_side=None, new_ga
         if new_game is not None:
             Lineup.create(game=new_game, player=player, team=game_side)
         return player, created
+
+
+def in_bot_channel():
+    async def predicate(ctx):
+        if bot_channels is None:
+            return True
+        return str(ctx.message.channel.id) in bot_channels
+    return commands.check(predicate)
 
 
 args = parser.parse_args()
@@ -589,6 +599,7 @@ async def player(ctx, player_mention: str):
         await ctx.send(content=content_str, embed=embed)
 
 
+@in_bot_channel()
 @bot.command(aliases=['lbteam', 'leaderboardteam'])
 async def leaderboard_team(ctx):
     """or lbteam : shows team leaderboard"""
@@ -601,6 +612,7 @@ async def leaderboard_team(ctx):
     await ctx.send(embed=embed)
 
 
+@in_bot_channel()
 @bot.command(aliases=['leaderboard', 'lbi', 'lb'])
 async def leaderboard_individual(ctx):
 
@@ -614,6 +626,7 @@ async def leaderboard_individual(ctx):
     await paginate(ctx, title='**Individual Leaderboards**', message_list=leaderboard, page_start=0, page_end=10, page_size=10)
 
 
+@in_bot_channel()
 @bot.command(aliases=['lbsquad', 'leaderboardsquad'])
 async def leaderboard_squad(ctx):
     embed = discord.Embed(title='**Squad Leaderboard**')
