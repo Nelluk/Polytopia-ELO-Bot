@@ -599,6 +599,7 @@ async def player(ctx, player_mention: str):
 
 @in_bot_channel()
 @bot.command(aliases=['lbteam', 'leaderboardteam'])
+@commands.cooldown(1, 30, commands.BucketType.channel)
 async def leaderboard_team(ctx):
     """or lbteam : shows team leaderboard"""
 
@@ -612,6 +613,7 @@ async def leaderboard_team(ctx):
 
 @in_bot_channel()
 @bot.command(aliases=['leaderboard', 'lbi', 'lb'])
+@commands.cooldown(1, 30, commands.BucketType.channel)
 async def leaderboard_individual(ctx):
 
     leaderboard = []
@@ -626,6 +628,7 @@ async def leaderboard_individual(ctx):
 
 @in_bot_channel()
 @bot.command(aliases=['lbsquad', 'leaderboardsquad'])
+@commands.cooldown(1, 30, commands.BucketType.channel)
 async def leaderboard_squad(ctx):
     embed = discord.Embed(title='**Squad Leaderboard**')
 
