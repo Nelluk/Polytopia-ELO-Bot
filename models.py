@@ -181,8 +181,8 @@ class Tribe(BaseModel):
 
 
 class Lineup(BaseModel):  # Connect Players to Games
-    game = ForeignKeyField(Game, null=False, backref='lineup')
-    player = ForeignKeyField(Player, null=False, backref='lineup')
+    game = ForeignKeyField(Game, null=False, backref='lineup', on_delete='CASCADE')
+    player = ForeignKeyField(Player, null=False, backref='lineup', on_delete='CASCADE')
     team = ForeignKeyField(Team, null=False, backref='lineup')
     tribe = ForeignKeyField(Tribe, null=True, backref='lineup')
     elo_change = IntegerField(default=0)
@@ -257,13 +257,13 @@ class Squad(BaseModel):
 
 
 class SquadMember(BaseModel):
-    player = ForeignKeyField(Player, null=False)
-    squad = ForeignKeyField(Squad, null=False, backref='squadmembers')
+    player = ForeignKeyField(Player, null=False, on_delete='CASCADE')
+    squad = ForeignKeyField(Squad, null=False, backref='squadmembers', on_delete='CASCADE')
 
 
 class SquadGame(BaseModel):
-    game = ForeignKeyField(Game, null=False, backref='squadgame')
-    squad = ForeignKeyField(Squad, null=False, backref='squadgame')
+    game = ForeignKeyField(Game, null=False, backref='squadgame', on_delete='CASCADE')
+    squad = ForeignKeyField(Squad, null=False, backref='squadgame', on_delete='CASCADE')
     team = ForeignKeyField(Team, null=False, backref='squadgame')
     elo_change = IntegerField(default=0)
 
