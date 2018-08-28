@@ -398,22 +398,14 @@ async def startgame(ctx, *args):
         if home_side_team == away_side_team:
             with db:
                 # If Team Foo is playing against another squad from Team Foo, reset them to 'Home' and 'Away'
-                try:
-                    home_side_team = Team.get(Team.teamname == 'Home')
-                    away_side_team = Team.get(Team.teamname == 'Away')
-                except DoesNotExist:
-                    await(ctx.send('**ERROR**: Could not find special teams named **Home** and **Away**. These teams must be added with those exact names for bot to work.'))
-                    return
+                home_side_team, _ = Team.get_or_create(teamname='Home', defaults={'emoji': ':stadium:'})
+                away_side_team, _ = Team.get_or_create(teamname='Away', defaults={'emoji': ':airplane:'})
 
     else:
         # Otherwise the players are "intermingling" and the game just influences two hidden teams in the database called 'Home' and 'Away'
         with db:
-            try:
-                home_side_team = Team.get(Team.teamname == 'Home')
-                away_side_team = Team.get(Team.teamname == 'Away')
-            except DoesNotExist:
-                await(ctx.send('**ERROR**: Could not find special teams named **Home** and **Away**. These teams must be added with those exact names for bot to work.'))
-                return
+            home_side_team, _ = Team.get_or_create(teamname='Home', defaults={'emoji': ':stadium:'})
+            away_side_team, _ = Team.get_or_create(teamname='Away', defaults={'emoji': ':airplane:'})
 
     with db:
         # Sanity checks all passed. Start a new game!
