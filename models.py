@@ -14,7 +14,7 @@ class BaseModel(Model):
 
 
 class Team(BaseModel):
-    teamname = CharField(unique=True, null=False, constraints=[SQL('COLLATE NOCASE')])    # team name needs to == discord role name for bot to check player's team membership
+    name = CharField(unique=True, null=False, constraints=[SQL('COLLATE NOCASE')])    # team name needs to == discord role name for bot to check player's team membership
     elo = IntegerField(default=1000)
     emoji = CharField(null=True)
     image_url = CharField(null=True)
@@ -55,11 +55,12 @@ class Game(BaseModel):
     loser = ForeignKeyField(Team, null=True, backref='losing_games')
     home_team = ForeignKeyField(Team, null=False, backref='games')
     away_team = ForeignKeyField(Team, null=False, backref='games')
+    name = CharField(null=True)
     team_size = IntegerField(null=False)
     is_completed = BooleanField(default=0)
     winner_delta = IntegerField(default=0)
     loser_delta = IntegerField(default=0)
-    timestamp = DateTimeField(default=datetime.datetime.now)
+    date = DateField(default=datetime.datetime.today)
 
     def get_roster(self, team):
         # Returns list of tuples [(player), (elo_change_from_this_game)]

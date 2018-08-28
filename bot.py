@@ -55,7 +55,7 @@ def initialize_data():
     for team, emoji, image_url in team_list:
         try:
             print('Adding team {}'.format(team))
-            team = Team.create(teamname=team, emoji=emoji, image_url=image_url)
+            team = Team.create(name=team, emoji=emoji, image_url=image_url)
         except IntegrityError:
             pass
     for tribe in tribe_list:
@@ -97,8 +97,8 @@ def example_game_data():
     # Each tuple contains a dict. Each dict has two keys representing names of each side team. Each key value is a [Team,of,players]
     for counter1, g in enumerate(games):
         team1, team2 = list(g.keys())[0], list(g.keys())[1]
-        t1 = Team.select().where(Team.teamname.contains(team1)).get()
-        t2 = Team.select().where(Team.teamname.contains(team2)).get()
+        t1 = Team.select().where(Team.name.contains(team1)).get()
+        t2 = Team.select().where(Team.name.contains(team2)).get()
         game = Game.create(team_size=len(g[team1]), home_team=t1, away_team=t2)
 
         team1_players, team2_players = [], []
@@ -132,7 +132,7 @@ def get_member_from_mention(mention_str):
 
 
 def get_team_from_name(team_name):
-    teams = Team.select().where(Team.teamname.contains(team_name))
+    teams = Team.select().where(Team.name.contains(team_name))
     return teams
 
 
@@ -150,13 +150,13 @@ def get_teams_of_players(list_of_players):
 
     with db:
         query = Team.select()
-        list_of_teams = [team.teamname for team in query]               # ['The Ronin', 'The Jets', ...]
+        list_of_teams = [team.name for team in query]               # ['The Ronin', 'The Jets', ...]
         list_of_matching_teams = []
         for player in list_of_players:
             matching_roles = get_matching_roles(player, list_of_teams)
             if len(matching_roles) == 1:
-                teamname = next(iter(matching_roles))
-                list_of_matching_teams.append(Team.get(Team.teamname == teamname))
+                name = next(iter(matching_roles))
+                list_of_matching_teams.append(Team.get(Team.name == name))
             else:
                 list_of_matching_teams.append(None)
                 # Would be here if no player Roles match any known teams, -or- if they have more than one match
@@ -302,7 +302,7 @@ async def wingame(ctx, game_id: int, winning_team_name: str):
             return
 
         if winning_game.is_completed == 1:
-            await ctx.send('Game with ID {} is already marked as completed with winning team {}'.format(game_id, winning_game.winner.teamname))
+            await ctx.send('Game with ID {} is already marked as completed with winning team {}'.format(game_id, winning_game.winner.name))
             return
 
         matching_teams = get_team_from_name(winning_team_name)
@@ -319,24 +319,24 @@ async def wingame(ctx, game_id: int, winning_team_name: str):
         elif winning_team.id == winning_game.away_team.id:
             losing_team = winning_game.home_team
         else:
-            await ctx.send('That team did not play in game {0.id}. The teams were {0.home_team.teamname} and {0.away_team.teamname}.'.format(winning_game))
+            await ctx.send('That team did not play in game {0.id}. The teams were {0.home_team.name} and {0.away_team.name}.'.format(winning_game))
             return
 
         winning_game.declare_winner(winning_team, losing_team)
 
     with db:
-        embed = discord.Embed(title='Game {gid} has concluded and {winner} is victorious. Congratulations!'.format(gid=game_id, winner=winning_team.teamname))
+        embed = discord.Embed(title='Game {gid} has concluded and {winner} is victorious. Congratulations!'.format(gid=game_id, winner=winning_team.name))
         if winning_team.image_url:
             embed.set_thumbnail(url=winning_team.image_url)
 
-        if winning_team.teamname != 'Home' and winning_team.teamname != 'Away':
+        if winning_team.name != 'Home' and winning_team.name != 'Away':
             winner_elo_str = 'Team ELO: {0.elo} (+{1})'.format(winning_team, winning_game.winner_delta)
             loser_elo_str = 'Team ELO: {0.elo} ({1})'.format(losing_team, winning_game.loser_delta)
         else:
             # Hide team ELO if its just generic Home/Away
             winner_elo_str = loser_elo_str = '\u200b'
 
-        embed.add_field(name='**VICTORS**: {0.teamname}'.format(winning_team), value=winner_elo_str, inline=False)
+        embed.add_field(name='**VICTORS**: {0.name}'.format(winning_team), value=winner_elo_str, inline=False)
 
         winning_players = winning_game.get_roster(winning_team)  # returns [(player, elo_delta), ...]
         losing_players = winning_game.get_roster(losing_team)
@@ -346,7 +346,7 @@ async def wingame(ctx, game_id: int, winning_team_name: str):
             embed.add_field(name='{0.discord_name} {1}'.format(winning_player, tribe_emoji), value='ELO: {0.elo} (+{1})'.format(winning_player, elo_delta), inline=True)
             mention_str += '<@{}> '.format(winning_player.discord_id)
 
-        embed.add_field(name='**LOSERS**: {0.teamname}'.format(losing_team), value=loser_elo_str, inline=False)
+        embed.add_field(name='**LOSERS**: {0.name}'.format(losing_team), value=loser_elo_str, inline=False)
 
         for losing_player, elo_delta, tribe_emoji in losing_players:
             embed.add_field(name='{0.discord_name} {1}'.format(losing_player, tribe_emoji), value='ELO: {0.elo} ({1})'.format(losing_player, elo_delta), inline=True)
@@ -398,14 +398,14 @@ async def startgame(ctx, *args):
         if home_side_team == away_side_team:
             with db:
                 # If Team Foo is playing against another squad from Team Foo, reset them to 'Home' and 'Away'
-                home_side_team, _ = Team.get_or_create(teamname='Home', defaults={'emoji': ':stadium:'})
-                away_side_team, _ = Team.get_or_create(teamname='Away', defaults={'emoji': ':airplane:'})
+                home_side_team, _ = Team.get_or_create(name='Home', defaults={'emoji': ':stadium:'})
+                away_side_team, _ = Team.get_or_create(name='Away', defaults={'emoji': ':airplane:'})
 
     else:
         # Otherwise the players are "intermingling" and the game just influences two hidden teams in the database called 'Home' and 'Away'
         with db:
-            home_side_team, _ = Team.get_or_create(teamname='Home', defaults={'emoji': ':stadium:'})
-            away_side_team, _ = Team.get_or_create(teamname='Away', defaults={'emoji': ':airplane:'})
+            home_side_team, _ = Team.get_or_create(name='Home', defaults={'emoji': ':stadium:'})
+            away_side_team, _ = Team.get_or_create(name='Away', defaults={'emoji': ':airplane:'})
 
     with db:
         # Sanity checks all passed. Start a new game!
@@ -426,8 +426,8 @@ async def startgame(ctx, *args):
         else:
             home_elo_str = away_elo_str = '\u200b'
 
-    embed = discord.Embed(title='Game {0}: {1.emoji}  **{1.teamname}**   *VS*   **{2.teamname}**  {2.emoji}'.format(newgame.id, home_side_team, away_side_team))
-    embed.add_field(name='Lineup for Team *{}*'.format(home_side_team.teamname), value=home_elo_str, inline=False)
+    embed = discord.Embed(title='Game {0}: {1.emoji}  **{1.name}**   *VS*   **{2.name}**  {2.emoji}'.format(newgame.id, home_side_team, away_side_team))
+    embed.add_field(name='Lineup for Team *{}*'.format(home_side_team.name), value=home_elo_str, inline=False)
     mention_str = 'Game Roster: '
 
     for player in side_home_players:
@@ -436,7 +436,7 @@ async def startgame(ctx, *args):
 
     embed.add_field(value='\u200b', name=' \u200b', inline=False)
 
-    embed.add_field(name='Lineup for Team *{}*'.format(away_side_team.teamname), value=away_elo_str, inline=False)
+    embed.add_field(name='Lineup for Team *{}*'.format(away_side_team.name), value=away_elo_str, inline=False)
 
     for player in side_away_players:
         embed.add_field(name='**{0.discord_name}**'.format(player), value='ELO: {}'.format(player.elo))
@@ -461,26 +461,26 @@ async def game(ctx, game_id: int):
 
     if game.is_completed == 1:
         game_status = 'Completed'
-        embed = discord.Embed(title='Game {0}: {1.emoji}  **{1.teamname}**   *VS*   **{2.teamname}**  {2.emoji}\nWINNER: {3}'.format(game.id, home_side_team, away_side_team, game.winner.teamname))
+        embed = discord.Embed(title='Game {0}: {1.emoji}  **{1.name}**   *VS*   **{2.name}**  {2.emoji}\nWINNER: {3}'.format(game.id, home_side_team, away_side_team, game.winner.name))
         if game.winner.image_url:
             embed.set_thumbnail(url=game.winner.image_url)
 
     else:
         game_status = 'Incomplete'
-        embed = discord.Embed(title='Game {0}: {1.emoji}  **{1.teamname}**   *VS*   **{2.teamname}**  {2.emoji}'.format(game.id, home_side_team, away_side_team))
+        embed = discord.Embed(title='Game {0}: {1.emoji}  **{1.name}**   *VS*   **{2.name}**  {2.emoji}'.format(game.id, home_side_team, away_side_team))
 
-    embed.add_field(name='Lineup for Team **{0.teamname}**({0.elo})'.format(home_side_team), value='\u200b', inline=False)
+    embed.add_field(name='Lineup for Team **{0.name}**({0.elo})'.format(home_side_team), value='\u200b', inline=False)
 
     for player, elo_delta, tribe_emoji in side_home:
         embed.add_field(name='**{0.discord_name}** {1}'.format(player, tribe_emoji), value='ELO: {0.elo}'.format(player), inline=True)
 
     embed.add_field(value='\u200b', name=' \u200b', inline=False)
-    embed.add_field(name='Lineup for Team **{0.teamname}**({0.elo})'.format(away_side_team), value='\u200b', inline=False)
+    embed.add_field(name='Lineup for Team **{0.name}**({0.elo})'.format(away_side_team), value='\u200b', inline=False)
 
     for player, elo_delta, tribe_emoji in side_away:
         embed.add_field(name='**{0.discord_name}** {1}'.format(player, tribe_emoji), value='ELO: {0.elo}'.format(player), inline=True)
 
-    embed.set_footer(text='Status: {}  -  Creation Date {}'.format(game_status, str(game.timestamp).split(' ')[0]))
+    embed.set_footer(text='Status: {}  -  Creation Date {}'.format(game_status, str(game.date)))
     await ctx.send(embed=embed)
 
 
@@ -489,8 +489,8 @@ async def incompletegames(ctx):
     """or incomplete: Lists oldest incomplete games"""
     embed = discord.Embed(title='Oldest incomplete games')
 
-    for counter, game in enumerate(Game.select().where(Game.is_completed == 0).order_by(Game.timestamp)[:20]):
-        embed.add_field(name='Game ID #{0.id} - {0.home_team.teamname} vs {0.away_team.teamname}'.format(game), value=(str(game.timestamp).split(' ')[0]), inline=False)
+    for counter, game in enumerate(Game.select().where(Game.is_completed == 0).order_by(Game.date)[:20]):
+        embed.add_field(name='Game ID #{0.id} - {0.home_team.name} vs {0.away_team.name}'.format(game), value=(str(game.date)), inline=False)
 
     await ctx.send(embed=embed)
 
@@ -522,12 +522,12 @@ async def team(ctx, team_string: str):
         return
     team = matching_teams[0]
 
-    recent_games = Game.select().where((Game.home_team == team) | (Game.away_team == team)).order_by(-Game.timestamp)[:10]
+    recent_games = Game.select().where((Game.home_team == team) | (Game.away_team == team)).order_by(-Game.date)[:10]
 
     # TODO: Add 'most frequent players'
     wins, losses = team.get_record()
 
-    embed = discord.Embed(title='Team card for **{0.teamname}** {0.emoji}'.format(team))
+    embed = discord.Embed(title='Team card for **{0.name}** {0.emoji}'.format(team))
     embed.add_field(value='\u200b', name='ELO: {}   Wins {} / Losses {}'.format(team.elo, wins, losses))
 
     if team.image_url:
@@ -539,7 +539,7 @@ async def team(ctx, team_string: str):
             result = '**WIN**' if (game.winner == team) else 'LOSS'
         else:
             result = 'Incomplete'
-        embed.add_field(name='Game {0.id} vs {1.teamname} {1.emoji} {2}'.format(game, opponent, result), value='{}'.format(str(game.timestamp).split(' ')[0]), inline=False)
+        embed.add_field(name='Game {0.id} vs {1.name} {1.emoji} {2}'.format(game, opponent, result), value='{}'.format(str(game.date)), inline=False)
 
     await ctx.send(embed=embed)
 
@@ -564,19 +564,19 @@ async def player(ctx, player_mention: str):
 
         wins, losses = player.get_record()
 
-        ranked_players_query = Player.select(Player.id).join(Lineup).join(Game).where(Game.timestamp > date_cutoff).distinct().order_by(-Player.elo).tuples()
+        ranked_players_query = Player.select(Player.id).join(Lineup).join(Game).where(Game.date > date_cutoff).distinct().order_by(-Player.elo).tuples()
         for counter, p in enumerate(ranked_players_query):
             if p[0] == player.id:
                 break
             # counter should now equal ranking of player in the leaderboard
 
-        recent_games = Game.select().join(Lineup).where(Lineup.player == player).order_by(-Game.timestamp)[:5]
+        recent_games = Game.select().join(Lineup).where(Lineup.player == player).order_by(-Game.date)[:5]
 
         embed = discord.Embed(title='Player card for {}'.format(player.discord_name))
         embed.add_field(name='Results', value='ELO: {}, W {} / L {}'.format(player.elo, wins, losses))
         embed.add_field(name='Ranking', value='{} of {}'.format(counter + 1, len(ranked_players_query)))
         if player.team:
-            embed.add_field(name='Last-known Team', value='{}'.format(player.team.teamname))
+            embed.add_field(name='Last-known Team', value='{}'.format(player.team.name))
             if player.team.image_url:
                 embed.set_thumbnail(url=player.team.image_url)
         if player.polytopia_name:
@@ -591,8 +591,8 @@ async def player(ctx, player_mention: str):
         embed.add_field(value='\u200b', name='Most recent games', inline=False)
         for game in recent_games:
             status = 'Completed' if game.is_completed == 1 else 'Incomplete'
-            embed.add_field(name='Game {0.id}   {1.emoji} **{1.teamname}** *vs* **{2.teamname}** {2.emoji}'.format(game, game.home_team, game.away_team),
-                            value='Status: {} - {}'.format(status, str(game.timestamp).split(' ')[0]), inline=False)
+            embed.add_field(name='Game {0.id}   {1.emoji} **{1.name}** *vs* **{2.name}** {2.emoji}'.format(game, game.home_team, game.away_team),
+                            value='Status: {} - {}'.format(status, str(game.date)), inline=False)
 
         await ctx.send(content=content_str, embed=embed)
 
@@ -604,9 +604,9 @@ async def leaderboard_team(ctx):
 
     embed = discord.Embed(title='**Team Leaderboard**')
     with db:
-        for counter, team in enumerate(Team.select().order_by(-Team.elo).where((Team.teamname != 'Home') & (Team.teamname != 'Away'))):
+        for counter, team in enumerate(Team.select().order_by(-Team.elo).where((Team.name != 'Home') & (Team.name != 'Away'))):
             wins, losses = team.get_record()
-            embed.add_field(name='`{1:>3}. {0.teamname:30}  (ELO: {0.elo:4})  W {2} / L {3}` {0.emoji}'.format(team, counter + 1, wins, losses), value='\u200b', inline=False)
+            embed.add_field(name='`{1:>3}. {0.name:30}  (ELO: {0.elo:4})  W {2} / L {3}` {0.emoji}'.format(team, counter + 1, wins, losses), value='\u200b', inline=False)
     await ctx.send(embed=embed)
 
 
@@ -616,7 +616,7 @@ async def leaderboard_individual(ctx):
 
     leaderboard = []
     with db:
-        players_with_recent_games = Player.select().join(Lineup).join(Game).where(Game.timestamp > date_cutoff).distinct().order_by(-Player.elo)
+        players_with_recent_games = Player.select().join(Lineup).join(Game).where(Game.date > date_cutoff).distinct().order_by(-Player.elo)
         for counter, player in enumerate(players_with_recent_games[:500]):
             wins, losses = player.get_record()
             leaderboard.append('`{1:>3}. {0.discord_name:30}  (ELO: {0.elo:4})  W {2} / L {3}`'.format(player, counter + 1, wins, losses))
@@ -778,7 +778,7 @@ async def team_add(ctx, name: str):
     # Team name is expected to match the name of a discord Role, so bot can automatically tell what team a player is in
     try:
         db.connect()
-        team = Team.create(teamname=name)
+        team = Team.create(name=name)
         await ctx.send('Team {name} created! Starting ELO: {elo}. Players with a Discord Role exactly matching \"{name}\" will be considered team members.'.format(name=name, elo=team.elo))
     except IntegrityError:
         await ctx.send('That team already exists!')
@@ -790,20 +790,20 @@ async def team_add(ctx, name: str):
 async def team_emoji(ctx, team_name: str, emoji):
 
     if len(emoji) != 1 and ('<:' not in emoji):
-        await ctx.send('Valid emoji not detected. Example: `{}team_emoji Teamname :my_custom_emoji:`'.format(command_prefix))
+        await ctx.send('Valid emoji not detected. Example: `{}team_emoji name :my_custom_emoji:`'.format(command_prefix))
         return
 
     with db:
         matching_teams = get_team_from_name(team_name)
         if len(matching_teams) != 1:
-            await ctx.send('Can\'t find matching team or too many matches. Example: `{}team_emoji Teamname :my_custom_emoji:`'.format(command_prefix))
+            await ctx.send('Can\'t find matching team or too many matches. Example: `{}team_emoji name :my_custom_emoji:`'.format(command_prefix))
             return
 
         team = matching_teams[0]
         team.emoji = emoji
         team.save()
 
-        await ctx.send('Team {0.teamname} updated with new emoji: {0.emoji}'.format(team))
+        await ctx.send('Team {0.name} updated with new emoji: {0.emoji}'.format(team))
 
 
 @bot.command()
@@ -811,21 +811,21 @@ async def team_emoji(ctx, team_name: str, emoji):
 async def team_image(ctx, team_name: str, image_url):
 
     if 'http'not in image_url:
-        await ctx.send('Valid image url not detected. Example usage: `{}team_image Teamname http://url_to_image.png`'.format(command_prefix))
+        await ctx.send('Valid image url not detected. Example usage: `{}team_image name http://url_to_image.png`'.format(command_prefix))
         # This is a very dumb check to make sure user is passing a URL and not a random string. Assumes mod can figure it out from there.
         return
 
     with db:
         matching_teams = get_team_from_name(team_name)
         if len(matching_teams) != 1:
-            await ctx.send('Can\'t find matching team or too many matches. Example: `{}team_image Teamname http://url_to_image.png`'.format(command_prefix))
+            await ctx.send('Can\'t find matching team or too many matches. Example: `{}team_image name http://url_to_image.png`'.format(command_prefix))
             return
 
         team = matching_teams[0]
         team.image_url = image_url
         team.save()
 
-        await ctx.send('Team {0.teamname} updated with new image_url (image should appear below)'.format(team))
+        await ctx.send('Team {0.name} updated with new image_url (image should appear below)'.format(team))
         await ctx.send(team.image_url)
 
 
@@ -835,12 +835,12 @@ async def team_name(ctx, old_team_name: str, new_team_name: str):
 
     with db:
         try:
-            team = Team.get(teamname=old_team_name)
+            team = Team.get(name=old_team_name)
         except DoesNotExist:
-            await ctx.send('That team can not be found. Be sure to use the full team name. Example: `{}team_name \"Current Teamname\" \"New Team Name\"`'.format(command_prefix))
+            await ctx.send('That team can not be found. Be sure to use the full team name. Example: `{}team_name \"Current name\" \"New Team Name\"`'.format(command_prefix))
             return
 
-        team.teamname = new_team_name
+        team.name = new_team_name
         team.save()
 
         await ctx.send('Team **{}** has been renamed to **{}**.'.format(old_team_name, new_team_name))
@@ -851,7 +851,7 @@ async def help(ctx):
     commands = [('lb', 'Show individual leaderboard\n`Aliases: leaderboard`'),
                 ('lbteam', 'Show team leaderboard'),
                 ('lbsquad', 'Show squad leaderboard'),
-                ('team `TEAMNAME`', 'Display stats for a given team.\n`Aliases: teaminfo`'),
+                ('team `name`', 'Display stats for a given team.\n`Aliases: teaminfo`'),
                 ('player @player', 'Display stats for a given player. Also lets you search by game code/name.\n`Aliases: playerinfo`'),
                 ('game `GAMEID`', 'Display stats for a given game\n`Aliases: gameinfo`'),
                 ('setcode `POLYTOPIACODE`', 'Register your code with the bot for others to find. Also will place you on the leaderboards.'),
@@ -876,8 +876,8 @@ async def help_staff(ctx):
 
     mod_commands = [('deletegame `GAMEID`', 'Delete game and roll back relevant ELO changes'),
                     ('team_add \"Team Name\"', 'Add team to bot. Be sure to use full name - must have a matching **Discord role** of identical name.'),
-                    ('team_emoji `TEAMNAME :emoji-code:`', 'Set an emoji to be associated with a team.'),
-                    ('team_image `TEAMNAME http://image-url.png`', 'Set an image to be associated with a team.'),
+                    ('team_emoji `name :emoji-code:`', 'Set an emoji to be associated with a team.'),
+                    ('team_image `name http://image-url.png`', 'Set an image to be associated with a team.'),
                     ('tribe_emoji `TRIBENAME :emoji-code:`', 'Set an emoji to be associated with a Polytopia tribe.'),
                     ('team_name \"current team name\" \"New Team Name\"', 'Change a team name.')]
 
