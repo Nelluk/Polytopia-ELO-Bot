@@ -219,6 +219,11 @@ async def on_ready():
     print('We have logged in as {0.user}'.format(bot))
 
 
+@bot.after_invoke
+async def post_invoke_cleanup(ctx):
+    db.close()
+
+
 @bot.check
 async def globally_block_dms(ctx):
     # Should prevent bot from being able to be controlled via DM
