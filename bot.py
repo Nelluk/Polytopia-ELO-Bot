@@ -1,10 +1,11 @@
 import discord
 # import asyncio
 # import websockets
+import datetime
 import configparser
 import argparse
 from discord.ext import commands
-from models import *
+from models import db
 import logging
 
 logger = logging.getLogger('discord')
@@ -32,6 +33,7 @@ date_cutoff = datetime.datetime.today() - datetime.timedelta(days=90)  # Players
 parser = argparse.ArgumentParser()
 parser.add_argument('--add_default_data', action='store_true')
 parser.add_argument('--add_example_games', action='store_true')
+args = parser.parse_args()
 
 initial_extensions = ['elo_games']
 

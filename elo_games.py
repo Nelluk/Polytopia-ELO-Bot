@@ -5,20 +5,12 @@ import websockets
 from discord.ext import commands
 from models import db, Team, Game, Player, Lineup, Tribe, Squad, SquadGame, SquadMember
 import peewee
-from bot import helper_roles, mod_roles, date_cutoff, bot_channels
+from bot import helper_roles, mod_roles, date_cutoff, bot_channels, logger, args
 
 with db:
     db.create_tables([Team, Game, Player, Lineup, Tribe, Squad, SquadGame, SquadMember])
     # Only creates missing tables so should be safe to run each time
 
-
-# args = parser.parse_args()
-# if args.add_default_data:
-#     initialize_data()
-#     exit(0)
-# if args.add_example_games:
-#     example_game_data()
-#     exit(0)
 
 def in_bot_channel():
     async def predicate(ctx):
@@ -370,7 +362,7 @@ class ELOGamesCog:
 
         leaderboard = []
         with db:
-            squads = Squad.select().join(SquadGame).group_by(Squad.id).having(fn.COUNT(SquadGame.id) > 1).order_by(-Squad.elo)
+            squads = Squad.select().join(SquadGame).group_by(Squad.id).having(peewee.fn.COUNT(SquadGame.id) > 1).order_by(-Squad.elo)
             # TODO: Could limit inclusion to date_cutoff although ths might make the board too sparse
             for counter, sq in enumerate(squads[:200]):
                 wins, losses = sq.get_record()
@@ -841,6 +833,14 @@ async def paginate(bot, ctx, title, message_list, page_start=0, page_end=10, pag
                 page_start = page_end - page_size if (page_end - page_size) >= 0 else 0
 
             first_loop = False
+
+if args.add_default_data:
+    initialize_data()
+    exit(0)
+
+if args.add_example_games:
+    example_game_data()
+    exit(0)
 
 
 def setup(bot):
