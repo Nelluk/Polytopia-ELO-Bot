@@ -5,6 +5,14 @@ import configparser
 import argparse
 from discord.ext import commands
 from models import *
+import discord
+import logging
+
+logger = logging.getLogger('discord')
+logger.setLevel(logging.WARNING)
+handler = logging.FileHandler(filename='discord.log', encoding='utf-8', mode='w')
+handler.setFormatter(logging.Formatter('%(asctime)s:%(levelname)s:%(name)s: %(message)s'))
+logger.addHandler(handler)
 
 config = configparser.ConfigParser()
 config.read('config.ini')
@@ -189,8 +197,10 @@ def upsert_player_and_lineup(player_discord, player_team, game_side=None, new_ga
             player.team = player_team    # update team with existing player in db in case they have been traded
             player.discord_name = player_discord.name
             player.save()
+            logger.debug('Player {player.discord_name} updated')
         if new_game is not None:
             Lineup.create(game=new_game, player=player, team=game_side)
+            logger.debug('Player {player.discord_name} inserted')
         return player, created
 
 
@@ -247,7 +257,7 @@ async def paginate(ctx, title, message_list, page_start=0, page_end=10, page_siz
             try:
                 await sent_message.clear_reactions()
             except (discord.ext.commands.errors.CommandInvokeError, discord.errors.Forbidden):
-                print('Unable to clear message reaction due to insufficient permissions. Giving bot \'Manage Messages\' permission will improve usability.')
+                logger.warn('Unable to clear message reaction due to insufficient permissions. Giving bot \'Manage Messages\' permission will improve usability.')
             await sent_message.edit(embed=embed)
 
         if page_start > 0:
@@ -277,7 +287,7 @@ async def paginate(ctx, title, message_list, page_start=0, page_end=10, page_siz
             try:
                 await sent_message.clear_reactions()
             except (discord.ext.commands.errors.CommandInvokeError, discord.errors.Forbidden):
-                print('Unable to clear message reaction due to insufficient permissions. Giving bot \'Manage Messages\' permission will improve usability.')
+                logger.debug('Unable to clear message reaction due to insufficient permissions. Giving bot \'Manage Messages\' permission will improve usability.')
             finally:
                 break
         else:
@@ -303,11 +313,11 @@ async def wingame(ctx, game_id: int, winning_team_name: str):
         try:
             winning_game = Game.get(id=game_id)
         except DoesNotExist:
-            await ctx.send('Game with ID {} cannot be found.'.format(game_id))
+            await ctx.send(f'Game with ID {game_id} cannot be found.')
             return
 
         if winning_game.is_completed == 1:
-            await ctx.send('Game with ID {} is already marked as completed with winning team {}'.format(game_id, winning_game.winner.name))
+            await ctx.send(f'Game with ID {game_id} is already marked as completed with winning team {winning_game.winner.name}')
             return
 
         matching_teams = get_team_from_name(winning_team_name)
@@ -315,7 +325,7 @@ async def wingame(ctx, game_id: int, winning_team_name: str):
             await ctx.send('More than one matching team found. Be more specific or trying using a quoted \"Team Name\"')
             return
         if len(matching_teams) == 0:
-            await ctx.send('Cannot find a team with name "{}". Be sure to use the full name, surrounded by quotes if it is more than one word.'.format(winning_team_name))
+            await ctx.send(f'Cannot find a team with name "{winning_team_name}". Be sure to use the full name, surrounded by quotes if it is more than one word.')
             return
         winning_team = matching_teams[0]
 
@@ -330,31 +340,31 @@ async def wingame(ctx, game_id: int, winning_team_name: str):
         winning_game.declare_winner(winning_team, losing_team)
 
     with db:
-        embed = discord.Embed(title='Game {gid} has concluded and {winner} is victorious. Congratulations!'.format(gid=game_id, winner=winning_team.name))
+        embed = discord.Embed(title=f'Game {game_id} has concluded and {winning_team.name} is victorious. Congratulations!')
         if winning_team.image_url:
             embed.set_thumbnail(url=winning_team.image_url)
 
         if winning_team.name != 'Home' and winning_team.name != 'Away':
-            winner_elo_str = 'Team ELO: {0.elo} (+{1})'.format(winning_team, winning_game.winner_delta)
-            loser_elo_str = 'Team ELO: {0.elo} ({1})'.format(losing_team, winning_game.loser_delta)
+            winner_elo_str = f'Team ELO: {winning_team.elo} (+{winning_game.winner_delta})'
+            loser_elo_str = f'Team ELO: {losing_team.elo} (+{winning_game.loser_delta})'
         else:
             # Hide team ELO if its just generic Home/Away
             winner_elo_str = loser_elo_str = '\u200b'
 
-        embed.add_field(name='**VICTORS**: {0.name}'.format(winning_team), value=winner_elo_str, inline=False)
+        embed.add_field(name=f'**VICTORS**: {winning_team.name}', value=winner_elo_str, inline=False)
 
         winning_players = winning_game.get_roster(winning_team)  # returns [(player, elo_delta), ...]
         losing_players = winning_game.get_roster(losing_team)
 
         mention_str = 'Game Roster: '
         for winning_player, elo_delta, tribe_emoji in winning_players:
-            embed.add_field(name='{0.discord_name} {1}'.format(winning_player, tribe_emoji), value='ELO: {0.elo} (+{1})'.format(winning_player, elo_delta), inline=True)
+            embed.add_field(name=f'{winning_player.discord_name} {tribe_emoji}', value=f'ELO: {winning_player.elo} (+{elo_delta})', inline=True)
             mention_str += '<@{}> '.format(winning_player.discord_id)
 
         embed.add_field(name='**LOSERS**: {0.name}'.format(losing_team), value=loser_elo_str, inline=False)
 
         for losing_player, elo_delta, tribe_emoji in losing_players:
-            embed.add_field(name='{0.discord_name} {1}'.format(losing_player, tribe_emoji), value='ELO: {0.elo} ({1})'.format(losing_player, elo_delta), inline=True)
+            embed.add_field(name=f'{losing_player.discord_name} {tribe_emoji}', value=f'ELO: {losing_player.elo} ({elo_delta})', inline=True)
             mention_str += '<@{}> '.format(losing_player.discord_id)
 
     await ctx.send(content=mention_str, embed=embed)
@@ -412,6 +422,7 @@ async def startgame(ctx, *args):
             home_side_team, _ = Team.get_or_create(name='Home', defaults={'emoji': ':stadium:'})
             away_side_team, _ = Team.get_or_create(name='Away', defaults={'emoji': ':airplane:'})
 
+    logger.debug(f'All input checks passed. Creating new game records with args: {args}')
     with db:
         # Sanity checks all passed. Start a new game!
         newgame = Game.create(team_size=len(side_home), home_team=home_side_team, away_team=away_side_team)

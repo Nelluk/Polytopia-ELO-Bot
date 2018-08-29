@@ -16,3 +16,4 @@ config.ini
 *.sublime*
 pyvenv.cfg
 pip-selfcheck.json
+*.log
