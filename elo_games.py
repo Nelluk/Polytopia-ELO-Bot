@@ -157,8 +157,8 @@ class ELOGamesCog:
             if len(side_home_players) > 1:
                 home_squad = Squad.upsert_squad(player_list=side_home_players, game=newgame, team=home_side_team)
                 away_squad = Squad.upsert_squad(player_list=side_away_players, game=newgame, team=away_side_team)
-                home_elo_str = 'Squad ELO: {}'.format(home_squad.elo)
-                away_elo_str = 'Squad ELO: {}'.format(away_squad.elo)
+                home_elo_str = f'Squad ELO: {home_squad.elo}'
+                away_elo_str = f'Squad ELO: {away_squad.elo}'
             else:
                 home_elo_str = away_elo_str = '\u200b'
 
@@ -168,7 +168,7 @@ class ELOGamesCog:
 
         for player in side_home_players:
             embed.add_field(name='**{0.discord_name}**'.format(player), value='ELO: {}'.format(player.elo))
-            mention_str += '<@{}> '.format(player.discord_id)
+            mention_str += f'<@{player.discord_id}> '
 
         embed.add_field(value='\u200b', name=' \u200b', inline=False)
 
@@ -176,7 +176,7 @@ class ELOGamesCog:
 
         for player in side_away_players:
             embed.add_field(name='**{0.discord_name}**'.format(player), value='ELO: {}'.format(player.elo))
-            mention_str += '<@{}> '.format(player.discord_id)
+            mention_str += f'<@{player.discord_id}> '
 
         await ctx.send(content=mention_str, embed=embed)
 
