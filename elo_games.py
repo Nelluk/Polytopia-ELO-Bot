@@ -4,7 +4,8 @@ import websockets
 # import argparse
 from discord.ext import commands
 from models import db, Team, Game, Player, Lineup, Tribe, Squad, SquadGame, SquadMember
-from bot import helper_roles, mod_roles
+import peewee
+from bot import helper_roles, mod_roles, date_cutoff, bot_channels
 
 with db:
     db.create_tables([Team, Game, Player, Lineup, Tribe, Squad, SquadGame, SquadMember])
@@ -20,10 +21,10 @@ with db:
 #     exit(0)
 
 def in_bot_channel():
-    async def predicate(self, ctx):
+    async def predicate(ctx):
         if bot_channels is None:
             return True
-        return str(self, ctx.message.channel.id) in bot_channels
+        return str(ctx.message.channel.id) in bot_channels
     return commands.check(predicate)
 
 
@@ -114,8 +115,8 @@ class ELOGamesCog:
             # Disabling this check would be a decent way to enable uneven teams ie 2v1, with the same person listed twice on one side.
             return
 
-        side_home = [get_member_from_mention(x) for x in side_home]
-        side_away = [get_member_from_mention(x) for x in side_away]
+        side_home = [get_member_from_mention(self.bot, x) for x in side_home]
+        side_away = [get_member_from_mention(self.bot, x) for x in side_away]
 
         if None in side_home or None in side_away:
             await ctx.send('Command included invalid player. Example usage for a 2v2 game: `{}startgame @player1 @player2 VS @player3 @player4`'.format(command_prefix))
@@ -293,7 +294,7 @@ class ELOGamesCog:
                 # Either no results or more than one. Fall back to searching on polytopia_id or polytopia_name
                 try:
                     player = Player.select().where((Player.polytopia_id == player_mention) | (Player.polytopia_name == player_mention)).get()
-                except DoesNotExist:
+                except peewee.DoesNotExist:
                     if len(matching_players) > 1:
                         await ctx.send('There is more than one player found with that name. Specify user with @Mention.'.format(player_mention))
                     else:
@@ -359,7 +360,7 @@ class ELOGamesCog:
                 wins, losses = player.get_record()
                 leaderboard.append('`{1:>3}. {0.discord_name:30}  (ELO: {0.elo:4})  W {2} / L {3}`'.format(player, counter + 1, wins, losses))
 
-        await paginate(self, ctx, title='**Individual Leaderboards**', message_list=leaderboard, page_start=0, page_end=10, page_size=10)
+        await paginate(self.bot, ctx, title='**Individual Leaderboards**', message_list=leaderboard, page_start=0, page_end=10, page_size=10)
 
     @in_bot_channel()
     @commands.command(aliases=['lbsquad', 'leaderboardsquad'])
@@ -376,7 +377,7 @@ class ELOGamesCog:
                 squad_members = sq.get_names()
                 squad_names = ' / '.join(squad_members)
                 leaderboard.append('`{0:>3}. {1:40}  (ELO: {2:4})  W {3} / L {4}`'.format(counter + 1, squad_names, sq.elo, wins, losses))
-        await paginate(self, ctx, title='**Squad Leaderboards**', message_list=leaderboard, page_start=0, page_end=10, page_size=10)
+        await paginate(self.bot, ctx, title='**Squad Leaderboards**', message_list=leaderboard, page_start=0, page_end=10, page_size=10)
 
     @commands.command()
     async def setcode(self, ctx, *args):
@@ -387,10 +388,10 @@ class ELOGamesCog:
         elif len(args) == 2:
             # User changing another user's code. Admin permissions required.
             # This requires a @Mention target because this is also the command to register a user with the bot, which requires info from discord.Member object
-            if len(get_matching_roles(self, ctx.author, helper_roles)) == 0:
+            if len(get_matching_roles(ctx.author, helper_roles)) == 0:
                 await ctx.send('You do not have permission to trigger this command.')
                 return
-            if len(self, ctx.message.mentions) != 1:
+            if len(ctx.message.mentions) != 1:
                 await ctx.send('Incorrect format. Use `{}setcode @Player newcode`'.format(command_prefix))
                 return
             target_discord_member = ctx.message.mentions[0]
@@ -429,9 +430,9 @@ class ELOGamesCog:
     async def setname(self, ctx, *args):
         if len(args) == 1:
             # User setting code for themselves. No special permissions required.
-            target_player = get_player_from_mention_or_string(self, ctx.author.name)
+            target_player = get_player_from_mention_or_string(ctx.author.name)
             if len(target_player) != 1:
-                await ctx.send('Player with name {} is not in the system. Try registering with {}setcode first.'.format(self, ctx.author.name, command_prefix))
+                await ctx.send('Player with name {} is not in the system. Try registering with {}setcode first.'.format(ctx.author.name, command_prefix))
                 return
             new_name = args[0]
         elif len(args) == 2:
@@ -442,7 +443,7 @@ class ELOGamesCog:
 
             target_player = get_player_from_mention_or_string(args[0])
             if len(target_player) != 1:
-                await ctx.send('Player with name {} is not in the system. Try registering with {}setcode first.'.format(self, ctx.author.name, command_prefix))
+                await ctx.send('Player with name {} is not in the system. Try registering with {}setcode first.'.format(ctx.author.name, command_prefix))
                 return
             new_name = args[1]
         else:
@@ -702,7 +703,7 @@ def example_game_data():
         game.declare_winner(winning_team=t1, losing_team=t2)
 
 
-def get_member_from_mention(mention_str):
+def get_member_from_mention(bot, mention_str):
         # Assumes string of format <@123457890>, returns discord.Member object or None
         # If string is of format <@!12345>, the ! indicates that member has a temporary nickname set on this server.
 
@@ -778,7 +779,7 @@ def upsert_player_and_lineup(player_discord, player_team, game_side=None, new_ga
         return player, created
 
 
-async def paginate(ctx, title, message_list, page_start=0, page_end=10, page_size=10):
+async def paginate(bot, ctx, title, message_list, page_start=0, page_end=10, page_size=10):
     # Allows user to page through a long list of messages with reactions
 
     page_end = page_end if len(message_list) > page_end else len(message_list)
