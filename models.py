@@ -122,11 +122,12 @@ class Game(BaseModel):
             squadgame.squad.save()
             squadgame.delete_instance()
 
-        self.winner.set_elo_from_delta(self.winner_delta * -1)
-        self.loser.set_elo_from_delta(self.loser_delta * -1)
+        if self.winner:
+            self.winner.set_elo_from_delta(self.winner_delta * -1)
+            self.loser.set_elo_from_delta(self.loser_delta * -1)
 
-        self.winner.save()
-        self.loser.save()
+            self.winner.save()
+            self.loser.save()
 
         self.delete_instance()
 

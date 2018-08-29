@@ -5,7 +5,7 @@ import websockets
 from discord.ext import commands
 from models import db, Team, Game, Player, Lineup, Tribe, Squad, SquadGame, SquadMember
 import peewee
-from bot import helper_roles, mod_roles, date_cutoff, bot_channels, logger, args
+from bot import helper_roles, mod_roles, date_cutoff, bot_channels, logger, args, require_teams, command_prefix
 
 with db:
     db.create_tables([Team, Game, Player, Lineup, Tribe, Squad, SquadGame, SquadMember])
@@ -33,7 +33,7 @@ class ELOGamesCog:
         with db:
             try:
                 winning_game = Game.get(id=game_id)
-            except DoesNotExist:
+            except peewee.DoesNotExist:
                 await ctx.send(f'Game with ID {game_id} cannot be found.')
                 return
 
@@ -67,7 +67,7 @@ class ELOGamesCog:
 
             if winning_team.name != 'Home' and winning_team.name != 'Away':
                 winner_elo_str = f'Team ELO: {winning_team.elo} (+{winning_game.winner_delta})'
-                loser_elo_str = f'Team ELO: {losing_team.elo} (+{winning_game.loser_delta})'
+                loser_elo_str = f'Team ELO: {losing_team.elo} ({winning_game.loser_delta})'
             else:
                 # Hide team ELO if its just generic Home/Away
                 winner_elo_str = loser_elo_str = '\u200b'
@@ -80,13 +80,13 @@ class ELOGamesCog:
             mention_str = 'Game Roster: '
             for winning_player, elo_delta, tribe_emoji in winning_players:
                 embed.add_field(name=f'{winning_player.discord_name} {tribe_emoji}', value=f'ELO: {winning_player.elo} (+{elo_delta})', inline=True)
-                mention_str += '<@{}> '.format(winning_player.discord_id)
+                mention_str += f'<@{winning_player.discord_id}> '
 
             embed.add_field(name='**LOSERS**: {0.name}'.format(losing_team), value=loser_elo_str, inline=False)
 
             for losing_player, elo_delta, tribe_emoji in losing_players:
                 embed.add_field(name=f'{losing_player.discord_name} {tribe_emoji}', value=f'ELO: {losing_player.elo} ({elo_delta})', inline=True)
-                mention_str += '<@{}> '.format(losing_player.discord_id)
+                mention_str += f'<@{losing_player.discord_id}> '
 
         await ctx.send(content=mention_str, embed=embed)
 
@@ -119,7 +119,7 @@ class ELOGamesCog:
 
         if (None in list_of_away_teams) or (None in list_of_home_teams):
             if require_teams is True:
-                await(self, ctx.send('One or more players listed cannot be matched to a Team (based on Discord Roles). Make sure player has exactly one matching Team role.'))
+                await ctx.send('One or more players listed cannot be matched to a Team (based on Discord Roles). Make sure player has exactly one matching Team role.')
                 return
             else:
                 # Set this to a home/away game if at least one player has no matching role, AND require_teams == false
@@ -185,7 +185,7 @@ class ELOGamesCog:
         with db:
             try:
                 game = Game.get(id=game_id)
-            except DoesNotExist:
+            except peewee.DoesNotExist:
                 await ctx.send('Game with ID {} cannot be found.'.format(game_id))
                 return
 
@@ -235,7 +235,7 @@ class ELOGamesCog:
         with db:
             try:
                 game = Game.get(id=game_id)
-            except DoesNotExist:
+            except peewee.DoesNotExist:
                 await ctx.send('Game with ID {} cannot be found.'.format(game_id))
                 return
 
@@ -282,16 +282,16 @@ class ELOGamesCog:
             matching_players = get_player_from_mention_or_string(player_mention)
             if len(matching_players) == 1:
                 player = matching_players[0]
-            else:
+            elif len(matching_players) == 0:
                 # Either no results or more than one. Fall back to searching on polytopia_id or polytopia_name
                 try:
-                    player = Player.select().where((Player.polytopia_id == player_mention) | (Player.polytopia_name == player_mention)).get()
+                    player = Player.select().where((Player.polytopia_id.contains(player_mention)) | (Player.polytopia_name.contains(player_mention))).get()
                 except peewee.DoesNotExist:
-                    if len(matching_players) > 1:
-                        await ctx.send('There is more than one player found with that name. Specify user with @Mention.'.format(player_mention))
-                    else:
-                        await ctx.send('Could not find \"{}\" by Discord name, Polytopia name, or Polytopia ID.'.format(player_mention))
+                    await ctx.send(f'Could not find \"{player_mention}\" by Discord name, Polytopia name, or Polytopia ID.')
                     return
+            else:
+                await ctx.send('There is more than one player found with that name. Specify user with @Mention.'.format(player_mention))
+                return
 
             wins, losses = player.get_record()
 
@@ -303,9 +303,9 @@ class ELOGamesCog:
 
             recent_games = Game.select().join(Lineup).where(Lineup.player == player).order_by(-Game.date)[:5]
 
-            embed = discord.Embed(title='Player card for {}'.format(player.discord_name))
-            embed.add_field(name='Results', value='ELO: {}, W {} / L {}'.format(player.elo, wins, losses))
-            embed.add_field(name='Ranking', value='{} of {}'.format(counter + 1, len(ranked_players_query)))
+            embed = discord.Embed(title=f'Player card for {player.discord_name}')
+            embed.add_field(name='Results', value=f'ELO: {player.elo}, W {wins} / L {losses}')
+            embed.add_field(name='Ranking', value=f'{counter + 1} of {len(ranked_players_query)}')
             if player.team:
                 embed.add_field(name='Last-known Team', value='{}'.format(player.team.name))
                 if player.team.image_url:
@@ -409,8 +409,11 @@ class ELOGamesCog:
 
         with db:
             player_matches = get_player_from_mention_or_string(player_string)
-            if len(player_matches) != 1:
+            if len(player_matches) == 0:
                 await ctx.send('Cannot find player with that name. Correct usage: `{}getcode @Player`'.format(command_prefix))
+                return
+            if len(player_matches) > 1:
+                await ctx.send('More than one matching player found. Use @player to specify. Correct usage: `{}getcode @Player`'.format(command_prefix))
                 return
             player_target = player_matches[0]
             if player_target.polytopia_id:
@@ -422,9 +425,9 @@ class ELOGamesCog:
     async def setname(self, ctx, *args):
         if len(args) == 1:
             # User setting code for themselves. No special permissions required.
-            target_player = get_player_from_mention_or_string(ctx.author.name)
+            target_player = get_player_from_mention_or_string(f'<@{ctx.author.id}>')
             if len(target_player) != 1:
-                await ctx.send('Player with name {} is not in the system. Try registering with {}setcode first.'.format(ctx.author.name, command_prefix))
+                await ctx.send(f'Player with name {ctx.author.name} is not in the system. Try registering with {command_prefix}setcode first.')
                 return
             new_name = args[0]
         elif len(args) == 2:
@@ -435,12 +438,12 @@ class ELOGamesCog:
 
             target_player = get_player_from_mention_or_string(args[0])
             if len(target_player) != 1:
-                await ctx.send('Player with name {} is not in the system. Try registering with {}setcode first.'.format(ctx.author.name, command_prefix))
+                await ctx.send(f'Player with name {ctx.author.name} is not in the system. Try registering with {command_prefix}setcode first.')
                 return
             new_name = args[1]
         else:
             # Unexpected input
-            await ctx.send('Wrong number of arguments. Use `{}setname my_polytopia_name`'.format(command_prefix))
+            await ctx.send(f'Wrong number of arguments. Use `{command_prefix}setname my_polytopia_name`')
             return
 
         with db:
@@ -453,8 +456,8 @@ class ELOGamesCog:
         with db:
             try:
                 game = Game.get(id=game_id)
-            except DoesNotExist:
-                await ctx.send('Game with ID {} cannot be found.'.format(game_id))
+            except peewee.DoesNotExist:
+                await ctx.send(f'Game with ID {game_id} cannot be found.')
                 return
             matching_tribes = Tribe.select().where(Tribe.name.contains(tribe_name))
             if len(matching_tribes) != 1:
@@ -464,18 +467,24 @@ class ELOGamesCog:
 
             players = get_player_from_mention_or_string(player_name)
 
-            if len(players) != 1:
-                await ctx.send('Could not find matching player.'.format(player_name, game_id))
+            if len(players) == 0:
+                await ctx.send('Could not find matching player.')
+                return
+
+            if len(players) > 1:
+                await ctx.send('More than one player with that name found. Try using @mention.')
+                # Could improve this by only searching for players within a game's lineup, but that would be a decent amount of work
                 return
 
             lineups = Lineup.select().join(Player).where((Player.id == players[0]) & (Lineup.game == game))
             if len(lineups) != 1:
-                await ctx.send('Could not match player {} to game {}.'.format(player_name, game_id))
+                await ctx.send(f'Could not match player {player_name} to game {game_id}.')
                 return
 
             lineups[0].tribe = tribe
             lineups[0].save()
-            await ctx.send('Player {} assigned to tribe {} in game {} {}'.format(player_name, tribe.name, game_id, tribe.emoji))
+            emoji_str = tribe.emoji if tribe.emoji is not None else ''
+            await ctx.send(f'Player {player_name} assigned to tribe {tribe} in game {game_id} {emoji_str}')
 
     @commands.command()
     @commands.has_any_role(*mod_roles)
@@ -504,8 +513,8 @@ class ELOGamesCog:
         try:
             db.connect()
             team = Team.create(name=name)
-            await ctx.send('Team {name} created! Starting ELO: {elo}. Players with a Discord Role exactly matching \"{name}\" will be considered team members.'.format(name=name, elo=team.elo))
-        except IntegrityError:
+            await ctx.send(f'Team {name} created! Starting ELO: {team.elo}. Players with a Discord Role exactly matching \"{name}\" will be considered team members.')
+        except peewee.IntegrityError:
             await ctx.send('That team already exists!')
         db.close()
 
@@ -533,22 +542,22 @@ class ELOGamesCog:
     @commands.has_any_role(*mod_roles)
     async def team_image(self, ctx, team_name: str, image_url):
 
-        if 'http'not in image_url:
-            await ctx.send('Valid image url not detected. Example usage: `{}team_image name http://url_to_image.png`'.format(command_prefix))
+        if 'http' not in image_url:
+            await ctx.send(f'Valid image url not detected. Example usage: `{command_prefix}team_image name http://url_to_image.png`')
             # This is a very dumb check to make sure user is passing a URL and not a random string. Assumes mod can figure it out from there.
             return
 
         with db:
             matching_teams = get_team_from_name(team_name)
             if len(matching_teams) != 1:
-                await ctx.send('Can\'t find matching team or too many matches. Example: `{}team_image name http://url_to_image.png`'.format(command_prefix))
+                await ctx.send(f'Can\'t find matching team or too many matches. Example: `{command_prefix}team_image name http://url_to_image.png`')
                 return
 
             team = matching_teams[0]
             team.image_url = image_url
             team.save()
 
-            await ctx.send('Team {0.name} updated with new image_url (image should appear below)'.format(team))
+            await ctx.send(f'Team {team.name} updated with new image_url (image should appear below)')
             await ctx.send(team.image_url)
 
     @commands.command()
@@ -558,7 +567,7 @@ class ELOGamesCog:
         with db:
             try:
                 team = Team.get(name=old_team_name)
-            except DoesNotExist:
+            except peewee.DoesNotExist:
                 await ctx.send('That team can not be found. Be sure to use the full team name. Example: `{}team_name \"Current name\" \"New Team Name\"`'.format(command_prefix))
                 return
 
@@ -631,13 +640,13 @@ def initialize_data():
         try:
             print('Adding team {}'.format(team))
             team = Team.create(name=team, emoji=emoji, image_url=image_url)
-        except IntegrityError:
+        except peewee.IntegrityError:
             pass
     for tribe in tribe_list:
         try:
             print('Adding tribe {}'.format(tribe))
             Tribe.create(name=tribe)
-        except IntegrityError:
+        except peewee.IntegrityError:
             pass
     db.close()
 
@@ -741,7 +750,6 @@ def get_teams_of_players(list_of_players):
 
 
 def get_player_from_mention_or_string(player_string):
-
     if '<@' in player_string:
         # Extract discord ID and look up based on that
         try:
@@ -751,7 +759,7 @@ def get_player_from_mention_or_string(player_string):
         try:
             player = Player.select().where(Player.discord_id == p_id)
             return player
-        except DoesNotExist:
+        except peewee.DoesNotExist:
             return []
 
     # Otherwise return any matches from the name string
