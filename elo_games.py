@@ -1,15 +1,10 @@
 import discord
 import asyncio
 import websockets
-# import argparse
 from discord.ext import commands
-from models import db, Team, Game, Player, Lineup, Tribe, Squad, SquadGame, SquadMember
 import peewee
+from models import db, Team, Game, Player, Lineup, Tribe, Squad, SquadGame, SquadMember
 from bot import helper_roles, mod_roles, date_cutoff, bot_channels, logger, args, require_teams, command_prefix
-
-with db:
-    db.create_tables([Team, Game, Player, Lineup, Tribe, Squad, SquadGame, SquadMember])
-    # Only creates missing tables so should be safe to run each time
 
 
 def in_bot_channel():
@@ -22,7 +17,6 @@ def in_bot_channel():
 
 class ELOGamesCog:
     def __init__(self, bot):
-        print('in cog class!')
         self.bot = bot
 
     @commands.command(aliases=['endgame', 'win', 'winner'])
@@ -638,13 +632,15 @@ def initialize_data():
     db.connect()
     for team, emoji, image_url in team_list:
         try:
-            print('Adding team {}'.format(team))
+            print(f'Adding team{team}')
+            logger.debug(f'Adding team{team}')
             team = Team.create(name=team, emoji=emoji, image_url=image_url)
         except peewee.IntegrityError:
             pass
     for tribe in tribe_list:
         try:
-            print('Adding tribe {}'.format(tribe))
+            print(f'Adding tribe{tribe}')
+            logger.debug(f'Adding tribe{tribe}')
             Tribe.create(name=tribe)
         except peewee.IntegrityError:
             pass

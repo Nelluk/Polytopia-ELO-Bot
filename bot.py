@@ -35,7 +35,7 @@ parser.add_argument('--add_default_data', action='store_true')
 parser.add_argument('--add_example_games', action='store_true')
 args = parser.parse_args()
 
-initial_extensions = ['elo_games']
+initial_extensions = ['elo_games', 'game_import_export']
 
 if __name__ == '__main__':
 
@@ -57,7 +57,6 @@ if __name__ == '__main__':
         bot.load_extension(extension)
         # try:
         #     bot.load_extension(extension)
-        #     print('loaded!')
         # except Exception as e:
         #     print(f'Failed to load extension {extension}.')
         #     pass
@@ -70,6 +69,3 @@ if __name__ == '__main__':
         print(f'Successfully logged in and booted...!')
 
     bot.run(discord_key, bot=True, reconnect=True)
-
-else:
-    print('name != main!')

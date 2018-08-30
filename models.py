@@ -63,7 +63,7 @@ class Game(BaseModel):
     date = DateField(default=datetime.datetime.today)
 
     def get_roster(self, team):
-        # Returns list of tuples [(player), (elo_change_from_this_game)]
+        # Returns list of tuples [(player), (elo_change_from_this_game), :tribe_emoji:]
         players = []
 
         for lineup in self.lineup:
@@ -269,3 +269,7 @@ class SquadGame(BaseModel):
     team = ForeignKeyField(Team, null=False, backref='squadgame')
     elo_change = IntegerField(default=0)
 
+
+with db:
+    db.create_tables([Team, Game, Player, Lineup, Tribe, Squad, SquadGame, SquadMember])
+    # Only creates missing tables so should be safe to run each time
