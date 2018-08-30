@@ -17,6 +17,7 @@ class GameIO_Cog:
         self.bot = bot
 
     @commands.command(aliases=['gex', 'gameexport'])
+    @commands.cooldown(1, 300, commands.BucketType.guild)
     async def game_export(self, ctx):
 
         with open('games_export.csv', mode='w') as export_file:
@@ -38,15 +39,22 @@ class GameIO_Cog:
                     else:
                         away_players.append(lineup.player.discord_name)
 
-                home_players.extend([''] * (5 - len(home_players)))
+                home_players.extend([''] * (5 - len(home_players)))  # Pad list of players with extra blank entries so total length is 5
                 away_players.extend([''] * (5 - len(away_players)))
                 row += home_players + away_players
-                print(row)
                 game_writer.writerow(row)
 
         pb = Pastebin(pastebin_api)
-        pb_url = pb.create_paste_from_file(filepath='games_export.csv', api_paste_private=1, api_paste_expire_date='2W', api_paste_name='Polytopia Game Data')
+        pb_url = pb.create_paste_from_file(filepath='games_export.csv', api_paste_private=0, api_paste_expire_date='1D', api_paste_name='Polytopia Game Data')
         await ctx.send(f'Game data has been export to the following URL: {pb_url}')
+
+    @game_export.error
+    async def game_export_handler(self, ctx, error):
+        """A local Error Handler
+        The global on_command_error will still be invoked after."""
+
+        if isinstance(error, commands.CommandOnCooldown):
+            await ctx.send(f'This command is on cooldown. Try again in {int(error.retry_after)} seconds.')
 
 
 def setup(bot):
