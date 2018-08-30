@@ -54,35 +54,12 @@ class ELOGamesCog:
 
             winning_game.declare_winner(winning_team, losing_team)
 
-        with db:
-            embed = discord.Embed(title=f'Game {game_id} has concluded and {winning_team.name} is victorious. Congratulations!')
-            if winning_team.image_url:
-                embed.set_thumbnail(url=winning_team.image_url)
+            winner_roster = winning_game.get_roster(winning_team)
+            loser_roster = winning_game.get_roster(losing_team)
 
-            if winning_team.name != 'Home' and winning_team.name != 'Away':
-                winner_elo_str = f'Team ELO: {winning_team.elo} (+{winning_game.winner_delta})'
-                loser_elo_str = f'Team ELO: {losing_team.elo} ({winning_game.loser_delta})'
-            else:
-                # Hide team ELO if its just generic Home/Away
-                winner_elo_str = loser_elo_str = '\u200b'
-
-            embed.add_field(name=f'**VICTORS**: {winning_team.name}', value=winner_elo_str, inline=False)
-
-            winning_players = winning_game.get_roster(winning_team)  # returns [(player, elo_delta), ...]
-            losing_players = winning_game.get_roster(losing_team)
-
-            mention_str = 'Game Roster: '
-            for winning_player, elo_delta, tribe_emoji in winning_players:
-                embed.add_field(name=f'{winning_player.discord_name} {tribe_emoji}', value=f'ELO: {winning_player.elo} (+{elo_delta})', inline=True)
-                mention_str += f'<@{winning_player.discord_id}> '
-
-            embed.add_field(name='**LOSERS**: {0.name}'.format(losing_team), value=loser_elo_str, inline=False)
-
-            for losing_player, elo_delta, tribe_emoji in losing_players:
-                embed.add_field(name=f'{losing_player.discord_name} {tribe_emoji}', value=f'ELO: {losing_player.elo} ({elo_delta})', inline=True)
-                mention_str += f'<@{losing_player.discord_id}> '
-
-        await ctx.send(content=mention_str, embed=embed)
+            player_mentions = [f'<@{p.discord_id}>' for p, _, _ in (winner_roster + loser_roster)]
+            await ctx.send(f'Game concluded! Congrats team {winning_team.name}. Roster: {" ".join(player_mentions)}')
+            await game_embed(ctx, winning_game)
 
     @commands.command(aliases=['newgame'])
     @commands.has_any_role(*helper_roles)
@@ -151,28 +128,10 @@ class ELOGamesCog:
             if len(side_home_players) > 1:
                 home_squad = Squad.upsert_squad(player_list=side_home_players, game=newgame, team=home_side_team)
                 away_squad = Squad.upsert_squad(player_list=side_away_players, game=newgame, team=away_side_team)
-                home_elo_str = f'Squad ELO: {home_squad.elo}'
-                away_elo_str = f'Squad ELO: {away_squad.elo}'
-            else:
-                home_elo_str = away_elo_str = '\u200b'
 
-        embed = discord.Embed(title='Game {0}: {1.emoji}  **{1.name}**   *VS*   **{2.name}**  {2.emoji}'.format(newgame.id, home_side_team, away_side_team))
-        embed.add_field(name='Lineup for Team *{}*'.format(home_side_team.name), value=home_elo_str, inline=False)
-        mention_str = 'Game Roster: '
-
-        for player in side_home_players:
-            embed.add_field(name='**{0.discord_name}**'.format(player), value='ELO: {}'.format(player.elo))
-            mention_str += f'<@{player.discord_id}> '
-
-        embed.add_field(value='\u200b', name=' \u200b', inline=False)
-
-        embed.add_field(name='Lineup for Team *{}*'.format(away_side_team.name), value=away_elo_str, inline=False)
-
-        for player in side_away_players:
-            embed.add_field(name='**{0.discord_name}**'.format(player), value='ELO: {}'.format(player.elo))
-            mention_str += f'<@{player.discord_id}> '
-
-        await ctx.send(content=mention_str, embed=embed)
+        mentions = [p.mention for p in ctx.message.mentions]
+        await ctx.send(f'New game ID {newgame.id} started! Roster: {" ".join(mentions)}')
+        await game_embed(ctx, newgame)
 
     @commands.command(aliases=['gameinfo'])
     async def game(self, ctx, game_id: int):
@@ -183,34 +142,7 @@ class ELOGamesCog:
                 await ctx.send('Game with ID {} cannot be found.'.format(game_id))
                 return
 
-            home_side_team = game.home_team
-            away_side_team = game.away_team
-            side_home = game.get_roster(home_side_team)
-            side_away = game.get_roster(away_side_team)
-
-        if game.is_completed == 1:
-            game_status = 'Completed'
-            embed = discord.Embed(title='Game {0}: {1.emoji}  **{1.name}**   *VS*   **{2.name}**  {2.emoji}\nWINNER: {3}'.format(game.id, home_side_team, away_side_team, game.winner.name))
-            if game.winner.image_url:
-                embed.set_thumbnail(url=game.winner.image_url)
-
-        else:
-            game_status = 'Incomplete'
-            embed = discord.Embed(title='Game {0}: {1.emoji}  **{1.name}**   *VS*   **{2.name}**  {2.emoji}'.format(game.id, home_side_team, away_side_team))
-
-        embed.add_field(name='Lineup for Team **{0.name}**({0.elo})'.format(home_side_team), value='\u200b', inline=False)
-
-        for player, elo_delta, tribe_emoji in side_home:
-            embed.add_field(name='**{0.discord_name}** {1}'.format(player, tribe_emoji), value='ELO: {0.elo}'.format(player), inline=True)
-
-        embed.add_field(value='\u200b', name=' \u200b', inline=False)
-        embed.add_field(name='Lineup for Team **{0.name}**({0.elo})'.format(away_side_team), value='\u200b', inline=False)
-
-        for player, elo_delta, tribe_emoji in side_away:
-            embed.add_field(name='**{0.discord_name}** {1}'.format(player, tribe_emoji), value='ELO: {0.elo}'.format(player), inline=True)
-
-        embed.set_footer(text='Status: {}  -  Creation Date {}'.format(game_status, str(game.date)))
-        await ctx.send(embed=embed)
+        await game_embed(ctx, game)
 
     @commands.command(aliases=['incomplete'])
     async def incompletegames(self, ctx):
@@ -773,6 +705,119 @@ def upsert_player_and_lineup(player_discord, player_team, game_side=None, new_ga
             Lineup.create(game=new_game, player=player, team=game_side)
             logger.debug('Player {player.discord_name} inserted')
         return player, created
+
+
+async def game_embed(ctx, game):
+
+    # TODO: Should team emoji handle being None?
+
+        home_side_team = game.home_team
+        away_side_team = game.away_team
+        side_home_roster = game.get_roster(home_side_team)
+        side_away_roster = game.get_roster(away_side_team)
+
+        embed = discord.Embed(title=f'Game {game.id}: {home_side_team.emoji}  **{home_side_team.name}**   *VS*   **{away_side_team.name}**  {away_side_team.emoji}')
+        game_status = 'Incomplete'
+        if game.is_completed == 1:
+            game_status = 'Completed'
+            embed.title += f'\nWINNER: {game.winner.name}'
+
+            if game.winner.image_url:
+                embed.set_thumbnail(url=game.winner.image_url)
+
+        # TEAM ELOs and ELO DELTAS
+        if home_side_team.name != 'Home' and away_side_team.name != 'Away':
+            if game.is_completed == 1:
+                if game.winner == home_side_team:
+                    home_delta_string = f'+{game.winner_delta}'
+                    away_delta_string = f'{game.loser_delta}'
+                else:
+                    home_delta_string = f'{game.loser_delta}'
+                    away_delta_string = f'+{game.winner_delta}'
+                home_elo_str = f' ({home_side_team.elo} {home_delta_string})'
+                away_elo_str = f' ({away_side_team.elo} {away_delta_string})'
+            else:
+                home_elo_str = f'({home_side_team.elo})'
+                away_elo_str = f'({away_side_team.elo})'
+        else:
+            # Hide team ELO if its just generic Home/Away
+            home_elo_str = away_elo_str = ''
+
+        # SQUAD ELOs and ELO DELTAS
+        if len(side_home_roster) > 1:
+            home_player_list = [x[0] for x in side_home_roster]
+            away_player_list = [x[0] for x in side_away_roster]
+
+            home_squad = Squad.get_matching_squad(home_player_list)[0]
+            away_squad = Squad.get_matching_squad(away_player_list)[0]
+            home_squad_str = f'Squad ELO: {home_squad.elo}'
+            away_squad_str = f'Squad ELO: {away_squad.elo}'
+            if game.is_completed == 1:
+                home_squad_delta = SquadGame.select().where((SquadGame.game == game) & (SquadGame.squad == home_squad)).get().elo_change
+                away_squad_delta = SquadGame.select().where((SquadGame.game == game) & (SquadGame.squad == away_squad)).get().elo_change
+                if game.winner == home_side_team:
+                    home_squad_str += f' (+{home_squad_delta})'
+                    away_squad_str += f' ({away_squad_delta})'
+                else:
+                    home_squad_str += f' ({home_squad_delta})'
+                    away_squad_str += f' (+{away_squad_delta})'
+                # with db:
+                #     try:
+                #         home_squad_delta = SquadGame.select().where((SquadGame.game == game) & (SquadGame.squad == home_squad)).get().elo_change
+                #         away_squad_delta = SquadGame.select().where((SquadGame.game == game) & (SquadGame.squad == away_squad)).get().elo_change
+                #         if game.winner == home_side_team:
+                #             home_squad_str += f' (+{home_squad_delta})'
+                #             away_squad_str += f' ({away_squad_delta})'
+                #         else:
+                #             home_squad_str += f' ({home_squad_delta})'
+                #             away_squad_str += f' (+{away_squad_delta})'
+                #     except peewee.DoesNotExist:
+                #         home_squad_delta = away_squad_delta = ''
+        else:
+            home_squad_str = away_squad_str = '\u200b'
+
+        game_data = [(home_side_team, home_elo_str, home_squad_str, side_home_roster), (away_side_team, away_elo_str, away_squad_str, side_away_roster)]
+
+        for team, elo_str, squad_str, roster in game_data:
+            embed.add_field(name=f'Lineup for Team **{team.name}**{elo_str}', value=squad_str, inline=False)
+
+            for player, elo_delta, tribe_emoji in roster:
+                if elo_delta == 0:
+                    p_delta_str = ''
+                elif elo_delta > 0:
+                    p_delta_str = f' (+{elo_delta})'
+                else:
+                    p_delta_str = f' ({elo_delta})'
+
+                embed.add_field(name=f'**{player.discord_name}** {tribe_emoji}', value=f'ELO: {player.elo}{p_delta_str}', inline=True)
+
+            embed.add_field(value='\u200b', name=' \u200b', inline=False)
+
+        # embed.add_field(name=f'Lineup for Team **{home_side_team.name}**{home_elo_str}', value=home_squad_str, inline=False)
+
+        # for player, elo_delta, tribe_emoji in side_home_roster:
+        #     if elo_delta == 0:
+        #         p_delta_str = ''
+        #     elif elo_delta > 0:
+        #         p_delta_str = f' (+{elo_delta})'
+        #     else:
+        #         p_delta_str = f' ({elo_delta})'
+        #     embed.add_field(name=f'**{player.discord_name}** {tribe_emoji}', value=f'ELO: {player.elo}{p_delta_str}', inline=True)
+
+        # embed.add_field(value='\u200b', name=' \u200b', inline=False)
+        # embed.add_field(name=f'Lineup for Team **{away_side_team.name}**{away_elo_str}', value=away_squad_str, inline=False)
+
+        # for player, elo_delta, tribe_emoji in side_away_roster:
+        #     if elo_delta == 0:
+        #         p_delta_str = ''
+        #     elif elo_delta > 0:
+        #         p_delta_str = f' (+{elo_delta})'
+        #     else:
+        #         p_delta_str = f' ({elo_delta})'
+        #     embed.add_field(name=f'**{player.discord_name}** {tribe_emoji}', value=f'ELO: {player.elo}{p_delta_str}', inline=True)
+
+        embed.set_footer(text=f'Status: {game_status}  -  Creation Date {str(game.date)}')
+        await ctx.send(embed=embed)
 
 
 async def paginate(bot, ctx, title, message_list, page_start=0, page_end=10, page_size=10):

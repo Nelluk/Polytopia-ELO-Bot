@@ -63,7 +63,7 @@ class Game(BaseModel):
     date = DateField(default=datetime.datetime.today)
 
     def get_roster(self, team):
-        # Returns list of tuples [(player), (elo_change_from_this_game), :tribe_emoji:]
+        # Returns list of tuples [(player, elo_change_from_this_game, :tribe_emoji:)]
         players = []
 
         for lineup in self.lineup:
