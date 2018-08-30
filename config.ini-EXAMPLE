@@ -6,6 +6,9 @@ require_teams = True
 command_prefix = $
 bot_channels = 1234567, 89109876
 
+# discord_key - The key that lets the bot connect to discord.
+#	Good tutorial here: https://github.com/reactiflux/discord-irc/wiki/Creating-a-discord-bot-&-getting-a-token
+
 # helper_roles : list of Discord roles that can give staff-level commands
 
 # mod_roles : list of Discord roles that can issue mod-only commands
@@ -14,6 +17,8 @@ bot_channels = 1234567, 89109876
 #	to a Team based on their discord roles are allowed to join a match.
 #	Set to False to allow any server member to join a match. 
 
-# bot_channels = list of channel ID numbers where bot will respond to commands.
+# bot_channels - list of channel ID numbers where bot will respond to commands.
 # 	if this is left out bot will respond in any channel.
 # 	by default only leaderboard commands are set to respect this setting
+
+# pastebin_key - Optional, used for exporting game data. See https://pastebin.com/api to get a key
