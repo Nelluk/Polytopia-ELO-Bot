@@ -238,6 +238,70 @@ class ELOGamesCog:
 
         await ctx.send(embed=embed)
 
+    @commands.command()
+    async def squad(self, ctx, *args):
+        try:
+            # Argument is an int, so show squad by ID
+            squad_id = int(''.join(args))
+            squad = Squad.get(id=squad_id)
+        except ValueError:
+            squad_id = None
+            # Args is not an int, which means search by game name
+        except peewee.DoesNotExist:
+            await ctx.send('Squad with ID {} cannot be found.'.format(squad_id))
+            return
+
+        if squad_id is None:
+            # Search by player names
+            squad_players = []
+            for p_name in args:
+                p_matches = get_player_from_mention_or_string(p_name)
+                if len(p_matches) == 1:
+                    squad_players.append(p_matches[0])
+                elif len(p_matches) > 1:
+                    await ctx.send(f'Found multiple matches for player "{p_name}". Try being more specific or quoting players "Full Name".')
+                    return
+                else:
+                    await ctx.send(f'Found no matches for player "{p_name}".')
+                    return
+
+            squad_list = Squad.get_all_matching_squads(squad_players)
+            if len(squad_list) == 0:
+                await ctx.send(f'Found no squads containing players: {" / ".join(args)}')
+                return
+            if len(squad_list) > 1:
+                # More than one matching name found, so display a short list
+                embed = discord.Embed(title=f'Found {len(squad_list)} matches. Try `{command_prefix}squad IDNUM`:')
+                for squad in squad_list[:10]:
+                    wins, losses = squad.get_record()
+                    embed.add_field(name=f'`ID {squad.id:>3} - {" / ".join(squad.get_names()):40} (ELO: {squad.elo}) W {wins} / L {losses}`', value='\u200b', inline=False)
+                await ctx.send(embed=embed)
+                return
+
+            # Exact matching squad found by player name
+            squad = squad_list[0]
+
+        wins, losses = squad.get_record()
+
+        ranking_query = Squad.select(Squad.id).join(SquadGame).group_by(Squad.id).having(peewee.fn.COUNT(SquadGame.id) > 1).order_by(-Squad.elo).tuples()
+        for rank, s in enumerate(ranking_query):
+            if s[0] == squad.id:
+                break
+
+        embed = discord.Embed(title=f'Squad card for Squad {squad.id}\n{"  /  ".join(squad.get_names())}', value='\u200b')
+        embed.add_field(name='Results', value=f'ELO: {squad.elo},  W {wins} / L {losses}', inline=True)
+        embed.add_field(name='Ranking', value=f'{rank} of {len(ranking_query)}', inline=True)
+        recent_games = SquadGame.select().join(Game).where(SquadGame.squad == squad).order_by(-SquadGame.game.date)[:5]
+        embed.add_field(value='\u200b', name='Most recent games', inline=False)
+
+        for squad_game in recent_games:
+            game = squad_game.game
+            status = 'Completed' if game.is_completed == 1 else 'Incomplete'
+            embed.add_field(name='Game {0.id}   {1.emoji} **{1.name}** *vs* **{2.name}** {2.emoji}'.format(game, game.home_team, game.away_team),
+                            value='Status: {} - {}'.format(status, str(game.date)), inline=False)
+
+        await ctx.send(embed=embed)
+
     @commands.command(aliases=['playerinfo'])
     async def player(self, ctx, *args):
         with db:
@@ -337,6 +401,7 @@ class ELOGamesCog:
         with db:
             squads = Squad.select().join(SquadGame).group_by(Squad.id).having(peewee.fn.COUNT(SquadGame.id) > 1).order_by(-Squad.elo)
             # TODO: Could limit inclusion to date_cutoff although ths might make the board too sparse
+            # TODO: Move query into Squads class since basically same query is used in leaderboards and squad card (same goes for player rank query)
             for counter, sq in enumerate(squads[:200]):
                 wins, losses = sq.get_record()
                 squad_members = sq.get_names()
