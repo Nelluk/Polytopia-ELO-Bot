@@ -19,6 +19,23 @@ class ELOGamesCog:
     def __init__(self, bot):
         self.bot = bot
 
+    @commands.command(aliases=['namegame'])
+    @commands.has_any_role(*helper_roles)
+    async def gamename(self, ctx, game_id: int, *args):
+
+        with db:
+            try:
+                game = Game.get(id=game_id)
+            except peewee.DoesNotExist:
+                await ctx.send(f'Game with ID {game_id} cannot be found.')
+                return
+
+            new_game_name = ' '.join(args)
+            game.name = new_game_name
+            game.save()
+
+        await ctx.send(f'Game ID {game_id} has been renamed to {game.name}')
+
     @commands.command(aliases=['endgame', 'win', 'winner'])
     @commands.has_any_role(*helper_roles)
     async def wingame(self, ctx, game_id: int, winning_team_name: str):
@@ -134,15 +151,33 @@ class ELOGamesCog:
         await game_embed(ctx, newgame)
 
     @commands.command(aliases=['gameinfo'])
-    async def game(self, ctx, game_id: int):
-        with db:
-            try:
-                game = Game.get(id=game_id)
-            except peewee.DoesNotExist:
-                await ctx.send('Game with ID {} cannot be found.'.format(game_id))
-                return
+    async def game(self, ctx, *args):
+        # TODO: Handle searching by game-name. Present list of games (similar to 'incomplete' command) if there are multiple
 
-        await game_embed(ctx, game)
+        try:
+            game_id = int(''.join(args))
+            game = Game.get(id=game_id)
+            await game_embed(ctx, game)
+            return
+        except ValueError:
+            game_name = ' '.join(args)
+            # Args is not an int, which means search by game name
+        except peewee.DoesNotExist:
+            await ctx.send('Game with ID {} cannot be found.'.format(game_id))
+            return
+
+        game_list = Game.select().where(Game.name.contains(game_name))
+        if len(game_list) == 0:
+            await ctx.send(f'Cannot locate any games matching name "{game_name}"')
+            return
+        if len(game_list) == 1:
+            await game_embed(ctx, game_list[0])
+            return
+
+        embed = discord.Embed(title=f'Found {len(game_list)} matches:')
+        for counter, game in enumerate(game_list[:5]):
+            embed.add_field(name=f'Game ID {game.id} - {game.home_team.name} vs {game.away_team.name} - {game.name}', value=(str(game.date)), inline=False)
+        await ctx.send(embed=embed)
 
     @commands.command(aliases=['incomplete'])
     async def incompletegames(self, ctx):
@@ -202,7 +237,6 @@ class ELOGamesCog:
         await ctx.send(embed=embed)
 
     @commands.command(aliases=['playerinfo'])
-    # async def player(self, ctx, player_mention: str):
     async def player(self, ctx, *args):
         with db:
             if len(args) == 0:
@@ -445,8 +479,9 @@ class ELOGamesCog:
 
     @commands.command(aliases=['addteam'])
     @commands.has_any_role(*mod_roles)
-    async def team_add(self, ctx, name: str):
+    async def team_add(self, ctx, *args):
         # Team name is expected to match the name of a discord Role, so bot can automatically tell what team a player is in
+        name = ' '.join(args)
         try:
             db.connect()
             team = Team.create(name=name)
@@ -536,6 +571,7 @@ class ELOGamesCog:
     async def help_staff(self, ctx):
         commands = [('newgame @player1 @player2 VS @player3 @player4', 'Start a new game between listed players.\n`Aliases: startgame`'),
                     ('wingame `GAMEID` \"winning team\"', 'Declare winner of open game.\n`Aliases: win, winner`'),
+                    ('namegame `GAMEID` \"Name of Game\"', 'Store Polytopia in-game name for this match`'),
                     ('setcode `@user POLYTOPIACODE`', 'Change or add the code of another user to the bot.'),
                     ('setname `PLAYER IN-GAME-NAME`', 'Change or add the in-game name of another user to the bot.'),
                     ('settribe `GAMEID PLAYER TRIBENAME`', 'Mark what tribe a player has chosen in a given game.\nExample: `{}settribe 5 Nelluk Bardur`'.format(command_prefix))]
@@ -728,6 +764,9 @@ async def game_embed(ctx, game):
         side_away_roster = game.get_roster(away_side_team)
 
         embed = discord.Embed(title=f'Game {game.id}: {home_side_team.emoji}  **{home_side_team.name}**   *VS*   **{away_side_team.name}**  {away_side_team.emoji}')
+        if game.name:
+            embed.title += f'\n*{game.name}*'
+
         game_status = 'Incomplete'
         if game.is_completed == 1:
             game_status = 'Completed'
