@@ -152,9 +152,9 @@ class ELOGamesCog:
 
     @commands.command(aliases=['gameinfo'])
     async def game(self, ctx, *args):
-        # TODO: Handle searching by game-name. Present list of games (similar to 'incomplete' command) if there are multiple
 
         try:
+            # Argument is an int, so show game by ID
             game_id = int(''.join(args))
             game = Game.get(id=game_id)
             await game_embed(ctx, game)
@@ -174,6 +174,7 @@ class ELOGamesCog:
             await game_embed(ctx, game_list[0])
             return
 
+        # More than one matching name found, so display a short list
         embed = discord.Embed(title=f'Found {len(game_list)} matches:')
         for counter, game in enumerate(game_list[:5]):
             embed.add_field(name=f'Game ID {game.id} - {game.home_team.name} vs {game.away_team.name} - {game.name}', value=(str(game.date)), inline=False)
@@ -185,7 +186,8 @@ class ELOGamesCog:
         embed = discord.Embed(title='Oldest incomplete games')
 
         for counter, game in enumerate(Game.select().where(Game.is_completed == 0).order_by(Game.date)[:20]):
-            embed.add_field(name='Game ID #{0.id} - {0.home_team.name} vs {0.away_team.name}'.format(game), value=(str(game.date)), inline=False)
+            name_str = f' - {game.name}' if game.name else ''
+            embed.add_field(name='Game ID #{0.id} - {0.home_team.name} vs {0.away_team.name}{1}'.format(game, name_str), value=(str(game.date)), inline=False)
 
         await ctx.send(embed=embed)
 
