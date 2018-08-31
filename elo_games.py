@@ -202,23 +202,34 @@ class ELOGamesCog:
         await ctx.send(embed=embed)
 
     @commands.command(aliases=['playerinfo'])
-    async def player(self, ctx, player_mention: str):
+    # async def player(self, ctx, player_mention: str):
+    async def player(self, ctx, *args):
+        with db:
+            if len(args) == 0:
+                # Player looking for info on themselves
+                player = get_player_from_mention_or_string(f'<@{ctx.author.id}>')
+                if len(player) != 1:
+                    await ctx.send(f'Could not find you in the database. Try setting your code with {command_prefix}setcode')
+                    return
+                player = player[0]
+            else:
+                # Otherwise look for a player matching whatever theyentered
+                player_mention = ' '.join(args)
+                matching_players = get_player_from_mention_or_string(player_mention)
+                if len(matching_players) == 1:
+                    player = matching_players[0]
+                elif len(matching_players) == 0:
+                    # Either no results or more than one. Fall back to searching on polytopia_id or polytopia_name
+                    try:
+                        player = Player.select().where((Player.polytopia_id.contains(player_mention)) | (Player.polytopia_name.contains(player_mention))).get()
+                    except peewee.DoesNotExist:
+                        await ctx.send(f'Could not find \"{player_mention}\" by Discord name, Polytopia name, or Polytopia ID.')
+                        return
+                else:
+                    await ctx.send('There is more than one player found with that name. Specify user with @Mention.'.format(player_mention))
+                    return
 
         with db:
-            matching_players = get_player_from_mention_or_string(player_mention)
-            if len(matching_players) == 1:
-                player = matching_players[0]
-            elif len(matching_players) == 0:
-                # Either no results or more than one. Fall back to searching on polytopia_id or polytopia_name
-                try:
-                    player = Player.select().where((Player.polytopia_id.contains(player_mention)) | (Player.polytopia_name.contains(player_mention))).get()
-                except peewee.DoesNotExist:
-                    await ctx.send(f'Could not find \"{player_mention}\" by Discord name, Polytopia name, or Polytopia ID.')
-                    return
-            else:
-                await ctx.send('There is more than one player found with that name. Specify user with @Mention.'.format(player_mention))
-                return
-
             wins, losses = player.get_record()
 
             ranked_players_query = Player.select(Player.id).join(Lineup).join(Game).where(Game.date > date_cutoff).distinct().order_by(-Player.elo).tuples()
@@ -761,18 +772,6 @@ async def game_embed(ctx, game):
                 else:
                     home_squad_str += f' ({home_squad_delta})'
                     away_squad_str += f' (+{away_squad_delta})'
-                # with db:
-                #     try:
-                #         home_squad_delta = SquadGame.select().where((SquadGame.game == game) & (SquadGame.squad == home_squad)).get().elo_change
-                #         away_squad_delta = SquadGame.select().where((SquadGame.game == game) & (SquadGame.squad == away_squad)).get().elo_change
-                #         if game.winner == home_side_team:
-                #             home_squad_str += f' (+{home_squad_delta})'
-                #             away_squad_str += f' ({away_squad_delta})'
-                #         else:
-                #             home_squad_str += f' ({home_squad_delta})'
-                #             away_squad_str += f' (+{away_squad_delta})'
-                #     except peewee.DoesNotExist:
-                #         home_squad_delta = away_squad_delta = ''
         else:
             home_squad_str = away_squad_str = '\u200b'
 
@@ -792,29 +791,6 @@ async def game_embed(ctx, game):
                 embed.add_field(name=f'**{player.discord_name}** {tribe_emoji}', value=f'ELO: {player.elo}{p_delta_str}', inline=True)
 
             embed.add_field(value='\u200b', name=' \u200b', inline=False)
-
-        # embed.add_field(name=f'Lineup for Team **{home_side_team.name}**{home_elo_str}', value=home_squad_str, inline=False)
-
-        # for player, elo_delta, tribe_emoji in side_home_roster:
-        #     if elo_delta == 0:
-        #         p_delta_str = ''
-        #     elif elo_delta > 0:
-        #         p_delta_str = f' (+{elo_delta})'
-        #     else:
-        #         p_delta_str = f' ({elo_delta})'
-        #     embed.add_field(name=f'**{player.discord_name}** {tribe_emoji}', value=f'ELO: {player.elo}{p_delta_str}', inline=True)
-
-        # embed.add_field(value='\u200b', name=' \u200b', inline=False)
-        # embed.add_field(name=f'Lineup for Team **{away_side_team.name}**{away_elo_str}', value=away_squad_str, inline=False)
-
-        # for player, elo_delta, tribe_emoji in side_away_roster:
-        #     if elo_delta == 0:
-        #         p_delta_str = ''
-        #     elif elo_delta > 0:
-        #         p_delta_str = f' (+{elo_delta})'
-        #     else:
-        #         p_delta_str = f' ({elo_delta})'
-        #     embed.add_field(name=f'**{player.discord_name}** {tribe_emoji}', value=f'ELO: {player.elo}{p_delta_str}', inline=True)
 
         embed.set_footer(text=f'Status: {game_status}  -  Creation Date {str(game.date)}')
         await ctx.send(embed=embed)
