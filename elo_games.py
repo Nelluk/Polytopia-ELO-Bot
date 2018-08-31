@@ -333,10 +333,13 @@ class ELOGamesCog:
             wins, losses = player.get_record()
 
             ranked_players_query = Player.select(Player.id).join(Lineup).join(Game).where(Game.date > date_cutoff).distinct().order_by(-Player.elo).tuples()
-            for counter, p in enumerate(ranked_players_query):
-                if p[0] == player.id:
-                    break
-                # counter should now equal ranking of player in the leaderboard
+            if len(ranked_players_query) == 0:
+                counter = 0
+            else:
+                for counter, p in enumerate(ranked_players_query):
+                    if p[0] == player.id:
+                        break
+                    # counter should now equal ranking of player in the leaderboard
 
             recent_games = Game.select().join(Lineup).where(Lineup.player == player).order_by(-Game.date)[:5]
 
