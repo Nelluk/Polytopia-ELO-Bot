@@ -334,7 +334,7 @@ class ELOGamesCog:
 
             ranked_players_query = Player.select(Player.id).join(Lineup).join(Game).where(Game.date > date_cutoff).distinct().order_by(-Player.elo).tuples()
             if len(ranked_players_query) == 0:
-                counter = 0
+                counter = -1
             else:
                 for counter, p in enumerate(ranked_players_query):
                     if p[0] == player.id:
@@ -525,7 +525,7 @@ class ELOGamesCog:
             lineups[0].tribe = tribe
             lineups[0].save()
             emoji_str = tribe.emoji if tribe.emoji is not None else ''
-            await ctx.send(f'Player {player_name} assigned to tribe {tribe} in game {game_id} {emoji_str}')
+            await ctx.send(f'Player {player_name} assigned to tribe {tribe.name} in game {game_id} {emoji_str}')
 
     @commands.command()
     @commands.has_any_role(*mod_roles)
