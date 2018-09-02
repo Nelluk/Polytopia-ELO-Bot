@@ -208,6 +208,8 @@ class ELOGamesCog:
     @commands.command(aliases=['teaminfo'])
     async def team(self, ctx, team_string: str):
 
+        # TODO: Add list of players
+
         matching_teams = get_team_from_name(team_string)
         if len(matching_teams) > 1:
             await ctx.send('More than one matching team found. Be more specific or trying using a quoted \"Team Name\"')
@@ -217,17 +219,31 @@ class ELOGamesCog:
             return
         team = matching_teams[0]
 
-        recent_games = Game.select().where((Game.home_team == team) | (Game.away_team == team)).order_by(-Game.date)[:10]
+        team_role = discord.utils.get(self.bot.guilds[0].roles, name=team.name)
+        team_members = [x.name for x in team_role.members]
+        member_stats = []
+        for member in team_role.members:
+            # Create a list of members - pull ELO score from database if they are registered, or with 0 ELO if they are not
+            try:
+                p = Player.get(discord_id=member.id)
+                member_stats.append((p.discord_name, p.elo, f'*({p.elo})*'))
+            except peewee.DoesNotExist:
+                member_stats.append((member.name, 0, ''))
 
-        # TODO: Add 'most frequent players'
+        member_stats.sort(key=lambda tup: tup[1], reverse=True)  # sort the list descending by ELO
+        members_sorted = [f'{x[0]}{x[2]}' for x in member_stats]  # create list of strings like Nelluk(1000)
+
+        recent_games = Game.select().where((Game.home_team == team) | (Game.away_team == team)).order_by(-Game.date)[:10]
         wins, losses = team.get_record()
 
         embed = discord.Embed(title='Team card for **{0.name}** {0.emoji}'.format(team))
-        embed.add_field(value='\u200b', name='ELO: {}   Wins {} / Losses {}'.format(team.elo, wins, losses))
+        embed.add_field(name='Results', value=f'ELO: {team.elo}   Wins {wins} / Losses {losses}')
+        embed.add_field(name=f'Members({len(team_members)})', value=f'{" / ".join(members_sorted)}')
 
         if team.image_url:
             embed.set_thumbnail(url=team.image_url)
 
+        embed.add_field(value='*Recent games*', name='\u200b', inline=False)
         for game in recent_games:
             opponent = game.away_team if (game.home_team == team) else game.home_team
             if game.is_completed == 1:
@@ -240,6 +256,8 @@ class ELOGamesCog:
 
     @commands.command()
     async def squad(self, ctx, *args):
+        # Provides list of squads that contain given members, or details on squad if only one match. Can also take ID as an argument.an
+
         try:
             # Argument is an int, so show squad by ID
             squad_id = int(''.join(args))
@@ -376,8 +394,10 @@ class ELOGamesCog:
         embed = discord.Embed(title='**Team Leaderboard**')
         with db:
             for counter, team in enumerate(Team.select().order_by(-Team.elo).where((Team.name != 'Home') & (Team.name != 'Away'))):
+                team_role = discord.utils.get(self.bot.guilds[0].roles, name=team.name)
+                team_name_str = f'{team.name}({len(team_role.members)})'  # Show team name with number of members
                 wins, losses = team.get_record()
-                embed.add_field(name='`{1:>3}. {0.name:30}  (ELO: {0.elo:4})  W {2} / L {3}` {0.emoji}'.format(team, counter + 1, wins, losses), value='\u200b', inline=False)
+                embed.add_field(name=f'`{(counter + 1):>3}. {team_name_str:30}  (ELO: {team.elo:4})  W {wins} / L {losses}` {team.emoji}', value='\u200b', inline=False)
         await ctx.send(embed=embed)
 
     @in_bot_channel()
@@ -626,6 +646,7 @@ class ELOGamesCog:
                     ('team `name`', 'Display stats for a given team.\n`Aliases: teaminfo`'),
                     ('player @player', 'Display stats for a given player. Also lets you search by game code/name.\n`Aliases: playerinfo`'),
                     ('game `GAMEID`', 'Display stats for a given game\n`Aliases: gameinfo`'),
+                    ('squad `LIST OF PLAYERS`', 'Show squads containing given members - or detailed squad info if only one match.`'),
                     ('setcode `POLYTOPIACODE`', 'Register your code with the bot for others to find. Also will place you on the leaderboards.'),
                     ('setcode `IN-GAME NAME`', 'Register your in-game name with the bot for others to find.'),
                     ('getcode `PLAYER`', 'Simply return the Polytopia code of anyone registered.'),
