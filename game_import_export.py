@@ -20,6 +20,7 @@ class GameIO_Cog:
     @commands.has_any_role(*helper_roles)
     @commands.cooldown(1, 10, commands.BucketType.guild)
     async def game_export(self, ctx):
+        print('here1')
 
         with open('games_export.csv', mode='w') as export_file:
             game_writer = csv.writer(export_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
@@ -28,8 +29,10 @@ class GameIO_Cog:
             game_writer.writerow(header)
 
             with ctx.message.channel.typing():
+                print('here2')
                 query = Game.select().where(Game.is_completed == 1)
                 for q in query:
+                    print('here3')
                     row = [q.id, q.winner.name, q.home_team.name, q.away_team.name, str(q.date)]
 
                     pquery = Lineup.select().where(Lineup.game == q.id)
