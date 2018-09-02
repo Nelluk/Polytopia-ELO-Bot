@@ -658,7 +658,7 @@ class ELOGamesCog:
             embed.add_field(name='{}{}'.format(command_prefix, command), value=desc, inline=False)
         await ctx.send(embed=embed)
 
-    @commands.command(aliases=['help-staff'])
+    @commands.command(aliases=['help-staff', 'helpstaff'])
     async def help_staff(self, ctx):
         commands = [('newgame @player1 @player2 VS @player3 @player4', 'Start a new game between listed players.\n`Aliases: startgame`'),
                     ('wingame `GAMEID` \"winning team\"', 'Declare winner of open game.\n`Aliases: win, winner`'),
