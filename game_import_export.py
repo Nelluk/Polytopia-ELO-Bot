@@ -49,6 +49,7 @@ class GameIO_Cog:
         pb_url = pb.create_paste_from_file(filepath='games_export.csv', api_paste_private=0, api_paste_expire_date='1D', api_paste_name='Polytopia Game Data')
         await ctx.send(f'Game data has been export to the following URL: {pb_url}')
 
+    @game_export.error
     async def game_export_handler(self, ctx, error):
         """A local Error Handler
         The global on_command_error will still be invoked after."""
@@ -56,13 +57,14 @@ class GameIO_Cog:
         if isinstance(error, commands.CommandOnCooldown):
             await ctx.send(f'This command is on cooldown. Try again in {int(error.retry_after)} seconds.')
             return
-        if isinstance(error, commands.CommandInvokeError):
+        if isinstance(error, commands.CommandInvokeError) or isinstance(error, PermissionError):
             await ctx.send(f'Error creating export file.')
             # If bot is run as a system service the export file will be created by root, which can't be over-written if bot is later run as a user
             # One fix would be to reconfigure system service to run as the user, but that is a bit complicated
             return
         await ctx.send(f'Unknown error')
-        logger.warn('Unknown error suppressed in game_export command')
+        logger.warn(f'Unknown error suppressed in game_export command: {error}')
+        print(error)
         # This error handler is overly simple and can't raise exceptions that it doesn't specifically handle. No way around it other than
         # writing a full error handler class.
 
