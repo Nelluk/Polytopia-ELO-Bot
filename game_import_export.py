@@ -18,7 +18,7 @@ class GameIO_Cog:
 
     @commands.command(aliases=['gex', 'gameexport'])
     @commands.has_any_role(*helper_roles)
-    @commands.cooldown(1, 300, commands.BucketType.guild)
+    @commands.cooldown(1, 10, commands.BucketType.guild)
     async def game_export(self, ctx):
 
         with open('games_export.csv', mode='w') as export_file:
