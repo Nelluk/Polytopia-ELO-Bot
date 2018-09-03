@@ -454,7 +454,8 @@ class ELOGamesCog:
             await ctx.send('Wrong number of arguments. Use `{}setcode my_polytopia_code`'.format(command_prefix))
             return
 
-        if is_valid_polytopia_code(new_id) is False:
+        if len(new_id) != 16 or new_id.isalnum() is False:
+            # Very basic polytopia code sanity checking. Making sure it is 16-character alphanumeric.
             await ctx.send(f'Polytopia code "{new_id}" does not appear to be a valid code.')
             return
 
@@ -772,11 +773,6 @@ def example_game_data():
             Squad.upsert_squad(player_list=team2_players, game=game, team=t2)
 
         game.declare_winner(winning_team=t1, losing_team=t2)
-
-
-def is_valid_polytopia_code(poly_str):
-    # Apply basic sanity checking to polytopia friend codes of form 'JYb0XjDzp3NmIOji'. Should be 16 character alphanumeric.
-    return len(poly_str) == 16 and poly_str.isalnum()
 
 
 def get_member_from_mention(bot, mention_str):
