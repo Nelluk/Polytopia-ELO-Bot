@@ -454,6 +454,10 @@ class ELOGamesCog:
             await ctx.send('Wrong number of arguments. Use `{}setcode my_polytopia_code`'.format(command_prefix))
             return
 
+        if is_valid_polytopia_code(new_id) is False:
+            await ctx.send(f'Polytopia code "{new_id}" does not appear to be a valid code.')
+            return
+
         flag, team_list = get_teams_of_players([target_discord_member])
         with db:
             player, created = upsert_player_and_lineup(player_discord=target_discord_member, player_team=team_list[0], game_side=None, new_game=None)
@@ -648,7 +652,7 @@ class ELOGamesCog:
                     ('game `GAMEID`', 'Display stats for a given game\n`Aliases: gameinfo`'),
                     ('squad `LIST OF PLAYERS`', 'Show squads containing given members - or detailed squad info if only one match.`'),
                     ('setcode `POLYTOPIACODE`', 'Register your code with the bot for others to find. Also will place you on the leaderboards.'),
-                    ('setcode `IN-GAME NAME`', 'Register your in-game name with the bot for others to find.'),
+                    ('setname `IN-GAME NAME`', 'Register your in-game name with the bot for others to find.'),
                     ('getcode `PLAYER`', 'Simply return the Polytopia code of anyone registered.'),
                     ('incomplete', 'List oldest games with no declared winner'),
                     ('help_staff', 'Display helper commands, if allowed')]
@@ -658,7 +662,7 @@ class ELOGamesCog:
             embed.add_field(name='{}{}'.format(command_prefix, command), value=desc, inline=False)
         await ctx.send(embed=embed)
 
-    @commands.command(aliases=['help-staff', 'helpstaff'])
+    @commands.command(aliases=['help-staff', '  '])
     async def help_staff(self, ctx):
         commands = [('newgame @player1 @player2 VS @player3 @player4', 'Start a new game between listed players.\n`Aliases: startgame`'),
                     ('wingame `GAMEID` \"winning team\"', 'Declare winner of open game.\n`Aliases: win, winner`'),
@@ -768,6 +772,11 @@ def example_game_data():
             Squad.upsert_squad(player_list=team2_players, game=game, team=t2)
 
         game.declare_winner(winning_team=t1, losing_team=t2)
+
+
+def is_valid_polytopia_code(poly_str):
+    # Apply basic sanity checking to polytopia friend codes of form 'JYb0XjDzp3NmIOji'. Should be 16 character alphanumeric.
+    return len(poly_str) == 16 and poly_str.isalnum()
 
 
 def get_member_from_mention(bot, mention_str):
