@@ -228,7 +228,7 @@ class ELOGamesCog:
                 p = Player.get(discord_id=member.id)
                 member_stats.append((p.discord_name, p.elo, f'*({p.elo})*'))
             except peewee.DoesNotExist:
-                member_stats.append((member.name, 0, ''))
+                member_stats.append((member.name, 0, '\u200b'))
 
         member_stats.sort(key=lambda tup: tup[1], reverse=True)  # sort the list descending by ELO
         members_sorted = [f'{x[0]}{x[2]}' for x in member_stats]  # create list of strings like Nelluk(1000)
