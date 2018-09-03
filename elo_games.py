@@ -447,10 +447,14 @@ class ELOGamesCog:
             if len(get_matching_roles(ctx.author, helper_roles)) == 0:
                 await ctx.send('You do not have permission to trigger this command.')
                 return
-            if len(ctx.message.mentions) != 1:
-                await ctx.send('Incorrect format. Use `{}setcode @Player newcode`'.format(command_prefix))
+
+            con = commands.MemberConverter()
+            try:
+                target_discord_member = await con.convert(ctx, args[0])
+            except commands.errors.BadArgument as e:
+                # One or more players were unable to be converted into Discord members.
+                print(f'{str(e)}. Try using an @Mention or make sure capitalization is correct.')
                 return
-            target_discord_member = ctx.message.mentions[0]
             new_id = args[1]
         else:
             # Unexpected input
