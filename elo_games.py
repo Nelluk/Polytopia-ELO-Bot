@@ -21,13 +21,16 @@ class ELOGamesCog:
 
     @commands.command(aliases=['namegame'])
     @commands.has_any_role(*helper_roles)
-    async def gamename(self, ctx, game_id: int, *args):
+    async def gamename(self, ctx, game_id, *args):
 
         with db:
             try:
                 game = Game.get(id=game_id)
             except peewee.DoesNotExist:
                 await ctx.send(f'Game with ID {game_id} cannot be found.')
+                return
+            except ValueError:
+                await ctx.send(f'Invalid game ID "{game_id}".')
                 return
 
             new_game_name = ' '.join(args)
@@ -38,7 +41,7 @@ class ELOGamesCog:
 
     @commands.command(aliases=['endgame', 'win', 'winner'])
     @commands.has_any_role(*helper_roles)
-    async def wingame(self, ctx, game_id: int, winning_team_name: str):
+    async def wingame(self, ctx, game_id, winning_team_name: str):
         """wingame 5 \"The Ronin\""""
 
         with db:
@@ -46,6 +49,9 @@ class ELOGamesCog:
                 winning_game = Game.get(id=game_id)
             except peewee.DoesNotExist:
                 await ctx.send(f'Game with ID {game_id} cannot be found.')
+                return
+            except ValueError:
+                await ctx.send(f'Invalid game ID "{game_id}".')
                 return
 
             if winning_game.is_completed == 1:
@@ -196,13 +202,16 @@ class ELOGamesCog:
 
     @commands.command()
     @commands.has_any_role(*mod_roles)
-    async def deletegame(self, ctx, game_id: int):
+    async def deletegame(self, ctx, game_id):
         """deletegame 5 (reverts ELO changes. Use with care.)"""
         with db:
             try:
                 game = Game.get(id=game_id)
             except peewee.DoesNotExist:
                 await ctx.send('Game with ID {} cannot be found.'.format(game_id))
+                return
+            except ValueError:
+                await ctx.send(f'Invalid game ID "{game_id}".')
                 return
 
             await ctx.send('Game with ID {} has been deleted and team/player ELO changes have been reverted, if applicable.'.format(game_id))
