@@ -87,16 +87,19 @@ class ELOGamesCog:
             await ctx.send('Invalid format. Example usage for a 2v2 game: `{}startgame @player1 @player2 VS @player3 @player4`'.format(command_prefix))
             return
 
-        side_home = args[:int(len(args) / 2)]
-        side_away = args[int(len(args) / 2) + 1:]
+        con = commands.MemberConverter()
+        try:
+            side_home = [await con.convert(ctx, p) for p in args[:int(len(args) / 2)]]  # Args in first half before 'VS', converted to Discord Members
+            side_away = [await con.convert(ctx, p) for p in args[int(len(args) / 2) + 1:]]  # Args in second half after 'VS'
+        except commands.errors.BadArgument as e:
+            # One or more players were unable to be converted into Discord members.
+            print(f'{str(e)}. Try using an @Mention or make sure capitalization is correct.')
+            return
 
         if len(side_home + side_away) > len(set(side_home + side_away)):
             await ctx.send('Duplicate players detected. Example usage for a 2v2 game: `{}startgame @player1 @player2 VS @player3 @player4`'.format(command_prefix))
             # Disabling this check would be a decent way to enable uneven teams ie 2v1, with the same person listed twice on one side.
             return
-
-        side_home = [get_member_from_mention(self.bot, x) for x in side_home]
-        side_away = [get_member_from_mention(self.bot, x) for x in side_away]
 
         if None in side_home or None in side_away:
             await ctx.send('Command included invalid player. Example usage for a 2v2 game: `{}startgame @player1 @player2 VS @player3 @player4`'.format(command_prefix))
@@ -146,7 +149,7 @@ class ELOGamesCog:
                 home_squad = Squad.upsert_squad(player_list=side_home_players, game=newgame, team=home_side_team)
                 away_squad = Squad.upsert_squad(player_list=side_away_players, game=newgame, team=away_side_team)
 
-        mentions = [p.mention for p in ctx.message.mentions]
+        mentions = [p.mention for p in side_home + side_away]
         await ctx.send(f'New game ID {newgame.id} started! Roster: {" ".join(mentions)}')
         await game_embed(ctx, newgame)
 
@@ -773,17 +776,6 @@ def example_game_data():
             Squad.upsert_squad(player_list=team2_players, game=game, team=t2)
 
         game.declare_winner(winning_team=t1, losing_team=t2)
-
-
-def get_member_from_mention(bot, mention_str):
-        # Assumes string of format <@123457890>, returns discord.Member object or None
-        # If string is of format <@!12345>, the ! indicates that member has a temporary nickname set on this server.
-
-        try:
-            p_id = int(mention_str.strip('<>!@'))
-        except ValueError:
-            return None
-        return bot.guilds[0].get_member(p_id)  # This assumes the bot is only being used on one server!
 
 
 def get_team_from_name(team_name):
