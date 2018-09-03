@@ -526,11 +526,15 @@ class ELOGamesCog:
 
     @commands.command(aliases=['set_tribe', 'tribe'])
     async def settribe(self, ctx, game_id, player_name, tribe_name):
+
         with db:
             try:
-                game = Game.get(id=game_id)
+                game = Game.get(id=int(game_id))
             except peewee.DoesNotExist:
                 await ctx.send(f'Game with ID {game_id} cannot be found.')
+                return
+            except ValueError:
+                await ctx.send(f'Invalid game ID "{game_id}". Did you mix up the order?')
                 return
             matching_tribes = Tribe.select().where(Tribe.name.contains(tribe_name))
             if len(matching_tribes) != 1:
