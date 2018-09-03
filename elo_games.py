@@ -222,7 +222,7 @@ class ELOGamesCog:
             return
         team = matching_teams[0]
 
-        team_role = discord.utils.get(self.bot.guilds[0].roles, name=team.name)
+        team_role = discord.utils.get(ctx.guild.roles, name=team.name)
         team_members = [x.name for x in team_role.members]
         member_stats = []
         for member in team_role.members:
@@ -397,7 +397,7 @@ class ELOGamesCog:
         embed = discord.Embed(title='**Team Leaderboard**')
         with db:
             for counter, team in enumerate(Team.select().order_by(-Team.elo).where((Team.name != 'Home') & (Team.name != 'Away'))):
-                team_role = discord.utils.get(self.bot.guilds[0].roles, name=team.name)
+                team_role = discord.utils.get(ctx.guild.roles, name=team.name)
                 team_name_str = f'{team.name}({len(team_role.members)})'  # Show team name with number of members
                 wins, losses = team.get_record()
                 embed.add_field(name=f'`{(counter + 1):>3}. {team_name_str:30}  (ELO: {team.elo:4})  W {wins} / L {losses}` {team.emoji}', value='\u200b', inline=False)
