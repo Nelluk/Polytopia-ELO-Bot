@@ -349,7 +349,12 @@ class ELOGamesCog:
                 if len(matching_players) == 1:
                     player = matching_players[0]
                 elif len(matching_players) == 0:
-                    # Either no results or more than one. Fall back to searching on polytopia_id or polytopia_name
+                    # No matching name in database. Fall back to searching on polytopia_id or polytopia_name. Warn if player is found in guild.
+                    matches = await get_guild_member(ctx, player_mention)
+                    if len(matches) > 0:
+                        await ctx.send(f'"{player_mention}" was found in the server but is not registered with me. '
+                            f'Players can be registered with `{command_prefix}setcode` or being in a new game\'s lineup.')
+
                     try:
                         player = Player.select().where((Player.polytopia_id.contains(player_mention)) | (Player.polytopia_name.contains(player_mention))).get()
                     except peewee.DoesNotExist:
@@ -451,19 +456,20 @@ class ELOGamesCog:
             target_discord_member = ctx.message.author
             new_id = args[0]
         elif len(args) == 2:
-            # User changing another user's code. Admin permissions required.
-            # This requires a @Mention target because this is also the command to register a user with the bot, which requires info from discord.Member object
+            # User changing another user's code. Helper permissions required.
             if len(get_matching_roles(ctx.author, helper_roles)) == 0:
                 await ctx.send('You do not have permission to trigger this command.')
                 return
 
-            con = commands.MemberConverter()
-            try:
-                target_discord_member = await con.convert(ctx, args[0])
-            except commands.errors.BadArgument as e:
-                # One or more players were unable to be converted into Discord members.
-                await ctx.send(f'{str(e)}. Try using an @Mention or make sure capitalization is correct.')
+            # Try to find matching guild/server member
+            guild_matches = await get_guild_member(ctx, args[0])
+            if len(guild_matches) == 0:
+                await ctx.send(f'Could not find any server member matching "{args[0]}". Try specifying with an @Mention')
                 return
+            elif len(guild_matches) > 1:
+                await ctx.send(f'Found multiple server members matching "{args[0]}". Try specifying with an @Mention')
+                return
+            target_discord_member = guild_matches[0]
             new_id = args[1]
         else:
             # Unexpected input
@@ -857,6 +863,22 @@ def upsert_player_and_lineup(player_discord, player_team, game_side=None, new_ga
             Lineup.create(game=new_game, player=player, team=game_side)
             logger.debug('Player {player.discord_name} inserted')
         return player, created
+
+
+async def get_guild_member(ctx, input):
+
+        # Find matching Guild member by @Mention or Name. Fall back to case-insensitive search
+
+        guild_matches = []
+        try:
+            guild_matches.append(await commands.MemberConverter().convert(ctx, input))
+        except commands.errors.BadArgument:
+            pass
+            # No matches in standard MemberConverter. Move on to a case-insensitive search.
+            for p in ctx.guild.members:
+                if p.name.upper() == input.upper():
+                    guild_matches.append(p)
+        return guild_matches
 
 
 async def game_embed(ctx, game):
