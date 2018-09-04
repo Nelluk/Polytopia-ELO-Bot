@@ -34,13 +34,6 @@ class ELOGamesCog:
                 logger.error(f'Invalid game ID "{game_id}".')
                 return None
 
-    @commands.command()
-    async def btest(self, ctx, game: poly_game):
-        if game is None:
-            await ctx.send(f'No matching game was found.')
-            return
-        await ctx.send(f'{str(game.date)}')
-
     @commands.command(aliases=['namegame', 'game_name', 'name_game'])
     @commands.has_any_role(*helper_roles)
     async def gamename(self, ctx, game: poly_game, *args):
@@ -172,6 +165,7 @@ class ELOGamesCog:
         await ctx.send(f'New game ID {newgame.id} started! Roster: {" ".join(mentions)}')
         await game_embed(ctx, newgame)
 
+    @in_bot_channel()
     @commands.command(aliases=['gameinfo'])
     async def game(self, ctx, *args):
 
@@ -227,6 +221,7 @@ class ELOGamesCog:
             game.delete_game()
             await ctx.send(f'Game with ID {gid} has been deleted and team/player ELO changes have been reverted, if applicable.')
 
+    @in_bot_channel()
     @commands.command(aliases=['teaminfo'])
     async def team(self, ctx, team_string: str):
 
@@ -276,6 +271,7 @@ class ELOGamesCog:
 
         await ctx.send(embed=embed)
 
+    @in_bot_channel()
     @commands.command()
     async def squad(self, ctx, *args):
         # Provides list of squads that contain given members, or details on squad if only one match. Can also take ID as an argument.an
@@ -342,6 +338,7 @@ class ELOGamesCog:
 
         await ctx.send(embed=embed)
 
+    @in_bot_channel()
     @commands.command(aliases=['playerinfo'])
     async def player(self, ctx, *args):
         with db:
@@ -437,7 +434,10 @@ class ELOGamesCog:
             players_with_recent_games = Player.select().join(Lineup).join(Game).where(Game.date > date_cutoff).distinct().order_by(-Player.elo)
             for counter, player in enumerate(players_with_recent_games[:500]):
                 wins, losses = player.get_record()
-                leaderboard.append('`{1:>3}. {0.discord_name:30}  (ELO: {0.elo:4})  W {2} / L {3}`'.format(player, counter + 1, wins, losses))
+                # leaderboard.append('`{1:>3}. {0.discord_name:30}  (ELO: {0.elo:4})  W {2} / L {3}`'.format(player, counter + 1, wins, losses))
+                leaderboard.append(
+                    (f'`{(counter + 1):>3}. {player.discord_name}`', f'`(ELO: {player.elo:4}) W {wins} / L {losses}`')
+                )
 
         await paginate(self.bot, ctx, title='**Individual Leaderboards**', message_list=leaderboard, page_start=0, page_end=10, page_size=10)
 
@@ -456,7 +456,10 @@ class ELOGamesCog:
                 wins, losses = sq.get_record()
                 squad_members = sq.get_names()
                 squad_names = ' / '.join(squad_members)
-                leaderboard.append('`{0:>3}. {1:40}  (ELO: {2:4})  W {3} / L {4}`'.format(counter + 1, squad_names, sq.elo, wins, losses))
+                # leaderboard.append('`{0:>3}. {1:40}  (ELO: {2:4})  W {3} / L {4}`'.format(counter + 1, squad_names, sq.elo, wins, losses))
+                leaderboard.append(
+                    (f'`{(counter + 1):>3}. {squad_names}`', f'`(ELO: {sq.elo:4}) W {wins} / L {losses}`')
+                )
         await paginate(self.bot, ctx, title='**Squad Leaderboards**', message_list=leaderboard, page_start=0, page_end=10, page_size=10)
 
     @commands.command()
@@ -550,6 +553,7 @@ class ELOGamesCog:
             await ctx.send('Player {0.discord_name} updated in system with Polytopia name {0.polytopia_name}.'.format(target_player[0]))
 
     @commands.command(aliases=['set_tribe', 'tribe'])
+    @commands.has_any_role(*helper_roles)
     async def settribe(self, ctx, game: poly_game, player_name, tribe_name):
 
         if game is None:
@@ -697,6 +701,7 @@ class ELOGamesCog:
         await ctx.send(embed=embed)
 
     @commands.command(aliases=['help-staff', '  '])
+    @commands.has_any_role(*helper_roles)
     async def help_staff(self, ctx):
         commands = [('newgame @player1 @player2 VS @player3 @player4', 'Start a new game between listed players.\n`Aliases: startgame`'),
                     ('wingame `GAMEID` \"winning team\"', 'Declare winner of open game.\n`Aliases: win, winner`'),
@@ -856,6 +861,7 @@ def get_player_from_mention_or_string(player_string):
             return []
 
     # Otherwise return any matches from the name string
+    # TODO: Could possibly improve this by first searching for an exact match name==string, and then returning partial matches if no exact matches
     return Player.select().where(Player.discord_name.contains(player_string))
 
 
@@ -978,7 +984,7 @@ async def paginate(bot, ctx, title, message_list, page_start=0, page_end=10, pag
     while True:
         embed = discord.Embed(title=title)
         for entry in range(page_start, page_end):
-            embed.add_field(name=message_list[entry], value='\u200b', inline=False)
+            embed.add_field(name=message_list[entry][0], value=message_list[entry][1], inline=False)
 
         if first_loop is True:
             sent_message = await ctx.send(embed=embed)
