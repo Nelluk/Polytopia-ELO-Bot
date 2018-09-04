@@ -99,7 +99,7 @@ class ELOGamesCog:
             side_away = [await con.convert(ctx, p) for p in args[int(len(args) / 2) + 1:]]  # Args in second half after 'VS'
         except commands.errors.BadArgument as e:
             # One or more players were unable to be converted into Discord members.
-            print(f'{str(e)}. Try using an @Mention or make sure capitalization is correct.')
+            await ctx.send(f'{str(e)}. Try using an @Mention or make sure capitalization is correct.')
             return
 
         if len(side_home + side_away) > len(set(side_home + side_away)):
@@ -462,7 +462,7 @@ class ELOGamesCog:
                 target_discord_member = await con.convert(ctx, args[0])
             except commands.errors.BadArgument as e:
                 # One or more players were unable to be converted into Discord members.
-                print(f'{str(e)}. Try using an @Mention or make sure capitalization is correct.')
+                await ctx.send(f'{str(e)}. Try using an @Mention or make sure capitalization is correct.')
                 return
             new_id = args[1]
         else:
