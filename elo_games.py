@@ -19,43 +19,55 @@ class ELOGamesCog:
     def __init__(self, bot):
         self.bot = bot
 
-    @commands.command(aliases=['namegame'])
-    @commands.has_any_role(*helper_roles)
-    async def gamename(self, ctx, game_id, *args):
-
+    def poly_game(game_id):
+        # Give game ID integer return matching game or None. Can be used as a converter function for discord command input:
+        # https://discordpy.readthedocs.io/en/rewrite/ext/commands/commands.html#basic-converters
         with db:
             try:
                 game = Game.get(id=game_id)
+                logger.debug(f'Game with ID {game_id} found.')
+                return game
             except peewee.DoesNotExist:
-                await ctx.send(f'Game with ID {game_id} cannot be found.')
-                return
+                logger.warn(f'Game with ID {game_id} cannot be found.')
+                return None
             except ValueError:
-                await ctx.send(f'Invalid game ID "{game_id}".')
-                return
+                logger.error(f'Invalid game ID "{game_id}".')
+                return None
 
+    @commands.command()
+    async def btest(self, ctx, game: poly_game):
+        if game is None:
+            await ctx.send(f'No matching game was found.')
+            return
+        await ctx.send(f'{str(game.date)}')
+
+    @commands.command(aliases=['namegame', 'game_name', 'name_game'])
+    @commands.has_any_role(*helper_roles)
+    async def gamename(self, ctx, game: poly_game, *args):
+
+        if game is None:
+            await ctx.send(f'No matching game was found.')
+            return
+
+        with db:
             new_game_name = ' '.join(args)
             game.name = new_game_name
             game.save()
 
-        await ctx.send(f'Game ID {game_id} has been renamed to {game.name}')
+        await ctx.send(f'Game ID {game.id} has been renamed to "{game.name}"')
 
     @commands.command(aliases=['endgame', 'win', 'winner'])
     @commands.has_any_role(*helper_roles)
-    async def wingame(self, ctx, game_id, winning_team_name: str):
+    async def wingame(self, ctx, winning_game: poly_game, winning_team_name: str):
         """wingame 5 \"The Ronin\""""
 
-        with db:
-            try:
-                winning_game = Game.get(id=game_id)
-            except peewee.DoesNotExist:
-                await ctx.send(f'Game with ID {game_id} cannot be found.')
-                return
-            except ValueError:
-                await ctx.send(f'Invalid game ID "{game_id}".')
-                return
+        if winning_game is None:
+            await ctx.send(f'No matching game was found.')
+            return
 
+        with db:
             if winning_game.is_completed == 1:
-                await ctx.send(f'Game with ID {game_id} is already marked as completed with winning team {winning_game.winner.name}')
+                await ctx.send(f'Game with ID {winning_game.id} is already marked as completed with winning team {winning_game.winner.name}')
                 return
 
             matching_teams = get_team_from_name(winning_team_name)
@@ -75,6 +87,7 @@ class ELOGamesCog:
                 await ctx.send('That team did not play in game {0.id}. The teams were {0.home_team.name} and {0.away_team.name}.'.format(winning_game))
                 return
 
+        with db:
             winning_game.declare_winner(winning_team, losing_team)
 
             winner_roster = winning_game.get_roster(winning_team)
@@ -202,20 +215,17 @@ class ELOGamesCog:
 
     @commands.command()
     @commands.has_any_role(*mod_roles)
-    async def deletegame(self, ctx, game_id):
+    async def deletegame(self, ctx, game: poly_game):
         """deletegame 5 (reverts ELO changes. Use with care.)"""
-        with db:
-            try:
-                game = Game.get(id=game_id)
-            except peewee.DoesNotExist:
-                await ctx.send('Game with ID {} cannot be found.'.format(game_id))
-                return
-            except ValueError:
-                await ctx.send(f'Invalid game ID "{game_id}".')
-                return
 
-            await ctx.send('Game with ID {} has been deleted and team/player ELO changes have been reverted, if applicable.'.format(game_id))
+        if game is None:
+            await ctx.send(f'No matching game was found.')
+            return
+
+        with db:
+            gid = game.id
             game.delete_game()
+            await ctx.send(f'Game with ID {gid} has been deleted and team/player ELO changes have been reverted, if applicable.')
 
     @commands.command(aliases=['teaminfo'])
     async def team(self, ctx, team_string: str):
@@ -540,17 +550,13 @@ class ELOGamesCog:
             await ctx.send('Player {0.discord_name} updated in system with Polytopia name {0.polytopia_name}.'.format(target_player[0]))
 
     @commands.command(aliases=['set_tribe', 'tribe'])
-    async def settribe(self, ctx, game_id, player_name, tribe_name):
+    async def settribe(self, ctx, game: poly_game, player_name, tribe_name):
+
+        if game is None:
+            await ctx.send(f'No matching game was found.')
+            return
 
         with db:
-            try:
-                game = Game.get(id=int(game_id))
-            except peewee.DoesNotExist:
-                await ctx.send(f'Game with ID {game_id} cannot be found.')
-                return
-            except ValueError:
-                await ctx.send(f'Invalid game ID "{game_id}". Did you mix up the order?')
-                return
             matching_tribes = Tribe.select().where(Tribe.name.contains(tribe_name))
             if len(matching_tribes) != 1:
                 await ctx.send('Matching Tribe not found, or too many found. Check spelling or be more specific.')
@@ -570,13 +576,14 @@ class ELOGamesCog:
 
             lineups = Lineup.select().join(Player).where((Player.id == players[0]) & (Lineup.game == game))
             if len(lineups) != 1:
-                await ctx.send(f'Could not match player {player_name} to game {game_id}.')
+                await ctx.send(f'Could not match player {player_name} to game {game.id}.')
                 return
 
+        with db:
             lineups[0].tribe = tribe
             lineups[0].save()
             emoji_str = tribe.emoji if tribe.emoji is not None else ''
-            await ctx.send(f'Player {player_name} assigned to tribe {tribe.name} in game {game_id} {emoji_str}')
+            await ctx.send(f'Player {player_name} assigned to tribe {tribe.name} in game {game.id} {emoji_str}')
 
     @commands.command()
     @commands.has_any_role(*mod_roles)
