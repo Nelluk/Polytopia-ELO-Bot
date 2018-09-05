@@ -58,7 +58,7 @@ if __name__ == '__main__':
         ignored = (commands.CommandNotFound, commands.UserInputError, commands.CheckFailure)
 
         # Anything in ignored will return and prevent anything happening.
-        if isinstance(error, ignored):
+        if isinstance(exc, ignored):
             return
 
         exception_str = "".join(traceback.format_tb(exc.__traceback__))
