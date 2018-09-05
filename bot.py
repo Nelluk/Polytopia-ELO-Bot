@@ -4,6 +4,7 @@ import discord
 import datetime
 import configparser
 import argparse
+import traceback
 from discord.ext import commands
 from models import db
 import logging
@@ -49,9 +50,20 @@ if __name__ == '__main__':
 
     @bot.event
     async def on_command_error(ctx, exc):
-        logger.critical(f'Ignoring exception in command {ctx.command}: {exc} {''.join(traceback.format_tb(exc.__traceback__))}', exc_info=True)
-        # traceback.print_exception(type(exc), exc, exc.__traceback__, file=sys.stderr)
-        print(f'Exception raised. See log file for details. {exc}')
+
+        # This prevents any commands with local handlers being handled here in on_command_error.
+        if hasattr(ctx.command, 'on_error'):
+            return
+
+        ignored = (commands.CommandNotFound, commands.UserInputError, commands.CheckFailure)
+
+        # Anything in ignored will return and prevent anything happening.
+        if isinstance(error, ignored):
+            return
+
+        exception_str = "".join(traceback.format_tb(exc.__traceback__))
+        logger.critical(f'Ignoring exception in command {ctx.command}: {exc} {exception_str}', exc_info=True)
+        print(f'Exception raised. {exc}\r{exception_str}')
         await ctx.send(f'Unhandled error: {exc}')
 
     @bot.after_invoke
