@@ -1,6 +1,4 @@
 import discord
-# import asyncio
-# import websockets
 import datetime
 import configparser
 import argparse
@@ -59,7 +57,7 @@ if __name__ == '__main__':
 
         # Anything in ignored will return and prevent anything happening.
         if isinstance(exc, ignored):
-            logger.debug(f'Exception on ignored list raised in {ctx.command}. {exc}')
+            logger.warn(f'Exception on ignored list raised in {ctx.command}. {exc}')
             return
 
         exception_str = "".join(traceback.format_tb(exc.__traceback__))
