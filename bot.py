@@ -47,10 +47,12 @@ if __name__ == '__main__':
         # Should prevent bot from being able to be controlled via DM
         return ctx.guild is not None
 
+    @bot.event
     async def on_command_error(ctx, exc):
-        # handle specific cases
-        logger.log(logging.ERROR, f'Ignoring exception in command {ctx.command}', exc_info=(exc.__class__, exc, exc.__traceback__))
-        print('Exception raised. See log file for details.')
+        logger.critical(f'Ignoring exception in command {ctx.command}: {exc} {''.join(traceback.format_tb(exc.__traceback__))}', exc_info=True)
+        # traceback.print_exception(type(exc), exc, exc.__traceback__, file=sys.stderr)
+        print(f'Exception raised. See log file for details. {exc}')
+        await ctx.send(f'Unhandled error: {exc}')
 
     @bot.after_invoke
     async def post_invoke_cleanup(ctx):
