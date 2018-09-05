@@ -80,6 +80,7 @@ class ELOGamesCog:
                 await ctx.send('That team did not play in game {0.id}. The teams were {0.home_team.name} and {0.away_team.name}.'.format(winning_game))
                 return
 
+        # Check passed. Declare winner!
         with db:
             winning_game.declare_winner(winning_team, losing_team)
 
@@ -111,10 +112,6 @@ class ELOGamesCog:
         if len(side_home + side_away) > len(set(side_home + side_away)):
             await ctx.send('Duplicate players detected. Example usage for a 2v2 game: `{}startgame @player1 @player2 VS @player3 @player4`'.format(command_prefix))
             # Disabling this check would be a decent way to enable uneven teams ie 2v1, with the same person listed twice on one side.
-            return
-
-        if None in side_home or None in side_away:
-            await ctx.send('Command included invalid player. Example usage for a 2v2 game: `{}startgame @player1 @player2 VS @player3 @player4`'.format(command_prefix))
             return
 
         home_team_flag, list_of_home_teams = get_teams_of_players(side_home)  # List of what server team each player is on, eg Ronin, Jets.
@@ -170,14 +167,12 @@ class ELOGamesCog:
     async def game(self, ctx, *args):
 
         try:
-            # Argument is an int, so show game by ID
             game_id = int(''.join(args))
-            game = Game.get(id=game_id)
+            game = Game.get(id=game_id)     # Argument is an int, so show game by ID
             await game_embed(ctx, game)
             return
         except ValueError:
-            game_name = ' '.join(args)
-            # Args is not an int, which means search by game name
+            game_name = ' '.join(args)      # Args is not an int, which means search by game name
         except peewee.DoesNotExist:
             await ctx.send('Game with ID {} cannot be found.'.format(game_id))
             return
@@ -225,14 +220,12 @@ class ELOGamesCog:
     @commands.command(aliases=['teaminfo'])
     async def team(self, ctx, team_string: str):
 
-        # TODO: Add list of players
-
         matching_teams = get_team_from_name(team_string)
         if len(matching_teams) > 1:
             await ctx.send('More than one matching team found. Be more specific or trying using a quoted \"Team Name\"')
             return
         if len(matching_teams) == 0:
-            await ctx.send('Cannot find a team with name "{}". Be sure to use the full name, surrounded by quotes if it is more than one word.'.format(team_string))
+            await ctx.send(f'Cannot find a team with name "{team_string}". Be sure to use the full name, surrounded by quotes if it is more than one word.')
             return
         team = matching_teams[0]
 
@@ -247,13 +240,13 @@ class ELOGamesCog:
             except peewee.DoesNotExist:
                 member_stats.append((member.name, 0, '\u200b'))
 
-        member_stats.sort(key=lambda tup: tup[1], reverse=True)  # sort the list descending by ELO
-        members_sorted = [f'{x[0]}{x[2]}' for x in member_stats]  # create list of strings like Nelluk(1000)
+        member_stats.sort(key=lambda tup: tup[1], reverse=True)     # sort the list descending by ELO
+        members_sorted = [f'{x[0]}{x[2]}' for x in member_stats]    # create list of strings like Nelluk(1000)
 
         recent_games = Game.select().where((Game.home_team == team) | (Game.away_team == team)).order_by(-Game.date)[:10]
         wins, losses = team.get_record()
 
-        embed = discord.Embed(title='Team card for **{0.name}** {0.emoji}'.format(team))
+        embed = discord.Embed(title=f'Team card for **{team.name}** {team.emoji}')
         embed.add_field(name='Results', value=f'ELO: {team.elo}   Wins {wins} / Losses {losses}')
         embed.add_field(name=f'Members({len(team_members)})', value=f'{" / ".join(members_sorted)}')
 
@@ -464,12 +457,12 @@ class ELOGamesCog:
 
     @commands.command()
     async def setcode(self, ctx, *args):
-        if len(args) == 1:
-            # User setting code for themselves. No special permissions required.
+
+        if len(args) == 1:      # User setting code for themselves. No special permissions required.
             target_discord_member = ctx.message.author
             new_id = args[0]
-        elif len(args) == 2:
-            # User changing another user's code. Helper permissions required.
+
+        elif len(args) == 2:    # User changing another user's code. Helper permissions required.
             if len(get_matching_roles(ctx.author, helper_roles)) == 0:
                 await ctx.send('You do not have permission to trigger this command.')
                 return
@@ -486,7 +479,7 @@ class ELOGamesCog:
             new_id = args[1]
         else:
             # Unexpected input
-            await ctx.send('Wrong number of arguments. Use `{}setcode my_polytopia_code`'.format(command_prefix))
+            await ctx.send(f'Wrong number of arguments. Use `{command_prefix}setcode my_polytopia_code`')
             return
 
         if len(new_id) != 16 or new_id.isalnum() is False:
@@ -494,7 +487,7 @@ class ELOGamesCog:
             await ctx.send(f'Polytopia code "{new_id}" does not appear to be a valid code.')
             return
 
-        flag, team_list = get_teams_of_players([target_discord_member])
+        _, team_list = get_teams_of_players([target_discord_member])
         with db:
             player, created = upsert_player_and_lineup(player_discord=target_discord_member, player_team=team_list[0], game_side=None, new_game=None)
             player.polytopia_id = new_id
@@ -999,10 +992,6 @@ async def paginate(bot, ctx, title, message_list, page_start=0, page_end=10, pag
             await sent_message.add_reaction('⏪')
         if page_end < len(message_list):
             await sent_message.add_reaction('⏩')
-
-        # def check(reaction, user):
-        #     e = str(reaction.emoji)
-        #     return user == ctx.message.author and e.startswith(('⏪', '⏩'))
 
         def check(reaction, user):
             e = str(reaction.emoji)
