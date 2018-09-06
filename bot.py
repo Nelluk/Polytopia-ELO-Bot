@@ -17,6 +17,7 @@ config = configparser.ConfigParser()
 config.read('config.ini')
 
 try:
+    # TODO: Better handle whitespace in config.ini ('foo, bar' yields ['foo', ' bar'])
     discord_key = config['DEFAULT']['discord_key']
     helper_roles = (config['DEFAULT']['helper_roles']).split(',')
     mod_roles = (config['DEFAULT']['mod_roles']).split(',') + helper_roles

@@ -404,7 +404,7 @@ class ELOGamesCog:
 
     @in_bot_channel()
     @commands.command(aliases=['lbteam', 'leaderboardteam'])
-    @commands.cooldown(1, 30, commands.BucketType.channel)
+    @commands.cooldown(2, 30, commands.BucketType.channel)
     async def leaderboard_team(self, ctx):
         """or lbteam : shows team leaderboard"""
 
@@ -419,7 +419,7 @@ class ELOGamesCog:
 
     @in_bot_channel()
     @commands.command(aliases=['leaderboard', 'lbi', 'lb'])
-    @commands.cooldown(1, 30, commands.BucketType.channel)
+    @commands.cooldown(2, 30, commands.BucketType.channel)
     async def leaderboard_individual(self, ctx):
 
         leaderboard = []
@@ -436,7 +436,7 @@ class ELOGamesCog:
 
     @in_bot_channel()
     @commands.command(aliases=['lbsquad', 'leaderboardsquad'])
-    @commands.cooldown(1, 30, commands.BucketType.channel)
+    @commands.cooldown(2, 30, commands.BucketType.channel)
     async def leaderboard_squad(self, ctx):
         embed = discord.Embed(title='**Squad Leaderboard**')
 
@@ -693,7 +693,7 @@ class ELOGamesCog:
             embed.add_field(name='{}{}'.format(command_prefix, command), value=desc, inline=False)
         await ctx.send(embed=embed)
 
-    @commands.command(aliases=['help-staff', '  '])
+    @commands.command(aliases=['help-staff'])
     @commands.has_any_role(*helper_roles)
     async def help_staff(self, ctx):
         commands = [('newgame @player1 @player2 VS @player3 @player4', 'Start a new game between listed players.\n`Aliases: startgame`'),
