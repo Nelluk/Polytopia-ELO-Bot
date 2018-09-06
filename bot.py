@@ -17,13 +17,13 @@ config = configparser.ConfigParser()
 config.read('config.ini')
 
 try:
-    # TODO: Better handle whitespace in config.ini ('foo, bar' yields ['foo', ' bar'])
     discord_key = config['DEFAULT']['discord_key']
-    helper_roles = (config['DEFAULT']['helper_roles']).split(',')
-    mod_roles = (config['DEFAULT']['mod_roles']).split(',') + helper_roles
+    helper_roles = list(map(str.strip, (config['DEFAULT']['helper_roles']).split(',')))     # list(map(str.strip, foo))  clears extra trailing/leading whitespace
+    mod_roles = list(map(str.strip, (config['DEFAULT']['mod_roles']).split(',') + helper_roles))
 except KeyError:
     print('Error finding required settings in config.ini file - discord_key / helper_roles / mod_roles')
     exit(0)
+
 
 bot_channels = config['DEFAULT'].get('bot_channels', None)
 command_prefix = config['DEFAULT'].get('command_prefix', '$')
