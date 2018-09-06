@@ -73,11 +73,11 @@ if __name__ == '__main__':
 
     for extension in initial_extensions:
         bot.load_extension(extension)
-        # try:
-        #     bot.load_extension(extension)
-        # except Exception as e:
-        #     print(f'Failed to load extension {extension}.')
-        #     pass
+        try:
+            bot.load_extension(extension)
+        except Exception as e:
+            print(f'Failed to load extension {extension}: {e}')
+            pass
 
     @bot.event
     async def on_ready():
