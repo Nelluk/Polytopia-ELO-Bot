@@ -444,7 +444,8 @@ class ELOGamesCog:
 
         leaderboard = []
         with db:
-            squads = Squad.select().join(SquadGame).group_by(Squad.id).having(peewee.fn.COUNT(SquadGame.id) > 1).order_by(-Squad.elo)
+            # TODO: Change count(game) to > 1 once board is populated enough
+            squads = Squad.select().join(SquadGame).group_by(Squad.id).having(peewee.fn.COUNT(SquadGame.id) > 0).order_by(-Squad.elo)
             # TODO: Could limit inclusion to date_cutoff although ths might make the board too sparse
             # TODO: Move query into Squads class since basically same query is used in leaderboards and squad card (same goes for player rank query)
             for counter, sq in enumerate(squads[:200]):
