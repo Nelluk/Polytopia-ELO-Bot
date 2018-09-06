@@ -371,7 +371,7 @@ class ELOGamesCog:
 
             # TODO: Active query will be all players. Commented out will only include players with a recent game played. Also do same in $lb
 
-            ranked_players_query = Player.select().order_by(-Player.elo)
+            ranked_players_query = Player.select().order_by(-Player.elo).tuples()
 
             if len(ranked_players_query) == 0:
                 counter = -1
