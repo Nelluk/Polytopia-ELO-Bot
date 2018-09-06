@@ -424,7 +424,9 @@ class ELOGamesCog:
 
         leaderboard = []
         with db:
-            players_with_recent_games = Player.select().join(Lineup).join(Game).where(Game.date > date_cutoff).distinct().order_by(-Player.elo)
+            # TODO: Active query will be all players. Commented out will only include players with a recent game played.
+            # players_with_recent_games = Player.select().join(Lineup).join(Game).where(Game.date > date_cutoff).distinct().order_by(-Player.elo)
+            players_with_recent_games = Player.select().order_by(-Player.elo)
             for counter, player in enumerate(players_with_recent_games[:500]):
                 wins, losses = player.get_record()
                 # leaderboard.append('`{1:>3}. {0.discord_name:30}  (ELO: {0.elo:4})  W {2} / L {3}`'.format(player, counter + 1, wins, losses))
@@ -611,7 +613,7 @@ class ELOGamesCog:
             db.connect()
             team = Team.create(name=name)
             await ctx.send(f'Team {name} created! Starting ELO: {team.elo}. Players with a Discord Role exactly matching \"{name}\" will be considered team members. '
-                f'You can now set the team flair with `{command_prefix}`team_emoji and `{command_prefix}team_image`')
+                f'You can now set the team flair with `{command_prefix}`team_emoji and `{command_prefix}team_image`.')
         except peewee.IntegrityError:
             await ctx.send('That team already exists!')
         db.close()
