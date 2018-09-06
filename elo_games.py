@@ -582,7 +582,7 @@ class ELOGamesCog:
             lineups[0].tribe = tribe
             lineups[0].save()
             emoji_str = tribe.emoji if tribe.emoji is not None else ''
-            await ctx.send(f'Player {players[0].name} assigned to tribe {tribe.name} in game {game.id} {emoji_str}')
+            await ctx.send(f'Player {players[0].discord_name} assigned to tribe {tribe.name} in game {game.id} {emoji_str}')
 
     @commands.command()
     @commands.has_any_role(*mod_roles)
