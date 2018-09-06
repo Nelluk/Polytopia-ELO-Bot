@@ -367,7 +367,12 @@ class ELOGamesCog:
         with db:
             wins, losses = player.get_record()
 
-            ranked_players_query = Player.select(Player.id).join(Lineup).join(Game).where(Game.date > date_cutoff).distinct().order_by(-Player.elo).tuples()
+            # ranked_players_query = Player.select(Player.id).join(Lineup).join(Game).where(Game.date > date_cutoff).distinct().order_by(-Player.elo).tuples()
+
+            # TODO: Active query will be all players. Commented out will only include players with a recent game played. Also do same in $lb
+
+            ranked_players_query = Player.select().order_by(-Player.elo)
+
             if len(ranked_players_query) == 0:
                 counter = -1
             else:
@@ -424,7 +429,7 @@ class ELOGamesCog:
 
         leaderboard = []
         with db:
-            # TODO: Active query will be all players. Commented out will only include players with a recent game played.
+            # TODO: Active query will be all players. Commented out will only include players with a recent game played. Also do same in $player
             # players_with_recent_games = Player.select().join(Lineup).join(Game).where(Game.date > date_cutoff).distinct().order_by(-Player.elo)
             players_with_recent_games = Player.select().order_by(-Player.elo)
             for counter, player in enumerate(players_with_recent_games[:500]):
