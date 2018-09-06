@@ -610,7 +610,8 @@ class ELOGamesCog:
         try:
             db.connect()
             team = Team.create(name=name)
-            await ctx.send(f'Team {name} created! Starting ELO: {team.elo}. Players with a Discord Role exactly matching \"{name}\" will be considered team members.')
+            await ctx.send(f'Team {name} created! Starting ELO: {team.elo}. Players with a Discord Role exactly matching \"{name}\" will be considered team members. '
+                f'You can now set the team flair with `{command_prefix}`team_emoji and `{command_prefix}team_image`')
         except peewee.IntegrityError:
             await ctx.send('That team already exists!')
         db.close()
