@@ -534,7 +534,7 @@ class ELOGamesCog:
             new_name = args[0]
         elif len(args) == 2:
             # User changing another user's code. Admin permissions required.
-            if len(get_matching_roles(self, ctx.author, helper_roles)) == 0:
+            if len(get_matching_roles(ctx.author, helper_roles)) == 0:
                 await ctx.send('You do not have permission to trigger this command.')
                 return
 
