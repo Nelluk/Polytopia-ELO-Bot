@@ -466,7 +466,7 @@ class ELOGamesCog:
 
         elif len(args) == 2:    # User changing another user's code. Helper permissions required.
             if len(get_matching_roles(ctx.author, helper_roles)) == 0:
-                await ctx.send('You do not have permission to trigger this command.')
+                await ctx.send(f'You only have permission to set your own code. To do that use `{command_prefix}setcode YOURCODEHERE`')
                 return
 
             # Try to find matching guild/server member
@@ -582,7 +582,7 @@ class ELOGamesCog:
             lineups[0].tribe = tribe
             lineups[0].save()
             emoji_str = tribe.emoji if tribe.emoji is not None else ''
-            await ctx.send(f'Player {player_name} assigned to tribe {tribe.name} in game {game.id} {emoji_str}')
+            await ctx.send(f'Player {players[0].name} assigned to tribe {tribe.name} in game {game.id} {emoji_str}')
 
     @commands.command()
     @commands.has_any_role(*mod_roles)
