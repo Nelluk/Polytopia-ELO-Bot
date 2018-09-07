@@ -352,6 +352,8 @@ class ELOGamesCog:
         for rank, s in enumerate(ranking_query):
             if s[0] == squad.id:
                 break
+        if len(ranking_query) == 0:
+                rank = -1
 
         embed = discord.Embed(title=f'Squad card for Squad {squad.id}\n{"  /  ".join(squad.get_names())}', value='\u200b')
         embed.add_field(name='Results', value=f'ELO: {squad.elo},  W {wins} / L {losses}', inline=True)
