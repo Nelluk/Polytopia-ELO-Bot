@@ -104,7 +104,7 @@ class ELOGamesCog:
         if game_request_channel is None:
             return
         channel = self.bot.get_channel(int(game_request_channel))
-        await channel.send(ctx.message.clean_content)
+        await channel.send(f'{ctx.message.author} submitted: {ctx.message.clean_content}')
         await ctx.send('Request has been logged')
 
     @commands.command(aliases=['newgame'])
