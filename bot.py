@@ -65,7 +65,7 @@ if __name__ == '__main__':
 
         exception_str = "".join(traceback.format_tb(exc.__traceback__))
         logger.critical(f'Ignoring exception in command {ctx.command}: {exc} {exception_str}', exc_info=True)
-        print(f'Exception raised. {exc}\r{exception_str}')
+        print(f'Exception raised. {exc}\n{exception_str}')
         await ctx.send(f'Unhandled error: {exc}')
 
     @bot.after_invoke

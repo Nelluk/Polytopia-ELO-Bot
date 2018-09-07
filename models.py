@@ -33,7 +33,7 @@ class Team(BaseModel):
             new_elo = int(round(decimal.Decimal(self.elo + (max_elo_delta * (0 - chance_of_winning))), 0))
 
         elo_delta = int(new_elo - self.elo)
-        print('Team chance of winning: {} opponent elo {} current ELO {}, new elo {}, elo_delta {}'.format(chance_of_winning, opponent_elo, self.elo, new_elo, elo_delta))
+        # print('Team chance of winning: {} opponent elo {} current ELO {}, new elo {}, elo_delta {}'.format(chance_of_winning, opponent_elo, self.elo, new_elo, elo_delta))
 
         self.elo = int(self.elo + elo_delta)
         self.save()
@@ -166,7 +166,7 @@ class Player(BaseModel):
             new_elo = int(round(decimal.Decimal(self.elo + (max_elo_delta * (0 - chance_of_winning))), 0))
 
         elo_delta = int(new_elo - self.elo)
-        print('Player chance of winning: {} opponent elo:{} current ELO {}, new elo {}, elo_delta {}'.format(chance_of_winning, opponent_elo, self.elo, new_elo, elo_delta))
+        # print('Player chance of winning: {} opponent elo:{} current ELO {}, new elo {}, elo_delta {}'.format(chance_of_winning, opponent_elo, self.elo, new_elo, elo_delta))
 
         self.elo = int(self.elo + elo_delta)
         game_lineup.elo_change = elo_delta
@@ -208,7 +208,7 @@ class Squad(BaseModel):
             new_elo = int(round(decimal.Decimal(self.elo + (max_elo_delta * (0 - chance_of_winning))), 0))
 
         elo_delta = int(new_elo - self.elo)
-        print('Squad chance of winning: {} opponent elo:{} current ELO {}, new elo {}, elo_delta {}'.format(chance_of_winning, opponent_elo, self.elo, new_elo, elo_delta))
+        # print('Squad chance of winning: {} opponent elo:{} current ELO {}, new elo {}, elo_delta {}'.format(chance_of_winning, opponent_elo, self.elo, new_elo, elo_delta))
 
         self.elo = int(self.elo + elo_delta)
         squadgame.elo_change = elo_delta

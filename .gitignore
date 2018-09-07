@@ -18,3 +18,4 @@ pyvenv.cfg
 pip-selfcheck.json
 *.log
 *.csv
+*.json
