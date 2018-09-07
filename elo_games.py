@@ -357,7 +357,7 @@ class ELOGamesCog:
 
         embed = discord.Embed(title=f'Squad card for Squad {squad.id}\n{"  /  ".join(squad.get_names())}', value='\u200b')
         embed.add_field(name='Results', value=f'ELO: {squad.elo},  W {wins} / L {losses}', inline=True)
-        embed.add_field(name='Ranking', value=f'{rank} of {len(ranking_query)}', inline=True)
+        embed.add_field(name='Ranking', value=f'{rank + 1} of {len(ranking_query)}', inline=True)
         recent_games = SquadGame.select().join(Game).where(SquadGame.squad == squad).order_by(-SquadGame.game.date)[:5]
         embed.add_field(value='\u200b', name='Most recent games', inline=False)
 
