@@ -95,6 +95,7 @@ class ELOGamesCog:
             await ctx.send(f'Game concluded! Congrats team {winning_team.name}. Roster: {" ".join(player_mentions)}')
             await game_embed(ctx, winning_game)
 
+    @in_bot_channel()
     @commands.command(aliases=['request_game', 'requestgame'])
     @commands.cooldown(2, 30, commands.BucketType.user)
     async def reqgame(self, ctx, *args):
@@ -104,6 +105,7 @@ class ELOGamesCog:
             return
         channel = self.bot.get_channel(int(game_request_channel))
         await channel.send(ctx.message.clean_content)
+        await ctx.send('Request has been logged')
 
     @commands.command(aliases=['newgame'])
     @commands.has_any_role(*helper_roles)
