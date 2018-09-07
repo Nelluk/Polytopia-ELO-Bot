@@ -95,7 +95,7 @@ class ELOGamesCog:
             embed = game_embed(ctx, winning_game)
 
             if game_announce_channel is not None:
-                channel = self.bot.get_channel(int(game_request_channel))
+                channel = self.bot.get_channel(int(game_announce_channel))
                 if channel is not None:
                     await channel.send(f'Game concluded! Congrats team {winning_team.name}. Roster: {" ".join(player_mentions)}')
                     await channel.send(embed=embed)
@@ -187,7 +187,7 @@ class ELOGamesCog:
         embed = game_embed(ctx, newgame)
 
         if game_announce_channel is not None:
-            channel = self.bot.get_channel(int(game_request_channel))
+            channel = self.bot.get_channel(int(game_announce_channel))
             if channel is not None:
                 await channel.send(f'New game ID {newgame.id} started! Roster: {" ".join(mentions)}')
                 await channel.send(embed=embed)
