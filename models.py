@@ -1,4 +1,5 @@
 import datetime
+import decimal
 from peewee import *
 db = SqliteDatabase('bot_database.db', pragmas={
     'journal_mode': 'wal',
@@ -7,6 +8,8 @@ db = SqliteDatabase('bot_database.db', pragmas={
     'ignore_check_constraints': 0,
     'synchronous': 0})
 
+context = decimal.getcontext()
+context.rounding = decimal.ROUND_HALF_UP    # Otherwise python rounds 2.5 to 2 instead of 3
 
 class BaseModel(Model):
     class Meta:
@@ -25,10 +28,9 @@ class Team(BaseModel):
         chance_of_winning = round(1 / (1 + (10 ** ((opponent_elo - self.elo) / 400))), 3)
 
         if is_winner is True:
-            new_elo = round(self.elo + (max_elo_delta * (1 - chance_of_winning)), 0)
-
+            new_elo = int(round(decimal.Decimal(self.elo + (max_elo_delta * (1 - chance_of_winning))), 0))
         else:
-            new_elo = round(self.elo + (max_elo_delta * (0 - chance_of_winning)), 0)
+            new_elo = int(round(decimal.Decimal(self.elo + (max_elo_delta * (0 - chance_of_winning))), 0))
 
         elo_delta = int(new_elo - self.elo)
         print('Team chance of winning: {} opponent elo {} current ELO {}, new elo {}, elo_delta {}'.format(chance_of_winning, opponent_elo, self.elo, new_elo, elo_delta))
@@ -85,8 +87,9 @@ class Game(BaseModel):
 
         if self.team_size == 1:
             # 1v1 game - compare player vs player ELO
-            winning_players[0].change_elo_after_game(self, winning_players[0].elo, is_winner=True)
-            losing_players[0].change_elo_after_game(self, losing_players[0].elo, is_winner=False)
+            winner_elo = winning_players[0].elo     # Have to store first otherwise second calculation will shift
+            winning_players[0].change_elo_after_game(self, losing_players[0].elo, is_winner=True)
+            losing_players[0].change_elo_after_game(self, winner_elo, is_winner=False)
         else:
             winning_squad = Squad.get_matching_squad(winning_players)[0]
             losing_squad = Squad.get_matching_squad(losing_players)[0]
@@ -97,8 +100,9 @@ class Game(BaseModel):
             for losing_player in losing_players:
                 losing_player.change_elo_after_game(self, winning_squad.elo, is_winner=False)
 
+            winner_elo = winning_squad.elo          # Have to store first otherwise second calculation will shift
             winning_squad.change_elo_after_game(self, losing_squad.elo, is_winner=True)
-            losing_squad.change_elo_after_game(self, winning_squad.elo, is_winner=False)
+            losing_squad.change_elo_after_game(self, winner_elo, is_winner=False)
 
         self.winner = winning_team
         self.loser = losing_team
@@ -157,9 +161,9 @@ class Player(BaseModel):
         chance_of_winning = round(1 / (1 + (10 ** ((opponent_elo - self.elo) / 400))), 3)
 
         if is_winner is True:
-            new_elo = round(self.elo + (max_elo_delta * (1 - chance_of_winning)), 0)
+            new_elo = int(round(decimal.Decimal(self.elo + (max_elo_delta * (1 - chance_of_winning))), 0))
         else:
-            new_elo = round(self.elo + (max_elo_delta * (0 - chance_of_winning)), 0)
+            new_elo = int(round(decimal.Decimal(self.elo + (max_elo_delta * (0 - chance_of_winning))), 0))
 
         elo_delta = int(new_elo - self.elo)
         print('Player chance of winning: {} opponent elo:{} current ELO {}, new elo {}, elo_delta {}'.format(chance_of_winning, opponent_elo, self.elo, new_elo, elo_delta))
@@ -199,9 +203,9 @@ class Squad(BaseModel):
         chance_of_winning = round(1 / (1 + (10 ** ((opponent_elo - self.elo) / 400))), 3)
 
         if is_winner is True:
-            new_elo = round(self.elo + (max_elo_delta * (1 - chance_of_winning)), 0)
+            new_elo = int(round(decimal.Decimal(self.elo + (max_elo_delta * (1 - chance_of_winning))), 0))
         else:
-            new_elo = round(self.elo + (max_elo_delta * (0 - chance_of_winning)), 0)
+            new_elo = int(round(decimal.Decimal(self.elo + (max_elo_delta * (0 - chance_of_winning))), 0))
 
         elo_delta = int(new_elo - self.elo)
         print('Squad chance of winning: {} opponent elo:{} current ELO {}, new elo {}, elo_delta {}'.format(chance_of_winning, opponent_elo, self.elo, new_elo, elo_delta))

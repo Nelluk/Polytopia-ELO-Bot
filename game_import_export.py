@@ -47,7 +47,7 @@ class GameIO_Cog:
 
         pb = Pastebin(pastebin_api)
         pb_url = pb.create_paste_from_file(filepath='games_export.csv', api_paste_private=0, api_paste_expire_date='1D', api_paste_name='Polytopia Game Data')
-        await ctx.send(f'Game data has been export to the following URL: {pb_url}')
+        await ctx.send(f'Game data has been exported to the following URL: {pb_url}')
 
     @game_export.error
     async def game_export_handler(self, ctx, error):
