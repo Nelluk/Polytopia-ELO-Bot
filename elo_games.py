@@ -11,7 +11,11 @@ def in_bot_channel():
     async def predicate(ctx):
         if bot_channels is None:
             return True
-        return str(ctx.message.channel.id) in bot_channels
+        if str(ctx.message.channel.id) in bot_channels:
+            return True
+        else:
+            await ctx.send('This command can only be used in a designated bot channel.')
+            return False
     return commands.check(predicate)
 
 
@@ -39,7 +43,7 @@ class ELOGamesCog:
     async def gamename(self, ctx, game: poly_game, *args):
 
         if game is None:
-            await ctx.send(f'No matching game was found.')
+            await ctx.send('No matching game was found.')
             return
 
         with db:
@@ -682,6 +686,7 @@ class ELOGamesCog:
 
             await ctx.send('Team **{}** has been renamed to **{}**.'.format(old_team_name, new_team_name))
 
+    @in_bot_channel()
     @commands.command(aliases=['elohelp'])
     async def help(self, ctx):
         commands = [('lb', 'Show individual leaderboard\n`Aliases: leaderboard`'),
@@ -702,6 +707,7 @@ class ELOGamesCog:
             embed.add_field(name='{}{}'.format(command_prefix, command), value=desc, inline=False)
         await ctx.send(embed=embed)
 
+    @in_bot_channel()
     @commands.command(aliases=['help-staff'])
     @commands.has_any_role(*helper_roles)
     async def help_staff(self, ctx):
