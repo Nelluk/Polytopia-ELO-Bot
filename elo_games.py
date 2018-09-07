@@ -4,7 +4,7 @@ import websockets
 from discord.ext import commands
 import peewee
 from models import db, Team, Game, Player, Lineup, Tribe, Squad, SquadGame, SquadMember
-from bot import helper_roles, mod_roles, date_cutoff, bot_channels, logger, args, require_teams, command_prefix, game_request_channel
+from bot import helper_roles, mod_roles, date_cutoff, bot_channels, logger, args, require_teams, command_prefix, game_request_channel, game_announce_channel
 
 
 def in_bot_channel():
@@ -92,8 +92,17 @@ class ELOGamesCog:
             loser_roster = winning_game.get_roster(losing_team)
 
             player_mentions = [f'<@{p.discord_id}>' for p, _, _ in (winner_roster + loser_roster)]
+            embed = game_embed(ctx, winning_game)
+
+            if game_announce_channel is not None:
+                channel = self.bot.get_channel(int(game_request_channel))
+                if channel is not None:
+                    await channel.send(f'Game concluded! Congrats team {winning_team.name}. Roster: {" ".join(player_mentions)}')
+                    await channel.send(embed=embed)
+                    await ctx.send(f'Game concluded! See {channel.mention} for full details.')
+                    return
             await ctx.send(f'Game concluded! Congrats team {winning_team.name}. Roster: {" ".join(player_mentions)}')
-            await game_embed(ctx, winning_game)
+            await ctx.send(embed=embed)
 
     @in_bot_channel()
     @commands.command(aliases=['request_game', 'requestgame'])
@@ -175,8 +184,17 @@ class ELOGamesCog:
                 away_squad = Squad.upsert_squad(player_list=side_away_players, game=newgame, team=away_side_team)
 
         mentions = [p.mention for p in side_home + side_away]
+        embed = game_embed(ctx, newgame)
+
+        if game_announce_channel is not None:
+            channel = self.bot.get_channel(int(game_request_channel))
+            if channel is not None:
+                await channel.send(f'New game ID {newgame.id} started! Roster: {" ".join(mentions)}')
+                await channel.send(embed=embed)
+                await ctx.send(f'New game ID {newgame.id} started! See {channel.mention} for full details.')
+                return
         await ctx.send(f'New game ID {newgame.id} started! Roster: {" ".join(mentions)}')
-        await game_embed(ctx, newgame)
+        await ctx.send(embed=embed)
 
     @in_bot_channel()
     @commands.command(aliases=['gameinfo'])
@@ -185,7 +203,8 @@ class ELOGamesCog:
         try:
             game_id = int(''.join(args))
             game = Game.get(id=game_id)     # Argument is an int, so show game by ID
-            await game_embed(ctx, game)
+            embed = game_embed(ctx, game)
+            await ctx.send(embed=embed)
             return
         except ValueError:
             game_name = ' '.join(args)      # Args is not an int, which means search by game name
@@ -198,7 +217,8 @@ class ELOGamesCog:
             await ctx.send(f'Cannot locate any games matching name "{game_name}"')
             return
         if len(game_list) == 1:
-            await game_embed(ctx, game_list[0])
+            embed = game_embed(ctx, game_list[0])
+            await ctx.send(embed=embed)
             return
 
         # More than one matching name found, so display a short list
@@ -920,7 +940,7 @@ async def get_guild_member(ctx, input):
         return guild_matches
 
 
-async def game_embed(ctx, game):
+def game_embed(ctx, game):
 
     # TODO: Should team emoji handle being None?
 
@@ -998,7 +1018,8 @@ async def game_embed(ctx, game):
             embed.add_field(value='\u200b', name=' \u200b', inline=False)
 
         embed.set_footer(text=f'Status: {game_status}  -  Creation Date {str(game.date)}')
-        await ctx.send(embed=embed)
+        return embed
+        # await ctx.send(embed=embed)
 
 
 async def paginate(bot, ctx, title, message_list, page_start=0, page_end=10, page_size=10):

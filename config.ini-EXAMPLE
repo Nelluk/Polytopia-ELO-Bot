@@ -25,4 +25,8 @@ bot_channels = 1234567, 89109876
 #	used for players to submit new game data - bot will relay to given channel, so staff can process
 #	if left out this feature will be disabled
 
+# game_announce_channel - channel ID where bot will announce game rosters and results
+#	used so that staff can start games wherever but the detailed game card and mentions will all get put in one specific place
+#	if left out the details will just be displayed in the channel where the command is given
+
 # pastebin_key - Optional, used for exporting game data. See https://pastebin.com/api to get a key
