@@ -26,6 +26,7 @@ except KeyError:
 
 
 bot_channels = config['DEFAULT'].get('bot_channels', None)
+game_request_channel = config['DEFAULT'].get('game_request_channel', None)
 command_prefix = config['DEFAULT'].get('command_prefix', '$')
 require_teams = True if config['DEFAULT'].get('require_teams') == 'True' else False
 date_cutoff = datetime.datetime.today() - datetime.timedelta(days=90)  # Players who haven't played since cutoff are not included in leaderboards

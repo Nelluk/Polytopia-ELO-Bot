@@ -4,7 +4,7 @@ import websockets
 from discord.ext import commands
 import peewee
 from models import db, Team, Game, Player, Lineup, Tribe, Squad, SquadGame, SquadMember
-from bot import helper_roles, mod_roles, date_cutoff, bot_channels, logger, args, require_teams, command_prefix
+from bot import helper_roles, mod_roles, date_cutoff, bot_channels, logger, args, require_teams, command_prefix, game_request_channel
 
 
 def in_bot_channel():
@@ -94,6 +94,16 @@ class ELOGamesCog:
             player_mentions = [f'<@{p.discord_id}>' for p, _, _ in (winner_roster + loser_roster)]
             await ctx.send(f'Game concluded! Congrats team {winning_team.name}. Roster: {" ".join(player_mentions)}')
             await game_embed(ctx, winning_game)
+
+    @commands.command(aliases=['request_game', 'requestgame'])
+    @commands.cooldown(2, 30, commands.BucketType.user)
+    async def reqgame(self, ctx, *args):
+        # Used so that users can submit game information to staff - bot will relay the text in the command to a specific channel.
+        # Staff would then take action and create games
+        if game_request_channel is None:
+            return
+        channel = self.bot.get_channel(int(game_request_channel))
+        await channel.send(ctx.message.clean_content)
 
     @commands.command(aliases=['newgame'])
     @commands.has_any_role(*helper_roles)

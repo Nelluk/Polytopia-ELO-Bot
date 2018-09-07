@@ -19,6 +19,10 @@ bot_channels = 1234567, 89109876
 
 # bot_channels - list of channel ID numbers where bot will respond to commands.
 # 	if this is left out bot will respond in any channel.
-# 	by default only leaderboard commands are set to respect this setting
+# 	by default only leaderboard/player/squad/game commands are set to respect this setting
+
+# game_request_channel - channel ID where bot will announce game requests from users
+#	used for players to submit new game data - bot will relay to given channel, so staff can process
+#	if left out this feature will be disabled
 
 # pastebin_key - Optional, used for exporting game data. See https://pastebin.com/api to get a key
