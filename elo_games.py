@@ -886,10 +886,16 @@ def get_player_from_mention_or_string(player_string):
 
 
 def upsert_player_and_lineup(player_discord, player_team, game_side=None, new_game=None):
-        player, created = Player.get_or_create(discord_id=player_discord.id, defaults={'discord_name': player_discord.name, 'team': player_team})
+
+        if player_discord.nick:
+            display_name = f'{player_discord.name} ({player_discord.nick})'
+        else:
+            display_name = player_discord.name
+
+        player, created = Player.get_or_create(discord_id=player_discord.id, defaults={'discord_name': display_name, 'team': player_team})
         if not created:
             player.team = player_team    # update team with existing player in db in case they have been traded
-            player.discord_name = player_discord.name
+            player.discord_name = display_name
             player.save()
             logger.debug('Player {player.discord_name} updated')
         if new_game is not None:
