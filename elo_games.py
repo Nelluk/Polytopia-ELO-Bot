@@ -182,8 +182,8 @@ class ELOGamesCog:
                 side_away_players.append(upsert_player_and_lineup(player_discord=player_discord, player_team=player_team, game_side=away_side_team, new_game=newgame)[0])
 
             if len(side_home_players) > 1:
-                home_squad = Squad.upsert_squad(player_list=side_home_players, game=newgame, team=home_side_team)
-                away_squad = Squad.upsert_squad(player_list=side_away_players, game=newgame, team=away_side_team)
+                Squad.upsert_squad(player_list=side_home_players, game=newgame, team=home_side_team)
+                Squad.upsert_squad(player_list=side_away_players, game=newgame, team=away_side_team)
 
         mentions = [p.mention for p in side_home + side_away]
         embed = game_embed(ctx, newgame)

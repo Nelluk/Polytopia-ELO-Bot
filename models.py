@@ -96,11 +96,15 @@ class Game(BaseModel):
             winning_squad = Squad.get_matching_squad(winning_players)[0]
             losing_squad = Squad.get_matching_squad(losing_players)[0]
 
+            winning_side_elos, losing_side_elos = [p.elo for p in winning_players], [p.elo for p in losing_players]
+            winning_side_ave_elo = round(sum(winning_side_elos) / len(winning_side_elos))
+            losing_side_ave_elo = round(sum(losing_side_elos) / len(losing_side_elos))
+
             for winning_player in winning_players:
-                winning_player.change_elo_after_game(self, losing_squad.elo, is_winner=True)
+                winning_player.change_elo_after_game(self, losing_side_ave_elo, is_winner=True)
 
             for losing_player in losing_players:
-                losing_player.change_elo_after_game(self, winning_squad.elo, is_winner=False)
+                losing_player.change_elo_after_game(self, winning_side_ave_elo, is_winner=False)
 
             winner_elo = winning_squad.elo          # Have to store first otherwise second calculation will shift
             winning_squad.change_elo_after_game(self, losing_squad.elo, is_winner=True)
