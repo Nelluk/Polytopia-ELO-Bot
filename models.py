@@ -178,8 +178,8 @@ class Player(BaseModel):
         return elo_delta
 
     def get_record(self):
-        wins = Lineup.select().join(Game).where(Lineup.game.winner == Lineup.team, Lineup.player == self).count()
-        losses = Lineup.select().join(Game).where(Lineup.game.loser == Lineup.team, Lineup.player == self).count()
+        wins = Lineup.select(Lineup.game).join(Game).where(Lineup.game.winner == Lineup.team, Lineup.player == self).distinct().count()
+        losses = Lineup.select(Lineup.game).join(Game).where(Lineup.game.loser == Lineup.team, Lineup.player == self).distinct().count()
         return (wins, losses)
 
     def get_leaderboard(date_cutoff):

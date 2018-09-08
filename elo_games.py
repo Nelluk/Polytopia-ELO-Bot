@@ -135,9 +135,11 @@ class ELOGamesCog:
             return
 
         if len(side_home + side_away) > len(set(side_home + side_away)):
-            await ctx.send('Duplicate players detected. Example usage for a 2v2 game: `{}startgame @player1 @player2 VS @player3 @player4`'.format(command_prefix))
-            # Disabling this check would be a decent way to enable uneven teams ie 2v1, with the same person listed twice on one side.
-            return
+            await ctx.send('Duplicate players detected. Are you sure this is what you want? (That means the two sides are uneven.)')
+
+            # await ctx.send('Duplicate players detected. Example usage for a 2v2 game: `{}startgame @player1 @player2 VS @player3 @player4`'.format(command_prefix))
+            # return
+            # # Disabling this check would be a decent way to enable uneven teams ie 2v1, with the same person listed twice on one side.
 
         home_team_flag, list_of_home_teams = get_teams_of_players(side_home)  # List of what server team each player is on, eg Ronin, Jets.
         away_team_flag, list_of_away_teams = get_teams_of_players(side_away)
