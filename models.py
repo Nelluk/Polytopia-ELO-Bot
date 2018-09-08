@@ -1,6 +1,7 @@
 import datetime
 import decimal
 from peewee import *
+
 db = SqliteDatabase('bot_database.db', pragmas={
     'journal_mode': 'wal',
     'cache_size': -1 * 64000,  # 64MB
@@ -10,6 +11,7 @@ db = SqliteDatabase('bot_database.db', pragmas={
 
 context = decimal.getcontext()
 context.rounding = decimal.ROUND_HALF_UP    # Otherwise python rounds 2.5 to 2 instead of 3
+
 
 class BaseModel(Model):
     class Meta:
@@ -180,6 +182,15 @@ class Player(BaseModel):
         losses = Lineup.select().join(Game).where(Lineup.game.loser == Lineup.team, Lineup.player == self).count()
         return (wins, losses)
 
+    def get_leaderboard(date_cutoff):
+        # TODO: Handle date_cutoff being None
+        # Players with a game played since date_cutoff
+        query = Player.select().join(Lineup).join(Game).where(Game.date > date_cutoff).distinct().order_by(-Player.elo)
+        if len(query) < 10:
+            # Include all registered players on leaderboard if not many games played
+            query = Player.select().order_by(-Player.elo)
+        return query
+
 
 class Tribe(BaseModel):
     name = CharField(unique=True, null=False, constraints=[SQL('COLLATE NOCASE')])
@@ -229,6 +240,14 @@ class Squad(BaseModel):
         wins = SquadGame.select().join(Game).where((SquadGame.game.winner == SquadGame.team) & (SquadGame.squad == self)).count()
         losses = SquadGame.select().join(Game).where((SquadGame.game.loser == SquadGame.team) & (SquadGame.squad == self)).count()
         return (wins, losses)
+
+    def get_leaderboard():
+        # TODO: Could limit inclusion to date_cutoff although ths might make the board too sparse (also not sure how to form that query)
+        query = Squad.select().join(SquadGame).group_by(Squad.id).having(fn.COUNT(SquadGame.id) > 1).order_by(-Squad.elo)
+        if len(query) < 5:
+            # Reduced leaderboard requirements if not many games logged
+            query = Squad.select().join(SquadGame).group_by(Squad.id).having(fn.COUNT(SquadGame.id) > 0).order_by(-Squad.elo)
+        return query
 
     def get_matching_squad(player_list):
         # Takes [List, of, Player, Records] (not names)

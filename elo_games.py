@@ -1,10 +1,10 @@
 import discord
 import asyncio
-import websockets
+# import websockets
 from discord.ext import commands
 import peewee
-from models import db, Team, Game, Player, Lineup, Tribe, Squad, SquadGame, SquadMember
-from bot import helper_roles, mod_roles, date_cutoff, bot_channels, logger, args, require_teams, command_prefix, game_request_channel, game_announce_channel
+from models import db, Team, Game, Player, Lineup, Tribe, Squad, SquadGame
+from bot import helper_roles, mod_roles, bot_channels, logger, args, require_teams, command_prefix, game_request_channel, game_announce_channel, date_cutoff
 
 
 def in_bot_channel():
@@ -347,8 +347,8 @@ class ELOGamesCog:
             squad = squad_list[0]
 
         wins, losses = squad.get_record()
+        ranking_query = Squad.get_leaderboard().tuples()
 
-        ranking_query = Squad.select(Squad.id).join(SquadGame).group_by(Squad.id).having(peewee.fn.COUNT(SquadGame.id) > 1).order_by(-Squad.elo).tuples()
         for rank, s in enumerate(ranking_query):
             if s[0] == squad.id:
                 break
@@ -404,12 +404,7 @@ class ELOGamesCog:
 
         with db:
             wins, losses = player.get_record()
-
-            # ranked_players_query = Player.select(Player.id).join(Lineup).join(Game).where(Game.date > date_cutoff).distinct().order_by(-Player.elo).tuples()
-
-            # TODO: Active query will be all players. Commented out will only include players with a recent game played. Also do same in $lb
-
-            ranked_players_query = Player.select().order_by(-Player.elo).tuples()
+            ranked_players_query = Player.get_leaderboard(date_cutoff=date_cutoff).tuples()
 
             if len(ranked_players_query) == 0:
                 counter = -1
@@ -467,12 +462,9 @@ class ELOGamesCog:
 
         leaderboard = []
         with db:
-            # TODO: Active query will be all players. Commented out will only include players with a recent game played. Also do same in $player
-            # players_with_recent_games = Player.select().join(Lineup).join(Game).where(Game.date > date_cutoff).distinct().order_by(-Player.elo)
-            players_with_recent_games = Player.select().order_by(-Player.elo)
-            for counter, player in enumerate(players_with_recent_games[:500]):
+            leaderboard_query = Player.get_leaderboard(date_cutoff=date_cutoff)
+            for counter, player in enumerate(leaderboard_query[:500]):
                 wins, losses = player.get_record()
-                # leaderboard.append('`{1:>3}. {0.discord_name:30}  (ELO: {0.elo:4})  W {2} / L {3}`'.format(player, counter + 1, wins, losses))
                 leaderboard.append(
                     (f'`{(counter + 1):>3}. {player.discord_name}`', f'`(ELO: {player.elo:4}) W {wins} / L {losses}`')
                 )
@@ -483,19 +475,14 @@ class ELOGamesCog:
     @commands.command(aliases=['lbsquad', 'leaderboardsquad'])
     @commands.cooldown(2, 30, commands.BucketType.channel)
     async def leaderboard_squad(self, ctx):
-        embed = discord.Embed(title='**Squad Leaderboard**')
 
         leaderboard = []
         with db:
-            # TODO: Change count(game) to > 1 once board is populated enough
-            squads = Squad.select().join(SquadGame).group_by(Squad.id).having(peewee.fn.COUNT(SquadGame.id) > 0).order_by(-Squad.elo)
-            # TODO: Could limit inclusion to date_cutoff although ths might make the board too sparse
-            # TODO: Move query into Squads class since basically same query is used in leaderboards and squad card (same goes for player rank query)
+            squads = Squad.get_leaderboard()
             for counter, sq in enumerate(squads[:200]):
                 wins, losses = sq.get_record()
                 squad_members = sq.get_names()
                 squad_names = ' / '.join(squad_members)
-                # leaderboard.append('`{0:>3}. {1:40}  (ELO: {2:4})  W {3} / L {4}`'.format(counter + 1, squad_names, sq.elo, wins, losses))
                 leaderboard.append(
                     (f'`{(counter + 1):>3}. {squad_names}`', f'`(ELO: {sq.elo:4}) W {wins} / L {losses}`')
                 )
