@@ -29,4 +29,8 @@ bot_channels = 1234567, 89109876
 #	used so that staff can start games wherever but the detailed game card and mentions will all get put in one specific place
 #	if left out the details will just be displayed in the channel where the command is given
 
+# game_channel_category - category ID where the bot can automatically create/delete game-related channels to aide in team communication
+#	bot handles channel naming and user permissions. Must have 'Manage Channels' permission.
+#	If left out this feature will be ignored.
+
 # pastebin_key - Optional, used for exporting game data. See https://pastebin.com/api to get a key

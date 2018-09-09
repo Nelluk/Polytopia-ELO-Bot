@@ -4,7 +4,9 @@ import asyncio
 from discord.ext import commands
 import peewee
 from models import db, Team, Game, Player, Lineup, Tribe, Squad, SquadGame
-from bot import helper_roles, mod_roles, bot_channels, logger, args, require_teams, command_prefix, game_request_channel, game_announce_channel, date_cutoff
+from bot import (helper_roles, mod_roles, bot_channels, logger, args,
+                require_teams, command_prefix, game_request_channel,
+                game_announce_channel, date_cutoff, game_channel_category)
 
 
 def in_bot_channel():
@@ -92,15 +94,18 @@ class ELOGamesCog:
             loser_roster = winning_game.get_roster(losing_team)
 
             player_mentions = [f'<@{p.discord_id}>' for p, _, _ in (winner_roster + loser_roster)]
+
             embed = game_embed(ctx, winning_game)
+            await self.delete_game_channels(ctx, winning_game)
 
             if game_announce_channel is not None:
-                channel = self.bot.get_channel(int(game_announce_channel))
+                channel = ctx.guild.get_channel(int(game_announce_channel))
                 if channel is not None:
                     await channel.send(f'Game concluded! Congrats team {winning_team.name}. Roster: {" ".join(player_mentions)}')
                     await channel.send(embed=embed)
                     await ctx.send(f'Game concluded! See {channel.mention} for full details.')
                     return
+
             await ctx.send(f'Game concluded! Congrats team {winning_team.name}. Roster: {" ".join(player_mentions)}')
             await ctx.send(embed=embed)
 
@@ -112,17 +117,18 @@ class ELOGamesCog:
         # Staff would then take action and create games
         if game_request_channel is None:
             return
-        channel = self.bot.get_channel(int(game_request_channel))
+        channel = ctx.guild.get_channel(int(game_request_channel))
         await channel.send(f'{ctx.message.author} submitted: {ctx.message.clean_content}')
         await ctx.send('Request has been logged')
 
     @commands.command(aliases=['newgame'])
     @commands.has_any_role(*helper_roles)
-    async def startgame(self, ctx, *args):
-        """startgame @player1 @player2 VS @player3 @player4"""
+    async def startgame(self, ctx, game_name: str, *args):
+        """startgame "Name of Game" @player1 @player2 VS @player3 @player4"""
+        # TODO: Make game_name optional, would require custom parsing all the args and detecting when a game_name is there or not.
 
         if len(args) not in [3, 5, 7, 9, 11] or args[int(len(args) / 2)].upper() != 'VS':
-            await ctx.send('Invalid format. Example usage for a 2v2 game: `{}startgame @player1 @player2 VS @player3 @player4`'.format(command_prefix))
+            await ctx.send('Invalid format. Example usage for a 2v2 game: `{}startgame "Game Name" @player1 @player2 VS @player3 @player4`'.format(command_prefix))
             return
 
         con = commands.MemberConverter()
@@ -172,7 +178,7 @@ class ELOGamesCog:
         logger.debug(f'All input checks passed. Creating new game records with args: {args}')
         with db:
             # Sanity checks all passed. Start a new game!
-            newgame = Game.create(team_size=len(side_home), home_team=home_side_team, away_team=away_side_team)
+            newgame = Game.create(team_size=len(side_home), home_team=home_side_team, away_team=away_side_team, name=game_name)
             side_home_players = []
             side_away_players = []
             for player_discord, player_team in zip(side_home, list_of_home_teams):
@@ -185,11 +191,14 @@ class ELOGamesCog:
                 Squad.upsert_squad(player_list=side_home_players, game=newgame, team=home_side_team)
                 Squad.upsert_squad(player_list=side_away_players, game=newgame, team=away_side_team)
 
+            if newgame.team_size > 1:
+                await self.create_game_channels(ctx=ctx, game=newgame, home_players=side_home_players, away_players=side_away_players)
+
         mentions = [p.mention for p in side_home + side_away]
         embed = game_embed(ctx, newgame)
 
         if game_announce_channel is not None:
-            channel = self.bot.get_channel(int(game_announce_channel))
+            channel = ctx.guild.get_channel(int(game_announce_channel))
             if channel is not None:
                 await channel.send(f'New game ID {newgame.id} started! Roster: {" ".join(mentions)}')
                 await channel.send(embed=embed)
@@ -197,6 +206,67 @@ class ELOGamesCog:
                 return
         await ctx.send(f'New game ID {newgame.id} started! Roster: {" ".join(mentions)}')
         await ctx.send(embed=embed)
+
+    async def delete_game_channels(self, ctx, game):
+
+        if game_channel_category is None:
+            return
+        chan_category = discord.utils.get(ctx.guild.categories, id=int(game_channel_category))
+        if chan_category is None:
+            logger.error(f'In delete_game_channels - chans_category_id {game_channel_category} was supplied but cannot be loaded')
+            return
+        if ctx.guild.me.guild_permissions.manage_channels is not True:
+            logger.error('In delete_game_channels - manage_channels permission is false.')
+            return
+
+        matching_chans = [c for c in chan_category.channels if c.name.startswith(f'elo{game}-')]
+        for chan in matching_chans:
+            logger.warn(f'Deleting channel {chan.name}')
+            await chan.delete(reason='Game concluded')
+
+    async def create_game_channels(self, ctx, game, home_players, away_players):
+
+        if game_channel_category is None:
+            return
+        chan_category = discord.utils.get(ctx.guild.categories, id=int(game_channel_category))
+        if chan_category is None:
+            logger.error(f'In create_game_channels - chans_category_id {game_channel_category} was supplied but cannot be loaded')
+            return
+        if ctx.guild.me.guild_permissions.manage_channels is not True:
+            logger.error('In create_game_channels - manage_channels permission is false.')
+            return
+
+        home_string = f'{game.name}_{game.home_team.name}'
+        away_string = f'{game.name}_{game.away_team.name}'
+        home_chan_name = f'elo{game.id}-{" ".join(home_string.replace("The", "").replace("the", "").split()).replace(" ", "-")}'
+        away_chan_name = f'elo{game.id}-{" ".join(away_string.replace("The", "").replace("the", "").split()).replace(" ", "-")}'
+        # Turns game named 'The Mountain of Fire' to something like #elo41-mountain-of-fire_ronin
+
+        home_members = [ctx.guild.get_member(p.discord_id) for p in home_players]
+        away_members = [ctx.guild.get_member(p.discord_id) for p in away_players]
+        home_permissions, away_permissions = {}, {}
+        perm = discord.PermissionOverwrite(read_messages=True, add_reactions=True, send_messages=True, attach_files=True)
+
+        for m in home_members + [ctx.guild.me]:
+            home_permissions[m] = perm
+        for m in away_members + [ctx.guild.me]:
+            away_permissions[m] = perm
+
+        home_permissions[ctx.guild.default_role] = away_permissions[ctx.guild.default_role] = discord.PermissionOverwrite(read_messages=False)
+
+        home_chan = await ctx.guild.create_text_channel(name=home_chan_name, overwrites=home_permissions, category=chan_category, reason='ELO Game chan')
+        away_chan = await ctx.guild.create_text_channel(name=away_chan_name, overwrites=away_permissions, category=chan_category, reason='ELO Game chan')
+        logger.debug(f'Created channels {home_chan.name} and {away_chan.name}')
+
+        home_mentions, away_mentions = [p.mention for p in home_members], [p.mention for p in away_members]
+        home_names, away_names = [p.discord_name for p in home_players], [p.discord_name for p in away_players]
+
+        await home_chan.send(f'This is the team channel for game **{game.name}**.\n'
+            f'This team is composed of {" / ".join(home_mentions)}\n'
+            f'Your opponents are: {" / ".join(away_names)}')
+        await away_chan.send(f'This is the team channel for game **{game.name}**.\n'
+            f'This team is composed of {" / ".join(away_mentions)}\n'
+            f'Your opponents are: {" / ".join(home_names)}')
 
     @in_bot_channel()
     @commands.command(aliases=['gameinfo'])
@@ -715,12 +785,13 @@ class ELOGamesCog:
     @in_bot_channel()
     @commands.command(aliases=['elohelp'])
     async def help(self, ctx):
-        commands = [('lb', 'Show individual leaderboard\n`Aliases: leaderboard`'),
+        commands = [('reqgame `"Name of Game" player1 player2 VS player3 player4`', 'Submit game details to staff to be added to the bot. Include tribe emoji if known.'),
+                    ('lb', 'Show individual leaderboard'),
                     ('lbteam', 'Show team leaderboard'),
                     ('lbsquad', 'Show squad leaderboard'),
-                    ('team `name`', 'Display stats for a given team.\n`Aliases: teaminfo`'),
-                    ('player @player', 'Display stats for a given player. Also lets you search by game code/name.\n`Aliases: playerinfo`'),
-                    ('game `GAMEID`', 'Display stats for a given game\n`Aliases: gameinfo`'),
+                    ('team `name`', 'Display stats for a given team.'),
+                    ('player @player', 'Display stats for a given player. Also lets you search by game code/name.'),
+                    ('game `GAMEID`', 'Display stats for a given game'),
                     ('squad `LIST OF PLAYERS`', 'Show squads containing given members - or detailed squad info if only one match.`'),
                     ('setcode `POLYTOPIACODE`', 'Register your code with the bot for others to find. Also will place you on the leaderboards.'),
                     ('setname `IN-GAME NAME`', 'Register your in-game name with the bot for others to find.'),
@@ -737,7 +808,7 @@ class ELOGamesCog:
     @commands.command(aliases=['help-staff'])
     @commands.has_any_role(*helper_roles)
     async def help_staff(self, ctx):
-        commands = [('newgame @player1 @player2 VS @player3 @player4', 'Start a new game between listed players.\n`Aliases: startgame`'),
+        commands = [('newgame "Name of Game" @player1 @player2 VS @player3 @player4', 'Start a new game between listed players.\n`Aliases: startgame`'),
                     ('wingame `GAMEID` \"winning team\"', 'Declare winner of open game.\n`Aliases: win, winner`'),
                     ('namegame `GAMEID` \"Name of Game\"', 'Store Polytopia in-game name for this match`'),
                     ('setcode `@user POLYTOPIACODE`', 'Change or add the code of another user to the bot.'),
