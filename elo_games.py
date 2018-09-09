@@ -419,7 +419,7 @@ class ELOGamesCog:
                         break
                     # counter should now equal ranking of player in the leaderboard
 
-            recent_games = Game.select().join(Lineup).where(Lineup.player == player).order_by(-Game.date)[:5]
+            recent_games = Game.select().join(Lineup).where(Lineup.player == player).order_by(-Game.date)[:7]
 
             embed = discord.Embed(title=f'Player card for {player.discord_name}')
             embed.add_field(name='Results', value=f'ELO: {player.elo}, W {wins} / L {losses}')
