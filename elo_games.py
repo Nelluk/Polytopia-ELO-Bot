@@ -232,13 +232,16 @@ class ELOGamesCog:
     @commands.command(aliases=['incomplete'])
     async def incompletegames(self, ctx):
         """or incomplete: Lists oldest incomplete games"""
-        embed = discord.Embed(title='Oldest incomplete games')
-
+        incomplete_list = []
         for counter, game in enumerate(Game.select().where(Game.is_completed == 0).order_by(Game.date)[:20]):
             name_str = f' - {game.name}' if game.name else ''
-            embed.add_field(name='Game ID #{0.id} - {0.home_team.name} vs {0.away_team.name}{1}'.format(game, name_str), value=(str(game.date)), inline=False)
 
-        await ctx.send(embed=embed)
+            incomplete_list.append((
+                'Game ID #{0.id} - {0.home_team.emoji}{0.home_team.name} vs {0.away_team.name}{0.away_team.emoji}{1}'.format(game, name_str),
+                f'{(str(game.date))} - {game.team_size}v{game.team_size}'
+            ))
+
+        await paginate(self.bot, ctx, title='**Oldest Incomplete Games**', message_list=incomplete_list, page_start=0, page_end=10, page_size=10)
 
     @commands.command()
     @commands.has_any_role(*mod_roles)
