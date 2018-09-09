@@ -233,7 +233,7 @@ class ELOGamesCog:
     async def incompletegames(self, ctx):
         """or incomplete: Lists oldest incomplete games"""
         incomplete_list = []
-        for counter, game in enumerate(Game.select().where(Game.is_completed == 0).order_by(Game.date)[:20]):
+        for counter, game in enumerate(Game.select().where(Game.is_completed == 0).order_by(Game.date)[:200]):
             name_str = f' - {game.name}' if game.name else ''
 
             incomplete_list.append((
