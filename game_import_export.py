@@ -21,7 +21,8 @@ class GameIO_Cog:
     @commands.has_any_role(*mod_roles)
     @commands.command(aliases=['dbr'])
     async def db_restore(self, ctx):
-        # player, created = Player.get_or_create(discord_name=p, defaults={'discord_id': fake_discord_id, 'team': t2})
+
+        await ctx.send(f'Attempting to restore games from file db_import.json')
         with open('db_import.json') as json_file:
             data = json.load(json_file)
             for team in data['teams']:
@@ -35,11 +36,10 @@ class GameIO_Cog:
                 except peewee.IntegrityError:
                     pass
             for game in data['games']:
-                print(game['team1'][0], game['team2'][0])
                 team1, _ = Team.get_or_create(name=game['team1'][0]['team'])
                 team2, _ = Team.get_or_create(name=game['team2'][0]['team'])
 
-                newgame = Game.create(team_size=len(game['team1']), home_team=team1, away_team=team2)
+                newgame = Game.create(team_size=len(game['team1']), home_team=team1, away_team=team2, name=game['name'])
                 team1_players, team2_players = [], []
 
                 for p in game['team1']:
@@ -49,7 +49,13 @@ class GameIO_Cog:
                     newplayer.polytopia_name = p['poly_name']
                     newplayer.save()
 
-                    Lineup.create(game=newgame, player=newplayer, team=team1)
+                    tribe_choice = p['tribe']
+                    if tribe_choice is not None:
+                        tribe, _ = Tribe.get_or_create(name=tribe_choice)
+                    else:
+                        tribe = None
+
+                    Lineup.create(game=newgame, player=newplayer, team=team1, tribe=tribe)
                     team1_players.append(newplayer)
                     # Tribe selection would go here if I decide that should be imported
 
@@ -60,7 +66,13 @@ class GameIO_Cog:
                     newplayer.polytopia_name = p['poly_name']
                     newplayer.save()
 
-                    Lineup.create(game=newgame, player=newplayer, team=team2)
+                    tribe_choice = p['tribe']
+                    if tribe_choice is not None:
+                        tribe, _ = Tribe.get_or_create(name=tribe_choice)
+                    else:
+                        tribe = None
+
+                    Lineup.create(game=newgame, player=newplayer, team=team2, tribe=tribe)
                     team2_players.append(newplayer)
 
                 if len(team1_players) > 1:
@@ -74,6 +86,7 @@ class GameIO_Cog:
                         newgame.declare_winner(winning_team=team2, losing_team=team1)
 
                 print(f'Creating game ID # {newgame.id} - {team1.name} vs {team2.name}')
+                logger.debug(f'Creating game ID # {newgame.id} - {team1.name} vs {team2.name}')
 
     @commands.command(aliases=['dbb'])
     @commands.has_any_role(*mod_roles)
@@ -99,7 +112,8 @@ class GameIO_Cog:
                               "player_name": lineup.player.discord_name,
                               "poly_id": lineup.player.polytopia_id,
                               "poly_name": lineup.player.polytopia_name,
-                              "team": lineup.team.name}
+                              "team": lineup.team.name,
+                              "tribe": lineup.tribe.name if lineup.tribe else None}
                 # Could add name of tribe choice here
                 team1_players.append(lineup_obj)
             for lineup in Lineup.select().join(Player).where((Lineup.game == game) & (Lineup.team == team2)):
@@ -107,7 +121,8 @@ class GameIO_Cog:
                               "player_name": lineup.player.discord_name,
                               "poly_id": lineup.player.polytopia_id,
                               "poly_name": lineup.player.polytopia_name,
-                              "team": lineup.team.name}
+                              "team": lineup.team.name,
+                              "tribe": lineup.tribe.name if lineup.tribe else None}
                 team2_players.append(lineup_obj)
             if len(team1_players) != len(team2_players) or len(team1_players) == 0:
                 # TODO: This is to just skip exporting games that have a deleted player on one side. At the moment no graceful way to handle this.
@@ -120,6 +135,8 @@ class GameIO_Cog:
         data = {"teams": teams_list, "tribes": tribes_list, "games": games_list}
         with open('db_export.json', 'w') as outfile:
             json.dump(data, outfile)
+
+        await ctx.send('Database has been backed up to file db_export.json on my hosting server.')
 
     @commands.command(aliases=['gex', 'gameexport'])
     @commands.has_any_role(*helper_roles)

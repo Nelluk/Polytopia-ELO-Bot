@@ -402,7 +402,10 @@ class ELOGamesCog:
                 result = '**WIN**' if (game.winner == team) else 'LOSS'
             else:
                 result = 'Incomplete'
-            embed.add_field(name='Game {0.id} vs {1.name} {1.emoji} {2}'.format(game, opponent, result), value='{}'.format(str(game.date)), inline=False)
+            name_str = f' - {game.name} - ' if game.name else ''
+            embed.add_field(
+                name=f'Game {game.id} vs {opponent.name} {opponent.emoji} {name_str} {result}',
+                value=f'{str(game.date)} - {game.team_size}v{game.team_size}', inline=False)
 
         await ctx.send(embed=embed)
 
@@ -525,10 +528,11 @@ class ELOGamesCog:
             embed = discord.Embed(title=f'Player card for {player.discord_name}')
             embed.add_field(name='Results', value=f'ELO: {player.elo}, W {wins} / L {losses}')
             embed.add_field(name='Ranking', value=f'{counter + 1} of {len(ranked_players_query)}')
+            guild_member = ctx.guild.get_member(player.discord_id)
+            embed.set_thumbnail(url=guild_member.avatar_url_as(size=512))
             if player.team:
-                embed.add_field(name='Last-known Team', value='{}'.format(player.team.name))
-                if player.team.image_url:
-                    embed.set_thumbnail(url=player.team.image_url)
+                team_str = f'{player.team.name} {player.team.emoji}' if player.team.emoji else player.team.name
+                embed.add_field(name='Last-known Team', value=team_str)
             if player.polytopia_name:
                 embed.add_field(name='Polytopia Game Name', value=player.polytopia_name)
             if player.polytopia_id:
@@ -816,8 +820,7 @@ class ELOGamesCog:
     @in_bot_channel()
     @commands.command(aliases=['elohelp'])
     async def help(self, ctx):
-        commands = [('reqgame `"Name of Game" player1 player2 VS player3 player4`', 'Submit game details to staff to be added to the bot. Include tribe emoji if known.'),
-                    ('lb', 'Show individual leaderboard'),
+        commands = [('lb', 'Show individual leaderboard'),
                     ('lbteam', 'Show team leaderboard'),
                     ('lbsquad', 'Show squad leaderboard'),
                     ('team `name`', 'Display stats for a given team.'),
@@ -829,6 +832,9 @@ class ELOGamesCog:
                     ('getcode `PLAYER`', 'Simply return the Polytopia code of anyone registered.'),
                     ('incomplete', 'List oldest games with no declared winner'),
                     ('help_staff', 'Display helper commands, if allowed')]
+
+        if game_request_channel is not None:
+            commands.append(('reqgame `"Name of Game" player1 player2 VS player3 player4`', 'Submit game details to staff to be added to the bot. Include tribe emoji if known.'))
 
         embed = discord.Embed(title='**ELO Bot Help**')
         for command, desc in commands:
@@ -1016,7 +1022,7 @@ def game_embed(ctx, game):
             if game.team_size == 1:
                 winning_player = Lineup.select().where((Lineup.game == game) & (Lineup.team == game.winner)).get().player
                 winning_member = ctx.guild.get_member(winning_player.discord_id)
-                embed.set_thumbnail(url=winning_member.avatar_url)
+                embed.set_thumbnail(url=winning_member.avatar_url_as(size=512))
 
             elif game.winner.image_url:
                 embed.set_thumbnail(url=game.winner.image_url)
