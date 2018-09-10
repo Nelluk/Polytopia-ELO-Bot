@@ -1,5 +1,4 @@
 import datetime
-import decimal
 from peewee import *
 
 db = SqliteDatabase('bot_database.db', pragmas={
@@ -8,9 +7,6 @@ db = SqliteDatabase('bot_database.db', pragmas={
     'foreign_keys': 1,
     'ignore_check_constraints': 0,
     'synchronous': 0})
-
-context = decimal.getcontext()
-context.rounding = decimal.ROUND_HALF_UP    # Otherwise python rounds 2.5 to 2 instead of 3
 
 
 class BaseModel(Model):
@@ -27,12 +23,12 @@ class Team(BaseModel):
     def change_elo_after_game(self, opponent_elo, is_winner):
 
         max_elo_delta = 75
-        chance_of_winning = round(1 / (1 + (10 ** ((opponent_elo - self.elo) / 400))), 3)
+        chance_of_winning = round(1 / (1 + (10 ** ((opponent_elo - self.elo) / 400.0))), 3)
 
         if is_winner is True:
-            new_elo = int(round(decimal.Decimal(self.elo + (max_elo_delta * (1 - chance_of_winning))), 0))
+            new_elo = round(self.elo + (max_elo_delta * (1 - chance_of_winning)), 0)
         else:
-            new_elo = int(round(decimal.Decimal(self.elo + (max_elo_delta * (0 - chance_of_winning))), 0))
+            new_elo = round(self.elo + (max_elo_delta * (0 - chance_of_winning)), 0)
 
         elo_delta = int(new_elo - self.elo)
         # print('Team chance of winning: {} opponent elo {} current ELO {}, new elo {}, elo_delta {}'.format(chance_of_winning, opponent_elo, self.elo, new_elo, elo_delta))
@@ -164,12 +160,12 @@ class Player(BaseModel):
     def change_elo_after_game(self, game, opponent_elo, is_winner):
         game_lineup = Lineup.get(Lineup.game == game, Lineup.player == self)
         max_elo_delta = 75
-        chance_of_winning = round(1 / (1 + (10 ** ((opponent_elo - self.elo) / 400))), 3)
+        chance_of_winning = round(1 / (1 + (10 ** ((opponent_elo - self.elo) / 400.0))), 3)
 
         if is_winner is True:
-            new_elo = int(round(decimal.Decimal(self.elo + (max_elo_delta * (1 - chance_of_winning))), 0))
+            new_elo = round(self.elo + (max_elo_delta * (1 - chance_of_winning)), 0)
         else:
-            new_elo = int(round(decimal.Decimal(self.elo + (max_elo_delta * (0 - chance_of_winning))), 0))
+            new_elo = round(self.elo + (max_elo_delta * (0 - chance_of_winning)), 0)
 
         elo_delta = int(new_elo - self.elo)
         # print('Player chance of winning: {} opponent elo:{} current ELO {}, new elo {}, elo_delta {}'.format(chance_of_winning, opponent_elo, self.elo, new_elo, elo_delta))
@@ -215,12 +211,12 @@ class Squad(BaseModel):
     def change_elo_after_game(self, game, opponent_elo, is_winner):
         squadgame = SquadGame.get(SquadGame.game == game, SquadGame.squad == self)
         max_elo_delta = 75
-        chance_of_winning = round(1 / (1 + (10 ** ((opponent_elo - self.elo) / 400))), 3)
+        chance_of_winning = round(1 / (1 + (10 ** ((opponent_elo - self.elo) / 400.0))), 3)
 
         if is_winner is True:
-            new_elo = int(round(decimal.Decimal(self.elo + (max_elo_delta * (1 - chance_of_winning))), 0))
+            new_elo = round(self.elo + (max_elo_delta * (1 - chance_of_winning)), 0)
         else:
-            new_elo = int(round(decimal.Decimal(self.elo + (max_elo_delta * (0 - chance_of_winning))), 0))
+            new_elo = round(self.elo + (max_elo_delta * (0 - chance_of_winning)), 0)
 
         elo_delta = int(new_elo - self.elo)
         # print('Squad chance of winning: {} opponent elo:{} current ELO {}, new elo {}, elo_delta {}'.format(chance_of_winning, opponent_elo, self.elo, new_elo, elo_delta))

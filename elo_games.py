@@ -131,19 +131,31 @@ class ELOGamesCog:
             await ctx.send('Invalid format. Example usage for a 2v2 game: `{}startgame "Game Name" @player1 @player2 VS @player3 @player4`'.format(command_prefix))
             return
 
-        con = commands.MemberConverter()
-        try:
-            side_home = [await con.convert(ctx, p) for p in args[:int(len(args) / 2)]]  # Args in first half before 'VS', converted to Discord Members
-            side_away = [await con.convert(ctx, p) for p in args[int(len(args) / 2) + 1:]]  # Args in second half after 'VS'
-        except commands.errors.BadArgument as e:
-            # One or more players were unable to be converted into Discord members.
-            await ctx.send(f'{str(e)}. Try using an @Mention or make sure capitalization is correct.')
-            return
+        side_home, side_away = [], []
+        for p in args[:int(len(args) / 2)]:         # Args in first half before 'VS', converted to Discord Members
+            guild_matches = await get_guild_member(ctx, p)
+            if len(guild_matches) == 0:
+                await ctx.send(f'Could not match "{p}" to a server member. Try using an @Mention.')
+                return
+            if len(guild_matches) > 1:
+                await ctx.send(f'More than one server matches found for "{p}". Try being more specific or using an @Mention.')
+                return
+            side_home.append(guild_matches[0])
+
+        for p in args[int(len(args) / 2) + 1:]:     # Args in second half after 'VS'
+            guild_matches = await get_guild_member(ctx, p)
+            if len(guild_matches) == 0:
+                await ctx.send(f'Could not match "{p}" to a server member. Try using an @Mention.')
+                return
+            if len(guild_matches) > 1:
+                await ctx.send(f'More than one server matches found for "{p}". Try being more specific or using an @Mention.')
+                return
+            side_away.append(guild_matches[0])
 
         if len(side_home + side_away) > len(set(side_home + side_away)):
             await ctx.send('Duplicate players detected. Are you sure this is what you want? (That means the two sides are uneven.)')
 
-            # await ctx.send('Duplicate players detected. Example usage for a 2v2 game: `{}startgame @player1 @player2 VS @player3 @player4`'.format(command_prefix))
+            # await ctx.send('Duplicate players detected. Example usage for a 2v2 game: `{}startgame "Name of Game" @player1 @player2 VS @player3 @player4`'.format(command_prefix))
             # return
             # # Disabling this check would be a decent way to enable uneven teams ie 2v1, with the same person listed twice on one side.
 
@@ -942,7 +954,7 @@ async def get_guild_member(ctx, input):
 
         # Find matching Guild member by @Mention or Name. Fall back to case-insensitive search
 
-        guild_matches = []
+        guild_matches, substring_matches = [], []
         try:
             guild_matches.append(await commands.MemberConverter().convert(ctx, input))
         except commands.errors.BadArgument:
@@ -951,6 +963,12 @@ async def get_guild_member(ctx, input):
             for p in ctx.guild.members:
                 if p.name.upper() == input.upper():
                     guild_matches.append(p)
+                if input.upper() in p.name.upper():
+                    substring_matches.append(p)
+
+            if len(guild_matches) == 0 and len(input) > 3:
+                # If no exact name matches, return list of any partial matches, as long as search string was >3 chars
+                return substring_matches
         return guild_matches
 
 
