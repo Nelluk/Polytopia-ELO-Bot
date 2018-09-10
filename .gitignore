@@ -19,3 +19,4 @@ pip-selfcheck.json
 *.log
 *.csv
 *.json
+*test.py

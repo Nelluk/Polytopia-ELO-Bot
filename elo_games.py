@@ -57,8 +57,7 @@ class ELOGamesCog:
 
     @commands.command(aliases=['endgame', 'win', 'winner'])
     @commands.has_any_role(*helper_roles)
-    async def wingame(self, ctx, winning_game: poly_game, winning_team_name: str):
-        """wingame 5 \"The Ronin\""""
+    async def wingame(self, ctx, winning_game: poly_game, winning_side_name: str):
 
         if winning_game is None:
             await ctx.send(f'No matching game was found.')
@@ -69,22 +68,43 @@ class ELOGamesCog:
                 await ctx.send(f'Game with ID {winning_game.id} is already marked as completed with winning team {winning_game.winner.name}')
                 return
 
-            matching_teams = get_team_from_name(winning_team_name)
-            if len(matching_teams) > 1:
-                await ctx.send('More than one matching team found. Be more specific or trying using a quoted \"Team Name\"')
-                return
-            if len(matching_teams) == 0:
-                await ctx.send(f'Cannot find a team with name "{winning_team_name}". Be sure to use the full name, surrounded by quotes if it is more than one word.')
-                return
-            winning_team = matching_teams[0]
+            if winning_game.team_size > 1:
+                # Game is a team game, so winner specified by team name
+                matching_teams = get_team_from_name(winning_side_name)
+                if len(matching_teams) > 1:
+                    await ctx.send('More than one matching team found. Be more specific or trying using a quoted \"Team Name\"')
+                    return
+                if len(matching_teams) == 0:
+                    await ctx.send(f'Cannot find a team with name "{winning_side_name}". Be sure to use the full name, surrounded by quotes if it is more than one word.')
+                    return
+                winning_team = matching_teams[0]
 
-            if winning_team.id == winning_game.home_team.id:
-                losing_team = winning_game.away_team
-            elif winning_team.id == winning_game.away_team.id:
-                losing_team = winning_game.home_team
+                if winning_team.id == winning_game.home_team.id:
+                    losing_team = winning_game.away_team
+                elif winning_team.id == winning_game.away_team.id:
+                    losing_team = winning_game.home_team
+                else:
+                    await ctx.send('That team did not play in game {0.id}. The teams were {0.home_team.name} and {0.away_team.name}.'.format(winning_game))
+                    return
             else:
-                await ctx.send('That team did not play in game {0.id}. The teams were {0.home_team.name} and {0.away_team.name}.'.format(winning_game))
-                return
+                # Game is a 1v1 and winner is specified by player name
+                matching_players = get_player_from_mention_or_string(winning_side_name)
+                if len(matching_players) > 1:
+                    await ctx.send('More than one matching player found. Be more specific or trying an @Mention.')
+                    return
+                if len(matching_players) == 0:
+                    await ctx.send(f'Cannot find a player with name "{winning_side_name}". Try specifying with an @Mention.')
+                    return
+                winning_player = matching_players[0]
+                winning_team, losing_team = None, None
+                for lineup in winning_game.lineup:
+                    if lineup.player == winning_player:
+                        winning_team = lineup.team
+                    else:
+                        losing_team = lineup.team
+                if winning_team is None:
+                    await ctx.send(f'Player {winning_player.discord_name} did not play in game {winning_game.id}. Check `{command_prefix}game {winning_game.id}`.')
+                    return
 
         # Check passed. Declare winner!
         with db:
@@ -317,11 +337,9 @@ class ELOGamesCog:
     async def incompletegames(self, ctx):
         """or incomplete: Lists oldest incomplete games"""
         incomplete_list = []
-        for counter, game in enumerate(Game.select().where(Game.is_completed == 0).order_by(Game.date)[:200]):
-            name_str = f' - {game.name}' if game.name else ''
-
+        for counter, game in enumerate(Game.select().where(Game.is_completed == 0).order_by(Game.date)[:500]):
             incomplete_list.append((
-                'Game ID #{0.id} - {0.home_team.emoji}{0.home_team.name} vs {0.away_team.name}{0.away_team.emoji}{1}'.format(game, name_str),
+                f'{game.get_headline()}',
                 f'{(str(game.date))} - {game.team_size}v{game.team_size}'
             ))
 
@@ -368,7 +386,7 @@ class ELOGamesCog:
         member_stats.sort(key=lambda tup: tup[1], reverse=True)     # sort the list descending by ELO
         members_sorted = [f'{x[0]}{x[2]}' for x in member_stats]    # create list of strings like Nelluk(1000)
 
-        recent_games = Game.select().where((Game.home_team == team) | (Game.away_team == team)).order_by(-Game.date)[:10]
+        recent_games = Game.select().where(((Game.home_team == team) | (Game.away_team == team)) & (Game.team_size > 1)).order_by(-Game.date)[:10]
         wins, losses = team.get_record()
 
         embed = discord.Embed(title=f'Team card for **{team.name}** {team.emoji}')
@@ -524,7 +542,7 @@ class ELOGamesCog:
             embed.add_field(value='\u200b', name='Most recent games', inline=False)
             for game in recent_games:
                 status = 'Completed' if game.is_completed == 1 else 'Incomplete'
-                embed.add_field(name='Game {0.id}   {1.emoji} **{1.name}** *vs* **{2.name}** {2.emoji}'.format(game, game.home_team, game.away_team),
+                embed.add_field(name=f'{game.get_headline()}',
                                 value='Status: {} - {}'.format(status, str(game.date)), inline=False)
 
             await ctx.send(content=content_str, embed=embed)
@@ -974,23 +992,31 @@ async def get_guild_member(ctx, input):
 
 def game_embed(ctx, game):
 
-    # TODO: Should team emoji handle being None?
-
         home_side_team = game.home_team
         away_side_team = game.away_team
         side_home_roster = game.get_roster(home_side_team)
         side_away_roster = game.get_roster(away_side_team)
 
-        embed = discord.Embed(title=f'Game {game.id}: {home_side_team.emoji}  **{home_side_team.name}**   *VS*   **{away_side_team.name}**  {away_side_team.emoji}')
+        game_headline = game.get_headline()
+        if game.name and game.name in game_headline:
+            game_headline = game_headline.replace(f' - {game.name}', '')
+
+        embed = discord.Embed(title=game_headline)
+
         if game.name:
             embed.title += f'\n*{game.name}*'
 
         game_status = 'Incomplete'
         if game.is_completed == 1:
             game_status = 'Completed'
-            embed.title += f'\nWINNER: {game.winner.name}'
+            embed.title += f'\n\nWINNER: {game.get_side_name(side="WIN")}'
 
-            if game.winner.image_url:
+            if game.team_size == 1:
+                winning_player = Lineup.select().where((Lineup.game == game) & (Lineup.team == game.winner)).get().player
+                winning_member = ctx.guild.get_member(winning_player.discord_id)
+                embed.set_thumbnail(url=winning_member.avatar_url)
+
+            elif game.winner.image_url:
                 embed.set_thumbnail(url=game.winner.image_url)
 
         # TEAM ELOs and ELO DELTAS
@@ -1035,7 +1061,8 @@ def game_embed(ctx, game):
         game_data = [(home_side_team, home_elo_str, home_squad_str, side_home_roster), (away_side_team, away_elo_str, away_squad_str, side_away_roster)]
 
         for team, elo_str, squad_str, roster in game_data:
-            embed.add_field(name=f'Lineup for Team **{team.name}**{elo_str}', value=squad_str, inline=False)
+            if game.team_size > 1:
+                embed.add_field(name=f'Lineup for Team **{team.name}**{elo_str}', value=squad_str, inline=False)
 
             for player, elo_delta, tribe_emoji in roster:
                 if elo_delta == 0:

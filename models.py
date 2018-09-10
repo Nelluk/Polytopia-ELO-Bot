@@ -22,7 +22,11 @@ class Team(BaseModel):
 
     def change_elo_after_game(self, opponent_elo, is_winner):
 
-        max_elo_delta = 75
+        if self.elo < 1350:
+            max_elo_delta = 50
+        else:
+            max_elo_delta = 32
+
         chance_of_winning = round(1 / (1 + (10 ** ((opponent_elo - self.elo) / 400.0))), 3)
 
         if is_winner is True:
@@ -73,10 +77,47 @@ class Game(BaseModel):
 
         return players
 
+    def get_side_name(self, side='WIN'):
+        if self.is_completed == 0:
+            return None
+        if side.upper() == 'WIN':
+            team = self.winner
+        else:
+            team = self.loser
+
+        if self.team_size > 1:
+            return team.name
+
+        try:
+            player = Lineup.select().where((Lineup.game == self) & (Lineup.team == team)).get().player
+        except DoesNotExist:
+            return None
+
+        return player.discord_name
+
+    def get_headline(self):
+        # Return string to summarize game in one line. Ie 'Game 25 Ronin vs Jets'. Include team emojis and replace team name with player name if 1v1
+        if self.team_size > 1:
+            home_name, away_name = self.home_team.name, self.away_team.name
+        else:
+            for lineup in self.lineup:
+                if lineup.team == self.home_team:
+                    home_name = lineup.player.discord_name
+                else:
+                    away_name = lineup.player.discord_name
+
+        home_emoji = self.home_team.emoji if self.home_team.emoji else ''
+        away_emoji = self.away_team.emoji if self.away_team.emoji else ''
+        game_name = f' - {self.name}' if self.name else ''
+
+        return f'Game {self.id}   {home_emoji} **{home_name}** *vs* **{away_name}** {away_emoji} {game_name}'
+
     def declare_winner(self, winning_team, losing_team):
 
-        winning_players = []
-        losing_players = []
+        winning_players, losing_players = [], []
+        self.winner = winning_team
+        self.loser = losing_team
+
         for lineup in self.lineup:
             if lineup.team == winning_team:
                 winning_players.append(lineup.player)
@@ -106,12 +147,11 @@ class Game(BaseModel):
             winning_squad.change_elo_after_game(self, losing_squad.elo, is_winner=True)
             losing_squad.change_elo_after_game(self, winner_elo, is_winner=False)
 
-        self.winner = winning_team
-        self.loser = losing_team
-        losing_team_elo = losing_team.elo
-        winning_team_elo = winning_team.elo
-        self.winner_delta = winning_team.change_elo_after_game(losing_team_elo, is_winner=True)
-        self.loser_delta = losing_team.change_elo_after_game(winning_team_elo, is_winner=False)
+            # Currently only affecting team ELO if team size > 1
+            losing_team_elo, winning_team_elo = losing_team.elo, winning_team.elo
+            self.winner_delta = winning_team.change_elo_after_game(losing_team_elo, is_winner=True)
+            self.loser_delta = losing_team.change_elo_after_game(winning_team_elo, is_winner=False)
+
         self.is_completed = 1
         self.save()
 
@@ -159,7 +199,14 @@ class Player(BaseModel):
 
     def change_elo_after_game(self, game, opponent_elo, is_winner):
         game_lineup = Lineup.get(Lineup.game == game, Lineup.player == self)
-        max_elo_delta = 75
+
+        if self.elo < 1100:
+            max_elo_delta = 75
+        elif self.elo < 1350:
+            max_elo_delta = 50
+        else:
+            max_elo_delta = 32
+
         chance_of_winning = round(1 / (1 + (10 ** ((opponent_elo - self.elo) / 400.0))), 3)
 
         if is_winner is True:
