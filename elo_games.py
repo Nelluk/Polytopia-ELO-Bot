@@ -129,8 +129,7 @@ class ELOGamesCog:
             await ctx.send(f'Game concluded! Congrats team {winning_team.name}. Roster: {" ".join(player_mentions)}')
             await ctx.send(embed=embed)
 
-    @in_bot_channel()
-    @commands.command(aliases=['request_game', 'requestgame'])
+    @commands.command(aliases=['request_game', 'requestgame', 'gamereq'])
     @commands.cooldown(2, 30, commands.BucketType.user)
     async def reqgame(self, ctx, *args):
         # Used so that users can submit game information to staff - bot will relay the text in the command to a specific channel.
@@ -952,7 +951,10 @@ def get_player_from_mention_or_string(player_string):
 def upsert_player_and_lineup(player_discord, player_team, game_side=None, new_game=None):
 
         if player_discord.nick:
-            display_name = f'{player_discord.name} ({player_discord.nick})'
+            if player_discord.name in player_discord.nick:
+                display_name = player_discord.nick
+            else:
+                display_name = f'{player_discord.name} ({player_discord.nick})'
         else:
             display_name = player_discord.name
 
