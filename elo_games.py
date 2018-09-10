@@ -121,7 +121,7 @@ class ELOGamesCog:
             if game_announce_channel is not None:
                 channel = ctx.guild.get_channel(int(game_announce_channel))
                 if channel is not None:
-                    await channel.send(f'Game concluded! Congrats team {winning_team.name}. Roster: {" ".join(player_mentions)}')
+                    await channel.send(f'Game concluded! Congrats **{winning_game.get_side_name("WIN")}**. Roster: {" ".join(player_mentions)}')
                     await channel.send(embed=embed)
                     await ctx.send(f'Game concluded! See {channel.mention} for full details.')
                     return
