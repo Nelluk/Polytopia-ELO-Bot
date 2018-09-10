@@ -47,10 +47,8 @@ class Team(BaseModel):
         return self.elo
 
     def get_record(self):
-        # wins = Game.select().where(Game.winner == self).count()
-        # losses = Game.select().where(Game.loser == self).count()
-        wins = len(self.winning_games)
-        losses = len(self.losing_games)
+        wins = Game.select().where((Game.winner == self) & (Game.team_size > 1)).count()
+        losses = Game.select().where((Game.loser == self) & (Game.team_size > 1)).count()
         return (wins, losses)
 
 
