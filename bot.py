@@ -35,7 +35,6 @@ date_cutoff = datetime.datetime.today() - datetime.timedelta(days=90)  # Players
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--add_default_data', action='store_true')
-parser.add_argument('--add_example_games', action='store_true')
 args = parser.parse_args()
 
 initial_extensions = ['elo_games', 'game_import_export']

@@ -191,8 +191,8 @@ class ELOGamesCog:
                 Squad.upsert_squad(player_list=side_home_players, game=newgame, team=home_side_team)
                 Squad.upsert_squad(player_list=side_away_players, game=newgame, team=away_side_team)
 
-            if newgame.team_size > 1:
-                await self.create_game_channels(ctx=ctx, game=newgame, home_players=side_home_players, away_players=side_away_players)
+        if newgame.team_size > 1:
+            await self.create_game_channels(ctx=ctx, game=newgame, home_players=side_home_players, away_players=side_away_players)
 
         mentions = [p.mention for p in side_home + side_away]
         embed = game_embed(ctx, newgame)
@@ -263,10 +263,12 @@ class ELOGamesCog:
 
         await home_chan.send(f'This is the team channel for game **{game.name}**.\n'
             f'This team is composed of {" / ".join(home_mentions)}\n'
-            f'Your opponents are: {" / ".join(away_names)}')
+            f'Your opponents are: {" / ".join(away_names)}\n\n'
+            '*This channel will self-destruct as soon as the game is marked as concluded.*')
         await away_chan.send(f'This is the team channel for game **{game.name}**.\n'
             f'This team is composed of {" / ".join(away_mentions)}\n'
-            f'Your opponents are: {" / ".join(home_names)}')
+            f'Your opponents are: {" / ".join(home_names)}\n\n'
+            '*This channel will self-destruct as soon as the game is marked as concluded.*')
 
     @in_bot_channel()
     @commands.command(aliases=['gameinfo'])
@@ -865,59 +867,6 @@ def initialize_data():
     db.close()
 
 
-def example_game_data():
-
-    games = []
-    games.append(({'Lightning': ['PRA', 'StarLord', 'Cheesy boi'], 'Ronin': ['frodakcin', 'Bucky', 'chadyboy24']}))  # S1-1
-    games.append(({'Sparkies': ['portalshooter', 'foreverblue173', 'squelchyman'], 'Cosmonauts': ['Escenilx', 'Unwise', 'Dii']}))  # S1-2
-    games.append(({'Jets': ['Yuryavic', 'flc735', 'rickdaheals'], 'Mallards': ['ottermelon', 'ReapersTorment', 'MasterJeremy']}))  # S1-4
-    games.append(({'Jets': ['Xaxantes', 'Yuryavic', 'flc735'], 'Home': ['Jerry', 'gelatokid', 'Aaron Denton']}))  # S1-5
-    games.append(({'Sparkies': ['Xaxantes', 'Yuryavic', 'flc735'], 'Wildfire': ['MATYTY5', 'Zebastian1', 'Skullcracker']}))  # S1-6
-    games.append(({'Cosmonauts': ['OscarTWhale', 'Wedgehead'], 'Ronin': ['frodakcin', 'chadyboy24']}))  # S1-7
-    games.append(({'Jets': ['frodakcin', 'skarm323', 'chadyboy24'], 'Ronin': ['rickdaheals', 'Chuest', 'Ganshed']}))  # S1-8
-    games.append(({'Mallards': ['Unwise', 'Chuest', 'flc735'], 'Jets': ['MasterJeremy', 'Maap', 'ReapersTorment']}))  # S1-9
-    games.append(({'Ronin': ['frodakcin', 'skarm323', 'Nelluk'], 'Jets': ['rickdaheals', 'Xaxantes', 'Ganshed']}))  # S1-10
-    games.append(({'Ronin': ['ZetaBravo', 'Nelluk'], 'Jets': ['Unwise', 'Yuryavic']}))  # S1-11
-    games.append(({'Lightning': ['Vorce'], 'Cosmonauts': ['anarchoRex']}))  # S1-13
-    games.append(({'Mallards': ['ReapersTorment', 'Maap'], 'Sparkies': ['foreverblue173', 'Aengus531']}))  # S1-15
-    games.append(({'Cosmonauts': ['anarchoRex', 'Wedgehead'], 'Mallards': ['ILostABet', 'ReapersTorment']}))  # S1-16
-    games.append(({'Mallards': ['ReapersTorment', 'Maap'], 'Sparkies': ['Vorce', 'Riym9']}))  # S1-17
-    games.append(({'Wildfire': ['Skullcracker'], 'Ronin': ['FreezeHorizon']}))  # S1-18
-    games.append(({'Sparkies': ['Bomber'], 'Cosmonauts': ['OscarTWhale']}))  # S1-19
-
-    # # FAKE GAMES BELOW FOR SQUAD TESTING
-    # games.append(({'Mallards': ['ReapersTorment', 'Maap'], 'Sparkies': ['Unwise', 'Yuryavic']}))
-    # games.append(({'Cosmonauts': ['ZetaBravo', 'Nelluk'], 'Mallards': ['ILostABet', 'ReapersTorment']}))
-    # games.append(({'Mallards': ['ReapersTorment', 'Maap'], 'Sparkies': ['Vorce', 'Riym9']}))
-    # games.append(({'Jets': ['Yuryavic', 'flc735', 'rickdaheals'], 'Mallards': ['ReapersTorment', 'ottermelon', 'MasterJeremy']}))
-    # games.append(({'Jets': ['Xaxantes', 'Yuryavic', 'flc735'], 'Home': ['Jerry', 'gelatokid', 'Aaron Denton']}))
-
-    # Each tuple contains a dict. Each dict has two keys representing names of each side team. Each key value is a [Team,of,players]
-    for counter1, g in enumerate(games):
-        team1, team2 = list(g.keys())[0], list(g.keys())[1]
-        t1 = Team.select().where(Team.name.contains(team1)).get()
-        t2 = Team.select().where(Team.name.contains(team2)).get()
-        game = Game.create(team_size=len(g[team1]), home_team=t1, away_team=t2)
-
-        team1_players, team2_players = [], []
-        for counter, p in enumerate(g[team1]):
-            fake_discord_id = hash(p) % 10000
-            player, created = Player.get_or_create(discord_name=p, defaults={'discord_id': fake_discord_id, 'team': t1})
-            Lineup.create(game=game, player=player, team=t1)
-            team1_players.append(player)
-        for counter, p in enumerate(g[team2]):
-            fake_discord_id = hash(p) % 10000
-            player, created = Player.get_or_create(discord_name=p, defaults={'discord_id': fake_discord_id, 'team': t2})
-            Lineup.create(game=game, player=player, team=t2)
-            team2_players.append(player)
-
-        if len(team1_players) > 1:
-            Squad.upsert_squad(player_list=team1_players, game=game, team=t1)
-            Squad.upsert_squad(player_list=team2_players, game=game, team=t2)
-
-        game.declare_winner(winning_team=t1, losing_team=t2)
-
-
 def get_team_from_name(team_name):
     teams = Team.select().where(Team.name.contains(team_name))
     return teams
@@ -1146,12 +1095,9 @@ async def paginate(bot, ctx, title, message_list, page_start=0, page_end=10, pag
 
             first_loop = False
 
+
 if args.add_default_data:
     initialize_data()
-    exit(0)
-
-if args.add_example_games:
-    example_game_data()
     exit(0)
 
 
