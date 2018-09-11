@@ -314,16 +314,9 @@ class Squad(BaseModel):
 
         squads = Squad.get_matching_squad(player_list)
 
-        def calc_squad_elo(players_in_squad):
-            # Given [Player1, Player2, ...], calculate ELO and return as an int
-            # Right now just a simple average. May change later.
-            list_of_elos = [player.elo for player in players_in_squad]
-            ave_elo = round(sum(list_of_elos) / len(list_of_elos))
-            return ave_elo
-
         if len(squads) == 0:
             # Insert new squad based on this combination of players
-            sq = Squad.create(elo=calc_squad_elo(player_list))
+            sq = Squad.create()
             for p in player_list:
                 SquadMember.create(player=p, squad=sq)
             SquadGame.create(game=game, squad=sq, team=team)

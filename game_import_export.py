@@ -39,7 +39,7 @@ class GameIO_Cog:
                 team1, _ = Team.get_or_create(name=game['team1'][0]['team'])
                 team2, _ = Team.get_or_create(name=game['team2'][0]['team'])
 
-                newgame = Game.create(team_size=len(game['team1']), home_team=team1, away_team=team2, name=game['name'])
+                newgame = Game.create(team_size=len(game['team1']), home_team=team1, away_team=team2, name=game['name'], date=game['date'])
                 team1_players, team2_players = [], []
 
                 for p in game['team1']:
@@ -95,6 +95,7 @@ class GameIO_Cog:
         # Main flaws of backup -
         # Player details for people with no associated games won't be preserved (this could be solved with a pretty minor redesign, add a players_list)
         # Games that involve a deleted player will be skipped (not sure when this would happen)
+        # If games have been deleted then the ID numbering of restored games will probably be off. Maybe backup ID number as well? Would need to test
 
         teams_list = []
         for team in Team.select():

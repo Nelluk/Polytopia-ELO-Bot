@@ -855,7 +855,7 @@ class ELOGamesCog:
     @commands.has_any_role(*helper_roles)
     async def help_staff(self, ctx):
         commands = [('newgame "Name of Game" @player1 @player2 VS @player3 @player4', 'Start a new game between listed players.\n`Aliases: startgame`'),
-                    ('wingame `GAMEID` \"winning team\"', 'Declare winner of open game.\n`Aliases: win, winner`'),
+                    ('wingame `GAMEID WINNING-TEAM-OR-PLAYER`', f'Declare winner of open game. Eg `{command_prefix}win 45 Ronin`\n`Aliases: win, winner`'),
                     ('namegame `GAMEID` \"Name of Game\"', 'Store Polytopia in-game name for this match`'),
                     ('setcode `@user POLYTOPIACODE`', 'Change or add the code of another user to the bot.'),
                     ('setname `PLAYER IN-GAME-NAME`', 'Change or add the in-game name of another user to the bot.'),
