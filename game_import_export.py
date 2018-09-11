@@ -92,6 +92,10 @@ class GameIO_Cog:
     @commands.has_any_role(*mod_roles)
     async def db_backup(self, ctx):
 
+        # Main flaws of backup -
+        # Player details for people with no associated games won't be preserved (this could be solved with a pretty minor redesign, add a players_list)
+        # Games that involve a deleted player will be skipped (not sure when this would happen)
+
         teams_list = []
         for team in Team.select():
             team_obj = {"name": team.name, "emoji": team.emoji, "image": team.image_url}

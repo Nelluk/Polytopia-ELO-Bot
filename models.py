@@ -106,9 +106,9 @@ class Game(BaseModel):
 
         home_emoji = self.home_team.emoji if self.home_team.emoji else ''
         away_emoji = self.away_team.emoji if self.away_team.emoji else ''
-        game_name = f' - {self.name}' if self.name else ''
+        game_name = f'\u00a0*{self.name}*' if self.name else ''
 
-        return f'Game {self.id}   {home_emoji} **{home_name}** *vs* **{away_name}** {away_emoji} {game_name}'
+        return f'Game {self.id}   {home_emoji} **{home_name}** *vs* **{away_name}** {away_emoji}{game_name}'
 
     def declare_winner(self, winning_team, losing_team):
 

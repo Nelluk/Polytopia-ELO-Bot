@@ -448,7 +448,11 @@ class ELOGamesCog:
                 embed = discord.Embed(title=f'Found {len(squad_list)} matches. Try `{command_prefix}squad IDNUM`:')
                 for squad in squad_list[:10]:
                     wins, losses = squad.get_record()
-                    embed.add_field(name=f'`ID {squad.id:>3} - {" / ".join(squad.get_names()):40} (ELO: {squad.elo}) W {wins} / L {losses}`', value='\u200b', inline=False)
+                    embed.add_field(
+                        name=f'`ID {squad.id:>3} - {" / ".join(squad.get_names()):40}`',
+                        value=f'`(ELO: {squad.elo}) W {wins} / L {losses}`',
+                        inline=False
+                    )
                 await ctx.send(embed=embed)
                 return
 
@@ -545,8 +549,13 @@ class ELOGamesCog:
             embed.add_field(value='\u200b', name='Most recent games', inline=False)
             for game in recent_games:
                 status = 'Completed' if game.is_completed == 1 else 'Incomplete'
+                if game.is_completed == 0:
+                    status = 'Incomplete'
+                else:
+                    player_team = Lineup.select().where((Lineup.game == game) & (Lineup.player == player)).get().team
+                    status = '**WIN**' if player_team == game.winner else '***Loss***'
                 embed.add_field(name=f'{game.get_headline()}',
-                                value='Status: {} - {}'.format(status, str(game.date)), inline=False)
+                                value=f'{status} - {str(game.date)} - {game.team_size}v{game.team_size}')
 
             await ctx.send(content=content_str, embed=embed)
 
@@ -1006,13 +1015,9 @@ def game_embed(ctx, game):
         side_away_roster = game.get_roster(away_side_team)
 
         game_headline = game.get_headline()
-        if game.name and game.name in game_headline:
-            game_headline = game_headline.replace(f' - {game.name}', '')
+        game_headline = game_headline.replace('\u00a0', '\n')   # Put game.name onto its own life if its there
 
         embed = discord.Embed(title=game_headline)
-
-        if game.name:
-            embed.title += f'\n*{game.name}*'
 
         game_status = 'Incomplete'
         if game.is_completed == 1:
