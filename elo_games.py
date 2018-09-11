@@ -996,14 +996,17 @@ async def get_guild_member(ctx, input):
             pass
             # No matches in standard MemberConverter. Move on to a case-insensitive search.
             for p in ctx.guild.members:
+                name_str = p.nick.upper() + p.name.upper() if p.nick else p.name.upper()
                 if p.name.upper() == input.upper():
                     guild_matches.append(p)
-                if input.upper() in p.name.upper():
+                if input.upper() in name_str:
                     substring_matches.append(p)
 
-            if len(guild_matches) == 0 and len(input) > 3:
-                # If no exact name matches, return list of any partial matches, as long as search string was >3 chars
+            if len(guild_matches) > 0:
+                return guild_matches
+            if len(input) > 3:
                 return substring_matches
+
         return guild_matches
 
 

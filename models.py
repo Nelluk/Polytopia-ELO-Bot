@@ -22,7 +22,9 @@ class Team(BaseModel):
 
     def change_elo_after_game(self, opponent_elo, is_winner):
 
-        if self.elo < 1350:
+        num_games = len(Game.select().where(((Game.away_team == self) | (Game.home_team == self)) & (Game.is_completed == 1)))
+        print('team', num_games)
+        if num_games < 11:
             max_elo_delta = 50
         else:
             max_elo_delta = 32
@@ -197,10 +199,11 @@ class Player(BaseModel):
 
     def change_elo_after_game(self, game, opponent_elo, is_winner):
         game_lineup = Lineup.get(Lineup.game == game, Lineup.player == self)
-
-        if self.elo < 1100:
+        num_games = len(Lineup.select().join(Game).where((Lineup.player == self) & (Lineup.game.is_completed == 1)))
+        print('player', num_games)
+        if num_games < 6:
             max_elo_delta = 75
-        elif self.elo < 1350:
+        elif num_games < 11:
             max_elo_delta = 50
         else:
             max_elo_delta = 32
@@ -255,7 +258,14 @@ class Squad(BaseModel):
 
     def change_elo_after_game(self, game, opponent_elo, is_winner):
         squadgame = SquadGame.get(SquadGame.game == game, SquadGame.squad == self)
-        max_elo_delta = 75
+        num_games = len(SquadGame.select().join(Game).where((SquadGame.squad == self) & (SquadGame.game.is_completed == 1)))
+
+        print('squad', num_games)
+        if num_games < 6:
+            max_elo_delta = 50
+        else:
+            max_elo_delta = 32
+
         chance_of_winning = round(1 / (1 + (10 ** ((opponent_elo - self.elo) / 400.0))), 3)
 
         if is_winner is True:

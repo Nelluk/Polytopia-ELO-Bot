@@ -8,7 +8,7 @@ from models import db
 import logging
 
 logger = logging.getLogger('discord')
-logger.setLevel(logging.WARNING)
+logger.setLevel(logging.DEBUG)
 handler = logging.FileHandler(filename='discord.log', encoding='utf-8', mode='w')
 handler.setFormatter(logging.Formatter('%(asctime)s:%(levelname)s:%(name)s: %(message)s'))
 logger.addHandler(handler)
@@ -63,7 +63,7 @@ if __name__ == '__main__':
             logger.warn(f'Exception on ignored list raised in {ctx.command}. {exc}')
             return
 
-        exception_str = "".join(traceback.format_tb(exc.__traceback__))
+        exception_str = ''.join(traceback.format_exception(etype=type(exc), value=exc, tb=exc.__traceback__))
         logger.critical(f'Ignoring exception in command {ctx.command}: {exc} {exception_str}', exc_info=True)
         print(f'Exception raised. {exc}\n{exception_str}')
         await ctx.send(f'Unhandled error: {exc}')
