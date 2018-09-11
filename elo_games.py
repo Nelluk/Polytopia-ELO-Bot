@@ -357,7 +357,13 @@ class ELOGamesCog:
 
         if len(team_matches + player_matches) + len(game_matches) == 0:
             await ctx.send(
-                'Could not detect any team or player names. Correct usage: `{command_prefix}games Player1 [Player2] ...` or `{command_prefix}games Team1 [Team2]`')
+                'Could not find any results. Example usage:\n'
+                f'`{command_prefix}game 5` - Show details of game 5\n'
+                f'`{command_prefix}game Ocean` - List games with "Ocean" in the name\n'
+                f'`{command_prefix}game Ronin` - List games where Team Ronin participated\n'
+                f'`{command_prefix}game Ronin Jets` - List games of Ronin vs Jets\n'
+                f'`{command_prefix}game Nelluk` - List games where Nelluk participated\n'
+                f'`{command_prefix}game Nelluk rickdaheals anarchoRex` - List games with all three players in the roster\n')
             return
 
         if len(game_matches) > 0:
