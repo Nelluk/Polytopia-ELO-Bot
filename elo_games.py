@@ -250,7 +250,7 @@ class ELOGamesCog:
             logger.error('In delete_game_channels - manage_channels permission is false.')
             return
 
-        matching_chans = [c for c in chan_category.channels if c.name.startswith(f'elo{game}-')]
+        matching_chans = [c for c in chan_category.channels if c.name.startswith(f'e{game}-')]
         for chan in matching_chans:
             logger.warn(f'Deleting channel {chan.name}')
             await chan.delete(reason='Game concluded')
@@ -269,9 +269,9 @@ class ELOGamesCog:
 
         home_string = f'{game.name}_{game.home_team.name}'
         away_string = f'{game.name}_{game.away_team.name}'
-        home_chan_name = f'elo{game.id}-{" ".join(home_string.replace("The", "").replace("the", "").split()).replace(" ", "-")}'
-        away_chan_name = f'elo{game.id}-{" ".join(away_string.replace("The", "").replace("the", "").split()).replace(" ", "-")}'
-        # Turns game named 'The Mountain of Fire' to something like #elo41-mountain-of-fire_ronin
+        home_chan_name = f'e{game.id}-{" ".join(home_string.replace("The", "").replace("the", "").split()).replace(" ", "-")}'
+        away_chan_name = f'e{game.id}-{" ".join(away_string.replace("The", "").replace("the", "").split()).replace(" ", "-")}'
+        # Turns game named 'The Mountain of Fire' to something like #e41-mountain-of-fire_ronin
 
         home_members = [ctx.guild.get_member(p.discord_id) for p in home_players]
         away_members = [ctx.guild.get_member(p.discord_id) for p in away_players]
