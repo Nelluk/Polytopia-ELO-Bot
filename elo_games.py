@@ -835,7 +835,7 @@ class ELOGamesCog:
                     ('team `name`', 'Display stats for a given team.'),
                     ('player @player', 'Display stats for a given player. Also lets you search by game code/name.'),
                     ('game `GAMEID`', 'Display stats for a given game'),
-                    ('squad `LIST OF PLAYERS`', 'Show squads containing given members - or detailed squad info if only one match.`'),
+                    ('squad `LIST OF PLAYERS`', 'Show squads containing given members - or detailed squad info if only one match.'),
                     ('setcode `POLYTOPIACODE`', 'Register your code with the bot for others to find. Also will place you on the leaderboards.'),
                     ('setname `IN-GAME NAME`', 'Register your in-game name with the bot for others to find.'),
                     ('getcode `PLAYER`', 'Simply return the Polytopia code of anyone registered.'),
@@ -844,6 +844,7 @@ class ELOGamesCog:
 
         if game_request_channel is not None:
             commands.append(('reqgame `"Name of Game" player1 player2 VS player3 player4`', 'Submit game details to staff to be added to the bot. Include tribe emoji if known.'))
+            commands.append(('reqgame `GAMEID won by [player/team name]`', 'Submit game results to staff to update an existing game.'))
 
         embed = discord.Embed(title='**ELO Bot Help**')
         for command, desc in commands:
