@@ -23,7 +23,7 @@ class Team(BaseModel):
     def change_elo_after_game(self, opponent_elo, is_winner):
 
         num_games = len(Game.select().where(((Game.away_team == self) | (Game.home_team == self)) & (Game.is_completed == 1)))
-        print('team', num_games)
+
         if num_games < 11:
             max_elo_delta = 50
         else:
@@ -200,7 +200,7 @@ class Player(BaseModel):
     def change_elo_after_game(self, game, opponent_elo, is_winner):
         game_lineup = Lineup.get(Lineup.game == game, Lineup.player == self)
         num_games = len(Lineup.select().join(Game).where((Lineup.player == self) & (Lineup.game.is_completed == 1)))
-        print('player', num_games)
+        # print(f'player - game{game.id} - numgames: {num_games}')
         if num_games < 6:
             max_elo_delta = 75
         elif num_games < 11:
@@ -260,7 +260,6 @@ class Squad(BaseModel):
         squadgame = SquadGame.get(SquadGame.game == game, SquadGame.squad == self)
         num_games = len(SquadGame.select().join(Game).where((SquadGame.squad == self) & (SquadGame.game.is_completed == 1)))
 
-        print('squad', num_games)
         if num_games < 6:
             max_elo_delta = 50
         else:

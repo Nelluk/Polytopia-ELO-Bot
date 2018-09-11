@@ -1,7 +1,6 @@
-import discord
 from discord.ext import commands
 from pbwrap import Pastebin
-from models import db, Team, Game, Player, Lineup, Tribe, Squad, SquadGame, SquadMember
+from models import Team, Game, Player, Lineup, Tribe, Squad
 from bot import config, logger, helper_roles, mod_roles
 import csv
 import json
@@ -29,24 +28,43 @@ class GameIO_Cog:
                 try:
                     Team.create(name=team['name'], emoji=team['emoji'], image_url=team['image'])
                 except peewee.IntegrityError:
-                    pass
+                    logger.warn(f'Cannot add Team {team["name"]} - Already exists')
+
             for tribe in data['tribes']:
                 try:
                     Tribe.create(name=tribe['name'], emoji=tribe['emoji'])
                 except peewee.IntegrityError:
-                    pass
+                    logger.warn(f'Cannot add tribe {tribe["name"]} - Already exists')
+
+            for player in data['players']:
+                print(player)
+                if player['team'] is not None:
+                    try:
+                        team = Team.get(name=player['team'])
+                    except peewee.DoesNotExist:
+                        logger.warn(f'Cannot add player {player["name"]} to team {player["team"]}')
+                        team = None
+                else:
+                    team = None
+                try:
+                    Player.create(discord_id=player['discord_id'],
+                        discord_name=player['name'],
+                        polytopia_id=player['poly_id'],
+                        polytopia_name=player['poly_name'],
+                        team=team)
+                except peewee.IntegrityError:
+                    logger.warn(f'Cannot add player {player["name"]} - Already exists')
+
             for game in data['games']:
                 team1, _ = Team.get_or_create(name=game['team1'][0]['team'])
                 team2, _ = Team.get_or_create(name=game['team2'][0]['team'])
 
-                newgame = Game.create(team_size=len(game['team1']), home_team=team1, away_team=team2, name=game['name'], date=game['date'])
+                newgame = Game.create(id=game['id'], team_size=len(game['team1']), home_team=team1, away_team=team2, name=game['name'], date=game['date'])
                 team1_players, team2_players = [], []
 
                 for p in game['team1']:
                     newplayer, _ = Player.get_or_create(discord_id=p['player_id'], defaults={'discord_name': p['player_name']})
                     newplayer.discord_name = p['player_name']
-                    newplayer.polytopia_id = p['poly_id']
-                    newplayer.polytopia_name = p['poly_name']
                     newplayer.save()
 
                     tribe_choice = p['tribe']
@@ -62,8 +80,6 @@ class GameIO_Cog:
                 for p in game['team2']:
                     newplayer, _ = Player.get_or_create(discord_id=p['player_id'], defaults={'discord_name': p['player_name']})
                     newplayer.discord_name = p['player_name']
-                    newplayer.polytopia_id = p['poly_id']
-                    newplayer.polytopia_name = p['poly_name']
                     newplayer.save()
 
                     tribe_choice = p['tribe']
@@ -93,9 +109,7 @@ class GameIO_Cog:
     async def db_backup(self, ctx):
 
         # Main flaws of backup -
-        # Player details for people with no associated games won't be preserved (this could be solved with a pretty minor redesign, add a players_list)
         # Games that involve a deleted player will be skipped (not sure when this would happen)
-        # If games have been deleted then the ID numbering of restored games will probably be off. Maybe backup ID number as well? Would need to test
 
         teams_list = []
         for team in Team.select():
@@ -107,6 +121,15 @@ class GameIO_Cog:
             tribe_obj = {"name": tribe.name, "emoji": tribe.emoji}
             tribes_list.append(tribe_obj)
 
+        players_list = []
+        for player in Player.select():
+            player_obj = {"name": player.discord_name, "discord_id": player.discord_id, "poly_id": player.polytopia_id, "poly_name": player.polytopia_name}
+            if player.team:
+                player_obj['team'] = player.team.name
+            else:
+                player_obj['team'] = None
+            players_list.append(player_obj)
+
         games_list = []
         for game in Game.select():
             team1 = game.home_team
@@ -115,8 +138,6 @@ class GameIO_Cog:
             for lineup in Lineup.select().join(Player).where((Lineup.game == game) & (Lineup.team == team1)):
                 lineup_obj = {"player_id": lineup.player.discord_id,
                               "player_name": lineup.player.discord_name,
-                              "poly_id": lineup.player.polytopia_id,
-                              "poly_name": lineup.player.polytopia_name,
                               "team": lineup.team.name,
                               "tribe": lineup.tribe.name if lineup.tribe else None}
                 # Could add name of tribe choice here
@@ -124,8 +145,6 @@ class GameIO_Cog:
             for lineup in Lineup.select().join(Player).where((Lineup.game == game) & (Lineup.team == team2)):
                 lineup_obj = {"player_id": lineup.player.discord_id,
                               "player_name": lineup.player.discord_name,
-                              "poly_id": lineup.player.polytopia_id,
-                              "poly_name": lineup.player.polytopia_name,
                               "team": lineup.team.name,
                               "tribe": lineup.tribe.name if lineup.tribe else None}
                 team2_players.append(lineup_obj)
@@ -134,10 +153,10 @@ class GameIO_Cog:
                 break
 
             winner = game.winner.name if game.winner else None
-            games_obj = {"date": str(game.date), "name": game.name, "winner": winner, "team1": team1_players, "team2": team2_players}
+            games_obj = {"id": game.id, "date": str(game.date), "name": game.name, "winner": winner, "team1": team1_players, "team2": team2_players}
             games_list.append(games_obj)
 
-        data = {"teams": teams_list, "tribes": tribes_list, "games": games_list}
+        data = {"teams": teams_list, "tribes": tribes_list, "players": players_list, "games": games_list}
         with open('db_export.json', 'w') as outfile:
             json.dump(data, outfile)
 
