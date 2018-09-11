@@ -70,7 +70,7 @@ class ELOGamesCog:
 
             if winning_game.team_size > 1:
                 # Game is a team game, so winner specified by team name
-                matching_teams = get_team_from_name(winning_side_name)
+                matching_teams = Team.get_by_name(winning_side_name)
                 if len(matching_teams) > 1:
                     await ctx.send('More than one matching team found. Be more specific or trying using a quoted \"Team Name\"')
                     return
@@ -88,7 +88,7 @@ class ELOGamesCog:
                     return
             else:
                 # Game is a 1v1 and winner is specified by player name
-                matching_players = get_player_from_mention_or_string(winning_side_name)
+                matching_players = Player.get_by_string(winning_side_name)
                 if len(matching_players) > 1:
                     await ctx.send('More than one matching player found. Be more specific or trying an @Mention.')
                     return
@@ -301,37 +301,6 @@ class ELOGamesCog:
             f'Your opponents are: {" / ".join(home_names)}\n\n'
             '*This channel will self-destruct as soon as the game is marked as concluded.*')
 
-    @in_bot_channel()
-    @commands.command(aliases=['gameinfo'])
-    async def game(self, ctx, *args):
-
-        try:
-            game_id = int(''.join(args))
-            game = Game.get(id=game_id)     # Argument is an int, so show game by ID
-            embed = game_embed(ctx, game)
-            await ctx.send(embed=embed)
-            return
-        except ValueError:
-            game_name = ' '.join(args)      # Args is not an int, which means search by game name
-        except peewee.DoesNotExist:
-            await ctx.send('Game with ID {} cannot be found.'.format(game_id))
-            return
-
-        game_list = Game.select().where(Game.name.contains(game_name))
-        if len(game_list) == 0:
-            await ctx.send(f'Cannot locate any games matching name "{game_name}"')
-            return
-        if len(game_list) == 1:
-            embed = game_embed(ctx, game_list[0])
-            await ctx.send(embed=embed)
-            return
-
-        # More than one matching name found, so display a short list
-        embed = discord.Embed(title=f'Found {len(game_list)} matches:')
-        for counter, game in enumerate(game_list[:5]):
-            embed.add_field(name=f'Game ID {game.id} - {game.home_team.name} vs {game.away_team.name} - {game.name}', value=(str(game.date)), inline=False)
-        await ctx.send(embed=embed)
-
     @commands.command(aliases=['incomplete'])
     async def incompletegames(self, ctx):
         """or incomplete: Lists oldest incomplete games"""
@@ -359,10 +328,74 @@ class ELOGamesCog:
             await ctx.send(f'Game with ID {gid} has been deleted and team/player ELO changes have been reverted, if applicable.')
 
     @in_bot_channel()
+    @commands.command(aliases=['games'])
+    async def game(self, ctx, *args):
+        # Search games by ID#, name, team participation, or player participation. Show game detail card if 1 result, else a paginated list.
+
+        try:
+            game_id = int(''.join(args))
+            game = Game.get(id=game_id)     # Argument is an int, so show game by ID
+            embed = game_embed(ctx, game)
+            await ctx.send(embed=embed)
+            return
+        except ValueError:
+            pass
+        except peewee.DoesNotExist:
+            await ctx.send('Game with ID {} cannot be found.'.format(game_id))
+            return
+
+        team_matches, player_matches, game_entry_list = [], [], []
+
+        game_matches = Game.select().where(Game.name.contains(' '.join(args)))
+        for arg in args:
+            teams = Team.get_by_name(arg)
+            if len(teams) == 1:
+                team_matches.append(teams[0])
+            players = Player.get_by_string(arg)
+            if len(players) == 1:
+                player_matches.append(players[0])
+
+        if len(team_matches + player_matches) + len(game_matches) == 0:
+            await ctx.send(
+                'Could not detect any team or player names. Correct usage: `{command_prefix}games Player1 [Player2] ...` or `{command_prefix}games Team1 [Team2]`')
+            return
+
+        if len(game_matches) > 0:
+            games = game_matches
+        elif len(team_matches) == 1:
+            games = Game.select().where((Game.away_team == team_matches[0]) | (Game.home_team == team_matches[0]))
+        elif len(team_matches) == 2:
+            games = Game.select().where(((Game.away_team == team_matches[0]) | (Game.home_team == team_matches[0])) & ((Game.away_team == team_matches[1]) | (Game.home_team == team_matches[1])))
+        elif len(team_matches) > 2:
+            await ctx.send('This command can only accept one or two team names.')
+            return
+        elif len(player_matches) > 0:
+            q = Lineup.select(Game).join(Game).where(Lineup.player.in_(player_matches)).group_by(Lineup.game).having(peewee.fn.COUNT(Lineup.player) == len(player_matches))
+            games = [lineup.game for lineup in q[:500]]
+        else:
+            logger.error(f'Unexpected input in games command: {team_matches} {player_matches}')
+            await ctx.send('Unexpected error.')
+            return
+
+        if len(games) == 1:
+            embed = game_embed(ctx, games[0])
+            await ctx.send(embed=embed)
+            return
+        for game in games:
+                if game.is_completed == 0:
+                    status_str = 'Incomplete'
+                else:
+                    status_str = f'WINNER: {game.get_side_name(side="WIN")}'
+                game_entry_list.append(
+                    (game.get_headline(),
+                    f'{(str(game.date))} - {game.team_size}v{game.team_size} - {status_str}'))
+        await paginate(self.bot, ctx, title='**Search Results**', message_list=game_entry_list, page_start=0, page_end=10, page_size=10)
+
+    @in_bot_channel()
     @commands.command(aliases=['teaminfo'])
     async def team(self, ctx, team_string: str):
 
-        matching_teams = get_team_from_name(team_string)
+        matching_teams = Team.get_by_name(team_string)
         if len(matching_teams) > 1:
             await ctx.send('More than one matching team found. Be more specific or trying using a quoted \"Team Name\"')
             return
@@ -429,7 +462,7 @@ class ELOGamesCog:
             # Search by player names
             squad_players = []
             for p_name in args:
-                p_matches = get_player_from_mention_or_string(p_name)
+                p_matches = Player.get_by_string(p_name)
                 if len(p_matches) == 1:
                     squad_players.append(p_matches[0])
                 elif len(p_matches) > 1:
@@ -488,7 +521,7 @@ class ELOGamesCog:
         with db:
             if len(args) == 0:
                 # Player looking for info on themselves
-                player = get_player_from_mention_or_string(f'<@{ctx.author.id}>')
+                player = Player.get_by_string(f'<@{ctx.author.id}>')
                 if len(player) != 1:
                     await ctx.send(f'Could not find you in the database. Try setting your code with {command_prefix}setcode')
                     return
@@ -496,7 +529,7 @@ class ELOGamesCog:
             else:
                 # Otherwise look for a player matching whatever theyentered
                 player_mention = ' '.join(args)
-                matching_players = get_player_from_mention_or_string(player_mention)
+                matching_players = Player.get_by_string(player_mention)
                 if len(matching_players) == 1:
                     player = matching_players[0]
                 elif len(matching_players) == 0:
@@ -654,7 +687,7 @@ class ELOGamesCog:
     async def getcode(self, ctx, player_string: str):
 
         with db:
-            player_matches = get_player_from_mention_or_string(player_string)
+            player_matches = Player.get_by_string(player_string)
             if len(player_matches) == 0:
                 await ctx.send('Cannot find player with that name. Correct usage: `{}getcode @Player`'.format(command_prefix))
                 return
@@ -671,7 +704,7 @@ class ELOGamesCog:
     async def setname(self, ctx, *args):
         if len(args) == 1:
             # User setting code for themselves. No special permissions required.
-            target_player = get_player_from_mention_or_string(f'<@{ctx.author.id}>')
+            target_player = Player.get_by_string(f'<@{ctx.author.id}>')
             if len(target_player) != 1:
                 await ctx.send(f'Player with name {ctx.author.name} is not in the system. Try registering with {command_prefix}setcode first.')
                 return
@@ -682,7 +715,7 @@ class ELOGamesCog:
                 await ctx.send('You do not have permission to trigger this command.')
                 return
 
-            target_player = get_player_from_mention_or_string(args[0])
+            target_player = Player.get_by_string(args[0])
             if len(target_player) != 1:
                 await ctx.send(f'Player with name {ctx.author.name} is not in the system. Try registering with {command_prefix}setcode first.')
                 return
@@ -712,7 +745,7 @@ class ELOGamesCog:
                 return
             tribe = matching_tribes[0]
 
-            players = get_player_from_mention_or_string(player_name)
+            players = Player.get_by_string(player_name)
 
             if len(players) == 0:
                 await ctx.send('Could not find matching player.')
@@ -777,7 +810,7 @@ class ELOGamesCog:
             return
 
         with db:
-            matching_teams = get_team_from_name(team_name)
+            matching_teams = Team.get_by_name(team_name)
             if len(matching_teams) != 1:
                 await ctx.send('Can\'t find matching team or too many matches. Example: `{}team_emoji name :my_custom_emoji:`'.format(command_prefix))
                 return
@@ -798,7 +831,7 @@ class ELOGamesCog:
             return
 
         with db:
-            matching_teams = get_team_from_name(team_name)
+            matching_teams = Team.get_by_name(team_name)
             if len(matching_teams) != 1:
                 await ctx.send(f'Can\'t find matching team or too many matches. Example: `{command_prefix}team_image name http://url_to_image.png`')
                 return
@@ -834,7 +867,7 @@ class ELOGamesCog:
                     ('lbsquad', 'Show squad leaderboard'),
                     ('team `name`', 'Display stats for a given team.'),
                     ('player @player', 'Display stats for a given player. Also lets you search by game code/name.'),
-                    ('game `GAMEID`', 'Display stats for a given game'),
+                    ('game `SEARCH`', 'Search for games. Examples:\n`game 52` - Show details on game 52\n`game Ocean` - Show all games with "Ocean" in name\nCan also accept a list of team or player names!'),
                     ('squad `LIST OF PLAYERS`', 'Show squads containing given members - or detailed squad info if only one match.'),
                     ('setcode `POLYTOPIACODE`', 'Register your code with the bot for others to find. Also will place you on the leaderboards.'),
                     ('setname `IN-GAME NAME`', 'Register your in-game name with the bot for others to find.'),
@@ -912,11 +945,6 @@ def initialize_data():
     db.close()
 
 
-def get_team_from_name(team_name):
-    teams = Team.select().where(Team.name.contains(team_name))
-    return teams
-
-
 def get_matching_roles(discord_member, list_of_role_names):
         # Given a Discord.Member and a ['List of', 'Role names'], return set of role names that the Member has.polytopia_id
         member_roles = [x.name for x in discord_member.roles]
@@ -944,24 +972,6 @@ def get_teams_of_players(list_of_players):
 
         same_team_flag = True if all(x == list_of_matching_teams[0] for x in list_of_matching_teams) else False
         return same_team_flag, list_of_matching_teams
-
-
-def get_player_from_mention_or_string(player_string):
-    if '<@' in player_string:
-        # Extract discord ID and look up based on that
-        try:
-            p_id = int(player_string.strip('<>!@'))
-        except ValueError:
-            return []
-        try:
-            player = Player.select().where(Player.discord_id == p_id)
-            return player
-        except peewee.DoesNotExist:
-            return []
-
-    # Otherwise return any matches from the name string
-    # TODO: Could possibly improve this by first searching for an exact match name==string, and then returning partial matches if no exact matches
-    return Player.select().where(Player.discord_name.contains(player_string))
 
 
 def upsert_player_and_lineup(player_discord, player_team, game_side=None, new_game=None):

@@ -53,6 +53,10 @@ class Team(BaseModel):
         losses = Game.select().where((Game.loser == self) & (Game.team_size > 1)).count()
         return (wins, losses)
 
+    def get_by_name(team_name):
+        teams = Team.select().where(Team.name.contains(team_name))
+        return teams
+
 
 class Game(BaseModel):
     winner = ForeignKeyField(Team, null=True, backref='winning_games')
@@ -238,6 +242,23 @@ class Player(BaseModel):
             # Include all registered players on leaderboard if not many games played
             query = Player.select().order_by(-Player.elo)
         return query
+
+    def get_by_string(player_string):
+        if '<@' in player_string:
+            # Extract discord ID and look up based on that
+            try:
+                p_id = int(player_string.strip('<>!@'))
+            except ValueError:
+                return []
+            try:
+                player = Player.select().where(Player.discord_id == p_id)
+                return player
+            except DoesNotExist:
+                return []
+
+        # Otherwise return any matches from the name string
+        # TODO: Could possibly improve this by first searching for an exact match name==string, and then returning partial matches if no exact matches
+        return Player.select().where(Player.discord_name.contains(player_string))
 
 
 class Tribe(BaseModel):
