@@ -575,8 +575,11 @@ class ELOGamesCog:
             embed = discord.Embed(title=f'Player card for {player.discord_name}')
             embed.add_field(name='Results', value=f'ELO: {player.elo}, W {wins} / L {losses}')
             embed.add_field(name='Ranking', value=rank_str)
+
             guild_member = ctx.guild.get_member(player.discord_id)
-            embed.set_thumbnail(url=guild_member.avatar_url_as(size=512))
+            if guild_member is not None:
+                embed.set_thumbnail(url=guild_member.avatar_url_as(size=512))
+
             if player.team:
                 team_str = f'{player.team.name} {player.team.emoji}' if player.team.emoji else player.team.name
                 embed.add_field(name='Last-known Team', value=team_str)
@@ -1054,7 +1057,8 @@ def game_embed(ctx, game):
             if game.team_size == 1:
                 winning_player = Lineup.select().where((Lineup.game == game) & (Lineup.team == game.winner)).get().player
                 winning_member = ctx.guild.get_member(winning_player.discord_id)
-                embed.set_thumbnail(url=winning_member.avatar_url_as(size=512))
+                if winning_member is not None:
+                    embed.set_thumbnail(url=winning_member.avatar_url_as(size=512))
 
             elif game.winner.image_url:
                 embed.set_thumbnail(url=game.winner.image_url)
