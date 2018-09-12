@@ -323,11 +323,11 @@ class Squad(BaseModel):
     def get_leaderboard():
         # TODO: Could limit inclusion to date_cutoff although ths might make the board too sparse (also not sure how to form that query)
         query = Squad.select().join(SquadGame).group_by(Squad.id).having(fn.COUNT(SquadGame.id) > 1).order_by(-Squad.elo)
-        print(len(query))
+
         if len(query) < 10:
             # Reduced leaderboard requirements if not many games logged
             query = Squad.select().join(SquadGame).group_by(Squad.id).having(fn.COUNT(SquadGame.id) > 0).order_by(-Squad.elo)
-            print(len(query))
+
         return query
 
     def get_matching_squad(player_list):

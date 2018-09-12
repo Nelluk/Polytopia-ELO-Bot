@@ -537,15 +537,24 @@ class ELOGamesCog:
         wins, losses = squad.get_record()
         ranking_query = Squad.get_leaderboard().tuples()
 
+        squad_found = False
         for rank, s in enumerate(ranking_query):
             if s[0] == squad.id:
+                squad_found = True
                 break
         if len(ranking_query) == 0:
                 rank = -1
 
-        embed = discord.Embed(title=f'Squad card for Squad {squad.id}\n{"  /  ".join(squad.get_names())}', value='\u200b')
+        if squad_found is True:
+            rank_str = f'{rank + 1} of {len(ranking_query)}'
+        else:
+            rank_str = 'Unranked'
+
+        names_with_emoji = [f'{p.team.emoji} {p.discord_name}' if p.team is not None else f'{p.discord_name}' for p in squad.get_members()]
+
+        embed = discord.Embed(title=f'Squad card for Squad {squad.id}\n{"  /  ".join(names_with_emoji)}', value='\u200b')
         embed.add_field(name='Results', value=f'ELO: {squad.elo},  W {wins} / L {losses}', inline=True)
-        embed.add_field(name='Ranking', value=f'{rank + 1} of {len(ranking_query)}', inline=True)
+        embed.add_field(name='Ranking', value=rank_str, inline=True)
         recent_games = SquadGame.select().join(Game).where(SquadGame.squad == squad).order_by(-SquadGame.game.date)[:5]
         embed.add_field(value='\u200b', name='Most recent games', inline=False)
 
