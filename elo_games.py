@@ -639,10 +639,12 @@ class ELOGamesCog:
             squads = Squad.get_leaderboard()
             for counter, sq in enumerate(squads[:200]):
                 wins, losses = sq.get_record()
-                squad_members = sq.get_names()
-                squad_names = ' / '.join(squad_members)
+                squad_members = sq.get_members()
+                emoji_list = [p.team.emoji for p in squad_members if p.team is not None]
+                emoji_string = ' '.join(emoji_list)
+                squad_names = ' / '.join(sq.get_names())
                 leaderboard.append(
-                    (f'`{(counter + 1):>3}. {squad_names}`', f'`(ELO: {sq.elo:4}) W {wins} / L {losses}`')
+                    (f'`{(counter + 1):>3}.` {emoji_string}`{squad_names}`', f'`(ELO: {sq.elo:4}) W {wins} / L {losses}`')
                 )
         await paginate(self.bot, ctx, title='**Squad Leaderboards**', message_list=leaderboard, page_start=0, page_end=10, page_size=10)
 

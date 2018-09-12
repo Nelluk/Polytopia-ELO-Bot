@@ -311,6 +311,10 @@ class Squad(BaseModel):
         member_names = [member.player.discord_name for member in self.squadmembers]
         return member_names
 
+    def get_members(self):
+        members = [member.player for member in self.squadmembers]
+        return members
+
     def get_record(self):
         wins = SquadGame.select().join(Game).where((SquadGame.game.winner == SquadGame.team) & (SquadGame.squad == self)).count()
         losses = SquadGame.select().join(Game).where((SquadGame.game.loser == SquadGame.team) & (SquadGame.squad == self)).count()
