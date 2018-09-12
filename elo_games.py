@@ -267,8 +267,8 @@ class ELOGamesCog:
             logger.error('In create_game_channels - manage_channels permission is false.')
             return
 
-        home_string = f'{game.name}_{game.home_team.name}'
-        away_string = f'{game.name}_{game.away_team.name}'
+        home_string = f'{game.name}{game.home_team.name}'
+        away_string = f'{game.name}{game.away_team.name}'
         home_chan_name = f'e{game.id}-{" ".join(home_string.replace("The", "").replace("the", "").split()).replace(" ", "-")}'
         away_chan_name = f'e{game.id}-{" ".join(away_string.replace("The", "").replace("the", "").split()).replace(" ", "-")}'
         # Turns game named 'The Mountain of Fire' to something like #e41-mountain-of-fire_ronin
