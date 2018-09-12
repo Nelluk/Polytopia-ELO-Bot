@@ -237,7 +237,7 @@ class Player(BaseModel):
     def get_leaderboard(date_cutoff):
         # TODO: Handle date_cutoff being None
         # Players with a game played since date_cutoff
-        query = Player.select().join(Lineup).join(Game).where(Game.date > date_cutoff).distinct().order_by(-Player.elo)
+        query = Player.select().join(Lineup).join(Game).where((Game.date > date_cutoff) & (Game.is_completed == 1)).distinct().order_by(-Player.elo)
         if len(query) < 10:
             # Include all registered players on leaderboard if not many games played
             query = Player.select().order_by(-Player.elo)

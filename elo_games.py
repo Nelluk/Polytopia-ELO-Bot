@@ -558,19 +558,23 @@ class ELOGamesCog:
             wins, losses = player.get_record()
             ranked_players_query = Player.get_leaderboard(date_cutoff=date_cutoff).tuples()
 
-            if len(ranked_players_query) == 0:
-                counter = -1
+            player_found = False
+            for counter, p in enumerate(ranked_players_query):
+                if p[0] == player.id:
+                    player_found = True
+                    break
+                # counter should now equal ranking of player in the leaderboard
+
+            if player_found is True:
+                rank_str = f'{counter + 1} of {len(ranked_players_query)}'
             else:
-                for counter, p in enumerate(ranked_players_query):
-                    if p[0] == player.id:
-                        break
-                    # counter should now equal ranking of player in the leaderboard
+                rank_str = 'Unranked'
 
             recent_games = Game.select().join(Lineup).where(Lineup.player == player).order_by(-Game.date)[:7]
 
             embed = discord.Embed(title=f'Player card for {player.discord_name}')
             embed.add_field(name='Results', value=f'ELO: {player.elo}, W {wins} / L {losses}')
-            embed.add_field(name='Ranking', value=f'{counter + 1} of {len(ranked_players_query)}')
+            embed.add_field(name='Ranking', value=rank_str)
             guild_member = ctx.guild.get_member(player.discord_id)
             embed.set_thumbnail(url=guild_member.avatar_url_as(size=512))
             if player.team:
