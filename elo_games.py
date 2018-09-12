@@ -353,7 +353,7 @@ class ELOGamesCog:
             del arg_list[1]
         else:
             find_winner = False
-        if len(arg_list) == 2 and arg_list[1].upper() == 'LOSE':
+        if len(arg_list) == 2 and (arg_list[1].upper() == 'LOSS' or arg_list[1].upper() == 'LOSE'):
             find_loser = True
             del arg_list[1]
         else:
