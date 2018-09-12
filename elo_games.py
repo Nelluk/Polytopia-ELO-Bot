@@ -332,8 +332,10 @@ class ELOGamesCog:
     async def game(self, ctx, *args):
         # Search games by ID#, name, team participation, or player participation. Show game detail card if 1 result, else a paginated list.
 
+        arg_list = list(args)
+
         try:
-            game_id = int(''.join(args))
+            game_id = int(''.join(arg_list))
             game = Game.get(id=game_id)     # Argument is an int, so show game by ID
             embed = game_embed(ctx, game)
             await ctx.send(embed=embed)
@@ -346,8 +348,24 @@ class ELOGamesCog:
 
         team_matches, player_matches, game_entry_list = [], [], []
 
-        game_matches = Game.select().where(Game.name.contains(' '.join(args)))
-        for arg in args:
+        if len(arg_list) == 2 and arg_list[1].upper() == 'WIN':
+            find_winner = True
+            del arg_list[1]
+        else:
+            find_winner = False
+        if len(arg_list) == 2 and arg_list[1].upper() == 'LOSE':
+            find_loser = True
+            del arg_list[1]
+        else:
+            find_loser = False
+        if len(arg_list) > 1 and arg_list[-1].upper() == 'INCOMPLETE':
+            find_incomplete = True
+            del arg_list[-1]
+        else:
+            find_incomplete = False
+
+        game_matches = Game.select().where(Game.name.contains(' '.join(arg_list)))
+        for arg in arg_list:
             teams = Team.get_by_name(arg)
             if len(teams) == 1:
                 team_matches.append(teams[0])
@@ -363,15 +381,24 @@ class ELOGamesCog:
                 f'`{command_prefix}game Ronin` - List games where Team Ronin participated\n'
                 f'`{command_prefix}game Ronin Jets` - List games of Ronin vs Jets\n'
                 f'`{command_prefix}game Nelluk` - List games where Nelluk participated\n'
-                f'`{command_prefix}game Nelluk rickdaheals anarchoRex` - List games with all three players in the roster\n')
+                f'`{command_prefix}game Nelluk rickdaheals anarchoRex` - List games with all three players in the roster\n'
+                f'`{command_prefix}game Jets lose` - List Jets losses.\n'
+                f'`{command_prefix}game Ronin win` - List Ronin victories.\n'
+                f'`{command_prefix}game Nelluk koric incomplete` - List incomplete games with these players\n')
             return
 
         if len(game_matches) > 0:
             games = game_matches
         elif len(team_matches) == 1:
-            games = Game.select().where((Game.away_team == team_matches[0]) | (Game.home_team == team_matches[0]))
+            games = Game.select().where(((Game.away_team == team_matches[0]) | (Game.home_team == team_matches[0])) & (Game.team_size > 1))
         elif len(team_matches) == 2:
-            games = Game.select().where(((Game.away_team == team_matches[0]) | (Game.home_team == team_matches[0])) & ((Game.away_team == team_matches[1]) | (Game.home_team == team_matches[1])))
+            games = Game.select().where(
+                (
+                    (Game.away_team == team_matches[0]) | (Game.home_team == team_matches[0])
+                ) & (
+                    (Game.away_team == team_matches[1]) | (Game.home_team == team_matches[1])
+                ) & (Game.team_size > 1))
+
         elif len(team_matches) > 2:
             await ctx.send('This command can only accept one or two team names.')
             return
@@ -384,13 +411,22 @@ class ELOGamesCog:
             return
 
         if len(games) == 1:
+            # Unhandled edge case: if only one matching game is found, its details will display and ignore find_incomplete/find_winner/find_loser flags
             embed = game_embed(ctx, games[0])
             await ctx.send(embed=embed)
             return
         for game in games:
                 if game.is_completed == 0:
+                    if find_winner or find_loser:
+                        continue
                     status_str = 'Incomplete'
                 else:
+                    if find_incomplete:
+                        continue
+                    if find_loser and args[0].upper() in game.get_side_name(side='WIN').upper():
+                        continue
+                    if find_winner and args[0].upper() in game.get_side_name(side='LOSE').upper():
+                        continue
                     status_str = f'**WINNER:** {game.get_side_name(side="WIN")}'
                 game_entry_list.append(
                     (game.get_headline(),
