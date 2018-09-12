@@ -110,24 +110,24 @@ class ELOGamesCog:
         with db:
             winning_game.declare_winner(winning_team, losing_team)
 
-            winner_roster = winning_game.get_roster(winning_team)
-            loser_roster = winning_game.get_roster(losing_team)
+        winner_roster = winning_game.get_roster(winning_team)
+        loser_roster = winning_game.get_roster(losing_team)
 
-            player_mentions = [f'<@{p.discord_id}>' for p, _, _ in (winner_roster + loser_roster)]
+        player_mentions = [f'<@{p.discord_id}>' for p, _, _ in (winner_roster + loser_roster)]
 
-            embed = game_embed(ctx, winning_game)
-            await self.delete_game_channels(ctx, winning_game)
+        embed = game_embed(ctx, winning_game)
+        await self.delete_game_channels(ctx, winning_game)
 
-            if game_announce_channel is not None:
-                channel = ctx.guild.get_channel(int(game_announce_channel))
-                if channel is not None:
-                    await channel.send(f'Game concluded! Congrats **{winning_game.get_side_name("WIN")}**. Roster: {" ".join(player_mentions)}')
-                    await channel.send(embed=embed)
-                    await ctx.send(f'Game concluded! See {channel.mention} for full details.')
-                    return
+        if game_announce_channel is not None:
+            channel = ctx.guild.get_channel(int(game_announce_channel))
+            if channel is not None:
+                await channel.send(f'Game concluded! Congrats **{winning_game.get_side_name("WIN")}**. Roster: {" ".join(player_mentions)}')
+                await channel.send(embed=embed)
+                await ctx.send(f'Game concluded! See {channel.mention} for full details.')
+                return
 
-            await ctx.send(f'Game concluded! Congrats team {winning_team.name}. Roster: {" ".join(player_mentions)}')
-            await ctx.send(embed=embed)
+        await ctx.send(f'Game concluded! Congrats team {winning_team.name}. Roster: {" ".join(player_mentions)}')
+        await ctx.send(embed=embed)
 
     @commands.command(aliases=['request_game', 'requestgame', 'gamereq'])
     @commands.cooldown(2, 30, commands.BucketType.user)

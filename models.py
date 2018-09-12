@@ -22,7 +22,7 @@ class Team(BaseModel):
 
     def change_elo_after_game(self, opponent_elo, is_winner):
 
-        num_games = len(Game.select().where(((Game.away_team == self) | (Game.home_team == self)) & (Game.is_completed == 1)))
+        num_games = len(Game.select().where(((Game.away_team == self) | (Game.home_team == self)) & (Game.is_completed == 1) & (Game.team_size > 1)))
 
         if num_games < 11:
             max_elo_delta = 50
