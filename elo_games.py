@@ -391,7 +391,7 @@ class ELOGamesCog:
                 if game.is_completed == 0:
                     status_str = 'Incomplete'
                 else:
-                    status_str = f'WINNER: {game.get_side_name(side="WIN")}'
+                    status_str = f'**WINNER:** {game.get_side_name(side="WIN")}'
                 game_entry_list.append(
                     (game.get_headline(),
                     f'{(str(game.date))} - {game.team_size}v{game.team_size} - {status_str}'))
