@@ -1031,7 +1031,7 @@ async def get_guild_member(ctx, input):
 
             if len(guild_matches) > 0:
                 return guild_matches
-            if len(input) > 3:
+            if len(input) > 2:
                 return substring_matches
 
         return guild_matches
