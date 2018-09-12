@@ -623,8 +623,9 @@ class ELOGamesCog:
             leaderboard_query = Player.get_leaderboard(date_cutoff=date_cutoff)
             for counter, player in enumerate(leaderboard_query[:500]):
                 wins, losses = player.get_record()
+                emoji_str = player.team.emoji if player.team else ''
                 leaderboard.append(
-                    (f'`{(counter + 1):>3}. {player.discord_name}`', f'`(ELO: {player.elo:4}) W {wins} / L {losses}`')
+                    (f'`{(counter + 1):>3}.` {emoji_str}`{player.discord_name}`', f'`(ELO: {player.elo:4}) W {wins} / L {losses}`')
                 )
 
         await paginate(self.bot, ctx, title='**Individual Leaderboards**', message_list=leaderboard, page_start=0, page_end=10, page_size=10)
