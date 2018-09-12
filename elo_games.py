@@ -271,7 +271,7 @@ class ELOGamesCog:
         away_string = f'{game.name}{game.away_team.name}'
         home_chan_name = f'e{game.id}-{" ".join(home_string.replace("The", "").replace("the", "").split()).replace(" ", "-")}'
         away_chan_name = f'e{game.id}-{" ".join(away_string.replace("The", "").replace("the", "").split()).replace(" ", "-")}'
-        # Turns game named 'The Mountain of Fire' to something like #e41-mountain-of-fire_ronin
+        # Turns game named 'The Mountain of Fire' to something like #e41-mountain-of-fire-ronin
 
         home_members = [ctx.guild.get_member(p.discord_id) for p in home_players]
         away_members = [ctx.guild.get_member(p.discord_id) for p in away_players]
@@ -364,7 +364,8 @@ class ELOGamesCog:
         else:
             find_incomplete = False
 
-        game_matches = Game.select().where(Game.name.contains(' '.join(arg_list)))
+        game_matches = Game.select().where(Game.name.contains('%'.join(arg_list)))
+
         for arg in arg_list:
             teams = Team.get_by_name(arg)
             if len(teams) == 1:
