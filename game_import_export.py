@@ -56,6 +56,7 @@ class GameIO_Cog:
                     logger.warn(f'Cannot add player {player["name"]} - Already exists')
 
             for game in data['games']:
+                print(game)
                 team1, _ = Team.get_or_create(name=game['team1'][0]['team'])
                 team2, _ = Team.get_or_create(name=game['team2'][0]['team'])
 
