@@ -48,8 +48,9 @@ class ELOGamesCog:
             await ctx.send('No matching game was found.')
             return
 
+        new_game_name = ' '.join(args)
         with db:
-            new_game_name = ' '.join(args)
+            await self.update_game_channel_name(ctx, game=game, old_game_name=game.name, new_game_name=new_game_name)
             game.name = new_game_name
             game.save()
 
@@ -238,40 +239,66 @@ class ELOGamesCog:
         await ctx.send(f'New game ID {newgame.id} started! Roster: {" ".join(mentions)}')
         await ctx.send(embed=embed)
 
-    async def delete_game_channels(self, ctx, game):
-
+    def get_channel_category(self, ctx):
         if game_channel_category is None:
-            return
+            return None
         chan_category = discord.utils.get(ctx.guild.categories, id=int(game_channel_category))
         if chan_category is None:
-            logger.error(f'In delete_game_channels - chans_category_id {game_channel_category} was supplied but cannot be loaded')
-            return
+            logger.error(f'chans_category_id {game_channel_category} was supplied but cannot be loaded')
+            return None
         if ctx.guild.me.guild_permissions.manage_channels is not True:
-            logger.error('In delete_game_channels - manage_channels permission is false.')
+            logger.error('manage_channels permission is false.')
+            return None
+        return chan_category
+
+    def channel_name_format(self, game_id, game_name, team_name):
+        # Turns game named 'The Mountain of Fire' to something like #e41-mountain-of-fire-ronin
+        game_team = f'{game_name}{team_name}'
+        game_team = f'{game_name.replace("the","").replace("The","")}{team_name.replace("the","").replace("The","")}'
+        chan_name = f'e{game_id}-{" ".join(game_team.replace("The", "").replace("the", "").split()).replace(" ", "-")}'
+        return chan_name
+
+    async def delete_game_channels(self, ctx, game):
+
+        chan_category = self.get_channel_category(ctx)
+        if chan_category is None:
+            logger.error(f'in delete_game_channels - cannot proceed')
             return
 
-        matching_chans = [c for c in chan_category.channels if c.name.startswith(f'e{game}-')]
+        matching_chans = [c for c in chan_category.channels if c.name.startswith(f'e{game.id}-')]
         for chan in matching_chans:
             logger.warn(f'Deleting channel {chan.name}')
             await chan.delete(reason='Game concluded')
 
+    async def update_game_channel_name(self, ctx, game, old_game_name, new_game_name):
+
+        chan_category = self.get_channel_category(ctx)
+        if chan_category is None:
+            logger.error(f'in update_game_channel_name - cannot proceed')
+            return
+
+        old_home_chan_name = self.channel_name_format(game_id=game.id, game_name=old_game_name, team_name=game.home_team.name)
+        old_away_chan_name = self.channel_name_format(game_id=game.id, game_name=old_game_name, team_name=game.away_team.name)
+
+        new_home_chan_name = self.channel_name_format(game_id=game.id, game_name=new_game_name, team_name=game.home_team.name)
+        new_away_chan_name = self.channel_name_format(game_id=game.id, game_name=new_game_name, team_name=game.away_team.name)
+        print(f'updating {old_home_chan_name} to {new_home_chan_name}')
+        print(f'updating {old_away_chan_name} to {new_away_chan_name}')
+        old_home_chan = discord.utils.get(chan_category.channels, name=old_home_chan_name.lower())
+        old_away_chan = discord.utils.get(chan_category.channels, name=old_away_chan_name.lower())
+
+        await old_home_chan.edit(name=new_home_chan_name, reason='Game renamed')
+        await old_away_chan.edit(name=new_away_chan_name, reason='Game renamed')
+
     async def create_game_channels(self, ctx, game, home_players, away_players):
 
-        if game_channel_category is None:
-            return
-        chan_category = discord.utils.get(ctx.guild.categories, id=int(game_channel_category))
+        chan_category = self.get_channel_category(ctx)
         if chan_category is None:
-            logger.error(f'In create_game_channels - chans_category_id {game_channel_category} was supplied but cannot be loaded')
-            return
-        if ctx.guild.me.guild_permissions.manage_channels is not True:
-            logger.error('In create_game_channels - manage_channels permission is false.')
+            logger.error(f'in create_game_channels - cannot proceed')
             return
 
-        home_string = f'{game.name}{game.home_team.name}'
-        away_string = f'{game.name}{game.away_team.name}'
-        home_chan_name = f'e{game.id}-{" ".join(home_string.replace("The", "").replace("the", "").split()).replace(" ", "-")}'
-        away_chan_name = f'e{game.id}-{" ".join(away_string.replace("The", "").replace("the", "").split()).replace(" ", "-")}'
-        # Turns game named 'The Mountain of Fire' to something like #e41-mountain-of-fire-ronin
+        home_chan_name = self.channel_name_format(game_id=game.id, game_name=game.name, team_name=game.home_team.name)
+        away_chan_name = self.channel_name_format(game_id=game.id, game_name=game.name, team_name=game.away_team.name)
 
         home_members = [ctx.guild.get_member(p.discord_id) for p in home_players]
         away_members = [ctx.guild.get_member(p.discord_id) for p in away_players]
@@ -321,6 +348,8 @@ class ELOGamesCog:
         if game is None:
             await ctx.send(f'No matching game was found.')
             return
+
+        await self.delete_game_channels(ctx, game)
 
         with db:
             gid = game.id
