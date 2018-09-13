@@ -131,8 +131,8 @@ class Game(BaseModel):
         if self.team_size == 1:
             # 1v1 game - compare player vs player ELO
             winner_elo = winning_players[0].elo     # Have to store first otherwise second calculation will shift
-            winning_players[0].change_elo_after_game(self, losing_players[0].elo, is_winner=True)
-            losing_players[0].change_elo_after_game(self, winner_elo, is_winner=False)
+            winning_players[0].change_elo_after_game(self, my_side_elo=winning_players[0].elo, opponent_elo=losing_players[0].elo, is_winner=True)
+            losing_players[0].change_elo_after_game(self, my_side_elo=losing_players[0].elo, opponent_elo=winner_elo, is_winner=False)
         else:
             winning_squad = Squad.get_matching_squad(winning_players)[0]
             losing_squad = Squad.get_matching_squad(losing_players)[0]
@@ -142,14 +142,14 @@ class Game(BaseModel):
             losing_side_ave_elo = round(sum(losing_side_elos) / len(losing_side_elos))
 
             for winning_player in winning_players:
-                winning_player.change_elo_after_game(self, losing_side_ave_elo, is_winner=True)
+                winning_player.change_elo_after_game(self, my_side_elo=winning_side_ave_elo, opponent_elo=losing_side_ave_elo, is_winner=True)
 
             for losing_player in losing_players:
-                losing_player.change_elo_after_game(self, winning_side_ave_elo, is_winner=False)
+                losing_player.change_elo_after_game(self, my_side_elo=losing_side_ave_elo, opponent_elo=winning_side_ave_elo, is_winner=False)
 
-            winner_elo = winning_squad.elo          # Have to store first otherwise second calculation will shift
+            winning_squad_elo = winning_squad.elo          # Have to store first otherwise second calculation will shift
             winning_squad.change_elo_after_game(self, losing_squad.elo, is_winner=True)
-            losing_squad.change_elo_after_game(self, winner_elo, is_winner=False)
+            losing_squad.change_elo_after_game(self, winning_squad_elo, is_winner=False)
 
             # Currently only affecting team ELO if team size > 1
             losing_team_elo, winning_team_elo = losing_team.elo, winning_team.elo
@@ -201,7 +201,12 @@ class Player(BaseModel):
         self.elo += elo_delta
         return self.elo
 
-    def change_elo_after_game(self, game, opponent_elo, is_winner):
+    def change_elo_after_game(self, game, my_side_elo, opponent_elo, is_winner):
+        # Average(Away Side Elo) is compared to Average(Home_Side_Elo) for calculation - ie all members on a side will have the same elo_delta
+        # Team A: p1 900 elo, p2 1000 elo = 950 average
+        # Team B: p1 1000 elo, p2 1200 elo = 1100 average
+        # ELO is compared 950 vs 1100 and all players treated equally
+
         game_lineup = Lineup.get(Lineup.game == game, Lineup.player == self)
         num_games = len(Lineup.select().join(Game).where((Lineup.player == self) & (Lineup.game.is_completed == 1)))
         # print(f'player - game{game.id} - numgames: {num_games}')
@@ -212,15 +217,16 @@ class Player(BaseModel):
         else:
             max_elo_delta = 32
 
-        chance_of_winning = round(1 / (1 + (10 ** ((opponent_elo - self.elo) / 400.0))), 3)
+        chance_of_winning = round(1 / (1 + (10 ** ((opponent_elo - my_side_elo) / 400.0))), 3)
 
         if is_winner is True:
-            new_elo = round(self.elo + (max_elo_delta * (1 - chance_of_winning)), 0)
+            new_elo = round(my_side_elo + (max_elo_delta * (1 - chance_of_winning)), 0)
         else:
-            new_elo = round(self.elo + (max_elo_delta * (0 - chance_of_winning)), 0)
+            new_elo = round(my_side_elo + (max_elo_delta * (0 - chance_of_winning)), 0)
 
-        elo_delta = int(new_elo - self.elo)
-        # print('Player chance of winning: {} opponent elo:{} current ELO {}, new elo {}, elo_delta {}'.format(chance_of_winning, opponent_elo, self.elo, new_elo, elo_delta))
+        elo_delta = int(new_elo - my_side_elo)
+        print(f'Player chance of winning: {chance_of_winning} opponent elo:{opponent_elo} my_side_elo: {my_side_elo},'
+                f'elo_delta {elo_delta}, current_player_elo {self.elo}, new_player_elo {int(self.elo + elo_delta)}')
 
         self.elo = int(self.elo + elo_delta)
         game_lineup.elo_change = elo_delta
