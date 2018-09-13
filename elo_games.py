@@ -252,9 +252,9 @@ class ELOGamesCog:
         return chan_category
 
     def channel_name_format(self, game_id, game_name, team_name):
-        # Turns game named 'The Mountain of Fire' to something like #e41-mountain-of-fire-ronin
+        # Turns game named 'The Mountain of Fire' to something like #e41-mountain-of-fire_ronin
         game_team = f'{game_name}{team_name}'
-        game_team = f'{game_name.replace("the","").replace("The","")}{team_name.replace("the","").replace("The","")}'
+        game_team = f'{game_name.replace("the","").replace("The","")}_{team_name.replace("the","").replace("The","")}'
         chan_name = f'e{game_id}-{" ".join(game_team.replace("The", "").replace("the", "").split()).replace(" ", "-")}'
         return chan_name
 
