@@ -37,7 +37,7 @@ class GameIO_Cog:
                     logger.warn(f'Cannot add tribe {tribe["name"]} - Already exists')
 
             for player in data['players']:
-                print(player)
+                # print(player)
                 if player['team'] is not None:
                     try:
                         team = Team.get(name=player['team'])
@@ -56,7 +56,6 @@ class GameIO_Cog:
                     logger.warn(f'Cannot add player {player["name"]} - Already exists')
 
             for game in data['games']:
-                print(game)
                 team1, _ = Team.get_or_create(name=game['team1'][0]['team'])
                 team2, _ = Team.get_or_create(name=game['team2'][0]['team'])
 
