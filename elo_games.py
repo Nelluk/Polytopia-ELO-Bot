@@ -253,9 +253,9 @@ class ELOGamesCog:
 
     def channel_name_format(self, game_id, game_name, team_name):
         # Turns game named 'The Mountain of Fire' to something like #e41-mountain-of-fire_ronin
-        game_team = f'{game_name}{team_name}'
-        game_team = f'{game_name.replace("the","").replace("The","")}_{team_name.replace("the","").replace("The","")}'
-        chan_name = f'e{game_id}-{" ".join(game_team.replace("The", "").replace("the", "").split()).replace(" ", "-")}'
+
+        game_team = f'{game_name.replace("the ","").replace("The ","")}_{team_name.replace("the ","").replace("The ","")}'
+        chan_name = f'e{game_id}-{" ".join(game_team.split()).replace(" ", "-")}'
         return chan_name
 
     async def delete_game_channels(self, ctx, game):
@@ -272,6 +272,9 @@ class ELOGamesCog:
 
     async def update_game_channel_name(self, ctx, game, old_game_name, new_game_name):
 
+        # Update a channel's name when its associated game is renamed
+        # This will fail if the team name has changed since the game started, or if someone manually renamed the channel already
+
         chan_category = self.get_channel_category(ctx)
         if chan_category is None:
             logger.error(f'in update_game_channel_name - cannot proceed')
@@ -282,11 +285,16 @@ class ELOGamesCog:
 
         new_home_chan_name = self.channel_name_format(game_id=game.id, game_name=new_game_name, team_name=game.home_team.name)
         new_away_chan_name = self.channel_name_format(game_id=game.id, game_name=new_game_name, team_name=game.away_team.name)
-        print(f'updating {old_home_chan_name} to {new_home_chan_name}')
-        print(f'updating {old_away_chan_name} to {new_away_chan_name}')
+
         old_home_chan = discord.utils.get(chan_category.channels, name=old_home_chan_name.lower())
         old_away_chan = discord.utils.get(chan_category.channels, name=old_away_chan_name.lower())
 
+        if old_home_chan is None or old_away_chan is None:
+            logger.error(f'Was not able to find existing channel to rename: {old_home_chan} or {old_away_chan}')
+            return
+
+        logger.debug(f'updating {old_home_chan_name} to {new_home_chan_name}')
+        logger.debug(f'updating {old_away_chan_name} to {new_away_chan_name}')
         await old_home_chan.edit(name=new_home_chan_name, reason='Game renamed')
         await old_away_chan.edit(name=new_away_chan_name, reason='Game renamed')
 
