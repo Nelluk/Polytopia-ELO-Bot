@@ -16,7 +16,7 @@ def in_bot_channel():
         if str(ctx.message.channel.id) in bot_channels:
             return True
         else:
-            await ctx.send('This command can only be used in a designated bot channel.')
+            await ctx.send('This command can only be used in a designated ELO bot channel. Try #elo-commands')
             return False
     return commands.check(predicate)
 
