@@ -66,7 +66,9 @@ class Matchmaking_Cog():
                 expiration_hours = int(m[1])
                 continue
             note_args.append(arg)
-        # TODO: Prevent one person from having more than 3(?) open matches
+        # TODO: Prevent one person from having more than 5(?) open matches
+        if team_size is None:
+            return await ctx.send(f'Match size is required. Include argument like *2v2* to specify size')
 
         match_notes = ' '.join(note_args)[:75]
         expiration_timestamp = (datetime.datetime.now() + datetime.timedelta(hours=expiration_hours)).strftime("%Y-%m-%d %H:%M:%S")
