@@ -3,7 +3,7 @@ import asyncio
 # import websockets
 from discord.ext import commands
 import peewee
-from models import db, Team, Game, Player, Lineup, Tribe, Squad, SquadGame
+from modules.models import db, Team, Game, Player, Lineup, Tribe, Squad, SquadGame
 from bot import (helper_roles, mod_roles, bot_channels, logger, args,
                 require_teams, command_prefix, game_request_channel,
                 game_announce_channel, date_cutoff, game_channel_category)
