@@ -381,6 +381,22 @@ class SquadGame(BaseModel):
     elo_change = IntegerField(default=0)
 
 
+def tomorrow():
+    return (datetime.datetime.now() + datetime.timedelta(hours=24)).strftime("%Y-%m-%d %H:%M:%S")
+
+
+class Match(BaseModel):
+    host = ForeignKeyField(Player, null=False, backref='match', on_delete='CASCADE')
+    team_size = IntegerField(null=False, default=2)
+    expiration = DateTimeField(null=False, default=tomorrow)
+    notes = CharField(null=True)
+
+
+class MatchPlayer(BaseModel):
+    match = ForeignKeyField(Match, null=False, backref='matchplayer', on_delete='CASCADE')
+    player = ForeignKeyField(Player, null=False, backref='matchplayer', on_delete='CASCADE')
+
+
 with db:
-    db.create_tables([Team, Game, Player, Lineup, Tribe, Squad, SquadGame, SquadMember])
+    db.create_tables([Team, Game, Player, Lineup, Tribe, Squad, SquadGame, SquadMember, Match, MatchPlayer])
     # Only creates missing tables so should be safe to run each time
