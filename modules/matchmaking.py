@@ -39,7 +39,7 @@ class Matchmaking_Cog():
                 logger.error(f'Invalid game ID "{match_id}".')
                 return None
 
-    @in_bot_channel()
+    # @in_bot_channel()
     @commands.command(aliases=['openmatch'])
     async def open_match(self, ctx, *args):
         team_size = None
@@ -83,7 +83,7 @@ class Matchmaking_Cog():
         MatchPlayer.create(player=match_host[0], match=match)
         await ctx.send(f'Starting new open match ID M{match.id}. Size: {team_size}v{team_size}. Expiration: {expiration_hours} hours.\nNotes: *{notes_str}*')
 
-    @in_bot_channel()
+    # @in_bot_channel()
     @commands.command(aliases=['joinmatch'])
     async def join_match(self, ctx, match: poly_match):
 
@@ -112,7 +112,7 @@ class Matchmaking_Cog():
 
             await ctx.send(embed=self.match_embed(match))
 
-    @in_bot_channel()
+    # @in_bot_channel()
     @commands.command(aliases=['listmatches', 'matchlist', 'openmatches'])
     async def list_matches(self, ctx):
         Match.purge_expired_matches()
@@ -128,7 +128,7 @@ class Matchmaking_Cog():
                 value=f'{notes_str}')
         await ctx.send(embed=embed)
 
-    @in_bot_channel()
+    # @in_bot_channel()
     @commands.command(aliases=['delmatch', 'deletematch'])
     async def delete_match(self, ctx, match: poly_match):
 
@@ -143,7 +143,7 @@ class Matchmaking_Cog():
         else:
             return await ctx.send(f'You only have permission to delete your own matches.')
 
-    @in_bot_channel()
+    # @in_bot_channel()
     @commands.command(aliases=['startmatch'])
     async def start_match(self, ctx, match: poly_match):
 
