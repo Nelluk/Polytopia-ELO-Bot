@@ -416,12 +416,6 @@ class Match(BaseModel):
 
         return home_team, away_team
 
-    def return_summary(self):
-        if len(self.matchplayer) == 0:
-            return None
-        player_list = [p.discord_name for p in self.matchplayer]
-        return player_list
-
     def purge_expired_matches():
         from bot import logger
 

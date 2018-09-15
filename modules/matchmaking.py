@@ -1,9 +1,10 @@
 import discord
 from discord.ext import commands
-from modules.models import Game, Player, Match, MatchPlayer, db
-from bot import config, logger, helper_roles, mod_roles, command_prefix, require_teams
+from modules.models import Player, Match, MatchPlayer, db
+from bot import logger, helper_roles, command_prefix, require_teams
 from modules.elo_games import get_matching_roles as get_matching_roles
 from modules.elo_games import get_teams_of_players as get_teams_of_players
+from modules.elo_games import in_bot_channel as in_bot_channel
 import peewee
 import re
 import datetime
@@ -38,6 +39,7 @@ class Matchmaking_Cog():
                 logger.error(f'Invalid game ID "{match_id}".')
                 return None
 
+    @in_bot_channel()
     @commands.command(aliases=['openmatch'])
     async def open_match(self, ctx, *args):
         team_size = None
@@ -48,6 +50,8 @@ class Matchmaking_Cog():
         if len(match_host) == 0:
             return await ctx.send(f'You must be a registered player before hosting a match. Try `{command_prefix}setcode POLYCODE`')
 
+        if len(Match.select().join(Player).where(Match.host.discord_id == ctx.author.id)) > 4:
+            return await ctx.send(f'You have too many open matches already. Try using `{command_prefix}delmatch` on an existing one.')
         for arg in args:
             m = re.match(r"(\d+)v(\d+)", arg.lower())
             if m:
@@ -68,25 +72,27 @@ class Matchmaking_Cog():
                 expiration_hours = int(m[1])
                 continue
             note_args.append(arg)
-        # TODO: Prevent one person from having more than 5(?) open matches
+
         if team_size is None:
             return await ctx.send(f'Match size is required. Include argument like *2v2* to specify size')
 
         match_notes = ' '.join(note_args)[:75]
+        notes_str = match_notes if match_notes else "\u200b"
         expiration_timestamp = (datetime.datetime.now() + datetime.timedelta(hours=expiration_hours)).strftime("%Y-%m-%d %H:%M:%S")
         match = Match.create(host=match_host[0], team_size=team_size, expiration=expiration_timestamp, notes=match_notes)
         MatchPlayer.create(player=match_host[0], match=match)
-        await ctx.send(f'Starting new open match ID M{match.id}. Size: {team_size}v{team_size}. Expiration: {expiration_hours} hours.\nNotes: *{match_notes}*')
+        await ctx.send(f'Starting new open match ID M{match.id}. Size: {team_size}v{team_size}. Expiration: {expiration_hours} hours.\nNotes: *{notes_str}*')
 
+    @in_bot_channel()
     @commands.command(aliases=['joinmatch'])
     async def join_match(self, ctx, match: poly_match):
 
         if match is None:
             return await ctx.send(f'No matching match was found. Use {command_prefix}listmatches to see available matches.')
-        # TODO: Check if you are already in match
+        if len(MatchPlayer.select().join(Player).where((MatchPlayer.player.discord_id == ctx.author.id) & (MatchPlayer.match == match))) > 0:
+            return await ctx.send(f'You are already a member of match M{match.id}.')
         if len(match.matchplayer) >= (match.team_size * 2):
-            return await ctx.send(f'Match M{match.id} cannot be joined. It is currently full and waiting for its host to start.\n'
-                f'Once match is started, use `{command_prefix}reqgame "Name of Game" player1 player2 vs player3 player4` to request that the game be tracked.')
+            return await ctx.send(f'Match M{match.id} cannot be joined. It is currently full and waiting for its host to `{command_prefix}startmatch M{match.id}`.')
 
         match_player = Player.get_by_string(f'<@{ctx.author.id}>')
         if len(match_player) == 0:
@@ -102,10 +108,11 @@ class Matchmaking_Cog():
 
             await ctx.send(f'You have joined match M{match.id}')
             if len(match.matchplayer) >= (match.team_size * 2):
-                await ctx.send(f'Match M{match.id} is now full and the host <@{match.host.discord_id}> should start the game.')
+                await ctx.send(f'Match M{match.id} is now full and the host <@{match.host.discord_id}> should start the game with `{command_prefix}startmatch M{match.id}`.')
 
             await ctx.send(embed=self.match_embed(match))
 
+    @in_bot_channel()
     @commands.command(aliases=['listmatches', 'matchlist', 'openmatches'])
     async def list_matches(self, ctx):
         Match.purge_expired_matches()
@@ -121,6 +128,7 @@ class Matchmaking_Cog():
                 value=f'{notes_str}')
         await ctx.send(embed=embed)
 
+    @in_bot_channel()
     @commands.command(aliases=['delmatch', 'deletematch'])
     async def delete_match(self, ctx, match: poly_match):
 
@@ -135,6 +143,7 @@ class Matchmaking_Cog():
         else:
             return await ctx.send(f'You only have permission to delete your own matches.')
 
+    @in_bot_channel()
     @commands.command(aliases=['startmatch'])
     async def start_match(self, ctx, match: poly_match):
 
@@ -144,22 +153,44 @@ class Matchmaking_Cog():
         if ctx.author.id != match.host.discord_id:
             return await ctx.send(f'Only the match host **{match.host.discord_name}** can do this.')
 
+        if len(match.matchplayer) < (match.team_size * 2):
+            return await ctx.send(f'This match is not yet full: {len(match.matchplayer)} / {match.team_size * 2} players.')
+
         team_home, team_away = match.return_suggested_teams()
 
-        await ctx.send(f'You\'ve got a match! Suggested teams based on ELO:\n'
-            f'{" / ".join(team_home)}\n**VS**\n{" / ".join(team_away)}\n\n'
-            f'Once you\'ve created the game in Polytopia, enter the following command to have it tracked for the ELO leaderboards:\n'
+        if match.team_size > 1:
+
+            draft_order_str = 'Use draft order '
+            if match.team_size == 2:
+                draft_order_str += '**A B B A**\n'
+            elif match.team_size == 3:
+                draft_order_str += '**A B B A B A**\n'
+            elif match.team_size == 4:
+                draft_order_str += '**A B B A B A A B**\n'
+            elif match.team_size == 5:
+                draft_order_str += '**A B B A B A A B A B**\n'
+            else:
+                draft_order_str = ''
+
+            await ctx.send(f'Suggested teams based on ELO:\n'
+                f'{" / ".join(team_home)}\n**VS**\n{" / ".join(team_away)}\n\n'
+                f'{draft_order_str}')
+
+        await ctx.send(
+            f'You\'ve got a match! Once you\'ve created the game in Polytopia, enter the following command to have it tracked for the ELO leaderboards:\n'
             f'`{command_prefix}reqgame "Name of Game" {" ".join(team_home)} vs {" ".join(team_away)}`')
 
         # match.delete_instance()
 
+    @in_bot_channel()
     @commands.command()
     async def match(self, ctx, match: poly_match):
 
         if match is None:
             return await ctx.send(f'No matching match was found. Use {command_prefix}listmatches to see available matches.')
+        if len(match.matchplayer) >= (match.team_size * 2):
+                await ctx.send(f'Match M{match.id} is now full and the host should start the game with `{command_prefix}startmatch M{match.id}`.')
         await ctx.send(embed=self.match_embed(match))
-        print(match.return_suggested_teams())
 
     @commands.command(aliases=['rtribes'])
     async def random_tribes(self, ctx, size='1v1'):
