@@ -402,9 +402,17 @@ class Match(BaseModel):
         players_with_elos = [(p.player.discord_name, p.player.elo) for p in self.matchplayer]
         players_with_elos.sort(key=lambda tup: tup[1], reverse=False)     # sort the list ascending by ELO
 
+        def process_name(name):
+            # if "(" in name:
+            #     name = name[:name.find('(')].strip()
+            if ' ' in name:
+                name = '"' + name + '"'
+            return name
+
         while players_with_elos:
-            home_team.append(players_with_elos.pop())
-            away_team.append(players_with_elos.pop())
+
+            home_team.append(process_name(players_with_elos.pop()[0]))
+            away_team.append(process_name(players_with_elos.pop()[0]))
 
         return home_team, away_team
 

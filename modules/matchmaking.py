@@ -7,6 +7,7 @@ from modules.elo_games import get_teams_of_players as get_teams_of_players
 import peewee
 import re
 import datetime
+import random
 
 
 class Matchmaking_Cog():
@@ -135,20 +136,22 @@ class Matchmaking_Cog():
             return await ctx.send(f'You only have permission to delete your own matches.')
 
     @commands.command(aliases=['startmatch'])
-    async def start_match(self, ctx, match: poly_match, *args):
-
-        new_game_name = ' '.join(args)
+    async def start_match(self, ctx, match: poly_match):
 
         if match is None:
             return await ctx.send(f'No matching match was found. Use {command_prefix}listmatches to see available matches.')
 
-        if ctx.author.id != match.host.id:
+        if ctx.author.id != match.host.discord_id:
             return await ctx.send(f'Only the match host **{match.host.discord_name}** can do this.')
 
-        # TODO: Print suggested teams Match.return_suggested_teams()
-        # Showcase command to request (start?) game including game name
-        # delete match
-        await ctx.send()
+        team_home, team_away = match.return_suggested_teams()
+
+        await ctx.send(f'You\'ve got a match! Suggested teams based on ELO:\n'
+            f'{" / ".join(team_home)}\n**VS**\n{" / ".join(team_away)}\n\n'
+            f'Once you\'ve created the game in Polytopia, enter the following command to have it tracked for the ELO leaderboards:\n'
+            f'`{command_prefix}reqgame "Name of Game" {" ".join(team_home)} vs {" ".join(team_away)}`')
+
+        # match.delete_instance()
 
     @commands.command()
     async def match(self, ctx, match: poly_match):
@@ -157,6 +160,55 @@ class Matchmaking_Cog():
             return await ctx.send(f'No matching match was found. Use {command_prefix}listmatches to see available matches.')
         await ctx.send(embed=self.match_embed(match))
         print(match.return_suggested_teams())
+
+    @commands.command(aliases=['rtribes'])
+    async def random_tribes(self, ctx, size='1v1'):
+
+        m = re.match(r"(\d+)v(\d+)", size.lower())
+        if m:
+            # arg looks like '3v3'
+            if int(m[1]) != int(m[2]):
+                return await ctx.send(f'Invalid match format {size}. Sides must be equal.')
+            if not 0 < int(m[1]) < 7:
+                return await ctx.send(f'Invalid match size {size}. Accepts 1v1 through 6v6')
+            team_size = int(m[1])
+
+        tribes = [
+            ('Bardur', 1),
+            ('Kickoo', 1),
+            ('Luxidoor', 1),
+            ('Imperius', 1),
+            ('Elyrion', 2),
+            ('Zebasi', 2),
+            ('Hoodrick', 2),
+            ('Aquarion', 2),
+            ('Oumaji', 3),
+            ('Quetzali', 3),
+            ('Vengir', 3),
+            ('Ai-mo', 3),
+            ('Xin-xi', 3)
+        ]
+
+        team_home, team_away = [], []
+
+        tribe_groups = {}
+        for tribe, group in tribes:
+            tribe_groups.setdefault(group, set()).add(tribe)
+
+        available_tribe_groups = list(tribe_groups.values())
+        for _ in range(team_size):
+            available_tribe_groups = [tg for tg in available_tribe_groups if len(tg) >= 2]
+
+            this_tribe_group = random.choice(available_tribe_groups)
+
+            new_home, new_away = random.sample(this_tribe_group, 2)
+            this_tribe_group.remove(new_home)
+            this_tribe_group.remove(new_away)
+
+            team_home.append(new_home)
+            team_away.append(new_away)
+
+        await ctx.send(f'Home Team: {" / ".join(team_home)}\nAway Team: {" / ".join(team_away)}')
 
     def match_embed(ctx, match):
         embed = discord.Embed(title=f'Match **M{match.id}**\n{match.team_size}v{match.team_size} *hosted by* {match.host.discord_name}')
