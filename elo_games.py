@@ -327,11 +327,11 @@ class ELOGamesCog:
         home_mentions, away_mentions = [p.mention for p in home_members], [p.mention for p in away_members]
         home_names, away_names = [p.discord_name for p in home_players], [p.discord_name for p in away_players]
 
-        await home_chan.send(f'This is the team channel for game **{game.name}**.\n'
+        await home_chan.send(f'This is the team channel for game **{game.name}**, ID {game.id}.\n'
             f'This team is composed of {" / ".join(home_mentions)}\n'
             f'Your opponents are: {" / ".join(away_names)}\n\n'
             '*This channel will self-destruct as soon as the game is marked as concluded.*')
-        await away_chan.send(f'This is the team channel for game **{game.name}**.\n'
+        await away_chan.send(f'This is the team channel for game **{game.name}**, ID {game.id}.\n'
             f'This team is composed of {" / ".join(away_mentions)}\n'
             f'Your opponents are: {" / ".join(home_names)}\n\n'
             '*This channel will self-destruct as soon as the game is marked as concluded.*')
