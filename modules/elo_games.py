@@ -772,6 +772,7 @@ class ELOGamesCog:
             return
 
         _, team_list = get_teams_of_players([target_discord_member])
+
         with db:
             player, created = upsert_player_and_lineup(player_discord=target_discord_member, player_team=team_list[0], game_side=None, new_game=None)
             player.polytopia_id = new_id

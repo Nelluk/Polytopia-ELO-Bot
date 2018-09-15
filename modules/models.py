@@ -397,11 +397,29 @@ class Match(BaseModel):
         player_list = [p.discord_name for p in self.matchplayer]
         return player_list
 
+    def return_suggested_teams(self):
+        home_team, away_team = [], []
+        players_with_elos = [(p.player.discord_name, p.player.elo) for p in self.matchplayer]
+        players_with_elos.sort(key=lambda tup: tup[1], reverse=False)     # sort the list ascending by ELO
+
+        while players_with_elos:
+            home_team.append(players_with_elos.pop())
+            away_team.append(players_with_elos.pop())
+
+        return home_team, away_team
+
     def return_summary(self):
         if len(self.matchplayer) == 0:
             return None
         player_list = [p.discord_name for p in self.matchplayer]
         return player_list
+
+    def purge_expired_matches():
+        from bot import logger
+
+        delete_query = Match.delete().where(Match.expiration < datetime.datetime.now())
+
+        logger.debug(f'purge_expired_matches: Purged {delete_query.execute()}  matches.')
 
 
 class MatchPlayer(BaseModel):
