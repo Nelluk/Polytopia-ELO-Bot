@@ -83,6 +83,22 @@ class Matchmaking_Cog():
         MatchPlayer.create(player=match_host[0], match=match)
         await ctx.send(f'Starting new open match ID M{match.id}. Size: {team_size}v{team_size}. Expiration: {expiration_hours} hours.\nNotes: *{notes_str}*')
 
+    @commands.command(aliases=['leavematch'])
+    async def leave_match(self, ctx, match: poly_match):
+        if match is None:
+            return await ctx.send(f'No matching match was found. Use {command_prefix}listmatches to see available matches.')
+        if match.host.discord_id == ctx.author.id:
+            return await ctx.send(f'You can\'t leave your own match. Use `{command_prefix}delmatch` instead.')
+
+        try:
+            matchplayer = MatchPlayer.select().join(Player).where((MatchPlayer.match == match) & (MatchPlayer.player.discord_id == ctx.author.id)).get()
+        except peewee.DoesNotExist:
+            return await ctx.send(f'You are not a member of match M{match.id}')
+
+        with db:
+            matchplayer.delete_instance()
+            await ctx.send('Removing you from the match.')
+
     # @in_bot_channel()
     @commands.command(aliases=['joinmatch'])
     async def join_match(self, ctx, match: poly_match):
@@ -113,7 +129,7 @@ class Matchmaking_Cog():
             await ctx.send(embed=self.match_embed(match))
 
     # @in_bot_channel()
-    @commands.command(aliases=['listmatches', 'matchlist', 'openmatches'])
+    @commands.command(aliases=['listmatches', 'matchlist', 'openmatches', 'listmatch'])
     async def list_matches(self, ctx):
         Match.purge_expired_matches()
 
@@ -180,7 +196,7 @@ class Matchmaking_Cog():
             f'You\'ve got a match! Once you\'ve created the game in Polytopia, enter the following command to have it tracked for the ELO leaderboards:\n'
             f'`{command_prefix}reqgame "Name of Game" {" ".join(team_home)} vs {" ".join(team_away)}`')
 
-        # match.delete_instance()
+        match.delete_instance()
 
     @in_bot_channel()
     @commands.command()
