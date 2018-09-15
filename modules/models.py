@@ -381,6 +381,54 @@ class SquadGame(BaseModel):
     elo_change = IntegerField(default=0)
 
 
+def tomorrow():
+    return (datetime.datetime.now() + datetime.timedelta(hours=24)).strftime("%Y-%m-%d %H:%M:%S")
+
+
+class Match(BaseModel):
+    host = ForeignKeyField(Player, null=False, backref='match', on_delete='CASCADE')
+    team_size = IntegerField(null=False, default=2)
+    expiration = DateTimeField(null=False, default=tomorrow)
+    notes = CharField(null=True)
+
+    def return_players(self):
+        if len(self.matchplayer) == 0:
+            return None
+        player_list = [p.discord_name for p in self.matchplayer]
+        return player_list
+
+    def return_suggested_teams(self):
+        home_team, away_team = [], []
+        players_with_elos = [(p.player.discord_name, p.player.elo) for p in self.matchplayer]
+        players_with_elos.sort(key=lambda tup: tup[1], reverse=False)     # sort the list ascending by ELO
+
+        def process_name(name):
+            # if "(" in name:
+            #     name = name[:name.find('(')].strip()
+            if ' ' in name:
+                name = '"' + name + '"'
+            return name
+
+        while players_with_elos:
+
+            home_team.append(process_name(players_with_elos.pop()[0]))
+            away_team.append(process_name(players_with_elos.pop()[0]))
+
+        return home_team, away_team
+
+    def purge_expired_matches():
+        from bot import logger
+
+        delete_query = Match.delete().where(Match.expiration < datetime.datetime.now())
+
+        logger.debug(f'purge_expired_matches: Purged {delete_query.execute()}  matches.')
+
+
+class MatchPlayer(BaseModel):
+    match = ForeignKeyField(Match, null=False, backref='matchplayer', on_delete='CASCADE')
+    player = ForeignKeyField(Player, null=False, backref='matchplayer', on_delete='CASCADE')
+
+
 with db:
-    db.create_tables([Team, Game, Player, Lineup, Tribe, Squad, SquadGame, SquadMember])
+    db.create_tables([Team, Game, Player, Lineup, Tribe, Squad, SquadGame, SquadMember, Match, MatchPlayer])
     # Only creates missing tables so should be safe to run each time

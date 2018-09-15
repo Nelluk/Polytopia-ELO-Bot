@@ -4,7 +4,7 @@ import configparser
 import argparse
 import traceback
 from discord.ext import commands
-from models import db
+from modules.models import db
 import logging
 
 logger = logging.getLogger('discord')
@@ -37,7 +37,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--add_default_data', action='store_true')
 args = parser.parse_args()
 
-initial_extensions = ['elo_games', 'game_import_export']
+initial_extensions = ['modules.elo_games', 'modules.game_import_export', 'modules.matchmaking']
 
 if __name__ == '__main__':
 

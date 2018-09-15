@@ -3,7 +3,7 @@ import asyncio
 # import websockets
 from discord.ext import commands
 import peewee
-from models import db, Team, Game, Player, Lineup, Tribe, Squad, SquadGame
+from modules.models import db, Team, Game, Player, Lineup, Tribe, Squad, SquadGame
 from bot import (helper_roles, mod_roles, bot_channels, logger, args,
                 require_teams, command_prefix, game_request_channel,
                 game_announce_channel, date_cutoff, game_channel_category)
@@ -16,7 +16,8 @@ def in_bot_channel():
         if str(ctx.message.channel.id) in bot_channels:
             return True
         else:
-            await ctx.send('This command can only be used in a designated ELO bot channel. Try <#487303307224940545>')
+        	primary_bot_channel = bot_channels.split(',')[0]
+            await ctx.send(f'This command can only be used in a designated ELO bot channel. Try <#{primary_bot_channel}>')
             return False
     return commands.check(predicate)
 
@@ -772,6 +773,7 @@ class ELOGamesCog:
             return
 
         _, team_list = get_teams_of_players([target_discord_member])
+
         with db:
             player, created = upsert_player_and_lineup(player_discord=target_discord_member, player_team=team_list[0], game_side=None, new_game=None)
             player.polytopia_id = new_id

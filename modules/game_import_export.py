@@ -1,6 +1,6 @@
 from discord.ext import commands
 from pbwrap import Pastebin
-from models import Team, Game, Player, Lineup, Tribe, Squad
+from modules.models import Team, Game, Player, Lineup, Tribe, Squad
 from bot import config, logger, helper_roles, mod_roles
 import csv
 import json
