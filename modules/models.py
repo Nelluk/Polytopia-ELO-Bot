@@ -69,6 +69,7 @@ class Game(BaseModel):
     winner_delta = IntegerField(default=0)
     loser_delta = IntegerField(default=0)
     date = DateField(default=datetime.datetime.today)
+    completed_ts = DateTimeField(null=True, default=None)
     announcement_message = IntegerField(default=None, null=True)
     announcement_channel = IntegerField(default=None, null=True)
 
@@ -159,6 +160,7 @@ class Game(BaseModel):
             self.loser_delta = losing_team.change_elo_after_game(winning_team_elo, is_winner=False)
 
         self.is_completed = 1
+        self.completed_ts = datetime.datetime.now()
         self.save()
 
     def delete_game(self):

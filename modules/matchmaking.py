@@ -67,7 +67,7 @@ class Matchmaking_Cog():
             m = re.match(r"(\d+)h", arg.lower())
             if m:
                 # arg looks like '12h'
-                if not 0 < int(m[1]) < 96:
+                if not 0 < int(m[1]) < 97:
                     return await ctx.send(f'Invalid expiration {arg}. Must be between 1H and 96H (One hour through four days).')
                 expiration_hours = int(m[1])
                 continue
@@ -151,7 +151,7 @@ class Matchmaking_Cog():
         if match is None:
             return await ctx.send(f'No matching match was found. Use {command_prefix}listmatches to see available matches.')
 
-        if ctx.author.id == match.host.id or len(get_matching_roles(ctx.author, helper_roles)) > 0:
+        if ctx.author.id == match.host.discord_id or len(get_matching_roles(ctx.author, helper_roles)) > 0:
             # User is deleting their own match, or user has a staff role
             await ctx.send(f'Deleting match M{match.id}')
             match.delete_instance()
