@@ -69,6 +69,8 @@ class Game(BaseModel):
     winner_delta = IntegerField(default=0)
     loser_delta = IntegerField(default=0)
     date = DateField(default=datetime.datetime.today)
+    announcement_message = IntegerField(default=None, null=True)
+    announcement_channel = IntegerField(default=None, null=True)
 
     def get_roster(self, team):
         # Returns list of tuples [(player, elo_change_from_this_game, :tribe_emoji:)]

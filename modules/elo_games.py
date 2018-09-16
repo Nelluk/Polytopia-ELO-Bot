@@ -54,6 +54,7 @@ class ELOGamesCog:
             await self.update_game_channel_name(ctx, game=game, old_game_name=game.name, new_game_name=new_game_name)
             game.name = new_game_name
             game.save()
+        await update_announcement(ctx, game)
 
         await ctx.send(f'Game ID {game.id} has been renamed to "{game.name}"')
 
@@ -234,8 +235,11 @@ class ELOGamesCog:
             channel = ctx.guild.get_channel(int(game_announce_channel))
             if channel is not None:
                 await channel.send(f'New game ID {newgame.id} started! Roster: {" ".join(mentions)}')
-                await channel.send(embed=embed)
+                announcement = await channel.send(embed=embed)
                 await ctx.send(f'New game ID {newgame.id} started! See {channel.mention} for full details.')
+                newgame.announcement_message = announcement.id
+                newgame.announcement_channel = game_announce_channel
+                newgame.save()
                 return
         await ctx.send(f'New game ID {newgame.id} started! Roster: {" ".join(mentions)}')
         await ctx.send(embed=embed)
@@ -867,6 +871,7 @@ class ELOGamesCog:
             lineups[0].save()
             emoji_str = tribe.emoji if tribe.emoji is not None else ''
             await ctx.send(f'Player {players[0].discord_name} assigned to tribe {tribe.name} in game {game.id} {emoji_str}')
+        await update_announcement(ctx, game)
 
     @commands.command()
     @commands.has_any_role(*mod_roles)
@@ -1122,6 +1127,30 @@ async def get_guild_member(ctx, input):
         return guild_matches
 
 
+async def update_announcement(ctx, game):
+    # Updates contents of new game announcement with updated game_embed card
+
+    if game.announcement_channel is None or game.announcement_message is None:
+        return
+    channel = ctx.guild.get_channel(game.announcement_channel)
+    if channel is None:
+        logger.warn('Couldn\'t get channel in update_announacement')
+        return
+
+    try:
+        message = await channel.get_message(game.announcement_message)
+    except (discord.errors.Forbidden, discord.errors.NotFound, discord.errors.HTTPException):
+        logger.warn('Couldn\'t get message in update_announacement')
+        return
+
+    try:
+        embed = game_embed(ctx, game)
+        await message.edit(embed=embed)
+    except discord.errors.HTTPException:
+        logger.warn('Couldn\'t update message in update_announacement')
+        return
+
+
 def game_embed(ctx, game):
 
         home_side_team = game.home_team
@@ -1130,7 +1159,8 @@ def game_embed(ctx, game):
         side_away_roster = game.get_roster(away_side_team)
 
         game_headline = game.get_headline()
-        game_headline = game_headline.replace('\u00a0', '\n')   # Put game.name onto its own life if its there
+        game_headline = game_headline.replace('\u00a0', '\n')   # Put game.name onto its own line if its there
+        print('here3', game_headline)
 
         embed = discord.Embed(title=game_headline)
 
