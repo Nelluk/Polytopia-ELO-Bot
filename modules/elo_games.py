@@ -1160,7 +1160,6 @@ def game_embed(ctx, game):
 
         game_headline = game.get_headline()
         game_headline = game_headline.replace('\u00a0', '\n')   # Put game.name onto its own line if its there
-        print('here3', game_headline)
 
         embed = discord.Embed(title=game_headline)
 

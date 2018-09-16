@@ -1,10 +1,11 @@
 from discord.ext import commands
 from pbwrap import Pastebin
-from modules.models import Team, Game, Player, Lineup, Tribe, Squad
+from modules.models import Team, Game, Player, Lineup, Tribe, Squad, Match, MatchPlayer
 from bot import config, logger, helper_roles, mod_roles
 import csv
 import json
 import peewee
+import datetime
 
 try:
     pastebin_api = config['DEFAULT']['pastebin_key']
@@ -21,6 +22,10 @@ class GameIO_Cog:
     @commands.command(aliases=['dbr'])
     async def db_restore(self, ctx):
 
+        if ctx.message.author.id != 272510639124250625:
+            return await ctx.send('Unauthorized')
+        if Game.select().count() > 0:
+            return await ctx.send('Existing database already has game content. Remove this check if you want to restore on top of existing data.')
         await ctx.send(f'Attempting to restore games from file db_import.json')
         with open('db_import.json') as json_file:
             data = json.load(json_file)
@@ -55,11 +60,21 @@ class GameIO_Cog:
                 except peewee.IntegrityError:
                     logger.warn(f'Cannot add player {player["name"]} - Already exists')
 
+            for match in data['matches']:
+                host = Player.get(discord_id=match['host'])
+                newmatch = Match.create(host=host, notes=match['notes'], team_size=match['team_size'], expiration=match['expiration'])
+                for mp in match['players']:
+                    match_player = Player.get(discord_id=mp)
+                    MatchPlayer.create(player=match_player, match=newmatch)
+
             for game in data['games']:
                 team1, _ = Team.get_or_create(name=game['team1'][0]['team'])
                 team2, _ = Team.get_or_create(name=game['team2'][0]['team'])
 
-                newgame = Game.create(id=game['id'], team_size=len(game['team1']), home_team=team1, away_team=team2, name=game['name'], date=game['date'])
+                newgame = Game.create(id=game['id'], team_size=len(game['team1']),
+                            home_team=team1, away_team=team2,
+                            name=game['name'], date=game['date'],
+                            announcement_channel=game['announce_chan'], announcement_message=game['announce_msg'])
                 team1_players, team2_players = [], []
 
                 for p in game['team1']:
@@ -130,6 +145,14 @@ class GameIO_Cog:
                 player_obj['team'] = None
             players_list.append(player_obj)
 
+        match_list = []
+        for match in Match.select():
+            match_players = [mp.player.discord_id for mp in match.matchplayer]
+            match_obj = {"host": match.host.discord_id, "notes": match.notes,
+                        "team_size": match.team_size, "expiration": str(match.expiration),
+                        "players": match_players}
+            match_list.append(match_obj)
+
         games_list = []
         for game in Game.select():
             team1 = game.home_team
@@ -153,14 +176,17 @@ class GameIO_Cog:
                 break
 
             winner = game.winner.name if game.winner else None
-            games_obj = {"id": game.id, "date": str(game.date), "name": game.name, "winner": winner, "team1": team1_players, "team2": team2_players}
+            games_obj = {"id": game.id, "date": str(game.date),
+                        "name": game.name, "winner": winner,
+                        "team1": team1_players, "team2": team2_players,
+                        "announce_chan": game.announcement_channel, "announce_msg": game.announcement_message}
             games_list.append(games_obj)
 
-        data = {"teams": teams_list, "tribes": tribes_list, "players": players_list, "games": games_list}
-        with open('db_export.json', 'w') as outfile:
+        data = {"teams": teams_list, "tribes": tribes_list, "players": players_list, "games": games_list, "matches": match_list}
+        with open(f'db_export-{datetime.datetime.today().strftime("%Y-%m-%d")}.json', 'w') as outfile:
             json.dump(data, outfile)
 
-        await ctx.send('Database has been backed up to file db_export.json on my hosting server.')
+        await ctx.send(f'Database has been backed up to file {outfile.name} on my hosting server.')
 
     @commands.command(aliases=['gex', 'gameexport'])
     @commands.has_any_role(*helper_roles)

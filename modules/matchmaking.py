@@ -129,7 +129,7 @@ class Matchmaking_Cog():
             await ctx.send(embed=self.match_embed(match))
 
     # @in_bot_channel()
-    @commands.command(aliases=['listmatches', 'matchlist', 'openmatches', 'listmatch'])
+    @commands.command(aliases=['listmatches', 'matchlist', 'openmatches', 'listmatch', 'matches'])
     async def list_matches(self, ctx):
         Match.purge_expired_matches()
 
