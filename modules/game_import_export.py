@@ -25,7 +25,7 @@ class GameIO_Cog:
         if ctx.message.author.id != 272510639124250625:
             return await ctx.send('Unauthorized')
         if Game.select().count() > 0:
-            return await ctx.send('Existing database already has game content. Remove this check if you want to restore on top of existing data.')
+            return await ctx.send('Existing database already has game content. Remove this check if you want to restore on top of existing data.$list')
         await ctx.send(f'Attempting to restore games from file db_import.json')
         with open('db_import.json') as json_file:
             data = json.load(json_file)
@@ -74,7 +74,7 @@ class GameIO_Cog:
                 newgame = Game.create(id=game['id'], team_size=len(game['team1']),
                             home_team=team1, away_team=team2,
                             name=game['name'], date=game['date'],
-                            announcement_channel=game['announce_chan'], announcement_message=game['announce_msg'])
+                            announcement_channel=game['announce_chan'], announcement_message=game['announce_msg'], completed_ts=game['completed_ts'])
                 team1_players, team2_players = [], []
 
                 for p in game['team1']:
@@ -154,7 +154,7 @@ class GameIO_Cog:
             match_list.append(match_obj)
 
         games_list = []
-        for game in Game.select():
+        for game in Game.select().order_by(Game.completed_ts):
             team1 = game.home_team
             team2 = game.away_team
             team1_players, team2_players = [], []
@@ -176,10 +176,12 @@ class GameIO_Cog:
                 break
 
             winner = game.winner.name if game.winner else None
+            completed_ts_str = str(game.completed_ts) if game.completed_ts else None
             games_obj = {"id": game.id, "date": str(game.date),
                         "name": game.name, "winner": winner,
                         "team1": team1_players, "team2": team2_players,
-                        "announce_chan": game.announcement_channel, "announce_msg": game.announcement_message}
+                        "announce_chan": game.announcement_channel, "announce_msg": game.announcement_message,
+                        "completed_ts": completed_ts_str}
             games_list.append(games_obj)
 
         data = {"teams": teams_list, "tribes": tribes_list, "players": players_list, "games": games_list, "matches": match_list}
