@@ -13,6 +13,8 @@ def in_bot_channel():
     async def predicate(ctx):
         if bot_channels is None:
             return True
+        if len(get_matching_roles(ctx.author, mod_roles)) > 0:
+            return True
         if str(ctx.message.channel.id) in bot_channels:
             return True
         else:
