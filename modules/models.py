@@ -270,6 +270,17 @@ class Player(BaseModel):
         # TODO: Could possibly improve this by first searching for an exact match name==string, and then returning partial matches if no exact matches
         return Player.select().where(Player.discord_name.contains(player_string))
 
+    def generate_display_name(player_name, player_nick):
+        if player_nick:
+            if player_name in player_nick:
+                display_name = player_nick
+            else:
+                display_name = f'{player_name} ({player_nick})'
+        else:
+            display_name = player_name
+
+        return display_name
+
 
 class Tribe(BaseModel):
     name = CharField(unique=True, null=False, constraints=[SQL('COLLATE NOCASE')])

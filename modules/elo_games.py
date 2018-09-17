@@ -43,6 +43,21 @@ class ELOGamesCog:
                 logger.error(f'Invalid game ID "{game_id}".')
                 return None
 
+    async def on_member_update(self, before, after):
+        # Updates display name in DB if user changes their discord name or guild
+        if before.nick == after.nick and before.name == after.name:
+            return
+
+        display_name = Player.generate_display_name(after.name, after.nick)
+
+        try:
+            player = Player.get(discord_id=after.id)
+        except peewee.DoesNotExist:
+            return
+
+        player.discord_name = display_name
+        player.save()
+
     @commands.command(aliases=['namegame', 'game_name', 'name_game'])
     @commands.has_any_role(*helper_roles)
     async def gamename(self, ctx, game: poly_game, *args):
@@ -1084,13 +1099,7 @@ def get_teams_of_players(list_of_players):
 
 def upsert_player_and_lineup(player_discord, player_team, game_side=None, new_game=None):
 
-        if player_discord.nick:
-            if player_discord.name in player_discord.nick:
-                display_name = player_discord.nick
-            else:
-                display_name = f'{player_discord.name} ({player_discord.nick})'
-        else:
-            display_name = player_discord.name
+        display_name = Player.generate_display_name(player_discord.name, player_discord.nick)
 
         player, created = Player.get_or_create(discord_id=player_discord.id, defaults={'discord_name': display_name, 'team': player_team})
         if not created:
