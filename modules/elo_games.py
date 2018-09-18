@@ -69,7 +69,7 @@ class ELOGamesCog:
         new_game_name = ' '.join(args)
         with db:
             await self.update_game_channel_name(ctx, game=game, old_game_name=game.name, new_game_name=new_game_name)
-            game.name = new_game_name
+            game.name = new_game_name.title()
             game.save()
         await update_announcement(ctx, game)
 
@@ -240,7 +240,7 @@ class ELOGamesCog:
         logger.debug(f'All input checks passed. Creating new game records with args: {args}')
         with db:
             # Sanity checks all passed. Start a new game!
-            newgame = Game.create(team_size=len(side_home), home_team=home_side_team, away_team=away_side_team, name=game_name)
+            newgame = Game.create(team_size=len(side_home), home_team=home_side_team, away_team=away_side_team, name=game_name.title())
             side_home_players = []
             side_away_players = []
             for player_discord, player_team in zip(side_home, list_of_home_teams):
