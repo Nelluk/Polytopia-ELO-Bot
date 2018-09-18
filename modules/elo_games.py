@@ -151,7 +151,7 @@ class ELOGamesCog:
 
     @commands.command(aliases=['request_game', 'requestgame', 'gamereq'])
     @commands.cooldown(2, 30, commands.BucketType.user)
-    async def reqgame(self, ctx, *args):
+    async def reqgame(self, ctx):
         # Used so that users can submit game information to staff - bot will relay the text in the command to a specific channel.
         # Staff would then take action and create games
         if game_request_channel is None:
@@ -162,7 +162,7 @@ class ELOGamesCog:
 
     @commands.command(aliases=['season_game', 'tourneygame'])
     @commands.cooldown(2, 30, commands.BucketType.user)
-    async def seasongame(self, ctx, *args):
+    async def seasongame(self, ctx):
         # Used so that users can submit game information to staff - bot will relay the text in the command to a specific channel.
         # Staff would then take action and create games
         # Ping AnarchoRex and send output to #season-drafts when team leaders send in game info
