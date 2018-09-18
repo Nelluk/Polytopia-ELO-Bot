@@ -133,7 +133,7 @@ class Matchmaking_Cog():
     async def list_matches(self, ctx):
         Match.purge_expired_matches()
 
-        embed = discord.Embed(title='Open matches')
+        embed = discord.Embed(title=f'Open matches - use `{command_prefix}joinmatch M#` to join one.')
         embed.add_field(name=f'`{"ID":<10}{"Host":<50} {"Capacity":<7} {"Exp":>4}`', value='\u200b', inline=False)
         for match in Match.select():
             notes_str = match.notes if match.notes else "\u200b"

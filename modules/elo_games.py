@@ -165,6 +165,7 @@ class ELOGamesCog:
     async def seasongame(self, ctx, *args):
         # Used so that users can submit game information to staff - bot will relay the text in the command to a specific channel.
         # Staff would then take action and create games
+        # Ping AnarchoRex and send output to #season-drafts when team leaders send in game info
         channel = ctx.guild.get_channel(447902433964851210)
         helper_role = discord.utils.get(ctx.guild.roles, name='Season Helper')
         await channel.send(f'{ctx.message.author} submitted season game INFO <@&{helper_role.id}> <@451212023124983809>: {ctx.message.clean_content}')
