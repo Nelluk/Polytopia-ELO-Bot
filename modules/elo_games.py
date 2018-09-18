@@ -167,7 +167,7 @@ class ELOGamesCog:
         # Staff would then take action and create games
         channel = ctx.guild.get_channel(447902433964851210)
         helper_role = discord.utils.get(ctx.guild.roles, name='Season Helper')
-        await channel.send(f'{ctx.message.author} submitted season game INFO <@&{helper_role}>: {ctx.message.clean_content}')
+        await channel.send(f'{ctx.message.author} submitted season game INFO <@&{helper_role.id}>: {ctx.message.clean_content}')
         await ctx.send('Request has been logged')
 
     @commands.command(aliases=['newgame'])
