@@ -160,6 +160,16 @@ class ELOGamesCog:
         await channel.send(f'{ctx.message.author} submitted: {ctx.message.clean_content}')
         await ctx.send('Request has been logged')
 
+    @commands.command(aliases=['season_game', 'tourneygame'])
+    @commands.cooldown(2, 30, commands.BucketType.user)
+    async def seasongame(self, ctx, *args):
+        # Used so that users can submit game information to staff - bot will relay the text in the command to a specific channel.
+        # Staff would then take action and create games
+        channel = ctx.guild.get_channel(447902433964851210)
+        helper_role = discord.utils.get(ctx.guild.roles, name='Season Helper')
+        await channel.send(f'{ctx.message.author} submitted season game INFO <@&{helper_role}>: {ctx.message.clean_content}')
+        await ctx.send('Request has been logged')
+
     @commands.command(aliases=['newgame'])
     @commands.has_any_role(*helper_roles)
     async def startgame(self, ctx, game_name: str, *args):
