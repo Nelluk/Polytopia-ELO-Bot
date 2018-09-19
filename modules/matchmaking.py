@@ -226,7 +226,7 @@ class Matchmaking_Cog():
                 await ctx.send(f'Match M{match.id} is now full and the host should start the game with `{command_prefix}startmatch M{match.id}`.')
         await ctx.send(embed=self.match_embed(match))
 
-    @commands.command(aliases=['rtribes'])
+    @commands.command(aliases=['rtribes', 'rtribe'])
     async def random_tribes(self, ctx, size='1v1'):
 
         m = re.match(r"(\d+)v(\d+)", size.lower())
