@@ -369,9 +369,9 @@ class ELOGamesCog:
             f'Your opponents are: {" / ".join(home_names)}\n\n'
             '*This channel will self-destruct as soon as the game is marked as concluded.*')
 
-    @commands.command(aliases=['incomplete'])
-    async def incompletegames(self, ctx):
-        """or incomplete: Lists oldest incomplete games"""
+    @commands.command()
+    async def incomplete(self, ctx):
+        """Lists oldest incomplete games"""
         incomplete_list = []
         for counter, game in enumerate(Game.select().where(Game.is_completed == 0).order_by(Game.date)[:500]):
             incomplete_list.append((
@@ -550,8 +550,8 @@ class ELOGamesCog:
                 result = 'Incomplete'
             name_str = f' - {game.name} - ' if game.name else ''
             embed.add_field(
-                name=f'Game {game.id} vs {opponent.name} {opponent.emoji} {name_str} {result}',
-                value=f'{str(game.date)} - {game.team_size}v{game.team_size}', inline=False)
+                name=f'Game {game.id} vs {opponent.name} {opponent.emoji} {name_str}',
+                value=f'{str(game.date)} - {game.team_size}v{game.team_size} - {result}', inline=False)
 
         await ctx.send(embed=embed)
 
@@ -722,9 +722,9 @@ class ELOGamesCog:
             await ctx.send(content=content_str, embed=embed)
 
     @in_bot_channel()
-    @commands.command(aliases=['lbteam', 'leaderboardteam'])
+    @commands.command()
     @commands.cooldown(2, 30, commands.BucketType.channel)
-    async def leaderboard_team(self, ctx):
+    async def lbteam(self, ctx):
         """or lbteam : shows team leaderboard"""
 
         embed = discord.Embed(title='**Team Leaderboard**')
@@ -737,9 +737,9 @@ class ELOGamesCog:
         await ctx.send(embed=embed)
 
     @in_bot_channel()
-    @commands.command(aliases=['leaderboard', 'lbi', 'lb'])
+    @commands.command()
     @commands.cooldown(2, 30, commands.BucketType.channel)
-    async def leaderboard_individual(self, ctx):
+    async def lb(self, ctx):
 
         leaderboard = []
         with db:
@@ -754,9 +754,9 @@ class ELOGamesCog:
         await paginate(self.bot, ctx, title='**Individual Leaderboards**', message_list=leaderboard, page_start=0, page_end=10, page_size=10)
 
     @in_bot_channel()
-    @commands.command(aliases=['lbsquad', 'leaderboardsquad'])
+    @commands.command()
     @commands.cooldown(2, 30, commands.BucketType.channel)
-    async def leaderboard_squad(self, ctx):
+    async def lbsquad(self, ctx):
 
         leaderboard = []
         with db:

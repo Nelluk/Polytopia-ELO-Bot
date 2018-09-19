@@ -12,6 +12,12 @@ import random
 
 
 class Matchmaking_Cog():
+    # Test matchmaking cog help
+    """
+    test help
+    long string
+    """
+
     def __init__(self, bot):
         self.bot = bot
 
@@ -40,8 +46,20 @@ class Matchmaking_Cog():
                 return None
 
     # @in_bot_channel()
-    @commands.command(aliases=['openmatch'])
-    async def open_match(self, ctx, *args):
+    @commands.command()
+    async def openmatch(self, ctx, *args):
+
+        """
+        Opens a matchmaking session for others to find
+
+        Examples:
+        openmatch 1v1
+
+        openmatch 2v2 48h  (Expires in 48 hours)
+
+        openmatch 2v2 Large map, no bardur
+        """
+
         team_size = None
         expiration_hours = 24
         note_args = []
