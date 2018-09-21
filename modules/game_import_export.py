@@ -131,6 +131,7 @@ class import_export:
         # Main flaws of backup -
         # Games that involve a deleted player will be skipped (not sure when this would happen)
 
+        await ctx.send(f'Database backup starting. This will take a few seconds.')
         teams_list = []
         for team in Team.select():
             team_obj = {"name": team.name, "emoji": team.emoji, "image": team.image_url}
