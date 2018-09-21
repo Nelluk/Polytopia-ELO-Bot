@@ -160,9 +160,13 @@ class games:
         await ctx.send(f'Game concluded! Congrats team {winning_team.name}. Roster: {" ".join(player_mentions)}')
         await ctx.send(embed=embed)
 
-    @commands.command(brief='Sends staff details on a standard ELO game', usage='Start "Ocean of Fire" player1 vs player2')
+    @commands.command(usage='Start "Ocean of Fire" player1 vs player2')
     @commands.cooldown(2, 30, commands.BucketType.user)
     async def reqgame(self, ctx):
+        """
+        Sends staff details on a standard ELO game
+        Teams should use this to notify staff of important events with their League games: names of started games, restarts, substitutions, winners.
+        """
         # Used so that users can submit game information to staff - bot will relay the text in the command to a specific channel.
         # Staff would then take action and create games. Also use this to notify staff of winners or name changes
         if game_request_channel is None:
