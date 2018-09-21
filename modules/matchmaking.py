@@ -11,11 +11,9 @@ import datetime
 import random
 
 
-class Matchmaking_Cog():
-    # Test matchmaking cog help
+class matchmaking():
     """
-    test help
-    long string
+    Helps players find other players.
     """
 
     def __init__(self, bot):
@@ -293,4 +291,4 @@ class Matchmaking_Cog():
 
 
 def setup(bot):
-    bot.add_cog(Matchmaking_Cog(bot))
+    bot.add_cog(matchmaking(bot))

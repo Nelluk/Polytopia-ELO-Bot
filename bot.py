@@ -40,7 +40,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--add_default_data', action='store_true')
 args = parser.parse_args()
 
-initial_extensions = ['modules.elo_games', 'modules.game_import_export', 'modules.matchmaking']
+initial_extensions = ['modules.elo_games', 'modules.game_import_export', 'modules.matchmaking', 'modules.help']
 
 if __name__ == '__main__':
 

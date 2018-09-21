@@ -25,6 +25,9 @@ def in_bot_channel():
 
 
 class ELOGamesCog:
+    """elo"""
+    ''' elo '''
+
     def __init__(self, bot):
         self.bot = bot
 
@@ -160,21 +163,26 @@ class ELOGamesCog:
         await channel.send(f'{ctx.message.author} submitted: {ctx.message.clean_content}')
         await ctx.send('Request has been logged')
 
-    @commands.command(aliases=['season_game', 'tourneygame'])
+    @commands.command(brief='Sends staff details on a League game', usage='Week 2 game vs Mallards started called "Oceans of Fire"')
     @commands.cooldown(2, 30, commands.BucketType.user)
     async def seasongame(self, ctx):
-        # Used so that users can submit game information to staff - bot will relay the text in the command to a specific channel.
-        # Staff would then take action and create games
+        """
+        Teams should use this to notify staff of important events with their League games: names of started games, restarts, substitutions, winners.
+        """
         # Ping AnarchoRex and send output to #season-drafts when team leaders send in game info
         channel = ctx.guild.get_channel(447902433964851210)
         helper_role = discord.utils.get(ctx.guild.roles, name='Season Helper')
         await channel.send(f'{ctx.message.author} submitted season game INFO <@&{helper_role.id}> <@451212023124983809>: {ctx.message.clean_content}')
         await ctx.send('Request has been logged')
 
-    @commands.command(aliases=['newgame'])
+    @commands.command(aliases=['newgame'], brief='Helpers: Sets up a new game to be tracked', usage='"Name of Game" player1 player2 vs player3 player4')
     @commands.has_any_role(*helper_roles)
     async def startgame(self, ctx, game_name: str, *args):
-        """startgame "Name of Game" @player1 @player2 VS @player3 @player4"""
+        """
+        Sets up a new game in the bot. Can take a partial name if it is specific enough, or use an @Mention if you need to be precise.
+        Example:
+        [p]startgame "The Oceans of Fire" Nelluk vs @anarchoRex
+        """
         # TODO: Make game_name optional, would require custom parsing all the args and detecting when a game_name is there or not.
 
         if len(args) not in [3, 5, 7, 9, 11] or args[int(len(args) / 2)].upper() != 'VS':
@@ -772,8 +780,14 @@ class ELOGamesCog:
                 )
         await paginate(self.bot, ctx, title='**Squad Leaderboards**', message_list=leaderboard, page_start=0, page_end=10, page_size=10)
 
-    @commands.command()
+    @commands.command(brief='Sets a Polytopia game code and registers user with the bot', usage='[user] polytopia_code')
     async def setcode(self, ctx, *args):
+        """
+        Sets your own Polytopia code, or allows a staff member to set a player's code. This also will register the player with the bot if not already.
+        Examples:
+        [p]setcode somelongpolycode
+        [p]setcode Nelluk somelongpolycode
+        """
 
         if len(args) == 1:      # User setting code for themselves. No special permissions required.
             target_discord_member = ctx.message.author
@@ -833,7 +847,7 @@ class ELOGamesCog:
             else:
                 await ctx.send('User was found but does not have a Polytopia ID on file.')
 
-    @commands.command()
+    @commands.command(brief='Set in-game name')
     async def setname(self, ctx, *args):
         if len(args) == 1:
             # User setting code for themselves. No special permissions required.
