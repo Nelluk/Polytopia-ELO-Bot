@@ -165,7 +165,8 @@ class games:
     async def reqgame(self, ctx):
         """
         Sends staff details on a standard ELO game
-        Teams should use this to notify staff of important events with their League games: names of started games, restarts, substitutions, winners.
+        Teams should use this to notify staff of important events with their standard ELO games: names of started games, restarts, substitutions, winners.
+        Use `[p]seasongame` if the game is a League/Season game.
         """
         # Used so that users can submit game information to staff - bot will relay the text in the command to a specific channel.
         # Staff would then take action and create games. Also use this to notify staff of winners or name changes
