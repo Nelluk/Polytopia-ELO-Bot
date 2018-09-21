@@ -88,7 +88,7 @@ class Help(formatter.HelpFormatter):
             return await dest.send(content=content, embed=embed)
 
         help_msg = await dest.send(content=content, embed=embeds[0])
-        page_msg = await dest.send(self.bot.bot_prefix + "There are {} help pages. Send a number to see the corresponding page. Send any other message to exit.".format(len(embeds)))
+        page_msg = await dest.send("There are {} help pages. Send a number to see the corresponding page. Send any other message to exit.".format(len(embeds)))
 
         def is_me(msg):
             if msg.author == self.context.me and msg.channel == dest:
@@ -105,7 +105,7 @@ class Help(formatter.HelpFormatter):
                     page_number = len(embeds) - 1
                 await help_msg.edit(content=content, embed=embeds[page_number])
             except ValueError:
-                await page_msg.edit(content=self.bot.bot_prefix + "Quit Help menu.")
+                await page_msg.edit(content="Quit Help menu.")
                 break
 
     @property
@@ -281,6 +281,7 @@ class Help(formatter.HelpFormatter):
         emb = await self.format(ctx, command_or_bot)
 
         if reason:
+            print(f'Reason:{reason}')
             emb['embed']['title'] = "{0}".format(reason)
 
         embeds = []
@@ -321,7 +322,7 @@ class Help(formatter.HelpFormatter):
     @commands.command(name='help', pass_context=True, hidden=True)
     async def help(self, ctx, *cmds: str):
         if not ctx.message.author.permissions_in(ctx.channel).embed_links:
-            return await ctx.send(content=self.bot.bot_prefix + "You don't have permissions to send embeds here. Find a different server/channel where you can embed links and try the help command there.")
+            return await ctx.send(content="You don't have permissions to send embeds here. Find a different server/channel where you can embed links and try the help command there.")
 
         """Shows help documentation.
         [p]**help**: Shows the help manual.
