@@ -24,9 +24,7 @@ def in_bot_channel():
     return commands.check(predicate)
 
 
-class ELOGamesCog:
-    """elo"""
-    ''' elo '''
+class games:
 
     def __init__(self, bot):
         self.bot = bot
@@ -61,9 +59,13 @@ class ELOGamesCog:
         player.discord_name = display_name
         player.save()
 
-    @commands.command(aliases=['namegame', 'game_name', 'name_game'])
+    @commands.command(aliases=['namegame'], usage='game_id "New Name"')
     @commands.has_any_role(*helper_roles)
     async def gamename(self, ctx, game: poly_game, *args):
+        """*Staff:* Renames an existing game
+        **Example:**
+        `[p]gamename 25 Mountains of Fire`
+        """
 
         if game is None:
             await ctx.send('No matching game was found.')
@@ -78,9 +80,15 @@ class ELOGamesCog:
 
         await ctx.send(f'Game ID {game.id} has been renamed to "{game.name}"')
 
-    @commands.command(aliases=['endgame', 'win', 'winner'])
+    @commands.command(aliases=['endgame', 'win'], usage='game_id winner_name')
     @commands.has_any_role(*helper_roles)
     async def wingame(self, ctx, winning_game: poly_game, winning_side_name: str):
+        """*Staff:* Declare winner of an open game.
+        This will delete any team channels that were created for this game and update team/player/squad ELO.
+        **Examples**:
+        `[p]win 59 Ronin`
+        `[p]win 59 Nelluk`
+        """
 
         if winning_game is None:
             await ctx.send(f'No matching game was found.')
@@ -152,11 +160,11 @@ class ELOGamesCog:
         await ctx.send(f'Game concluded! Congrats team {winning_team.name}. Roster: {" ".join(player_mentions)}')
         await ctx.send(embed=embed)
 
-    @commands.command(aliases=['request_game', 'requestgame', 'gamereq'])
+    @commands.command(brief='Sends staff details on a standard ELO game', usage='Start "Ocean of Fire" player1 vs player2')
     @commands.cooldown(2, 30, commands.BucketType.user)
     async def reqgame(self, ctx):
         # Used so that users can submit game information to staff - bot will relay the text in the command to a specific channel.
-        # Staff would then take action and create games
+        # Staff would then take action and create games. Also use this to notify staff of winners or name changes
         if game_request_channel is None:
             return
         channel = ctx.guild.get_channel(int(game_request_channel))
@@ -406,9 +414,21 @@ class ELOGamesCog:
             await ctx.send(f'Game with ID {gid} has been deleted and team/player ELO changes have been reverted, if applicable.')
 
     @in_bot_channel()
-    @commands.command(aliases=['games'])
+    @commands.command(aliases=['games'], brief='Find games or see a game\'s details', usage='game_id')
     async def game(self, ctx, *args):
-        # Search games by ID#, name, team participation, or player participation. Show game detail card if 1 result, else a paginated list.
+        """Filter/search for specific games, or see a game's details.
+        **Examples**:
+        `[p]game 51` - See details on game # 51.
+        `[p]games Jets`
+        `[p]games Jets Ronin`
+        `[p]games Nelluk`
+        `[p]games Nelluk rickdaheals [or more players]`
+        `[p]games Jets loss` - Jets losses
+        `[p]games Ronin win` - Ronin victories
+        `[p]games Jets Ronin incomplete`
+        `[p]games Nelluk win`
+        `[p]games Nelluk rickdaheals incomplete`
+        """
 
         arg_list = list(args)
 
@@ -513,8 +533,12 @@ class ELOGamesCog:
         await paginate(self.bot, ctx, title='**Search Results**', message_list=game_entry_list, page_start=0, page_end=10, page_size=10)
 
     @in_bot_channel()
-    @commands.command(aliases=['teaminfo'])
+    @commands.command(usage='team_name')
     async def team(self, ctx, team_string: str):
+        """See details on a team
+        **Example:**
+        [p]team Ronin
+        """
 
         matching_teams = Team.get_by_name(team_string)
         if len(matching_teams) > 1:
@@ -564,9 +588,14 @@ class ELOGamesCog:
         await ctx.send(embed=embed)
 
     @in_bot_channel()
-    @commands.command()
+    @commands.command(brief='Find squads or see details on a squad', usage='player1 [player2] [player3]')
     async def squad(self, ctx, *args):
-        # Provides list of squads that contain given members, or details on squad if only one match. Can also take ID as an argument.an
+        """Find squads with specific players, or see details on a squad
+        **Examples:**
+        `[p]squad 5` - details on squad 5
+        `[p]squad Nelluk` - squads containing Nelluk
+        `[p]squad Nelluk frodakcin` - squad containing both players
+        """
 
         try:
             # Argument is an int, so show squad by ID
@@ -646,8 +675,15 @@ class ELOGamesCog:
         await ctx.send(embed=embed)
 
     @in_bot_channel()
-    @commands.command(aliases=['playerinfo'])
+    @commands.command(brief='See details on a player', usage='player_name')
     async def player(self, ctx, *args):
+        """See your own player card or the card of another player
+        This also will find results based on a game-code or in-game name, if set.
+        **Examples**
+        `[p]player` - See your own player card
+        `[p]player Nelluk` - See Nelluk's card
+        """
+
         with db:
             if len(args) == 0:
                 # Player looking for info on themselves
@@ -733,7 +769,7 @@ class ELOGamesCog:
     @commands.command()
     @commands.cooldown(2, 30, commands.BucketType.channel)
     async def lbteam(self, ctx):
-        """or lbteam : shows team leaderboard"""
+        """display team leaderboard"""
 
         embed = discord.Embed(title='**Team Leaderboard**')
         with db:
@@ -748,6 +784,7 @@ class ELOGamesCog:
     @commands.command()
     @commands.cooldown(2, 30, commands.BucketType.channel)
     async def lb(self, ctx):
+        """ Display individual leaderboard"""
 
         leaderboard = []
         with db:
@@ -765,6 +802,7 @@ class ELOGamesCog:
     @commands.command()
     @commands.cooldown(2, 30, commands.BucketType.channel)
     async def lbsquad(self, ctx):
+        """Display squad leaderboard"""
 
         leaderboard = []
         with db:
@@ -784,9 +822,9 @@ class ELOGamesCog:
     async def setcode(self, ctx, *args):
         """
         Sets your own Polytopia code, or allows a staff member to set a player's code. This also will register the player with the bot if not already.
-        Examples:
-        [p]setcode somelongpolycode
-        [p]setcode Nelluk somelongpolycode
+        **Examples:**
+        `[p]setcode somelongpolycode`
+        `[p]setcode Nelluk somelongpolycode`
         """
 
         if len(args) == 1:      # User setting code for themselves. No special permissions required.
@@ -830,9 +868,12 @@ class ELOGamesCog:
         else:
             await ctx.send('Player {0.discord_name} updated in system with Polytopia code {0.polytopia_id}.'.format(player))
 
-    @commands.command(aliases=['code'])
+    @commands.command(aliases=['code'], usage='player_name')
     async def getcode(self, ctx, player_string: str):
+        """Get game code of a player
+        Just returns the code and nothing else so it can easily be copied."""
 
+        # TODO: If no player argument display own code?
         with db:
             player_matches = Player.get_by_string(player_string)
             if len(player_matches) == 0:
@@ -847,8 +888,14 @@ class ELOGamesCog:
             else:
                 await ctx.send('User was found but does not have a Polytopia ID on file.')
 
-    @commands.command(brief='Set in-game name')
+    @commands.command(brief='Set in-game name', usage='new_name')
     async def setname(self, ctx, *args):
+        """Sets your own in-game name, or lets staff set a player's in-game name
+        When this is set, people can find you by the in-game name with the `[p]player` command.
+        **Examples:**
+        `[p]setname PolyChamp` - Set your own in-game name to *PolyChamp*
+        `[p]setname Nelluk PolyChamp` - Lets staff set in-game name of Nelluk to *PolyChamp*
+        """
         if len(args) == 1:
             # User setting code for themselves. No special permissions required.
             target_player = Player.get_by_string(f'<@{ctx.author.id}>')
@@ -877,9 +924,13 @@ class ELOGamesCog:
             target_player[0].save()
             await ctx.send('Player {0.discord_name} updated in system with Polytopia name {0.polytopia_name}.'.format(target_player[0]))
 
-    @commands.command(aliases=['set_tribe', 'tribe'])
+    @commands.command(usage='game_id player_name tribe_name')
     @commands.has_any_role(*helper_roles)
     async def settribe(self, ctx, game: poly_game, player_name, tribe_name):
+        """*Staff:* Set tribe of a player for a game
+        **Examples**
+        `[p]settribe 5 nelluk bardur` - Sets Nelluk to Bardur for game 5
+        """
 
         if game is None:
             await ctx.send(f'No matching game was found.')
@@ -915,9 +966,13 @@ class ELOGamesCog:
             await ctx.send(f'Player {players[0].discord_name} assigned to tribe {tribe.name} in game {game.id} {emoji_str}')
         await update_announcement(ctx, game)
 
-    @commands.command()
+    @commands.command(usage='tribe_name new_emoji')
     @commands.has_any_role(*mod_roles)
     async def tribe_emoji(self, ctx, tribe_name: str, emoji):
+        """Mod: Assign an emoji to a tribe
+        **Example:**
+        `[p]tribe_emoji Bardur :new_bardur_emoji:`
+        """
 
         if len(emoji) != 1 and ('<:' not in emoji):
             await ctx.send('Valid emoji not detected. Example: `{}tribe_emoji Tribename :my_custom_emoji:`'.format(command_prefix))
@@ -935,10 +990,15 @@ class ELOGamesCog:
 
             await ctx.send('Tribe {0.name} updated with new emoji: {0.emoji}'.format(tribe))
 
-    @commands.command(aliases=['addteam'])
+    @commands.command(aliases=['addteam'], usage='new_team_name')
     @commands.has_any_role(*mod_roles)
     async def team_add(self, ctx, *args):
-        # Team name is expected to match the name of a discord Role, so bot can automatically tell what team a player is in
+        """Mod: Create new server Team
+        The team should have a Role with an identical name.
+        **Example:**
+        `[p]team_add The Amazeballs`
+        """
+
         name = ' '.join(args)
         try:
             db.connect()
@@ -949,9 +1009,13 @@ class ELOGamesCog:
             await ctx.send('That team already exists!')
         db.close()
 
-    @commands.command()
+    @commands.command(usage='team_name new_emoji')
     @commands.has_any_role(*mod_roles)
     async def team_emoji(self, ctx, team_name: str, emoji):
+        """Mod: Assign an emoji to a team
+        **Example:**
+        `[p]team_emoji Amazeballs :my_fancy_emoji:`
+        """
 
         if len(emoji) != 1 and ('<:' not in emoji):
             await ctx.send('Valid emoji not detected. Example: `{}team_emoji name :my_custom_emoji:`'.format(command_prefix))
@@ -969,9 +1033,14 @@ class ELOGamesCog:
 
             await ctx.send('Team {0.name} updated with new emoji: {0.emoji}'.format(team))
 
-    @commands.command()
+    @commands.command(usage='team_name image_url')
     @commands.has_any_role(*mod_roles)
     async def team_image(self, ctx, team_name: str, image_url):
+        """Mod: Set a team's logo image
+
+        **Example:**
+        `[p]team_image Amazeballs http://www.path.to/image.png`
+        """
 
         if 'http' not in image_url:
             await ctx.send(f'Valid image url not detected. Example usage: `{command_prefix}team_image name http://url_to_image.png`')
@@ -991,9 +1060,15 @@ class ELOGamesCog:
             await ctx.send(f'Team {team.name} updated with new image_url (image should appear below)')
             await ctx.send(team.image_url)
 
-    @commands.command()
+    @commands.command(usage='old_name new_name')
     @commands.has_any_role(*mod_roles)
     async def team_name(self, ctx, old_team_name: str, new_team_name: str):
+        """Mod: Change a team's name
+        The team should have a Role with an identical name.
+        Old name doesn't need to be precise, but new name does. Include quotes if it's more than one word.
+        **Example:**
+        `[p]team_name Amazeballs "The Wowbaggers"`
+        """
 
         with db:
             try:
@@ -1007,56 +1082,56 @@ class ELOGamesCog:
 
             await ctx.send('Team **{}** has been renamed to **{}**.'.format(old_team_name, new_team_name))
 
-    @in_bot_channel()
-    @commands.command(aliases=['elohelp'])
-    async def help(self, ctx):
-        commands = [('lb', 'Show individual leaderboard'),
-                    ('lbteam', 'Show team leaderboard'),
-                    ('lbsquad', 'Show squad leaderboard'),
-                    ('team `name`', 'Display stats for a given team.'),
-                    ('player @player', 'Display stats for a given player. Also lets you search by game code/name.'),
-                    ('game `SEARCH`', 'Search for games. Examples:\n`game 52` - Show details on game 52\n`game Ocean` - Show all games with "Ocean" in name\nCan also accept a list of team or player names!'),
-                    ('squad `LIST OF PLAYERS`', 'Show squads containing given members - or detailed squad info if only one match.'),
-                    ('setcode `POLYTOPIACODE`', 'Register your code with the bot for others to find. Also will place you on the leaderboards.'),
-                    ('setname `IN-GAME NAME`', 'Register your in-game name with the bot for others to find.'),
-                    ('getcode `PLAYER`', 'Simply return the Polytopia code of anyone registered.'),
-                    ('incomplete', 'List oldest games with no declared winner'),
-                    ('help_staff', 'Display helper commands, if allowed')]
+    # @in_bot_channel()
+    # @commands.command(aliases=['elohelp'])
+    # async def help(self, ctx):
+    #     commands = [('lb', 'Show individual leaderboard'),
+    #                 ('lbteam', 'Show team leaderboard'),
+    #                 ('lbsquad', 'Show squad leaderboard'),
+    #                 ('team `name`', 'Display stats for a given team.'),
+    #                 ('player @player', 'Display stats for a given player. Also lets you search by game code/name.'),
+    #                 ('game `SEARCH`', 'Search for games. Examples:\n`game 52` - Show details on game 52\n`game Ocean` - Show all games with "Ocean" in name\nCan also accept a list of team or player names!'),
+    #                 ('squad `LIST OF PLAYERS`', 'Show squads containing given members - or detailed squad info if only one match.'),
+    #                 ('setcode `POLYTOPIACODE`', 'Register your code with the bot for others to find. Also will place you on the leaderboards.'),
+    #                 ('setname `IN-GAME NAME`', 'Register your in-game name with the bot for others to find.'),
+    #                 ('getcode `PLAYER`', 'Simply return the Polytopia code of anyone registered.'),
+    #                 ('incomplete', 'List oldest games with no declared winner'),
+    #                 ('help_staff', 'Display helper commands, if allowed')]
 
-        if game_request_channel is not None:
-            commands.append(('reqgame `"Name of Game" player1 player2 VS player3 player4`', 'Submit game details to staff to be added to the bot. Include tribe emoji if known.'))
-            commands.append(('reqgame `GAMEID won by [player/team name]`', 'Submit game results to staff to update an existing game.'))
+    #     if game_request_channel is not None:
+    #         commands.append(('reqgame `"Name of Game" player1 player2 VS player3 player4`', 'Submit game details to staff to be added to the bot. Include tribe emoji if known.'))
+    #         commands.append(('reqgame `GAMEID won by [player/team name]`', 'Submit game results to staff to update an existing game.'))
 
-        embed = discord.Embed(title='**ELO Bot Help**')
-        for command, desc in commands:
-            embed.add_field(name='{}{}'.format(command_prefix, command), value=desc, inline=False)
-        await ctx.send(embed=embed)
+    #     embed = discord.Embed(title='**ELO Bot Help**')
+    #     for command, desc in commands:
+    #         embed.add_field(name='{}{}'.format(command_prefix, command), value=desc, inline=False)
+    #     await ctx.send(embed=embed)
 
-    @in_bot_channel()
-    @commands.command(aliases=['help-staff'])
-    @commands.has_any_role(*helper_roles)
-    async def help_staff(self, ctx):
-        commands = [('newgame "Name of Game" @player1 @player2 VS @player3 @player4', 'Start a new game between listed players.\n`Aliases: startgame`'),
-                    ('wingame `GAMEID WINNING-TEAM-OR-PLAYER`', f'Declare winner of open game. Eg `{command_prefix}win 45 Ronin`\n`Aliases: win, winner`'),
-                    ('namegame `GAMEID` \"Name of Game\"', 'Store Polytopia in-game name for this match`'),
-                    ('setcode `@user POLYTOPIACODE`', 'Change or add the code of another user to the bot.'),
-                    ('setname `PLAYER IN-GAME-NAME`', 'Change or add the in-game name of another user to the bot.'),
-                    ('settribe `GAMEID PLAYER TRIBENAME`', 'Mark what tribe a player has chosen in a given game.\nExample: `{}settribe 5 Nelluk Bardur`'.format(command_prefix))]
+    # @in_bot_channel()
+    # @commands.command(aliases=['help-staff'])
+    # @commands.has_any_role(*helper_roles)
+    # async def help_staff(self, ctx):
+    #     commands = [('newgame "Name of Game" @player1 @player2 VS @player3 @player4', 'Start a new game between listed players.\n`Aliases: startgame`'),
+    #                 ('wingame `GAMEID WINNING-TEAM-OR-PLAYER`', f'Declare winner of open game. Eg `{command_prefix}win 45 Ronin`\n`Aliases: win, winner`'),
+    #                 ('namegame `GAMEID` \"Name of Game\"', 'Store Polytopia in-game name for this match`'),
+    #                 ('setcode `@user POLYTOPIACODE`', 'Change or add the code of another user to the bot.'),
+    #                 ('setname `PLAYER IN-GAME-NAME`', 'Change or add the in-game name of another user to the bot.'),
+    #                 ('settribe `GAMEID PLAYER TRIBENAME`', 'Mark what tribe a player has chosen in a given game.\nExample: `{}settribe 5 Nelluk Bardur`'.format(command_prefix))]
 
-        mod_commands = [('deletegame `GAMEID`', 'Delete game and roll back relevant ELO changes'),
-                        ('team_add \"Team Name\"', 'Add team to bot. Be sure to use full name - must have a matching **Discord role** of identical name.'),
-                        ('team_emoji `name :emoji-code:`', 'Set an emoji to be associated with a team.'),
-                        ('team_image `name http://image-url.png`', 'Set an image to be associated with a team.'),
-                        ('tribe_emoji `TRIBENAME :emoji-code:`', 'Set an emoji to be associated with a Polytopia tribe.'),
-                        ('team_name \"current team name\" \"New Team Name\"', 'Change a team name.')]
+    #     mod_commands = [('deletegame `GAMEID`', 'Delete game and roll back relevant ELO changes'),
+    #                     ('team_add \"Team Name\"', 'Add team to bot. Be sure to use full name - must have a matching **Discord role** of identical name.'),
+    #                     ('team_emoji `name :emoji-code:`', 'Set an emoji to be associated with a team.'),
+    #                     ('team_image `name http://image-url.png`', 'Set an image to be associated with a team.'),
+    #                     ('tribe_emoji `TRIBENAME :emoji-code:`', 'Set an emoji to be associated with a Polytopia tribe.'),
+    #                     ('team_name \"current team name\" \"New Team Name\"', 'Change a team name.')]
 
-        embed = discord.Embed(title='**ELO Bot Help - Staff Commands**')
-        for command, desc in commands:
-            embed.add_field(name='{}{}'.format(command_prefix, command), value=desc, inline=False)
-        embed.add_field(name='*Mod-only commands below*', value='\u200b', inline=False)
-        for command, desc in mod_commands:
-            embed.add_field(name='{}{}'.format(command_prefix, command), value=desc, inline=False)
-        await ctx.send(embed=embed)
+    #     embed = discord.Embed(title='**ELO Bot Help - Staff Commands**')
+    #     for command, desc in commands:
+    #         embed.add_field(name='{}{}'.format(command_prefix, command), value=desc, inline=False)
+    #     embed.add_field(name='*Mod-only commands below*', value='\u200b', inline=False)
+    #     for command, desc in mod_commands:
+    #         embed.add_field(name='{}{}'.format(command_prefix, command), value=desc, inline=False)
+    #     await ctx.send(embed=embed)
 
 
 def initialize_data():
@@ -1341,4 +1416,4 @@ if args.add_default_data:
 
 
 def setup(bot):
-    bot.add_cog(ELOGamesCog(bot))
+    bot.add_cog(games(bot))

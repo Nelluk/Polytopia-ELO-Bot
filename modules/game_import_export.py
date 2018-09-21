@@ -14,16 +14,17 @@ except KeyError:
     pastebin_api = None
 
 
-class GameIO_Cog:
+class import_export:
     def __init__(self, bot):
         self.bot = bot
 
-    @commands.has_any_role(*mod_roles)
+    @commands.is_owner()
     @commands.command(aliases=['dbr'])
     async def db_restore(self, ctx):
-
-        if ctx.message.author.id != 272510639124250625:
-            return await ctx.send('Unauthorized')
+        """Owner: Restore database from backed up JSON file.
+        File should be named `db_import.json` in same directory as `bot.py`.
+        Will fail if there are any games in the existing database as a failsafe.
+        """
         if Game.select().count() > 0:
             return await ctx.send('Existing database already has game content. Remove this check if you want to restore on top of existing data.$list')
         await ctx.send(f'Attempting to restore games from file db_import.json')
@@ -122,6 +123,10 @@ class GameIO_Cog:
     @commands.command(aliases=['dbb'])
     @commands.has_any_role(*mod_roles)
     async def db_backup(self, ctx):
+        """Mod: Backs up database of to a new file
+        The file will be a JSON file on the bot's hosting server that can be used to restore to a fresh database.
+        Comes in handy if ELO math changes and you want to re-run all the games with the new math.
+        """
 
         # Main flaws of backup -
         # Games that involve a deleted player will be skipped (not sure when this would happen)
@@ -194,6 +199,9 @@ class GameIO_Cog:
     @commands.has_any_role(*helper_roles)
     @commands.cooldown(1, 300, commands.BucketType.guild)
     async def game_export(self, ctx):
+        """Staff: Export list of completed games to pastebin
+        Will be a CSV file that can be opened as a spreadsheet. Might be useful to somebody who wants to do their own tracking.
+        """
 
         with open('games_export.csv', mode='w') as export_file:
             game_writer = csv.writer(export_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
@@ -244,4 +252,4 @@ class GameIO_Cog:
 
 
 def setup(bot):
-    bot.add_cog(GameIO_Cog(bot))
+    bot.add_cog(import_export(bot))

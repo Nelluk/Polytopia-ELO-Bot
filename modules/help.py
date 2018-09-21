@@ -92,7 +92,9 @@ class Help(formatter.HelpFormatter):
         first_loop = True
         page_number = 0
         page_end = len(embeds) - 1
+
         while True:
+            # Saw a weird issue where embed content was being duplicated, discord said it was a known issue with embed field names being duplicated
             if first_loop is True:
                 help_msg = await dest.send(content=content, embed=embeds[page_number])
             else:
@@ -136,10 +138,9 @@ class Help(formatter.HelpFormatter):
 
                 elif '⏩' in str(reaction.emoji):
 
-                    page_number += 1
+                    page_number = page_number + 1
                     if page_number > page_end:
                         page_number = page_end
-                    print(page_number)
 
                 first_loop = False
 
@@ -185,6 +186,46 @@ class Help(formatter.HelpFormatter):
         return "Type {0}help <command> for more info on a command.\n" \
                "You can also type {0}help <category> for more info on a category.".format(self.clean_prefix)
 
+    def get_command_signature(self):
+        """Retrieves the signature portion of the help page."""
+        result = []
+        prefix = self.clean_prefix
+        cmd = self.command
+        parent = cmd.full_parent_name
+        # if len(cmd.aliases) > 0:
+        #     aliases = '|'.join(cmd.aliases)
+        #     fmt = '{0}[{1.name}|{2}]'
+        #     if parent:
+        #         fmt = '{0}{3} [{1.name}|{2}]'
+        #     result.append(fmt.format(prefix, cmd, aliases, parent))
+        # else:
+        #     name = prefix + cmd.name if not parent else prefix + parent + ' ' + cmd.name
+        #     result.append(name)
+
+        name = prefix + cmd.name if not parent else prefix + parent + ' ' + cmd.name
+        result.append(name)
+
+        if cmd.usage:
+            result.append(cmd.usage)
+        else:
+            params = cmd.clean_params
+            if len(params) > 0:
+                for name, param in params.items():
+                    if param.default is not param.empty:
+                        # We don't want None or '' to trigger the [name=value] case and instead it should
+                        # do [name] since [name=None] or [name=] are not exactly useful for the user.
+                        should_print = param.default if isinstance(param.default, str) else param.default is not None
+                        if should_print:
+                            result.append('[{}={}]'.format(name, param.default))
+                        else:
+                            result.append('[{}]'.format(name))
+                    elif param.kind == param.VAR_POSITIONAL:
+                        result.append('[{}...]'.format(name))
+                    else:
+                        result.append('<{}>'.format(name))
+
+        return ' '.join(result)
+
     async def format(self, ctx, command):
         """Formats command for output.
         Returns a dict used to build embed"""
@@ -226,6 +267,9 @@ class Help(formatter.HelpFormatter):
                     name = '{0}'.format(command.help.split('\n')[0])
                     name_length = len(name)
                     value = command.help[name_length:].replace('[p]', self.clean_prefix)
+                if len(command.aliases) > 0:
+                    aliases = ', '.join(command.aliases)
+                    value = value + '\n\nAliases: ' + aliases
                 if value == '':
                     value = empty
                 if len(value) > 1024:
@@ -318,7 +362,6 @@ class Help(formatter.HelpFormatter):
         if reason:
             # print(f'Reason:{reason}')
             emb['embed']['title'] = "{0}".format(reason)
-
         embeds = []
         embed = discord.Embed(color=self.color, **emb['embed'])
         embed.set_author(name='{0} Help Manual Page 1'.format(self.bot.user.name), icon_url=self.avatar)
@@ -326,7 +369,7 @@ class Help(formatter.HelpFormatter):
         txt = ""
         for field in emb['fields']:
             txt += field["name"] + field["value"]
-            if len(txt) > 1000:
+            if len(txt) > 5000:
                 embeds.append(embed)
                 txt = field["name"] + field["value"]
                 del embed

@@ -45,7 +45,7 @@ initial_extensions = ['modules.elo_games', 'modules.game_import_export', 'module
 if __name__ == '__main__':
 
     bot = commands.Bot(command_prefix=commands.when_mentioned_or(command_prefix))
-    bot.remove_command('help')
+    # bot.remove_command('help')
 
     @bot.check
     async def globally_block_dms(ctx):

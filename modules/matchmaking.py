@@ -44,18 +44,18 @@ class matchmaking():
                 return None
 
     # @in_bot_channel()
-    @commands.command()
+    @commands.command(usage='size expiration rules')
     async def openmatch(self, ctx, *args):
 
         """
         Opens a matchmaking session for others to find
+        Expiration can be between 1H - 96H
+        Size can be between 1v1 and 6v6
 
-        Examples:
-        openmatch 1v1
-
-        openmatch 2v2 48h  (Expires in 48 hours)
-
-        openmatch 2v2 Large map, no bardur
+        **Examples:**
+        `[p]openmatch 1v1`
+        `[p]openmatch 2v2 48h`  (Expires in 48 hours)
+        `[p]openmatch 2v2 Large map, no bardur`  (Adds a note to the game)
         """
 
         team_size = None
@@ -99,8 +99,13 @@ class matchmaking():
         MatchPlayer.create(player=match_host[0], match=match)
         await ctx.send(f'Starting new open match ID M{match.id}. Size: {team_size}v{team_size}. Expiration: {expiration_hours} hours.\nNotes: *{notes_str}*')
 
-    @commands.command(aliases=['leavematch'])
-    async def leave_match(self, ctx, match: poly_match):
+    @commands.command(usage='match_id')
+    async def leavematch(self, ctx, match: poly_match):
+        """
+        Leave a match that you have joined
+        **Example:**
+        `[p]leavematch M25`
+        """
         if match is None:
             return await ctx.send(f'No matching match was found. Use {command_prefix}listmatches to see available matches.')
         if match.host.discord_id == ctx.author.id:
@@ -116,8 +121,13 @@ class matchmaking():
             await ctx.send('Removing you from the match.')
 
     # @in_bot_channel()
-    @commands.command(aliases=['joinmatch'])
-    async def join_match(self, ctx, match: poly_match):
+    @commands.command(usage='match_id')
+    async def joinmatch(self, ctx, match: poly_match):
+        """
+        Join an open match
+        **Example:**
+        `[p]joinmatch M25`
+        """
 
         if match is None:
             return await ctx.send(f'No matching match was found. Use {command_prefix}listmatches to see available matches.')
@@ -145,8 +155,12 @@ class matchmaking():
             await ctx.send(embed=self.match_embed(match))
 
     # @in_bot_channel()
-    @commands.command(aliases=['listmatches', 'matchlist', 'openmatches', 'listmatch', 'matches'])
-    async def list_matches(self, ctx):
+    @commands.command(aliases=['listmatches', 'matchlist', 'openmatches', 'listmatch'])
+    async def matches(self, ctx):
+        """
+        List open matches.
+        Full matches will still be listed until the host starts or deletes them with `[p]startmatch` / `[p]delmatch`
+        """
         Match.purge_expired_matches()
 
         embed = discord.Embed(title=f'Open matches - use `{command_prefix}joinmatch M#` to join one.')
@@ -161,8 +175,13 @@ class matchmaking():
         await ctx.send(embed=embed)
 
     # @in_bot_channel()
-    @commands.command(aliases=['delmatch', 'deletematch'])
-    async def delete_match(self, ctx, match: poly_match):
+    @commands.command(aliases=['deletematch'], usage='match_id')
+    async def delmatch(self, ctx, match: poly_match):
+        """Deletes a match that you host
+        Staff can also delete any match.
+        **Example:**
+        `[p]delmatch M25`
+        """
 
         if match is None:
             return await ctx.send(f'No matching match was found. Use {command_prefix}listmatches to see available matches.')
@@ -176,8 +195,14 @@ class matchmaking():
             return await ctx.send(f'You only have permission to delete your own matches.')
 
     # @in_bot_channel()
-    @commands.command(aliases=['startmatch'])
-    async def start_match(self, ctx, match: poly_match):
+    @commands.command(usage='match_id')
+    async def startmatch(self, ctx, match: poly_match):
+        """
+        Display suggested lineup and delete match
+        Host should run this command after a match is full for instructions on how to get the match tracked as a normal game.
+        It will display a suggested lineup that the host can ignore, provide an example draft order, and the command to use to have the game tracked once it has been created.
+        The match will be deleted as soon as the host uses this command.
+        """
 
         if match is None:
             return await ctx.send(f'No matching match was found. Use {command_prefix}listmatches to see available matches.')
@@ -215,8 +240,9 @@ class matchmaking():
         match.delete_instance()
 
     @in_bot_channel()
-    @commands.command()
+    @commands.command(usage='match_id')
     async def match(self, ctx, match: poly_match):
+        """Display details on a match"""
 
         if match is None:
             return await ctx.send(f'No matching match was found. Use {command_prefix}listmatches to see available matches.')
@@ -224,8 +250,13 @@ class matchmaking():
                 await ctx.send(f'Match M{match.id} is now full and the host should start the game with `{command_prefix}startmatch M{match.id}`.')
         await ctx.send(embed=self.match_embed(match))
 
-    @commands.command(aliases=['rtribes', 'rtribe'])
+    @commands.command(aliases=['rtribes', 'rtribe'], usage='game_size')
     async def random_tribes(self, ctx, size='1v1'):
+        """Show a random tribe combination for a given game size.
+        This tries to keep the sides roughly equal in power.
+        **Example:**
+        `[p]rtribes 2v2` - Shows Ai-mo/Imperius & Xin-xi/Luxidoor
+        """
 
         m = re.match(r"(\d+)v(\d+)", size.lower())
         if m:

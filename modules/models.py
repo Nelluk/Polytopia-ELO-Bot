@@ -362,6 +362,8 @@ class Squad(BaseModel):
     def get_all_matching_squads(player_list):
         # Takes [List, of, Player, Records] (not names)
         # Returns all squads containing players in player list. Used to look up a squad by partial or complete membership
+
+        # TODO: Probably restrict this to at least 1/2 games complete so not every single combination is returned
         query = Squad.select().join(SquadMember).group_by(SquadMember.squad).having(
             (fn.SUM(SquadMember.player.in_(player_list)) == len(player_list))
         )
