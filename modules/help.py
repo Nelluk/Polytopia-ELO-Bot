@@ -27,6 +27,7 @@ import asyncio
 import re
 import inspect
 import itertools
+from bot import logger
 # import traceback
 
 
@@ -87,26 +88,60 @@ class Help(formatter.HelpFormatter):
             embed.set_author(name='{0} Help Manual'.format(self.bot.user.name), icon_url=self.avatar)
             return await dest.send(content=content, embed=embed)
 
-        help_msg = await dest.send(content=content, embed=embeds[0])
-        page_msg = await dest.send("There are {} help pages. Send a number to see the corresponding page. Send any other message to exit.".format(len(embeds)))
-
-        def is_me(msg):
-            if msg.author == self.context.me and msg.channel == dest:
-                return True
+        # Replaced message based pagination with reaction-based pagination
+        first_loop = True
+        page_number = 0
+        page_end = len(embeds) - 1
         while True:
-            await asyncio.sleep(.5)
-            reply = await self.bot.wait_for('message', check=is_me)
-            try:
-                page_number = int(reply.content) - 1
-                await reply.delete()
-                if page_number < 0:
-                    page_number = 0
-                elif page_number >= len(embeds):
-                    page_number = len(embeds) - 1
+            if first_loop is True:
+                help_msg = await dest.send(content=content, embed=embeds[page_number])
+            else:
+                try:
+                    await help_msg.clear_reactions()
+                except (discord.ext.commands.errors.CommandInvokeError, discord.errors.Forbidden):
+                    logger.warn('Unable to clear message reaction due to insufficient permissions. Giving bot \'Manage Messages\' permission will improve usability.')
+                # await help_msg.edit(embed=embed)
                 await help_msg.edit(content=content, embed=embeds[page_number])
-            except ValueError:
-                await page_msg.edit(content="Quit Help menu.")
-                break
+
+            if page_number > 0:
+                await help_msg.add_reaction('⏪')
+            if page_number < page_end:
+                await help_msg.add_reaction('⏩')
+
+            def check(reaction, user):
+                e = str(reaction.emoji)
+                if page_number > 0 and page_number < page_end:
+                    compare = e.startswith(('⏪', '⏩'))
+                elif page_number >= page_end:
+                    compare = e.startswith('⏪')
+                elif page_number <= 0:
+                    compare = e.startswith('⏩')
+                else:
+                    compare = False
+                return ((user == self.context.message.author) and (reaction.message.id == help_msg.id) and compare)
+
+            try:
+                reaction, user = await self.bot.wait_for('reaction_add', timeout=20.0, check=check)
+            except asyncio.TimeoutError:
+                try:
+                    await help_msg.clear_reactions()
+                except (discord.ext.commands.errors.CommandInvokeError, discord.errors.Forbidden):
+                    logger.debug('Unable to clear message reaction due to insufficient permissions. Giving bot \'Manage Messages\' permission will improve usability.')
+                finally:
+                    break
+            else:
+                if '⏪' in str(reaction.emoji):
+
+                    page_number = page_number - 1
+
+                elif '⏩' in str(reaction.emoji):
+
+                    page_number += 1
+                    if page_number > page_end:
+                        page_number = page_end
+                    print(page_number)
+
+                first_loop = False
 
     @property
     def author(self):
@@ -281,7 +316,7 @@ class Help(formatter.HelpFormatter):
         emb = await self.format(ctx, command_or_bot)
 
         if reason:
-            print(f'Reason:{reason}')
+            # print(f'Reason:{reason}')
             emb['embed']['title'] = "{0}".format(reason)
 
         embeds = []
