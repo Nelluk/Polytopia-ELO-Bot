@@ -294,33 +294,55 @@ class games:
         await ctx.send(f'New game ID {newgame.id} started! Roster: {" ".join(mentions)}')
         await ctx.send(embed=embed)
 
-    def get_channel_category(self, ctx):
+    @commands.command()
+    async def ctest(self, ctx):
+        import re
+        for chan in ctx.guild.channels:
+            # e136-s3w1-lake-of-war_mallards
+            m = re.match(r"(e\d+)-s3w1-(.+)", chan.name)
+            if m:
+                print(f'Matching on {chan.name} - 1:{m[1]} 2:{m[2]}')
+                print(f'Renaming to s3w1-{m[2]}-{m[1]}')
+
+    def get_channel_category(self, ctx, team_name):
+        if ctx.guild.me.guild_permissions.manage_channels is not True:
+            logger.error('manage_channels permission is false.')
+            return None
+        team_name = team_name.lower().replace('the', '').strip()  # The Ronin > ronin
+        for cat in ctx.guild.categories:
+            if team_name in cat.name.lower():
+                logger.debug(f'Using {cat.id} - {cat.name} as a team channel category')
+                return cat
+
+        # No team category found - using default category. ie. intermingled home/away games
         if game_channel_category is None:
             return None
         chan_category = discord.utils.get(ctx.guild.categories, id=int(game_channel_category))
         if chan_category is None:
             logger.error(f'chans_category_id {game_channel_category} was supplied but cannot be loaded')
             return None
-        if ctx.guild.me.guild_permissions.manage_channels is not True:
-            logger.error('manage_channels permission is false.')
-            return None
         return chan_category
 
-    def channel_name_format(self, game_id, game_name, team_name):
+    def generate_channel_name(self, game_id, game_name, team_name):
         # Turns game named 'The Mountain of Fire' to something like #e41-mountain-of-fire_ronin
 
         game_team = f'{game_name.replace("the ","").replace("The ","")}_{team_name.replace("the ","").replace("The ","")}'
-        chan_name = f'e{game_id}-{" ".join(game_team.split()).replace(" ", "-")}'
+
+        if game_name.lower()[:2] == 's3' or game_name.lower()[:2] == 's4':
+            # hack to have special naming for season 3 or season 4 games, named eg 'S3W1 Mountains of Fire'. Makes channel easier to see
+            chan_name = f'{" ".join(game_team.split()).replace(" ", "-")}-e{game_id}'
+        else:
+            chan_name = f'e{game_id}-{" ".join(game_team.split()).replace(" ", "-")}'
         return chan_name
 
     async def delete_game_channels(self, ctx, game):
 
-        chan_category = self.get_channel_category(ctx)
-        if chan_category is None:
-            logger.error(f'in delete_game_channels - cannot proceed')
-            return
+        home_cat = self.get_channel_category(ctx, game.home_team.name)
+        away_cat = self.get_channel_category(ctx, game.away_team.name)
+        if home_cat is None or away_cat is None:
+            return logger.error(f'in delete_game_channels - cannot proceed due to None category')
 
-        matching_chans = [c for c in chan_category.channels if c.name.startswith(f'e{game.id}-')]
+        matching_chans = [c for c in (home_cat.channels + away_cat.channels) if c.name.startswith(f'e{game.id}-')]
         for chan in matching_chans:
             logger.warn(f'Deleting channel {chan.name}')
             await chan.delete(reason='Game concluded')
@@ -330,19 +352,19 @@ class games:
         # Update a channel's name when its associated game is renamed
         # This will fail if the team name has changed since the game started, or if someone manually renamed the channel already
 
-        chan_category = self.get_channel_category(ctx)
-        if chan_category is None:
-            logger.error(f'in update_game_channel_name - cannot proceed')
-            return
+        home_cat = self.get_channel_category(ctx, game.home_team.name)
+        away_cat = self.get_channel_category(ctx, game.away_team.name)
+        if home_cat is None or away_cat is None:
+            return logger.error(f'in update_game_channel_name - cannot proceed due to None category')
 
-        old_home_chan_name = self.channel_name_format(game_id=game.id, game_name=old_game_name, team_name=game.home_team.name)
-        old_away_chan_name = self.channel_name_format(game_id=game.id, game_name=old_game_name, team_name=game.away_team.name)
+        old_home_chan_name = self.generate_channel_name(game_id=game.id, game_name=old_game_name, team_name=game.home_team.name)
+        old_away_chan_name = self.generate_channel_name(game_id=game.id, game_name=old_game_name, team_name=game.away_team.name)
 
-        new_home_chan_name = self.channel_name_format(game_id=game.id, game_name=new_game_name, team_name=game.home_team.name)
-        new_away_chan_name = self.channel_name_format(game_id=game.id, game_name=new_game_name, team_name=game.away_team.name)
+        new_home_chan_name = self.generate_channel_name(game_id=game.id, game_name=new_game_name, team_name=game.home_team.name)
+        new_away_chan_name = self.generate_channel_name(game_id=game.id, game_name=new_game_name, team_name=game.away_team.name)
 
-        old_home_chan = discord.utils.get(chan_category.channels, name=old_home_chan_name.lower())
-        old_away_chan = discord.utils.get(chan_category.channels, name=old_away_chan_name.lower())
+        old_home_chan = discord.utils.get(home_cat.channels, name=old_home_chan_name.lower())
+        old_away_chan = discord.utils.get(away_cat.channels, name=old_away_chan_name.lower())
 
         if old_home_chan is None or old_away_chan is None:
             logger.error(f'Was not able to find existing channel to rename: {old_home_chan} or {old_away_chan}')
@@ -355,13 +377,13 @@ class games:
 
     async def create_game_channels(self, ctx, game, home_players, away_players):
 
-        chan_category = self.get_channel_category(ctx)
-        if chan_category is None:
-            logger.error(f'in create_game_channels - cannot proceed')
-            return
+        home_cat = self.get_channel_category(ctx, game.home_team.name)
+        away_cat = self.get_channel_category(ctx, game.away_team.name)
+        if home_cat is None or away_cat is None:
+            return logger.error(f'in create_game_channels - cannot proceed due to None category')
 
-        home_chan_name = self.channel_name_format(game_id=game.id, game_name=game.name, team_name=game.home_team.name)
-        away_chan_name = self.channel_name_format(game_id=game.id, game_name=game.name, team_name=game.away_team.name)
+        home_chan_name = self.generate_channel_name(game_id=game.id, game_name=game.name, team_name=game.home_team.name)
+        away_chan_name = self.generate_channel_name(game_id=game.id, game_name=game.name, team_name=game.away_team.name)
 
         home_members = [ctx.guild.get_member(p.discord_id) for p in home_players]
         away_members = [ctx.guild.get_member(p.discord_id) for p in away_players]
@@ -376,8 +398,8 @@ class games:
         home_permissions[ctx.guild.default_role] = away_permissions[ctx.guild.default_role] = discord.PermissionOverwrite(read_messages=False)
 
         try:
-            home_chan = await ctx.guild.create_text_channel(name=home_chan_name, overwrites=home_permissions, category=chan_category, reason='ELO Game chan')
-            away_chan = await ctx.guild.create_text_channel(name=away_chan_name, overwrites=away_permissions, category=chan_category, reason='ELO Game chan')
+            home_chan = await ctx.guild.create_text_channel(name=home_chan_name, overwrites=home_permissions, category=home_cat, reason='ELO Game chan')
+            away_chan = await ctx.guild.create_text_channel(name=away_chan_name, overwrites=away_permissions, category=away_cat, reason='ELO Game chan')
         except (discord.errors.Forbidden, discord.errors.HTTPException) as e:
             logger.error(f'Exception in create_game_channels:\n{e} - Status {e.status}, Code {e.code}: {e.text}')
             return await ctx.send(f'Could not create game channel for this game. Error has been logged.')
@@ -410,10 +432,10 @@ class games:
 
         await paginate(self.bot, ctx, title='**Oldest Incomplete Games**', message_list=incomplete_list, page_start=0, page_end=10, page_size=10)
 
-    @commands.command()
+    @commands.command(usage='game_id')
     @commands.has_any_role(*mod_roles)
     async def deletegame(self, ctx, game: poly_game):
-        """deletegame 5 (reverts ELO changes. Use with care.)"""
+        """Mod: Deletes a game and reverts ELO changes"""
 
         if game is None:
             await ctx.send('No matching game was found.')

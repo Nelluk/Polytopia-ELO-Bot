@@ -10,9 +10,9 @@ from logging.handlers import RotatingFileHandler
 
 logger = logging.getLogger('discord')
 logger.setLevel(logging.INFO)
-# handler = logging.FileHandler(filename='discord.log', encoding='utf-8', mode='w')
+if (logger.hasHandlers()):
+    logger.handlers.clear()
 handler = RotatingFileHandler(filename='discord.log', encoding='utf-8', maxBytes=500 * 1024, backupCount=1)
-# Currently the logger seems to not properly rotate old data into second file - it creates two duplicate log files
 handler.setFormatter(logging.Formatter('%(asctime)s:%(levelname)s:%(name)s: %(message)s'))
 logger.addHandler(handler)
 
