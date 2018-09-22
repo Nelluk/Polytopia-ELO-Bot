@@ -359,8 +359,15 @@ class games:
             logger.error(f'in create_game_channels - cannot proceed')
             return
 
-        home_chan_name = self.channel_name_format(game_id=game.id, game_name=game.name, team_name=game.home_team.name)
-        away_chan_name = self.channel_name_format(game_id=game.id, game_name=game.name, team_name=game.away_team.name)
+        try:
+            home_chan_name = self.channel_name_format(game_id=game.id, game_name=game.name, team_name=game.home_team.name)
+            away_chan_name = self.channel_name_format(game_id=game.id, game_name=game.name, team_name=game.away_team.name)
+        except (discord.errors.Forbidden, discord.errors.HTTPException) as e:
+            logger.error(f'Exception in create_game_channels:\n{e} - Status {e.status}, Code {e.code}: {e.text}')
+            return await ctx.send(f'Could not create game channel for this game. Error has been logged.')
+        except discord.errors.InvalidArgument as e:
+            logger.error(f'Exception in create_game_channels:\n{e}')
+            return await ctx.send(f'Could not create game channel for this game. Error has been logged.')
 
         home_members = [ctx.guild.get_member(p.discord_id) for p in home_players]
         away_members = [ctx.guild.get_member(p.discord_id) for p in away_players]
@@ -408,7 +415,7 @@ class games:
         """deletegame 5 (reverts ELO changes. Use with care.)"""
 
         if game is None:
-            await ctx.send(f'No matching game was found.')
+            await ctx.send('No matching game was found.')
             return
 
         await self.delete_game_channels(ctx, game)
