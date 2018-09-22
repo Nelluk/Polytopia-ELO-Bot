@@ -294,19 +294,6 @@ class games:
         await ctx.send(f'New game ID {newgame.id} started! Roster: {" ".join(mentions)}')
         await ctx.send(embed=embed)
 
-    @commands.command()
-    async def ctest(self, ctx):
-        import re
-        games_category = discord.utils.get(ctx.guild.categories, id=int(game_channel_category))
-        for chan in games_category.channels:
-            # e136-s3w1-lake-of-war_mallards
-            m = re.match(r"(e\d+)-(.+)_(.+)", chan.name)
-            if m:
-                print(f'Matching on {chan.name} - 2:{m[2]} 3:{m[3]}')
-                cat = self.get_channel_category(ctx, (m[3]).replace('-', ''))
-                print(f'Sending to category {cat.name}')
-                await chan.edit(category=cat, reason='Moving channels into team category')
-
     def get_channel_category(self, ctx, team_name):
         if ctx.guild.me.guild_permissions.manage_channels is not True:
             logger.error('manage_channels permission is false.')
