@@ -297,13 +297,15 @@ class games:
     @commands.command()
     async def ctest(self, ctx):
         import re
-        for chan in ctx.guild.channels:
+        games_category = discord.utils.get(ctx.guild.categories, id=int(game_channel_category))
+        for chan in games_category.channels:
             # e136-s3w1-lake-of-war_mallards
-            m = re.match(r"(e\d+)-s3w1-(.+)", chan.name)
+            m = re.match(r"(e\d+)-(.+)_(.+)", chan.name)
             if m:
-                print(f'Matching on {chan.name} - 1:{m[1]} 2:{m[2]}')
-                new_name = f's3w1-{m[2]}-{m[1]}'
-                await chan.edit(name=new_name, reason='New naming scheme')
+                print(f'Matching on {chan.name} - 2:{m[2]} 3:{m[3]}')
+                cat = self.get_channel_category(ctx, m[3])
+                print(f'Sending to category {cat.name}')
+                # await chan.edit(category=cat, reason='Moving channels into team category')
 
     def get_channel_category(self, ctx, team_name):
         if ctx.guild.me.guild_permissions.manage_channels is not True:
