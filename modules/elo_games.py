@@ -73,7 +73,8 @@ class games:
 
         new_game_name = ' '.join(args)
         with db:
-            await self.update_game_channel_name(ctx, game=game, old_game_name=game.name, new_game_name=new_game_name)
+            if game.name is not None:
+                await self.update_game_channel_name(ctx, game=game, old_game_name=game.name, new_game_name=new_game_name)
             game.name = new_game_name.title()
             game.save()
         await update_announcement(ctx, game)
