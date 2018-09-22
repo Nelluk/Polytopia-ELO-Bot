@@ -302,7 +302,8 @@ class games:
             m = re.match(r"(e\d+)-s3w1-(.+)", chan.name)
             if m:
                 print(f'Matching on {chan.name} - 1:{m[1]} 2:{m[2]}')
-                print(f'Renaming to s3w1-{m[2]}-{m[1]}')
+                new_name = f's3w1-{m[2]}-{m[1]}'
+                await chan.edit(name=new_name, reason='New naming scheme')
 
     def get_channel_category(self, ctx, team_name):
         if ctx.guild.me.guild_permissions.manage_channels is not True:
