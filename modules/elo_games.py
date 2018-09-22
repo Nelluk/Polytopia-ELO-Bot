@@ -293,6 +293,14 @@ class games:
         await ctx.send(f'New game ID {newgame.id} started! Roster: {" ".join(mentions)}')
         await ctx.send(embed=embed)
 
+    @commands.command()
+    async def ctest(self, ctx):
+        def find_team_category(cat, team_name):
+            team_name = team_name.lower().replace('the', '').strip()  # The Ronin > ronin
+            return team_name in cat.name.lower()
+        chan_category = discord.utils.find(lambda m: find_team_category(m, "The Ronin"), ctx.guild.categories)
+        print(chan_category)
+
     def get_channel_category(self, ctx):
         if game_channel_category is None:
             return None
@@ -305,11 +313,16 @@ class games:
             return None
         return chan_category
 
-    def channel_name_format(self, game_id, game_name, team_name):
+    def generate_channel_name(self, game_id, game_name, team_name):
         # Turns game named 'The Mountain of Fire' to something like #e41-mountain-of-fire_ronin
 
         game_team = f'{game_name.replace("the ","").replace("The ","")}_{team_name.replace("the ","").replace("The ","")}'
-        chan_name = f'e{game_id}-{" ".join(game_team.split()).replace(" ", "-")}'
+
+        if game_name.lower()[:2] == 's3' or game_name.lower()[:2] == 's4':
+            # hack to have special naming for season 3 or season 4 games, named eg 'S3W1 Mountains of Fire'. Makes channel easier to see
+            chan_name = f'{" ".join(game_team.split()).replace(" ", "-")}-e{game_id}'
+        else:
+            chan_name = f'e{game_id}-{" ".join(game_team.split()).replace(" ", "-")}'
         return chan_name
 
     async def delete_game_channels(self, ctx, game):
@@ -334,11 +347,11 @@ class games:
             logger.error(f'in update_game_channel_name - cannot proceed')
             return
 
-        old_home_chan_name = self.channel_name_format(game_id=game.id, game_name=old_game_name, team_name=game.home_team.name)
-        old_away_chan_name = self.channel_name_format(game_id=game.id, game_name=old_game_name, team_name=game.away_team.name)
+        old_home_chan_name = self.generate_channel_name(game_id=game.id, game_name=old_game_name, team_name=game.home_team.name)
+        old_away_chan_name = self.generate_channel_name(game_id=game.id, game_name=old_game_name, team_name=game.away_team.name)
 
-        new_home_chan_name = self.channel_name_format(game_id=game.id, game_name=new_game_name, team_name=game.home_team.name)
-        new_away_chan_name = self.channel_name_format(game_id=game.id, game_name=new_game_name, team_name=game.away_team.name)
+        new_home_chan_name = self.generate_channel_name(game_id=game.id, game_name=new_game_name, team_name=game.home_team.name)
+        new_away_chan_name = self.generate_channel_name(game_id=game.id, game_name=new_game_name, team_name=game.away_team.name)
 
         old_home_chan = discord.utils.get(chan_category.channels, name=old_home_chan_name.lower())
         old_away_chan = discord.utils.get(chan_category.channels, name=old_away_chan_name.lower())
@@ -359,8 +372,8 @@ class games:
             logger.error(f'in create_game_channels - cannot proceed')
             return
 
-        home_chan_name = self.channel_name_format(game_id=game.id, game_name=game.name, team_name=game.home_team.name)
-        away_chan_name = self.channel_name_format(game_id=game.id, game_name=game.name, team_name=game.away_team.name)
+        home_chan_name = self.generate_channel_name(game_id=game.id, game_name=game.name, team_name=game.home_team.name)
+        away_chan_name = self.generate_channel_name(game_id=game.id, game_name=game.name, team_name=game.away_team.name)
 
         home_members = [ctx.guild.get_member(p.discord_id) for p in home_players]
         away_members = [ctx.guild.get_member(p.discord_id) for p in away_players]
@@ -409,10 +422,10 @@ class games:
 
         await paginate(self.bot, ctx, title='**Oldest Incomplete Games**', message_list=incomplete_list, page_start=0, page_end=10, page_size=10)
 
-    @commands.command()
+    @commands.command(usage='game_id')
     @commands.has_any_role(*mod_roles)
     async def deletegame(self, ctx, game: poly_game):
-        """deletegame 5 (reverts ELO changes. Use with care.)"""
+        """Mod: Deletes a game and reverts ELO changes"""
 
         if game is None:
             await ctx.send('No matching game was found.')
