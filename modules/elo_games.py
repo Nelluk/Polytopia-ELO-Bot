@@ -359,15 +359,8 @@ class games:
             logger.error(f'in create_game_channels - cannot proceed')
             return
 
-        try:
-            home_chan_name = self.channel_name_format(game_id=game.id, game_name=game.name, team_name=game.home_team.name)
-            away_chan_name = self.channel_name_format(game_id=game.id, game_name=game.name, team_name=game.away_team.name)
-        except (discord.errors.Forbidden, discord.errors.HTTPException) as e:
-            logger.error(f'Exception in create_game_channels:\n{e} - Status {e.status}, Code {e.code}: {e.text}')
-            return await ctx.send(f'Could not create game channel for this game. Error has been logged.')
-        except discord.errors.InvalidArgument as e:
-            logger.error(f'Exception in create_game_channels:\n{e}')
-            return await ctx.send(f'Could not create game channel for this game. Error has been logged.')
+        home_chan_name = self.channel_name_format(game_id=game.id, game_name=game.name, team_name=game.home_team.name)
+        away_chan_name = self.channel_name_format(game_id=game.id, game_name=game.name, team_name=game.away_team.name)
 
         home_members = [ctx.guild.get_member(p.discord_id) for p in home_players]
         away_members = [ctx.guild.get_member(p.discord_id) for p in away_players]
@@ -381,8 +374,15 @@ class games:
 
         home_permissions[ctx.guild.default_role] = away_permissions[ctx.guild.default_role] = discord.PermissionOverwrite(read_messages=False)
 
-        home_chan = await ctx.guild.create_text_channel(name=home_chan_name, overwrites=home_permissions, category=chan_category, reason='ELO Game chan')
-        away_chan = await ctx.guild.create_text_channel(name=away_chan_name, overwrites=away_permissions, category=chan_category, reason='ELO Game chan')
+        try:
+            home_chan = await ctx.guild.create_text_channel(name=home_chan_name, overwrites=home_permissions, category=chan_category, reason='ELO Game chan')
+            away_chan = await ctx.guild.create_text_channel(name=away_chan_name, overwrites=away_permissions, category=chan_category, reason='ELO Game chan')
+        except (discord.errors.Forbidden, discord.errors.HTTPException) as e:
+            logger.error(f'Exception in create_game_channels:\n{e} - Status {e.status}, Code {e.code}: {e.text}')
+            return await ctx.send(f'Could not create game channel for this game. Error has been logged.')
+        except discord.errors.InvalidArgument as e:
+            logger.error(f'Exception in create_game_channels:\n{e}')
+            return await ctx.send(f'Could not create game channel for this game. Error has been logged.')
         logger.debug(f'Created channels {home_chan.name} and {away_chan.name}')
 
         home_mentions, away_mentions = [p.mention for p in home_members], [p.mention for p in away_members]
