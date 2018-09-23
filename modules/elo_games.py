@@ -335,7 +335,10 @@ class games:
         matching_chans = [c for c in (home_cat.channels + away_cat.channels) if c.name.startswith(f'e{game.id}-')]
         for chan in matching_chans:
             logger.warn(f'Deleting channel {chan.name}')
-            await chan.delete(reason='Game concluded')
+            try:
+                await chan.delete(reason='Game concluded')
+            except (discord.DiscordException, discord.errors.DiscordException) as e:
+                logger.error(f'Could not delete channel: {e}')
 
     async def update_game_channel_name(self, ctx, game, old_game_name, new_game_name):
 
