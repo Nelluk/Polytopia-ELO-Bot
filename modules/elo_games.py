@@ -550,9 +550,10 @@ class games:
                 else:
                     if find_incomplete:
                         continue
-                    if find_loser and args[0].upper() in game.get_side_name(side='WIN').upper():
+                    # if find_loser and args[0].upper() in game.get_side_name(side='WIN').upper():
+                    if find_loser and player_matches[0].discord_name.upper() in game.get_side_name(side='WIN').upper():
                         continue
-                    if find_winner and args[0].upper() in game.get_side_name(side='LOSE').upper():
+                    if find_winner and player_matches[0].discord_name.upper() in game.get_side_name(side='LOSE').upper():
                         continue
                     status_str = f'**WINNER:** {game.get_side_name(side="WIN")}'
                 game_entry_list.append(
