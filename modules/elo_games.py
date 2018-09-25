@@ -572,7 +572,7 @@ class games:
                 game_entry_list.append(
                     (game.get_headline(),
                     f'{(str(game.date))} - {game.team_size}v{game.team_size} - {status_str}'))
-        await paginate(self.bot, ctx, title='**Search Results**', message_list=game_entry_list, page_start=0, page_end=10, page_size=10)
+        await paginate(self.bot, ctx, title='**Search Results**', message_list=game_entry_list, page_start=0, page_end=15, page_size=15)
 
     @in_bot_channel()
     @commands.command(usage='team_name')
@@ -808,7 +808,7 @@ class games:
             await ctx.send(content=content_str, embed=embed)
 
     @in_bot_channel()
-    @commands.command()
+    @commands.command(aliases=['teamlb'])
     @commands.cooldown(2, 30, commands.BucketType.channel)
     async def lbteam(self, ctx):
         """display team leaderboard"""
@@ -841,7 +841,7 @@ class games:
         await paginate(self.bot, ctx, title='**Individual Leaderboards**', message_list=leaderboard, page_start=0, page_end=10, page_size=10)
 
     @in_bot_channel()
-    @commands.command()
+    @commands.command(aliases=['squadlb'])
     @commands.cooldown(2, 30, commands.BucketType.channel)
     async def lbsquad(self, ctx):
         """Display squad leaderboard"""
