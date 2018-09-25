@@ -267,6 +267,10 @@ class matchmaking():
             if not 0 < int(m[1]) < 7:
                 return await ctx.send(f'Invalid match size {size}. Accepts 1v1 through 6v6')
             team_size = int(m[1])
+        else:
+            team_size = 1
+            args = list(args) + [size]
+            # Handle case of no size argument, but with tribe bans
 
         tribes = [
             ('Bardur', 1),
