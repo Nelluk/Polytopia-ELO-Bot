@@ -250,12 +250,13 @@ class matchmaking():
                 await ctx.send(f'Match M{match.id} is now full and the host should start the game with `{command_prefix}startmatch M{match.id}`.')
         await ctx.send(embed=self.match_embed(match))
 
-    @commands.command(aliases=['rtribes', 'rtribe'], usage='game_size')
-    async def random_tribes(self, ctx, size='1v1'):
+    @commands.command(aliases=['rtribes', 'rtribe'], usage='game_size [-banned_tribe ...]')
+    async def random_tribes(self, ctx, size='1v1', *args):
         """Show a random tribe combination for a given game size.
         This tries to keep the sides roughly equal in power.
         **Example:**
         `[p]rtribes 2v2` - Shows Ai-mo/Imperius & Xin-xi/Luxidoor
+        `[p]rtribes 2v2 -hoodrick -aquarion` - Remove Hoodrick and Aquarion from the random pool. This could cause problems if lots of tribes are removed.
         """
 
         m = re.match(r"(\d+)v(\d+)", size.lower())
@@ -282,6 +283,12 @@ class matchmaking():
             ('Ai-mo', 3),
             ('Xin-xi', 3)
         ]
+        for arg in args:
+            # Remove tribes from tribe list. This could cause problems if too many tribes are removed.
+            if arg[0] != '-':
+                continue
+            removal = next(t for t in tribes if t[0].upper() == arg[1:].upper())
+            tribes.remove(removal)
 
         team_home, team_away = [], []
 
