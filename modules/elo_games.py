@@ -377,18 +377,25 @@ class games:
 
         home_chan_name = self.generate_channel_name(game_id=game.id, game_name=game.name, team_name=game.home_team.name)
         away_chan_name = self.generate_channel_name(game_id=game.id, game_name=game.name, team_name=game.away_team.name)
-
         home_members = [ctx.guild.get_member(p.discord_id) for p in home_players]
         away_members = [ctx.guild.get_member(p.discord_id) for p in away_players]
-        home_permissions, away_permissions = {}, {}
-        perm = discord.PermissionOverwrite(read_messages=True, add_reactions=True, send_messages=True, attach_files=True)
 
-        for m in home_members + [ctx.guild.me]:
-            home_permissions[m] = perm
-        for m in away_members + [ctx.guild.me]:
-            away_permissions[m] = perm
+        if home_cat == away_cat:
+            # Both chans going into a central ELO Games category. Give them special permissions so only game players can see chan
 
-        home_permissions[ctx.guild.default_role] = away_permissions[ctx.guild.default_role] = discord.PermissionOverwrite(read_messages=False)
+            home_permissions, away_permissions = {}, {}
+            perm = discord.PermissionOverwrite(read_messages=True, add_reactions=True, send_messages=True, attach_files=True)
+
+            for m in home_members + [ctx.guild.me]:
+                home_permissions[m] = perm
+            for m in away_members + [ctx.guild.me]:
+                away_permissions[m] = perm
+
+            home_permissions[ctx.guild.default_role] = away_permissions[ctx.guild.default_role] = discord.PermissionOverwrite(read_messages=False)
+        else:
+            # I assume in this case games are going into their respective Team categories, so let them sync permissions.
+            # This might need to change if channel structure on the server changes
+            home_permissions = away_permissions = None
 
         try:
             home_chan = await ctx.guild.create_text_channel(name=home_chan_name, overwrites=home_permissions, category=home_cat, reason='ELO Game chan')
@@ -404,14 +411,20 @@ class games:
         home_mentions, away_mentions = [p.mention for p in home_members], [p.mention for p in away_members]
         home_names, away_names = [p.discord_name for p in home_players], [p.discord_name for p in away_players]
 
-        await home_chan.send(f'This is the team channel for game **{game.name}**, ID {game.id}.\n'
-            f'This team is composed of {" / ".join(home_mentions)}\n'
-            f'Your opponents are: {" / ".join(away_names)}\n\n'
-            '*This channel will self-destruct as soon as the game is marked as concluded.*')
-        await away_chan.send(f'This is the team channel for game **{game.name}**, ID {game.id}.\n'
-            f'This team is composed of {" / ".join(away_mentions)}\n'
-            f'Your opponents are: {" / ".join(home_names)}\n\n'
-            '*This channel will self-destruct as soon as the game is marked as concluded.*')
+        try:
+            await home_chan.send(f'This is the team channel for game **{game.name}**, ID {game.id}.\n'
+                f'This team is composed of {" / ".join(home_mentions)}\n'
+                f'Your opponents are: {" / ".join(away_names)}\n\n'
+                '*This channel will self-destruct as soon as the game is marked as concluded.*')
+        except (discord.errors.Forbidden, discord.errors.HTTPException) as e:
+            logger.error(f'Could not send to created channel:\n{e} - Status {e.status}, Code {e.code}: {e.text}')
+        try:
+            await away_chan.send(f'This is the team channel for game **{game.name}**, ID {game.id}.\n'
+                f'This team is composed of {" / ".join(away_mentions)}\n'
+                f'Your opponents are: {" / ".join(home_names)}\n\n'
+                '*This channel will self-destruct as soon as the game is marked as concluded.*')
+        except (discord.errors.Forbidden, discord.errors.HTTPException) as e:
+            logger.error(f'Could not send to created channel:\n{e} - Status {e.status}, Code {e.code}: {e.text}')
 
     @commands.command()
     async def incomplete(self, ctx):
@@ -704,7 +717,7 @@ class games:
         await ctx.send(embed=embed)
 
     @in_bot_channel()
-    @commands.command(brief='See details on a player', usage='player_name')
+    @commands.command(brief='See details on a player', usage='player_name', aliases=['elo'])
     async def player(self, ctx, *args):
         """See your own player card or the card of another player
         This also will find results based on a game-code or in-game name, if set.
