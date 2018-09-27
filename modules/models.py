@@ -254,21 +254,18 @@ class Player(BaseModel):
         return query
 
     def get_by_string(player_string):
-        if '<@' in player_string:
-            # Extract discord ID and look up based on that
-            try:
-                p_id = int(player_string.strip('<>!@'))
-            except ValueError:
-                return []
-            try:
-                player = Player.select().where(Player.discord_id == p_id)
-                return player
-            except DoesNotExist:
-                return []
-
-        # Otherwise return any matches from the name string
-        # TODO: Could possibly improve this by first searching for an exact match name==string, and then returning partial matches if no exact matches
-        return Player.select().where((Player.discord_name.contains(player_string)) | (Player.discord_id == player_string))
+        try:
+            p_id = int(player_string.strip('<>!@'))
+            # lookup either on <@####> mention string or raw ID #
+        except ValueError:
+            # Otherwise return any matches from the name string
+            # TODO: Could possibly improve this by first searching for an exact match name==string, and then returning partial matches if no exact matches
+            return Player.select().where(Player.discord_name.contains(player_string))
+        try:
+            player = Player.select().where(Player.discord_id == p_id)
+            return player
+        except DoesNotExist:
+            return []
 
     def generate_display_name(player_name, player_nick):
         if player_nick:
