@@ -32,7 +32,7 @@ bot_channels = config['DEFAULT'].get('bot_channels', None)
 game_request_channel = config['DEFAULT'].get('game_request_channel', None)
 game_announce_channel = config['DEFAULT'].get('game_announce_channel', None)
 game_channel_category = config['DEFAULT'].get('game_channel_category', None)
-command_prefix = config['DEFAULT'].get('command_prefix', '$')
+command_prefix = config['DEFAULT'].get('command_prefix', '/')
 require_teams = True if config['DEFAULT'].get('require_teams') == 'True' else False
 date_cutoff = datetime.datetime.today() - datetime.timedelta(days=90)  # Players who haven't played since cutoff are not included in leaderboards
 
@@ -40,7 +40,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--add_default_data', action='store_true')
 args = parser.parse_args()
 
-initial_extensions = ['modules.elo_games', 'modules.game_import_export', 'modules.matchmaking', 'modules.help']
+initial_extensions = ['modules.games', 'modules.help']
 
 if __name__ == '__main__':
 
@@ -89,7 +89,7 @@ if __name__ == '__main__':
     async def on_ready():
         """http://discordpy.readthedocs.io/en/rewrite/api.html#discord.on_ready"""
 
-        print(f'\n\nLogged in as: {bot.user.name} - {bot.user.id}\nVersion: {discord.__version__}\n')
+        print(f'\n\nv2 Logged in as: {bot.user.name} - {bot.user.id}\nVersion: {discord.__version__}\n')
         print(f'Successfully logged in and booted...!')
 
     bot.run(discord_key, bot=True, reconnect=True)
