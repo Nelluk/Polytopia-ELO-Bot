@@ -268,7 +268,7 @@ class Player(BaseModel):
 
         # Otherwise return any matches from the name string
         # TODO: Could possibly improve this by first searching for an exact match name==string, and then returning partial matches if no exact matches
-        return Player.select().where(Player.discord_name.contains(player_string))
+        return Player.select().where((Player.discord_name.contains(player_string)) | (Player.discord_id == player_string))
 
     def generate_display_name(player_name, player_nick):
         if player_nick:

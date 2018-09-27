@@ -428,6 +428,8 @@ class games:
 
     @commands.command()
     async def incomplete(self, ctx):
+        # TODO: make incomplete a shortcut for $games nelluk incomplete
+        # and require 'incomplete all' for all incomplete
         """Lists oldest incomplete games"""
         incomplete_list = []
         for counter, game in enumerate(Game.select().where(Game.is_completed == 0).order_by(Game.date)[:500]):
@@ -812,7 +814,7 @@ class games:
     @commands.cooldown(2, 30, commands.BucketType.channel)
     async def lbteam(self, ctx):
         """display team leaderboard"""
-
+        # TODO: Only show number of members who have an ELO ranking?
         embed = discord.Embed(title='**Team Leaderboard**')
         with db:
             for counter, team in enumerate(Team.select().order_by(-Team.elo).where((Team.name != 'Home') & (Team.name != 'Away'))):
