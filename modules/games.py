@@ -54,11 +54,9 @@ class games():
             for p in args[int(len(args) / 2) + 1:]:     # Args in second half after 'VS'
                 guild_matches = await utilities.get_guild_member(ctx, p)
                 if len(guild_matches) == 0:
-                    await ctx.send(f'Could not match "{p}" to a server member. Try using an @Mention.')
-                    return
+                    return await ctx.send(f'Could not match "{p}" to a server member. Try using an @Mention.')
                 if len(guild_matches) > 1:
-                    await ctx.send(f'More than one server matches found for "{p}". Try being more specific or using an @Mention.')
-                    return
+                    return await ctx.send(f'More than one server matches found for "{p}". Try being more specific or using an @Mention.')
                 side_away.append(guild_matches[0])
         else:
             return await ctx.send(f'Invalid format. {example_usage}')
@@ -69,38 +67,12 @@ class games():
         if ctx.author not in (side_home + side_away):  # TODO: allow staff to create games with other people
             return await ctx.send('You can\'t create a game that you are not a participant in.')
 
-        # home_team_flag, list_of_home_teams = utilities.get_teams_of_players(guild_id=ctx.guild.id, list_of_players=side_home)  # List of what server team each player is on, eg Ronin, Jets.
-        # away_team_flag, list_of_away_teams = utilities.get_teams_of_players(guild_id=ctx.guild.id, list_of_players=side_away)
-
-        # if (None in list_of_away_teams) or (None in list_of_home_teams):
-        #     if require_teams is True:
-        #         await ctx.send('One or more players listed cannot be matched to a Team (based on Discord Roles). Make sure player has exactly one matching Team role.')
-        #         return
-        #     else:
-        #         # Set this to a home/away game if at least one player has no matching role, AND require_teams == false
-        #         home_team_flag = away_team_flag = False
-
-        # if home_team_flag and away_team_flag:
-        #     # If all players on both sides are playing with only members of their own Team (server team), those Teams are impacted by the game...
-        #     home_side_team = list_of_home_teams[0]
-        #     away_side_team = list_of_away_teams[0]
-
-        #     if home_side_team == away_side_team:
-        #         with db:
-        #             # If Team Foo is playing against another squad from Team Foo, reset them to 'Home' and 'Away'
-        #             home_side_team, _ = Team.get_or_create(name='Home', guild_id=ctx.guild.id, defaults={'emoji': ':stadium:'})
-        #             away_side_team, _ = Team.get_or_create(name='Away', guild_id=ctx.guild.id, defaults={'emoji': ':airplane:'})
-
-        # else:
-        #     # Otherwise the players are "intermingling" and the game just influences two hidden teams in the database called 'Home' and 'Away'
-        #     with db:
-        #         home_side_team, _ = Team.get_or_create(name='Home', guild_id=ctx.guild.id, defaults={'emoji': ':stadium:'})
-        #         away_side_team, _ = Team.get_or_create(name='Away', guild_id=ctx.guild.id, defaults={'emoji': ':airplane:'})
-
-        print((f'All input checks passed. Creating new game records with args: {args}'))
         logger.debug(f'All input checks passed. Creating new game records with args: {args}')
 
         newgame = Game.create_game([side_home, side_away], name=game_name, guild_id=ctx.guild.id, require_teams=require_teams)
+
+        mentions = [p.mention for p in side_home + side_away]
+        await ctx.send(f'New game ID {newgame.id} started! Roster: {" ".join(mentions)}')
 
 
 def setup(bot):

@@ -43,28 +43,16 @@ class Player(BaseModel):
 
         discord_member, _ = DiscordMember.get_or_create(discord_id=discord_member_obj.id, defaults={'name': discord_member_obj.name})
 
-        # # TODO: Figure out how to use an actual upsert like below - not sure how to use the conflict_target to refer to the index named 'playerindex'
-        # https://github.com/coleifer/peewee/issues/1737
-        # player = Player.insert(discord_member=discord_member, guild_id=guild_id, nick=discord_member_obj.nick, team=team).on_conflict(
-        #     # conflict_target=[Player.discord_member, Player.guild_id],
-        #     conflict_target=[idx],
-        #     preserve=[Player.team]
-        # ).execute()
-
-        player, created = Player.get_or_create(discord_member=discord_member, guild_id=guild_id, defaults={'nick': discord_member_obj.nick, 'team': team})
-        if not created:
-            player.team = team
-            player.nick = discord_member_obj.nick
-            player.save()
+        # http://docs.peewee-orm.com/en/latest/peewee/querying.html#upsert
+        player = Player.insert(discord_member=discord_member, guild_id=guild_id, nick=discord_member_obj.nick, team=team).on_conflict(
+            conflict_target=[Player.discord_member, Player.guild_id],  # update if exists
+            preserve=[Player.team, Player.nick]  # refresh team/nick with new value
+        ).execute()
 
         return player
 
-    # class Meta:
-    #     indexes = ((('discord_member', 'guild_id'), True),)   # Trailing comma is required
-
-
-idx = Player.index(Player.discord_member, Player.guild_id, unique=True, name='playerindex')
-Player.add_index(idx)
+    class Meta:
+        indexes = ((('discord_member', 'guild_id'), True),)   # Trailing comma is required
 
 
 class Tribe(BaseModel):
@@ -91,6 +79,7 @@ class Game(BaseModel):
 
     def create_game(teams, guild_id, name=None, require_teams=False):
 
+        # Determine what Team guild members are associated with
         home_team_flag, list_of_home_teams = utilities.get_teams_of_players(guild_id=guild_id, list_of_players=teams[0])  # get list of what server team each player is on, eg Ronin, Jets.
         away_team_flag, list_of_away_teams = utilities.get_teams_of_players(guild_id=guild_id, list_of_players=teams[1])
 
@@ -118,25 +107,53 @@ class Game(BaseModel):
                 home_side_team, _ = Team.get_or_create(name='Home', guild_id=guild_id, defaults={'emoji': ':stadium:'})
                 away_side_team, _ = Team.get_or_create(name='Away', guild_id=guild_id, defaults={'emoji': ':airplane:'})
 
+        newgame = Game.create(name=name)
+
         side_home_players = []
         side_away_players = []
         for player_discord, player_team in zip(teams[0], list_of_home_teams):
+            # Turns discord members into Player objects - updating/inserting them into the DB
             side_home_players.append(Player.upsert(player_discord, guild_id=guild_id, team=player_team))
 
         for player_discord, player_team in zip(teams[1], list_of_away_teams):
             side_away_players.append(Player.upsert(player_discord, guild_id=guild_id, team=player_team))
 
-        # for team in teams:
-        #     for player in team:
-        #         print(player.name)
-        #         # print(team['team'].name)
-        #         # member, _ = DiscordMember.get_or_create(discord_id=player.id, defaults={'name': player.name})
-        #         # player, _ = Player.get_or_create(discord_member=member, guild_id=guild_id, defaults={'nick': player.nick})
-        #         # Should probably move the team role matching into here to set player team
+        home_squad = Squad.upsert_squad(player_list=side_home_players, game=newgame, team=home_side_team)
+        away_squad = Squad.upsert_squad(player_list=side_away_players, game=newgame, team=away_side_team)
+
+        return newgame
 
 
 class Squad(BaseModel):
     elo = SmallIntegerField(default=1000)
+
+    def get_matching_squad(player_list):
+        # Takes [List, of, Player, Records] (not names)
+        # Returns squad with exactly the same participating players. See https://stackoverflow.com/q/52010522/1281743
+        query = Squad.select().join(SquadMember).group_by(Squad.id).having(
+            (fn.SUM(SquadMember.player.in_(player_list).cast('integer')) == len(player_list)) & (fn.SUM(SquadMember.player.not_in(player_list).cast('integer')) == 0)
+        )
+
+        return query
+
+    def upsert_squad(player_list, game, team):
+        # TODO: could re-write to be a legit upsert as in Player.upsert
+        squads = Squad.get_matching_squad(player_list)
+
+        if len(squads) == 0:
+            # Insert new squad based on this combination of players
+            sq = Squad.create()
+            for p in player_list:
+                SquadMember.create(player=p, squad=sq)
+            squadgame = SquadGame.create(game=game, squad=sq, team=team)
+            # return sq
+        else:
+            # Update existing squad with new game
+            squadgame = SquadGame.create(game=game, squad=squads[0], team=team)
+            sq = squads[0]
+
+        for squadmember in sq.squadmembers:
+            SquadMemberGame.create(member=squadmember, squadgame=squadgame)
 
 
 class SquadMember(BaseModel):
@@ -145,8 +162,8 @@ class SquadMember(BaseModel):
 
 
 class SquadGame(BaseModel):
-    game = ForeignKeyField(Game, null=False, backref='squad')
-    squad = ForeignKeyField(Squad, null=False, backref='squadgame')
+    game = ForeignKeyField(Game, null=False, backref='squad', on_delete='CASCADE')
+    squad = ForeignKeyField(Squad, null=False, backref='squadgame', on_delete='CASCADE')
     team = ForeignKeyField(Team, null=True)
     elo_change = SmallIntegerField(default=0)
     is_winner = BooleanField(default=False)
@@ -156,7 +173,7 @@ class SquadGame(BaseModel):
 
 class SquadMemberGame(BaseModel):
     member = ForeignKeyField(SquadMember, null=False, backref='membergame', on_delete='CASCADE')
-    squadgame = ForeignKeyField(SquadGame, null=False)
+    squadgame = ForeignKeyField(SquadGame, null=False, on_delete='CASCADE')
     tribe = ForeignKeyField(Tribe, null=True)
     elo_change = SmallIntegerField(default=0)
 
