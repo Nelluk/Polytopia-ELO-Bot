@@ -69,7 +69,9 @@ class games():
 
         logger.debug(f'All input checks passed. Creating new game records with args: {args}')
 
-        newgame = Game.create_game([side_home, side_away], name=game_name, guild_id=ctx.guild.id, require_teams=require_teams)
+        newgame, home_squadgame, away_squadgame = Game.create_game([side_home, side_away], name=game_name, guild_id=ctx.guild.id, require_teams=require_teams)
+
+        # TODO: Send game embeds and create team channels
 
         mentions = [p.mention for p in side_home + side_away]
         await ctx.send(f'New game ID {newgame.id} started! Roster: {" ".join(mentions)}')

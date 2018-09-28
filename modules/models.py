@@ -107,21 +107,33 @@ class Game(BaseModel):
                 home_side_team, _ = Team.get_or_create(name='Home', guild_id=guild_id, defaults={'emoji': ':stadium:'})
                 away_side_team, _ = Team.get_or_create(name='Away', guild_id=guild_id, defaults={'emoji': ':airplane:'})
 
-        newgame = Game.create(name=name)
+        with db:
+            newgame = Game.create(name=name)
 
-        side_home_players = []
-        side_away_players = []
-        for player_discord, player_team in zip(teams[0], list_of_home_teams):
-            # Turns discord members into Player objects - updating/inserting them into the DB
-            side_home_players.append(Player.upsert(player_discord, guild_id=guild_id, team=player_team))
+            side_home_players = []
+            side_away_players = []
+            # Create/update Player records
+            for player_discord, player_team in zip(teams[0], list_of_home_teams):
+                side_home_players.append(Player.upsert(player_discord, guild_id=guild_id, team=player_team))
 
-        for player_discord, player_team in zip(teams[1], list_of_away_teams):
-            side_away_players.append(Player.upsert(player_discord, guild_id=guild_id, team=player_team))
+            for player_discord, player_team in zip(teams[1], list_of_away_teams):
+                side_away_players.append(Player.upsert(player_discord, guild_id=guild_id, team=player_team))
 
-        home_squad = Squad.upsert_squad(player_list=side_home_players, game=newgame, team=home_side_team)
-        away_squad = Squad.upsert_squad(player_list=side_away_players, game=newgame, team=away_side_team)
+            # Create/update Squad records
+            home_squad = Squad.upsert(player_list=side_home_players)
+            away_squad = Squad.upsert(player_list=side_away_players)
 
-        return newgame
+            home_squadgame = SquadGame.create(game=newgame, squad=home_squad, team=home_side_team)
+
+            for squadmember in home_squad.squadmembers:
+                SquadMemberGame.create(member=squadmember, squadgame=home_squadgame)
+
+            away_squadgame = SquadGame.create(game=newgame, squad=away_squad, team=away_side_team)
+
+            for squadmember in away_squad.squadmembers:
+                SquadMemberGame.create(member=squadmember, squadgame=away_squadgame)
+
+        return newgame, home_squadgame, away_squadgame
 
 
 class Squad(BaseModel):
@@ -136,7 +148,7 @@ class Squad(BaseModel):
 
         return query
 
-    def upsert_squad(player_list, game, team):
+    def upsert(player_list):
         # TODO: could re-write to be a legit upsert as in Player.upsert
         squads = Squad.get_matching_squad(player_list)
 
@@ -145,15 +157,28 @@ class Squad(BaseModel):
             sq = Squad.create()
             for p in player_list:
                 SquadMember.create(player=p, squad=sq)
-            squadgame = SquadGame.create(game=game, squad=sq, team=team)
-            # return sq
-        else:
-            # Update existing squad with new game
-            squadgame = SquadGame.create(game=game, squad=squads[0], team=team)
-            sq = squads[0]
+            return sq
 
-        for squadmember in sq.squadmembers:
-            SquadMemberGame.create(member=squadmember, squadgame=squadgame)
+        return squads[0]
+
+    # def upsert_squad(player_list, game, team):
+    #     # TODO: could re-write to be a legit upsert as in Player.upsert
+    #     squads = Squad.get_matching_squad(player_list)
+
+    #     if len(squads) == 0:
+    #         # Insert new squad based on this combination of players
+    #         sq = Squad.create()
+    #         for p in player_list:
+    #             SquadMember.create(player=p, squad=sq)
+    #         squadgame = SquadGame.create(game=game, squad=sq, team=team)
+    #         # return sq
+    #     else:
+    #         # Update existing squad with new game
+    #         squadgame = SquadGame.create(game=game, squad=squads[0], team=team)
+    #         sq = squads[0]
+
+    #     for squadmember in sq.squadmembers:
+    #         SquadMemberGame.create(member=squadmember, squadgame=squadgame)
 
 
 class SquadMember(BaseModel):
