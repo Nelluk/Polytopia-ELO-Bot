@@ -1,8 +1,8 @@
 from discord.ext import commands
 import modules.utilities as utilities
 # import peewee
-from modules.models import db, Team, Game, Player, DiscordMember
-from bot import logger, command_prefix, require_teams
+from modules.models import Game  # db, Team, Game, Player, DiscordMember
+from bot import logger
 
 
 class games():
@@ -10,20 +10,13 @@ class games():
     def __init__(self, bot):
         self.bot = bot
 
-    # async def __local_check(self, ctx):
-    #     local_command_prefix = '$'
-    #     if ctx.prefix != local_command_prefix:
-    #         return False
-    #     # return ctx.guild.id == 447883341463814144  # PolyChampions
-    #     return ctx.guild.id == 478571892832206869  # Test Server
-
     @commands.command(aliases=['newgame'], brief='Helpers: Sets up a new game to be tracked', usage='"Name of Game" player1 player2 vs player3 player4')
     # @commands.has_any_role(*helper_roles)
     # command should require 'Member' role on main server
     async def startgame(self, ctx, game_name: str, *args):
         side_home, side_away = [], []
-        example_usage = (f'Example usage:\n`{command_prefix}startgame "Name of Game" player2`- Starts a 1v1 game between yourself and player2'
-            f'\n`{command_prefix}startgame "Name of Game" player1 player2 VS player3 player4` - Start a 2v2 game')
+        example_usage = (f'Example usage:\n`{ctx.prefix}startgame "Name of Game" player2`- Starts a 1v1 game between yourself and player2'
+            f'\n`{ctx.prefix}startgame "Name of Game" player1 player2 VS player3 player4` - Start a 2v2 game')
 
         if len(args) == 1:
             guild_matches = await utilities.get_guild_member(ctx, args[0])
@@ -69,7 +62,9 @@ class games():
 
         logger.debug(f'All input checks passed. Creating new game records with args: {args}')
 
-        newgame, home_squadgame, away_squadgame = Game.create_game([side_home, side_away], name=game_name, guild_id=ctx.guild.id, require_teams=require_teams)
+        newgame, home_squadgame, away_squadgame = Game.create_game([side_home, side_away],
+            name=game_name, guild_id=ctx.guild.id,
+            require_teams=utilities.guild_setting(ctx, 'require_teams'))
 
         # TODO: Send game embeds and create team channels
 

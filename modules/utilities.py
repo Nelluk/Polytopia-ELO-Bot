@@ -1,12 +1,28 @@
 from discord.ext import commands
-from modules import models as models
-# import modules.models as models
-# from bot import logger
+from bot import logger, config
+# import peewee
 
 
 class CheckFailedError(Exception):
     """ Custom exception for when an input check fails """
     pass
+
+
+def guild_setting(ctx, setting_name):
+    gid = str(ctx.guild.id)
+    if gid not in config.sections():
+        logger.error(f'Unauthorized guild id {gid}.')
+        raise CheckFailedError('Unauthorized: This guild is not in the config.ini file.')
+
+    value = config[gid][setting_name]
+    if value.upper() == 'TRUE':
+        return True
+    elif value.upper() == 'FALSE':
+        return False
+    elif ',' in value:
+        return list(map(str.strip, value.split(',')))     # returns as [list] with extra whitespace eliminated
+    else:
+        return value
 
 
 async def get_guild_member(ctx, input):
@@ -38,26 +54,3 @@ def get_matching_roles(discord_member, list_of_role_names):
         # Given a Discord.Member and a ['List of', 'Role names'], return set of role names that the Member has.polytopia_id
         member_roles = [x.name for x in discord_member.roles]
         return set(member_roles).intersection(list_of_role_names)
-
-
-def get_teams_of_players(guild_id, list_of_players):
-    # given [List, Of, discord.Member, Objects] - return a, b
-    # a = binary flag if all members are on the same Poly team. b = [list] of the Team objects from table the players are on
-    # input: [Nelluk, Frodakcin]
-    # output: True, [<Ronin>, <Ronin>]
-
-    with models.db:
-        query = models.Team.select().where(models.Team.guild_id == guild_id)
-        list_of_teams = [team.name for team in query]               # ['The Ronin', 'The Jets', ...]
-        list_of_matching_teams = []
-        for player in list_of_players:
-            matching_roles = get_matching_roles(player, list_of_teams)
-            if len(matching_roles) == 1:
-                name = next(iter(matching_roles))
-                list_of_matching_teams.append(models.Team.get(models.Team.name == name))
-            else:
-                list_of_matching_teams.append(None)
-                # Would be here if no player Roles match any known teams, -or- if they have more than one match
-
-        same_team_flag = True if all(x == list_of_matching_teams[0] for x in list_of_matching_teams) else False
-        return same_team_flag, list_of_matching_teams

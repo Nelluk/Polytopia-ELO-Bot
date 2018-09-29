@@ -1,6 +1,9 @@
 import datetime
 from peewee import *
-import modules.utilities as utilities
+from playhouse.postgres_ext import *
+# import modules.utilities as utilities
+from modules import utilities
+from bot import logger
 
 db = PostgresqlDatabase('polytopia', user='cbsteven')
 
@@ -36,8 +39,8 @@ class Player(BaseModel):
     nick = TextField(unique=False, null=True)
     team = ForeignKeyField(Team, null=True, backref='player')
     elo = SmallIntegerField(default=1000)
+    trophies = ArrayField(CharField)
     # Add discord name here too so searches can hit just one table?
-    # Add array of achievements?
 
     def upsert(discord_member_obj, guild_id, team=None):
 
@@ -51,17 +54,45 @@ class Player(BaseModel):
 
         return player
 
+    def get_teams_of_players(guild_id, list_of_players):
+        # TODO: make function async? Tried but got invalid syntax complaint in linter in the calling function
+
+        # given [List, Of, discord.Member, Objects] - return a, b
+        # a = binary flag if all members are on the same Poly team. b = [list] of the Team objects from table the players are on
+        # input: [Nelluk, Frodakcin]
+        # output: True, [<Ronin>, <Ronin>]
+
+        with db:
+            query = Team.select().where(Team.guild_id == guild_id)
+            list_of_teams = [team.name for team in query]               # ['The Ronin', 'The Jets', ...]
+            list_of_matching_teams = []
+            for player in list_of_players:
+                matching_roles = utilities.get_matching_roles(player, list_of_teams)
+                if len(matching_roles) == 1:
+                    name = next(iter(matching_roles))
+                    list_of_matching_teams.append(Team.get(Team.name == name))
+                else:
+                    list_of_matching_teams.append(None)
+                    # Would be here if no player Roles match any known teams, -or- if they have more than one match
+
+            same_team_flag = True if all(x == list_of_matching_teams[0] for x in list_of_matching_teams) else False
+            return same_team_flag, list_of_matching_teams
+
     class Meta:
         indexes = ((('discord_member', 'guild_id'), True),)   # Trailing comma is required
 
 
 class Tribe(BaseModel):
-    name = TextField(unique=False, null=False)
-    guild_id = BitField(unique=False, null=False)
+    name = TextField(unique=True, null=False)
+
+
+class TribeFlair(BaseModel):
+    tribe = ForeignKeyField(Tribe, unique=False, null=False)
     emoji = TextField(null=False, default='')
+    guild_id = BitField(unique=False, null=False)
 
     class Meta:
-        indexes = ((('name', 'guild_id'), True),)   # Trailing comma is required
+        indexes = ((('tribe', 'guild_id'), True),)   # Trailing comma is required
         # http://docs.peewee-orm.com/en/3.6.0/peewee/models.html#multi-column-indexes
 
 
@@ -80,8 +111,8 @@ class Game(BaseModel):
     def create_game(teams, guild_id, name=None, require_teams=False):
 
         # Determine what Team guild members are associated with
-        home_team_flag, list_of_home_teams = utilities.get_teams_of_players(guild_id=guild_id, list_of_players=teams[0])  # get list of what server team each player is on, eg Ronin, Jets.
-        away_team_flag, list_of_away_teams = utilities.get_teams_of_players(guild_id=guild_id, list_of_players=teams[1])
+        home_team_flag, list_of_home_teams = Player.get_teams_of_players(guild_id=guild_id, list_of_players=teams[0])  # get list of what server team each player is on, eg Ronin, Jets.
+        away_team_flag, list_of_away_teams = Player.get_teams_of_players(guild_id=guild_id, list_of_players=teams[1])
 
         if (None in list_of_away_teams) or (None in list_of_home_teams):
             if require_teams is True:
@@ -161,25 +192,6 @@ class Squad(BaseModel):
 
         return squads[0]
 
-    # def upsert_squad(player_list, game, team):
-    #     # TODO: could re-write to be a legit upsert as in Player.upsert
-    #     squads = Squad.get_matching_squad(player_list)
-
-    #     if len(squads) == 0:
-    #         # Insert new squad based on this combination of players
-    #         sq = Squad.create()
-    #         for p in player_list:
-    #             SquadMember.create(player=p, squad=sq)
-    #         squadgame = SquadGame.create(game=game, squad=sq, team=team)
-    #         # return sq
-    #     else:
-    #         # Update existing squad with new game
-    #         squadgame = SquadGame.create(game=game, squad=squads[0], team=team)
-    #         sq = squads[0]
-
-    #     for squadmember in sq.squadmembers:
-    #         SquadMemberGame.create(member=squadmember, squadgame=squadgame)
-
 
 class SquadMember(BaseModel):
     player = ForeignKeyField(Player, null=False, on_delete='CASCADE')
@@ -204,5 +216,5 @@ class SquadMemberGame(BaseModel):
 
 
 with db:
-    db.create_tables([Team, DiscordMember, Game, Player, Tribe, Squad, SquadGame, SquadMember, SquadMemberGame])
+    db.create_tables([Team, DiscordMember, Game, Player, Tribe, Squad, SquadGame, SquadMember, SquadMemberGame, TribeFlair])
     # Only creates missing tables so should be safe to run each time

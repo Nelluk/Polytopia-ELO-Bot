@@ -4,7 +4,8 @@ import configparser
 import argparse
 import traceback
 from discord.ext import commands
-from modules.models import db
+from modules import models
+from modules import initialize_data
 import logging
 from logging.handlers import RotatingFileHandler
 
@@ -21,27 +22,11 @@ config.read('config.ini')
 
 try:
     discord_key = config['DEFAULT']['discord_key']
-    # mod_roles = list(map(str.strip, (config['DEFAULT']['mod_roles']).split(',')))     # list(map(str.strip, foo))  clears extra trailing/leading whitespace
-    # helper_roles = list(map(str.strip, (config['DEFAULT']['helper_roles']).split(',') + mod_roles))
 except KeyError:
     print('Error finding required setting discord_key in config.ini file - it should be in the DEFAULT section')
     exit(0)
 
-
-# bot_channels = config['DEFAULT'].get('bot_channels', None)
-# game_request_channel = config['DEFAULT'].get('game_request_channel', None)
-# game_announce_channel = config['DEFAULT'].get('game_announce_channel', None)
-# game_channel_category = config['DEFAULT'].get('game_channel_category', None)
-# command_prefix = config['DEFAULT'].get('command_prefix', '/')
-# require_teams = True if config['DEFAULT'].get('require_teams') == 'True' else False
 date_cutoff = datetime.datetime.today() - datetime.timedelta(days=90)  # Players who haven't played since cutoff are not included in leaderboards
-
-parser = argparse.ArgumentParser()
-parser.add_argument('--add_default_data', action='store_true')
-args = parser.parse_args()
-
-# initial_extensions = ['modules.games', 'modules.help']
-initial_extensions = []
 
 
 def get_prefix(bot, message):
@@ -55,6 +40,13 @@ def get_prefix(bot, message):
 
 
 if __name__ == '__main__':
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--add_default_data', action='store_true')
+    args = parser.parse_args()
+    if args.add_default_data:
+        initialize_data.initialize_data()
+        exit(0)
 
     bot = commands.Bot(command_prefix=get_prefix)
     # bot.remove_command('help')
@@ -85,10 +77,11 @@ if __name__ == '__main__':
 
     @bot.after_invoke
     async def post_invoke_cleanup(ctx):
-        db.close()
+        models.db.close()
 
     # Here we load our extensions(cogs) listed above in [initial_extensions].
 
+    initial_extensions = ['modules.games', 'modules.help']
     for extension in initial_extensions:
         bot.load_extension(extension)
         try:
