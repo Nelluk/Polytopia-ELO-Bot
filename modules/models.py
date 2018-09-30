@@ -3,9 +3,10 @@ from peewee import *
 from playhouse.postgres_ext import *
 # import modules.utilities as utilities
 from modules import utilities
-from bot import logger
+# import logging
 
 db = PostgresqlDatabase('polytopia', user='cbsteven')
+# logger = logging.getLogger('peewee')
 
 
 class BaseModel(Model):
@@ -39,7 +40,7 @@ class Player(BaseModel):
     nick = TextField(unique=False, null=True)
     team = ForeignKeyField(Team, null=True, backref='player')
     elo = SmallIntegerField(default=1000)
-    trophies = ArrayField(CharField)
+    trophies = ArrayField(CharField, null=True)
     # Add discord name here too so searches can hit just one table?
 
     def upsert(discord_member_obj, guild_id, team=None):
@@ -166,6 +167,22 @@ class Game(BaseModel):
 
         return newgame, home_squadgame, away_squadgame
 
+    def load_all_related(self):
+        # Returns an array of SquadGames related to this Game instance, with all related records pre-fetched
+
+        squadgames = SquadGame.select(SquadGame, Team).join(Team).where(SquadGame.game == self)
+
+        subq = SquadMemberGame.select(
+            SquadMemberGame, Tribe, TribeFlair, SquadMember, Squad, Player, DiscordMember, Team).join(
+            SquadMember).join(
+            Squad).join_from(
+            SquadMemberGame, Tribe, JOIN.LEFT_OUTER).join(
+            TribeFlair, JOIN.LEFT_OUTER).join_from(
+            SquadMember, Player).join(
+            Team).join_from(Player, DiscordMember)
+
+        return prefetch(squadgames, subq)
+
 
 class Squad(BaseModel):
     elo = SmallIntegerField(default=1000)
@@ -210,7 +227,7 @@ class SquadGame(BaseModel):
 
 class SquadMemberGame(BaseModel):
     member = ForeignKeyField(SquadMember, null=False, backref='membergame', on_delete='CASCADE')
-    squadgame = ForeignKeyField(SquadGame, null=False, on_delete='CASCADE')
+    squadgame = ForeignKeyField(SquadGame, null=False, backref='membergame', on_delete='CASCADE')
     tribe = ForeignKeyField(Tribe, null=True)
     elo_change = SmallIntegerField(default=0)
 

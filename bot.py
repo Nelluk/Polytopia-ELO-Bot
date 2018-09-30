@@ -17,6 +17,12 @@ handler = RotatingFileHandler(filename='discord.log', encoding='utf-8', maxBytes
 handler.setFormatter(logging.Formatter('%(asctime)s:%(levelname)s:%(name)s: %(message)s'))
 logger.addHandler(handler)
 
+logger_peewee = logging.getLogger('peewee')
+logger_peewee.setLevel(logging.DEBUG)
+if (logger_peewee.hasHandlers()):
+    logger_peewee.handlers.clear()
+logger_peewee.addHandler(handler)
+
 config = configparser.ConfigParser(allow_no_value=True)
 config.read('config.ini')
 

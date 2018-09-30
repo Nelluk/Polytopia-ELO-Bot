@@ -1,7 +1,7 @@
 from discord.ext import commands
 import modules.utilities as utilities
-# import peewee
-from modules.models import Game  # db, Team, Game, Player, DiscordMember
+import peewee
+from modules.models import Game, db  # Team, Game, Player, DiscordMember
 from bot import logger
 
 
@@ -9,6 +9,21 @@ class games():
 
     def __init__(self, bot):
         self.bot = bot
+
+    def poly_game(game_id):
+        # Give game ID integer return matching game or None. Can be used as a converter function for discord command input:
+        # https://discordpy.readthedocs.io/en/rewrite/ext/commands/commands.html#basic-converters
+        with db:
+            try:
+                game = Game.get(id=game_id)
+                logger.debug(f'Game with ID {game_id} found.')
+                return game
+            except peewee.DoesNotExist:
+                logger.warn(f'Game with ID {game_id} cannot be found.')
+                return None
+            except ValueError:
+                logger.error(f'Invalid game ID "{game_id}".')
+                return None
 
     @commands.command(aliases=['newgame'], brief='Helpers: Sets up a new game to be tracked', usage='"Name of Game" player1 player2 vs player3 player4')
     # @commands.has_any_role(*helper_roles)
@@ -31,7 +46,7 @@ class games():
 
             return await ctx.send(f'Game is between {side_home[0].name} and {side_away[0].name}')
         elif len(args) > 1:
-            if ctx.guild.id != 478571892832206869:  # TODO: Change to polychamps ID or better a config file setting on whether team play is allowed
+            if utilities.guild_setting(ctx, 'allow_teams') is False:
                 return await ctx.send(f'Only 1v1 games are enabled on this server. For team ELO games with squad leaderboards check out PolyChampions.')
             if len(args) not in [3, 5, 7, 9, 11] or args[int(len(args) / 2)].upper() != 'VS':
                 return await ctx.send(f'Invalid format. {example_usage}')
@@ -70,6 +85,17 @@ class games():
 
         mentions = [p.mention for p in side_home + side_away]
         await ctx.send(f'New game ID {newgame.id} started! Roster: {" ".join(mentions)}')
+
+    @commands.command(aliases=['endgame', 'win'], usage='game_id winner_name')
+    # @commands.has_any_role(*helper_roles)
+    async def wingame(self, ctx, winning_game: poly_game, winning_side_name: str):
+        if winning_game is None:
+            return await ctx.send(f'No matching game was found.')
+
+        game_data = winning_game.load_all_related()
+        for squadgame in game_data:
+            for t in squadgame.membergame:
+                print(f'{t.id} - {t.tribe.name}')
 
 
 def setup(bot):
