@@ -170,18 +170,43 @@ class Game(BaseModel):
     def load_all_related(self):
         # Returns an array of SquadGames related to this Game instance, with all related records pre-fetched
 
-        squadgames = SquadGame.select(SquadGame, Team).join(Team).where(SquadGame.game == self)
+        squadgames = SquadGame.select(SquadGame, Team, Game).join(Team, JOIN.LEFT_OUTER).join_from(SquadGame, Game).where(SquadGame.game == self)
 
         subq = SquadMemberGame.select(
             SquadMemberGame, Tribe, TribeFlair, SquadMember, Squad, Player, DiscordMember, Team).join(
             SquadMember).join(
             Squad).join_from(
-            SquadMemberGame, Tribe, JOIN.LEFT_OUTER).join(
+            SquadMemberGame, Tribe, JOIN.LEFT_OUTER).join(  # Need LEFT_OUTER_JOIN - default inner join would only return records that have a Tribe chosen
             TribeFlair, JOIN.LEFT_OUTER).join_from(
             SquadMember, Player).join(
-            Team).join_from(Player, DiscordMember)
+            Team, JOIN.LEFT_OUTER).join_from(Player, DiscordMember)
 
         return prefetch(squadgames, subq)
+
+    def load_full_game(game_id: int):
+        # This doesn't work. cant figure out how to get a game object with everything pre-loaded
+
+        game = Game.select().where(Game.id == game_id)
+        subq = SquadGame.select(SquadGame, Team).join(Team, JOIN.LEFT_OUTER)
+        # subq2 = SquadMemberGame.select(SquadMemberGame, SquadGame, SquadMember, Player,
+        #     DiscordMember).join(SquadGame).join_from(SquadMemberGame, SquadMember).join(Player).join(DiscordMember)
+
+        # squadgames = SquadGame.select(SquadGame, Team).join(Team, JOIN.LEFT_OUTER)
+
+        subq2 = SquadMemberGame.select(
+            SquadMemberGame, Tribe, TribeFlair, SquadMember, Squad, Player, DiscordMember, Team).join(
+            SquadMember).join(
+            Squad).join_from(
+            SquadMemberGame, Tribe, JOIN.LEFT_OUTER).join(  # Need LEFT_OUTER_JOIN - default inner join would only return records that have a Tribe chosen
+            TribeFlair, JOIN.LEFT_OUTER).join_from(
+            SquadMember, Player).join(
+            Team, JOIN.LEFT_OUTER).join_from(Player, DiscordMember)
+
+        return prefetch(game, subq, subq2)[0]
+
+        # # return prefetch(game, squadgames, subq).get()
+        # foo = prefetch(squadgames, subq)
+        # return prefetch(game, foo).get()
 
 
 class Squad(BaseModel):

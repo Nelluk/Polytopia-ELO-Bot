@@ -97,6 +97,21 @@ class games():
             for t in squadgame.membergame:
                 print(f'{t.id} - {t.tribe.name}')
 
+    @commands.command()
+    # @commands.has_any_role(*helper_roles)
+    async def ts(self, ctx, winning_game: int):
+
+        game_data = Game.load_full_game(winning_game)
+
+        for squadgame in game_data.squad:
+            for squadmembergame in squadgame.membergame:
+                print(squadmembergame.member.player.discord_member.name)
+            print(squadgame.team.name)
+        # for squadgame in game_data:
+        #     for t in squadgame.membergame:
+        #         print(f'{t.id} - {t.tribe.name}')
+        # print(game_data[0].game.name)
+
 
 def setup(bot):
     bot.add_cog(games(bot))
