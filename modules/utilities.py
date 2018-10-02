@@ -19,10 +19,22 @@ def guild_setting(ctx, setting_name):
         return True
     elif value.upper() == 'FALSE':
         return False
-    elif ',' in value:
+    elif ',' in value or 'roles' in setting_name:
         return list(map(str.strip, value.split(',')))     # returns as [list] with extra whitespace eliminated
     else:
-        return value
+        try:
+            return int(value)
+        except ValueError:
+            return value
+
+
+def is_staff(ctx, target):
+    helper_roles = guild_setting(ctx, 'helper_roles')
+    mod_roles = guild_setting(ctx, 'mod_roles')
+    target_match = get_matching_roles(target, helper_roles + mod_roles)
+    if len(target_match) > 0:
+        return True
+    return False
 
 
 async def get_guild_member(ctx, input):

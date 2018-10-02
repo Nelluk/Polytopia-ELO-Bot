@@ -25,6 +25,10 @@ class Team(BaseModel):
         indexes = ((('name', 'guild_id'), True),)   # Trailing comma is required
         # http://docs.peewee-orm.com/en/3.6.0/peewee/models.html#multi-column-indexes
 
+    def get_by_name(team_name):
+        teams = Team.select().where(Team.name.contains(team_name))
+        return teams
+
 
 class DiscordMember(BaseModel):
     discord_id = BitField(unique=True, null=False)
@@ -38,19 +42,35 @@ class Player(BaseModel):
     discord_member = ForeignKeyField(DiscordMember, unique=False, null=False, backref='guildmember', on_delete='CASCADE')
     guild_id = BitField(unique=False, null=False)
     nick = TextField(unique=False, null=True)
+    name = TextField(unique=False, null=True)
     team = ForeignKeyField(Team, null=True, backref='player')
     elo = SmallIntegerField(default=1000)
     trophies = ArrayField(CharField, null=True)
     # Add discord name here too so searches can hit just one table?
 
-    def upsert(discord_member_obj, guild_id, team=None):
+    def generate_display_name(self=None, player_name=None, player_nick=None):
+        if player_nick:
+            if player_name in player_nick:
+                display_name = player_nick
+            else:
+                display_name = f'{player_name} ({player_nick})'
+        else:
+            display_name = player_name
 
+        if self:
+            self.name = display_name
+            self.save()
+        return display_name
+
+    def upsert(discord_member_obj, guild_id, team=None):
+        # Uses insert() with conflict_target updating (ie upsert). issue is that it returns row #, not created record
         discord_member, _ = DiscordMember.get_or_create(discord_id=discord_member_obj.id, defaults={'name': discord_member_obj.name})
 
+        display_name = Player.generate_display_name(player_name=discord_member_obj.name, player_nick=discord_member_obj.nick)
         # http://docs.peewee-orm.com/en/latest/peewee/querying.html#upsert
-        player = Player.insert(discord_member=discord_member, guild_id=guild_id, nick=discord_member_obj.nick, team=team).on_conflict(
+        player = Player.insert(discord_member=discord_member, guild_id=guild_id, nick=discord_member_obj.nick, name=display_name, team=team).on_conflict(
             conflict_target=[Player.discord_member, Player.guild_id],  # update if exists
-            preserve=[Player.team, Player.nick]  # refresh team/nick with new value
+            preserve=[Player.team, Player.nick, Player.name]  # refresh team/nick with new value
         ).execute()
 
         return player
@@ -78,6 +98,18 @@ class Player(BaseModel):
 
             same_team_flag = True if all(x == list_of_matching_teams[0] for x in list_of_matching_teams) else False
             return same_team_flag, list_of_matching_teams
+
+    def get_by_string(player_string):
+        try:
+            p_id = int(player_string.strip('<>!@'))
+            # lookup either on <@####> mention string or raw ID #
+        except ValueError:
+            # TODO: Could possibly improve this by first searching for an exact match name==string, and then returning partial matches if no exact matches
+            return Player.select(Player, DiscordMember).join(DiscordMember).where((Player.nick.contains(player_string)) | (DiscordMember.name.contains(player_string)))
+        try:
+            return Player.select(Player, DiscordMember).join(DiscordMember).where(DiscordMember.discord_id == p_id)
+        except DoesNotExist:
+            return []
 
     class Meta:
         indexes = ((('discord_member', 'guild_id'), True),)   # Trailing comma is required
@@ -108,6 +140,19 @@ class Game(BaseModel):
     date = DateField(default=datetime.datetime.today)
     completed_ts = DateTimeField(null=True, default=None)
     name = TextField(null=True)
+
+    def team_size(self):
+        return len(self.squads[0].membergame)
+
+    def declare_winner(self, winning_side, confirm: bool):
+        print('here')
+        winning_side.is_winner = True
+        winning_side.save()
+        if confirm:
+            print('here1')
+            self.is_confirmed = True
+        self.is_completed = True
+        self.save()
 
     def create_game(teams, guild_id, name=None, require_teams=False):
 
@@ -147,6 +192,7 @@ class Game(BaseModel):
             # Create/update Player records
             for player_discord, player_team in zip(teams[0], list_of_home_teams):
                 side_home_players.append(Player.upsert(player_discord, guild_id=guild_id, team=player_team))
+                print(side_home_players)
 
             for player_discord, player_team in zip(teams[1], list_of_away_teams):
                 side_away_players.append(Player.upsert(player_discord, guild_id=guild_id, team=player_team))
@@ -184,14 +230,10 @@ class Game(BaseModel):
         return prefetch(squadgames, subq)
 
     def load_full_game(game_id: int):
-        # This doesn't work. cant figure out how to get a game object with everything pre-loaded
+        # Returns a single Game object with all related tables pre-fetched. or None
 
         game = Game.select().where(Game.id == game_id)
         subq = SquadGame.select(SquadGame, Team).join(Team, JOIN.LEFT_OUTER)
-        # subq2 = SquadMemberGame.select(SquadMemberGame, SquadGame, SquadMember, Player,
-        #     DiscordMember).join(SquadGame).join_from(SquadMemberGame, SquadMember).join(Player).join(DiscordMember)
-
-        # squadgames = SquadGame.select(SquadGame, Team).join(Team, JOIN.LEFT_OUTER)
 
         subq2 = SquadMemberGame.select(
             SquadMemberGame, Tribe, TribeFlair, SquadMember, Squad, Player, DiscordMember, Team).join(
@@ -202,11 +244,56 @@ class Game(BaseModel):
             SquadMember, Player).join(
             Team, JOIN.LEFT_OUTER).join_from(Player, DiscordMember)
 
-        return prefetch(game, subq, subq2)[0]
+        res = prefetch(game, subq, subq2)
 
-        # # return prefetch(game, squadgames, subq).get()
-        # foo = prefetch(squadgames, subq)
-        # return prefetch(game, foo).get()
+        if len(res) == 0:
+            return None
+        return res[0]
+
+    def return_participant(self, player=None, team=None):
+        # Given a string representing a player or a team (team name, player name/nick/ID)
+        # Return a tuple of the participant and their squadgame, ie Player, SquadGame or Team, Squadgame
+
+        if player:
+            player_obj = Player.get_by_string(player)
+            if not player_obj:
+                raise utilities.CheckFailedError(f'Cannot find a player with name "{player}". Try specifying with an @Mention.')
+            if len(player_obj) > 1:
+                raise utilities.CheckFailedError(f'More than one player match found for "{player}". Be more specific.')
+            player_obj = player_obj[0]
+
+            for squadgame in self.squads:
+                for smg in squadgame.membergame:
+                    if smg.member.player == player_obj:
+                        return player_obj, squadgame
+            raise utilities.CheckFailedError(f'{player_obj.name} did not play in game {self.id}.')
+
+        elif team:
+            team_obj = Team.get_by_name(team)
+            if not team_obj:
+                raise utilities.CheckFailedError(f'Cannot find a team with name "{team}".')
+            if len(team_obj) > 1:
+                raise utilities.CheckFailedError(f'More than one team match found for "{team}". Be more specific.')
+            team_obj = team_obj[0]
+
+            for squadgame in self.squads:
+                if squadgame.team == team_obj:
+                    return team_obj, squadgame
+            raise utilities.CheckFailedError(f'{team_obj.name} did not play in game {self.id}.')
+        else:
+            raise utilities.CheckFailedError('Player name or team name must be supplied for this function')
+
+    def get_winner_name(self):
+        # Returns player name of winner if its a 1v1, or team-name of winning side if its a group game
+
+        for squadgame in self.squads:
+            if squadgame.is_winner is True:
+                if len(squadgame.membergame) > 1:
+                    return squadgame.team.name
+                else:
+                    return squadgame.membergame[0].member.player.name
+
+        return None
 
 
 class Squad(BaseModel):
@@ -241,7 +328,7 @@ class SquadMember(BaseModel):
 
 
 class SquadGame(BaseModel):
-    game = ForeignKeyField(Game, null=False, backref='squad', on_delete='CASCADE')
+    game = ForeignKeyField(Game, null=False, backref='squads', on_delete='CASCADE')
     squad = ForeignKeyField(Squad, null=False, backref='squadgame', on_delete='CASCADE')
     team = ForeignKeyField(Team, null=True)
     elo_change = SmallIntegerField(default=0)
