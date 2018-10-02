@@ -1,8 +1,13 @@
 from discord.ext import commands
 import modules.utilities as utilities
+import settings
+import modules.exceptions as exceptions
 import peewee
 from modules.models import Game, db, Player  # Team, Game, Player, DiscordMember
-from bot import logger
+# from bot import logger
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class games():
@@ -43,7 +48,7 @@ class games():
 
             return await ctx.send(f'Game is between {side_home[0].name} and {side_away[0].name}')
         elif len(args) > 1:
-            if utilities.guild_setting(ctx, 'allow_teams') is False:
+            if settings.guild_setting(ctx.guild.id, 'allow_teams') is False:
                 return await ctx.send('Only 1v1 games are enabled on this server. For team ELO games with squad leaderboards check out PolyChampions.')
             if len(args) not in [3, 5, 7, 9, 11] or args[int(len(args) / 2)].upper() != 'VS':
                 return await ctx.send(f'Invalid format. {example_usage}')
@@ -64,8 +69,8 @@ class games():
                     return await ctx.send(f'More than one server matches found for "{p}". Try being more specific or using an @Mention.')
                 side_away.append(guild_matches[0])
 
-            if len(side_home) > utilities.guild_setting(ctx, 'max_team_size') or len(side_home) > utilities.guild_setting(ctx, 'max_team_size'):
-                return await ctx.send('Maximium {0}v{0} games are enabled on this server. For full functionality with support for up to 5v5 games and league play check out PolyChampions.'.format(utilities.guild_setting(ctx, 'max_team_size')))
+            if len(side_home) > settings.guild_setting(ctx.guild.id, 'max_team_size') or len(side_home) > settings.guild_setting(ctx.guild.id, 'max_team_size'):
+                return await ctx.send('Maximium {0}v{0} games are enabled on this server. For full functionality with support for up to 5v5 games and league play check out PolyChampions.'.format(settings.guild_setting(ctx.guild.id, 'max_team_size')))
 
         else:
             return await ctx.send(f'Invalid format. {example_usage}')
@@ -74,14 +79,14 @@ class games():
             # TODO: put behind allow_uneven_teams setting
             await ctx.send('Duplicate players detected. Are you sure this is what you want? (That means the two sides are uneven.)')
 
-        if ctx.author not in (side_home + side_away) and utilities.is_staff(ctx, ctx.author) is False:
+        if ctx.author not in (side_home + side_away) and settings.is_staff(ctx, ctx.author) is False:
             return await ctx.send('You can\'t create a game that you are not a participant in.')
 
         logger.debug(f'All input checks passed. Creating new game records with args: {args}')
 
         newgame, home_squadgame, away_squadgame = Game.create_game([side_home, side_away],
             name=game_name, guild_id=ctx.guild.id,
-            require_teams=utilities.guild_setting(ctx, 'require_teams'))
+            require_teams=settings.guild_setting(ctx.guild.id, 'require_teams'))
 
         # TODO: Send game embeds and create team channels
 
@@ -100,14 +105,14 @@ class games():
             else:
                 await ctx.send(f'Warning: Unconfirmed game with ID {winning_game.id} had previously been marked with winner **{winning_game.get_winner_name()}**')
 
-        if utilities.is_staff(ctx, ctx.author):
+        if settings.is_staff(ctx, ctx.author):
             is_staff = True
         else:
             is_staff = False
 
             try:
                 player, _ = winning_game.return_participant(player=ctx.author.id)
-            except utilities.CheckFailedError:
+            except exceptions.CheckFailedError:
                 return await ctx.send(f'You were not a participant in game {winning_game.id}, and do not have staff privileges.')
 
         try:
@@ -118,7 +123,7 @@ class games():
                 winning_obj, winning_side = winning_game.return_participant(team=winning_side_name)
             else:
                 return logger.error('Invalid team_size. Aborting wingame command.')
-        except utilities.CheckFailedError as ex:
+        except exceptions.CheckFailedError as ex:
             return await ctx.send(f'{ex}')
 
         winning_game.declare_winner(winning_side=winning_side, confirm=is_staff)
@@ -127,12 +132,13 @@ class games():
     # @commands.has_any_role(*helper_roles)
     async def ts(self, ctx, name: str):
 
-        print(name)
-        p = Player.get_by_string(name)
+        logger.error('test')
+        # print(name)
+        # p = Player.get_by_string(name)
 
-        p[0].test()
-        Player.test()
-        Player.test(foo='blah')
+        # p[0].test()
+        # Player.test()
+        # Player.test(foo='blah')
 
 
 def setup(bot):

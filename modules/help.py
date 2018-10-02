@@ -27,7 +27,9 @@ import asyncio
 import re
 import inspect
 import itertools
-from bot import logger
+import logging
+
+logger = logging.getLogger(__name__)
 # import traceback
 # from modules.elo_games import in_bot_channel as in_bot_channel
 

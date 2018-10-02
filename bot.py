@@ -1,51 +1,32 @@
 import discord
 import datetime
-import configparser
 import argparse
 import traceback
 from discord.ext import commands
 from modules import models
 from modules import initialize_data
+import settings
 import logging
 from logging.handlers import RotatingFileHandler
 
-logger = logging.getLogger('discord')
-logger.setLevel(logging.INFO)
-if (logger.hasHandlers()):
-    logger.handlers.clear()
-handler = RotatingFileHandler(filename='discord.log', encoding='utf-8', maxBytes=500 * 1024, backupCount=1)
-handler.setFormatter(logging.Formatter('%(asctime)s:%(levelname)s:%(name)s: %(message)s'))
-logger.addHandler(handler)
 
-logger_peewee = logging.getLogger('peewee')
-logger_peewee.setLevel(logging.DEBUG)
-if (logger_peewee.hasHandlers()):
-    logger_peewee.handlers.clear()
-logger_peewee.addHandler(handler)
+def main():
 
-config = configparser.ConfigParser(allow_no_value=True)
-config.read('config.ini')
+    logger = logging.getLogger('discord')
+    logger.setLevel(logging.INFO)
+    if (logger.hasHandlers()):
+        logger.handlers.clear()
+    handler = RotatingFileHandler(filename='discord.log', encoding='utf-8', maxBytes=500 * 1024, backupCount=1)
+    handler.setFormatter(logging.Formatter('%(asctime)s:%(levelname)s:%(name)s: %(message)s'))
+    logger.addHandler(handler)
 
-try:
-    discord_key = config['DEFAULT']['discord_key']
-except KeyError:
-    print('Error finding required setting discord_key in config.ini file - it should be in the DEFAULT section')
-    exit(0)
+    logger_peewee = logging.getLogger('peewee')
+    logger_peewee.setLevel(logging.DEBUG)
+    if (logger_peewee.hasHandlers()):
+        logger_peewee.handlers.clear()
+    logger_peewee.addHandler(handler)
 
-date_cutoff = datetime.datetime.today() - datetime.timedelta(days=90)  # Players who haven't played since cutoff are not included in leaderboards
-
-
-def get_prefix(bot, message):
-    # Guild-specific command prefixes
-    if message.guild and str(message.guild.id) in config.sections():
-        # Current guild is allowed
-        return commands.when_mentioned_or(config[str(message.guild.id)]['command_prefix'])(bot, message)
-    else:
-        logger.error(f'Message received not from allowed guild')
-        return commands.when_mentioned_or(config['DEFAULT']['command_prefix'])(bot, message)
-
-
-if __name__ == '__main__':
+    logging.getLogger('').addHandler(handler)  # root handler. module-specific loggers will inherit this
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--add_default_data', action='store_true')
@@ -53,6 +34,30 @@ if __name__ == '__main__':
     if args.add_default_data:
         initialize_data.initialize_data()
         exit(0)
+
+
+try:
+    discord_key = settings.config['discord_key']
+except KeyError:
+    print('Error finding required setting discord_key in settings.py file - it should be in the DEFAULT section')
+    exit(0)
+
+date_cutoff = datetime.datetime.today() - datetime.timedelta(days=90)  # Players who haven't played since cutoff are not included in leaderboards
+
+
+def get_prefix(bot, message):
+    # Guild-specific command prefixes
+    if message.guild and message.guild.id in settings.config:
+        # Current guild is allowed
+        return commands.when_mentioned_or(settings.guild_setting(message.guild.id, 'command_prefix'))(bot, message)
+    else:
+        logging.error(f'Message received not from allowed guild. ID {message.guild.id}')
+        return commands.when_mentioned_or(settings.get_setting('command_prefix'))(bot, message)
+
+
+if __name__ == '__main__':
+
+    main()
 
     bot = commands.Bot(command_prefix=get_prefix)
     # bot.remove_command('help')
@@ -73,11 +78,11 @@ if __name__ == '__main__':
 
         # Anything in ignored will return and prevent anything happening.
         if isinstance(exc, ignored):
-            logger.warn(f'Exception on ignored list raised in {ctx.command}. {exc}')
+            logging.warn(f'Exception on ignored list raised in {ctx.command}. {exc}')
             return
 
         exception_str = ''.join(traceback.format_exception(etype=type(exc), value=exc, tb=exc.__traceback__))
-        logger.critical(f'Ignoring exception in command {ctx.command}: {exc} {exception_str}', exc_info=True)
+        logging.critical(f'Ignoring exception in command {ctx.command}: {exc} {exception_str}', exc_info=True)
         print(f'Exception raised. {exc}\n{exception_str}')
         await ctx.send(f'Unhandled error: {exc}')
 

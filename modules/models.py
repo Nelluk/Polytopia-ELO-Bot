@@ -2,11 +2,13 @@ import datetime
 from peewee import *
 from playhouse.postgres_ext import *
 # import modules.utilities as utilities
+import modules.exceptions as exceptions
 from modules import utilities
-# import logging
+import logging
+
+logger = logging.getLogger(__name__)
 
 db = PostgresqlDatabase('polytopia', user='cbsteven')
-# logger = logging.getLogger('peewee')
 
 
 class BaseModel(Model):
@@ -162,7 +164,7 @@ class Game(BaseModel):
 
         if (None in list_of_away_teams) or (None in list_of_home_teams):
             if require_teams is True:
-                raise utilities.CheckFailedError('One or more players listed cannot be matched to a Team (based on Discord Roles). Make sure player has exactly one matching Team role.')
+                raise exceptions.CheckFailedError('One or more players listed cannot be matched to a Team (based on Discord Roles). Make sure player has exactly one matching Team role.')
             else:
                 # Set this to a home/away game if at least one player has no matching role, AND require_teams == false
                 home_team_flag = away_team_flag = False
@@ -257,31 +259,31 @@ class Game(BaseModel):
         if player:
             player_obj = Player.get_by_string(player)
             if not player_obj:
-                raise utilities.CheckFailedError(f'Cannot find a player with name "{player}". Try specifying with an @Mention.')
+                raise exceptions.CheckFailedError(f'Cannot find a player with name "{player}". Try specifying with an @Mention.')
             if len(player_obj) > 1:
-                raise utilities.CheckFailedError(f'More than one player match found for "{player}". Be more specific.')
+                raise exceptions.CheckFailedError(f'More than one player match found for "{player}". Be more specific.')
             player_obj = player_obj[0]
 
             for squadgame in self.squads:
                 for smg in squadgame.membergame:
                     if smg.member.player == player_obj:
                         return player_obj, squadgame
-            raise utilities.CheckFailedError(f'{player_obj.name} did not play in game {self.id}.')
+            raise exceptions.CheckFailedError(f'{player_obj.name} did not play in game {self.id}.')
 
         elif team:
             team_obj = Team.get_by_name(team)
             if not team_obj:
-                raise utilities.CheckFailedError(f'Cannot find a team with name "{team}".')
+                raise exceptions.CheckFailedError(f'Cannot find a team with name "{team}".')
             if len(team_obj) > 1:
-                raise utilities.CheckFailedError(f'More than one team match found for "{team}". Be more specific.')
+                raise exceptions.CheckFailedError(f'More than one team match found for "{team}". Be more specific.')
             team_obj = team_obj[0]
 
             for squadgame in self.squads:
                 if squadgame.team == team_obj:
                     return team_obj, squadgame
-            raise utilities.CheckFailedError(f'{team_obj.name} did not play in game {self.id}.')
+            raise exceptions.CheckFailedError(f'{team_obj.name} did not play in game {self.id}.')
         else:
-            raise utilities.CheckFailedError('Player name or team name must be supplied for this function')
+            raise exceptions.CheckFailedError('Player name or team name must be supplied for this function')
 
     def get_winner_name(self):
         # Returns player name of winner if its a 1v1, or team-name of winning side if its a group game
