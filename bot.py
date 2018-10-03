@@ -10,23 +10,31 @@ import logging
 from logging.handlers import RotatingFileHandler
 
 
+handler = RotatingFileHandler(filename='discord.log', encoding='utf-8', maxBytes=500 * 1024, backupCount=1)
+handler.setFormatter(logging.Formatter('%(asctime)s:%(levelname)s:%(name)s: %(message)s'))
+
+my_logger = logging.getLogger('polybot')
+my_logger.setLevel(logging.DEBUG)
+my_logger.addHandler(handler)  # root handler for app. module-specific loggers will inherit this
+
+discord_logger = logging.getLogger('discord')
+discord_logger.setLevel(logging.INFO)
+
+if (discord_logger.hasHandlers()):
+    discord_logger.handlers.clear()
+
+discord_logger.addHandler(handler)
+
+logger_peewee = logging.getLogger('peewee')
+logger_peewee.setLevel(logging.DEBUG)
+
+if (logger_peewee.hasHandlers()):
+    logger_peewee.handlers.clear()
+
+logger_peewee.addHandler(handler)
+
+
 def main():
-
-    logger = logging.getLogger('discord')
-    logger.setLevel(logging.INFO)
-    if (logger.hasHandlers()):
-        logger.handlers.clear()
-    handler = RotatingFileHandler(filename='discord.log', encoding='utf-8', maxBytes=500 * 1024, backupCount=1)
-    handler.setFormatter(logging.Formatter('%(asctime)s:%(levelname)s:%(name)s: %(message)s'))
-    logger.addHandler(handler)
-
-    logger_peewee = logging.getLogger('peewee')
-    logger_peewee.setLevel(logging.DEBUG)
-    if (logger_peewee.hasHandlers()):
-        logger_peewee.handlers.clear()
-    logger_peewee.addHandler(handler)
-
-    logging.getLogger('').addHandler(handler)  # root handler. module-specific loggers will inherit this
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--add_default_data', action='store_true')

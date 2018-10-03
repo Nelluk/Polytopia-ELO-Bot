@@ -7,7 +7,7 @@ from modules.models import Game, db, Player  # Team, Game, Player, DiscordMember
 # from bot import logger
 import logging
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('polybot.' + __name__)
 
 
 class games():
@@ -102,7 +102,9 @@ class games():
             return await ctx.send(f'No matching game was found.')
 
         if winning_game.is_completed is True:
+            logger.debug('here is_completed')
             if winning_game.is_confirmed is True:
+                logger.debug('here is_confirmed')
                 return await ctx.send(f'Game with ID {winning_game.id} is already marked as completed with winner **{winning_game.get_winner_name()}**')
             else:
                 await ctx.send(f'Warning: Unconfirmed game with ID {winning_game.id} had previously been marked with winner **{winning_game.get_winner_name()}**')
@@ -113,16 +115,16 @@ class games():
             is_staff = False
 
             try:
-                player, _ = winning_game.return_participant(player=ctx.author.id)
+                player, _ = winning_game.return_participant(ctx, player=ctx.author.id)
             except exceptions.CheckFailedError:
                 return await ctx.send(f'You were not a participant in game {winning_game.id}, and do not have staff privileges.')
 
         try:
             if winning_game.team_size() == 1:
-                winning_obj, winning_side = winning_game.return_participant(player=winning_side_name)
+                winning_obj, winning_side = winning_game.return_participant(ctx, player=winning_side_name)
 
             elif winning_game.team_size() > 1:
-                winning_obj, winning_side = winning_game.return_participant(team=winning_side_name)
+                winning_obj, winning_side = winning_game.return_participant(ctx, team=winning_side_name)
             else:
                 return logger.error('Invalid team_size. Aborting wingame command.')
         except exceptions.CheckFailedError as ex:

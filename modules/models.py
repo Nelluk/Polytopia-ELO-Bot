@@ -6,7 +6,7 @@ import modules.exceptions as exceptions
 from modules import utilities
 import logging
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('polybot.' + __name__)
 
 db = PostgresqlDatabase('polytopia', user='cbsteven')
 
@@ -27,8 +27,8 @@ class Team(BaseModel):
         indexes = ((('name', 'guild_id'), True),)   # Trailing comma is required
         # http://docs.peewee-orm.com/en/3.6.0/peewee/models.html#multi-column-indexes
 
-    def get_by_name(team_name):
-        teams = Team.select().where(Team.name.contains(team_name))
+    def get_by_name(team_name: str, guild_id: int):
+        teams = Team.select().where((Team.name.contains(team_name)) & (Team.guild_id == guild_id))
         return teams
 
 
@@ -101,15 +101,33 @@ class Player(BaseModel):
             same_team_flag = True if all(x == list_of_matching_teams[0] for x in list_of_matching_teams) else False
             return same_team_flag, list_of_matching_teams
 
-    def get_by_string(player_string):
+    def get_by_string(player_string: str, guild_id: int):
         try:
             p_id = int(player_string.strip('<>!@'))
             # lookup either on <@####> mention string or raw ID #
         except ValueError:
-            # TODO: Could possibly improve this by first searching for an exact match name==string, and then returning partial matches if no exact matches
-            return Player.select(Player, DiscordMember).join(DiscordMember).where((Player.nick.contains(player_string)) | (DiscordMember.name.contains(player_string)))
+            if len(player_string.split('#', 1)[0]) > 2:
+                discord_str = player_string.split('#', 1)[0]
+                # If query is something like 'Nelluk#7034', use just the 'Nelluk' to match against discord_name.
+                # This happens if user does an @Mention then removes the @ character
+            else:
+                discord_str = player_str
+
+            name_exact_match = Player.select(Player, DiscordMember).join(DiscordMember).where(
+                (DiscordMember.name == discord_str) & (Player.guild_id == guild_id)
+            )
+            if len(name_exact_match) == 1:
+                # String matches DiscordUser.name exactly
+                return name_exact_match
+
+            # If no exact match, return any substring matches
+            return Player.select(Player, DiscordMember).join(DiscordMember).where(
+                ((Player.nick.contains(player_string)) | (DiscordMember.name.contains(discord_str))) & (Player.guild_id == guild_id)
+            )
         try:
-            return Player.select(Player, DiscordMember).join(DiscordMember).where(DiscordMember.discord_id == p_id)
+            return Player.select(Player, DiscordMember).join(DiscordMember).where(
+                (DiscordMember.discord_id == p_id) & (Player.guild_id == guild_id)
+            )
         except DoesNotExist:
             return []
 
@@ -252,12 +270,12 @@ class Game(BaseModel):
             return None
         return res[0]
 
-    def return_participant(self, player=None, team=None):
+    def return_participant(self, ctx, player=None, team=None):
         # Given a string representing a player or a team (team name, player name/nick/ID)
         # Return a tuple of the participant and their squadgame, ie Player, SquadGame or Team, Squadgame
 
         if player:
-            player_obj = Player.get_by_string(player)
+            player_obj = Player.get_by_string(player_string=player, guild_id=ctx.guild.id)
             if not player_obj:
                 raise exceptions.CheckFailedError(f'Cannot find a player with name "{player}". Try specifying with an @Mention.')
             if len(player_obj) > 1:
@@ -271,7 +289,7 @@ class Game(BaseModel):
             raise exceptions.CheckFailedError(f'{player_obj.name} did not play in game {self.id}.')
 
         elif team:
-            team_obj = Team.get_by_name(team)
+            team_obj = Team.get_by_name(team_name=team, guild_id=ctx.guild.id)
             if not team_obj:
                 raise exceptions.CheckFailedError(f'Cannot find a team with name "{team}".')
             if len(team_obj) > 1:

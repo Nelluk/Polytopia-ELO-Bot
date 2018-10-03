@@ -29,7 +29,7 @@ import inspect
 import itertools
 import logging
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('polybot.' + __name__)
 # import traceback
 # from modules.elo_games import in_bot_channel as in_bot_channel
 
