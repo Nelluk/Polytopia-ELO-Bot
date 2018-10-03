@@ -133,8 +133,8 @@ class TribeFlair(BaseModel):
 
 class Game(BaseModel):
     name = TextField(null=True)
-    winner_delta = IntegerField(default=0)
-    loser_delta = IntegerField(default=0)
+    # winner_delta = IntegerField(default=0)    # probably makes more sense for this to be on SquadGame
+    # loser_delta = IntegerField(default=0)
     is_completed = BooleanField(default=False)
     is_confirmed = BooleanField(default=False)  # Use to confirm losses and filter searches?
     announcement_message = BitField(default=None, null=True)
@@ -332,8 +332,9 @@ class SquadMember(BaseModel):
 class SquadGame(BaseModel):
     game = ForeignKeyField(Game, null=False, backref='squads', on_delete='CASCADE')
     squad = ForeignKeyField(Squad, null=False, backref='squadgame', on_delete='CASCADE')
-    team = ForeignKeyField(Team, null=True)
-    elo_change = SmallIntegerField(default=0)
+    team = ForeignKeyField(Team, null=True, backref='squadgame')
+    elo_change_squad = SmallIntegerField(default=0)
+    elo_change_team = SmallIntegerField(default=0)
     is_winner = BooleanField(default=False)
     team_chan_category = BitField(default=None, null=True)
     team_chan = BitField(default=None, null=True)   # Store category/ID of team channel for more consistent renaming-deletion
@@ -343,7 +344,7 @@ class SquadMemberGame(BaseModel):
     member = ForeignKeyField(SquadMember, null=False, backref='membergame', on_delete='CASCADE')
     squadgame = ForeignKeyField(SquadGame, null=False, backref='membergame', on_delete='CASCADE')
     tribe = ForeignKeyField(Tribe, null=True)
-    elo_change = SmallIntegerField(default=0)
+    elo_change_player = SmallIntegerField(default=0)
 
 
 with db:

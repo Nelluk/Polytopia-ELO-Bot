@@ -6,7 +6,6 @@ import peewee
 
 def initialize_data():
     # import modules.models as models
-    from bot import config
 
     polychamps_list = [('The Ronin', ':spy:', 'https://media.discordapp.net/attachments/471128500338819072/471941775142158346/neworange.png'),
                         ('The Jets', ':airplane:', 'https://media.discordapp.net/attachments/471128500338819072/471941513241427968/newpurple.png'),
@@ -23,9 +22,10 @@ def initialize_data():
 
     tribe_list = ['Bardur', 'Imperius', 'Xin-Xi', 'Oumaji', 'Kickoo', 'Hoodrick', 'Luxidoor', 'Vengir', 'Zebasi', 'Ai-Mo', 'Quetzali', 'Aquarion', 'Elyrion']
 
-    for guild_id in config.sections():
-        # This adds the above list of teams for each server in the config file.
-        # TODO: Really this should be limited to Polychamps server and Test Server
+    for guild_id in [478571892832206869, 447883341463814144]:
+        # 447883341463814144 = Polychampions
+        # 478571892832206869 = Nelluk Test Server
+
         for team, emoji, image_url in polychamps_list:
             print(f'gid:{guild_id}')
             try:

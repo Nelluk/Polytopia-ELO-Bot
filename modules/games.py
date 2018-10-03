@@ -36,6 +36,8 @@ class games():
             f'\n`{ctx.prefix}startgame "Name of Game" player1 player2 VS player3 player4` - Start a 2v2 game')
 
         if len(args) == 1:
+            # Shortcut version for 1v1s:
+            # $startgame "Name of Game" opponent_name
             guild_matches = await utilities.get_guild_member(ctx, args[0])
             if len(guild_matches) == 0:
                 return await ctx.send(f'Could not match "{args[0]}" to a server member. Try using an @Mention.')
@@ -46,8 +48,8 @@ class games():
             side_away.append(guild_matches[0])
             side_home.append(ctx.author)
 
-            return await ctx.send(f'Game is between {side_home[0].name} and {side_away[0].name}')
         elif len(args) > 1:
+            # $startgame "Name of Game" p1 p2 vs p3 p4
             if settings.guild_setting(ctx.guild.id, 'allow_teams') is False:
                 return await ctx.send('Only 1v1 games are enabled on this server. For team ELO games with squad leaderboards check out PolyChampions.')
             if len(args) not in [3, 5, 7, 9, 11] or args[int(len(args) / 2)].upper() != 'VS':
