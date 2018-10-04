@@ -136,7 +136,7 @@ class games():
     # @commands.has_any_role(*helper_roles)
     async def ts(self, ctx, name: str):
 
-        game = Game.get(id=1)
+        game = Game.load_full_game(game_id=1)
         print(game.get_headline())
         await ctx.send(embed=game.embed(ctx))
         # foo = Player.get_by_string(player_string=name, guild_id=ctx.guild.id)

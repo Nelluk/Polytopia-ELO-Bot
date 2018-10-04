@@ -364,22 +364,6 @@ class Game(BaseModel):
 
         return newgame, home_squadgame, away_squadgame
 
-    # def load_all_related(self):
-    #     # Returns an array of SquadGames related to this Game instance, with all related records pre-fetched
-
-    #     squadgames = SquadGame.select(SquadGame, Team, Game).join(Team, JOIN.LEFT_OUTER).join_from(SquadGame, Game).where(SquadGame.game == self)
-
-    #     subq = SquadMemberGame.select(
-    #         SquadMemberGame, Tribe, TribeFlair, SquadMember, Squad, Player, DiscordMember, Team).join(
-    #         SquadMember).join(
-    #         Squad).join_from(
-    #         SquadMemberGame, Tribe, JOIN.LEFT_OUTER).join(  # Need LEFT_OUTER_JOIN - default inner join would only return records that have a Tribe chosen
-    #         TribeFlair, JOIN.LEFT_OUTER).join_from(
-    #         SquadMember, Player).join(
-    #         Team, JOIN.LEFT_OUTER).join_from(Player, DiscordMember)
-
-    #     return prefetch(squadgames, subq)
-
     def load_full_game(game_id: int):
         # Returns a single Game object with all related tables pre-fetched. or None
 
@@ -390,8 +374,8 @@ class Game(BaseModel):
             SquadMemberGame, Tribe, TribeFlair, SquadMember, Squad, Player, DiscordMember, Team).join(
             SquadMember).join(
             Squad).join_from(
-            SquadMemberGame, Tribe, JOIN.LEFT_OUTER).join(  # Need LEFT_OUTER_JOIN - default inner join would only return records that have a Tribe chosen
-            TribeFlair, JOIN.LEFT_OUTER).join_from(
+            SquadMemberGame, TribeFlair, JOIN.LEFT_OUTER).join(  # Need LEFT_OUTER_JOIN - default inner join would only return records that have a Tribe chosen
+            Tribe).join_from(
             SquadMember, Player).join(
             Team, JOIN.LEFT_OUTER).join_from(Player, DiscordMember)
 
