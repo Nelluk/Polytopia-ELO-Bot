@@ -233,10 +233,12 @@ class Game(BaseModel):
         if len(self.squads) != 2:
             raise exceptions.CheckFailedError('Support for games with >2 sides not yet implemented')
 
-        home_side_team = self.squads[0]
-        away_side_team = self.squads[1]
-        side_home_roster = home_side_team.roster()
-        side_away_roster = away_side_team.roster()
+        home_side = self.squads[0]
+        away_side = self.squads[1]
+        # side_home_roster = home_side.roster()
+        # side_away_roster = away_side.roster()
+
+        winner = self.get_winner()
 
         game_headline = self.get_headline()
         game_headline = game_headline.replace('\u00a0', '\n')   # Put game.name onto its own line if its there
@@ -244,7 +246,36 @@ class Game(BaseModel):
         embed = discord.Embed(title=game_headline)
 
         if self.is_completed == 1:
-            embed.title += f'\n\nWINNER: {self.get_winner().name}'
+            embed.title += f'\n\nWINNER: {winner.name}'
+
+        # Set embed image (profile picture or team logo)
+            if self.team_size() == 1:
+                winning_discord_member = ctx.guild.get_member(winner.discord_member.discord_id)
+                if winning_discord_member is not None:
+                    embed.set_thumbnail(url=winning_discord_member.avatar_url_as(size=512))
+            elif winner.image_url:
+                embed.set_thumbnail(url=game.winner.image_url)
+
+        # TEAM/SQUAD ELOs and ELO DELTAS
+        if home_side.team.name == 'Home' and away_side.team.name == 'Away':
+            # Hide team ELO if its just generic Home/Away
+            home_team_elo_str = away_team_elo_str = ''
+        else:
+            home_team_elo_str, home_squad_elo_str = home_side.elo_strings()
+            away_team_elo_str, away_squad_elo_str = home_side.elo_strings()
+
+        if self.team_size() == 1:
+            # Hide squad ELO stats for 1v1 games
+            home_squad_elo_str = away_squad_elo_str = '\u200b'
+
+        game_data = [(home_side, home_team_elo_str, home_squad_elo_str, home_side.roster()), (away_side, away_team_elo_str, away_squad_elo_str, away_side.roster())]
+
+        for side, elo_str, squad_str, roster in game_data:
+            if self.team_size() > 1:
+                embed.add_field(name=f'Lineup for Team **{side.team.name}**{elo_str}', value=squad_str, inline=False)
+
+            for player, player_elo_str, tribe_emoji in roster:
+                embed.add_field(name=f'**{player.name}** {tribe_emoji}', value=f'ELO: {player_elo_str}', inline=True)
 
         embed.set_footer(text=f'Status: {"Completed" if self.is_completed else "Incomplete"}  -  Creation Date {str(self.date)}')
 
@@ -343,7 +374,6 @@ class Game(BaseModel):
             # Create/update Player records
             for player_discord, player_team in zip(teams[0], list_of_home_teams):
                 side_home_players.append(Player.upsert(player_discord, guild_id=guild_id, team=player_team))
-                print(side_home_players)
 
             for player_discord, player_team in zip(teams[1], list_of_away_teams):
                 side_away_players.append(Player.upsert(player_discord, guild_id=guild_id, team=player_team))
@@ -375,7 +405,7 @@ class Game(BaseModel):
             SquadMember).join(
             Squad).join_from(
             SquadMemberGame, TribeFlair, JOIN.LEFT_OUTER).join(  # Need LEFT_OUTER_JOIN - default inner join would only return records that have a Tribe chosen
-            Tribe).join_from(
+            Tribe, JOIN.LEFT_OUTER).join_from(
             SquadMember, Player).join(
             Team, JOIN.LEFT_OUTER).join_from(Player, DiscordMember)
 
@@ -410,11 +440,11 @@ class Game(BaseModel):
             if len(team_obj) > 1:
                 raise exceptions.CheckFailedError(f'More than one team match found for "{team}". Be more specific.')
             team_obj = team_obj[0]
-            print(team_obj)
+
             for squadgame in self.squads:
-                print(squadgame.team.id)
                 if squadgame.team == team_obj:
                     return team_obj, squadgame
+
             raise exceptions.CheckFailedError(f'{team_obj.name} did not play in game {self.id}.')
         else:
             raise exceptions.CheckFailedError('Player name or team name must be supplied for this function')
@@ -504,6 +534,20 @@ class SquadGame(BaseModel):
     team_chan_category = BitField(default=None, null=True)
     team_chan = BitField(default=None, null=True)   # Store category/ID of team channel for more consistent renaming-deletion
 
+    def elo_strings(self):
+        # Returns a tuple of strings for team ELO and squad ELO display. ie:
+        # ('1200 +30', '1300')
+
+        team_elo_str = str(self.elo_change_team) if self.elo_change_team != 0 else ''
+        if self.elo_change_team > 0:
+            team_elo_str = '+' + team_elo_str
+
+        squad_elo_str = str(self.elo_change_squad) if self.elo_change_squad != 0 else ''
+        if self.elo_change_squad > 0:
+            squad_elo_str = '+' + squad_elo_str
+
+        return (f'{self.team.elo} {team_elo_str}', f'{self.squad.elo} {squad_elo_str}')
+
     def get_member_average_elo(self):
         elo_list = [mg.member.player.elo for mg in self.membergame]
         return round(sum(elo_list) / len(elo_list))
@@ -517,12 +561,15 @@ class SquadGame(BaseModel):
             return self.team.name
 
     def roster(self):
-        # Returns list of tuples [(player, elo_change_from_this_game, :tribe_emoji:)]
+        # Returns list of tuples [(player, elo string (1000 +50), :tribe_emoji:)]
         players = []
 
         for mg in self.membergame:
+            elo_str = str(mg.elo_change_player) if mg.elo_change_player != 0 else ''
+            if mg.elo_change_player > 0:
+                elo_str = '+' + elo_str
             players.append(
-                (mg.member.player, mg.elo_change_player, mg.emoji_str())
+                (mg.member.player, f'{mg.member.player.elo} {elo_str}', mg.emoji_str())
             )
 
         return players
@@ -568,7 +615,11 @@ class SquadMemberGame(BaseModel):
         return elo_delta
 
     def emoji_str(self):
-        return self.tribe.emoji if self.tribe else ''
+
+        if self.tribe.emoji:
+            return self.tribe.emoji
+        else:
+            return ''
 
 
 with db:

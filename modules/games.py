@@ -3,7 +3,7 @@ import modules.utilities as utilities
 import settings
 import modules.exceptions as exceptions
 import peewee
-from modules.models import Game, db, Player, Team, SquadGame  # Team, Game, Player, DiscordMember
+from modules.models import Game, db, Player, Team, SquadGame, SquadMemberGame  # Team, Game, Player, DiscordMember
 # from bot import logger
 import logging
 
@@ -137,8 +137,11 @@ class games():
     async def ts(self, ctx, name: str):
 
         game = Game.load_full_game(game_id=1)
-        print(game.get_headline())
+
         await ctx.send(embed=game.embed(ctx))
+
+        # smg = SquadMemberGame.get(id=1)
+        # print(smg.tribe.emoji)
         # foo = Player.get_by_string(player_string=name, guild_id=ctx.guild.id)
         # p = foo[0]
         # print(p.completed_game_count())
