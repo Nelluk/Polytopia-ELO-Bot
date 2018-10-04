@@ -1,7 +1,7 @@
 import datetime
+import discord
 from peewee import *
 from playhouse.postgres_ext import *
-# import modules.utilities as utilities
 import modules.exceptions as exceptions
 from modules import utilities
 import logging
@@ -30,6 +30,37 @@ class Team(BaseModel):
     def get_by_name(team_name: str, guild_id: int):
         teams = Team.select().where((Team.name.contains(team_name)) & (Team.guild_id == guild_id))
         return teams
+
+    def completed_game_count(self):
+
+        num_games = SquadGame.select().join(Game).join_from(SquadGame, Team).where(
+            (SquadGame.team == self) & (SquadGame.game.is_completed == 'TRUE')
+        ).count()
+        print(f'team: {self.id} completed-game-count: {num_games}')
+
+        return num_games
+
+    def change_elo_after_game(self, opponent_elo, is_winner):
+
+        if self.completed_game_count() < 11:
+            max_elo_delta = 50
+        else:
+            max_elo_delta = 32
+
+        chance_of_winning = round(1 / (1 + (10 ** ((opponent_elo - self.elo) / 400.0))), 3)
+
+        if is_winner is True:
+            new_elo = round(self.elo + (max_elo_delta * (1 - chance_of_winning)), 0)
+        else:
+            new_elo = round(self.elo + (max_elo_delta * (0 - chance_of_winning)), 0)
+
+        elo_delta = int(new_elo - self.elo)
+        print('Team chance of winning: {} opponent elo {} current ELO {}, new elo {}, elo_delta {}'.format(chance_of_winning, opponent_elo, self.elo, new_elo, elo_delta))
+
+        self.elo = int(self.elo + elo_delta)
+        self.save()
+
+        return elo_delta
 
 
 class DiscordMember(BaseModel):
@@ -86,14 +117,19 @@ class Player(BaseModel):
         # output: True, [<Ronin>, <Ronin>]
 
         with db:
-            query = Team.select().where(Team.guild_id == guild_id)
+            query = Team.select(Team.name).where(Team.guild_id == guild_id)
             list_of_teams = [team.name for team in query]               # ['The Ronin', 'The Jets', ...]
             list_of_matching_teams = []
             for player in list_of_players:
                 matching_roles = utilities.get_matching_roles(player, list_of_teams)
                 if len(matching_roles) == 1:
+                    # TODO: This would be more efficient to do as one query and then looping over the list of teams one time for each player
                     name = next(iter(matching_roles))
-                    list_of_matching_teams.append(Team.get(Team.name == name))
+                    list_of_matching_teams.append(
+                        Team.select().where(
+                            (Team.name == name) & (Team.guild_id == guild_id)
+                        ).get()
+                    )
                 else:
                     list_of_matching_teams.append(None)
                     # Would be here if no player Roles match any known teams, -or- if they have more than one match
@@ -102,9 +138,15 @@ class Player(BaseModel):
             return same_team_flag, list_of_matching_teams
 
     def get_by_string(player_string: str, guild_id: int):
+        # Returns QuerySet containing players in current guild matching string. Searches against discord mention ID first, then exact discord name match,
+        # then falls back to substring match on name/nick, then a lastly a substring match of polytopia ID or polytopia in-game name
+
         try:
             p_id = int(player_string.strip('<>!@'))
             # lookup either on <@####> mention string or raw ID #
+            return Player.select(Player, DiscordMember).join(DiscordMember).where(
+                (DiscordMember.discord_id == p_id) & (Player.guild_id == guild_id)
+            )
         except ValueError:
             if len(player_string.split('#', 1)[0]) > 2:
                 discord_str = player_string.split('#', 1)[0]
@@ -121,15 +163,26 @@ class Player(BaseModel):
                 return name_exact_match
 
             # If no exact match, return any substring matches
-            return Player.select(Player, DiscordMember).join(DiscordMember).where(
+            name_substring_match = Player.select(Player, DiscordMember).join(DiscordMember).where(
                 ((Player.nick.contains(player_string)) | (DiscordMember.name.contains(discord_str))) & (Player.guild_id == guild_id)
             )
-        try:
-            return Player.select(Player, DiscordMember).join(DiscordMember).where(
-                (DiscordMember.discord_id == p_id) & (Player.guild_id == guild_id)
+
+            if len(name_substring_match) > 0:
+                return name_substring_match
+
+            # If no substring name matches, return anything with matching polytopia name or code
+            poly_fields_match = Player.select(Player, DiscordMember).join(DiscordMember).where(
+                ((DiscordMember.polytopia_id.contains(player_string)) | (DiscordMember.polytopia_name.contains(player_string))) & (Player.guild_id == guild_id)
             )
-        except DoesNotExist:
-            return []
+            return poly_fields_match
+
+    def completed_game_count(self):
+
+        num_games = SquadMemberGame.select().join(SquadGame).join(Game).join_from(SquadMemberGame, SquadMember).join(Player).where(
+            (SquadMemberGame.member.player == self) & (SquadMemberGame.squadgame.game.is_completed == 'TRUE')
+        ).count()
+
+        return num_games
 
     class Meta:
         indexes = ((('discord_member', 'guild_id'), True),)   # Trailing comma is required
@@ -161,17 +214,95 @@ class Game(BaseModel):
     completed_ts = DateTimeField(null=True, default=None)
     name = TextField(null=True)
 
+    def details(self):
+        {
+            'The Ronin': {
+                'lineup': [('player', 'elo_change_from_this_game', ':tribe_emoji:'), ('player', 'elo_change_from_this_game', ':tribe_emoji:')],
+                'team_elo_change': 100,
+                'team_obj': 'roninobj'
+            },
+            'The Sparkies': {
+                'lineup': [('player', 'elo_change_from_this_game', ':tribe_emoji:'), ('player', 'elo_change_from_this_game', ':tribe_emoji:')],
+                'team_elo_change': -100,
+                'team_obj': 'sparkiesobj'
+            }
+        }
+        # include squad?!
+
+    def embed(self, ctx):
+        if len(self.squads) != 2:
+            raise exceptions.CheckFailedError('Support for games with >2 sides not yet implemented')
+
+        home_side_team = self.squads[0]
+        away_side_team = self.squads[1]
+        side_home_roster = home_side_team.roster()
+        side_away_roster = away_side_team.roster()
+
+        game_headline = self.get_headline()
+        game_headline = game_headline.replace('\u00a0', '\n')   # Put game.name onto its own line if its there
+
+        embed = discord.Embed(title=game_headline)
+
+        if self.is_completed == 1:
+            embed.title += f'\n\nWINNER: {self.get_winner().name}'
+
+        embed.set_footer(text=f'Status: {"Completed" if self.is_completed else "Incomplete"}  -  Creation Date {str(self.date)}')
+
+        return embed
+
+    def get_headline(self):
+        if len(self.squads) != 2:
+            raise exceptions.CheckFailedError('Support for games with >2 sides not yet implemented')
+
+        home_name, away_name = self.squads[0].name(), self.squads[1].name()
+        home_emoji = self.squads[0].team.emoji if self.squads[0].team.emoji else ''
+        away_emoji = self.squads[1].team.emoji if self.squads[1].team.emoji else ''
+        game_name = f'\u00a0*{self.name}*' if self.name.strip() else ''  # \u00a0 is used as an invisible delimeter so game_name can be split out easily
+
+        return f'Game {self.id}   {home_emoji} **{home_name}** *vs* **{away_name}** {away_emoji}{game_name}'
+
     def team_size(self):
         return len(self.squads[0].membergame)
 
     def declare_winner(self, winning_side, confirm: bool):
-        print('here')
+
+        if len(self.squads) != 2:
+            raise exceptions.CheckFailedError('Support for games with >2 sides not yet implemented')
+
+        for squadgame in self.squads:
+            if squadgame != winning_side:
+                losing_side = squadgame
+
+        # STEP 1: INDIVIDUAL/PLAYER ELO
+        winning_side_ave_elo = winning_side.get_member_average_elo()
+        losing_side_ave_elo = losing_side.get_member_average_elo()
+
+        for winning_member in winning_side.membergame:
+            winning_member.change_elo_after_game(my_side_elo=winning_side_ave_elo, opponent_elo=losing_side_ave_elo, is_winner=True)
+
+        for losing_member in losing_side.membergame:
+            losing_member.change_elo_after_game(my_side_elo=losing_side_ave_elo, opponent_elo=winning_side_ave_elo, is_winner=False)
+
+        # STEP 2: SQUAD ELO
+        winning_squad_elo, losing_squad_elo = winning_side.squad.elo, losing_side.squad.elo
+        winning_side.elo_change_squad = winning_side.squad.change_elo_after_game(opponent_elo=losing_squad_elo, is_winner=True)
+        losing_side.elo_change_squad = losing_side.squad.change_elo_after_game(opponent_elo=winning_squad_elo, is_winner=False)
+
+        if self.team_size() > 1:
+            # STEP 3: TEAM ELO
+            winning_team_elo, losing_team_elo = winning_side.team.elo, losing_side.team.elo
+            winning_side.elo_change_team = winning_side.team.change_elo_after_game(opponent_elo=losing_team_elo, is_winner=True)
+            losing_side.elo_change_team = losing_side.team.change_elo_after_game(opponent_elo=winning_team_elo, is_winner=False)
+
         winning_side.is_winner = True
         winning_side.save()
+        losing_side.save()
+
         if confirm:
-            print('here1')
             self.is_confirmed = True
+
         self.is_completed = True
+        self.completed_ts = datetime.datetime.now()
         self.save()
 
     def create_game(teams, guild_id, name=None, require_teams=False):
@@ -233,21 +364,21 @@ class Game(BaseModel):
 
         return newgame, home_squadgame, away_squadgame
 
-    def load_all_related(self):
-        # Returns an array of SquadGames related to this Game instance, with all related records pre-fetched
+    # def load_all_related(self):
+    #     # Returns an array of SquadGames related to this Game instance, with all related records pre-fetched
 
-        squadgames = SquadGame.select(SquadGame, Team, Game).join(Team, JOIN.LEFT_OUTER).join_from(SquadGame, Game).where(SquadGame.game == self)
+    #     squadgames = SquadGame.select(SquadGame, Team, Game).join(Team, JOIN.LEFT_OUTER).join_from(SquadGame, Game).where(SquadGame.game == self)
 
-        subq = SquadMemberGame.select(
-            SquadMemberGame, Tribe, TribeFlair, SquadMember, Squad, Player, DiscordMember, Team).join(
-            SquadMember).join(
-            Squad).join_from(
-            SquadMemberGame, Tribe, JOIN.LEFT_OUTER).join(  # Need LEFT_OUTER_JOIN - default inner join would only return records that have a Tribe chosen
-            TribeFlair, JOIN.LEFT_OUTER).join_from(
-            SquadMember, Player).join(
-            Team, JOIN.LEFT_OUTER).join_from(Player, DiscordMember)
+    #     subq = SquadMemberGame.select(
+    #         SquadMemberGame, Tribe, TribeFlair, SquadMember, Squad, Player, DiscordMember, Team).join(
+    #         SquadMember).join(
+    #         Squad).join_from(
+    #         SquadMemberGame, Tribe, JOIN.LEFT_OUTER).join(  # Need LEFT_OUTER_JOIN - default inner join would only return records that have a Tribe chosen
+    #         TribeFlair, JOIN.LEFT_OUTER).join_from(
+    #         SquadMember, Player).join(
+    #         Team, JOIN.LEFT_OUTER).join_from(Player, DiscordMember)
 
-        return prefetch(squadgames, subq)
+    #     return prefetch(squadgames, subq)
 
     def load_full_game(game_id: int):
         # Returns a single Game object with all related tables pre-fetched. or None
@@ -295,23 +426,24 @@ class Game(BaseModel):
             if len(team_obj) > 1:
                 raise exceptions.CheckFailedError(f'More than one team match found for "{team}". Be more specific.')
             team_obj = team_obj[0]
-
+            print(team_obj)
             for squadgame in self.squads:
+                print(squadgame.team.id)
                 if squadgame.team == team_obj:
                     return team_obj, squadgame
             raise exceptions.CheckFailedError(f'{team_obj.name} did not play in game {self.id}.')
         else:
             raise exceptions.CheckFailedError('Player name or team name must be supplied for this function')
 
-    def get_winner_name(self):
+    def get_winner(self):
         # Returns player name of winner if its a 1v1, or team-name of winning side if its a group game
 
         for squadgame in self.squads:
             if squadgame.is_winner is True:
                 if len(squadgame.membergame) > 1:
-                    return squadgame.team.name
+                    return squadgame.team
                 else:
-                    return squadgame.membergame[0].member.player.name
+                    return squadgame.membergame[0].member.player
 
         return None
 
@@ -341,6 +473,37 @@ class Squad(BaseModel):
 
         return squads[0]
 
+    def completed_game_count(self):
+
+        num_games = SquadGame.select().join(Game).join_from(SquadGame, Squad).where(
+            (SquadGame.squad == self) & (SquadGame.game.is_completed == 'TRUE')
+        ).count()
+        print(f'squad: {self.id} completed-game-count: {num_games}')
+
+        return num_games
+
+    def change_elo_after_game(self, opponent_elo, is_winner):
+
+        if self.completed_game_count() < 6:
+            max_elo_delta = 50
+        else:
+            max_elo_delta = 32
+
+        chance_of_winning = round(1 / (1 + (10 ** ((opponent_elo - self.elo) / 400.0))), 3)
+
+        if is_winner is True:
+            new_elo = round(self.elo + (max_elo_delta * (1 - chance_of_winning)), 0)
+        else:
+            new_elo = round(self.elo + (max_elo_delta * (0 - chance_of_winning)), 0)
+
+        elo_delta = int(new_elo - self.elo)
+        print('Squad chance of winning: {} opponent elo:{} current ELO {}, new elo {}, elo_delta {}'.format(chance_of_winning, opponent_elo, self.elo, new_elo, elo_delta))
+
+        self.elo = int(self.elo + elo_delta)
+        self.save()
+
+        return elo_delta
+
 
 class SquadMember(BaseModel):
     player = ForeignKeyField(Player, null=False, on_delete='CASCADE')
@@ -350,19 +513,78 @@ class SquadMember(BaseModel):
 class SquadGame(BaseModel):
     game = ForeignKeyField(Game, null=False, backref='squads', on_delete='CASCADE')
     squad = ForeignKeyField(Squad, null=False, backref='squadgame', on_delete='CASCADE')
-    team = ForeignKeyField(Team, null=True, backref='squadgame')
+    team = ForeignKeyField(Team, null=False, backref='squadgame')
     elo_change_squad = SmallIntegerField(default=0)
     elo_change_team = SmallIntegerField(default=0)
     is_winner = BooleanField(default=False)
     team_chan_category = BitField(default=None, null=True)
     team_chan = BitField(default=None, null=True)   # Store category/ID of team channel for more consistent renaming-deletion
 
+    def get_member_average_elo(self):
+        elo_list = [mg.member.player.elo for mg in self.membergame]
+        return round(sum(elo_list) / len(elo_list))
+
+    def name(self):
+        if len(self.membergame) == 1:
+            # 1v1 game
+            return self.membergame[0].member.player.name
+        else:
+            # Team game
+            return self.team.name
+
+    def roster(self):
+        # Returns list of tuples [(player, elo_change_from_this_game, :tribe_emoji:)]
+        players = []
+
+        for mg in self.membergame:
+            players.append(
+                (mg.member.player, mg.elo_change_player, mg.emoji_str())
+            )
+
+        return players
+
 
 class SquadMemberGame(BaseModel):
     member = ForeignKeyField(SquadMember, null=False, backref='membergame', on_delete='CASCADE')
     squadgame = ForeignKeyField(SquadGame, null=False, backref='membergame', on_delete='CASCADE')
-    tribe = ForeignKeyField(Tribe, null=True)
+    tribe = ForeignKeyField(TribeFlair, null=True)
     elo_change_player = SmallIntegerField(default=0)
+
+    def change_elo_after_game(self, my_side_elo, opponent_elo, is_winner):
+        # Average(Away Side Elo) is compared to Average(Home_Side_Elo) for calculation - ie all members on a side will have the same elo_delta
+        # Team A: p1 900 elo, p2 1000 elo = 950 average
+        # Team B: p1 1000 elo, p2 1200 elo = 1100 average
+        # ELO is compared 950 vs 1100 and all players treated equally
+
+        num_games = self.member.player.completed_game_count()
+
+        if num_games < 6:
+            max_elo_delta = 75
+        elif num_games < 11:
+            max_elo_delta = 50
+        else:
+            max_elo_delta = 32
+
+        chance_of_winning = round(1 / (1 + (10 ** ((opponent_elo - my_side_elo) / 400.0))), 3)
+
+        if is_winner is True:
+            new_elo = round(my_side_elo + (max_elo_delta * (1 - chance_of_winning)), 0)
+        else:
+            new_elo = round(my_side_elo + (max_elo_delta * (0 - chance_of_winning)), 0)
+
+        elo_delta = int(new_elo - my_side_elo)
+        print(f'Player chance of winning: {chance_of_winning} opponent elo:{opponent_elo} my_side_elo: {my_side_elo},'
+                f'elo_delta {elo_delta}, current_player_elo {self.member.player.elo}, new_player_elo {int(self.member.player.elo + elo_delta)}')
+
+        self.member.player.elo = int(self.member.player.elo + elo_delta)
+        self.elo_change_player = elo_delta
+        self.member.player.save()
+        self.save()
+
+        return elo_delta
+
+    def emoji_str(self):
+        return self.tribe.emoji if self.tribe else ''
 
 
 with db:

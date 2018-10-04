@@ -3,7 +3,7 @@ import modules.utilities as utilities
 import settings
 import modules.exceptions as exceptions
 import peewee
-from modules.models import Game, db, Player  # Team, Game, Player, DiscordMember
+from modules.models import Game, db, Player, Team, SquadGame  # Team, Game, Player, DiscordMember
 # from bot import logger
 import logging
 
@@ -105,9 +105,9 @@ class games():
             logger.debug('here is_completed')
             if winning_game.is_confirmed is True:
                 logger.debug('here is_confirmed')
-                return await ctx.send(f'Game with ID {winning_game.id} is already marked as completed with winner **{winning_game.get_winner_name()}**')
+                return await ctx.send(f'Game with ID {winning_game.id} is already marked as completed with winner **{winning_game.get_winner().name}**')
             else:
-                await ctx.send(f'Warning: Unconfirmed game with ID {winning_game.id} had previously been marked with winner **{winning_game.get_winner_name()}**')
+                await ctx.send(f'Warning: Unconfirmed game with ID {winning_game.id} had previously been marked with winner **{winning_game.get_winner().name}**')
 
         if settings.is_staff(ctx, ctx.author):
             is_staff = True
@@ -136,7 +136,12 @@ class games():
     # @commands.has_any_role(*helper_roles)
     async def ts(self, ctx, name: str):
 
-        logger.error('test')
+        game = Game.get(id=1)
+        print(game.get_headline())
+        await ctx.send(embed=game.embed(ctx))
+        # foo = Player.get_by_string(player_string=name, guild_id=ctx.guild.id)
+        # p = foo[0]
+        # print(p.completed_game_count())
         # print(name)
         # p = Player.get_by_string(name)
 
