@@ -473,6 +473,8 @@ class games:
         `[p]games Nelluk rickdaheals incomplete`
         """
 
+        # TODO: remove 'and/&' to remove confusion over game names like Ocean & Prophesy
+
         arg_list = list(args)
 
         try:
@@ -976,6 +978,8 @@ class games:
         `[p]settribe 5 nelluk bardur` - Sets Nelluk to Bardur for game 5
         """
 
+        # TODO: allow bulk updates ie $settribe 100 nelluk bardur anarcho kickoo bakalol lux bomber oumaji
+
         if game is None:
             await ctx.send(f'No matching game was found.')
             return
@@ -1389,7 +1393,9 @@ def game_embed(ctx, game):
 
             embed.add_field(value='\u200b', name=' \u200b', inline=False)
 
+        # embed.add_field(value='http://www.discord.com/whatever', name='Powered by PolyChampions - Team-based League Play', inline=False)
         embed.set_footer(text=f'Status: {game_status}  -  Creation Date {str(game.date)}')
+
         return embed
         # await ctx.send(embed=embed)
 

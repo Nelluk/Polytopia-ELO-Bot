@@ -115,7 +115,7 @@ class Game(BaseModel):
 
         home_emoji = self.home_team.emoji if self.home_team.emoji else ''
         away_emoji = self.away_team.emoji if self.away_team.emoji else ''
-        game_name = f'\u00a0*{self.name}*' if self.name else ''
+        game_name = f'\u00a0*{self.name}*' if self.name else ''  # \u00a0 is used as an invisible delimeter so game_name can be split out easily
 
         return f'Game {self.id}   {home_emoji} **{home_name}** *vs* **{away_name}** {away_emoji}{game_name}'
 

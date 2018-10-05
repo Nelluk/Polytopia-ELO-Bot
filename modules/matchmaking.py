@@ -239,7 +239,7 @@ class matchmaking():
 
         match.delete_instance()
 
-    @in_bot_channel()
+    # @in_bot_channel()
     @commands.command(usage='match_id')
     async def match(self, ctx, match: poly_match):
         """Display details on a match"""
