@@ -1,9 +1,10 @@
+import discord
 from discord.ext import commands
 import modules.utilities as utilities
 import settings
 import modules.exceptions as exceptions
 import peewee
-from modules.models import Game, db, Player, Team, SquadGame, SquadMemberGame  # Team, Game, Player, DiscordMember
+from modules.models import Game, db, Player, Team, SquadGame, SquadMemberGame, DiscordMember  # Team, Game, Player, DiscordMember
 # from bot import logger
 import logging
 
@@ -20,16 +21,78 @@ class games():
         # https://discordpy.readthedocs.io/en/rewrite/ext/commands/commands.html#basic-converters
         # all-related records are prefetched
         try:
-            gid = int(game_id)
+            game = Game.load_full_game(game_id=int(game_id))
+            logger.debug(f'Game with ID {game_id} found.')
+            return game
         except ValueError:
-            logger.error(f'Invalid game ID "{game_id}".')
+            logger.warn(f'Invalid game ID "{game_id}".')
             return None
-        game = Game.load_full_game(game_id=gid)
-        return game
+        except peewee.DoesNotExist:
+            logger.warn(f'Game with ID {game_id} cannot be found.')
+            return None
+
+    async def on_member_update(self, before, after):
+        # Updates display name in DB if user changes their discord name or guild nick
+        if before.nick == after.nick and before.name == after.name:
+            return
+
+        try:
+            player = Player.select(Player, DiscordMember).join(DiscordMember).where(
+                (DiscordMember.discord_id == after.id) & (Player.guild_id == after.guild.id)
+            ).get()
+        except peewee.DoesNotExist:
+            return
+
+        player.discord_member.name = after.name
+        player.discord_member.save()
+        player.generate_display_name(player_name=after.name, player_nick=after.nick)
+
+    @commands.command(aliases=['namegame'], usage='game_id "New Name"')
+    # @commands.has_any_role(*helper_roles)
+    async def gamename(self, ctx, game: poly_game, *args):
+        """*Staff:* Renames an existing game
+        **Example:**
+        `[p]gamename 25 Mountains of Fire`
+        """
+
+        if game is None:
+            await ctx.send('No matching game was found.')
+            return
+
+        new_game_name = ' '.join(args)
+        with db:
+            # if game.name is not None:
+                # await self.update_game_channel_name(ctx, game=game, old_game_name=game.name, new_game_name=new_game_name)
+            # TODO: update for game channels
+            game.name = new_game_name.title()
+            game.save()
+        # await update_announcement(ctx, game)
+        # TODO: make above line work
+
+        await ctx.send(f'Game ID {game.id} has been renamed to "{game.name}"')
+
+    # @in_bot_channel()
+    @commands.command(aliases=['teamlb'])
+    @commands.cooldown(2, 30, commands.BucketType.channel)
+    async def lbteam(self, ctx):
+        """display team leaderboard"""
+        # TODO: Only show number of members who have an ELO ranking?
+        embed = discord.Embed(title='**Team Leaderboard**')
+        with db:
+            query = Team.select().order_by(-Team.elo).where(
+                ((Team.name != 'Home') & (Team.name != 'Away') & (Team.guild_id == ctx.guild.id))
+            )
+            for counter, team in enumerate(query):
+                team_role = discord.utils.get(ctx.guild.roles, name=team.name)
+                team_name_str = f'{team.name}({len(team_role.members)})'  # Show team name with number of members
+                # wins, losses = team.get_record()
+                wins, losses = 1, 2
+                embed.add_field(name=f'`{(counter + 1):>3}. {team_name_str:30}  (ELO: {team.elo:4})  W {wins} / L {losses}` {team.emoji}', value='\u200b', inline=False)
+        await ctx.send(embed=embed)
 
     @commands.command(aliases=['newgame'], brief='Helpers: Sets up a new game to be tracked', usage='"Name of Game" player1 player2 vs player3 player4')
     # @commands.has_any_role(*helper_roles)
-    # TODO: command should require 'Member' role on main server
+    # TODO: command should require 'Rider' role on main server. 2v2 should require above that
     async def startgame(self, ctx, game_name: str, *args):
         side_home, side_away = [], []
         example_usage = (f'Example usage:\n`{ctx.prefix}startgame "Name of Game" player2`- Starts a 1v1 game between yourself and player2'
@@ -136,21 +199,77 @@ class games():
     # @commands.has_any_role(*helper_roles)
     async def ts(self, ctx, name: str):
 
-        game = Game.load_full_game(game_id=1)
+        team = Team.get(id=4)
+        print(team.get_record())
+        return
+        # team = Team.get(name='The Ronin', guild_id=ctx.guild.id)
+        # wins = Game.select(Game, SquadGame, SquadMemberGame).join(SquadGame).join(SquadMemberGame).where(
+        #     (Game.is_completed == 1) & (SquadGame.team == team) & (SquadGame.is_winner == 1) & (SquadGame.membergame.id == 1)
+        # )
+        # print(wins)
+        # print(len(wins))
+        # for w in wins:
+        #     print(w.id, w.name)
 
-        await ctx.send(embed=game.embed(ctx))
+        q = SquadGame.select(SquadGame, SquadMemberGame).join(SquadMemberGame).where(
+            (peewee.fn.COUNT(SquadMemberGame.id) > 1)
+        )
+        q = SquadMemberGame.select(SquadMemberGame.squadgame).group_by(SquadMemberGame.squadgame).having(peewee.fn.COUNT('*') > 2)
 
-        # smg = SquadMemberGame.get(id=1)
-        # print(smg.tribe.emoji)
-        # foo = Player.get_by_string(player_string=name, guild_id=ctx.guild.id)
-        # p = foo[0]
-        # print(p.completed_game_count())
-        # print(name)
-        # p = Player.get_by_string(name)
+        q = SquadMemberGame.select(SquadMemberGame.squadgame.game, SquadGame.id, peewee.fn.COUNT(SquadMemberGame.member_id)).join(SquadGame).group_by(
+            SquadMemberGame.squadgame.game, SquadGame.id
+        ).having(peewee.fn.COUNT(SquadMemberGame.member_id) > 2).dicts()
 
-        # p[0].test()
-        # Player.test()
-        # Player.test(foo='blah')
+        subq = SquadMemberGame.select(SquadMemberGame.squadgame.game).join(SquadGame).group_by(
+            SquadMemberGame.squadgame.game
+        ).having(peewee.fn.COUNT('*') > 2)
+
+        q = Game.select(Game, SquadGame).join(SquadGame).where(
+            (Game.id.in_(subq)) & (Game.is_completed == 1) & (SquadGame.team == 4) & (SquadGame.is_winner == 1)
+        )
+
+        # q = SquadGame.select(SquadGame, Game).join(Game).where(
+        #     (Game.id.in_(subq)) & (Game.is_completed == 1)
+        # )
+
+        print(q)
+        print(f'len: {len(q)}')
+        # print(dir(q))
+        for r in q:
+            print(r.id)
+        #     print(r.id, r)
+
+    # @in_bot_channel()
+    @commands.command(aliases=['games'], brief='Find games or see a game\'s details', usage='game_id')
+    async def game(self, ctx, *args):
+
+        """Filter/search for specific games, or see a game's details.
+        **Examples**:
+        `[p]game 51` - See details on game # 51.
+        `[p]games Jets`
+        `[p]games Jets Ronin`
+        `[p]games Nelluk`
+        `[p]games Nelluk rickdaheals [or more players]`
+        `[p]games Jets loss` - Jets losses
+        `[p]games Ronin win` - Ronin victories
+        `[p]games Jets Ronin incomplete`
+        `[p]games Nelluk win`
+        `[p]games Nelluk rickdaheals incomplete`
+        """
+
+        # TODO: remove 'and/&' to remove confusion over game names like Ocean & Prophesy
+
+        arg_list = list(args)
+
+        try:
+            game_id = int(''.join(arg_list))
+            game = Game.load_full_game(game_id=game_id)     # Argument is an int, so show game by ID
+            embed = game.embed(ctx)
+            return await ctx.send(embed=embed)
+        except ValueError:
+            return
+        except peewee.DoesNotExist:
+            return await ctx.send('Game with ID {} cannot be found.'.format(game_id))
 
 
 def setup(bot):

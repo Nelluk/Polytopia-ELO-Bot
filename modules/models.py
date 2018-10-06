@@ -62,6 +62,23 @@ class Team(BaseModel):
 
         return elo_delta
 
+    def get_record(self):
+
+        # Filter 1v1 games from results
+        subq = SquadMemberGame.select(SquadMemberGame.squadgame.game).join(SquadGame).group_by(
+            SquadMemberGame.squadgame.game
+        ).having(fn.COUNT('*') > 2)
+
+        wins = Game.select(Game, SquadGame).join(SquadGame).where(
+            (Game.id.in_(subq)) & (Game.is_completed == 1) & (SquadGame.team == self) & (SquadGame.is_winner == 1)
+        ).count()
+
+        losses = Game.select(Game, SquadGame).join(SquadGame).where(
+            (Game.id.in_(subq)) & (Game.is_completed == 1) & (SquadGame.team == self) & (SquadGame.is_winner == 0)
+        ).count()
+
+        return (wins, losses)
+
 
 class DiscordMember(BaseModel):
     discord_id = BitField(unique=True, null=False)
@@ -254,15 +271,15 @@ class Game(BaseModel):
                 if winning_discord_member is not None:
                     embed.set_thumbnail(url=winning_discord_member.avatar_url_as(size=512))
             elif winner.image_url:
-                embed.set_thumbnail(url=game.winner.image_url)
+                embed.set_thumbnail(url=winner.image_url)
 
         # TEAM/SQUAD ELOs and ELO DELTAS
+        home_team_elo_str, home_squad_elo_str = home_side.elo_strings()
+        away_team_elo_str, away_squad_elo_str = away_side.elo_strings()
+
         if home_side.team.name == 'Home' and away_side.team.name == 'Away':
             # Hide team ELO if its just generic Home/Away
             home_team_elo_str = away_team_elo_str = ''
-        else:
-            home_team_elo_str, home_squad_elo_str = home_side.elo_strings()
-            away_team_elo_str, away_squad_elo_str = home_side.elo_strings()
 
         if self.team_size() == 1:
             # Hide squad ELO stats for 1v1 games
@@ -272,7 +289,7 @@ class Game(BaseModel):
 
         for side, elo_str, squad_str, roster in game_data:
             if self.team_size() > 1:
-                embed.add_field(name=f'Lineup for Team **{side.team.name}**{elo_str}', value=squad_str, inline=False)
+                embed.add_field(name=f'Lineup for Team **{side.team.name}** {elo_str}', value=squad_str, inline=False)
 
             for player, player_elo_str, tribe_emoji in roster:
                 embed.add_field(name=f'**{player.name}** {tribe_emoji}', value=f'ELO: {player_elo_str}', inline=True)
@@ -412,7 +429,7 @@ class Game(BaseModel):
         res = prefetch(game, subq, subq2)
 
         if len(res) == 0:
-            return None
+            raise DoesNotExist()
         return res[0]
 
     def return_participant(self, ctx, player=None, team=None):
@@ -545,8 +562,10 @@ class SquadGame(BaseModel):
         squad_elo_str = str(self.elo_change_squad) if self.elo_change_squad != 0 else ''
         if self.elo_change_squad > 0:
             squad_elo_str = '+' + squad_elo_str
+        if squad_elo_str:
+            squad_elo_str = '(' + squad_elo_str + ')'
 
-        return (f'{self.team.elo} {team_elo_str}', f'{self.squad.elo} {squad_elo_str}')
+        return (f'({self.team.elo} {team_elo_str})', f'{self.squad.elo} {squad_elo_str}')
 
     def get_member_average_elo(self):
         elo_list = [mg.member.player.elo for mg in self.membergame]
