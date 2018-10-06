@@ -4,7 +4,7 @@ import modules.utilities as utilities
 import settings
 import modules.exceptions as exceptions
 import peewee
-from modules.models import Game, db, Player, Team, SquadGame, SquadMemberGame, DiscordMember  # Team, Game, Player, DiscordMember
+from modules.models import Game, db, Player, Team, SquadGame, SquadMemberGame, DiscordMember, Squad, SquadMember  # Team, Game, Player, DiscordMember
 # from bot import logger
 import logging
 
@@ -199,44 +199,21 @@ class games():
     # @commands.has_any_role(*helper_roles)
     async def ts(self, ctx, name: str):
 
-        team = Team.get(id=4)
-        print(team.get_record())
+        player = Player.get(id=1)
+        print(player.get_record())
         return
-        # team = Team.get(name='The Ronin', guild_id=ctx.guild.id)
-        # wins = Game.select(Game, SquadGame, SquadMemberGame).join(SquadGame).join(SquadMemberGame).where(
-        #     (Game.is_completed == 1) & (SquadGame.team == team) & (SquadGame.is_winner == 1) & (SquadGame.membergame.id == 1)
-        # )
-        # print(wins)
-        # print(len(wins))
-        # for w in wins:
-        #     print(w.id, w.name)
 
-        q = SquadGame.select(SquadGame, SquadMemberGame).join(SquadMemberGame).where(
-            (peewee.fn.COUNT(SquadMemberGame.id) > 1)
-        )
-        q = SquadMemberGame.select(SquadMemberGame.squadgame).group_by(SquadMemberGame.squadgame).having(peewee.fn.COUNT('*') > 2)
-
-        q = SquadMemberGame.select(SquadMemberGame.squadgame.game, SquadGame.id, peewee.fn.COUNT(SquadMemberGame.member_id)).join(SquadGame).group_by(
-            SquadMemberGame.squadgame.game, SquadGame.id
-        ).having(peewee.fn.COUNT(SquadMemberGame.member_id) > 2).dicts()
-
-        subq = SquadMemberGame.select(SquadMemberGame.squadgame.game).join(SquadGame).group_by(
+        q = SquadMemberGame.select(SquadMemberGame.squadgame.game).join(SquadGame).join(Game).join_from(SquadMemberGame, SquadMember).group_by(
             SquadMemberGame.squadgame.game
-        ).having(peewee.fn.COUNT('*') > 2)
-
-        q = Game.select(Game, SquadGame).join(SquadGame).where(
-            (Game.id.in_(subq)) & (Game.is_completed == 1) & (SquadGame.team == 4) & (SquadGame.is_winner == 1)
-        )
-
-        # q = SquadGame.select(SquadGame, Game).join(Game).where(
-        #     (Game.id.in_(subq)) & (Game.is_completed == 1)
-        # )
+        ).where(
+            (SquadMemberGame.member.player == player) & (SquadGame.is_winner == 1) & (Game.is_completed == 1)
+        ).dicts()
 
         print(q)
-        print(f'len: {len(q)}')
-        # print(dir(q))
+        # print(f'len: {len(q)}')
+        # # print(dir(q))
         for r in q:
-            print(r.id)
+            print(r)
         #     print(r.id, r)
 
     # @in_bot_channel()

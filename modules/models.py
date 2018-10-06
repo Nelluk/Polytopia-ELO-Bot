@@ -201,6 +201,29 @@ class Player(BaseModel):
 
         return num_games
 
+    def wins(self):
+        # TODO: Could combine wins/losses into one function that takes an argument and modifies query
+        q = SquadMemberGame.select(SquadMemberGame.squadgame.game).join(SquadGame).join(Game).join_from(SquadMemberGame, SquadMember).group_by(
+            SquadMemberGame.squadgame.game
+        ).where(
+            (SquadMemberGame.member.player == self) & (SquadGame.is_winner == 1) & (Game.is_completed == 1)
+        )
+
+        return q
+
+    def losses(self):
+        q = SquadMemberGame.select(SquadMemberGame.squadgame.game).join(SquadGame).join(Game).join_from(SquadMemberGame, SquadMember).group_by(
+            SquadMemberGame.squadgame.game
+        ).where(
+            (SquadMemberGame.member.player == self) & (SquadGame.is_winner == 0) & (Game.is_completed == 1)
+        )
+
+        return q
+
+    def get_record(self):
+
+        return (self.wins().count(), self.losses().count())
+
     class Meta:
         indexes = ((('discord_member', 'guild_id'), True),)   # Trailing comma is required
 
@@ -534,6 +557,24 @@ class Squad(BaseModel):
         self.save()
 
         return elo_delta
+
+    def get_record(self):
+        # TODO: Not sure if 1v1 filter should be on Squad.get_record() or not
+
+        # Filter 1v1 games from results
+        subq = SquadMemberGame.select(SquadMemberGame.squadgame.game).join(SquadGame).group_by(
+            SquadMemberGame.squadgame.game
+        ).having(fn.COUNT('*') > 2)
+
+        wins = Game.select(Game, SquadGame).join(SquadGame).where(
+            (Game.id.in_(subq)) & (Game.is_completed == 1) & (SquadGame.squad == self) & (SquadGame.is_winner == 1)
+        ).count()
+
+        losses = Game.select(Game, SquadGame).join(SquadGame).where(
+            (Game.id.in_(subq)) & (Game.is_completed == 1) & (SquadGame.squad == self) & (SquadGame.is_winner == 0)
+        ).count()
+
+        return (wins, losses)
 
 
 class SquadMember(BaseModel):
