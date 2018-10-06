@@ -1,5 +1,4 @@
 import discord
-import datetime
 import argparse
 import traceback
 from discord.ext import commands
@@ -49,8 +48,6 @@ try:
 except KeyError:
     print('Error finding required setting discord_key in settings.py file - it should be in the DEFAULT section')
     exit(0)
-
-date_cutoff = datetime.datetime.today() - datetime.timedelta(days=90)  # Players who haven't played since cutoff are not included in leaderboards
 
 
 def get_prefix(bot, message):

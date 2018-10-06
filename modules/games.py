@@ -90,6 +90,91 @@ class games():
                 embed.add_field(name=f'`{(counter + 1):>3}. {team_name_str:30}  (ELO: {team.elo:4})  W {wins} / L {losses}` {team.emoji}', value='\u200b', inline=False)
         await ctx.send(embed=embed)
 
+    # @in_bot_channel()
+    @commands.command(brief='See details on a player', usage='player_name', aliases=['elo'])
+    async def player(self, ctx, *args):
+        """See your own player card or the card of another player
+        This also will find results based on a game-code or in-game name, if set.
+        **Examples**
+        `[p]player` - See your own player card
+        `[p]player Nelluk` - See Nelluk's card
+        """
+
+        with db:
+            if len(args) == 0:
+                # Player looking for info on themselves
+                player = Player.get_by_string(player_string=f'<@{ctx.author.id}>', guild_id=ctx.guild.id)
+                if len(player) != 1:
+                    return await ctx.send(f'Could not find you in the database. Try setting your code with {ctx.prefix}setcode')
+                player = player[0]
+            else:
+                # Otherwise look for a player matching whatever they entered
+                player_mention = ' '.join(args)
+                matching_players = Player.get_by_string(player_string=player_mention, guild_id=ctx.guild.id)
+                if len(matching_players) == 1:
+                    player = matching_players[0]
+                elif len(matching_players) == 0:
+                    # No matching name in database. Fall back to searching on polytopia_id or polytopia_name. Warn if player is found in guild.
+                    matches = await utilities.get_guild_member(ctx, player_mention)
+                    if len(matches) > 0:
+                        await ctx.send(f'"{player_mention}" was found in the server but is not registered with me. '
+                            f'Players can be registered with `{ctx.prefix}setcode` or being in a new game\'s lineup.')
+
+                    return await ctx.send(f'Could not find \"{player_mention}\" by Discord name, Polytopia name, or Polytopia ID.')
+
+                else:
+                    await ctx.send('There is more than one player found with that name. Specify user with @Mention.'.format(player_mention))
+                    return
+        with db:
+            wins, losses = player.get_record()
+            rank, lb_length = player.leaderboard_rank(settings.date_cutoff)
+
+            if rank is None:
+                rank_str = 'Unranked'
+            else:
+                rank_str = f'{rank} of {lb_length}'
+
+            embed = discord.Embed(title=f'Player card for {player.name}')
+            embed.add_field(name='Results', value=f'ELO: {player.elo}, W {wins} / L {losses}')
+            embed.add_field(name='Ranking', value=rank_str)
+
+            guild_member = ctx.guild.get_member(player.discord_member.discord_id)
+            if guild_member is not None:
+                embed.set_thumbnail(url=guild_member.avatar_url_as(size=512))
+
+            if player.team:
+                team_str = f'{player.team.name} {player.team.emoji}' if player.team.emoji else player.team.name
+                embed.add_field(name='Last-known Team', value=team_str)
+            if player.discord_member.polytopia_name:
+                embed.add_field(name='Polytopia Game Name', value=player.discord_member.polytopia_name)
+            if player.discord_member.polytopia_id:
+                embed.add_field(name='Polytopia ID', value=player.discord_member.polytopia_id)
+                content_str = player.discord_member.polytopia_id
+                # Used as a single message before player card so users can easily copy/paste Poly ID
+            else:
+                content_str = ''
+
+            embed.add_field(value='\u200b', name='Most recent games', inline=False)
+            recent_games = Game.select(Game.id).join(SquadGame).join(SquadMemberGame).join(SquadMember).where(
+                (SquadMemberGame.member.player == player)
+            ).order_by(-Game.date)[:7]
+
+            for game in recent_games:
+                game = Game.load_full_game(game_id=game.id)  # preloads game data to reduce DB queries.
+                if game.is_completed == 0:
+                    status = 'Incomplete'
+                else:
+                    player_team = SquadGame.select(SquadGame.is_winner).join(SquadMemberGame).join(SquadMember).where(
+                        (SquadGame.game == game) & (SquadMemberGame.member.player == player)
+                    ).get()
+                    print(player_team)
+                    status = '**WIN**' if player_team.is_winner == 1 else '***Loss***'
+
+                    embed.add_field(name=f'{game.get_headline()}',
+                                value=f'{status} - {str(game.date)} - {game.team_size()}v{game.team_size()}')
+
+            await ctx.send(content=content_str, embed=embed)
+
     @commands.command(aliases=['newgame'], brief='Helpers: Sets up a new game to be tracked', usage='"Name of Game" player1 player2 vs player3 player4')
     # @commands.has_any_role(*helper_roles)
     # TODO: command should require 'Rider' role on main server. 2v2 should require above that
@@ -200,14 +285,8 @@ class games():
     async def ts(self, ctx, name: str):
 
         player = Player.get(id=1)
-        print(player.get_record())
+        print(player.leaderboard_rank(date_cutoff=settings.date_cutoff))
         return
-
-        q = SquadMemberGame.select(SquadMemberGame.squadgame.game).join(SquadGame).join(Game).join_from(SquadMemberGame, SquadMember).group_by(
-            SquadMemberGame.squadgame.game
-        ).where(
-            (SquadMemberGame.member.player == player) & (SquadGame.is_winner == 1) & (Game.is_completed == 1)
-        ).dicts()
 
         print(q)
         # print(f'len: {len(q)}')

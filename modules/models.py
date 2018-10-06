@@ -1,5 +1,6 @@
 import datetime
 import discord
+import settings
 from peewee import *
 from playhouse.postgres_ext import *
 import modules.exceptions as exceptions
@@ -223,6 +224,34 @@ class Player(BaseModel):
     def get_record(self):
 
         return (self.wins().count(), self.losses().count())
+
+    def leaderboard_rank(self, date_cutoff):
+        # TODO: This could be replaced with Postgresql Window functions to have the DB calculate the rank.
+        # Advantages: Probably moderately more efficient, and will resolve ties in a sensible way
+        # But no idea how to write the query :/
+
+        query = Player.leaderboard(date_cutoff=date_cutoff, guild_id=self.guild_id)
+
+        player_found = False
+        for counter, p in enumerate(query.tuples()):
+            print(p)
+            if p[0] == self.id:
+                player_found = True
+                break
+
+        rank = counter + 1 if player_found else None
+        return (rank, query.count())
+
+    def leaderboard(date_cutoff, guild_id: int):
+        query = Player.select().join(SquadMember).join(SquadMemberGame).join_from(SquadMemberGame, SquadGame).join(Game).where(
+            (Player.guild_id == guild_id) & (Game.is_completed == 1) & (Game.date > date_cutoff)
+        ).distinct().order_by(-Player.elo)
+
+        if query.count() < 10:
+            # Include all registered players on leaderboard if not many games played
+            query = Player.select().where(Player.guild_id == guild_id).order_by(-Player.elo)
+
+        return query
 
     class Meta:
         indexes = ((('discord_member', 'guild_id'), True),)   # Trailing comma is required
@@ -560,6 +589,7 @@ class Squad(BaseModel):
 
     def get_record(self):
         # TODO: Not sure if 1v1 filter should be on Squad.get_record() or not
+        # Probably should make this more similar to Player.get_record()
 
         # Filter 1v1 games from results
         subq = SquadMemberGame.select(SquadMemberGame.squadgame.game).join(SquadGame).group_by(
