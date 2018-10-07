@@ -63,19 +63,20 @@ class Team(BaseModel):
 
         return elo_delta
 
-    def get_record(self):
-
-        # Filter 1v1 games from results
-        subq = SquadMemberGame.select(SquadMemberGame.squadgame.game).join(SquadGame).group_by(
+    def team_games_subq():
+        # Subquery of all games with more than 2 players
+        return SquadMemberGame.select(SquadMemberGame.squadgame.game).join(SquadGame).group_by(
             SquadMemberGame.squadgame.game
         ).having(fn.COUNT('*') > 2)
 
+    def get_record(self):
+
         wins = Game.select(Game, SquadGame).join(SquadGame).where(
-            (Game.id.in_(subq)) & (Game.is_completed == 1) & (SquadGame.team == self) & (SquadGame.is_winner == 1)
+            (Game.id.in_(Team.team_games_subq())) & (Game.is_completed == 1) & (SquadGame.team == self) & (SquadGame.is_winner == 1)
         ).count()
 
         losses = Game.select(Game, SquadGame).join(SquadGame).where(
-            (Game.id.in_(subq)) & (Game.is_completed == 1) & (SquadGame.team == self) & (SquadGame.is_winner == 0)
+            (Game.id.in_(Team.team_games_subq())) & (Game.is_completed == 1) & (SquadGame.team == self) & (SquadGame.is_winner == 0)
         ).count()
 
         return (wins, losses)

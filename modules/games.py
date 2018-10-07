@@ -175,6 +175,63 @@ class games():
 
             await ctx.send(content=content_str, embed=embed)
 
+    # @in_bot_channel()
+    @commands.command(usage='team_name')
+    async def team(self, ctx, team_string: str):
+        """See details on a team
+        **Example:**
+        [p]team Ronin
+        """
+
+        matching_teams = Team.get_by_name(team_string, ctx.guild.id)
+        if len(matching_teams) > 1:
+            return await ctx.send('More than one matching team found. Be more specific or trying using a quoted \"Team Name\"')
+        if len(matching_teams) == 0:
+            return await ctx.send(f'Cannot find a team with name "{team_string}". Be sure to use the full name, surrounded by quotes if it is more than one word.')
+        team = matching_teams[0]
+
+        team_role = discord.utils.get(ctx.guild.roles, name=team.name)
+        # team_members = [x.name for x in team_role.members]
+        member_stats = []
+        for member in team_role.members:
+            # Create a list of members - pull ELO score from database if they are registered, or with 0 ELO if they are not
+            p = Player.get_by_string(player_string=str(member.id), guild_id=ctx.guild.id)
+            if len(p) == 0:
+                member_stats.append((member.name, 0, '\u200b'))
+            else:
+                member_stats.append((f'**{p[0].name}**', p[0].elo, f'({p[0].elo})'))
+
+        member_stats.sort(key=lambda tup: tup[1], reverse=True)     # sort the list descending by ELO
+        members_sorted = [f'{x[0]}{x[2]}' for x in member_stats]    # create list of strings like Nelluk(1000)
+
+        wins, losses = team.get_record()
+
+        embed = discord.Embed(title=f'Team card for **{team.name}** {team.emoji}')
+        embed.add_field(name='Results', value=f'ELO: {team.elo}   Wins {wins} / Losses {losses}')
+        embed.add_field(name=f'Members({len(member_stats)})', value=f'{" / ".join(members_sorted)}')
+
+        if team.image_url:
+            embed.set_thumbnail(url=team.image_url)
+
+        embed.add_field(value='*Recent games*', name='\u200b', inline=False)
+
+        recent_games = SquadGame.select(SquadGame, Game).join(Game).where(
+            (Game.id.in_(Team.team_games_subq())) & (SquadGame.team == team)
+        ).order_by(-Game.date)[:7]
+
+        for squadgame in recent_games:
+            game = Game.load_full_game(game_id=squadgame.game)
+            if game.is_completed == 1:
+                result = '**WIN**' if squadgame.is_winner == 1 else 'LOSS'
+            else:
+                result = 'Incomplete'
+
+            # headline = game.get_headline()
+            embed.add_field(name=f'{game.get_headline()}',
+                value=f'{result} - {str(game.date)} - {game.team_size()}v{game.team_size()}')
+
+        await ctx.send(embed=embed)
+
     @commands.command(aliases=['newgame'], brief='Helpers: Sets up a new game to be tracked', usage='"Name of Game" player1 player2 vs player3 player4')
     # @commands.has_any_role(*helper_roles)
     # TODO: command should require 'Rider' role on main server. 2v2 should require above that
@@ -245,6 +302,7 @@ class games():
 
     @commands.command(aliases=['endgame', 'win'], usage='game_id winner_name')
     # @commands.has_any_role(*helper_roles)
+    # TODO: output/announcements
     async def wingame(self, ctx, winning_game: poly_game, winning_side_name: str):
         if winning_game is None:
             return await ctx.send(f'No matching game was found.')
@@ -284,9 +342,12 @@ class games():
     # @commands.has_any_role(*helper_roles)
     async def ts(self, ctx, name: str):
 
-        player = Player.get(id=1)
-        print(player.leaderboard_rank(date_cutoff=settings.date_cutoff))
-        return
+        # team = Team.get(id=13)
+        # q = SquadMemberGame.select(SquadMemberGame.squadgame.game).join(SquadGame).group_by(
+        #     SquadMemberGame.squadgame.game
+        # ).having(peewee.fn.COUNT('*') > 2)
+
+        # q = SquadGame.select()
 
         print(q)
         # print(f'len: {len(q)}')
