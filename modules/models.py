@@ -284,6 +284,29 @@ class TribeFlair(BaseModel):
         indexes = ((('tribe', 'guild_id'), True),)   # Trailing comma is required
         # http://docs.peewee-orm.com/en/3.6.0/peewee/models.html#multi-column-indexes
 
+    def get_by_name(name: str, guild_id: int):
+        tribe_match = TribeFlair.select(TribeFlair, Tribe).join(Tribe).where(
+            (Tribe.name.contains(name)) & (TribeFlair.guild_id == guild_id)
+        )
+
+        if len(tribe_match) == 0:
+            return None
+        else:
+            return tribe_match[0]
+
+    def upsert(name: str, guild_id: int, emoji: str):
+        try:
+            tribe = Tribe.get(Tribe.name.contains(name))
+        except DoesNotExist:
+            raise exceptions.CheckFailedError(f'Could not find any tribe name containing "{name}"')
+
+        tribeflair, created = TribeFlair.get_or_create(tribe=tribe, guild_id=guild_id, defaults={'emoji': emoji})
+        if not created:
+            tribeflair.emoji = emoji
+            tribeflair.save()
+
+        return tribeflair
+
 
 class Game(BaseModel):
     name = TextField(null=True)

@@ -4,7 +4,7 @@ import modules.utilities as utilities
 import settings
 import modules.exceptions as exceptions
 import peewee
-from modules.models import Game, db, Player, Team, SquadGame, SquadMemberGame, DiscordMember, Squad, SquadMember  # Team, Game, Player, DiscordMember
+from modules.models import Game, db, Player, Team, SquadGame, SquadMemberGame, DiscordMember, Squad, SquadMember, TribeFlair  # Team, Game, Player, DiscordMember
 # from bot import logger
 import logging
 
@@ -456,14 +456,30 @@ class games():
 
         winning_game.declare_winner(winning_side=winning_side, confirm=is_staff)
 
+    @commands.command(usage='tribe_name new_emoji')
+    # @commands.has_any_role(*mod_roles)
+    async def tribe_emoji(self, ctx, tribe_name: str, emoji):
+        """Mod: Assign an emoji to a tribe
+        **Example:**
+        `[p]tribe_emoji Bardur :new_bardur_emoji:`
+        """
+
+        if len(emoji) != 1 and ('<:' not in emoji):
+            return await ctx.send('Valid emoji not detected. Example: `{}tribe_emoji Tribename :my_custom_emoji:`'.format(ctx.prefix))
+
+        tribeflair = TribeFlair.upsert(name=tribe_name, guild_id=ctx.guild.id, emoji=emoji)
+
+        await ctx.send('Tribe {0.tribe.name} updated with new emoji: {0.emoji}'.format(tribeflair))
+
     @commands.command()
     # @commands.has_any_role(*helper_roles)
     async def ts(self, ctx, name: str):
 
-        member = (await utilities.get_guild_member(ctx, name))[0]
-        print(member.top_role)
+        tf = TribeFlair.get_by_name(name=name, guild_id=ctx.guild.id)
+        print(tf.tribe.name)
 
     # @in_bot_channel()
+    # TODO: searching. this is just bare bones 'show embed of game ID' currently
     @commands.command(aliases=['games'], brief='Find games or see a game\'s details', usage='game_id')
     async def game(self, ctx, *args):
 
