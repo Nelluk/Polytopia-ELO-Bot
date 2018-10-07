@@ -159,16 +159,16 @@ class games():
                 (SquadMemberGame.member.player == player)
             ).order_by(-Game.date)[:7]
 
-            for game in recent_games:
-                game = Game.load_full_game(game_id=game.id)  # preloads game data to reduce DB queries.
+            recent_games = SquadGame.select(SquadGame, Game).join(Game).join_from(SquadGame, SquadMemberGame).join(SquadMember).where(
+                (SquadMemberGame.member.player == player)
+            ).order_by(-Game.date)[:7]
+
+            for squadgame in recent_games:
+                game = Game.load_full_game(game_id=squadgame.game)  # preloads game data to reduce DB queries.
                 if game.is_completed == 0:
                     status = 'Incomplete'
                 else:
-                    player_team = SquadGame.select(SquadGame.is_winner).join(SquadMemberGame).join(SquadMember).where(
-                        (SquadGame.game == game) & (SquadMemberGame.member.player == player)
-                    ).get()
-                    print(player_team)
-                    status = '**WIN**' if player_team.is_winner == 1 else '***Loss***'
+                    status = '**WIN**' if squadgame.is_winner == 1 else '***Loss***'
 
                     embed.add_field(name=f'{game.get_headline()}',
                                 value=f'{status} - {str(game.date)} - {game.team_size()}v{game.team_size()}')
