@@ -115,17 +115,30 @@ class Player(BaseModel):
         return display_name
 
     def upsert(discord_member_obj, guild_id, team=None):
-        # Uses insert() with conflict_target updating (ie upsert). issue is that it returns row #, not created record
-        discord_member, _ = DiscordMember.get_or_create(discord_id=discord_member_obj.id, defaults={'name': discord_member_obj.name})
-
+        # Stopped using postgres upsert on_conflict() because it only returns row ID so its annoying to use
         display_name = Player.generate_display_name(player_name=discord_member_obj.name, player_nick=discord_member_obj.nick)
-        # http://docs.peewee-orm.com/en/latest/peewee/querying.html#upsert
-        player = Player.insert(discord_member=discord_member, guild_id=guild_id, nick=discord_member_obj.nick, name=display_name, team=team).on_conflict(
-            conflict_target=[Player.discord_member, Player.guild_id],  # update if exists
-            preserve=[Player.team, Player.nick, Player.name]  # refresh team/nick with new value
-        ).execute()
 
-        return player
+        try:
+            with db.atomic():
+                discord_member = DiscordMember.create(discord_id=discord_member_obj.id, name=discord_member_obj.name)
+        except IntegrityError:
+            discord_member = DiscordMember.get(discord_id=discord_member_obj.id)
+            discord_member.name = discord_member_obj.name
+            discord_member.save()
+
+        try:
+            with db.atomic():
+                player = Player.create(discord_member=discord_member, guild_id=guild_id, nick=discord_member_obj.nick, name=display_name, team=team)
+            created = True
+        except IntegrityError:
+            created = False
+            player = Player.get(discord_member=discord_member, guild_id=guild_id)
+            player.nick = discord_member_obj.nick
+            player.name = display_name
+            player.team = team
+            player.save()
+
+        return player, created
 
     def get_teams_of_players(guild_id, list_of_players):
         # TODO: make function async? Tried but got invalid syntax complaint in linter in the calling function
@@ -443,10 +456,10 @@ class Game(BaseModel):
             side_away_players = []
             # Create/update Player records
             for player_discord, player_team in zip(teams[0], list_of_home_teams):
-                side_home_players.append(Player.upsert(player_discord, guild_id=guild_id, team=player_team))
+                side_home_players.append(Player.upsert(player_discord, guild_id=guild_id, team=player_team)[0])
 
             for player_discord, player_team in zip(teams[1], list_of_away_teams):
-                side_away_players.append(Player.upsert(player_discord, guild_id=guild_id, team=player_team))
+                side_away_players.append(Player.upsert(player_discord, guild_id=guild_id, team=player_team)[0])
 
             # Create/update Squad records
             home_squad = Squad.upsert(player_list=side_home_players)
@@ -545,7 +558,7 @@ class Squad(BaseModel):
         return query
 
     def upsert(player_list):
-        # TODO: could re-write to be a legit upsert as in Player.upsert
+
         squads = Squad.get_matching_squad(player_list)
 
         if len(squads) == 0:

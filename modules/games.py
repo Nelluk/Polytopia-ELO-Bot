@@ -72,6 +72,24 @@ class games():
         await ctx.send(f'Game ID {game.id} has been renamed to "{game.name}"')
 
     # @in_bot_channel()
+    @commands.command()
+    @commands.cooldown(2, 30, commands.BucketType.channel)
+    async def lb(self, ctx):
+        """ Display individual leaderboard"""
+
+        leaderboard = []
+        with db:
+            leaderboard_query = Player.leaderboard(date_cutoff=settings.date_cutoff, guild_id=ctx.guild.id)
+            for counter, player in enumerate(leaderboard_query[:500]):
+                wins, losses = player.get_record()
+                emoji_str = player.team.emoji if player.team else ''
+                leaderboard.append(
+                    (f'`{(counter + 1):>3}.` {emoji_str}`{player.name}`', f'`(ELO: {player.elo:4}) W {wins} / L {losses}`')
+                )
+
+        await utilities.paginate(self.bot, ctx, title='**Individual Leaderboards**', message_list=leaderboard, page_start=0, page_end=10, page_size=10)
+
+    # @in_bot_channel()
     @commands.command(aliases=['teamlb'])
     @commands.cooldown(2, 30, commands.BucketType.channel)
     async def lbteam(self, ctx):
@@ -231,6 +249,59 @@ class games():
                 value=f'{result} - {str(game.date)} - {game.team_size()}v{game.team_size()}')
 
         await ctx.send(embed=embed)
+
+    @commands.command(brief='Sets a Polytopia game code and registers user with the bot', usage='[user] polytopia_code')
+    async def setcode(self, ctx, *args):
+        """
+        Sets your own Polytopia code, or allows a staff member to set a player's code. This also will register the player with the bot if not already.
+        **Examples:**
+        `[p]setcode somelongpolycode`
+        `[p]setcode Nelluk somelongpolycode`
+        """
+
+        if len(args) == 1:      # User setting code for themselves. No special permissions required.
+            target_discord_member = ctx.message.author
+            new_id = args[0]
+
+        elif len(args) == 2:    # User changing another user's code. Helper permissions required.
+            # TODO: Helper roles need to take into account having mod roles
+            if len(settings.get_matching_roles(ctx.author, settings.guild_setting(guild_id=ctx.guild.id, setting_name='helper_roles'))) == 0:
+                return await ctx.send(f'You only have permission to set your own code. To do that use `{ctx.prefix}setcode YOURCODEHERE`')
+
+            # Try to find matching guild/server member
+            guild_matches = await utilities.get_guild_member(ctx, args[0])
+            if len(guild_matches) == 0:
+                return await ctx.send(f'Could not find any server member matching "{args[0]}". Try specifying with an @Mention')
+            elif len(guild_matches) > 1:
+                return await ctx.send(f'Found multiple server members matching "{args[0]}". Try specifying with an @Mention')
+            target_discord_member = guild_matches[0]
+            new_id = args[1]
+        else:
+            # Unexpected input
+            await ctx.send(f'Wrong number of arguments. Use `{ctx.prefix}setcode my_polytopia_code`')
+            return
+
+        if len(new_id) != 16 or new_id.isalnum() is False:
+            # Very basic polytopia code sanity checking. Making sure it is 16-character alphanumeric.
+            return await ctx.send(f'Polytopia code "{new_id}" does not appear to be a valid code.')
+
+        _, team_list = Player.get_teams_of_players(guild_id=ctx.guild.id, list_of_players=[target_discord_member])
+        print(team_list)
+
+        with db:
+            # SUNDAY TODO:
+            # Might as well change Player.upsert() so that it uses get_or_create
+            # Look into using role hierarchies for permissions rather than just compare to role names
+            player, created = Player.upsert2(target_discord_member, guild_id=ctx.guild.id, team=team_list[0])
+            # player, created = Player.get_or_create()
+            player.discord_member.polytopia_id = new_id
+            # player.save()
+            player.discord_member.save()
+
+        if created:
+            await ctx.send('Player {0.name} added to system with Polytopia code {0.discord_member.polytopia_id} and ELO {0.elo}'.format(player))
+        else:
+            await ctx.send('Player {0.name} updated in system with Polytopia code {0.discord_member.polytopia_id}.'.format(player))
 
     @commands.command(aliases=['newgame'], brief='Helpers: Sets up a new game to be tracked', usage='"Name of Game" player1 player2 vs player3 player4')
     # @commands.has_any_role(*helper_roles)

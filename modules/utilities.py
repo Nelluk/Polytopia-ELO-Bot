@@ -1,4 +1,9 @@
+import discord
 from discord.ext import commands
+import logging
+import asyncio
+
+logger = logging.getLogger('polybot.' + __name__)
 
 
 async def get_guild_member(ctx, input):
@@ -31,3 +36,63 @@ def get_matching_roles(discord_member, list_of_role_names):
         # Given a Discord.Member and a ['List of', 'Role names'], return set of role names that the Member has.polytopia_id
         member_roles = [x.name for x in discord_member.roles]
         return set(member_roles).intersection(list_of_role_names)
+
+
+async def paginate(bot, ctx, title, message_list, page_start=0, page_end=10, page_size=10):
+    # Allows user to page through a long list of messages with reactions
+
+    page_end = page_end if len(message_list) > page_end else len(message_list)
+
+    first_loop = True
+    while True:
+        embed = discord.Embed(title=title)
+        for entry in range(page_start, page_end):
+            embed.add_field(name=message_list[entry][0], value=message_list[entry][1], inline=False)
+
+        if first_loop is True:
+            sent_message = await ctx.send(embed=embed)
+        else:
+            try:
+                await sent_message.clear_reactions()
+            except (discord.ext.commands.errors.CommandInvokeError, discord.errors.Forbidden):
+                logger.warn('Unable to clear message reaction due to insufficient permissions. Giving bot \'Manage Messages\' permission will improve usability.')
+            await sent_message.edit(embed=embed)
+
+        if page_start > 0:
+            await sent_message.add_reaction('⏪')
+        if page_end < len(message_list):
+            await sent_message.add_reaction('⏩')
+
+        def check(reaction, user):
+            e = str(reaction.emoji)
+            if page_start > 0 and page_end < len(message_list):
+                compare = e.startswith(('⏪', '⏩'))
+            elif page_end >= len(message_list):
+                compare = e.startswith('⏪')
+            elif page_start <= 0:
+                compare = e.startswith('⏩')
+            else:
+                compare = False
+            return ((user == ctx.message.author) and (reaction.message.id == sent_message.id) and compare)
+
+        try:
+            reaction, user = await bot.wait_for('reaction_add', timeout=20.0, check=check)
+        except asyncio.TimeoutError:
+            try:
+                await sent_message.clear_reactions()
+            except (discord.ext.commands.errors.CommandInvokeError, discord.errors.Forbidden):
+                logger.debug('Unable to clear message reaction due to insufficient permissions. Giving bot \'Manage Messages\' permission will improve usability.')
+            finally:
+                break
+        else:
+            if '⏪' in str(reaction.emoji):
+
+                page_start = 0 if (page_start - page_size < 0) else (page_start - page_size)
+                page_end = page_start + page_size if (page_start + page_size <= len(message_list)) else len(message_list)
+
+            elif '⏩' in str(reaction.emoji):
+
+                page_end = len(message_list) if (page_end + page_size > len(message_list)) else (page_end + page_size)
+                page_start = page_end - page_size if (page_end - page_size) >= 0 else 0
+
+            first_loop = False
