@@ -208,25 +208,27 @@ class games():
             return await ctx.send(f'Cannot find a team with name "{team_string}". Be sure to use the full name, surrounded by quotes if it is more than one word.')
         team = matching_teams[0]
 
+        embed = discord.Embed(title=f'Team card for **{team.name}** {team.emoji}')
         team_role = discord.utils.get(ctx.guild.roles, name=team.name)
-        # team_members = [x.name for x in team_role.members]
         member_stats = []
-        for member in team_role.members:
-            # Create a list of members - pull ELO score from database if they are registered, or with 0 ELO if they are not
-            p = Player.get_by_string(player_string=str(member.id), guild_id=ctx.guild.id)
-            if len(p) == 0:
-                member_stats.append((member.name, 0, '\u200b'))
-            else:
-                member_stats.append((f'**{p[0].name}**', p[0].elo, f'({p[0].elo})'))
-
-        member_stats.sort(key=lambda tup: tup[1], reverse=True)     # sort the list descending by ELO
-        members_sorted = [f'{x[0]}{x[2]}' for x in member_stats]    # create list of strings like Nelluk(1000)
 
         wins, losses = team.get_record()
-
-        embed = discord.Embed(title=f'Team card for **{team.name}** {team.emoji}')
         embed.add_field(name='Results', value=f'ELO: {team.elo}   Wins {wins} / Losses {losses}')
-        embed.add_field(name=f'Members({len(member_stats)})', value=f'{" / ".join(members_sorted)}')
+
+        if team_role:
+            for member in team_role.members:
+                # Create a list of members - pull ELO score from database if they are registered, or with 0 ELO if they are not
+                p = Player.get_by_string(player_string=str(member.id), guild_id=ctx.guild.id)
+                if len(p) == 0:
+                    member_stats.append((member.name, 0, '\u200b'))
+                else:
+                    member_stats.append((f'**{p[0].name}**', p[0].elo, f'({p[0].elo})'))
+
+            member_stats.sort(key=lambda tup: tup[1], reverse=True)     # sort the list descending by ELO
+            members_sorted = [f'{x[0]}{x[2]}' for x in member_stats]    # create list of strings like Nelluk(1000)
+            embed.add_field(name=f'Members({len(member_stats)})', value=f'{" / ".join(members_sorted)}')
+        else:
+            await ctx.send(f'Warning: No matching discord role "{team.name}" could be found. Player membership cannot be detected.')
 
         if team.image_url:
             embed.set_thumbnail(url=team.image_url)
@@ -467,9 +469,99 @@ class games():
         if len(emoji) != 1 and ('<:' not in emoji):
             return await ctx.send('Valid emoji not detected. Example: `{}tribe_emoji Tribename :my_custom_emoji:`'.format(ctx.prefix))
 
-        tribeflair = TribeFlair.upsert(name=tribe_name, guild_id=ctx.guild.id, emoji=emoji)
+        try:
+            tribeflair = TribeFlair.upsert(name=tribe_name, guild_id=ctx.guild.id, emoji=emoji)
+        except exceptions.CheckFailedError as e:
+            return await ctx.send(e)
 
         await ctx.send('Tribe {0.tribe.name} updated with new emoji: {0.emoji}'.format(tribeflair))
+
+    @commands.command(aliases=['addteam'], usage='new_team_name')
+    # @commands.has_any_role(*mod_roles)
+    async def team_add(self, ctx, *args):
+        """Mod: Create new server Team
+        The team should have a Role with an identical name.
+        **Example:**
+        `[p]team_add The Amazeballs`
+        """
+
+        name = ' '.join(args)
+        try:
+            with db.atomic():
+                team = Team.create(name=name, guild_id=ctx.guild.id)
+        except peewee.IntegrityError:
+            return await ctx.send('That team already exists!')
+
+        await ctx.send(f'Team {name} created! Starting ELO: {team.elo}. Players with a Discord Role exactly matching \"{name}\" will be considered team members. '
+                f'You can now set the team flair with `{ctx.prefix}`team_emoji and `{ctx.prefix}team_image`.')
+
+    @commands.command(usage='team_name new_emoji')
+    # @commands.has_any_role(*mod_roles)
+    async def team_emoji(self, ctx, team_name: str, emoji):
+        """Mod: Assign an emoji to a team
+        **Example:**
+        `[p]team_emoji Amazeballs :my_fancy_emoji:`
+        """
+
+        if len(emoji) != 1 and ('<:' not in emoji):
+            return await ctx.send('Valid emoji not detected. Example: `{}team_emoji name :my_custom_emoji:`'.format(ctx.prefix))
+
+        with db:
+            matching_teams = Team.get_by_name(team_name, ctx.guild.id)
+            if len(matching_teams) != 1:
+                return await ctx.send('Can\'t find matching team or too many matches. Example: `{}team_emoji name :my_custom_emoji:`'.format(ctx.prefix))
+
+            team = matching_teams[0]
+            team.emoji = emoji
+            team.save()
+
+            await ctx.send('Team {0.name} updated with new emoji: {0.emoji}'.format(team))
+
+    @commands.command(usage='team_name image_url')
+    # @commands.has_any_role(*mod_roles)
+    async def team_image(self, ctx, team_name: str, image_url):
+        """Mod: Set a team's logo image
+
+        **Example:**
+        `[p]team_image Amazeballs http://www.path.to/image.png`
+        """
+
+        if 'http' not in image_url:
+            return await ctx.send(f'Valid image url not detected. Example usage: `{ctx.prefix}team_image name http://url_to_image.png`')
+            # This is a very dumb check to make sure user is passing a URL and not a random string. Assumes mod can figure it out from there.
+
+        with db:
+            matching_teams = Team.get_by_name(team_name, ctx.guild.id)
+            if len(matching_teams) != 1:
+                return await ctx.send('Can\'t find matching team or too many matches. Example: `{}team_emoji name :my_custom_emoji:`'.format(ctx.prefix))
+
+            team = matching_teams[0]
+            team.image_url = image_url
+            team.save()
+
+            await ctx.send(f'Team {team.name} updated with new image_url (image should appear below)')
+            await ctx.send(team.image_url)
+
+    @commands.command(usage='old_name new_name')
+    # @commands.has_any_role(*mod_roles)
+    async def team_name(self, ctx, old_team_name: str, new_team_name: str):
+        """Mod: Change a team's name
+        The team should have a Role with an identical name.
+        Old name doesn't need to be precise, but new name does. Include quotes if it's more than one word.
+        **Example:**
+        `[p]team_name Amazeballs "The Wowbaggers"`
+        """
+
+        with db:
+            matching_teams = Team.get_by_name(old_team_name, ctx.guild.id)
+            if len(matching_teams) != 1:
+                return await ctx.send('Can\'t find matching team or too many matches. Example: `{}team_name \"Current name\" \"New Team Name\"`'.format(ctx.prefix))
+
+            team = matching_teams[0]
+            team.name = new_team_name
+            team.save()
+
+            await ctx.send('Team **{}** has been renamed to **{}**.'.format(old_team_name, new_team_name))
 
     @commands.command()
     # @commands.has_any_role(*helper_roles)
