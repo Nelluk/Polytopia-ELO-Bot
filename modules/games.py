@@ -264,8 +264,8 @@ class games():
             new_id = args[0]
 
         elif len(args) == 2:    # User changing another user's code. Helper permissions required.
-            # TODO: Helper roles need to take into account having mod roles
-            if len(settings.get_matching_roles(ctx.author, settings.guild_setting(guild_id=ctx.guild.id, setting_name='helper_roles'))) == 0:
+
+            if settings.is_staff(ctx, ctx.author) is False:
                 return await ctx.send(f'You only have permission to set your own code. To do that use `{ctx.prefix}setcode YOURCODEHERE`')
 
             # Try to find matching guild/server member
@@ -289,19 +289,66 @@ class games():
         print(team_list)
 
         with db:
-            # SUNDAY TODO:
-            # Might as well change Player.upsert() so that it uses get_or_create
-            # Look into using role hierarchies for permissions rather than just compare to role names
             player, created = Player.upsert2(target_discord_member, guild_id=ctx.guild.id, team=team_list[0])
-            # player, created = Player.get_or_create()
             player.discord_member.polytopia_id = new_id
-            # player.save()
             player.discord_member.save()
 
         if created:
             await ctx.send('Player {0.name} added to system with Polytopia code {0.discord_member.polytopia_id} and ELO {0.elo}'.format(player))
         else:
             await ctx.send('Player {0.name} updated in system with Polytopia code {0.discord_member.polytopia_id}.'.format(player))
+
+    @commands.command(aliases=['code'], usage='player_name')
+    async def getcode(self, ctx, player_string: str):
+        """Get game code of a player
+        Just returns the code and nothing else so it can easily be copied."""
+
+        # TODO: If no player argument display own code?
+        with db:
+            player_matches = Player.get_by_string(player_string, ctx.guild.id)
+            if len(player_matches) == 0:
+                return await ctx.send('Cannot find player with that name. Correct usage: `{}getcode @Player`'.format(ctx.prefix))
+            if len(player_matches) > 1:
+                return await ctx.send('More than one matching player found. Use @player to specify. Correct usage: `{}getcode @Player`'.format(ctx.prefix))
+            player_target = player_matches[0]
+            if player_target.discord_member.polytopia_id:
+                await ctx.send(player_target.discord_member.polytopia_id)
+            else:
+                await ctx.send('User was found but does not have a Polytopia ID on file.')
+
+    @commands.command(brief='Set in-game name', usage='new_name')
+    async def setname(self, ctx, *args):
+        """Sets your own in-game name, or lets staff set a player's in-game name
+        When this is set, people can find you by the in-game name with the `[p]player` command.
+        **Examples:**
+        `[p]setname PolyChamp` - Set your own in-game name to *PolyChamp*
+        `[p]setname Nelluk PolyChamp` - Lets staff set in-game name of Nelluk to *PolyChamp*
+        """
+
+        if len(args) == 1:
+            # User setting code for themselves. No special permissions required.
+            target_string = f'<@{ctx.author.id}>'
+            new_name = args[0]
+        elif len(args) == 2:
+            # User changing another user's code. Admin permissions required.
+            if settings.is_staff(ctx, ctx.author) is False:
+                return await ctx.send('You do not have permission to trigger this command.')
+            target_string = args[0]
+            new_name = args[1]
+        else:
+            # Unexpected input
+            return await ctx.send(f'Wrong number of arguments. Use `{ctx.prefix}setname my_polytopia_name`. Use "quotation marks" if the name is more than one word.')
+
+        target_player = Player.get_by_string(target_string, ctx.guild.id)
+        if len(target_player) == 0:
+            return await ctx.send(f'Could not match any players to query "{target_string}". Try registering with {ctx.prefix}setcode first.')
+        elif len(target_player) > 1:
+            return await ctx.send(f'Multiple players found with query "{target_string}". Be more specfic or use an @Mention.')
+
+        with db:
+            target_player[0].discord_member.polytopia_name = new_name
+            target_player[0].discord_member.save()
+            await ctx.send(f'Player {target_player[0].name} updated in system with Polytopia name {new_name}.')
 
     @commands.command(aliases=['newgame'], brief='Helpers: Sets up a new game to be tracked', usage='"Name of Game" player1 player2 vs player3 player4')
     # @commands.has_any_role(*helper_roles)
@@ -413,19 +460,8 @@ class games():
     # @commands.has_any_role(*helper_roles)
     async def ts(self, ctx, name: str):
 
-        # team = Team.get(id=13)
-        # q = SquadMemberGame.select(SquadMemberGame.squadgame.game).join(SquadGame).group_by(
-        #     SquadMemberGame.squadgame.game
-        # ).having(peewee.fn.COUNT('*') > 2)
-
-        # q = SquadGame.select()
-
-        print(q)
-        # print(f'len: {len(q)}')
-        # # print(dir(q))
-        for r in q:
-            print(r)
-        #     print(r.id, r)
+        member = (await utilities.get_guild_member(ctx, name))[0]
+        print(member.top_role)
 
     # @in_bot_channel()
     @commands.command(aliases=['games'], brief='Find games or see a game\'s details', usage='game_id')
