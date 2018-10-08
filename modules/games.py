@@ -173,9 +173,6 @@ class games():
                 content_str = ''
 
             embed.add_field(value='\u200b', name='Most recent games', inline=False)
-            recent_games = Game.select(Game.id).join(SquadGame).join(SquadMemberGame).join(SquadMember).where(
-                (SquadMemberGame.member.player == player)
-            ).order_by(-Game.date)[:7]
 
             recent_games = SquadGame.select(SquadGame, Game).join(Game).join_from(SquadGame, SquadMemberGame).join(SquadMember).where(
                 (SquadMemberGame.member.player == player)
@@ -567,21 +564,19 @@ class games():
     # @commands.has_any_role(*helper_roles)
     async def ts(self, ctx, name: str):
 
-        # plist = []
-        # plist.append(Player.get_by_string(player_string='Nelluk', guild_id=ctx.guild.id)[0])
+        plist = []
+        plist.append(Player.get_by_string(player_string='Nelluk', guild_id=ctx.guild.id)[0])
         # plist.append(Player.get_by_string(player_string='TestAccount1', guild_id=ctx.guild.id)[0])
         # plist.append(Player.get_by_string(player_string='Zebastian', guild_id=ctx.guild.id)[0])
 
-        # squads = Squad.get_all_matching_squads(plist)
+        squads = Squad.get_all_matching_squads(plist)
 
-        # Squads with >1 completed game
+        # Squad.squad_test()
+        # return
 
-        Squad.squad_test()
-        return
-
-        # print(len(squads))
-        # for s in squads.dicts():
-        #     print(s)
+        print(len(squads))
+        for s in squads.dicts():
+            print(s)
 
     # @in_bot_channel()
     # TODO: searching. this is just bare bones 'show embed of game ID' currently

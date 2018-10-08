@@ -580,12 +580,32 @@ class Squad(BaseModel):
 
         return query
 
+    def subq_squads_by_size(min_size: int=2, exact=False):
+
+        if exact:
+            # Squads with exactly min_size number of members
+            return SquadMember.select(SquadMember.squad).group_by(
+                SquadMember.squad
+            ).having(fn.COUNT('*') == min_size)
+
+        # Squads with at least min_size number of members
+        return SquadMember.select(SquadMember.squad).group_by(
+            SquadMember.squad
+        ).having(fn.COUNT('*') >= min_size)
+
+    def subq_squads_with_completed_games():
+        return SquadGame.select(SquadGame.squad).join(Game).where(Game.is_completed == 1).group_by(
+            SquadGame.squad
+        ).having(fn.COUNT('*') > 0)
+
     def get_all_matching_squads(player_list):
         # Takes [List, of, Player, Records] (not names)
         # Returns all squads containing players in player list. Used to look up a squad by partial or complete membership
 
-        # TODO: Probably restrict this to at least 1/2 games complete so not every single combination is returned
-        query = Squad.select().join(SquadMember).group_by(Squad.id).having(
+        # Limited to squads with at least 2 members and at least 1 completed game
+        query = Squad.select().join(SquadMember).where(
+            (Squad.id.in_(Squad.subq_squads_by_size(min_size=2))) & (Squad.id.in_(Squad.subq_squads_with_completed_games()))
+        ).group_by(Squad.id).having(
             (fn.SUM(SquadMember.player.in_(player_list).cast('integer')) == len(player_list))
         )
 
