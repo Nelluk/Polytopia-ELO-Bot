@@ -580,6 +580,35 @@ class Squad(BaseModel):
 
         return query
 
+    def get_all_matching_squads(player_list):
+        # Takes [List, of, Player, Records] (not names)
+        # Returns all squads containing players in player list. Used to look up a squad by partial or complete membership
+
+        # TODO: Probably restrict this to at least 1/2 games complete so not every single combination is returned
+        query = Squad.select().join(SquadMember).group_by(Squad.id).having(
+            (fn.SUM(SquadMember.player.in_(player_list).cast('integer')) == len(player_list))
+        )
+
+        return query
+
+    def squad_test():
+        # Squads with >1 completed game
+        subq1 = SquadGame.select(SquadGame.squad).join(Game).where(Game.is_completed == 1).group_by(
+            SquadGame.squad
+        ).having(fn.COUNT('*') > 1)
+
+        # Squads with 2 SquadMembers
+        subq2 = SquadMember.select(SquadMember.squad).group_by(
+            SquadMember.squad
+        ).having(fn.COUNT('*') == 2)
+
+        squads = Squad.select().where(
+            (Squad.id.in_(subq1)) & (Squad.id.in_(subq2))
+        )
+
+        for s in squads.dicts():
+            print(s)
+
     def upsert(player_list):
 
         squads = Squad.get_matching_squad(player_list)

@@ -567,8 +567,21 @@ class games():
     # @commands.has_any_role(*helper_roles)
     async def ts(self, ctx, name: str):
 
-        tf = TribeFlair.get_by_name(name=name, guild_id=ctx.guild.id)
-        print(tf.tribe.name)
+        # plist = []
+        # plist.append(Player.get_by_string(player_string='Nelluk', guild_id=ctx.guild.id)[0])
+        # plist.append(Player.get_by_string(player_string='TestAccount1', guild_id=ctx.guild.id)[0])
+        # plist.append(Player.get_by_string(player_string='Zebastian', guild_id=ctx.guild.id)[0])
+
+        # squads = Squad.get_all_matching_squads(plist)
+
+        # Squads with >1 completed game
+
+        Squad.squad_test()
+        return
+
+        # print(len(squads))
+        # for s in squads.dicts():
+        #     print(s)
 
     # @in_bot_channel()
     # TODO: searching. this is just bare bones 'show embed of game ID' currently
