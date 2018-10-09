@@ -565,11 +565,13 @@ class games():
     async def ts(self, ctx, name: str):
 
         # p = Game.load_full_game(game_id=1)
-        p = Player.get(id=1)
-        print(p.get_record())
+        p = Team.get(id=1)
+        q = p.get_record()
+        print(q)
+        return
 
-        # for s in p.dicts():
-        #     print(s)
+        for s in q.dicts():
+            print(s)
 
     # @in_bot_channel()
     # TODO: searching. this is just bare bones 'show embed of game ID' currently

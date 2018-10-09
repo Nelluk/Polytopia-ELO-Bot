@@ -33,10 +33,9 @@ class Team(BaseModel):
 
     def completed_game_count(self):
 
-        num_games = SquadGame.select().join(Game).join_from(SquadGame, Team).where(
-            (SquadGame.team == self) & (SquadGame.game.is_completed == 'TRUE')
-        ).count()
-        print(f'team: {self.id} completed-game-count: {num_games}')
+        num_games = Lineup.select().join(Game).where(
+            (Game.is_completed == 1) & (Lineup.team == self) & (Game.id.in_(Team.team_games_subq()))
+        ).group_by(Lineup.lineup_num).count()
 
         return num_games
 
@@ -63,20 +62,19 @@ class Team(BaseModel):
         return elo_delta
 
     def team_games_subq():
-        # Subquery of all games with more than 2 players
-        return SquadMemberGame.select(SquadMemberGame.squadgame.game).join(SquadGame).group_by(
-            SquadMemberGame.squadgame.game
-        ).having(fn.COUNT('*') > 2)
+
+        q = Lineup.select(Lineup.game).join(Game).where(Game.is_pending == 0).group_by(Lineup.game).having(fn.COUNT('*') > 2)
+        return q
 
     def get_record(self):
 
-        wins = Game.select(Game, SquadGame).join(SquadGame).where(
-            (Game.id.in_(Team.team_games_subq())) & (Game.is_completed == 1) & (SquadGame.team == self) & (SquadGame.is_winner == 1)
-        ).count()
+        wins = Lineup.select(Lineup.lineup_num).join(Game).where(
+            (Lineup.team == self) & (Game.id.in_(Team.team_games_subq())) & (Game.is_completed == 1) & (Game.winning_lineup == Lineup.lineup_num)
+        ).group_by(Lineup.lineup_num).count()
 
-        losses = Game.select(Game, SquadGame).join(SquadGame).where(
-            (Game.id.in_(Team.team_games_subq())) & (Game.is_completed == 1) & (SquadGame.team == self) & (SquadGame.is_winner == 0)
-        ).count()
+        losses = Lineup.select(Lineup.lineup_num).join(Game).where(
+            (Lineup.team == self) & (Game.id.in_(Team.team_games_subq())) & (Game.is_completed == 1) & (Game.winning_lineup != Lineup.lineup_num)
+        ).group_by(Lineup.lineup_num).count()
 
         return (wins, losses)
 
@@ -388,13 +386,13 @@ class Game(BaseModel):
             if len(side_away_players) > 1:
                 away_squad = Squad.upsert(player_list=side_away_players)
 
-            # lineup_num = Lineup.next_lineup_num()
+            lineup_num = Lineup.next_lineup_num()
             for p in side_home_players:
-                Lineup.create(lineup_num=Lineup.next_lineup_num(), game=newgame, squad=home_squad, team=home_side_team, player=p)
+                Lineup.create(lineup_num=lineup_num, game=newgame, squad=home_squad, team=home_side_team, player=p)
 
-            # lineup_num = Lineup.next_lineup_num()
+            lineup_num = Lineup.next_lineup_num()
             for p in side_away_players:
-                Lineup.create(lineup_num=Lineup.next_lineup_num(), game=newgame, squad=away_squad, team=away_side_team, player=p)
+                Lineup.create(lineup_num=lineup_num, game=newgame, squad=away_squad, team=away_side_team, player=p)
 
         return newgame
 
@@ -403,14 +401,19 @@ class Game(BaseModel):
         # TODO: does not support games != 2 sides
 
         winning_side, losing_side = [], []
+        winning_squad, losing_squad = None, None
+        winning_team, losing_team = None, None
 
         for lineup in self.lineup:
+            # Since these records are already in memory, looping through should be faster than querying the DB
             if lineup.lineup_num == winning_lineup:
                 winning_side.append(lineup)
+                winning_team = lineup.team
+                winning_squad = lineup.squad
             else:
                 losing_side.append(lineup)
-
-        print(winning_side, losing_side)
+                losing_team = lineup.team
+                losing_squad = lineup.squad
 
         # STEP 1: INDIVIDUAL/PLAYER ELO
 
@@ -426,6 +429,28 @@ class Game(BaseModel):
 
         for losing_member in losing_side:
             losing_member.change_elo_after_game(my_side_elo=losing_side_ave_elo, opponent_elo=winning_side_ave_elo, is_winner=False)
+
+        if self.team_size > 1:
+
+            # STEP 2: SQUAD ELO
+            winning_squad_elo, losing_squad_elo = winning_squad.elo, losing_squad.elo
+            elo_change_squad_winner = winning_squad.change_elo_after_game(opponent_elo=losing_squad_elo, is_winner=True)
+            elo_change_squad_loser = losing_squad.change_elo_after_game(opponent_elo=winning_squad_elo, is_winner=False)
+            self.elo_changes_squad = {winning_squad.id: elo_change_squad_winner, losing_squad.id: elo_change_squad_loser}
+
+            # STEP 3: TEAM ELO
+            winning_team_elo, losing_team_elo = winning_team.elo, losing_team.elo
+            elo_change_team_winner = winning_team.change_elo_after_game(opponent_elo=losing_team_elo, is_winner=True)
+            elo_change_team_loser = losing_team.change_elo_after_game(opponent_elo=winning_team_elo, is_winner=False)
+            self.elo_changes_team = {winning_team.id: elo_change_team_winner, losing_team.id: elo_change_team_loser}
+
+        if confirm:
+            self.is_confirmed = True
+
+        self.winning_lineup = winning_lineup
+        self.is_completed = True
+        self.completed_ts = datetime.datetime.now()
+        self.save()
 
     def return_participant(self, ctx, player=None, team=None):
         # Given a string representing a player or a team (team name, player name/nick/ID)
@@ -499,6 +524,36 @@ class Squad(BaseModel):
         )
 
         return query
+
+    def completed_game_count(self):
+
+        num_games = Lineup.select().join(Game).where(
+            (Game.is_completed == 1) & (Lineup.squad == self)
+        ).group_by(Lineup.lineup_num).count()
+
+        return num_games
+
+    def change_elo_after_game(self, opponent_elo, is_winner):
+
+        if self.completed_game_count() < 6:
+            max_elo_delta = 50
+        else:
+            max_elo_delta = 32
+
+        chance_of_winning = round(1 / (1 + (10 ** ((opponent_elo - self.elo) / 400.0))), 3)
+
+        if is_winner is True:
+            new_elo = round(self.elo + (max_elo_delta * (1 - chance_of_winning)), 0)
+        else:
+            new_elo = round(self.elo + (max_elo_delta * (0 - chance_of_winning)), 0)
+
+        elo_delta = int(new_elo - self.elo)
+        print('Squad chance of winning: {} opponent elo:{} current ELO {}, new elo {}, elo_delta {}'.format(chance_of_winning, opponent_elo, self.elo, new_elo, elo_delta))
+
+        self.elo = int(self.elo + elo_delta)
+        self.save()
+
+        return elo_delta
 
 
 class SquadMember(BaseModel):
