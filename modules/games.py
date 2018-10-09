@@ -4,7 +4,7 @@ import modules.utilities as utilities
 import settings
 import modules.exceptions as exceptions
 import peewee
-from modules.models import Game, db, Player, Team, SquadGame, SquadMemberGame, DiscordMember, Squad, SquadMember, TribeFlair  # Team, Game, Player, DiscordMember
+from modules.models import Game, db, Player, Team, DiscordMember, Squad, SquadMember, TribeFlair, Lineup  # Team, Game, Player, DiscordMember
 # from bot import logger
 import logging
 
@@ -408,7 +408,7 @@ class games():
 
         logger.debug(f'All input checks passed. Creating new game records with args: {args}')
 
-        newgame, home_squadgame, away_squadgame = Game.create_game([side_home, side_away],
+        newgame = Game.create_game([side_home, side_away],
             name=game_name, guild_id=ctx.guild.id,
             require_teams=settings.guild_setting(ctx.guild.id, 'require_teams'))
 
@@ -438,22 +438,22 @@ class games():
             is_staff = False
 
             try:
-                player, _ = winning_game.return_participant(ctx, player=ctx.author.id)
+                _, _ = winning_game.return_participant(ctx, player=ctx.author.id)
             except exceptions.CheckFailedError:
                 return await ctx.send(f'You were not a participant in game {winning_game.id}, and do not have staff privileges.')
 
         try:
-            if winning_game.team_size() == 1:
-                winning_obj, winning_side = winning_game.return_participant(ctx, player=winning_side_name)
+            if winning_game.team_size == 1:
+                winning_obj, winning_lineup = winning_game.return_participant(ctx, player=winning_side_name)
 
-            elif winning_game.team_size() > 1:
-                winning_obj, winning_side = winning_game.return_participant(ctx, team=winning_side_name)
+            elif winning_game.team_size > 1:
+                winning_obj, winning_lineup = winning_game.return_participant(ctx, team=winning_side_name)
             else:
                 return logger.error('Invalid team_size. Aborting wingame command.')
         except exceptions.CheckFailedError as ex:
             return await ctx.send(f'{ex}')
 
-        winning_game.declare_winner(winning_side=winning_side, confirm=is_staff)
+        winning_game.declare_winner(winning_lineup=winning_lineup, confirm=is_staff)
 
     @commands.command(usage='tribe_name new_emoji')
     # @commands.has_any_role(*mod_roles)
@@ -564,19 +564,12 @@ class games():
     # @commands.has_any_role(*helper_roles)
     async def ts(self, ctx, name: str):
 
-        plist = []
-        plist.append(Player.get_by_string(player_string='Nelluk', guild_id=ctx.guild.id)[0])
-        # plist.append(Player.get_by_string(player_string='TestAccount1', guild_id=ctx.guild.id)[0])
-        # plist.append(Player.get_by_string(player_string='Zebastian', guild_id=ctx.guild.id)[0])
+        # p = Game.load_full_game(game_id=1)
+        p = Lineup.next_lineup_num()
+        print(p)
 
-        squads = Squad.get_all_matching_squads(plist)
-
-        # Squad.squad_test()
-        # return
-
-        print(len(squads))
-        for s in squads.dicts():
-            print(s)
+        # for s in p.dicts():
+        #     print(s)
 
     # @in_bot_channel()
     # TODO: searching. this is just bare bones 'show embed of game ID' currently
