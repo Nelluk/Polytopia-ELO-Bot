@@ -565,8 +565,8 @@ class games():
     async def ts(self, ctx, name: str):
 
         # p = Game.load_full_game(game_id=1)
-        p = Lineup.next_lineup_num()
-        print(p)
+        p = Player.get(id=1)
+        print(p.get_record())
 
         # for s in p.dicts():
         #     print(s)

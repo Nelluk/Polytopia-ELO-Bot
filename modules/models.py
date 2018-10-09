@@ -207,36 +207,33 @@ class Player(BaseModel):
             )
             return poly_fields_match
 
-    # def completed_game_count(self):
+    def completed_game_count(self):
 
-    #     num_games = SquadMemberGame.select().join(SquadGame).join(Game).join_from(SquadMemberGame, SquadMember).join(Player).where(
-    #         (SquadMemberGame.member.player == self) & (SquadMemberGame.squadgame.game.is_completed == 'TRUE')
-    #     ).count()
+        num_games = Lineup.select().join(Game).where(
+            (Lineup.game.is_completed == 'TRUE') & (Lineup.player == self)
+        ).count()
 
-    #     return num_games
+        return num_games
 
-    # def wins(self):
-    #     # TODO: Could combine wins/losses into one function that takes an argument and modifies query
-    #     q = SquadMemberGame.select(SquadMemberGame.squadgame.game).join(SquadGame).join(Game).join_from(SquadMemberGame, SquadMember).group_by(
-    #         SquadMemberGame.squadgame.game
-    #     ).where(
-    #         (SquadMemberGame.member.player == self) & (SquadGame.is_winner == 1) & (Game.is_completed == 1)
-    #     )
+    def wins(self):
+        # TODO: Could combine wins/losses into one function that takes an argument and modifies query
 
-    #     return q
+        q = Lineup.select().join(Game).where(
+            (Lineup.game.is_completed == 'TRUE') & (Lineup.player == self) & (Lineup.lineup_num == Lineup.game.winning_lineup)
+        )
 
-    # def losses(self):
-    #     q = SquadMemberGame.select(SquadMemberGame.squadgame.game).join(SquadGame).join(Game).join_from(SquadMemberGame, SquadMember).group_by(
-    #         SquadMemberGame.squadgame.game
-    #     ).where(
-    #         (SquadMemberGame.member.player == self) & (SquadGame.is_winner == 0) & (Game.is_completed == 1)
-    #     )
+        return q
 
-    #     return q
+    def losses(self):
+        q = Lineup.select().join(Game).where(
+            (Lineup.game.is_completed == 'TRUE') & (Lineup.player == self) & (Lineup.lineup_num != Lineup.game.winning_lineup)
+        )
 
-    # def get_record(self):
+        return q
 
-    #     return (self.wins().count(), self.losses().count())
+    def get_record(self):
+
+        return (self.wins().count(), self.losses().count())
 
     # def leaderboard_rank(self, date_cutoff):
     #     # TODO: This could be replaced with Postgresql Window functions to have the DB calculate the rank.
@@ -416,8 +413,19 @@ class Game(BaseModel):
         print(winning_side, losing_side)
 
         # STEP 1: INDIVIDUAL/PLAYER ELO
-        # winning_side_ave_elo = winning_side.get_member_average_elo()
-        # losing_side_ave_elo = losing_side.get_member_average_elo()
+
+        def average_elo_from_list(list_of_lineups):
+            elo_list = [p.player.elo for p in list_of_lineups]
+            return round(sum(elo_list) / len(elo_list))
+
+        winning_side_ave_elo = average_elo_from_list(winning_side)
+        losing_side_ave_elo = average_elo_from_list(losing_side)
+
+        for winning_member in winning_side:
+            winning_member.change_elo_after_game(my_side_elo=winning_side_ave_elo, opponent_elo=losing_side_ave_elo, is_winner=True)
+
+        for losing_member in losing_side:
+            losing_member.change_elo_after_game(my_side_elo=losing_side_ave_elo, opponent_elo=winning_side_ave_elo, is_winner=False)
 
     def return_participant(self, ctx, player=None, team=None):
         # Given a string representing a player or a team (team name, player name/nick/ID)
@@ -454,6 +462,17 @@ class Game(BaseModel):
             raise exceptions.CheckFailedError(f'{team_obj.name} did not play in game {self.id}.')
         else:
             raise exceptions.CheckFailedError('Player name or team name must be supplied for this function')
+
+    def get_winner(self):
+        # Returns player name of winner if its a 1v1, or team-name of winning side if its a group game
+
+        for lineup in self.lineup:
+            if lineup.lineup_num == self.winning_lineup:
+                if self.team_size > 1:
+                    return lineup.team
+                return lineup.player
+
+        return None
 
 
 class Squad(BaseModel):
@@ -501,6 +520,37 @@ class Lineup(BaseModel):
         # Access line: p = Lineup.next_lineup_num()
         q = Lineup.select(fn.COALESCE(fn.MAX(Lineup.lineup_num), 0).alias('next_lineup_num'))
         return q[0].next_lineup_num + 1
+
+    def change_elo_after_game(self, my_side_elo, opponent_elo, is_winner):
+        # Average(Away Side Elo) is compared to Average(Home_Side_Elo) for calculation - ie all members on a side will have the same elo_delta
+        # Team A: p1 900 elo, p2 1000 elo = 950 average
+        # Team B: p1 1000 elo, p2 1200 elo = 1100 average
+        # ELO is compared 950 vs 1100 and all players treated equally
+
+        num_games = self.player.completed_game_count()
+
+        if num_games < 6:
+            max_elo_delta = 75
+        elif num_games < 11:
+            max_elo_delta = 50
+        else:
+            max_elo_delta = 32
+
+        chance_of_winning = round(1 / (1 + (10 ** ((opponent_elo - my_side_elo) / 400.0))), 3)
+
+        if is_winner is True:
+            new_elo = round(my_side_elo + (max_elo_delta * (1 - chance_of_winning)), 0)
+        else:
+            new_elo = round(my_side_elo + (max_elo_delta * (0 - chance_of_winning)), 0)
+
+        elo_delta = int(new_elo - my_side_elo)
+        print(f'Player chance of winning: {chance_of_winning} opponent elo:{opponent_elo} my_side_elo: {my_side_elo},'
+                f'elo_delta {elo_delta}, current_player_elo {self.player.elo}, new_player_elo {int(self.player.elo + elo_delta)}')
+
+        self.player.elo = int(self.player.elo + elo_delta)
+        self.elo_change_player = elo_delta
+        self.player.save()
+        self.save()
 
 
 with db:
