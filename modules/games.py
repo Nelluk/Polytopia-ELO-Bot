@@ -110,6 +110,26 @@ class games():
         await ctx.send(embed=embed)
 
     # @in_bot_channel()
+    @commands.command(aliases=['squadlb'])
+    @commands.cooldown(2, 30, commands.BucketType.channel)
+    async def lbsquad(self, ctx):
+        """Display squad leaderboard"""
+
+        leaderboard = []
+        with db:
+            squads = Squad.leaderboard(date_cutoff=settings.date_cutoff, guild_id=ctx.guild.id)
+            for counter, sq in enumerate(squads[:200]):
+                wins, losses = sq.get_record()
+                squad_members = sq.get_members()
+                emoji_list = [p.team.emoji for p in squad_members if p.team is not None]
+                emoji_string = ' '.join(emoji_list)
+                squad_names = ' / '.join(sq.get_names())
+                leaderboard.append(
+                    (f'`{(counter + 1):>3}.` {emoji_string}`{squad_names}`', f'`(ELO: {sq.elo:4}) W {wins} / L {losses}`')
+                )
+        await utilities.paginate(self.bot, ctx, title='**Squad Leaderboards**', message_list=leaderboard, page_start=0, page_end=10, page_size=10)
+
+    # @in_bot_channel()
     @commands.command(brief='See details on a player', usage='player_name', aliases=['elo'])
     async def player(self, ctx, *args):
         """See your own player card or the card of another player
@@ -142,8 +162,8 @@ class games():
                     return await ctx.send(f'Could not find \"{player_mention}\" by Discord name, Polytopia name, or Polytopia ID.')
 
                 else:
-                    await ctx.send('There is more than one player found with that name. Specify user with @Mention.'.format(player_mention))
-                    return
+                    return await ctx.send('There is more than one player found with that name. Specify user with @Mention.'.format(player_mention))
+
         with db:
             wins, losses = player.get_record()
             rank, lb_length = player.leaderboard_rank(settings.date_cutoff)
@@ -186,8 +206,8 @@ class games():
                 else:
                     status = '**WIN**' if squadgame.id == Game.winner else '***Loss***'
 
-                    embed.add_field(name=f'{game.get_headline()}',
-                                value=f'{status} - {str(game.date)} - {game.team_size()}v{game.team_size()}')
+                embed.add_field(name=f'{game.get_headline()}',
+                            value=f'{status} - {str(game.date)} - {game.team_size()}v{game.team_size()}')
 
             await ctx.send(content=content_str, embed=embed)
 
@@ -349,6 +369,32 @@ class games():
             target_player[0].discord_member.polytopia_name = new_name
             target_player[0].discord_member.save()
             await ctx.send(f'Player {target_player[0].name} updated in system with Polytopia name {new_name}.')
+
+    @commands.command()
+    async def incomplete(self, ctx, all: str = None):
+        """List your or all incomplete games
+        **Example:**
+        `[p]incomplete` - Lists incomplete games you are playing in
+        `[p]incomplete all` - Lists all incomplete games
+        """
+        incomplete_list = []
+
+        if all and all.upper() == 'ALL':
+            query = Game.select().where(
+                (Game.is_completed == 0) & (Game.is_pending == 0)
+            ).order_by(Game.date)
+        else:
+            query = Game.select().join(Lineup).join(Player).join(DiscordMember).where(
+                (Game.is_completed == 0) & (Game.is_pending == 0) & (DiscordMember.discord_id == ctx.author.id)
+            ).order_by(Game.date)
+
+        for counter, game in enumerate(query[:500]):
+            incomplete_list.append((
+                f'{game.get_headline()}',
+                f'{(str(game.date))} - {game.team_size()}v{game.team_size()}'
+            ))
+
+        await utilities.paginate(self.bot, ctx, title='**Oldest Incomplete Games**', message_list=incomplete_list, page_start=0, page_end=10, page_size=10)
 
     @commands.command(aliases=['newgame'], brief='Helpers: Sets up a new game to be tracked', usage='"Name of Game" player1 player2 vs player3 player4')
     # @commands.has_any_role(*helper_roles)
@@ -566,11 +612,10 @@ class games():
     async def ts(self, ctx, name: str):
 
         # p = Game.load_full_game(game_id=1)
-        p = Player.get(id=3)
-        q = p.get_record()
-        print(q)
-        return
+        # import datetime
+        q = Squad.leaderboard(date_cutoff=settings.date_cutoff, guild_id=ctx.guild.id)
 
+        print(len(q))
         for s in q.dicts():
             print(s)
 

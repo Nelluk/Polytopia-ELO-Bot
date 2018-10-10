@@ -8,7 +8,7 @@ import logging
 
 logger = logging.getLogger('polybot.' + __name__)
 
-db = PostgresqlDatabase('polytopia3', user='cbsteven')
+db = PostgresqlDatabase('polytopia', user='cbsteven')
 
 
 class BaseModel(Model):
@@ -251,6 +251,7 @@ class Player(BaseModel):
         return (rank, query.count())
 
     def leaderboard(date_cutoff, guild_id: int):
+        print(date_cutoff)
         query = Player.select().join(Lineup).join(Game).where(
             (Player.guild_id == guild_id) & (Game.is_completed == 1) & (Game.date > date_cutoff)
         ).distinct().order_by(-Player.elo)
@@ -444,8 +445,8 @@ class Game(BaseModel):
 
             # Create/update Squad records
             home_squad, away_squad = None, None
-            home_squad = Squad.upsert(player_list=side_home_players)
-            away_squad = Squad.upsert(player_list=side_away_players)
+            home_squad = Squad.upsert(player_list=side_home_players, guild_id=guild_id)
+            away_squad = Squad.upsert(player_list=side_away_players, guild_id=guild_id)
 
             home_squadgame = SquadGame.create(game=newgame, squad=home_squad, team=home_side_team)
 
@@ -565,28 +566,20 @@ class Game(BaseModel):
 
 class Squad(BaseModel):
     elo = SmallIntegerField(default=1000)
+    guild_id = BitField(unique=False, null=False)
 
-    def upsert(player_list):
+    def upsert(player_list, guild_id: int):
 
         squads = Squad.get_matching_squad(player_list)
 
         if len(squads) == 0:
             # Insert new squad based on this combination of players
-            sq = Squad.create()
+            sq = Squad.create(guild_id=guild_id)
             for p in player_list:
                 SquadMember.create(player=p, squad=sq)
             return sq
 
         return squads[0]
-
-    def get_matching_squad(player_list):
-        # Takes [List, of, Player, Records] (not names)
-        # Returns squad with exactly the same participating players. See https://stackoverflow.com/q/52010522/1281743
-        query = Squad.select().join(SquadMember).group_by(Squad.id).having(
-            (fn.SUM(SquadMember.player.in_(player_list).cast('integer')) == len(player_list)) & (fn.SUM(SquadMember.player.not_in(player_list).cast('integer')) == 0)
-        )
-
-        return query
 
     def completed_game_count(self):
 
@@ -631,10 +624,49 @@ class Squad(BaseModel):
             SquadMember.squad
         ).having(fn.COUNT('*') >= min_size)
 
-    def subq_squads_with_completed_games():
+    def subq_squads_with_completed_games(min_games: int=1):
+        # Defaults to squads who have completed more than 0 games
         return SquadGame.select(SquadGame.squad).join(Game).where(Game.is_completed == 1).group_by(
             SquadGame.squad
-        ).having(fn.COUNT('*') > 0)
+        ).having(fn.COUNT('*') >= min_games)
+
+    def leaderboard_rank(self, date_cutoff):
+
+        query = Squad.leaderboard(date_cutoff=date_cutoff, guild_id=self.guild_id)
+
+        squad_found = False
+        for counter, s in enumerate(query.tuples()):
+            if s[0] == self.id:
+                squad_found = True
+                break
+
+        rank = counter + 1 if squad_found else None
+        return (rank, query.count())
+
+    def leaderboard(date_cutoff, guild_id: int):
+
+        games_logged = Game.select().count()
+        if games_logged < 10:
+            min_games = 0
+        elif games_logged < 30:
+            min_games = 1
+        else:
+            min_games = 2
+
+        q = Squad.select().join(SquadGame).join(Game).where(
+            (Squad.id.in_(Squad.subq_squads_with_completed_games(min_games=min_games))) & (Squad.guild_id == guild_id) & (Game.date > date_cutoff)
+        ).order_by(-Squad.elo)
+
+        return q
+
+    def get_matching_squad(player_list):
+        # Takes [List, of, Player, Records] (not names)
+        # Returns squad with exactly the same participating players. See https://stackoverflow.com/q/52010522/1281743
+        query = Squad.select().join(SquadMember).group_by(Squad.id).having(
+            (fn.SUM(SquadMember.player.in_(player_list).cast('integer')) == len(player_list)) & (fn.SUM(SquadMember.player.not_in(player_list).cast('integer')) == 0)
+        )
+
+        return query
 
     def get_all_matching_squads(player_list):
         # Takes [List, of, Player, Records] (not names)
@@ -665,6 +697,14 @@ class Squad(BaseModel):
         ).count()
 
         return (wins, losses)
+
+    def get_members(self):
+        members = [member.player for member in self.squadmembers]
+        return members
+
+    def get_names(self):
+        member_names = [member.player.name for member in self.squadmembers]
+        return member_names
 
 
 class SquadMember(BaseModel):
