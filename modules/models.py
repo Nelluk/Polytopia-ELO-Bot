@@ -8,7 +8,7 @@ import logging
 
 logger = logging.getLogger('polybot.' + __name__)
 
-db = PostgresqlDatabase('polytopia2', user='cbsteven')
+db = PostgresqlDatabase('polytopia3', user='cbsteven')
 
 
 class BaseModel(Model):
@@ -33,9 +33,9 @@ class Team(BaseModel):
 
     def completed_game_count(self):
 
-        num_games = Lineup.select().join(Game).where(
-            (Game.is_completed == 1) & (Lineup.team == self) & (Game.id.in_(Team.team_games_subq()))
-        ).group_by(Lineup.lineup_num).count()
+        num_games = SquadGame.select().join(Game).where(
+            (SquadGame.team == self) & (SquadGame.game.is_completed == 1)
+        ).count()
 
         return num_games
 
@@ -68,13 +68,13 @@ class Team(BaseModel):
 
     def get_record(self):
 
-        wins = Lineup.select(Lineup.lineup_num).join(Game).where(
-            (Lineup.team == self) & (Game.id.in_(Team.team_games_subq())) & (Game.is_completed == 1) & (Game.winning_lineup == Lineup.lineup_num)
-        ).group_by(Lineup.lineup_num).count()
+        wins = SquadGame.select().join(Game).where(
+            (Game.id.in_(Team.team_games_subq())) & (Game.is_completed == 1) & (SquadGame.team == self) & (SquadGame.id == Game.winner)
+        ).count()
 
-        losses = Lineup.select(Lineup.lineup_num).join(Game).where(
-            (Lineup.team == self) & (Game.id.in_(Team.team_games_subq())) & (Game.is_completed == 1) & (Game.winning_lineup != Lineup.lineup_num)
-        ).group_by(Lineup.lineup_num).count()
+        losses = SquadGame.select().join(Game).where(
+            (Game.id.in_(Team.team_games_subq())) & (Game.is_completed == 1) & (SquadGame.team == self) & (SquadGame.id != Game.winner)
+        ).count()
 
         return (wins, losses)
 
@@ -208,7 +208,7 @@ class Player(BaseModel):
     def completed_game_count(self):
 
         num_games = Lineup.select().join(Game).where(
-            (Lineup.game.is_completed == 'TRUE') & (Lineup.player == self)
+            (Lineup.game.is_completed == 1) & (Lineup.player == self)
         ).count()
 
         return num_games
@@ -216,15 +216,15 @@ class Player(BaseModel):
     def wins(self):
         # TODO: Could combine wins/losses into one function that takes an argument and modifies query
 
-        q = Lineup.select().join(Game).where(
-            (Lineup.game.is_completed == 'TRUE') & (Lineup.player == self) & (Lineup.lineup_num == Lineup.game.winning_lineup)
+        q = Lineup.select().join(Game).join_from(Lineup, SquadGame).where(
+            (Lineup.game.is_completed == 1) & (Lineup.player == self) & (Game.winner == Lineup.squadgame.id)
         )
 
         return q
 
     def losses(self):
-        q = Lineup.select().join(Game).where(
-            (Lineup.game.is_completed == 'TRUE') & (Lineup.player == self) & (Lineup.lineup_num != Lineup.game.winning_lineup)
+        q = Lineup.select().join(Game).join_from(Lineup, SquadGame).where(
+            (Lineup.game.is_completed == 1) & (Lineup.player == self) & (Game.winner != Lineup.squadgame.id)
         )
 
         return q
@@ -312,24 +312,29 @@ class Game(BaseModel):
     date = DateField(default=datetime.datetime.today)
     completed_ts = DateTimeField(null=True, default=None)
     name = TextField(null=True)
-    lineup_channels = BinaryJSONField(null=True)
-    winning_lineup = SmallIntegerField(null=True)
-    team_size = SmallIntegerField(null=False, default=1)
-    elo_changes_team = BinaryJSONField(null=True)
-    elo_changes_squad = BinaryJSONField(null=True)
+    winner = DeferredForeignKey('SquadGame', null=True)
+    # lineup_channels = BinaryJSONField(null=True)
+    # winning_lineup = SmallIntegerField(null=True)
+    # team_size = SmallIntegerField(null=False, default=1)
+    # elo_changes_team = BinaryJSONField(null=True)
+    # elo_changes_squad = BinaryJSONField(null=True)
+
+    def team_size(self):
+        return len(self.squads[0].lineup)
 
     def load_full_game(game_id: int):
         # Returns a single Game object with all related tables pre-fetched. or None
 
         game = Game.select().where(Game.id == game_id)
+        subq = SquadGame.select(SquadGame, Team).join(Team, JOIN.LEFT_OUTER).join_from(SquadGame, Squad)
 
-        subq = Lineup.select(Lineup, TribeFlair, Tribe, Team, Player, DiscordMember, Squad).join_from(
-            Lineup, Player).join(DiscordMember).join_from(
-            Lineup, Squad, JOIN.LEFT_OUTER).join_from(
-            Lineup, Team).join_from(
-            Lineup, TribeFlair, JOIN.LEFT_OUTER).join(Tribe, JOIN.LEFT_OUTER)
+        subq2 = Lineup.select(
+            Lineup, Tribe, TribeFlair, Player, DiscordMember).join(
+            TribeFlair, JOIN.LEFT_OUTER).join(  # Need LEFT_OUTER_JOIN - default inner join would only return records that have a Tribe chosen
+            Tribe, JOIN.LEFT_OUTER).join_from(
+            Lineup, Player).join_from(Player, DiscordMember)
 
-        res = prefetch(game, subq)
+        res = prefetch(game, subq, subq2)
 
         if len(res) == 0:
             raise DoesNotExist()
@@ -367,7 +372,7 @@ class Game(BaseModel):
 
         with db:
             newgame = Game.create(name=name,
-                                  team_size=max(len(teams[0]), len(teams[1])),
+                                  # team_size=max(len(teams[0]), len(teams[1])),
                                   is_pending=False)
 
             side_home_players = []
@@ -381,73 +386,73 @@ class Game(BaseModel):
 
             # Create/update Squad records
             home_squad, away_squad = None, None
-            if len(side_home_players) > 1:
-                home_squad = Squad.upsert(player_list=side_home_players)
-            if len(side_away_players) > 1:
-                away_squad = Squad.upsert(player_list=side_away_players)
+            home_squad = Squad.upsert(player_list=side_home_players)
+            away_squad = Squad.upsert(player_list=side_away_players)
 
-            lineup_num = Lineup.next_lineup_num()
+            home_squadgame = SquadGame.create(game=newgame, squad=home_squad, team=home_side_team)
+
             for p in side_home_players:
-                Lineup.create(lineup_num=lineup_num, game=newgame, squad=home_squad, team=home_side_team, player=p)
+                Lineup.create(game=newgame, squad=home_squad, squadgame=home_squadgame, player=p)
 
-            lineup_num = Lineup.next_lineup_num()
+            away_squadgame = SquadGame.create(game=newgame, squad=away_squad, team=away_side_team)
+
             for p in side_away_players:
-                Lineup.create(lineup_num=lineup_num, game=newgame, squad=away_squad, team=away_side_team, player=p)
+                Lineup.create(game=newgame, squad=away_squad, squadgame=away_squadgame, player=p)
 
         return newgame
 
-    def declare_winner(self, winning_lineup, confirm: bool):
+    def declare_winner(self, winning_side, confirm: bool):
 
         # TODO: does not support games != 2 sides
+        if len(self.squads) != 2:
+            raise exceptions.CheckFailedError('Support for games with >2 sides not yet implemented')
 
-        winning_side, losing_side = [], []
-        winning_squad, losing_squad = None, None
-        winning_team, losing_team = None, None
+        for squadgame in self.squads:
+            if squadgame != winning_side:
+                losing_side = squadgame
 
-        for lineup in self.lineup:
-            # Since these records are already in memory, looping through should be faster than querying the DB
-            if lineup.lineup_num == winning_lineup:
-                winning_side.append(lineup)
-                winning_team = lineup.team
-                winning_squad = lineup.squad
-            else:
-                losing_side.append(lineup)
-                losing_team = lineup.team
-                losing_squad = lineup.squad
+        # winning_side, losing_side = [], []
+        # winning_squad, losing_squad = None, None
+        # winning_team, losing_team = None, None
+
+        # for lineup in self.lineup:
+        #     # Since these records are already in memory, looping through should be faster than querying the DB
+        #     if lineup.lineup_num == winning_lineup:
+        #         winning_side.append(lineup)
+        #         winning_team = lineup.team
+        #         winning_squad = lineup.squad
+        #     else:
+        #         losing_side.append(lineup)
+        #         losing_team = lineup.team
+        #         losing_squad = lineup.squad
 
         # STEP 1: INDIVIDUAL/PLAYER ELO
+        winning_side_ave_elo = winning_side.get_member_average_elo()
+        losing_side_ave_elo = losing_side.get_member_average_elo()
 
-        def average_elo_from_list(list_of_lineups):
-            elo_list = [p.player.elo for p in list_of_lineups]
-            return round(sum(elo_list) / len(elo_list))
-
-        winning_side_ave_elo = average_elo_from_list(winning_side)
-        losing_side_ave_elo = average_elo_from_list(losing_side)
-
-        for winning_member in winning_side:
+        for winning_member in winning_side.lineup:
             winning_member.change_elo_after_game(my_side_elo=winning_side_ave_elo, opponent_elo=losing_side_ave_elo, is_winner=True)
 
-        for losing_member in losing_side:
+        for losing_member in losing_side.lineup:
             losing_member.change_elo_after_game(my_side_elo=losing_side_ave_elo, opponent_elo=winning_side_ave_elo, is_winner=False)
 
-        if self.team_size > 1:
+        # STEP 2: SQUAD ELO
+        winning_squad_elo, losing_squad_elo = winning_side.squad.elo, losing_side.squad.elo
+        winning_side.elo_change_squad = winning_side.squad.change_elo_after_game(opponent_elo=losing_squad_elo, is_winner=True)
+        losing_side.elo_change_squad = losing_side.squad.change_elo_after_game(opponent_elo=winning_squad_elo, is_winner=False)
 
-            # STEP 2: SQUAD ELO
-            winning_squad_elo, losing_squad_elo = winning_squad.elo, losing_squad.elo
-            elo_change_squad_winner = winning_squad.change_elo_after_game(opponent_elo=losing_squad_elo, is_winner=True)
-            elo_change_squad_loser = losing_squad.change_elo_after_game(opponent_elo=winning_squad_elo, is_winner=False)
-            self.elo_changes_squad = {winning_squad.id: elo_change_squad_winner, losing_squad.id: elo_change_squad_loser}
-
+        if self.team_size() > 1:
             # STEP 3: TEAM ELO
-            winning_team_elo, losing_team_elo = winning_team.elo, losing_team.elo
-            elo_change_team_winner = winning_team.change_elo_after_game(opponent_elo=losing_team_elo, is_winner=True)
-            elo_change_team_loser = losing_team.change_elo_after_game(opponent_elo=winning_team_elo, is_winner=False)
-            self.elo_changes_team = {winning_team.id: elo_change_team_winner, losing_team.id: elo_change_team_loser}
+            winning_team_elo, losing_team_elo = winning_side.team.elo, losing_side.team.elo
+            winning_side.elo_change_team = winning_side.team.change_elo_after_game(opponent_elo=losing_team_elo, is_winner=True)
+            losing_side.elo_change_team = losing_side.team.change_elo_after_game(opponent_elo=winning_team_elo, is_winner=False)
 
         if confirm:
             self.is_confirmed = True
 
-        self.winning_lineup = winning_lineup
+        winning_side.save()
+        losing_side.save()
+        self.winner = winning_side
         self.is_completed = True
         self.completed_ts = datetime.datetime.now()
         self.save()
@@ -457,18 +462,17 @@ class Game(BaseModel):
         # Return a tuple of the participant and their squadgame, ie Player, SquadGame or Team, Squadgame
 
         if player:
-            print('here')
             player_obj = Player.get_by_string(player_string=player, guild_id=ctx.guild.id)
             if not player_obj:
                 raise exceptions.CheckFailedError(f'Cannot find a player with name "{player}". Try specifying with an @Mention.')
             if len(player_obj) > 1:
                 raise exceptions.CheckFailedError(f'More than one player match found for "{player}". Be more specific.')
             player_obj = player_obj[0]
-            print(len(self.lineup))
-            for p in self.lineup:
-                print(p, player_obj)
-                if p.player == player_obj:
-                    return player_obj, p.lineup_num
+
+            for squadgame in self.squads:
+                for p in squadgame.lineup:
+                    if p.player == player_obj:
+                        return player_obj, squadgame
 
             raise exceptions.CheckFailedError(f'{player_obj.name} did not play in game {self.id}.')
 
@@ -480,9 +484,9 @@ class Game(BaseModel):
                 raise exceptions.CheckFailedError(f'More than one team match found for "{team}". Be more specific.')
             team_obj = team_obj[0]
 
-            for t in self.lineup:
-                if t.team == team_obj:
-                    return team_obj, t.lineup_num
+            for squadgame in self.squads:
+                if squadgame.team == team_obj:
+                    return team_obj, squadgame
 
             raise exceptions.CheckFailedError(f'{team_obj.name} did not play in game {self.id}.')
         else:
@@ -491,11 +495,12 @@ class Game(BaseModel):
     def get_winner(self):
         # Returns player name of winner if its a 1v1, or team-name of winning side if its a group game
 
-        for lineup in self.lineup:
-            if lineup.lineup_num == self.winning_lineup:
-                if self.team_size > 1:
-                    return lineup.team
-                return lineup.player
+        for squadgame in self.squads:
+            if squadgame == self.winner:
+                if len(squadgame.lineup) > 1:
+                    return squadgame.team
+                else:
+                    return squadgame.lineup[0].player
 
         return None
 
@@ -527,9 +532,9 @@ class Squad(BaseModel):
 
     def completed_game_count(self):
 
-        num_games = Lineup.select().join(Game).where(
-            (Game.is_completed == 1) & (Lineup.squad == self)
-        ).group_by(Lineup.lineup_num).count()
+        num_games = SquadGame.select().join(Game).where(
+            (Game.is_completed == 1) & (SquadGame.squad == self)
+        ).count()
 
         return num_games
 
@@ -561,20 +566,26 @@ class SquadMember(BaseModel):
     squad = ForeignKeyField(Squad, null=False, backref='squadmembers', on_delete='CASCADE')
 
 
+class SquadGame(BaseModel):
+    game = ForeignKeyField(Game, null=False, backref='squads', on_delete='CASCADE')
+    squad = ForeignKeyField(Squad, null=False, backref='squadgame', on_delete='CASCADE')
+    team = ForeignKeyField(Team, null=False, backref='squadgame')
+    elo_change_squad = SmallIntegerField(default=0)
+    elo_change_team = SmallIntegerField(default=0)
+    team_chan_category = BitField(default=None, null=True)
+    team_chan = BitField(default=None, null=True)   # Store category/ID of team channel for more consistent renaming-deletion
+
+    def get_member_average_elo(self):
+        elo_list = [l.player.elo for l in self.lineup]
+        return round(sum(elo_list) / len(elo_list))
+
+
 class Lineup(BaseModel):
-    lineup_num = SmallIntegerField(null=False, unique=False)
     tribe = ForeignKeyField(TribeFlair, null=True)
     game = ForeignKeyField(Game, null=False, backref='lineup', on_delete='CASCADE')
-    squad = ForeignKeyField(Squad, null=True, backref='lineup')
-    team = ForeignKeyField(Team, null=False, backref='lineup')
+    squadgame = ForeignKeyField(SquadGame, null=False, backref='lineup')
     player = ForeignKeyField(Player, null=False, backref='lineup')
     elo_change_player = SmallIntegerField(default=0)
-
-    def next_lineup_num():
-        # Return an integer lineup_num that is one higher than current max(lineup_num)
-        # Access line: p = Lineup.next_lineup_num()
-        q = Lineup.select(fn.COALESCE(fn.MAX(Lineup.lineup_num), 0).alias('next_lineup_num'))
-        return q[0].next_lineup_num + 1
 
     def change_elo_after_game(self, my_side_elo, opponent_elo, is_winner):
         # Average(Away Side Elo) is compared to Average(Home_Side_Elo) for calculation - ie all members on a side will have the same elo_delta
@@ -609,5 +620,11 @@ class Lineup(BaseModel):
 
 
 with db:
-    db.create_tables([Team, DiscordMember, Game, Player, Tribe, Squad, SquadMember, Lineup, TribeFlair])
+    db.create_tables([Team, DiscordMember, Game, Player, Tribe, Squad, SquadGame, SquadMember, Lineup, TribeFlair])
     # Only creates missing tables so should be safe to run each time
+    try:
+        # Creates deferred FK http://docs.peewee-orm.com/en/latest/peewee/models.html#circular-foreign-key-dependencies
+        Game._schema.create_foreign_key(Game.winner)
+    except ProgrammingError:
+        pass
+        # Will throw this exception if the foreign key has already been created

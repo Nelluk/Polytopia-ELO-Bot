@@ -20,6 +20,7 @@ class games():
         # Give game ID integer return matching game or None. Can be used as a converter function for discord command input:
         # https://discordpy.readthedocs.io/en/rewrite/ext/commands/commands.html#basic-converters
         # all-related records are prefetched
+
         try:
             game = Game.load_full_game(game_id=int(game_id))
             logger.debug(f'Game with ID {game_id} found.')
@@ -443,17 +444,17 @@ class games():
                 return await ctx.send(f'You were not a participant in game {winning_game.id}, and do not have staff privileges.')
 
         try:
-            if winning_game.team_size == 1:
-                winning_obj, winning_lineup = winning_game.return_participant(ctx, player=winning_side_name)
+            if winning_game.team_size() == 1:
+                winning_obj, winning_side = winning_game.return_participant(ctx, player=winning_side_name)
 
-            elif winning_game.team_size > 1:
-                winning_obj, winning_lineup = winning_game.return_participant(ctx, team=winning_side_name)
+            elif winning_game.team_size() > 1:
+                winning_obj, winning_side = winning_game.return_participant(ctx, team=winning_side_name)
             else:
                 return logger.error('Invalid team_size. Aborting wingame command.')
         except exceptions.CheckFailedError as ex:
             return await ctx.send(f'{ex}')
 
-        winning_game.declare_winner(winning_lineup=winning_lineup, confirm=is_staff)
+        winning_game.declare_winner(winning_side=winning_side, confirm=is_staff)
 
     @commands.command(usage='tribe_name new_emoji')
     # @commands.has_any_role(*mod_roles)
@@ -565,7 +566,7 @@ class games():
     async def ts(self, ctx, name: str):
 
         # p = Game.load_full_game(game_id=1)
-        p = Team.get(id=1)
+        p = Player.get(id=3)
         q = p.get_record()
         print(q)
         return
