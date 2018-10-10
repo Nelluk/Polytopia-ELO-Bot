@@ -233,33 +233,33 @@ class Player(BaseModel):
 
         return (self.wins().count(), self.losses().count())
 
-    # def leaderboard_rank(self, date_cutoff):
-    #     # TODO: This could be replaced with Postgresql Window functions to have the DB calculate the rank.
-    #     # Advantages: Probably moderately more efficient, and will resolve ties in a sensible way
-    #     # But no idea how to write the query :/
+    def leaderboard_rank(self, date_cutoff):
+        # TODO: This could be replaced with Postgresql Window functions to have the DB calculate the rank.
+        # Advantages: Probably moderately more efficient, and will resolve ties in a sensible way
+        # But no idea how to write the query :/
 
-    #     query = Player.leaderboard(date_cutoff=date_cutoff, guild_id=self.guild_id)
+        query = Player.leaderboard(date_cutoff=date_cutoff, guild_id=self.guild_id)
 
-    #     player_found = False
-    #     for counter, p in enumerate(query.tuples()):
-    #         print(p)
-    #         if p[0] == self.id:
-    #             player_found = True
-    #             break
+        player_found = False
+        for counter, p in enumerate(query.tuples()):
+            print(p)
+            if p[0] == self.id:
+                player_found = True
+                break
 
-    #     rank = counter + 1 if player_found else None
-    #     return (rank, query.count())
+        rank = counter + 1 if player_found else None
+        return (rank, query.count())
 
-    # def leaderboard(date_cutoff, guild_id: int):
-    #     query = Player.select().join(SquadMember).join(SquadMemberGame).join_from(SquadMemberGame, SquadGame).join(Game).where(
-    #         (Player.guild_id == guild_id) & (Game.is_completed == 1) & (Game.date > date_cutoff)
-    #     ).distinct().order_by(-Player.elo)
+    def leaderboard(date_cutoff, guild_id: int):
+        query = Player.select().join(Lineup).join(Game).where(
+            (Player.guild_id == guild_id) & (Game.is_completed == 1) & (Game.date > date_cutoff)
+        ).distinct().order_by(-Player.elo)
 
-    #     if query.count() < 10:
-    #         # Include all registered players on leaderboard if not many games played
-    #         query = Player.select().where(Player.guild_id == guild_id).order_by(-Player.elo)
+        if query.count() < 10:
+            # Include all registered players on leaderboard if not many games played
+            query = Player.select().where(Player.guild_id == guild_id).order_by(-Player.elo)
 
-    #     return query
+        return query
 
     class Meta:
         indexes = ((('discord_member', 'guild_id'), True),)   # Trailing comma is required
@@ -313,11 +313,69 @@ class Game(BaseModel):
     completed_ts = DateTimeField(null=True, default=None)
     name = TextField(null=True)
     winner = DeferredForeignKey('SquadGame', null=True)
-    # lineup_channels = BinaryJSONField(null=True)
-    # winning_lineup = SmallIntegerField(null=True)
-    # team_size = SmallIntegerField(null=False, default=1)
-    # elo_changes_team = BinaryJSONField(null=True)
-    # elo_changes_squad = BinaryJSONField(null=True)
+
+    def embed(self, ctx):
+        if len(self.squads) != 2:
+            raise exceptions.CheckFailedError('Support for games with >2 sides not yet implemented')
+
+        home_side = self.squads[0]
+        away_side = self.squads[1]
+        # side_home_roster = home_side.roster()
+        # side_away_roster = away_side.roster()
+
+        winner = self.get_winner()
+
+        game_headline = self.get_headline()
+        game_headline = game_headline.replace('\u00a0', '\n')   # Put game.name onto its own line if its there
+
+        embed = discord.Embed(title=game_headline)
+
+        if self.is_completed == 1:
+            embed.title += f'\n\nWINNER: {winner.name}'
+
+        # Set embed image (profile picture or team logo)
+            if self.team_size() == 1:
+                winning_discord_member = ctx.guild.get_member(winner.discord_member.discord_id)
+                if winning_discord_member is not None:
+                    embed.set_thumbnail(url=winning_discord_member.avatar_url_as(size=512))
+            elif winner.image_url:
+                embed.set_thumbnail(url=winner.image_url)
+
+        # TEAM/SQUAD ELOs and ELO DELTAS
+        home_team_elo_str, home_squad_elo_str = home_side.elo_strings()
+        away_team_elo_str, away_squad_elo_str = away_side.elo_strings()
+
+        if home_side.team.name == 'Home' and away_side.team.name == 'Away':
+            # Hide team ELO if its just generic Home/Away
+            home_team_elo_str = away_team_elo_str = ''
+
+        if self.team_size() == 1:
+            # Hide squad ELO stats for 1v1 games
+            home_squad_elo_str = away_squad_elo_str = '\u200b'
+
+        game_data = [(home_side, home_team_elo_str, home_squad_elo_str, home_side.roster()), (away_side, away_team_elo_str, away_squad_elo_str, away_side.roster())]
+
+        for side, elo_str, squad_str, roster in game_data:
+            if self.team_size() > 1:
+                embed.add_field(name=f'Lineup for Team **{side.team.name}** {elo_str}', value=squad_str, inline=False)
+
+            for player, player_elo_str, tribe_emoji in roster:
+                embed.add_field(name=f'**{player.name}** {tribe_emoji}', value=f'ELO: {player_elo_str}', inline=True)
+
+        embed.set_footer(text=f'Status: {"Completed" if self.is_completed else "Incomplete"}  -  Creation Date {str(self.date)}')
+
+        return embed
+
+    def get_headline(self):
+        if len(self.squads) != 2:
+            raise exceptions.CheckFailedError('Support for games with >2 sides not yet implemented')
+
+        home_name, away_name = self.squads[0].name(), self.squads[1].name()
+        home_emoji = self.squads[0].team.emoji if self.squads[0].team.emoji else ''
+        away_emoji = self.squads[1].team.emoji if self.squads[1].team.emoji else ''
+        game_name = f'\u00a0*{self.name}*' if self.name.strip() else ''  # \u00a0 is used as an invisible delimeter so game_name can be split out easily
+
+        return f'Game {self.id}   {home_emoji} **{home_name}** *vs* **{away_name}** {away_emoji}{game_name}'
 
     def team_size(self):
         return len(self.squads[0].lineup)
@@ -560,6 +618,54 @@ class Squad(BaseModel):
 
         return elo_delta
 
+    def subq_squads_by_size(min_size: int=2, exact=False):
+
+        if exact:
+            # Squads with exactly min_size number of members
+            return SquadMember.select(SquadMember.squad).group_by(
+                SquadMember.squad
+            ).having(fn.COUNT('*') == min_size)
+
+        # Squads with at least min_size number of members
+        return SquadMember.select(SquadMember.squad).group_by(
+            SquadMember.squad
+        ).having(fn.COUNT('*') >= min_size)
+
+    def subq_squads_with_completed_games():
+        return SquadGame.select(SquadGame.squad).join(Game).where(Game.is_completed == 1).group_by(
+            SquadGame.squad
+        ).having(fn.COUNT('*') > 0)
+
+    def get_all_matching_squads(player_list):
+        # Takes [List, of, Player, Records] (not names)
+        # Returns all squads containing players in player list. Used to look up a squad by partial or complete membership
+
+        # Limited to squads with at least 2 members and at least 1 completed game
+        query = Squad.select().join(SquadMember).where(
+            (Squad.id.in_(Squad.subq_squads_by_size(min_size=2))) & (Squad.id.in_(Squad.subq_squads_with_completed_games()))
+        ).group_by(Squad.id).having(
+            (fn.SUM(SquadMember.player.in_(player_list).cast('integer')) == len(player_list))
+        )
+
+        return query
+
+    def get_record(self):
+
+        # Filter 1v1 games from results
+        subq = Lineup.select(Lineup.squadgame.game).join(SquadGame).group_by(
+            Lineup.squadgame.game
+        ).having(fn.COUNT('*') > 2)
+
+        wins = Game.select(Game, SquadGame).join(SquadGame).where(
+            (Game.id.in_(subq)) & (Game.is_completed == 1) & (SquadGame.squad == self) & (SquadGame.id == Game.winner)
+        ).count()
+
+        losses = Game.select(Game, SquadGame).join(SquadGame).where(
+            (Game.id.in_(subq)) & (Game.is_completed == 1) & (SquadGame.squad == self) & (SquadGame.id != Game.winner)
+        ).count()
+
+        return (wins, losses)
+
 
 class SquadMember(BaseModel):
     player = ForeignKeyField(Player, null=False, on_delete='CASCADE')
@@ -575,9 +681,47 @@ class SquadGame(BaseModel):
     team_chan_category = BitField(default=None, null=True)
     team_chan = BitField(default=None, null=True)   # Store category/ID of team channel for more consistent renaming-deletion
 
+    def elo_strings(self):
+        # Returns a tuple of strings for team ELO and squad ELO display. ie:
+        # ('1200 +30', '1300')
+
+        team_elo_str = str(self.elo_change_team) if self.elo_change_team != 0 else ''
+        if self.elo_change_team > 0:
+            team_elo_str = '+' + team_elo_str
+
+        squad_elo_str = str(self.elo_change_squad) if self.elo_change_squad != 0 else ''
+        if self.elo_change_squad > 0:
+            squad_elo_str = '+' + squad_elo_str
+        if squad_elo_str:
+            squad_elo_str = '(' + squad_elo_str + ')'
+
+        return (f'({self.team.elo} {team_elo_str})', f'{self.squad.elo} {squad_elo_str}')
+
     def get_member_average_elo(self):
         elo_list = [l.player.elo for l in self.lineup]
         return round(sum(elo_list) / len(elo_list))
+
+    def name(self):
+        if len(self.lineup) == 1:
+            # 1v1 game
+            return self.lineup[0].player.name
+        else:
+            # Team game
+            return self.team.name
+
+    def roster(self):
+        # Returns list of tuples [(player, elo string (1000 +50), :tribe_emoji:)]
+        players = []
+
+        for l in self.lineup:
+            elo_str = str(l.elo_change_player) if l.elo_change_player != 0 else ''
+            if l.elo_change_player > 0:
+                elo_str = '+' + elo_str
+            players.append(
+                (l.player, f'{l.player.elo} {elo_str}', l.emoji_str())
+            )
+
+        return players
 
 
 class Lineup(BaseModel):
@@ -617,6 +761,13 @@ class Lineup(BaseModel):
         self.elo_change_player = elo_delta
         self.player.save()
         self.save()
+
+    def emoji_str(self):
+
+        if self.tribe.emoji:
+            return self.tribe.emoji
+        else:
+            return ''
 
 
 with db:

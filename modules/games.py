@@ -4,7 +4,7 @@ import modules.utilities as utilities
 import settings
 import modules.exceptions as exceptions
 import peewee
-from modules.models import Game, db, Player, Team, DiscordMember, Squad, SquadMember, TribeFlair, Lineup  # Team, Game, Player, DiscordMember
+from modules.models import Game, db, Player, Team, DiscordMember, Squad, TribeFlair, Lineup, SquadGame  # Team, Game, Player, DiscordMember
 # from bot import logger
 import logging
 
@@ -175,8 +175,8 @@ class games():
 
             embed.add_field(value='\u200b', name='Most recent games', inline=False)
 
-            recent_games = SquadGame.select(SquadGame, Game).join(Game).join_from(SquadGame, SquadMemberGame).join(SquadMember).where(
-                (SquadMemberGame.member.player == player)
+            recent_games = SquadGame.select(SquadGame, Game).join(Game).join_from(SquadGame, Lineup).where(
+                (Lineup.player == player)
             ).order_by(-Game.date)[:7]
 
             for squadgame in recent_games:
@@ -184,7 +184,7 @@ class games():
                 if game.is_completed == 0:
                     status = 'Incomplete'
                 else:
-                    status = '**WIN**' if squadgame.is_winner == 1 else '***Loss***'
+                    status = '**WIN**' if squadgame.id == Game.winner else '***Loss***'
 
                     embed.add_field(name=f'{game.get_headline()}',
                                 value=f'{status} - {str(game.date)} - {game.team_size()}v{game.team_size()}')
@@ -240,7 +240,7 @@ class games():
         for squadgame in recent_games:
             game = Game.load_full_game(game_id=squadgame.game)
             if game.is_completed == 1:
-                result = '**WIN**' if squadgame.is_winner == 1 else 'LOSS'
+                result = '**WIN**' if squadgame.id == Game.winner else 'LOSS'
             else:
                 result = 'Incomplete'
 
