@@ -108,6 +108,21 @@ async def delete_squad_channel(ctx, channel_id: int):
         logger.error(f'Could not delete channel: {e}')
 
 
+async def update_squad_channel_name(ctx, channel_id: int, game_id: int, game_name: str, team_name: str):
+    chan = ctx.guild.get_channel(channel_id)
+    if chan is None:
+        return logger.warn(f'Channel ID {channel_id} provided for update but it could not be loaded from guild')
+
+    chan_name = generate_channel_name(game_id=game_id, game_name=game_name, team_name=team_name)
+    try:
+        await chan.edit(name=chan_name, reason='Game renamed')
+        logger.info(f'Renamed channel for game {game_id} to {chan_name}')
+    except (discord.DiscordException, discord.errors.DiscordException) as e:
+        logger.error(f'Could not delete channel: {e}')
+
+    await chan.send(f'This game has been renamed to *{game_name}*.')
+
+
 async def update_game_channel_name(ctx, game, old_game_name, new_game_name):
 
     # Update a channel's name when its associated game is renamed

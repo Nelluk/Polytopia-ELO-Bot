@@ -317,7 +317,7 @@ class Game(BaseModel):
     name = TextField(null=True)
     winner = DeferredForeignKey('SquadGame', null=True)
 
-    async def create_team_channels(self, ctx):
+    async def create_squad_channels(self, ctx):
         game_roster = []
         for squadgame in self.squads:
             game_roster.append([r[0].name for r in squadgame.roster()])
@@ -337,14 +337,20 @@ class Game(BaseModel):
 
                 await channels.greet_squad_channel(ctx, chan=chan, cat=chan_cat, player_list=player_list, roster_names=roster_names, game=self)
 
-    async def delete_team_channels(self, ctx):
+    async def delete_squad_channels(self, ctx):
 
         if self.name.lower()[:2] == 's3' or self.name.lower()[:2] == 's4' or self.name.lower()[:2] == 's5':
-            logger.warn(f'Skipping team channel deletion for game {self.id} {self.name} since it is a Season game')
-            return
+            return logger.warn(f'Skipping team channel deletion for game {self.id} {self.name} since it is a Season game')
+
         for squadgame in self.squads:
             if squadgame.team_chan:
                 await channels.delete_squad_channel(ctx, channel_id=squadgame.team_chan)
+
+    async def update_squad_channels(self, ctx):
+
+        for squadgame in self.squads:
+            if squadgame.team_chan:
+                await channels.update_squad_channel_name(ctx, channel_id=squadgame.team_chan, game_id=self.id, game_name=self.name, team_name=squadgame.team.name)
 
     def embed(self, ctx):
         if len(self.squads) != 2:

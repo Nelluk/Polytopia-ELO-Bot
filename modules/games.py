@@ -62,11 +62,10 @@ class games():
 
         new_game_name = ' '.join(args)
         with db:
-            # if game.name is not None:
-                # await self.update_game_channel_name(ctx, game=game, old_game_name=game.name, new_game_name=new_game_name)
-            # TODO: update for game channels
             game.name = new_game_name.title()
             game.save()
+
+        await game.update_squad_channels(ctx)
         # await update_announcement(ctx, game)
         # TODO: make above line work
 
@@ -546,7 +545,7 @@ class games():
         mentions = [p.mention for p in side_home + side_away]
         await ctx.send(f'New game ID {newgame.id} started! Roster: {" ".join(mentions)}')
 
-        await newgame.create_team_channels(ctx)
+        await newgame.create_squad_channels(ctx)
 
     @commands.command(aliases=['endgame', 'win'], usage='game_id winner_name')
     # @commands.has_any_role(*helper_roles)
@@ -587,7 +586,7 @@ class games():
         winning_game.declare_winner(winning_side=winning_side, confirm=is_staff)
         if is_staff:
             # Only delete channels if win confirmation is final/confirmed
-            await winning_game.delete_team_channels(ctx=ctx)
+            await winning_game.delete_squad_channels(ctx=ctx)
 
     @commands.command(usage='tribe_name new_emoji')
     # @commands.has_any_role(*mod_roles)
