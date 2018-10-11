@@ -4,7 +4,7 @@ import modules.utilities as utilities
 import settings
 import modules.exceptions as exceptions
 import peewee
-from modules.models import Game, db, Player, Team, DiscordMember, Squad, TribeFlair, Lineup, SquadGame  # Team, Game, Player, DiscordMember
+from modules.models import Game, db, Player, Team, DiscordMember, Squad, TribeFlair, Lineup, SquadGame, SquadMember  # Team, Game, Player, DiscordMember
 # from bot import logger
 import logging
 
@@ -130,6 +130,88 @@ class games():
         await utilities.paginate(self.bot, ctx, title='**Squad Leaderboards**', message_list=leaderboard, page_start=0, page_end=10, page_size=10)
 
     # @in_bot_channel()
+    @commands.command(brief='Find squads or see details on a squad', usage='player1 [player2] [player3]', aliases=['squads'])
+    async def squad(self, ctx, *args):
+        """Find squads with specific players, or see details on a squad
+        **Examples:**
+        `[p]squad 5` - details on squad 5
+        `[p]squad Nelluk` - squads containing Nelluk
+        `[p]squad Nelluk frodakcin` - squad containing both players
+        """
+        with db:
+            try:
+                # Argument is an int, so show squad by ID
+                squad_id = int(''.join(args))
+                squad = Squad.get(id=squad_id)
+            except ValueError:
+                squad_id = None
+                # Args is not an int, which means search by game name
+            except peewee.DoesNotExist:
+                await ctx.send('Squad with ID {} cannot be found.'.format(squad_id))
+                return
+
+            if squad_id is None:
+                # Search by player names
+                squad_players = []
+                for p_name in args:
+                    p_matches = Player.get_by_string(p_name, guild_id=ctx.guild.id)
+                    if len(p_matches) == 1:
+                        squad_players.append(p_matches[0])
+                    elif len(p_matches) > 1:
+                        return await ctx.send(f'Found multiple matches for player "{p_name}". Try being more specific or quoting players "Full Name".')
+                    else:
+                        return await ctx.send(f'Found no matches for player "{p_name}".')
+
+                squad_list = Squad.get_all_matching_squads(squad_players)
+                if len(squad_list) == 0:
+                    return await ctx.send(f'Found no squads containing players: {" / ".join(args)}')
+                if len(squad_list) > 1:
+                    # More than one matching name found, so display a short list
+                    embed = discord.Embed(title=f'Found {len(squad_list)} matches. Try `{ctx.prefix}squad IDNUM`:')
+                    for squad in squad_list[:10]:
+                        wins, losses = squad.get_record()
+                        embed.add_field(
+                            name=f'`ID {squad.id:>3} - {" / ".join(squad.get_names()):40}`',
+                            value=f'`(ELO: {squad.elo}) W {wins} / L {losses}`',
+                            inline=False
+                        )
+                    return await ctx.send(embed=embed)
+
+                # Exact matching squad found by player name
+                squad = squad_list[0]
+
+        with db:
+            wins, losses = squad.get_record()
+            rank, lb_length = squad.leaderboard_rank(settings.date_cutoff)
+
+            if rank is None:
+                rank_str = 'Unranked'
+            else:
+                rank_str = f'{rank} of {lb_length}'
+
+            names_with_emoji = [f'{p.team.emoji} {p.name}' if p.team is not None else f'{p.name}' for p in squad.get_members()]
+
+            embed = discord.Embed(title=f'Squad card for Squad {squad.id}\n{"  /  ".join(names_with_emoji)}', value='\u200b')
+            embed.add_field(name='Results', value=f'ELO: {squad.elo},  W {wins} / L {losses}', inline=True)
+            embed.add_field(name='Ranking', value=rank_str, inline=True)
+            recent_games = SquadGame.select().join(Game).where(
+                (SquadGame.squad == squad) & (Game.is_pending == 0)
+            ).order_by(-Game.date)[:5]
+            embed.add_field(value='\u200b', name='Most recent games', inline=False)
+
+            for squadgame in recent_games:
+                game = Game.load_full_game(game_id=squadgame.game)  # preloads game data to reduce DB queries.
+                if game.is_completed == 0:
+                    status = 'Incomplete'
+                else:
+                    status = '**WIN**' if squadgame.id == Game.winner else '***Loss***'
+
+                embed.add_field(name=f'{game.get_headline()}',
+                            value=f'{status} - {str(game.date)} - {game.team_size()}v{game.team_size()}')
+
+            await ctx.send(embed=embed)
+
+    # @in_bot_channel()
     @commands.command(brief='See details on a player', usage='player_name', aliases=['elo'])
     async def player(self, ctx, *args):
         """See your own player card or the card of another player
@@ -196,7 +278,7 @@ class games():
             embed.add_field(value='\u200b', name='Most recent games', inline=False)
 
             recent_games = SquadGame.select(SquadGame, Game).join(Game).join_from(SquadGame, Lineup).where(
-                (Lineup.player == player)
+                (Lineup.player == player) & (Game.is_pending == 0)
             ).order_by(-Game.date)[:7]
 
             for squadgame in recent_games:
@@ -464,6 +546,8 @@ class games():
         mentions = [p.mention for p in side_home + side_away]
         await ctx.send(f'New game ID {newgame.id} started! Roster: {" ".join(mentions)}')
 
+        await newgame.create_team_channels(ctx)
+
     @commands.command(aliases=['endgame', 'win'], usage='game_id winner_name')
     # @commands.has_any_role(*helper_roles)
     # TODO: output/announcements
@@ -613,7 +697,9 @@ class games():
 
         # p = Game.load_full_game(game_id=1)
         # import datetime
-        q = Squad.leaderboard(date_cutoff=settings.date_cutoff, guild_id=ctx.guild.id)
+        squad = SquadGame.get(id=1)
+        await squad.create_channel(ctx)
+        return
 
         print(len(q))
         for s in q.dicts():

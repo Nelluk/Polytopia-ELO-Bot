@@ -4,6 +4,8 @@ from peewee import *
 from playhouse.postgres_ext import *
 import modules.exceptions as exceptions
 from modules import utilities
+from modules import channels
+import asyncio
 import logging
 
 logger = logging.getLogger('polybot.' + __name__)
@@ -314,6 +316,24 @@ class Game(BaseModel):
     completed_ts = DateTimeField(null=True, default=None)
     name = TextField(null=True)
     winner = DeferredForeignKey('SquadGame', null=True)
+
+    async def create_team_channels(self, ctx):
+        game_roster = []
+        for squadgame in self.squads:
+            game_roster.append([r[0].name for r in squadgame.roster()])
+
+        roster_names = ' -vs- '.join([' '.join(side) for side in game_roster])
+        # yields a string like 'Player1 Player2 -vs- Player3 Player4'
+
+        for squadgame in self.squads:
+            player_list = [r[0] for r in squadgame.roster()]
+            chan, chan_cat = await channels.create_squad_channel(ctx, game=self, team_name=squadgame.team.name, player_list=player_list)
+            if chan:
+                squadgame.team_chan = chan.id
+                squadgame.team_chan_category = chan_cat.id
+                squadgame.save()
+
+                await channels.greet_squad_channel(ctx, chan=chan, cat=chan_cat, player_list=player_list, roster_names=roster_names, game=self)
 
     def embed(self, ctx):
         if len(self.squads) != 2:
@@ -804,7 +824,7 @@ class Lineup(BaseModel):
 
     def emoji_str(self):
 
-        if self.tribe.emoji:
+        if self.tribe and self.tribe.emoji:
             return self.tribe.emoji
         else:
             return ''
