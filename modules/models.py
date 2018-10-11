@@ -327,13 +327,24 @@ class Game(BaseModel):
 
         for squadgame in self.squads:
             player_list = [r[0] for r in squadgame.roster()]
+            if len(player_list) < 2:
+                continue
             chan, chan_cat = await channels.create_squad_channel(ctx, game=self, team_name=squadgame.team.name, player_list=player_list)
             if chan:
                 squadgame.team_chan = chan.id
-                squadgame.team_chan_category = chan_cat.id
+                # squadgame.team_chan_category = chan_cat.id
                 squadgame.save()
 
                 await channels.greet_squad_channel(ctx, chan=chan, cat=chan_cat, player_list=player_list, roster_names=roster_names, game=self)
+
+    async def delete_team_channels(self, ctx):
+
+        if self.name.lower()[:2] == 's3' or self.name.lower()[:2] == 's4' or self.name.lower()[:2] == 's5':
+            logger.warn(f'Skipping team channel deletion for game {self.id} {self.name} since it is a Season game')
+            return
+        for squadgame in self.squads:
+            if squadgame.team_chan:
+                await channels.delete_squad_channel(ctx, channel_id=squadgame.team_chan)
 
     def embed(self, ctx):
         if len(self.squads) != 2:
@@ -490,47 +501,33 @@ class Game(BaseModel):
             if squadgame != winning_side:
                 losing_side = squadgame
 
-        # winning_side, losing_side = [], []
-        # winning_squad, losing_squad = None, None
-        # winning_team, losing_team = None, None
-
-        # for lineup in self.lineup:
-        #     # Since these records are already in memory, looping through should be faster than querying the DB
-        #     if lineup.lineup_num == winning_lineup:
-        #         winning_side.append(lineup)
-        #         winning_team = lineup.team
-        #         winning_squad = lineup.squad
-        #     else:
-        #         losing_side.append(lineup)
-        #         losing_team = lineup.team
-        #         losing_squad = lineup.squad
-
-        # STEP 1: INDIVIDUAL/PLAYER ELO
-        winning_side_ave_elo = winning_side.get_member_average_elo()
-        losing_side_ave_elo = losing_side.get_member_average_elo()
-
-        for winning_member in winning_side.lineup:
-            winning_member.change_elo_after_game(my_side_elo=winning_side_ave_elo, opponent_elo=losing_side_ave_elo, is_winner=True)
-
-        for losing_member in losing_side.lineup:
-            losing_member.change_elo_after_game(my_side_elo=losing_side_ave_elo, opponent_elo=winning_side_ave_elo, is_winner=False)
-
-        # STEP 2: SQUAD ELO
-        winning_squad_elo, losing_squad_elo = winning_side.squad.elo, losing_side.squad.elo
-        winning_side.elo_change_squad = winning_side.squad.change_elo_after_game(opponent_elo=losing_squad_elo, is_winner=True)
-        losing_side.elo_change_squad = losing_side.squad.change_elo_after_game(opponent_elo=winning_squad_elo, is_winner=False)
-
-        if self.team_size() > 1:
-            # STEP 3: TEAM ELO
-            winning_team_elo, losing_team_elo = winning_side.team.elo, losing_side.team.elo
-            winning_side.elo_change_team = winning_side.team.change_elo_after_game(opponent_elo=losing_team_elo, is_winner=True)
-            losing_side.elo_change_team = losing_side.team.change_elo_after_game(opponent_elo=winning_team_elo, is_winner=False)
-
         if confirm:
             self.is_confirmed = True
 
-        winning_side.save()
-        losing_side.save()
+            # STEP 1: INDIVIDUAL/PLAYER ELO
+            winning_side_ave_elo = winning_side.get_member_average_elo()
+            losing_side_ave_elo = losing_side.get_member_average_elo()
+
+            for winning_member in winning_side.lineup:
+                winning_member.change_elo_after_game(my_side_elo=winning_side_ave_elo, opponent_elo=losing_side_ave_elo, is_winner=True)
+
+            for losing_member in losing_side.lineup:
+                losing_member.change_elo_after_game(my_side_elo=losing_side_ave_elo, opponent_elo=winning_side_ave_elo, is_winner=False)
+
+            # STEP 2: SQUAD ELO
+            winning_squad_elo, losing_squad_elo = winning_side.squad.elo, losing_side.squad.elo
+            winning_side.elo_change_squad = winning_side.squad.change_elo_after_game(opponent_elo=losing_squad_elo, is_winner=True)
+            losing_side.elo_change_squad = losing_side.squad.change_elo_after_game(opponent_elo=winning_squad_elo, is_winner=False)
+
+            if self.team_size() > 1:
+                # STEP 3: TEAM ELO
+                winning_team_elo, losing_team_elo = winning_side.team.elo, losing_side.team.elo
+                winning_side.elo_change_team = winning_side.team.change_elo_after_game(opponent_elo=losing_team_elo, is_winner=True)
+                losing_side.elo_change_team = losing_side.team.change_elo_after_game(opponent_elo=winning_team_elo, is_winner=False)
+
+            winning_side.save()
+            losing_side.save()
+
         self.winner = winning_side
         self.is_completed = True
         self.completed_ts = datetime.datetime.now()
@@ -738,7 +735,7 @@ class SquadGame(BaseModel):
     team = ForeignKeyField(Team, null=False, backref='squadgame')
     elo_change_squad = SmallIntegerField(default=0)
     elo_change_team = SmallIntegerField(default=0)
-    team_chan_category = BitField(default=None, null=True)
+    # team_chan_category = BitField(default=None, null=True)
     team_chan = BitField(default=None, null=True)   # Store category/ID of team channel for more consistent renaming-deletion
 
     def elo_strings(self):

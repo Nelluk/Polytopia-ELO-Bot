@@ -585,6 +585,9 @@ class games():
             return await ctx.send(f'{ex}')
 
         winning_game.declare_winner(winning_side=winning_side, confirm=is_staff)
+        if is_staff:
+            # Only delete channels if win confirmation is final/confirmed
+            await winning_game.delete_team_channels(ctx=ctx)
 
     @commands.command(usage='tribe_name new_emoji')
     # @commands.has_any_role(*mod_roles)
@@ -695,6 +698,7 @@ class games():
     # @commands.has_any_role(*helper_roles)
     async def ts(self, ctx, name: str):
 
+        # return logger.error('hi!')
         # p = Game.load_full_game(game_id=1)
         # import datetime
         squad = SquadGame.get(id=1)
