@@ -629,54 +629,48 @@ class games():
             await ctx.send(f'Game concluded! Congrats **{winning_game.get_winner().name}**. Roster: {" ".join(player_mentions)}')
             await ctx.send(embed=embed)
 
-    @commands.command(usage='game_id player_name tribe_name')
+    @commands.command(usage='game_id player_name tribe_name [player2 tribe2 ... ]')
     # @commands.has_any_role(*helper_roles)
-    async def settribe(self, ctx, game: poly_game_mini, player_name, tribe_name):
+    async def settribe(self, ctx, game: poly_game_mini, *args):
         """*Staff:* Set tribe of a player for a game
         **Examples**
         `[p]settribe 5 nelluk bardur` - Sets Nelluk to Bardur for game 5
+        `[p]settribe 5 nelluk bardur rickdaheals kickoo` - Sets both player tribes in one command
         """
-
-        # TODO: allow bulk updates ie $settribe 100 nelluk bardur anarcho kickoo bakalol lux bomber oumaji
-
-        # NOTE: This version won't update the embed correctly because the Game in memory will not reflect the lineup change
 
         if game is None:
             return await ctx.send(f'No matching game was found.')
 
-        with db:
+        if len(args) % 2 != 0:
+            return await ctx.send(f'Wrong number of arguments. See `{ctx.prefix}help settribe` for usage examples.')
 
-            tribeflair = TribeFlair.get_by_name(name=tribe_name, guild_id=ctx.guild.id)
-            if not tribeflair:
-                return await ctx.send(f'Matching Tribe not found matching "{tribe_name}". Check spelling or be more specific.')
-
-            # players = Player.get_by_string(player_string=player_name, guild_id=ctx.guild.id)
-
-            # if len(players) == 0:
-            #     return await ctx.send('Could not find matching player.')
-
-            # if len(players) > 1:
-            #     return await ctx.send('More than one player with that name found. Try using @mention.')
-                # Could improve this by only searching for players within a game's lineup, but that would be a decent amount of work
-
-            # lineups = Lineup.select().where(
-            #     (Lineup.player == players[0]) & (Lineup.game == game)
-            # )
-            # if lineups.count() != 1:
-            #     return await ctx.send(f'Could not match player {player_name} to game {game.id}.')
-
-            lineups = Lineup.select(Lineup, Player).join(Player).where(Lineup.game == game)
-
-        for lineup in lineups:
-            if player_name.upper() in lineup.player.name.upper():
-                lineup_match = lineup
-                break
+        lineups = Lineup.select(Lineup, Player).join(Player).where(Lineup.game == game)
 
         with db:
-            lineup_match.tribe = tribeflair
-            lineup_match.save()
-            emoji_str = tribeflair.emoji if tribeflair.emoji is not None else ''
-            await ctx.send(f'Player {lineup_match.player.name} assigned to tribe {tribeflair.tribe.name} in game {game.id} {emoji_str}')
+            for i in range(0, len(args), 2):
+                # iterate over args two at a time
+                player_name = args[i]
+                tribe_name = args[i + 1]
+
+                tribeflair = TribeFlair.get_by_name(name=tribe_name, guild_id=ctx.guild.id)
+                if not tribeflair:
+                    await ctx.send(f'Matching Tribe not found matching "{tribe_name}". Check spelling or be more specific.')
+                    continue
+
+                lineup_match = None
+                for lineup in lineups:
+                    if player_name.upper() in lineup.player.name.upper():
+                        lineup_match = lineup
+                        break
+
+                if not lineup_match:
+                    await ctx.send(f'Matching player not found in game {game.id} matching "{player_name}". Check spelling or be more specific. @Mentions are not supported here.')
+                    continue
+
+                with db.atomic():
+                    lineup_match.tribe = tribeflair
+                    lineup_match.save()
+                    await ctx.send(f'Player {lineup_match.player.name} assigned to tribe {tribeflair.tribe.name} in game {game.id} {tribeflair.emoji}')
 
         game = game.load_full_game()
         await game.update_announcement(ctx)
@@ -788,20 +782,13 @@ class games():
 
     @commands.command()
     # @commands.has_any_role(*helper_roles)
-    async def ts(self, ctx, name: str):
+    async def ts(self, ctx, game: int, *args):
 
-        print(settings.guild_setting(ctx.guild.id, 'game_announce_channel'))
-        return
-        # return logger.error('hi!')
-        # p = Game.load_full_game(game_id=1)
-        # import datetime
-        squad = SquadGame.get(id=1)
-        await squad.create_channel(ctx)
-        return
+        for i in range(0, len(args), 2):
+            name = args[i]
+            tribe = args[i + 1]
 
-        print(len(q))
-        for s in q.dicts():
-            print(s)
+            print(name, tribe)
 
     # @in_bot_channel()
     # TODO: searching. this is just bare bones 'show embed of game ID' currently

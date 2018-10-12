@@ -282,14 +282,23 @@ class TribeFlair(BaseModel):
         # http://docs.peewee-orm.com/en/3.6.0/peewee/models.html#multi-column-indexes
 
     def get_by_name(name: str, guild_id: int):
-        tribe_match = TribeFlair.select(TribeFlair, Tribe).join(Tribe).where(
+        tribe_flair_match = TribeFlair.select(TribeFlair, Tribe).join(Tribe).where(
             (Tribe.name.contains(name)) & (TribeFlair.guild_id == guild_id)
         )
 
-        if len(tribe_match) == 0:
-            return None
+        tribe_name_match = Tribe.select().where(Tribe.name.contains(name))
+
+        if tribe_flair_match.count() == 0:
+            if tribe_name_match.count() == 0:
+                logger.warn(f'No TribeFlair -or- Tribe could be matched to {name}')
+                return None
+            else:
+                logger.warn(f'No TribeFlair for this guild matched to {tribe_name_match[0].name}. Creating TribeFlair with blank emoji.')
+                with db.atomic():
+                    new_tribeflair = TribeFlair.create(tribe=tribe_name_match[0], guild_id=guild_id)
+                    return new_tribeflair
         else:
-            return tribe_match[0]
+            return tribe_flair_match[0]
 
     def upsert(name: str, guild_id: int, emoji: str):
         try:
