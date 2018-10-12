@@ -36,6 +36,20 @@ class games():
             logger.warn(f'Game with ID {game_id} cannot be found.')
             return None
 
+    def poly_game_mini(game_id):
+        # similar to poly_game except no related records are prefetched. Works better for functions like settribe where related records are updated and then displayed
+
+        try:
+            game = Game.get(id=int(game_id))
+            logger.debug(f'Game with ID {game_id} found.')
+            return game
+        except ValueError:
+            logger.warn(f'Invalid game ID "{game_id}".')
+            return None
+        except peewee.DoesNotExist:
+            logger.warn(f'Game with ID {game_id} cannot be found.')
+            return None
+
     async def on_member_update(self, before, after):
         # Updates display name in DB if user changes their discord name or guild nick
         if before.nick == after.nick and before.name == after.name:
@@ -617,7 +631,7 @@ class games():
 
     @commands.command(usage='game_id player_name tribe_name')
     # @commands.has_any_role(*helper_roles)
-    async def settribe(self, ctx, game: poly_game, player_name, tribe_name):
+    async def settribe(self, ctx, game: poly_game_mini, player_name, tribe_name):
         """*Staff:* Set tribe of a player for a game
         **Examples**
         `[p]settribe 5 nelluk bardur` - Sets Nelluk to Bardur for game 5
@@ -636,27 +650,35 @@ class games():
             if not tribeflair:
                 return await ctx.send(f'Matching Tribe not found matching "{tribe_name}". Check spelling or be more specific.')
 
-            players = Player.get_by_string(player_string=player_name, guild_id=ctx.guild.id)
+            # players = Player.get_by_string(player_string=player_name, guild_id=ctx.guild.id)
 
-            if len(players) == 0:
-                return await ctx.send('Could not find matching player.')
+            # if len(players) == 0:
+            #     return await ctx.send('Could not find matching player.')
 
-            if len(players) > 1:
-                return await ctx.send('More than one player with that name found. Try using @mention.')
+            # if len(players) > 1:
+            #     return await ctx.send('More than one player with that name found. Try using @mention.')
                 # Could improve this by only searching for players within a game's lineup, but that would be a decent amount of work
 
-            lineups = Lineup.select().where(
-                (Lineup.player == players[0]) & (Lineup.game == game)
-            )
-            if lineups.count() != 1:
-                return await ctx.send(f'Could not match player {player_name} to game {game.id}.')
+            # lineups = Lineup.select().where(
+            #     (Lineup.player == players[0]) & (Lineup.game == game)
+            # )
+            # if lineups.count() != 1:
+            #     return await ctx.send(f'Could not match player {player_name} to game {game.id}.')
+
+            lineups = Lineup.select(Lineup, Player).join(Player).where(Lineup.game == game)
+
+        for lineup in lineups:
+            if player_name.upper() in lineup.player.name.upper():
+                lineup_match = lineup
+                break
 
         with db:
-            lineups[0].tribe = tribeflair
-            lineups[0].save()
+            lineup_match.tribe = tribeflair
+            lineup_match.save()
             emoji_str = tribeflair.emoji if tribeflair.emoji is not None else ''
-            await ctx.send(f'Player {players[0].name} assigned to tribe {tribeflair.tribe.name} in game {game.id} {emoji_str}')
+            await ctx.send(f'Player {lineup_match.player.name} assigned to tribe {tribeflair.tribe.name} in game {game.id} {emoji_str}')
 
+        game = game.load_full_game()
         await game.update_announcement(ctx)
 
     @commands.command(usage='tribe_name new_emoji')
