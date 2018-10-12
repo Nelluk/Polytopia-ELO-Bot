@@ -329,13 +329,12 @@ class Game(BaseModel):
             player_list = [r[0] for r in squadgame.roster()]
             if len(player_list) < 2:
                 continue
-            chan, chan_cat = await channels.create_squad_channel(ctx, game=self, team_name=squadgame.team.name, player_list=player_list)
+            chan = await channels.create_squad_channel(ctx, game=self, team_name=squadgame.team.name, player_list=player_list)
             if chan:
                 squadgame.team_chan = chan.id
-                # squadgame.team_chan_category = chan_cat.id
                 squadgame.save()
 
-                await channels.greet_squad_channel(ctx, chan=chan, cat=chan_cat, player_list=player_list, roster_names=roster_names, game=self)
+                await channels.greet_squad_channel(ctx, chan=chan, player_list=player_list, roster_names=roster_names, game=self)
 
     async def delete_squad_channels(self, ctx):
 
@@ -352,14 +351,32 @@ class Game(BaseModel):
             if squadgame.team_chan:
                 await channels.update_squad_channel_name(ctx, channel_id=squadgame.team_chan, game_id=self.id, game_name=self.name, team_name=squadgame.team.name)
 
+    async def update_announcement(self, ctx):
+        # Updates contents of new game announcement with updated game_embed card
+
+        if self.announcement_channel is None or self.announcement_message is None:
+            return
+        channel = ctx.guild.get_channel(self.announcement_channel)
+        if channel is None:
+            return logger.warn('Couldn\'t get channel in update_announacement')
+
+        try:
+            message = await channel.get_message(self.announcement_message)
+        except (discord.errors.Forbidden, discord.errors.NotFound, discord.errors.HTTPException):
+            return logger.warn('Couldn\'t get message in update_announacement')
+
+        try:
+            embed = self.embed(ctx)
+            await message.edit(embed=embed)
+        except discord.errors.HTTPException:
+            return logger.warn('Couldn\'t update message in update_announacement')
+
     def embed(self, ctx):
         if len(self.squads) != 2:
             raise exceptions.CheckFailedError('Support for games with >2 sides not yet implemented')
 
         home_side = self.squads[0]
         away_side = self.squads[1]
-        # side_home_roster = home_side.roster()
-        # side_away_roster = away_side.roster()
 
         winner = self.get_winner()
 

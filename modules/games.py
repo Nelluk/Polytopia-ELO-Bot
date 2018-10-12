@@ -57,8 +57,7 @@ class games():
         """
 
         if game is None:
-            await ctx.send('No matching game was found.')
-            return
+            return await ctx.send('No matching game was found.')
 
         new_game_name = ' '.join(args)
         with db:
@@ -66,8 +65,7 @@ class games():
             game.save()
 
         await game.update_squad_channels(ctx)
-        # await update_announcement(ctx, game)
-        # TODO: make above line work
+        await game.update_announcement(ctx)
 
         await ctx.send(f'Game ID {game.id} has been renamed to "{game.name}"')
 
@@ -528,8 +526,10 @@ class games():
             return await ctx.send(f'Invalid format. {example_usage}')
 
         if len(side_home + side_away) > len(set(side_home + side_away)):
-            # TODO: put behind allow_uneven_teams setting
-            await ctx.send('Duplicate players detected. Are you sure this is what you want? (That means the two sides are uneven.)')
+            if settings.guild_setting(ctx.guild.id, 'allow_uneven_teams'):
+                await ctx.send('Duplicate players detected. Are you sure this is what you want? (That means the two sides are uneven.)')
+            else:
+                return await ctx.send('Duplicate players detected. Game not created.')
 
         if ctx.author not in (side_home + side_away) and settings.is_staff(ctx, ctx.author) is False:
             return await ctx.send('You can\'t create a game that you are not a participant in.')
@@ -540,12 +540,23 @@ class games():
             name=game_name, guild_id=ctx.guild.id,
             require_teams=settings.guild_setting(ctx.guild.id, 'require_teams'))
 
-        # TODO: Send game embeds and create team channels
+        await newgame.create_squad_channels(ctx)
 
         mentions = [p.mention for p in side_home + side_away]
-        await ctx.send(f'New game ID {newgame.id} started! Roster: {" ".join(mentions)}')
+        embed = newgame.embed(ctx)
 
-        await newgame.create_squad_channels(ctx)
+        if settings.guild_setting(ctx.guild.id, 'game_announce_channel') is not None:
+            channel = ctx.guild.get_channel(settings.guild_setting(ctx.guild.id, 'game_announce_channel'))
+            if channel is not None:
+                await channel.send(f'New game ID {newgame.id} started! Roster: {" ".join(mentions)}')
+                announcement = await channel.send(embed=embed)
+                await ctx.send(f'New game ID {newgame.id} started! See {channel.mention} for full details.')
+                newgame.announcement_message = announcement.id
+                newgame.announcement_channel = announcement.channel.id
+                newgame.save()
+                return
+        await ctx.send(f'New game ID {newgame.id} started! Roster: {" ".join(mentions)}')
+        await ctx.send(embed=embed)
 
     @commands.command(aliases=['endgame', 'win'], usage='game_id winner_name')
     # @commands.has_any_role(*helper_roles)
@@ -587,6 +598,18 @@ class games():
         if is_staff:
             # Only delete channels if win confirmation is final/confirmed
             await winning_game.delete_squad_channels(ctx=ctx)
+            player_mentions = [f'<@{p.discord_member.discord_id}>' for p, _, _ in (winning_game.squads[0].roster() + winning_game.squads[1].roster())]
+            embed = winning_game.embed(ctx)
+
+            if settings.guild_setting(ctx.guild.id, 'game_announce_channel') is not None:
+                channel = ctx.guild.get_channel(settings.guild_setting(ctx.guild.id, 'game_announce_channel'))
+                if channel is not None:
+                    await channel.send(f'Game concluded! Congrats **{winning_game.get_winner().name}**. Roster: {" ".join(player_mentions)}')
+                    await channel.send(embed=embed)
+                    return await ctx.send(f'Game concluded! See {channel.mention} for full details.')
+
+            await ctx.send(f'Game concluded! Congrats **{winning_game.get_winner().name}**. Roster: {" ".join(player_mentions)}')
+            await ctx.send(embed=embed)
 
     @commands.command(usage='tribe_name new_emoji')
     # @commands.has_any_role(*mod_roles)
@@ -697,6 +720,8 @@ class games():
     # @commands.has_any_role(*helper_roles)
     async def ts(self, ctx, name: str):
 
+        print(settings.guild_setting(ctx.guild.id, 'game_announce_channel'))
+        return
         # return logger.error('hi!')
         # p = Game.load_full_game(game_id=1)
         # import datetime

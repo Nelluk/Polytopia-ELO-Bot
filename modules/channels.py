@@ -50,7 +50,7 @@ async def create_squad_channel(ctx, game, team_name, player_list):
     chan_cat, team_cat_flag = get_channel_category(ctx, team_name)
     if chan_cat is None:
         logger.error(f'in create_squad_channel - cannot proceed due to None category')
-        return None, None
+        return None
 
     chan_name = generate_channel_name(game_id=game.id, game_name=game.name, team_name=team_name)
     chan_members = [ctx.guild.get_member(p.discord_member.discord_id) for p in player_list]
@@ -74,17 +74,17 @@ async def create_squad_channel(ctx, game, team_name, player_list):
     except (discord.errors.Forbidden, discord.errors.HTTPException) as e:
         logger.error(f'Exception in create_game_channels:\n{e} - Status {e.status}, Code {e.code}: {e.text}')
         await ctx.send(f'Could not create game channel for this game. Error has been logged.')
-        return None, None
+        return None,
     except discord.errors.InvalidArgument as e:
         logger.error(f'Exception in create_game_channels:\n{e}')
         await ctx.send(f'Could not create game channel for this game. Error has been logged.')
-        return None, None
+        return None
     logger.debug(f'Created channel {new_chan.name}')
 
-    return new_chan, chan_cat
+    return new_chan
 
 
-async def greet_squad_channel(ctx, chan, cat, player_list, roster_names, game):
+async def greet_squad_channel(ctx, chan, player_list, roster_names, game):
     chan_mentions = [ctx.guild.get_member(p.discord_member.discord_id).mention for p in player_list]
 
     try:
@@ -121,32 +121,3 @@ async def update_squad_channel_name(ctx, channel_id: int, game_id: int, game_nam
         logger.error(f'Could not delete channel: {e}')
 
     await chan.send(f'This game has been renamed to *{game_name}*.')
-
-
-async def update_game_channel_name(ctx, game, old_game_name, new_game_name):
-
-    # Update a channel's name when its associated game is renamed
-    # This will fail if the team name has changed since the game started, or if someone manually renamed the channel already
-
-    home_cat = get_channel_category(ctx, game.home_team.name)
-    away_cat = get_channel_category(ctx, game.away_team.name)
-    if home_cat is None or away_cat is None:
-        return logger.error(f'in update_game_channel_name - cannot proceed due to None category')
-
-    old_home_chan_name = generate_channel_name(game_id=game.id, game_name=old_game_name, team_name=game.home_team.name)
-    old_away_chan_name = generate_channel_name(game_id=game.id, game_name=old_game_name, team_name=game.away_team.name)
-
-    new_home_chan_name = generate_channel_name(game_id=game.id, game_name=new_game_name, team_name=game.home_team.name)
-    new_away_chan_name = generate_channel_name(game_id=game.id, game_name=new_game_name, team_name=game.away_team.name)
-
-    old_home_chan = discord.utils.get(home_cat.channels, name=old_home_chan_name.lower())
-    old_away_chan = discord.utils.get(away_cat.channels, name=old_away_chan_name.lower())
-
-    if old_home_chan is None or old_away_chan is None:
-        logger.error(f'Was not able to find existing channel to rename: {old_home_chan} or {old_away_chan}')
-        return
-
-    logger.debug(f'updating {old_home_chan_name} to {new_home_chan_name}')
-    logger.debug(f'updating {old_away_chan_name} to {new_away_chan_name}')
-    await old_home_chan.edit(name=new_home_chan_name, reason='Game renamed')
-    await old_away_chan.edit(name=new_away_chan_name, reason='Game renamed')
