@@ -4,7 +4,7 @@ import modules.utilities as utilities
 import settings
 import modules.exceptions as exceptions
 import peewee
-from modules.models import Game, db, Player, Team, DiscordMember, Squad, TribeFlair, Lineup, SquadGame, SquadMember  # Team, Game, Player, DiscordMember
+from modules.models import Game, db, Player, Team, DiscordMember, Squad, Tribe, TribeFlair, Lineup, SquadGame
 # from bot import logger
 import logging
 
@@ -20,6 +20,10 @@ class games():
         # Give game ID integer return matching game or None. Can be used as a converter function for discord command input:
         # https://discordpy.readthedocs.io/en/rewrite/ext/commands/commands.html#basic-converters
         # all-related records are prefetched
+
+        # This pre-fetches all related game records such as lineups and tribe choices. Works great if you are only reading or updating objects it loads
+        # but this means if you want to, for example, udpate a specific Lineup associated with this game, you need to iterate through them rather than doing
+        # another DB query. The Game object thiat this returns would not be updated to reflect the latter unless it was refreshed from the DB.
 
         try:
             game = Game.load_full_game(game_id=int(game_id))
@@ -610,6 +614,50 @@ class games():
 
             await ctx.send(f'Game concluded! Congrats **{winning_game.get_winner().name}**. Roster: {" ".join(player_mentions)}')
             await ctx.send(embed=embed)
+
+    @commands.command(usage='game_id player_name tribe_name')
+    # @commands.has_any_role(*helper_roles)
+    async def settribe(self, ctx, game: poly_game, player_name, tribe_name):
+        """*Staff:* Set tribe of a player for a game
+        **Examples**
+        `[p]settribe 5 nelluk bardur` - Sets Nelluk to Bardur for game 5
+        """
+
+        # TODO: allow bulk updates ie $settribe 100 nelluk bardur anarcho kickoo bakalol lux bomber oumaji
+
+        # NOTE: This version won't update the embed correctly because the Game in memory will not reflect the lineup change
+
+        if game is None:
+            return await ctx.send(f'No matching game was found.')
+
+        with db:
+
+            tribeflair = TribeFlair.get_by_name(name=tribe_name, guild_id=ctx.guild.id)
+            if not tribeflair:
+                return await ctx.send(f'Matching Tribe not found matching "{tribe_name}". Check spelling or be more specific.')
+
+            players = Player.get_by_string(player_string=player_name, guild_id=ctx.guild.id)
+
+            if len(players) == 0:
+                return await ctx.send('Could not find matching player.')
+
+            if len(players) > 1:
+                return await ctx.send('More than one player with that name found. Try using @mention.')
+                # Could improve this by only searching for players within a game's lineup, but that would be a decent amount of work
+
+            lineups = Lineup.select().where(
+                (Lineup.player == players[0]) & (Lineup.game == game)
+            )
+            if lineups.count() != 1:
+                return await ctx.send(f'Could not match player {player_name} to game {game.id}.')
+
+        with db:
+            lineups[0].tribe = tribeflair
+            lineups[0].save()
+            emoji_str = tribeflair.emoji if tribeflair.emoji is not None else ''
+            await ctx.send(f'Player {players[0].name} assigned to tribe {tribeflair.tribe.name} in game {game.id} {emoji_str}')
+
+        await game.update_announcement(ctx)
 
     @commands.command(usage='tribe_name new_emoji')
     # @commands.has_any_role(*mod_roles)
