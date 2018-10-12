@@ -523,6 +523,27 @@ class Game(BaseModel):
 
         return newgame
 
+    def delete_game(self):
+        # resets any relevant ELO changes to players and teams, deletes related lineup records, and deletes the game entry itself
+
+        self.winner = None
+        self.save()
+
+        for lineup in self.lineup:
+            lineup.player.elo += lineup.elo_change_player * -1
+            lineup.player.save()
+            lineup.delete_instance()
+
+        for squadgame in self.squads:
+            squadgame.squad.elo += (squadgame.elo_change_squad * -1)
+            squadgame.squad.save()
+
+            squadgame.team.elo += (squadgame.elo_change_team * -1)
+            squadgame.team.save()
+            squadgame.delete_instance()
+
+        self.delete_instance()
+
     def declare_winner(self, winning_side, confirm: bool):
 
         # TODO: does not support games != 2 sides

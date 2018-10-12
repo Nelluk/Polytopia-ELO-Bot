@@ -629,6 +629,25 @@ class games():
             await ctx.send(f'Game concluded! Congrats **{winning_game.get_winner().name}**. Roster: {" ".join(player_mentions)}')
             await ctx.send(embed=embed)
 
+    @commands.command(usage='game_id')
+    # @commands.has_any_role(*mod_roles)
+    async def deletegame(self, ctx, game: poly_game):
+        """Mod: Deletes a game and reverts ELO changes"""
+
+        if game is None:
+            return await ctx.send('No matching game was found.')
+
+        if game.announcement_message:
+            game.name = f'~~{game.name}~~ GAME DELETED'
+            await game.update_announcement(ctx)
+
+        await game.delete_squad_channels(ctx)
+
+        with db:
+            gid = game.id
+            game.delete_game()
+            await ctx.send(f'Game with ID {gid} has been deleted and team/player ELO changes have been reverted, if applicable.')
+
     @commands.command(usage='game_id player_name tribe_name [player2 tribe2 ... ]')
     # @commands.has_any_role(*helper_roles)
     async def settribe(self, ctx, game: poly_game_mini, *args):
@@ -784,11 +803,11 @@ class games():
     # @commands.has_any_role(*helper_roles)
     async def ts(self, ctx, game: int, *args):
 
-        for i in range(0, len(args), 2):
-            name = args[i]
-            tribe = args[i + 1]
+        game = Game.load_full_game(game_id=game)
+        embed = game.embed(ctx)
+        await ctx.send(embed=embed)
+        game.delete_game()
 
-            print(name, tribe)
 
     # @in_bot_channel()
     # TODO: searching. this is just bare bones 'show embed of game ID' currently
