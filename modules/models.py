@@ -635,6 +635,72 @@ class Game(BaseModel):
 
         return None
 
+    def search(player_filter=None, team_filter=None, status_filter: int = 0):
+        # Returns Games by almost any combination of player/team participation, and game status
+        # player_filter/team_filter should be a [List, of, Player/Team, objects] (or ID #s)
+        # status_filter:
+        # 0 = all games, 1 = completed games, 2 = incomplete games
+        # 3 = wins, 4 = losses (only for first player in player_list or, if empty, first team in team list)
+
+        if status_filter == 1:
+            completed_filter = [1]
+        elif status_filter == 2:
+            completed_filter = [0]
+        else:
+            completed_filter = [0, 1]
+
+        if team_filter:
+            team_subq = SquadGame.select(SquadGame.game).join(Game).where(
+                (SquadGame.team.in_(team_filter)) & (SquadGame.game.in_(Team.team_games_subq()))
+            ).group_by(SquadGame.game).having(
+                fn.COUNT(SquadGame.team) == len(team_filter)
+            )
+        else:
+            team_subq = Game.select(Game.id)
+
+        if player_filter:
+            player_subq = Lineup.select(Lineup.game).join(Game).where(
+                (Lineup.player.in_(player_filter))
+            ).group_by(Lineup.game).having(
+                fn.COUNT(Lineup.player) == len(player_filter)
+            )
+        else:
+            player_subq = Game.select(Game.id)
+
+        if (not player_filter and not team_filter) or status_filter not in [3, 4]:
+            victory_subq = Game.select(Game.id)
+        else:
+            if player_filter:
+                # Filter wins/losses on first entry in player_filter
+                if status_filter == 3:
+                    # Games that player has won
+                    victory_subq = Lineup.select(Lineup.game).join(Game).join_from(Lineup, SquadGame).where(
+                        (Lineup.game.is_completed == 1) & (Lineup.player == player_filter[0]) & (Game.winner == Lineup.squadgame.id)
+                    )
+                elif status_filter == 3:
+                    # Games that player has lost
+                    victory_subq = Lineup.select(Lineup.game).join(Game).join_from(Lineup, SquadGame).where(
+                        (Lineup.game.is_completed == 1) & (Lineup.player == player_filter[0]) & (Game.winner != Lineup.squadgame.id)
+                    )
+            else:
+                # Filter wins/losses on first entry in team_filter
+                if status_filter == 3:
+                    # Games that team has won
+                    victory_subq = SquadGame.select(SquadGame.game).join(Game).where(
+                        (SquadGame.team == team_filter[0]) & (SquadGame.id == Game.winner)
+                    )
+                elif status_filter == 4:
+                    # Games that team has lost
+                    victory_subq = SquadGame.select(SquadGame.game).join(Game).where(
+                        (SquadGame.team == team_filter[0]) & (SquadGame.id != Game.winner)
+                    )
+
+        q = Game.select().where(
+            (Game.id.in_(team_subq)) & (Game.id.in_(player_subq)) & (Game.is_completed.in_(completed_filter)) & (Game.id.in_(victory_subq))
+        )
+
+        return q
+
 
 class Squad(BaseModel):
     elo = SmallIntegerField(default=1000)
@@ -866,12 +932,8 @@ class Lineup(BaseModel):
             new_elo = round(my_side_elo + (max_elo_delta * (0 - chance_of_winning)), 0)
 
         elo_delta = int(new_elo - my_side_elo)
-        if self.player.elo < 1100:
-            elo_bonus = int(abs(elo_delta) * .30)
-        elif self.player.elo < 1200:
-            elo_bonus = int(abs(elo_delta) * .15)
-        else:
-            elo_bonus = 0
+        elo_boost = .30 * ((1200 - max(min(self.player.elo, 1200), 900)) / 150)  # 30% boost to delta at elo 1000, gradually shifts to 0% boost at 1200 ELO
+        elo_bonus = int(abs(elo_delta) * elo_boost)
 
         elo_delta += elo_bonus
 

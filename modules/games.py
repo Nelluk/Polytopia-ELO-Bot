@@ -807,9 +807,18 @@ class games():
     # @commands.has_any_role(*helper_roles)
     async def ts(self, ctx, game: int, *args):
 
-        team = Team.get(id=10)
+        team_a = Team.get(id=1)
+        player_list = []
+        players = Player.get_by_string('nelluk', ctx.guild.id)
+        for p in players:
+            player_list.append(p)
+        teams = [team_a]
 
+        games = Game.search(team_filter=teams, player_filter=player_list, status_filter=3)
+        print(games.count())
 
+        for g in games.dicts():
+            print(g)
 
     # @in_bot_channel()
     # TODO: searching. this is just bare bones 'show embed of game ID' currently
@@ -832,7 +841,7 @@ class games():
 
         # TODO: remove 'and/&' to remove confusion over game names like Ocean & Prophesy
 
-        arg_list = list(args)
+        arg_list = [arg.upper() for arg in args]
 
         try:
             game_id = int(''.join(arg_list))
@@ -840,9 +849,73 @@ class games():
             embed = game.embed(ctx)
             return await ctx.send(embed=embed)
         except ValueError:
-            return
+            pass
         except peewee.DoesNotExist:
             return await ctx.send('Game with ID {} cannot be found.'.format(game_id))
+
+        team_matches, player_matches, game_entry_list = [], [], []
+
+        find_winner, find_loser, find_incomplete, find_complete = False, False, False, False
+        if 'WIN' in arg_list:
+            find_winner = True
+            arg_list.remove('WIN')
+        if 'LOSS' in arg_list:
+            find_loser = True
+            arg_list.remove('LOSS')
+        if 'LOSE' in arg_list:
+            find_loser = True
+            arg_list.remove('LOSE')
+        if 'INCOMPLETE' in arg_list:
+            find_incomplete = True
+            arg_list.remove('INCOMPLETE')
+        if 'COMPLETE' in arg_list:
+            find_complete = True
+            arg_list.remove('COMPLETE')
+
+        game_matches = Game.select().where(Game.name.contains('%'.join(arg_list)))
+        print(game_matches.count())
+
+        for arg in arg_list:
+            teams = Team.get_by_name(arg, ctx.guild.id)
+            if len(teams) == 1:
+                team_matches.append(teams[0])
+            players = Player.get_by_string(arg, ctx.guild.id)
+            if len(players) == 1:
+                player_matches.append(players[0])
+
+        if len(team_matches + player_matches) + len(game_matches) == 0:
+            await ctx.send(
+                'Could not find any results. Example usage:\n'
+                f'`{ctx.prefix}game 5` - Show details of game 5\n'
+                f'`{ctx.prefix}game Ocean` - List games with "Ocean" in the name\n'
+                f'`{ctx.prefix}game Ronin` - List games where Team Ronin participated\n'
+                f'`{ctx.prefix}game Ronin Jets` - List games of Ronin vs Jets\n'
+                f'`{ctx.prefix}game Nelluk` - List games where Nelluk participated\n'
+                f'`{ctx.prefix}game Nelluk rickdaheals anarchoRex` - List games with all three players in the roster\n'
+                f'`{ctx.prefix}game Jets lose` - List Jets losses.\n'
+                f'`{ctx.prefix}game Ronin win` - List Ronin victories.\n'
+                f'`{ctx.prefix}game Nelluk koric incomplete` - List incomplete games with these players\n')
+            return
+
+        if len(game_matches) > 0:
+            games = game_matches
+
+        if len(games) == 1:
+            # Unhandled edge case: if only one matching game is found, its details will display and ignore find_incomplete/find_winner/find_loser flags
+            return await ctx.send(embed=games[0].embed(ctx))
+
+        # games = SquadGame.select(SquadGame.game).join(Game).where(
+        #     (SquadGame.team.in_(teams)) & (SquadGame.game.in_(Team.team_games_subq()))
+        # ).group_by(SquadGame.game).having(
+        #     peewee.fn.COUNT(SquadGame.team) == len(teams)
+        # )
+        for game in games:
+            status_str = 'TBD'
+            game_entry_list.append(
+                (game.get_headline(),
+                f'{(str(game.date))} - {game.team_size()}v{game.team_size()} - {status_str}')
+            )
+        await utilities.paginate(self.bot, ctx, title='**Search Results**', message_list=game_entry_list, page_start=0, page_end=15, page_size=15)
 
 
 def setup(bot):
