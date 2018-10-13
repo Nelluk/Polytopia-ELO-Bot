@@ -4,8 +4,7 @@ import modules.utilities as utilities
 import settings
 import modules.exceptions as exceptions
 import peewee
-from modules.models import Game, db, Player, Team, DiscordMember, Squad, Tribe, TribeFlair, Lineup, SquadGame
-# from bot import logger
+from modules.models import Game, db, Player, Team, DiscordMember, Squad, TribeFlair, Lineup, SquadGame
 import logging
 
 logger = logging.getLogger('polybot.' + __name__)
@@ -113,14 +112,14 @@ class games():
         # TODO: Only show number of members who have an ELO ranking?
         embed = discord.Embed(title='**Team Leaderboard**')
         with db:
-            query = Team.select().order_by(-Team.elo).where(
+            query = Team.select().where(
                 ((Team.name != 'Home') & (Team.name != 'Away') & (Team.guild_id == ctx.guild.id))
-            )
+            ).order_by(-Team.elo)
             for counter, team in enumerate(query):
                 team_role = discord.utils.get(ctx.guild.roles, name=team.name)
                 team_name_str = f'{team.name}({len(team_role.members)})'  # Show team name with number of members
-                # wins, losses = team.get_record()
-                wins, losses = 1, 2
+                wins, losses = team.get_record()
+
                 embed.add_field(name=f'`{(counter + 1):>3}. {team_name_str:30}  (ELO: {team.elo:4})  W {wins} / L {losses}` {team.emoji}', value='\u200b', inline=False)
         await ctx.send(embed=embed)
 
@@ -341,7 +340,8 @@ class games():
 
             member_stats.sort(key=lambda tup: tup[1], reverse=True)     # sort the list descending by ELO
             members_sorted = [f'{x[0]}{x[2]}' for x in member_stats]    # create list of strings like Nelluk(1000)
-            embed.add_field(name=f'Members({len(member_stats)})', value=f'{" / ".join(members_sorted)}')
+            members_str = " / ".join(members_sorted) if len(members_sorted) > 0 else '\u200b'
+            embed.add_field(name=f'Members({len(member_stats)})', value=f'{members_str}')
         else:
             await ctx.send(f'Warning: No matching discord role "{team.name}" could be found. Player membership cannot be detected.')
 
@@ -361,7 +361,6 @@ class games():
             else:
                 result = 'Incomplete'
 
-            # headline = game.get_headline()
             embed.add_field(name=f'{game.get_headline()}',
                 value=f'{result} - {str(game.date)} - {game.team_size()}v{game.team_size()}')
 
@@ -406,7 +405,11 @@ class games():
         print(team_list)
 
         with db:
-            player, created = Player.upsert2(target_discord_member, guild_id=ctx.guild.id, team=team_list[0])
+            player, created = Player.upsert(discord_id=target_discord_member.id,
+                                            discord_name=target_discord_member.name,
+                                            discord_nick=target_discord_member.nick,
+                                            guild_id=ctx.guild.id,
+                                            team=team_list[0])
             player.discord_member.polytopia_id = new_id
             player.discord_member.save()
 
@@ -803,10 +806,8 @@ class games():
     # @commands.has_any_role(*helper_roles)
     async def ts(self, ctx, game: int, *args):
 
-        game = Game.load_full_game(game_id=game)
-        embed = game.embed(ctx)
-        await ctx.send(embed=embed)
-        game.delete_game()
+        team = Team.get(id=10)
+
 
 
     # @in_bot_channel()

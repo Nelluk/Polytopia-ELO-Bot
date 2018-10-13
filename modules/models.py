@@ -5,7 +5,6 @@ from playhouse.postgres_ext import *
 import modules.exceptions as exceptions
 from modules import utilities
 from modules import channels
-import asyncio
 import logging
 
 logger = logging.getLogger('polybot.' + __name__)
@@ -113,26 +112,26 @@ class Player(BaseModel):
             self.save()
         return display_name
 
-    def upsert(discord_member_obj, guild_id, team=None):
+    def upsert(discord_id, guild_id, discord_name=None, discord_nick=None, team=None):
         # Stopped using postgres upsert on_conflict() because it only returns row ID so its annoying to use
-        display_name = Player.generate_display_name(player_name=discord_member_obj.name, player_nick=discord_member_obj.nick)
+        display_name = Player.generate_display_name(player_name=discord_name, player_nick=discord_nick)
 
         try:
             with db.atomic():
-                discord_member = DiscordMember.create(discord_id=discord_member_obj.id, name=discord_member_obj.name)
+                discord_member = DiscordMember.create(discord_id=discord_id, name=discord_name)
         except IntegrityError:
-            discord_member = DiscordMember.get(discord_id=discord_member_obj.id)
-            discord_member.name = discord_member_obj.name
+            discord_member = DiscordMember.get(discord_id=discord_id)
+            discord_member.name = discord_name
             discord_member.save()
 
         try:
             with db.atomic():
-                player = Player.create(discord_member=discord_member, guild_id=guild_id, nick=discord_member_obj.nick, name=display_name, team=team)
+                player = Player.create(discord_member=discord_member, guild_id=guild_id, nick=discord_nick, name=display_name, team=team)
             created = True
         except IntegrityError:
             created = False
             player = Player.get(discord_member=discord_member, guild_id=guild_id)
-            player.nick = discord_member_obj.nick
+            player.nick = discord_nick
             player.name = display_name
             player.team = team
             player.save()
@@ -318,7 +317,7 @@ class Game(BaseModel):
     name = TextField(null=True)
     is_completed = BooleanField(default=False)
     is_confirmed = BooleanField(default=False)  # Use to confirm losses and filter searches?
-    is_pending = BooleanField(default=True)     # For matchmaking
+    is_pending = BooleanField(default=False)     # For matchmaking
     announcement_message = BitField(default=None, null=True)
     announcement_channel = BitField(default=None, null=True)
     date = DateField(default=datetime.datetime.today)
@@ -494,17 +493,20 @@ class Game(BaseModel):
 
         with db:
             newgame = Game.create(name=name,
-                                  # team_size=max(len(teams[0]), len(teams[1])),
                                   is_pending=False)
 
             side_home_players = []
             side_away_players = []
             # Create/update Player records
             for player_discord, player_team in zip(teams[0], list_of_home_teams):
-                side_home_players.append(Player.upsert(player_discord, guild_id=guild_id, team=player_team)[0])
+                side_home_players.append(
+                    Player.upsert(discord_id=player_discord.id, discord_name=player_discord.name, discord_nick=player_discord.nick, guild_id=guild_id, team=player_team)[0]
+                )
 
             for player_discord, player_team in zip(teams[1], list_of_away_teams):
-                side_away_players.append(Player.upsert(player_discord, guild_id=guild_id, team=player_team)[0])
+                side_away_players.append(
+                    Player.upsert(discord_id=player_discord.id, discord_name=player_discord.name, discord_nick=player_discord.nick, guild_id=guild_id, team=player_team)[0]
+                )
 
             # Create/update Squad records
             home_squad, away_squad = None, None

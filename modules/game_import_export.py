@@ -1,14 +1,17 @@
 from discord.ext import commands
 from pbwrap import Pastebin
-from modules.models import Team, Game, Player, Lineup, Tribe, Squad, Match, MatchPlayer
-from bot import config, logger, helper_roles, mod_roles
+from modules.models import db, Team, Game, Player, DiscordMember, Lineup, Tribe, TribeFlair, Squad, SquadGame
 import csv
 import json
 import peewee
 import datetime
+import settings
+import logging
+
+logger = logging.getLogger('polybot.' + __name__)
 
 try:
-    pastebin_api = config['DEFAULT']['pastebin_key']
+    pastebin_api = settings.get_setting('pastebin_key')
 except KeyError:
     logger.warn('pastebin_key not found in config.ini - Pastebin functionality will be limited')
     pastebin_api = None
@@ -26,102 +29,128 @@ class import_export:
         Will fail if there are any games in the existing database as a failsafe.
         """
         if Game.select().count() > 0:
-            return await ctx.send('Existing database already has game content. Remove this check if you want to restore on top of existing data.$list')
+            return await ctx.send('Existing database already has game content. Remove this check if you want to restore on top of existing data.')
         await ctx.send(f'Attempting to restore games from file db_import.json')
         with open('db_import.json') as json_file:
             data = json.load(json_file)
             for team in data['teams']:
                 try:
-                    Team.create(name=team['name'], emoji=team['emoji'], image_url=team['image'])
+                    guild_id = team['guild_id']
+                except KeyError:
+                    guild_id = 478571892832206869
+                try:
+                    with db.atomic():
+                        Team.create(name=team['name'], emoji=team['emoji'], image_url=team['image'], guild_id=guild_id)
                 except peewee.IntegrityError:
                     logger.warn(f'Cannot add Team {team["name"]} - Already exists')
 
             for tribe in data['tribes']:
                 try:
-                    Tribe.create(name=tribe['name'], emoji=tribe['emoji'])
-                except peewee.IntegrityError:
-                    logger.warn(f'Cannot add tribe {tribe["name"]} - Already exists')
+                    guild_id = tribe['guild_id']
+                except KeyError:
+                    guild_id = 478571892832206869
+                TribeFlair.upsert(name=tribe['name'], guild_id=guild_id, emoji=tribe['emoji'])
 
             for player in data['players']:
-                # print(player)
+                try:
+                    guild_id = player['guild_id']
+                except KeyError:
+                    guild_id = 478571892832206869
+
                 if player['team'] is not None:
                     try:
-                        team = Team.get(name=player['team'])
+                        team = Team.get(name=player['team'], guild_id=guild_id)
                     except peewee.DoesNotExist:
                         logger.warn(f'Cannot add player {player["name"]} to team {player["team"]}')
                         team = None
                 else:
                     team = None
-                try:
-                    Player.create(discord_id=player['discord_id'],
-                        discord_name=player['name'],
-                        polytopia_id=player['poly_id'],
-                        polytopia_name=player['poly_name'],
-                        team=team)
-                except peewee.IntegrityError:
-                    logger.warn(f'Cannot add player {player["name"]} - Already exists')
 
-            for match in data['matches']:
-                host = Player.get(discord_id=match['host'])
-                newmatch = Match.create(host=host, notes=match['notes'], team_size=match['team_size'], expiration=match['expiration'])
-                for mp in match['players']:
-                    match_player = Player.get(discord_id=mp)
-                    MatchPlayer.create(player=match_player, match=newmatch)
+                discord_member, _ = DiscordMember.get_or_create(discord_id=player['discord_id'],
+                    defaults={'polytopia_id': player['poly_id'],
+                              'polytopia_name': player['poly_name'],
+                              'name': player['name']})
+                player, _ = Player.get_or_create(discord_member=discord_member, guild_id=guild_id,
+                    defaults={'name': player['name'],
+                              'team': team})
+
+            # for match in data['matches']:
+            #     host = Player.get(discord_id=match['host'])
+            #     newmatch = Match.create(host=host, notes=match['notes'], team_size=match['team_size'], expiration=match['expiration'])
+            #     for mp in match['players']:
+            #         match_player = Player.get(discord_id=mp)
+            #         MatchPlayer.create(player=match_player, match=newmatch)
 
             for game in data['games']:
-                team1, _ = Team.get_or_create(name=game['team1'][0]['team'])
-                team2, _ = Team.get_or_create(name=game['team2'][0]['team'])
+                try:
+                    guild_id = game['guild_id']
+                except KeyError:
+                    guild_id = 478571892832206869
 
-                newgame = Game.create(id=game['id'], team_size=len(game['team1']),
-                            home_team=team1, away_team=team2,
-                            name=game['name'], date=game['date'],
-                            announcement_channel=game['announce_chan'], announcement_message=game['announce_msg'], completed_ts=game['completed_ts'])
+                team1, _ = Team.get_or_create(name=game['team1'][0]['team'], guild_id=guild_id)
+                team2, _ = Team.get_or_create(name=game['team2'][0]['team'], guild_id=guild_id)
+
+                newgame = Game.create(id=game['id'],
+                                      team_size=len(game['team1']),
+                                      # home_team=team1,
+                                      # away_team=team2,
+                                      name=game['name'],
+                                      date=game['date'],
+                                      announcement_channel=game['announce_chan'],
+                                      announcement_message=game['announce_msg'])
                 team1_players, team2_players = [], []
 
                 for p in game['team1']:
-                    newplayer, _ = Player.get_or_create(discord_id=p['player_id'], defaults={'discord_name': p['player_name']})
-                    newplayer.discord_name = p['player_name']
-                    newplayer.save()
+                    newplayer, _ = Player.upsert(discord_id=p['player_id'], guild_id=guild_id, discord_name=p['player_name'])
 
                     tribe_choice = p['tribe']
                     if tribe_choice is not None:
-                        tribe, _ = Tribe.get_or_create(name=tribe_choice)
+                        tribe = TribeFlair.get_by_name(name=tribe_choice, guild_id=guild_id)
                     else:
                         tribe = None
 
-                    Lineup.create(game=newgame, player=newplayer, team=team1, tribe=tribe)
                     team1_players.append(newplayer)
-                    # Tribe selection would go here if I decide that should be imported
 
                 for p in game['team2']:
-                    newplayer, _ = Player.get_or_create(discord_id=p['player_id'], defaults={'discord_name': p['player_name']})
-                    newplayer.discord_name = p['player_name']
-                    newplayer.save()
+                    newplayer, _ = Player.upsert(discord_id=p['player_id'], guild_id=guild_id, discord_name=p['player_name'])
 
                     tribe_choice = p['tribe']
                     if tribe_choice is not None:
-                        tribe, _ = Tribe.get_or_create(name=tribe_choice)
+                        tribe = TribeFlair.get_by_name(name=tribe_choice, guild_id=guild_id)
                     else:
                         tribe = None
 
-                    Lineup.create(game=newgame, player=newplayer, team=team2, tribe=tribe)
                     team2_players.append(newplayer)
 
-                if len(team1_players) > 1:
-                    Squad.upsert_squad(player_list=team1_players, game=newgame, team=team1)
-                    Squad.upsert_squad(player_list=team2_players, game=newgame, team=team2)
+                # Create/update Squad records
+                team1_squad = Squad.upsert(player_list=team1_players, guild_id=guild_id)
+                team2_squad = Squad.upsert(player_list=team2_players, guild_id=guild_id)
+
+                team1_squadgame = SquadGame.create(game=newgame, squad=team1_squad, team=team1)
+
+                for p in team1_players:
+                    Lineup.create(game=newgame, squad=team1_squad, squadgame=team1_squadgame, player=p)
+
+                team2_squadgame = SquadGame.create(game=newgame, squad=team2_squad, team=team2)
+
+                for p in team2_players:
+                    Lineup.create(game=newgame, squad=team2_squad, squadgame=team2_squadgame, player=p)
 
                 if game['winner']:
+                    full_game = Game.load_full_game(game_id=newgame.id)
                     if team1.name == game['winner']:
-                        newgame.declare_winner(winning_team=team1, losing_team=team2)
+                        full_game.declare_winner(winning_side=team1_squadgame, confirm=True)
                     elif team2.name == game['winner']:
-                        newgame.declare_winner(winning_team=team2, losing_team=team1)
+                        full_game.declare_winner(winning_side=team2_squadgame, confirm=True)
+
+                    full_game.completed_ts = game['completed_ts']
+                    full_game.save()
 
                 print(f'Creating game ID # {newgame.id} - {team1.name} vs {team2.name}')
                 logger.debug(f'Creating game ID # {newgame.id} - {team1.name} vs {team2.name}')
 
     @commands.command(aliases=['dbb'])
-    @commands.has_any_role(*mod_roles)
+    # @commands.has_any_role(*mod_roles)
     async def db_backup(self, ctx):
         """Mod: Backs up database of to a new file
         The file will be a JSON file on the bot's hosting server that can be used to restore to a fresh database.
@@ -197,7 +226,7 @@ class import_export:
         await ctx.send(f'Database has been backed up to file {outfile.name} on my hosting server.')
 
     @commands.command(aliases=['gex', 'gameexport'])
-    @commands.has_any_role(*helper_roles)
+    # @commands.has_any_role(*helper_roles)
     @commands.cooldown(1, 300, commands.BucketType.guild)
     async def game_export(self, ctx):
         """Staff: Export list of completed games to pastebin

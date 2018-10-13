@@ -97,7 +97,7 @@ if __name__ == '__main__':
 
     # Here we load our extensions(cogs) listed above in [initial_extensions].
 
-    initial_extensions = ['modules.games', 'modules.help']
+    initial_extensions = ['modules.games', 'modules.help', 'modules.game_import_export']
     for extension in initial_extensions:
         bot.load_extension(extension)
         try:
