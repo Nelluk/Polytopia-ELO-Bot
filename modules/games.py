@@ -336,10 +336,11 @@ class games():
                 if len(p) == 0:
                     member_stats.append((member.name, 0, '\u200b'))
                 else:
-                    member_stats.append((f'**{p[0].name}**', p[0].elo, f'({p[0].elo})'))
+                    wins, losses = p[0].get_record()
+                    member_stats.append((f'{p[0].name}', p[0].elo, f'*({p[0].elo}, #{p[0].leaderboard_rank(date_cutoff=settings.date_cutoff)[0]})*'))
 
             member_stats.sort(key=lambda tup: tup[1], reverse=True)     # sort the list descending by ELO
-            members_sorted = [f'{x[0]}{x[2]}' for x in member_stats]    # create list of strings like Nelluk(1000)
+            members_sorted = [f'{x[0]} {x[2]}' for x in member_stats]    # create list of strings like Nelluk(1000)
             members_str = " / ".join(members_sorted) if len(members_sorted) > 0 else '\u200b'
             embed.add_field(name=f'Members({len(member_stats)})', value=f'{members_str}')
         else:

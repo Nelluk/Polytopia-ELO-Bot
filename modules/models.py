@@ -866,6 +866,15 @@ class Lineup(BaseModel):
             new_elo = round(my_side_elo + (max_elo_delta * (0 - chance_of_winning)), 0)
 
         elo_delta = int(new_elo - my_side_elo)
+        if self.player.elo < 1100:
+            elo_bonus = int(abs(elo_delta) * .30)
+        elif self.player.elo < 1200:
+            elo_bonus = int(abs(elo_delta) * .15)
+        else:
+            elo_bonus = 0
+
+        elo_delta += elo_bonus
+
         print(f'Player chance of winning: {chance_of_winning} opponent elo:{opponent_elo} my_side_elo: {my_side_elo},'
                 f'elo_delta {elo_delta}, current_player_elo {self.player.elo}, new_player_elo {int(self.player.elo + elo_delta)}')
 
