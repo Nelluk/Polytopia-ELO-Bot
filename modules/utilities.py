@@ -2,6 +2,8 @@ import discord
 from discord.ext import commands
 import logging
 import asyncio
+import modules.models as models
+import peewee
 
 logger = logging.getLogger('polybot.' + __name__)
 
@@ -36,6 +38,34 @@ def get_matching_roles(discord_member, list_of_role_names):
         # Given a Discord.Member and a ['List of', 'Role names'], return set of role names that the Member has.polytopia_id
         member_roles = [x.name for x in discord_member.roles]
         return set(member_roles).intersection(list_of_role_names)
+
+
+def summarize_game_list(games_query):
+    # Turns a list/query-result of several games into a List of Tuples that can be sent to the pagination function
+    # ie. [('Game 330   :nauseated_face: DrippyIsGod vs Nelluk :spy: Mountain Of Songs', '2018-10-05 - 1v1 - WINNER: Nelluk')]
+    game_list = []
+
+    # for counter, game in enumerate(games_query):
+    # for game in peewee.prefetch(games_query, models.SquadGame):
+    for game in games_query:
+
+        if game.is_completed is False:
+            if game.is_pending:
+                status_str = 'Pending Matchmaking Session'
+            else:
+                status_str = 'Incomplete'
+        else:
+            if game.is_confirmed is False:
+                status_str = status_str = f'**WINNER (Unconfirmed):** {game.get_winner().name}'
+            else:
+                status_str = f'**WINNER:** {game.get_winner().name}'
+
+        team_size = game.team_size()
+        game_list.append((
+            f'{game.get_headline()}',
+            f'{(str(game.date))} - {team_size}v{team_size} - {status_str}'
+        ))
+    return game_list
 
 
 async def paginate(bot, ctx, title, message_list, page_start=0, page_end=10, page_size=10):

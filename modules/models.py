@@ -3,7 +3,7 @@ import discord
 from peewee import *
 from playhouse.postgres_ext import *
 import modules.exceptions as exceptions
-from modules import utilities
+# from modules import utilities
 from modules import channels
 import logging
 
@@ -146,12 +146,17 @@ class Player(BaseModel):
         # input: [Nelluk, Frodakcin]
         # output: True, [<Ronin>, <Ronin>]
 
+        def get_matching_roles(discord_member, list_of_role_names):
+            # Given a Discord.Member and a ['List of', 'Role names'], return set of role names that the Member has.polytopia_id
+            member_roles = [x.name for x in discord_member.roles]
+            return set(member_roles).intersection(list_of_role_names)
+
         with db:
             query = Team.select(Team.name).where(Team.guild_id == guild_id)
             list_of_teams = [team.name for team in query]               # ['The Ronin', 'The Jets', ...]
             list_of_matching_teams = []
             for player in list_of_players:
-                matching_roles = utilities.get_matching_roles(player, list_of_teams)
+                matching_roles = get_matching_roles(player, list_of_teams)
                 if len(matching_roles) == 1:
                     # TODO: This would be more efficient to do as one query and then looping over the list of teams one time for each player
                     name = next(iter(matching_roles))
@@ -205,6 +210,15 @@ class Player(BaseModel):
                 ((DiscordMember.polytopia_id.contains(player_string)) | (DiscordMember.polytopia_name.contains(player_string))) & (Player.guild_id == guild_id)
             )
             return poly_fields_match
+
+    def get_or_except(player_string: str, guild_id: int):
+        results = Player.get_by_string(player_string=player_string, guild_id=guild_id)
+        if len(results) == 0:
+            raise exceptions.NoMatches(f'No matching player was found for "{player_string}"')
+        if len(results) > 1:
+            raise exceptions.TooManyMatches(f'More than one matching player was found for "{player_string}"')
+
+        return results[0]
 
     def completed_game_count(self):
 
@@ -437,7 +451,7 @@ class Game(BaseModel):
         home_name, away_name = self.squads[0].name(), self.squads[1].name()
         home_emoji = self.squads[0].team.emoji if self.squads[0].team.emoji else ''
         away_emoji = self.squads[1].team.emoji if self.squads[1].team.emoji else ''
-        game_name = f'\u00a0*{self.name}*' if self.name.strip() else ''  # \u00a0 is used as an invisible delimeter so game_name can be split out easily
+        game_name = f'\u00a0*{self.name}*' if self.name and self.name.strip() else ''  # \u00a0 is used as an invisible delimeter so game_name can be split out easily
 
         return f'Game {self.id}   {home_emoji} **{home_name}** *vs* **{away_name}** {away_emoji}{game_name}'
 
@@ -703,11 +717,11 @@ class Game(BaseModel):
                         (SquadGame.team == team_filter[0]) & (SquadGame.id != Game.winner)
                     )
 
-        q = Game.select().where(
+        game = Game.select().where(
             (Game.id.in_(team_subq)) & (Game.id.in_(player_subq)) & (Game.is_completed.in_(completed_filter)) & (Game.id.in_(victory_subq)) & (Game.id.in_(guild_filter))
-        )
+        ).order_by(-Game.date).prefetch(SquadGame, Team, Lineup, Player)
 
-        return q
+        return game
 
 
 class Squad(BaseModel):
