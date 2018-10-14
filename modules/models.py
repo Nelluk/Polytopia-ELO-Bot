@@ -685,7 +685,7 @@ class Game(BaseModel):
                     victory_subq = Lineup.select(Lineup.game).join(Game).join_from(Lineup, SquadGame).where(
                         (Lineup.game.is_completed == 1) & (Lineup.player == player_filter[0]) & (Game.winner == Lineup.squadgame.id)
                     )
-                elif status_filter == 3:
+                elif status_filter == 4:
                     # Games that player has lost
                     victory_subq = Lineup.select(Lineup.game).join(Game).join_from(Lineup, SquadGame).where(
                         (Lineup.game.is_completed == 1) & (Lineup.player == player_filter[0]) & (Game.winner != Lineup.squadgame.id)

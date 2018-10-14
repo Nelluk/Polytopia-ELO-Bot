@@ -480,7 +480,7 @@ class games():
         `[p]incomplete Nelluk` - Lists all incomplete games for player Nelluk
         `[p]incomplete Nelluk anarchoRex` - Lists all incomplete games with both players
         """
-        incomplete_list = []
+        game_list = []
         target_list = list(args)
 
         if len(args) == 1 and args[0].upper() == 'ALL':
@@ -502,15 +502,95 @@ class games():
 
             p_names = [p.name for p in player_matches]
             query = Game.search(status_filter=2, player_filter=player_matches).order_by(Game.date)
-            list_name = f'Incomplete games for *{" & ".join(p_names)}* ({len(query)})'
+            list_name = f'{len(query)} Incomplete games for *{" & ".join(p_names)}*'
 
         for counter, game in enumerate(query[:500]):
-            incomplete_list.append((
+            game_list.append((
                 f'{game.get_headline()}',
                 f'{(str(game.date))} - {game.team_size()}v{game.team_size()}'
             ))
 
-        await utilities.paginate(self.bot, ctx, title=list_name, message_list=incomplete_list, page_start=0, page_end=10, page_size=10)
+        await utilities.paginate(self.bot, ctx, title=list_name, message_list=game_list, page_start=0, page_end=10, page_size=10)
+
+    @commands.command()
+    async def wins(self, ctx, *args):
+        """List incomplete games for you or other players
+        **Example:**
+        `[p]wins` - Lists all games you have won
+        `[p]wins Nelluk` - Lists all wins for player Nelluk
+        `[p]wins Nelluk anarchoRex` - Lists all games for both players, in which the first player is the winner
+        """
+        game_list = []
+        target_list = list(args)
+
+        if not target_list:
+            # Target is person issuing command
+            target_list.append(str(ctx.author.id))
+        player_matches = []
+        for p_name in target_list:
+            p_matches = Player.get_by_string(p_name, guild_id=ctx.guild.id)
+            if len(p_matches) == 1:
+                player_matches.append(p_matches[0])
+            elif len(p_matches) > 1:
+                return await ctx.send(f'Found multiple matches for player "{p_name}". Try being more specific or quoting players "Full Name".')
+            else:
+                return await ctx.send(f'Found no matches for player "{p_name}".')
+
+        p_names = [p.name for p in player_matches]
+        query = Game.search(status_filter=3, player_filter=player_matches).order_by(-Game.date)
+        if len(p_names) > 1:
+            list_name = f'{len(query)} winning game(s) for **{p_names[0]}** that include *{" & ".join(p_names[1:])}*'
+        else:
+            list_name = f'{len(query)} winning game(s) for **{p_names[0]}**'
+
+        for counter, game in enumerate(query[:500]):
+            status_str = f'**WINNER:** {game.get_winner().name}'
+            game_list.append((
+                f'{game.get_headline()}',
+                f'{(str(game.date))} - {game.team_size()}v{game.team_size()} - {status_str}'
+            ))
+
+        await utilities.paginate(self.bot, ctx, title=list_name, message_list=game_list, page_start=0, page_end=10, page_size=10)
+
+    @commands.command(aliases=['loss', 'lose'])
+    async def losses(self, ctx, *args):
+        """List incomplete games for you or other players
+        **Example:**
+        `[p]losses` - Lists all games you have lost
+        `[p]losses Nelluk` - Lists all losses for player Nelluk
+        `[p]losses Nelluk anarchoRex` - Lists all games for both players, in which the first player is the loser
+        """
+        game_list = []
+        target_list = list(args)
+
+        if not target_list:
+            # Target is person issuing command
+            target_list.append(str(ctx.author.id))
+        player_matches = []
+        for p_name in target_list:
+            p_matches = Player.get_by_string(p_name, guild_id=ctx.guild.id)
+            if len(p_matches) == 1:
+                player_matches.append(p_matches[0])
+            elif len(p_matches) > 1:
+                return await ctx.send(f'Found multiple matches for player "{p_name}". Try being more specific or quoting players "Full Name".')
+            else:
+                return await ctx.send(f'Found no matches for player "{p_name}".')
+
+        p_names = [p.name for p in player_matches]
+        query = Game.search(status_filter=4, player_filter=player_matches).order_by(-Game.date)
+        if len(p_names) > 1:
+            list_name = f'{len(query)} losing game(s) for **{p_names[0]}** that include *{" & ".join(p_names[1:])}*'
+        else:
+            list_name = f'{len(query)} losing game(s) for **{p_names[0]}**'
+
+        for counter, game in enumerate(query[:500]):
+            status_str = f'**WINNER:** {game.get_winner().name}'
+            game_list.append((
+                f'{game.get_headline()}',
+                f'{(str(game.date))} - {game.team_size()}v{game.team_size()} - {status_str}'
+            ))
+
+        await utilities.paginate(self.bot, ctx, title=list_name, message_list=game_list, page_start=0, page_end=10, page_size=10)
 
     @commands.command(aliases=['newgame'], brief='Helpers: Sets up a new game to be tracked', usage='"Name of Game" player1 player2 vs player3 player4')
     # @commands.has_any_role(*helper_roles)
