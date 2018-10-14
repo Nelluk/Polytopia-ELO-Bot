@@ -188,7 +188,7 @@ class Player(BaseModel):
             name_exact_match = Player.select(Player, DiscordMember).join(DiscordMember).where(
                 (DiscordMember.name == discord_str) & (Player.guild_id == guild_id)
             )
-            if len(name_exact_match) == 1:
+            if name_exact_match.count() == 1:
                 # String matches DiscordUser.name exactly
                 return name_exact_match
 
@@ -197,7 +197,7 @@ class Player(BaseModel):
                 ((Player.nick.contains(player_string)) | (DiscordMember.name.contains(discord_str))) & (Player.guild_id == guild_id)
             )
 
-            if len(name_substring_match) > 0:
+            if name_substring_match.count() > 0:
                 return name_substring_match
 
             # If no substring name matches, return anything with matching polytopia name or code
@@ -324,6 +324,7 @@ class Game(BaseModel):
     completed_ts = DateTimeField(null=True, default=None)
     name = TextField(null=True)
     winner = DeferredForeignKey('SquadGame', null=True)
+    guild_id = BitField(unique=False, null=False)
 
     async def create_squad_channels(self, ctx):
         game_roster = []
@@ -493,7 +494,8 @@ class Game(BaseModel):
 
         with db:
             newgame = Game.create(name=name,
-                                  is_pending=False)
+                                  is_pending=False,
+                                  guild_id=guild_id)
 
             side_home_players = []
             side_away_players = []
@@ -635,7 +637,7 @@ class Game(BaseModel):
 
         return None
 
-    def search(player_filter=None, team_filter=None, status_filter: int = 0):
+    def search(player_filter=None, team_filter=None, status_filter: int = 0, guild_id: int = None):
         # Returns Games by almost any combination of player/team participation, and game status
         # player_filter/team_filter should be a [List, of, Player/Team, objects] (or ID #s)
         # status_filter:
@@ -648,6 +650,11 @@ class Game(BaseModel):
             completed_filter = [0]
         else:
             completed_filter = [0, 1]
+
+        if guild_id:
+            guild_filter = Game.select(Game.id).where(Game.guild_id == guild_id)
+        else:
+            guild_filter = Game.select(Game.id)
 
         if team_filter:
             team_subq = SquadGame.select(SquadGame.game).join(Game).where(
@@ -668,6 +675,7 @@ class Game(BaseModel):
             player_subq = Game.select(Game.id)
 
         if (not player_filter and not team_filter) or status_filter not in [3, 4]:
+            # No filtering on wins/losses
             victory_subq = Game.select(Game.id)
         else:
             if player_filter:
@@ -696,7 +704,7 @@ class Game(BaseModel):
                     )
 
         q = Game.select().where(
-            (Game.id.in_(team_subq)) & (Game.id.in_(player_subq)) & (Game.is_completed.in_(completed_filter)) & (Game.id.in_(victory_subq))
+            (Game.id.in_(team_subq)) & (Game.id.in_(player_subq)) & (Game.is_completed.in_(completed_filter)) & (Game.id.in_(victory_subq)) & (Game.id.in_(guild_filter))
         )
 
         return q

@@ -92,8 +92,7 @@ class import_export:
 
                 newgame = Game.create(id=game['id'],
                                       team_size=len(game['team1']),
-                                      # home_team=team1,
-                                      # away_team=team2,
+                                      guild_id=guild_id,
                                       name=game['name'],
                                       date=game['date'],
                                       announcement_channel=game['announce_chan'],

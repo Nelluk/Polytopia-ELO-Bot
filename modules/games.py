@@ -472,22 +472,37 @@ class games():
             await ctx.send(f'Player {target_player[0].name} updated in system with Polytopia name {new_name}.')
 
     @commands.command()
-    async def incomplete(self, ctx, all: str = None):
-        """List your or all incomplete games
+    async def incomplete(self, ctx, *args):
+        """List incomplete games for you or other players
         **Example:**
         `[p]incomplete` - Lists incomplete games you are playing in
         `[p]incomplete all` - Lists all incomplete games
+        `[p]incomplete Nelluk` - Lists all incomplete games for player Nelluk
+        `[p]incomplete Nelluk anarchoRex` - Lists all incomplete games with both players
         """
         incomplete_list = []
+        target_list = list(args)
 
-        if all and all.upper() == 'ALL':
-            query = Game.select().where(
-                (Game.is_completed == 0) & (Game.is_pending == 0)
-            ).order_by(Game.date)
+        if len(args) == 1 and args[0].upper() == 'ALL':
+            query = Game.search(status_filter=2, guild_id=ctx.guild.id).order_by(Game.date)
+            list_name = f'All incomplete games ({len(query)})'
         else:
-            query = Game.select().join(Lineup).join(Player).join(DiscordMember).where(
-                (Game.is_completed == 0) & (Game.is_pending == 0) & (DiscordMember.discord_id == ctx.author.id)
-            ).order_by(Game.date)
+            if not target_list:
+                # Target is person issuing command
+                target_list.append(str(ctx.author.id))
+            player_matches = []
+            for p_name in target_list:
+                p_matches = Player.get_by_string(p_name, guild_id=ctx.guild.id)
+                if len(p_matches) == 1:
+                    player_matches.append(p_matches[0])
+                elif len(p_matches) > 1:
+                    return await ctx.send(f'Found multiple matches for player "{p_name}". Try being more specific or quoting players "Full Name".')
+                else:
+                    return await ctx.send(f'Found no matches for player "{p_name}".')
+
+            p_names = [p.name for p in player_matches]
+            query = Game.search(status_filter=2, player_filter=player_matches).order_by(Game.date)
+            list_name = f'Incomplete games for *{" & ".join(p_names)}* ({len(query)})'
 
         for counter, game in enumerate(query[:500]):
             incomplete_list.append((
@@ -495,7 +510,7 @@ class games():
                 f'{(str(game.date))} - {game.team_size()}v{game.team_size()}'
             ))
 
-        await utilities.paginate(self.bot, ctx, title='**Oldest Incomplete Games**', message_list=incomplete_list, page_start=0, page_end=10, page_size=10)
+        await utilities.paginate(self.bot, ctx, title=list_name, message_list=incomplete_list, page_start=0, page_end=10, page_size=10)
 
     @commands.command(aliases=['newgame'], brief='Helpers: Sets up a new game to be tracked', usage='"Name of Game" player1 player2 vs player3 player4')
     # @commands.has_any_role(*helper_roles)
