@@ -1001,17 +1001,22 @@ class games():
     # @commands.has_any_role(*helper_roles)
     async def ts(self, ctx, game: int, *args):
 
-        team_a = Team.get(id=1)
-        player_list = []
-        players = Player.get_by_string('nelluk', ctx.guild.id)
-        for p in players:
-            player_list.append(p)
-        teams = [team_a]
+        player = Player.get_or_except('nelluk', ctx.guild.id)
+        q = Lineup.select(Lineup.tribe).where(
+            (Lineup.player == player)
+        ).group_by(Lineup.tribe)
 
-        games = Game.search(team_filter=[], player_filter=player_list, status_filter=6)
-        print(games.count())
+        # team_a = Team.get(id=1)
+        # player_list = []
+        # players = Player.get_or_('nelluk', ctx.guild.id)
+        # for p in players:
+        #     player_list.append(p)
+        # teams = [team_a]
 
-        for g in games.dicts():
+        # games = Game.search(team_filter=[teams], player_filter=player_list, status_filter=6)
+        # print(games.count())
+
+        for g in q.dicts():
             print(g)
 
 
