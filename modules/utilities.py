@@ -3,7 +3,7 @@ from discord.ext import commands
 import logging
 import asyncio
 import modules.models as models
-import peewee
+# import peewee
 
 logger = logging.getLogger('polybot.' + __name__)
 
@@ -41,14 +41,15 @@ def get_matching_roles(discord_member, list_of_role_names):
 
 
 def summarize_game_list(games_query):
-    # Turns a list/query-result of several games into a List of Tuples that can be sent to the pagination function
+    # Turns a list/query-result of several games (or SquadGames) into a List of Tuples that can be sent to the pagination function
     # ie. [('Game 330   :nauseated_face: DrippyIsGod vs Nelluk :spy: Mountain Of Songs', '2018-10-05 - 1v1 - WINNER: Nelluk')]
     game_list = []
 
     # for counter, game in enumerate(games_query):
     # for game in peewee.prefetch(games_query, models.SquadGame):
     for game in games_query:
-
+        if isinstance(game, models.SquadGame):
+            game = game.game  # In case a list of SquadGames is passed instead of a list of Games
         if game.is_completed is False:
             if game.is_pending:
                 status_str = 'Pending Matchmaking Session'

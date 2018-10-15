@@ -125,18 +125,21 @@ class import_export:
                     team2_tribes.append(tribe)
 
                 # Create/update Squad records
-                team1_squad = Squad.upsert(player_list=team1_players, guild_id=guild_id)
-                team2_squad = Squad.upsert(player_list=team2_players, guild_id=guild_id)
+                team1_squad, team2_squad = None, None
+                if len(team1_players) > 1:
+                    team1_squad = Squad.upsert(player_list=team1_players, guild_id=guild_id)
+                if len(team2_players) > 1:
+                    team2_squad = Squad.upsert(player_list=team2_players, guild_id=guild_id)
 
                 team1_squadgame = SquadGame.create(game=newgame, squad=team1_squad, team=team1)
 
                 for p, t in zip(team1_players, team1_tribes):
-                    Lineup.create(game=newgame, squad=team1_squad, squadgame=team1_squadgame, player=p, tribe=t)
+                    Lineup.create(game=newgame, squadgame=team1_squadgame, player=p, tribe=t)
 
                 team2_squadgame = SquadGame.create(game=newgame, squad=team2_squad, team=team2)
 
                 for p, t in zip(team2_players, team2_tribes):
-                    Lineup.create(game=newgame, squad=team2_squad, squadgame=team2_squadgame, player=p, tribe=t)
+                    Lineup.create(game=newgame, squadgame=team2_squadgame, player=p, tribe=t)
 
                 if game['winner']:
                     full_game = Game.load_full_game(game_id=newgame.id)

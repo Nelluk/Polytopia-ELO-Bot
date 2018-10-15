@@ -470,7 +470,7 @@ class Game(BaseModel):
         # Returns a single Game object with all related tables pre-fetched. or None
 
         game = Game.select().where(Game.id == game_id)
-        subq = SquadGame.select(SquadGame, Team).join(Team, JOIN.LEFT_OUTER).join_from(SquadGame, Squad)
+        subq = SquadGame.select(SquadGame, Team).join(Team, JOIN.LEFT_OUTER).join_from(SquadGame, Squad, JOIN.LEFT_OUTER)
 
         subq2 = Lineup.select(
             Lineup, Tribe, TribeFlair, Player, DiscordMember).join(
@@ -534,18 +534,20 @@ class Game(BaseModel):
 
             # Create/update Squad records
             home_squad, away_squad = None, None
-            home_squad = Squad.upsert(player_list=side_home_players, guild_id=guild_id)
-            away_squad = Squad.upsert(player_list=side_away_players, guild_id=guild_id)
+            if len(side_home_players) > 1:
+                home_squad = Squad.upsert(player_list=side_home_players, guild_id=guild_id)
+            if len(side_away_players) > 1:
+                away_squad = Squad.upsert(player_list=side_away_players, guild_id=guild_id)
 
             home_squadgame = SquadGame.create(game=newgame, squad=home_squad, team=home_side_team)
 
             for p in side_home_players:
-                Lineup.create(game=newgame, squad=home_squad, squadgame=home_squadgame, player=p)
+                Lineup.create(game=newgame, squadgame=home_squadgame, player=p)
 
             away_squadgame = SquadGame.create(game=newgame, squad=away_squad, team=away_side_team)
 
             for p in side_away_players:
-                Lineup.create(game=newgame, squad=away_squad, squadgame=away_squadgame, player=p)
+                Lineup.create(game=newgame, squadgame=away_squadgame, player=p)
 
         return newgame
 
@@ -593,12 +595,12 @@ class Game(BaseModel):
             for losing_member in losing_side.lineup:
                 losing_member.change_elo_after_game(my_side_elo=losing_side_ave_elo, opponent_elo=winning_side_ave_elo, is_winner=False)
 
-            # STEP 2: SQUAD ELO
-            winning_squad_elo, losing_squad_elo = winning_side.squad.elo, losing_side.squad.elo
-            winning_side.elo_change_squad = winning_side.squad.change_elo_after_game(opponent_elo=losing_squad_elo, is_winner=True)
-            losing_side.elo_change_squad = losing_side.squad.change_elo_after_game(opponent_elo=winning_squad_elo, is_winner=False)
-
             if self.team_size() > 1:
+                # STEP 2: SQUAD ELO
+                winning_squad_elo, losing_squad_elo = winning_side.squad.elo, losing_side.squad.elo
+                winning_side.elo_change_squad = winning_side.squad.change_elo_after_game(opponent_elo=losing_squad_elo, is_winner=True)
+                losing_side.elo_change_squad = losing_side.squad.change_elo_after_game(opponent_elo=winning_squad_elo, is_winner=False)
+
                 # STEP 3: TEAM ELO
                 winning_team_elo, losing_team_elo = winning_side.team.elo, losing_side.team.elo
                 winning_side.elo_change_team = winning_side.team.change_elo_after_game(opponent_elo=losing_team_elo, is_winner=True)
@@ -845,8 +847,10 @@ class Squad(BaseModel):
             min_games = 2
 
         q = Squad.select().join(SquadGame).join(Game).where(
-            (Squad.id.in_(Squad.subq_squads_with_completed_games(min_games=min_games))) & (Squad.guild_id == guild_id) & (Game.date > date_cutoff)
-        ).order_by(-Squad.elo)
+            (
+                Squad.id.in_(Squad.subq_squads_with_completed_games(min_games=min_games))
+            ) & (Squad.guild_id == guild_id) & (Game.date > date_cutoff)
+        ).order_by(-Squad.elo).group_by(Squad).prefetch(SquadMember, Player)
 
         return q
 
@@ -905,7 +909,7 @@ class SquadMember(BaseModel):
 
 class SquadGame(BaseModel):
     game = ForeignKeyField(Game, null=False, backref='squads', on_delete='CASCADE')
-    squad = ForeignKeyField(Squad, null=False, backref='squadgame', on_delete='CASCADE')
+    squad = ForeignKeyField(Squad, null=True, backref='squadgame', on_delete='CASCADE')
     team = ForeignKeyField(Team, null=False, backref='squadgame')
     elo_change_squad = SmallIntegerField(default=0)
     elo_change_team = SmallIntegerField(default=0)
@@ -920,13 +924,16 @@ class SquadGame(BaseModel):
         if self.elo_change_team > 0:
             team_elo_str = '+' + team_elo_str
 
-        squad_elo_str = str(self.elo_change_squad) if self.elo_change_squad != 0 else ''
-        if self.elo_change_squad > 0:
-            squad_elo_str = '+' + squad_elo_str
-        if squad_elo_str:
-            squad_elo_str = '(' + squad_elo_str + ')'
+        if self.squad:
+            squad_elo_str = str(self.elo_change_squad) if self.elo_change_squad != 0 else ''
+            if self.elo_change_squad > 0:
+                squad_elo_str = '+' + squad_elo_str
+            if squad_elo_str:
+                squad_elo_str = '(' + squad_elo_str + ')'
 
-        return (f'({self.team.elo} {team_elo_str})', f'{self.squad.elo} {squad_elo_str}')
+            return (f'({self.team.elo} {team_elo_str})', f'{self.squad.elo} {squad_elo_str}')
+        else:
+            return (f'({self.team.elo} {team_elo_str})', None)
 
     def get_member_average_elo(self):
         elo_list = [l.player.elo for l in self.lineup]

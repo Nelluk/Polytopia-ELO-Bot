@@ -168,17 +168,15 @@ class games():
                 # Search by player names
                 squad_players = []
                 for p_name in args:
-                    p_matches = Player.get_by_string(p_name, guild_id=ctx.guild.id)
-                    if len(p_matches) == 1:
-                        squad_players.append(p_matches[0])
-                    elif len(p_matches) > 1:
-                        return await ctx.send(f'Found multiple matches for player "{p_name}". Try being more specific or quoting players "Full Name".')
-                    else:
-                        return await ctx.send(f'Found no matches for player "{p_name}".')
+
+                    try:
+                        squad_players.append(Player.get_or_except(p_name, guild_id=ctx.guild.id))
+                    except exceptions.NoSingleMatch as e:
+                        return await ctx.send(e)
 
                 squad_list = Squad.get_all_matching_squads(squad_players)
                 if len(squad_list) == 0:
-                    return await ctx.send(f'Found no squads containing players: {" / ".join(args)}')
+                    return await ctx.send(f'Found no squads containing players: {" / ".join([p.name for p in squad_players])}')
                 if len(squad_list) > 1:
                     # More than one matching name found, so display a short list
                     embed = discord.Embed(title=f'Found {len(squad_list)} matches. Try `{ctx.prefix}squad IDNUM`:')
@@ -208,20 +206,15 @@ class games():
             embed = discord.Embed(title=f'Squad card for Squad {squad.id}\n{"  /  ".join(names_with_emoji)}', value='\u200b')
             embed.add_field(name='Results', value=f'ELO: {squad.elo},  W {wins} / L {losses}', inline=True)
             embed.add_field(name='Ranking', value=rank_str, inline=True)
-            recent_games = SquadGame.select().join(Game).where(
+            recent_games = SquadGame.select(Game).join(Game).where(
                 (SquadGame.squad == squad) & (Game.is_pending == 0)
-            ).order_by(-Game.date)[:5]
+            ).order_by(-Game.date)
+
             embed.add_field(value='\u200b', name='Most recent games', inline=False)
+            game_list = utilities.summarize_game_list(recent_games[:10])
 
-            for squadgame in recent_games:
-                game = Game.load_full_game(game_id=squadgame.game)  # preloads game data to reduce DB queries.
-                if game.is_completed == 0:
-                    status = 'Incomplete'
-                else:
-                    status = '**WIN**' if squadgame.id == Game.winner else '***Loss***'
-
-                embed.add_field(name=f'{game.get_headline()}',
-                            value=f'{status} - {str(game.date)} - {game.team_size()}v{game.team_size()}')
+            for game, result in game_list:
+                embed.add_field(name=game, value=result)
 
             await ctx.send(embed=embed)
 
@@ -350,21 +343,14 @@ class games():
         if team.image_url:
             embed.set_thumbnail(url=team.image_url)
 
-        embed.add_field(value='*Recent games*', name='\u200b', inline=False)
+        embed.add_field(name='**Recent games**', value='\u200b', inline=False)
 
-        recent_games = SquadGame.select(SquadGame, Game).join(Game).where(
-            (Game.id.in_(Team.team_games_subq())) & (SquadGame.team == team)
-        ).order_by(-Game.date)[:7]
+        recent_games = Game.search(team_filter=[team])
 
-        for squadgame in recent_games:
-            game = Game.load_full_game(game_id=squadgame.game)
-            if game.is_completed == 1:
-                result = '**WIN**' if squadgame.id == Game.winner else 'LOSS'
-            else:
-                result = 'Incomplete'
+        game_list = utilities.summarize_game_list(recent_games[:10])
 
-            embed.add_field(name=f'{game.get_headline()}',
-                value=f'{result} - {str(game.date)} - {game.team_size()}v{game.team_size()}')
+        for game, result in game_list:
+            embed.add_field(name=game, value=result)
 
         await ctx.send(embed=embed)
 
@@ -1001,9 +987,7 @@ class games():
     # @commands.has_any_role(*helper_roles)
     async def ts(self, ctx, game: int, *args):
 
-        player = Player.get_or_except('nelluk', ctx.guild.id)
-        player.favorite_tribes(limit=3)
-        return
+        q = Squad.leaderboard(date_cutoff=settings.date_cutoff, guild_id=ctx.guild.id)
 
         # team_a = Team.get(id=1)
         # player_list = []
