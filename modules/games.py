@@ -293,23 +293,18 @@ class games():
 
             if favorite_tribes:
                 tribes_str = ' '.join([f'{t["emoji"] if t["emoji"] else t["name"]} ' for t in favorite_tribes])
-                embed.add_field(value=tribes_str, name='Most-played Tribes', inline=True)
+                embed.add_field(value=tribes_str, name='Most-logged Tribes', inline=True)
 
-            embed.add_field(value='\u200b', name='Most recent games', inline=False)
+            recent_games = Game.search(player_filter=[player])
+            if not recent_games:
+                recent_games_str = 'No games played'
+            else:
+                recent_games_str = f'Most recent games ({len(recent_games)} total):'
+            embed.add_field(value='\u200b', name=recent_games_str, inline=False)
 
-            recent_games = SquadGame.select(SquadGame, Game).join(Game).join_from(SquadGame, Lineup).where(
-                (Lineup.player == player) & (Game.is_pending == 0)
-            ).order_by(-Game.date)[:7]
-
-            for squadgame in recent_games:
-                game = Game.load_full_game(game_id=squadgame.game)  # preloads game data to reduce DB queries.
-                if game.is_completed == 0:
-                    status = 'Incomplete'
-                else:
-                    status = '**WIN**' if squadgame.id == Game.winner else '***Loss***'
-
-                embed.add_field(name=f'{game.get_headline()}',
-                            value=f'{status} - {str(game.date)} - {game.team_size()}v{game.team_size()}')
+            game_list = utilities.summarize_game_list(recent_games[:7])
+            for game, result in game_list:
+                embed.add_field(name=game, value=result)
 
             await ctx.send(content=content_str, embed=embed)
 
