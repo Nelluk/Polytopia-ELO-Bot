@@ -98,6 +98,7 @@ class import_export:
                                       announcement_channel=game['announce_chan'],
                                       announcement_message=game['announce_msg'])
                 team1_players, team2_players = [], []
+                team1_tribes, team2_tribes = [], []
 
                 for p in game['team1']:
                     newplayer, _ = Player.upsert(discord_id=p['player_id'], guild_id=guild_id, discord_name=p['player_name'])
@@ -109,6 +110,7 @@ class import_export:
                         tribe = None
 
                     team1_players.append(newplayer)
+                    team1_tribes.append(tribe)
 
                 for p in game['team2']:
                     newplayer, _ = Player.upsert(discord_id=p['player_id'], guild_id=guild_id, discord_name=p['player_name'])
@@ -120,6 +122,7 @@ class import_export:
                         tribe = None
 
                     team2_players.append(newplayer)
+                    team2_tribes.append(tribe)
 
                 # Create/update Squad records
                 team1_squad = Squad.upsert(player_list=team1_players, guild_id=guild_id)
@@ -127,13 +130,13 @@ class import_export:
 
                 team1_squadgame = SquadGame.create(game=newgame, squad=team1_squad, team=team1)
 
-                for p in team1_players:
-                    Lineup.create(game=newgame, squad=team1_squad, squadgame=team1_squadgame, player=p)
+                for p, t in zip(team1_players, team1_tribes):
+                    Lineup.create(game=newgame, squad=team1_squad, squadgame=team1_squadgame, player=p, tribe=t)
 
                 team2_squadgame = SquadGame.create(game=newgame, squad=team2_squad, team=team2)
 
-                for p in team2_players:
-                    Lineup.create(game=newgame, squad=team2_squad, squadgame=team2_squadgame, player=p)
+                for p, t in zip(team2_players, team2_tribes):
+                    Lineup.create(game=newgame, squad=team2_squad, squadgame=team2_squadgame, player=p, tribe=t)
 
                 if game['winner']:
                     full_game = Game.load_full_game(game_id=newgame.id)

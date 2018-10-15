@@ -289,6 +289,12 @@ class games():
             else:
                 content_str = ''
 
+            favorite_tribes = player.favorite_tribes(limit=3)
+
+            if favorite_tribes:
+                tribes_str = ' '.join([f'{t["emoji"] if t["emoji"] else t["name"]} ' for t in favorite_tribes])
+                embed.add_field(value=tribes_str, name='Most-played Tribes', inline=True)
+
             embed.add_field(value='\u200b', name='Most recent games', inline=False)
 
             recent_games = SquadGame.select(SquadGame, Game).join(Game).join_from(SquadGame, Lineup).where(
@@ -403,7 +409,6 @@ class games():
             return await ctx.send(f'Polytopia code "{new_id}" does not appear to be a valid code.')
 
         _, team_list = Player.get_teams_of_players(guild_id=ctx.guild.id, list_of_players=[target_discord_member])
-        print(team_list)
 
         with db:
             player, created = Player.upsert(discord_id=target_discord_member.id,
@@ -1002,9 +1007,8 @@ class games():
     async def ts(self, ctx, game: int, *args):
 
         player = Player.get_or_except('nelluk', ctx.guild.id)
-        q = Lineup.select(Lineup.tribe).where(
-            (Lineup.player == player)
-        ).group_by(Lineup.tribe)
+        player.favorite_tribes(limit=3)
+        return
 
         # team_a = Team.get(id=1)
         # player_list = []

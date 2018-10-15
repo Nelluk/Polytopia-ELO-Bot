@@ -257,7 +257,6 @@ class Player(BaseModel):
 
         player_found = False
         for counter, p in enumerate(query.tuples()):
-            print(p)
             if p[0] == self.id:
                 player_found = True
                 break
@@ -266,7 +265,6 @@ class Player(BaseModel):
         return (rank, query.count())
 
     def leaderboard(date_cutoff, guild_id: int):
-        print(date_cutoff)
         query = Player.select().join(Lineup).join(Game).where(
             (Player.guild_id == guild_id) & (Game.is_completed == 1) & (Game.date > date_cutoff)
         ).distinct().order_by(-Player.elo)
@@ -276,6 +274,16 @@ class Player(BaseModel):
             query = Player.select().where(Player.guild_id == guild_id).order_by(-Player.elo)
 
         return query
+
+    def favorite_tribes(self, limit=3):
+        # Returns a list of dicts of format:
+        # {'tribe': 7, 'emoji': '<:luxidoor:448015285212151809>', 'name': 'Luxidoor', 'tribe_count': 14}
+
+        q = Lineup.select(Lineup.tribe, TribeFlair.emoji, Tribe.name, fn.COUNT(Lineup.tribe).alias('tribe_count')).join(TribeFlair).join(Tribe).where(
+            (Lineup.player == self) & (Lineup.tribe.is_null(False))
+        ).group_by(Lineup.tribe, Lineup.tribe.emoji, Tribe.name).order_by(-SQL('tribe_count')).limit(limit)
+
+        return q.dicts()
 
     class Meta:
         indexes = ((('discord_member', 'guild_id'), True),)   # Trailing comma is required
