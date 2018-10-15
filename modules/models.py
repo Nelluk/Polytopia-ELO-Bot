@@ -657,15 +657,22 @@ class Game(BaseModel):
         # status_filter:
         # 0 = all games, 1 = completed games, 2 = incomplete games
         # 3 = wins, 4 = losses (only for first player in player_list or, if empty, first team in team list)
+        # 5 = unconfirmed wins, 6 = pending games (matchmaking sessions)
 
-        # TODO: Add filters for is_pending / is_confirmed
+        confirmed_filter, completed_filter, pending_filter = [0, 1], [0, 1], [0]
 
         if status_filter == 1:
+            # completed games
             completed_filter = [1]
         elif status_filter == 2:
+            # incomplete games
             completed_filter = [0]
-        else:
-            completed_filter = [0, 1]
+        elif status_filter == 5:
+            # Unconfirmed completed games
+            completed_filter, confirmed_filter = [1], [0]
+        elif status_filter == 6:
+            # 'pending' matchmaking games
+            pending_filter = [1]
 
         if guild_id:
             guild_filter = Game.select(Game.id).where(Game.guild_id == guild_id)
@@ -720,7 +727,21 @@ class Game(BaseModel):
                     )
 
         game = Game.select().where(
-            (Game.id.in_(team_subq)) & (Game.id.in_(player_subq)) & (Game.is_completed.in_(completed_filter)) & (Game.id.in_(victory_subq)) & (Game.id.in_(guild_filter))
+            (
+                Game.id.in_(team_subq)
+            ) & (
+                Game.id.in_(player_subq)
+            ) & (
+                Game.is_completed.in_(completed_filter)
+            ) & (
+                Game.is_confirmed.in_(confirmed_filter)
+            ) & (
+                Game.is_pending.in_(pending_filter)
+            ) & (
+                Game.id.in_(victory_subq)
+            ) & (
+                Game.id.in_(guild_filter)
+            )
         ).order_by(-Game.date).prefetch(SquadGame, Team, Lineup, Player)
 
         return game

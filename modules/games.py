@@ -1008,7 +1008,7 @@ class games():
             player_list.append(p)
         teams = [team_a]
 
-        games = Game.search(team_filter=teams, player_filter=player_list, status_filter=3)
+        games = Game.search(team_filter=[], player_filter=player_list, status_filter=6)
         print(games.count())
 
         for g in games.dicts():
