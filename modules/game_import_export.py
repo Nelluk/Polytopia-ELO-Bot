@@ -154,6 +154,9 @@ class import_export:
                 print(f'Creating game ID # {newgame.id} - {team1.name} vs {team2.name}')
                 logger.debug(f'Creating game ID # {newgame.id} - {team1.name} vs {team2.name}')
 
+        db.execute_sql("SELECT pg_catalog.setval('game_id_seq', (SELECT max(id) FROM game), true );")
+        # sets postgres game ID to current max value, otherwise after importing games it would try to create new games at id=1
+
     @commands.command(aliases=['dbb'])
     # @commands.has_any_role(*mod_roles)
     async def db_backup(self, ctx):

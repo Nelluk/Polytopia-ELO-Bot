@@ -987,6 +987,10 @@ class games():
     # @commands.has_any_role(*helper_roles)
     async def ts(self, ctx, game: int, *args):
 
+        # q = db.execute("SELECT pg_catalog.setval('game_id_seq', (SELECT max(id) FROM game), true );")
+        q = db.execute_sql("SELECT pg_catalog.setval('game_id_seq', (SELECT max(id) FROM game), true );")
+        print(q)
+        return
         q = Squad.leaderboard(date_cutoff=settings.date_cutoff, guild_id=ctx.guild.id)
 
         # team_a = Team.get(id=1)
