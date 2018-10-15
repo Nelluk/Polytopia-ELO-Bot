@@ -658,6 +658,8 @@ class Game(BaseModel):
         # 0 = all games, 1 = completed games, 2 = incomplete games
         # 3 = wins, 4 = losses (only for first player in player_list or, if empty, first team in team list)
 
+        # TODO: Add filters for is_pending / is_confirmed
+
         if status_filter == 1:
             completed_filter = [1]
         elif status_filter == 2:
