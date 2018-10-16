@@ -366,7 +366,7 @@ class games():
 
         elif len(args) == 2:    # User changing another user's code. Helper permissions required.
 
-            if settings.is_staff(ctx, ctx.author) is False:
+            if settings.is_staff(ctx) is False:
                 return await ctx.send(f'You only have permission to set your own code. To do that use `{ctx.prefix}setcode YOURCODEHERE`')
 
             # Try to find matching guild/server member
@@ -403,12 +403,13 @@ class games():
             await ctx.send('Player {0.name} updated in system with Polytopia code {0.discord_member.polytopia_id}.'.format(player))
 
     @commands.command(aliases=['code'], usage='player_name')
-    async def getcode(self, ctx, player_string: str):
+    async def getcode(self, ctx, player_string: str = None):
         """Get game code of a player
         Just returns the code and nothing else so it can easily be copied."""
 
-        # TODO: If no player argument display own code?
         with db:
+            if not player_string:
+                player_string = str(ctx.author.id)
             try:
                 player_target = Player.get_or_except(player_string, ctx.guild.id)
             except exceptions.NoSingleMatch as ex:
@@ -434,7 +435,7 @@ class games():
             new_name = args[0]
         elif len(args) == 2:
             # User changing another user's code. Admin permissions required.
-            if settings.is_staff(ctx, ctx.author) is False:
+            if settings.is_staff(ctx) is False:
                 return await ctx.send('You do not have permission to trigger this command.')
             target_string = args[0]
             new_name = args[1]
@@ -673,8 +674,6 @@ class games():
         await utilities.paginate(self.bot, ctx, title=list_name, message_list=game_list, page_start=0, page_end=10, page_size=10)
 
     @commands.command(aliases=['newgame'], brief='Helpers: Sets up a new game to be tracked', usage='"Name of Game" player1 player2 vs player3 player4')
-    # @commands.has_any_role(*helper_roles)
-    # TODO: command should require 'Rider' role on main server. 2v2 should require above that
     async def startgame(self, ctx, game_name: str, *args):
         side_home, side_away = [], []
         example_usage = (f'Example usage:\n`{ctx.prefix}startgame "Name of Game" player2`- Starts a 1v1 game between yourself and player2'
@@ -695,8 +694,10 @@ class games():
 
         elif len(args) > 1:
             # $startgame "Name of Game" p1 p2 vs p3 p4
-            if settings.guild_setting(ctx.guild.id, 'allow_teams') is False:
+            if not settings.guild_setting(ctx.guild.id, 'allow_teams'):
                 return await ctx.send('Only 1v1 games are enabled on this server. For team ELO games with squad leaderboards check out PolyChampions.')
+            if not settings.is_power_user(ctx):
+                return await ctx.send('You have not reached the level required to create 2v2 games.')
             if len(args) not in [3, 5, 7, 9, 11] or args[int(len(args) / 2)].upper() != 'VS':
                 return await ctx.send(f'Invalid format. {example_usage}')
 
@@ -728,7 +729,7 @@ class games():
             else:
                 return await ctx.send('Duplicate players detected. Game not created.')
 
-        if ctx.author not in (side_home + side_away) and settings.is_staff(ctx, ctx.author) is False:
+        if ctx.author not in (side_home + side_away) and settings.is_staff(ctx) is False:
             # TODO: possibly allow this in PolyChampions (rickdaheals likes to do this)
             return await ctx.send('You can\'t create a game that you are not a participant in.')
 
@@ -769,7 +770,7 @@ class games():
             else:
                 await ctx.send(f'Warning: Unconfirmed game with ID {winning_game.id} had previously been marked with winner **{winning_game.get_winner().name}**')
 
-        if settings.is_staff(ctx, ctx.author):
+        if settings.is_staff(ctx):
             is_staff = True
         else:
             is_staff = False
@@ -811,7 +812,7 @@ class games():
             await utilities.paginate(self.bot, ctx, title=f'{len(game_list)} unconfirmed games', message_list=game_list, page_start=0, page_end=15, page_size=15)
             return
 
-        if settings.is_staff(ctx, ctx.author) is False:
+        if settings.is_staff(ctx) is False:
             return await ctx.send('You are not authorized to confirm games')
         if not winning_game.is_completed:
             return await ctx.send(f'Game {winning_game.id} has no declared winner yet.')
@@ -996,13 +997,11 @@ class games():
 
     @commands.command()
     # @commands.has_any_role(*helper_roles)
+    @settings.is_staff_check()
     async def ts(self, ctx, game: int, *args):
 
-        # q = db.execute("SELECT pg_catalog.setval('game_id_seq', (SELECT max(id) FROM game), true );")
-        q = db.execute_sql("SELECT pg_catalog.setval('game_id_seq', (SELECT max(id) FROM game), true );")
-        print(q)
+        print(settings.is_user(ctx))
         return
-        q = Squad.leaderboard(date_cutoff=settings.date_cutoff, guild_id=ctx.guild.id)
 
         # team_a = Team.get(id=1)
         # player_list = []
