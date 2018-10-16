@@ -231,27 +231,26 @@ class games():
         with db:
             if len(args) == 0:
                 # Player looking for info on themselves
-                player = Player.get_by_string(player_string=f'<@{ctx.author.id}>', guild_id=ctx.guild.id)
-                if len(player) != 1:
-                    return await ctx.send(f'Could not find you in the database. Try setting your code with {ctx.prefix}setcode')
-                player = player[0]
+                try:
+                    player = Player.get_or_except(player_string=f'<@{ctx.author.id}>', guild_id=ctx.guild.id)
+                except exceptions.NoSingleMatch as ex:
+                    return await ctx.send(f'{ex}\nTry setting your code with {ctx.prefix}setcode')
             else:
                 # Otherwise look for a player matching whatever they entered
                 player_mention = ' '.join(args)
-                matching_players = Player.get_by_string(player_string=player_mention, guild_id=ctx.guild.id)
-                if len(matching_players) == 1:
-                    player = matching_players[0]
-                elif len(matching_players) == 0:
-                    # No matching name in database. Fall back to searching on polytopia_id or polytopia_name. Warn if player is found in guild.
+
+                try:
+                    player = Player.get_or_except(player_string=player_mention, guild_id=ctx.guild.id)
+                except exceptions.NoMatches:
+                    # No matching name in database. Warn if player is found in guild.
                     matches = await utilities.get_guild_member(ctx, player_mention)
                     if len(matches) > 0:
                         await ctx.send(f'"{player_mention}" was found in the server but is not registered with me. '
                             f'Players can be registered with `{ctx.prefix}setcode` or being in a new game\'s lineup.')
 
                     return await ctx.send(f'Could not find \"{player_mention}\" by Discord name, Polytopia name, or Polytopia ID.')
-
-                else:
-                    return await ctx.send('There is more than one player found with that name. Specify user with @Mention.'.format(player_mention))
+                except exceptions.TooManyMatches:
+                    return await ctx.send(f'There is more than one player found with name "{player_mention}". Specify user with @Mention.')
 
         with db:
             wins, losses = player.get_record()
@@ -309,12 +308,10 @@ class games():
         [p]team Ronin
         """
 
-        matching_teams = Team.get_by_name(team_string, ctx.guild.id)
-        if len(matching_teams) > 1:
+        try:
+            team = Team.get_or_except(team_string, ctx.guild.id)
+        except exceptions.NoSingleMatch as ex:
             return await ctx.send('More than one matching team found. Be more specific or trying using a quoted \"Team Name\"')
-        if len(matching_teams) == 0:
-            return await ctx.send(f'Cannot find a team with name "{team_string}". Be sure to use the full name, surrounded by quotes if it is more than one word.')
-        team = matching_teams[0]
 
         embed = discord.Embed(title=f'Team card for **{team.name}** {team.emoji}')
         team_role = discord.utils.get(ctx.guild.roles, name=team.name)
@@ -326,7 +323,7 @@ class games():
         if team_role:
             for member in team_role.members:
                 # Create a list of members - pull ELO score from database if they are registered, or with 0 ELO if they are not
-                p = Player.get_by_string(player_string=str(member.id), guild_id=ctx.guild.id)
+                p = Player.string_matches(player_string=str(member.id), guild_id=ctx.guild.id)
                 if len(p) == 0:
                     member_stats.append((member.name, 0, '\u200b'))
                 else:
@@ -412,12 +409,11 @@ class games():
 
         # TODO: If no player argument display own code?
         with db:
-            player_matches = Player.get_by_string(player_string, ctx.guild.id)
-            if len(player_matches) == 0:
-                return await ctx.send('Cannot find player with that name. Correct usage: `{}getcode @Player`'.format(ctx.prefix))
-            if len(player_matches) > 1:
-                return await ctx.send('More than one matching player found. Use @player to specify. Correct usage: `{}getcode @Player`'.format(ctx.prefix))
-            player_target = player_matches[0]
+            try:
+                player_target = Player.get_or_except(player_string, ctx.guild.id)
+            except exceptions.NoSingleMatch as ex:
+                return await ctx.send(f'{ex}\nCorrect usage: `{ctx.prefix}getcode @Player`')
+
             if player_target.discord_member.polytopia_id:
                 await ctx.send(player_target.discord_member.polytopia_id)
             else:
@@ -446,16 +442,15 @@ class games():
             # Unexpected input
             return await ctx.send(f'Wrong number of arguments. Use `{ctx.prefix}setname my_polytopia_name`. Use "quotation marks" if the name is more than one word.')
 
-        target_player = Player.get_by_string(target_string, ctx.guild.id)
-        if len(target_player) == 0:
-            return await ctx.send(f'Could not match any players to query "{target_string}". Try registering with {ctx.prefix}setcode first.')
-        elif len(target_player) > 1:
-            return await ctx.send(f'Multiple players found with query "{target_string}". Be more specfic or use an @Mention.')
+        try:
+            player_target = Player.get_or_except(target_string, ctx.guild.id)
+        except exceptions.NoSingleMatch as ex:
+            return await ctx.send(f'{ex}\nCorrect usage: `{ctx.prefix}getcode @Player`')
 
         with db:
-            target_player[0].discord_member.polytopia_name = new_name
-            target_player[0].discord_member.save()
-            await ctx.send(f'Player {target_player[0].name} updated in system with Polytopia name {new_name}.')
+            player_target.discord_member.polytopia_name = new_name
+            player_target.discord_member.save()
+            await ctx.send(f'Player {player_target.name} updated in system with Polytopia name {new_name}.')
 
     # @in_bot_channel()
     @commands.command(aliases=['games'], usage='game_id')
@@ -782,8 +777,8 @@ class games():
 
             try:
                 _, _ = winning_game.return_participant(ctx, player=ctx.author.id)
-            except exceptions.CheckFailedError:
-                return await ctx.send(f'You were not a participant in game {winning_game.id}, and do not have staff privileges.')
+            except exceptions.MyBaseException as ex:
+                return await ctx.send(ex)
 
         try:
             if winning_game.team_size() == 1:
@@ -793,7 +788,7 @@ class games():
                 winning_obj, winning_side = winning_game.return_participant(ctx, team=winning_side_name)
             else:
                 return logger.error('Invalid team_size. Aborting wingame command.')
-        except exceptions.CheckFailedError as ex:
+        except exceptions.MyBaseException as ex:
             return await ctx.send(f'{ex}')
 
         winning_game.declare_winner(winning_side=winning_side, confirm=is_staff)
@@ -951,9 +946,10 @@ class games():
             # This is a very dumb check to make sure user is passing a URL and not a random string. Assumes mod can figure it out from there.
 
         with db:
-            matching_teams = Team.get_by_name(team_name, ctx.guild.id)
-            if len(matching_teams) != 1:
-                return await ctx.send('Can\'t find matching team or too many matches. Example: `{}team_emoji name :my_custom_emoji:`'.format(ctx.prefix))
+            try:
+                matching_teams = Team.get_or_except(team_name, ctx.guild.id)
+            except exceptions.NoSingleMatch as ex:
+                return await ctx.send(f'{ex}\nExample: `{ctx.prefix}team_emoji name :my_custom_emoji:`')
 
             team = matching_teams[0]
             team.image_url = image_url
@@ -973,9 +969,10 @@ class games():
         """
 
         with db:
-            matching_teams = Team.get_by_name(old_team_name, ctx.guild.id)
-            if len(matching_teams) != 1:
-                return await ctx.send('Can\'t find matching team or too many matches. Example: `{}team_name \"Current name\" \"New Team Name\"`'.format(ctx.prefix))
+            try:
+                matching_teams = Team.get_or_except(old_team_name, ctx.guild.id)
+            except exceptions.NoSingleMatch as ex:
+                return await ctx.send(f'{ex}\nExample: `{ctx.prefix}team_name \"Current name\" \"New Team Name\"`')
 
             team = matching_teams[0]
             team.name = new_team_name
@@ -1008,13 +1005,15 @@ class games():
 
 
 def parse_players_and_teams(input_list, guild_id: int):
+    # Given a [List, of, string, args], try to match each one against a Team or a Player, and return lists of those matches
+
     player_matches, team_matches = [], []
     for arg in input_list:
         teams = Team.get_by_name(arg, guild_id)
         if len(teams) == 1:
             team_matches.append(teams[0])
         else:
-            players = Player.get_by_string(arg, guild_id)
+            players = Player.string_matches(arg, guild_id)
             if len(players) == 1:
                 player_matches.append(players[0])
 

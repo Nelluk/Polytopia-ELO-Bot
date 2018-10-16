@@ -32,6 +32,15 @@ class Team(BaseModel):
         teams = Team.select().where((Team.name.contains(team_name)) & (Team.guild_id == guild_id))
         return teams
 
+    def get_or_except(team_name: str, guild_id: int):
+        results = Team.get_by_name(team_name=team_name, guild_id=guild_id)
+        if len(results) == 0:
+            raise exceptions.NoMatches(f'No matching team was found for "{team_name}"')
+        if len(results) > 1:
+            raise exceptions.TooManyMatches(f'More than one matching team was found for "{team_name}"')
+
+        return results[0]
+
     def completed_game_count(self):
 
         num_games = SquadGame.select().join(Game).where(
@@ -172,7 +181,7 @@ class Player(BaseModel):
             same_team_flag = True if all(x == list_of_matching_teams[0] for x in list_of_matching_teams) else False
             return same_team_flag, list_of_matching_teams
 
-    def get_by_string(player_string: str, guild_id: int):
+    def string_matches(player_string: str, guild_id: int):
         # Returns QuerySet containing players in current guild matching string. Searches against discord mention ID first, then exact discord name match,
         # then falls back to substring match on name/nick, then a lastly a substring match of polytopia ID or polytopia in-game name
 
@@ -212,7 +221,7 @@ class Player(BaseModel):
             return poly_fields_match
 
     def get_or_except(player_string: str, guild_id: int):
-        results = Player.get_by_string(player_string=player_string, guild_id=guild_id)
+        results = Player.string_matches(player_string=player_string, guild_id=guild_id)
         if len(results) == 0:
             raise exceptions.NoMatches(f'No matching player was found for "{player_string}"')
         if len(results) > 1:
@@ -619,12 +628,7 @@ class Game(BaseModel):
         # Return a tuple of the participant and their squadgame, ie Player, SquadGame or Team, Squadgame
 
         if player:
-            player_obj = Player.get_by_string(player_string=player, guild_id=ctx.guild.id)
-            if not player_obj:
-                raise exceptions.CheckFailedError(f'Cannot find a player with name "{player}". Try specifying with an @Mention.')
-            if len(player_obj) > 1:
-                raise exceptions.CheckFailedError(f'More than one player match found for "{player}". Be more specific.')
-            player_obj = player_obj[0]
+            player_obj = Player.get_or_except(player_string=player, guild_id=ctx.guild.id)
 
             for squadgame in self.squads:
                 for p in squadgame.lineup:
@@ -634,12 +638,7 @@ class Game(BaseModel):
             raise exceptions.CheckFailedError(f'{player_obj.name} did not play in game {self.id}.')
 
         elif team:
-            team_obj = Team.get_by_name(team_name=team, guild_id=ctx.guild.id)
-            if not team_obj:
-                raise exceptions.CheckFailedError(f'Cannot find a team with name "{team}".')
-            if len(team_obj) > 1:
-                raise exceptions.CheckFailedError(f'More than one team match found for "{team}". Be more specific.')
-            team_obj = team_obj[0]
+            team_obj = Team.get_or_except(team_name=team, guild_id=ctx.guild.id)
 
             for squadgame in self.squads:
                 if squadgame.team == team_obj:
