@@ -729,6 +729,7 @@ class games():
                 return await ctx.send('Duplicate players detected. Game not created.')
 
         if ctx.author not in (side_home + side_away) and settings.is_staff(ctx, ctx.author) is False:
+            # TODO: possibly allow this in PolyChampions (rickdaheals likes to do this)
             return await ctx.send('You can\'t create a game that you are not a participant in.')
 
         logger.debug(f'All input checks passed. Creating new game records with args: {args}')
@@ -737,7 +738,8 @@ class games():
             name=game_name, guild_id=ctx.guild.id,
             require_teams=settings.guild_setting(ctx.guild.id, 'require_teams'))
 
-        await newgame.create_squad_channels(ctx)
+        if settings.guild_setting(ctx.guild.id, 'game_channel_category') is not None:
+            await newgame.create_squad_channels(ctx)
 
         mentions = [p.mention for p in side_home + side_away]
         embed = newgame.embed(ctx)
@@ -757,15 +759,12 @@ class games():
 
     @commands.command(aliases=['endgame', 'win'], usage='game_id winner_name')
     # @commands.has_any_role(*helper_roles)
-    # TODO: output/announcements
     async def wingame(self, ctx, winning_game: poly_game, winning_side_name: str):
         if winning_game is None:
             return await ctx.send(f'No matching game was found.')
 
         if winning_game.is_completed is True:
-            logger.debug('here is_completed')
             if winning_game.is_confirmed is True:
-                logger.debug('here is_confirmed')
                 return await ctx.send(f'Game with ID {winning_game.id} is already marked as completed with winner **{winning_game.get_winner().name}**')
             else:
                 await ctx.send(f'Warning: Unconfirmed game with ID {winning_game.id} had previously been marked with winner **{winning_game.get_winner().name}**')
@@ -776,37 +775,52 @@ class games():
             is_staff = False
 
             try:
-                _, _ = winning_game.return_participant(ctx, player=ctx.author.id)
+                _, _ = winning_game.return_participant(ctx, name=ctx.author.id)
             except exceptions.MyBaseException as ex:
-                return await ctx.send(ex)
+                return await ctx.send(f'{ex}\nYou were not a participant in this game.')
 
         try:
-            if winning_game.team_size() == 1:
-                winning_obj, winning_side = winning_game.return_participant(ctx, player=winning_side_name)
-
-            elif winning_game.team_size() > 1:
-                winning_obj, winning_side = winning_game.return_participant(ctx, team=winning_side_name)
-            else:
-                return logger.error('Invalid team_size. Aborting wingame command.')
+            winning_obj, winning_side = winning_game.return_participant(ctx, name=winning_side_name)
         except exceptions.MyBaseException as ex:
             return await ctx.send(f'{ex}')
 
+        is_staff = False  # TODO: clear this test line
         winning_game.declare_winner(winning_side=winning_side, confirm=is_staff)
+
         if is_staff:
-            # Only delete channels if win confirmation is final/confirmed
-            await winning_game.delete_squad_channels(ctx=ctx)
-            player_mentions = [f'<@{p.discord_member.discord_id}>' for p, _, _ in (winning_game.squads[0].roster() + winning_game.squads[1].roster())]
-            embed = winning_game.embed(ctx)
+            # Cleanup game channels and announce winners
+            await post_win_messaging(ctx, winning_game)
+        else:
+            await ctx.send(f'Game {winning_game.id} concluded pending staff confirmation of winner **{winning_game.get_winner().name}**')
 
-            if settings.guild_setting(ctx.guild.id, 'game_announce_channel') is not None:
-                channel = ctx.guild.get_channel(settings.guild_setting(ctx.guild.id, 'game_announce_channel'))
-                if channel is not None:
-                    await channel.send(f'Game concluded! Congrats **{winning_game.get_winner().name}**. Roster: {" ".join(player_mentions)}')
-                    await channel.send(embed=embed)
-                    return await ctx.send(f'Game concluded! See {channel.mention} for full details.')
+    @commands.command(aliases=['confirmgame'], usage='game_id')
+    # @commands.has_any_role(*helper_roles)
+    async def confirm(self, ctx, winning_game: poly_game = None):
+        """ List unconfirmed games, or let staff confirm winners
+         **Examples**
+        `[p]confirm` - List unconfirmed games
+        `[p]confirm 5` - Confirms the winner of game 5 and performs ELO changes
+        """
 
-            await ctx.send(f'Game concluded! Congrats **{winning_game.get_winner().name}**. Roster: {" ".join(player_mentions)}')
-            await ctx.send(embed=embed)
+        if winning_game is None:
+            # display list of unconfirmed games
+            game_query = Game.search(status_filter=5)
+            game_list = utilities.summarize_game_list(game_query)
+            if len(game_list) == 0:
+                return await ctx.send(f'No unconfirmed games found.')
+            await utilities.paginate(self.bot, ctx, title=f'{len(game_list)} unconfirmed games', message_list=game_list, page_start=0, page_end=15, page_size=15)
+            return
+
+        if settings.is_staff(ctx, ctx.author) is False:
+            return await ctx.send('You are not authorized to confirm games')
+        if not winning_game.is_completed:
+            return await ctx.send(f'Game {winning_game.id} has no declared winner yet.')
+        if winning_game.is_confirmed:
+            return await ctx.send(f'Game with ID {winning_game.id} is already confirmed as completed with winner **{winning_game.get_winner().name}**')
+
+        winning_game.declare_winner(winning_side=winning_game.winner, confirm=True)
+
+        await post_win_messaging(ctx, winning_game)
 
     @commands.command(usage='game_id')
     # @commands.has_any_role(*mod_roles)
@@ -1002,6 +1016,23 @@ class games():
 
         for g in q.dicts():
             print(g)
+
+
+async def post_win_messaging(ctx, winning_game):
+
+    await winning_game.delete_squad_channels(ctx=ctx)
+    player_mentions = [f'<@{p.discord_member.discord_id}>' for p, _, _ in (winning_game.squads[0].roster() + winning_game.squads[1].roster())]
+    embed = winning_game.embed(ctx)
+
+    if settings.guild_setting(ctx.guild.id, 'game_announce_channel') is not None:
+        channel = ctx.guild.get_channel(settings.guild_setting(ctx.guild.id, 'game_announce_channel'))
+        if channel is not None:
+            await channel.send(f'Game concluded! Congrats **{winning_game.get_winner().name}**. Roster: {" ".join(player_mentions)}')
+            await channel.send(embed=embed)
+            return await ctx.send(f'Game concluded! See {channel.mention} for full details.')
+
+    await ctx.send(f'Game concluded! Congrats **{winning_game.get_winner().name}**. Roster: {" ".join(player_mentions)}')
+    await ctx.send(embed=embed)
 
 
 def parse_players_and_teams(input_list, guild_id: int):

@@ -288,6 +288,8 @@ class Player(BaseModel):
         # Returns a list of dicts of format:
         # {'tribe': 7, 'emoji': '<:luxidoor:448015285212151809>', 'name': 'Luxidoor', 'tribe_count': 14}
 
+        # TODO: take into account tribe selections from parent DiscordMember, not just single guild-player. Should be a relatively easy change
+
         q = Lineup.select(Lineup.tribe, TribeFlair.emoji, Tribe.name, fn.COUNT(Lineup.tribe).alias('tribe_count')).join(TribeFlair).join(Tribe).where(
             (Lineup.player == self) & (Lineup.tribe.is_null(False))
         ).group_by(Lineup.tribe, Lineup.tribe.emoji, Tribe.name).order_by(-SQL('tribe_count')).limit(limit)
@@ -581,15 +583,21 @@ class Game(BaseModel):
 
         self.delete_instance()
 
-    def declare_winner(self, winning_side, confirm: bool):
+    def declare_winner(self, winning_side: 'SquadGame', confirm: bool):
 
         # TODO: does not support games != 2 sides
         if len(self.squads) != 2:
             raise exceptions.CheckFailedError('Support for games with >2 sides not yet implemented')
 
+        found_winner = False
         for squadgame in self.squads:
             if squadgame != winning_side:
                 losing_side = squadgame
+            elif squadgame == winning_side:
+                found_winner = True
+
+        if not found_winner:
+            raise exceptions.CheckFailedError(f'SquadGame id {winning_side.id} did not play in this game')
 
         if confirm:
             self.is_confirmed = True
@@ -623,12 +631,13 @@ class Game(BaseModel):
         self.completed_ts = datetime.datetime.now()
         self.save()
 
-    def return_participant(self, ctx, player=None, team=None):
+    def return_participant(self, ctx, name: str):
         # Given a string representing a player or a team (team name, player name/nick/ID)
         # Return a tuple of the participant and their squadgame, ie Player, SquadGame or Team, Squadgame
 
-        if player:
-            player_obj = Player.get_or_except(player_string=player, guild_id=ctx.guild.id)
+        if self.team_size() == 1:
+            # Search by player name
+            player_obj = Player.get_or_except(player_string=name, guild_id=ctx.guild.id)
 
             for squadgame in self.squads:
                 for p in squadgame.lineup:
@@ -637,19 +646,18 @@ class Game(BaseModel):
 
             raise exceptions.CheckFailedError(f'{player_obj.name} did not play in game {self.id}.')
 
-        elif team:
-            team_obj = Team.get_or_except(team_name=team, guild_id=ctx.guild.id)
+        else:
+            # Search by team name
+            team_obj = Team.get_or_except(team_name=name, guild_id=ctx.guild.id)
 
             for squadgame in self.squads:
                 if squadgame.team == team_obj:
                     return team_obj, squadgame
 
             raise exceptions.CheckFailedError(f'{team_obj.name} did not play in game {self.id}.')
-        else:
-            raise exceptions.CheckFailedError('Player name or team name must be supplied for this function')
 
     def get_winner(self):
-        # Returns player name of winner if its a 1v1, or team-name of winning side if its a group game
+        # Returns player object of winner if its a 1v1, or team object of winning side if its a group game
 
         for squadgame in self.squads:
             if squadgame == self.winner:
