@@ -103,7 +103,7 @@ class games():
                 )
 
         if ctx.guild.id != 447883341463814144:
-            await ctx.send('Powered by PolyChampions. League server with a team focus and additional bot features - <https://tinyurl.com/polychampions>')
+            await ctx.send('Powered by PolyChampions. League server with a team focus and additional bot features, supporting up to 5v5 play - <https://tinyurl.com/polychampions>')
             # link put behind url shortener to not show big invite embed
         await utilities.paginate(self.bot, ctx, title='**Individual Leaderboards**', message_list=leaderboard, page_start=0, page_end=10, page_size=10)
 
@@ -839,6 +839,7 @@ class games():
         if game is None:
             return await ctx.send('No matching game was found.')
 
+        await ctx.send(f'Deleting game with ID {game.id} and re-calculating ELO for all games. This will take a few seconds.')
         if game.announcement_message:
             game.name = f'~~{game.name}~~ GAME DELETED'
             await game.update_announcement(ctx)
@@ -1010,7 +1011,8 @@ class games():
     @settings.is_staff_check()
     async def ts(self, ctx, game: int, *args):
 
-        print(ctx.command)
+        async with ctx.channel.typing():
+            Game.recalculate_all_elo()
         return
 
         # team_a = Team.get(id=1)

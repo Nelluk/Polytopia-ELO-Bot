@@ -57,6 +57,8 @@ class matchmaking():
         `[p]openmatch 2v2 48h`  (Expires in 48 hours)
         `[p]openmatch 2v2 Large map, no bardur`  (Adds a note to the game)
         """
+        # TODO: quote mark in this example fails:
+        # $openmatch 1v1 let’s discuss the details
 
         team_size = None
         expiration_hours = 24

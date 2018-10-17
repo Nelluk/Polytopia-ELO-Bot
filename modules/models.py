@@ -65,7 +65,7 @@ class Team(BaseModel):
             new_elo = round(self.elo + (max_elo_delta * (0 - chance_of_winning)), 0)
 
         elo_delta = int(new_elo - self.elo)
-        print('Team chance of winning: {} opponent elo {} current ELO {}, new elo {}, elo_delta {}'.format(chance_of_winning, opponent_elo, self.elo, new_elo, elo_delta))
+        # print('Team chance of winning: {} opponent elo {} current ELO {}, new elo {}, elo_delta {}'.format(chance_of_winning, opponent_elo, self.elo, new_elo, elo_delta))
 
         self.elo = int(self.elo + elo_delta)
         self.save()
@@ -573,19 +573,14 @@ class Game(BaseModel):
         self.save()
 
         for lineup in self.lineup:
-            lineup.player.elo += lineup.elo_change_player * -1
-            lineup.player.save()
             lineup.delete_instance()
 
         for squadgame in self.squads:
-            squadgame.squad.elo += (squadgame.elo_change_squad * -1)
-            squadgame.squad.save()
-
-            squadgame.team.elo += (squadgame.elo_change_team * -1)
-            squadgame.team.save()
             squadgame.delete_instance()
 
         self.delete_instance()
+
+        Game.recalculate_all_elo()
 
     def declare_winner(self, winning_side: 'SquadGame', confirm: bool):
 
@@ -767,6 +762,27 @@ class Game(BaseModel):
 
         return game
 
+    def recalculate_all_elo():
+        # Reset all ELOs to 1000, reset completed game counts, and re-run Game.declare_winner() on all qualifying games
+
+        Player.update(elo=1000).execute()
+        Team.update(elo=1000).execute()
+        DiscordMember.update(elo=1000).execute()
+        Squad.update(elo=1000).execute()
+
+        Game.update(is_completed=0).where(
+            (Game.is_confirmed == 1) & (Game.winner.is_null(False))
+        ).execute()  # Resets completed game counts for players/squads/team ELO bonuses
+
+        games = Game.select().where(
+            (Game.is_completed == 0) & (Game.is_confirmed == 1) & (Game.winner.is_null(False))
+        ).order_by(Game.completed_ts)
+
+        for game in games:
+            full_game = Game.load_full_game(game_id=game.id)
+            print(f'Calculating ELO for game {game.id}')
+            full_game.declare_winner(winning_side=full_game.winner, confirm=True)
+
 
 class Squad(BaseModel):
     elo = SmallIntegerField(default=1000)
@@ -808,7 +824,7 @@ class Squad(BaseModel):
             new_elo = round(self.elo + (max_elo_delta * (0 - chance_of_winning)), 0)
 
         elo_delta = int(new_elo - self.elo)
-        print('Squad chance of winning: {} opponent elo:{} current ELO {}, new elo {}, elo_delta {}'.format(chance_of_winning, opponent_elo, self.elo, new_elo, elo_delta))
+        # print('Squad chance of winning: {} opponent elo:{} current ELO {}, new elo {}, elo_delta {}'.format(chance_of_winning, opponent_elo, self.elo, new_elo, elo_delta))
 
         self.elo = int(self.elo + elo_delta)
         self.save()
@@ -1008,8 +1024,8 @@ class Lineup(BaseModel):
 
         elo_delta += elo_bonus
 
-        print(f'Player chance of winning: {chance_of_winning} opponent elo:{opponent_elo} my_side_elo: {my_side_elo},'
-                f'elo_delta {elo_delta}, current_player_elo {self.player.elo}, new_player_elo {int(self.player.elo + elo_delta)}')
+        # print(f'Player chance of winning: {chance_of_winning} opponent elo:{opponent_elo} my_side_elo: {my_side_elo},'
+                # f'elo_delta {elo_delta}, current_player_elo {self.player.elo}, new_player_elo {int(self.player.elo + elo_delta)}')
 
         self.player.elo = int(self.player.elo + elo_delta)
         self.elo_change_player = elo_delta
