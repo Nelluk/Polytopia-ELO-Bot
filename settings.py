@@ -18,7 +18,7 @@ except KeyError:
 pastebin_key = config['DEFAULT'].get('pastebin_key', None)
 
 server_ids = {'main': 283436219780825088, 'polychampions': 447883341463814144, 'test': 478571892832206869}
-owner_id = 272510639124250625  # Nelluk
+owner_id = 27251063912425062599  # Nelluk
 
 config = {'default':
                      {'helper_roles': ['Helper'],
@@ -142,4 +142,27 @@ def is_mod_check():
 
     def predicate(ctx):
         return is_mod(ctx)
+    return commands.check(predicate)
+
+
+def teams_allowed():
+
+    def predicate(ctx):
+        return guild_setting(ctx.guild.id, 'allow_teams')
+    return commands.check(predicate)
+
+
+def in_bot_channel():
+    async def predicate(ctx):
+        print('here')
+        if guild_setting(ctx.guild.id, 'bot_channels') is None:
+            return True
+        if await is_mod(ctx):
+            return True
+        if ctx.message.channel.id in guild_setting(ctx.guild.id, 'bot_channels'):
+            return True
+        else:
+            primary_bot_channel = guild_setting(ctx.guild.id, 'bot_channels')[0]
+            await ctx.send(f'This command can only be used in a designated ELO bot channel. Try <#{primary_bot_channel}>')
+            return False
     return commands.check(predicate)

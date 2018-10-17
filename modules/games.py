@@ -66,7 +66,7 @@ class games():
         player.generate_display_name(player_name=after.name, player_nick=after.nick)
 
     @commands.command(aliases=['namegame'], usage='game_id "New Name"')
-    # @commands.has_any_role(*helper_roles)
+    @settings.is_staff_check()
     async def gamename(self, ctx, game: poly_game, *args):
         """*Staff:* Renames an existing game
         **Example:**
@@ -86,7 +86,7 @@ class games():
 
         await ctx.send(f'Game ID {game.id} has been renamed to "{game.name}"')
 
-    # @in_bot_channel()
+    @settings.in_bot_channel()
     @commands.command()
     @commands.cooldown(2, 30, commands.BucketType.channel)
     async def lb(self, ctx):
@@ -104,7 +104,8 @@ class games():
 
         await utilities.paginate(self.bot, ctx, title='**Individual Leaderboards**', message_list=leaderboard, page_start=0, page_end=10, page_size=10)
 
-    # @in_bot_channel()
+    @settings.in_bot_channel()
+    @settings.teams_allowed()
     @commands.command(aliases=['teamlb'])
     @commands.cooldown(2, 30, commands.BucketType.channel)
     async def lbteam(self, ctx):
@@ -123,7 +124,7 @@ class games():
                 embed.add_field(name=f'`{(counter + 1):>3}. {team_name_str:30}  (ELO: {team.elo:4})  W {wins} / L {losses}` {team.emoji}', value='\u200b', inline=False)
         await ctx.send(embed=embed)
 
-    # @in_bot_channel()
+    @settings.in_bot_channel()
     @commands.command(aliases=['squadlb'])
     @commands.cooldown(2, 30, commands.BucketType.channel)
     async def lbsquad(self, ctx):
@@ -143,7 +144,7 @@ class games():
                 )
         await utilities.paginate(self.bot, ctx, title='**Squad Leaderboards**', message_list=leaderboard, page_start=0, page_end=10, page_size=10)
 
-    # @in_bot_channel()
+    @settings.in_bot_channel()
     @commands.command(brief='Find squads or see details on a squad', usage='player1 [player2] [player3]', aliases=['squads'])
     async def squad(self, ctx, *args):
         """Find squads with specific players, or see details on a squad
@@ -218,7 +219,7 @@ class games():
 
             await ctx.send(embed=embed)
 
-    # @in_bot_channel()
+    @settings.in_bot_channel()
     @commands.command(brief='See details on a player', usage='player_name', aliases=['elo'])
     async def player(self, ctx, *args):
         """See your own player card or the card of another player
@@ -300,7 +301,8 @@ class games():
 
             await ctx.send(content=content_str, embed=embed)
 
-    # @in_bot_channel()
+    @settings.in_bot_channel()
+    @settings.teams_allowed()
     @commands.command(usage='team_name')
     async def team(self, ctx, team_string: str):
         """See details on a team
@@ -453,7 +455,7 @@ class games():
             player_target.discord_member.save()
             await ctx.send(f'Player {player_target.name} updated in system with Polytopia name {new_name}.')
 
-    # @in_bot_channel()
+    @settings.in_bot_channel()
     @commands.command(aliases=['games'], usage='game_id')
     async def game(self, ctx, *args):
 
@@ -759,7 +761,7 @@ class games():
         await ctx.send(embed=embed)
 
     @commands.command(aliases=['endgame', 'win'], usage='game_id winner_name')
-    # @commands.has_any_role(*helper_roles)
+    @settings.is_staff_check()
     async def wingame(self, ctx, winning_game: poly_game, winning_side_name: str):
         if winning_game is None:
             return await ctx.send(f'No matching game was found.')
@@ -795,7 +797,7 @@ class games():
             await ctx.send(f'Game {winning_game.id} concluded pending staff confirmation of winner **{winning_game.get_winner().name}**')
 
     @commands.command(aliases=['confirmgame'], usage='game_id')
-    # @commands.has_any_role(*helper_roles)
+    @settings.is_staff_check()
     async def confirm(self, ctx, winning_game: poly_game = None):
         """ List unconfirmed games, or let staff confirm winners
          **Examples**
@@ -824,7 +826,7 @@ class games():
         await post_win_messaging(ctx, winning_game)
 
     @commands.command(usage='game_id')
-    # @commands.has_any_role(*mod_roles)
+    @settings.is_mod_check()
     async def deletegame(self, ctx, game: poly_game):
         """Mod: Deletes a game and reverts ELO changes"""
 
@@ -843,7 +845,7 @@ class games():
             await ctx.send(f'Game with ID {gid} has been deleted and team/player ELO changes have been reverted, if applicable.')
 
     @commands.command(usage='game_id player_name tribe_name [player2 tribe2 ... ]')
-    # @commands.has_any_role(*helper_roles)
+    @settings.is_staff_check()
     async def settribe(self, ctx, game: poly_game_mini, *args):
         """*Staff:* Set tribe of a player for a game
         **Examples**
@@ -889,7 +891,7 @@ class games():
         await game.update_announcement(ctx)
 
     @commands.command(usage='tribe_name new_emoji')
-    # @commands.has_any_role(*mod_roles)
+    @settings.is_mod_check()
     async def tribe_emoji(self, ctx, tribe_name: str, emoji):
         """Mod: Assign an emoji to a tribe
         **Example:**
@@ -907,7 +909,8 @@ class games():
         await ctx.send('Tribe {0.tribe.name} updated with new emoji: {0.emoji}'.format(tribeflair))
 
     @commands.command(aliases=['addteam'], usage='new_team_name')
-    # @commands.has_any_role(*mod_roles)
+    @settings.is_mod_check()
+    @settings.teams_allowed()
     async def team_add(self, ctx, *args):
         """Mod: Create new server Team
         The team should have a Role with an identical name.
@@ -926,7 +929,7 @@ class games():
                 f'You can now set the team flair with `{ctx.prefix}`team_emoji and `{ctx.prefix}team_image`.')
 
     @commands.command(usage='team_name new_emoji')
-    # @commands.has_any_role(*mod_roles)
+    @settings.is_mod_check()
     async def team_emoji(self, ctx, team_name: str, emoji):
         """Mod: Assign an emoji to a team
         **Example:**
@@ -948,7 +951,8 @@ class games():
             await ctx.send('Team {0.name} updated with new emoji: {0.emoji}'.format(team))
 
     @commands.command(usage='team_name image_url')
-    # @commands.has_any_role(*mod_roles)
+    @settings.is_mod_check()
+    @settings.teams_allowed()
     async def team_image(self, ctx, team_name: str, image_url):
         """Mod: Set a team's logo image
 
@@ -974,7 +978,8 @@ class games():
             await ctx.send(team.image_url)
 
     @commands.command(usage='old_name new_name')
-    # @commands.has_any_role(*mod_roles)
+    @settings.is_mod_check()
+    @settings.teams_allowed()
     async def team_name(self, ctx, old_team_name: str, new_team_name: str):
         """Mod: Change a team's name
         The team should have a Role with an identical name.
@@ -996,11 +1001,10 @@ class games():
             await ctx.send('Team **{}** has been renamed to **{}**.'.format(old_team_name, new_team_name))
 
     @commands.command()
-    # @commands.has_any_role(*helper_roles)
     @settings.is_staff_check()
     async def ts(self, ctx, game: int, *args):
 
-        print(settings.is_user(ctx))
+        print(ctx.command)
         return
 
         # team_a = Team.get(id=1)
