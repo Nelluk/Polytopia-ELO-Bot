@@ -11,7 +11,7 @@
 # SQLite3 database files:
 *.db*
 
-keys.ini
+config.ini
 
 *.sublime*
 pyvenv.cfg

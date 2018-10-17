@@ -102,6 +102,9 @@ class games():
                     (f'`{(counter + 1):>3}.` {emoji_str}`{player.name}`', f'`(ELO: {player.elo:4}) W {wins} / L {losses}`')
                 )
 
+        if ctx.guild.id != 447883341463814144:
+            await ctx.send('Powered by PolyChampions. League server with a team focus and additional bot features - <https://tinyurl.com/polychampions>')
+            # link put behind url shortener to not show big invite embed
         await utilities.paginate(self.bot, ctx, title='**Individual Leaderboards**', message_list=leaderboard, page_start=0, page_end=10, page_size=10)
 
     @settings.in_bot_channel()
@@ -298,6 +301,9 @@ class games():
             game_list = utilities.summarize_game_list(recent_games[:7])
             for game, result in game_list:
                 embed.add_field(name=game, value=result)
+
+            if ctx.guild.id != 447883341463814144:
+                embed.add_field(value='Powered by **PolyChampions** - https://discord.gg/cX7Ptnv', name='\u200b', inline=False)
 
             await ctx.send(content=content_str, embed=embed)
 

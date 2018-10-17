@@ -5,11 +5,12 @@ from playhouse.postgres_ext import *
 import modules.exceptions as exceptions
 # from modules import utilities
 from modules import channels
+import settings
 import logging
 
 logger = logging.getLogger('polybot.' + __name__)
 
-db = PostgresqlDatabase('polytopia', user='cbsteven')
+db = PostgresqlDatabase('polytopia', user=settings.psql_user)
 
 
 class BaseModel(Model):
@@ -458,6 +459,9 @@ class Game(BaseModel):
 
             for player, player_elo_str, tribe_emoji in roster:
                 embed.add_field(name=f'**{player.name}** {tribe_emoji}', value=f'ELO: {player_elo_str}', inline=True)
+
+        if ctx.guild.id != 447883341463814144:
+            embed.add_field(value='Powered by **PolyChampions** - https://discord.gg/cX7Ptnv', name='\u200b', inline=False)
 
         embed.set_footer(text=f'Status: {"Completed" if self.is_completed else "Incomplete"}  -  Creation Date {str(self.date)}')
 

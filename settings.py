@@ -7,12 +7,13 @@ import configparser
 logger = logging.getLogger('polybot.' + __name__)
 
 config = configparser.ConfigParser()
-config.read('keys.ini')
+config.read('config.ini')
 
 try:
     discord_key = config['DEFAULT']['discord_key']
+    psql_user = config['DEFAULT']['psql_user']
 except KeyError:
-    logger.error('Error finding discord_key setting in keys.ini file')
+    logger.error('Error finding a required setting (discord_key / psql_user) in config.ini file')
     exit(0)
 
 pastebin_key = config['DEFAULT'].get('pastebin_key', None)
@@ -154,7 +155,6 @@ def teams_allowed():
 
 def in_bot_channel():
     async def predicate(ctx):
-        print('here')
         if guild_setting(ctx.guild.id, 'bot_channels') is None:
             return True
         if await is_mod(ctx):
