@@ -1003,7 +1003,7 @@ class games:
                 return
 
             lineups = Lineup.select().join(Player).where((Player.id == players[0]) & (Lineup.game == game))
-            if len(lineups) != 1:
+            if len(lineups) == 0:
                 await ctx.send(f'Could not match player {player_name} to game {game.id}.')
                 return
 
