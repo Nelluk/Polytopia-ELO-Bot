@@ -74,7 +74,7 @@ class Team(BaseModel):
 
     def team_games_subq():
 
-        q = Lineup.select(Lineup.game).join(Game).where(Game.is_pending == 0).group_by(Lineup.game).having(fn.COUNT('*') > 2)
+        q = Lineup.select(Lineup.game).join(Game).group_by(Lineup.game).having(fn.COUNT('*') > 2)
         return q
 
     def get_record(self):
@@ -351,7 +351,6 @@ class Game(BaseModel):
     name = TextField(null=True)
     is_completed = BooleanField(default=False)
     is_confirmed = BooleanField(default=False)  # Use to confirm losses and filter searches?
-    is_pending = BooleanField(default=False)     # For matchmaking
     announcement_message = BitField(default=None, null=True)
     announcement_channel = BitField(default=None, null=True)
     date = DateField(default=datetime.datetime.today)
@@ -499,7 +498,8 @@ class Game(BaseModel):
             raise DoesNotExist()
         return res[0]
 
-    def create_game(teams, guild_id, name=None, require_teams=False):
+    def create_game(teams, guild_id, name: str = None, require_teams: bool = False):
+        # teams = list of lists [[d1, d2, d3], [d4, d5, d6]]. each item being a discord.Member object
 
         # Determine what Team guild members are associated with
         home_team_flag, list_of_home_teams = Player.get_teams_of_players(guild_id=guild_id, list_of_players=teams[0])  # get list of what server team each player is on, eg Ronin, Jets.
@@ -531,7 +531,6 @@ class Game(BaseModel):
 
         with db:
             newgame = Game.create(name=name,
-                                  is_pending=False,
                                   guild_id=guild_id)
 
             side_home_players = []
@@ -569,7 +568,12 @@ class Game(BaseModel):
     def delete_game(self):
         # resets any relevant ELO changes to players and teams, deletes related lineup records, and deletes the game entry itself
 
-        self.winner = None
+        if self.winner:
+            self.winner = None
+            recalculate = True
+        else:
+            recalculate = False
+
         self.save()
 
         for lineup in self.lineup:
@@ -580,7 +584,8 @@ class Game(BaseModel):
 
         self.delete_instance()
 
-        Game.recalculate_all_elo()
+        if recalculate:
+            Game.recalculate_all_elo()
 
     def declare_winner(self, winning_side: 'SquadGame', confirm: bool):
 
@@ -673,9 +678,9 @@ class Game(BaseModel):
         # status_filter:
         # 0 = all games, 1 = completed games, 2 = incomplete games
         # 3 = wins, 4 = losses (only for first player in player_list or, if empty, first team in team list)
-        # 5 = unconfirmed wins, 6 = pending games (matchmaking sessions)
+        # 5 = unconfirmed wins
 
-        confirmed_filter, completed_filter, pending_filter = [0, 1], [0, 1], [0]
+        confirmed_filter, completed_filter = [0, 1], [0, 1]
 
         if status_filter == 1:
             # completed games
@@ -686,9 +691,6 @@ class Game(BaseModel):
         elif status_filter == 5:
             # Unconfirmed completed games
             completed_filter, confirmed_filter = [1], [0]
-        elif status_filter == 6:
-            # 'pending' matchmaking games
-            pending_filter = [1]
 
         if guild_id:
             guild_filter = Game.select(Game.id).where(Game.guild_id == guild_id)
@@ -751,8 +753,6 @@ class Game(BaseModel):
                 Game.is_completed.in_(completed_filter)
             ) & (
                 Game.is_confirmed.in_(confirmed_filter)
-            ) & (
-                Game.is_pending.in_(pending_filter)
             ) & (
                 Game.id.in_(victory_subq)
             ) & (
@@ -1040,8 +1040,32 @@ class Lineup(BaseModel):
             return ''
 
 
+def tomorrow():
+    return (datetime.datetime.now() + datetime.timedelta(hours=24)).strftime("%Y-%m-%d %H:%M:%S")
+
+
+class Match(BaseModel):
+    host = ForeignKeyField(Player, null=False, backref='match')
+    team_size = SmallIntegerField(null=False, default=2)
+    expiration = DateTimeField(null=False, default=tomorrow)
+    notes = TextField(null=True)
+    game = ForeignKeyField(Game, null=True, backref='match')
+    guild_id = BitField(unique=False, null=False)
+
+
+class MatchSide(BaseModel):
+    match = ForeignKeyField(Match, null=False, backref='sides', on_delete='CASCADE')
+    name = TextField(null=True)
+
+
+class MatchPlayer(BaseModel):
+    side = ForeignKeyField(MatchSide, null=False, backref='matchplayers', on_delete='CASCADE')
+    match = ForeignKeyField(Match, null=False, backref='matchplayers', on_delete='CASCADE')
+    player = ForeignKeyField(Player, null=False, backref='matches', on_delete='CASCADE')
+
+
 with db:
-    db.create_tables([Team, DiscordMember, Game, Player, Tribe, Squad, SquadGame, SquadMember, Lineup, TribeFlair])
+    db.create_tables([Team, DiscordMember, Game, Player, Tribe, Squad, SquadGame, SquadMember, Lineup, TribeFlair, Match, MatchSide, MatchPlayer])
     # Only creates missing tables so should be safe to run each time
     try:
         # Creates deferred FK http://docs.peewee-orm.com/en/latest/peewee/models.html#circular-foreign-key-dependencies

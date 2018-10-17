@@ -211,7 +211,7 @@ class games():
             embed.add_field(name='Results', value=f'ELO: {squad.elo},  W {wins} / L {losses}', inline=True)
             embed.add_field(name='Ranking', value=rank_str, inline=True)
             recent_games = SquadGame.select(Game).join(Game).where(
-                (SquadGame.squad == squad) & (Game.is_pending == 0)
+                (SquadGame.squad == squad)
             ).order_by(-Game.date)
 
             embed.add_field(value='\u200b', name='Most recent games', inline=False)
@@ -839,7 +839,9 @@ class games():
         if game is None:
             return await ctx.send('No matching game was found.')
 
-        await ctx.send(f'Deleting game with ID {game.id} and re-calculating ELO for all games. This will take a few seconds.')
+        if game.winner:
+            await ctx.send(f'Deleting game with ID {game.id} and re-calculating ELO for all games. This will take a few seconds.')
+
         if game.announcement_message:
             game.name = f'~~{game.name}~~ GAME DELETED'
             await game.update_announcement(ctx)
