@@ -11,7 +11,7 @@
 # SQLite3 database files:
 *.db*
 
-config.ini
+keys.ini
 
 *.sublime*
 pyvenv.cfg
@@ -20,4 +20,3 @@ pip-selfcheck.json
 *.csv
 *.json
 *test.py
-settings.py

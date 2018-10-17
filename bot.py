@@ -43,13 +43,6 @@ def main():
         exit(0)
 
 
-try:
-    discord_key = settings.config['discord_key']
-except KeyError:
-    print('Error finding required setting discord_key in settings.py file - it should be in the DEFAULT section')
-    exit(0)
-
-
 def get_prefix(bot, message):
     # Guild-specific command prefixes
     if message.guild and message.guild.id in settings.config:
@@ -123,4 +116,4 @@ if __name__ == '__main__':
         print(f'\n\nv2 Logged in as: {bot.user.name} - {bot.user.id}\nVersion: {discord.__version__}\n')
         print(f'Successfully logged in and booted...!')
 
-    bot.run(discord_key, bot=True, reconnect=True)
+    bot.run(settings.discord_key, bot=True, reconnect=True)
