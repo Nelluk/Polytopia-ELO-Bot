@@ -1061,6 +1061,16 @@ class Match(BaseModel):
     def is_hosted_by(self, discord_id: int):
         return self.host.discord_member.discord_id == discord_id
 
+    def player(self, player: Player = None, discord_id: int = None):
+        # return match.matchplayer based on either Player object or discord_id. else None
+
+        for matchplayer in self.matchplayers:
+            if player and matchplayer.player == player:
+                return matchplayer
+            if discord_id and matchplayer.player.discord_member.discord_id == discord_id:
+                return matchplayer
+        return None
+
     def size_string(self):
         return 'v'.join(str(s.size) for s in self.sides)
 
@@ -1093,11 +1103,23 @@ class Match(BaseModel):
                 return side
         return None
 
-    def get_side(self, num: int):
+    def get_side(self, lookup):
+        # lookup can be a side number/position (integer) or side name
+        # returns (MatchSide, bool) where bool==True if side has space to add a player
+        try:
+            side_num = int(lookup)
+            side_name = None
+        except ValueError:
+            side_num = None
+            side_name = lookup
+
         for side in self.sides:
-            if side.position == num:
-                return side
-        return None
+            if side_num and side.position == side_num:
+                return (side, bool(len(side.sideplayers) < side.size))
+            if side_name and len(side_name) > 2 and side_name.upper() in side.name.upper():
+                return (side, bool(len(side.sideplayers) < side.size))
+
+        return None, False
 
 
 class MatchSide(BaseModel):

@@ -1,6 +1,7 @@
 import discord
 from discord.ext import commands
 import modules.models as models
+import modules.utilities as utilities
 import settings
 import modules.exceptions as exceptions
 import peewee
@@ -110,19 +111,22 @@ class matchmaking():
         await ctx.send(f'Starting new open match ID M{match.id}. Size: {team_size_str}. Expiration: {expiration_hours} hours.\nNotes: *{notes_str}*')
 
     @commands.command(usage='match_id side_number Side Name')
-    async def matchside(self, ctx, match: poly_match, side_num: int, *, args):
+    async def matchside(self, ctx, match: poly_match, side_lookup: str, *, args):
         if not match.is_hosted_by(ctx.author.id) or not settings.is_staff(ctx):
             return await ctx.send(f'Only the match host or server staff can do this.')
 
-        if not (1 <= side_num <= len(match.sides)):
-            return await ctx.send(f'Invalid side_number. Expecting 1-{len(match.sides)}.')
+        # TODO: Have this command also allow side re-ordering
+        # matchside m1 1 name ronin
+        # matchside m1 ronin nelluk rickdaheals jonathan
 
         with models.db:
-            matchside = match.get_side(num=side_num)
+            matchside = match.get_side(lookup=side_lookup)
+            if not matchside:
+                return await ctx.send(f'Can\'t find that side for match M{match.id}.')
             matchside.name = args
             matchside.save()
 
-        return await ctx.send(f'Side {side_num} for Match M{match.id} has been named "{args}"')
+        return await ctx.send(f'Side {matchside.position} for Match M{match.id} has been named "{args}"')
 
     @settings.in_bot_channel()
     @commands.command(usage='match_id')
@@ -136,19 +140,102 @@ class matchmaking():
         await ctx.send(embed=match.embed())
 
     @settings.in_bot_channel()
-    @commands.command(usage='match_id')
+    @commands.command(usage='match_id', aliases=['join'])
     async def joinmatch(self, ctx, match: poly_match, *args):
         """
         Join an open match
         **Example:**
         `[p]joinmatch M25`
-        joinmatch m5
-        joinmatch m5 [ronin | 2]
-        joinmatch m5 jonathan [ronin | 2]
+        joinmatch m5                        # 0 args
+        joinmatch m5 [ronin | 2]            # 1 args
+        joinmatch m5 jonathan <ronin | 2>   # 2 args
         """
 
         if match is None:
             return await ctx.send(f'No matching match was found. Use {ctx.prefix}listmatches to see available matches.')
+
+        if len(args) == 0:
+            # ctx.author is joining a match, no side given
+            target = str(ctx.author.id)
+            side, side_open = match.first_open_side(), True
+            if not side:
+                return await ctx.send(f'Match M{match.id} is completely full!')
+        elif len(args) == 1:
+            # ctx.author is joining a match, with a side specified
+            target = str(ctx.author.id)
+            side, side_open = match.get_side(lookup=args[0])
+        elif len(args) == 2:
+            # author is putting a third party into this match
+            # TODO: permissions on this?
+            target = args[0]
+            side, side_open = match.get_side(lookup=args[1])
+        else:
+            return await ctx.send(f'Invalid command. See `{ctx.prefix}help joinmatch` for usage examples.')
+
+        if not side_open:
+            return await ctx.send(f'That side of match M{match.id} is already full. See `{ctx.prefix}match M{match.id}` for details.')
+
+        try:
+            target = models.Player.get_or_except(player_string=target, guild_id=ctx.guild.id)
+        except exceptions.NoMatches:
+            # No matching name in database. Warn if player is found in guild.
+            matches = await utilities.get_guild_member(ctx, target)
+            if len(matches) > 0:
+                await ctx.send(f'"{matches[0].name}" was found in the server but is not registered with me. '
+                    f'Players can be registered with `{ctx.prefix}setcode`')
+            return await ctx.send(f'Could not find an ELO player matching "{target}".')  # Check for existing discord member esp if target==author
+        except exceptions.TooManyMatches:
+            return await ctx.send(f'More than one player found matching "{target}". be more specific or use an @Mention.')
+
+        if match.player(target):
+            return await ctx.send(f'You are already in match M{match.id}. If you are trying to change sides, use `{ctx.prefix}leavematch M{match.id}` first.')
+        models.MatchPlayer.create(player=target, match=match, side=side)
+
+        await ctx.send(f'Joining <@{target.discord_member.discord_id}> to side {side.position} of match M{match.id}')
+        # TODO: Check if match full
+        await ctx.send(embed=match.embed())
+
+    @commands.command(usage='match_id')
+    async def leavematch(self, ctx, match: poly_match):
+        """
+        Leave a match that you have joined
+        **Example:**
+        `[p]leavematch M25`
+        """
+        if match is None:
+            return await ctx.send(f'No matching match was found. Use {ctx.prefix}listmatches to see available matches.')
+        if match.is_hosted_by(ctx.author.id):
+            # TODO: permission check for this
+            # return await ctx.send(f'You can\'t leave your own match. Use `{ctx.prefix}delmatch` instead.')
+            await ctx.send(f'**Warning:** You are leaving your own match. You will still be the host. '
+                f'If you want to delete use `{ctx.prefix}deletematch M{match.id}`')
+
+        matchplayer = match.player(discord_id=ctx.author.id)
+        if not matchplayer:
+            return await ctx.send(f'You are not a member of match M{match.id}')
+
+        with models.db:
+            matchplayer.delete_instance()
+            await ctx.send('Removing you from the match.')
+
+    @commands.command(aliases=['deletematch'], usage='match_id')
+    async def delmatch(self, ctx, match: poly_match):
+        """Deletes a match that you host
+        Staff can also delete any match.
+        **Example:**
+        `[p]delmatch M25`
+        """
+
+        if match is None:
+            return await ctx.send(f'No matching match was found. Use {ctx.prefix}listmatches to see available matches.')
+
+        if match.is_hosted_by(ctx.author.id) or settings.is_staff(ctx):
+            # User is deleting their own match, or user has a staff role
+            await ctx.send(f'Deleting match M{match.id}')
+            match.delete_instance()
+            return
+        else:
+            return await ctx.send(f'You only have permission to delete your own matches.')
 
 
 def setup(bot):

@@ -121,10 +121,10 @@ class games():
             ).order_by(-Team.elo)
             for counter, team in enumerate(query):
                 team_role = discord.utils.get(ctx.guild.roles, name=team.name)
-                team_name_str = f'{team.name}({len(team_role.members)})'  # Show team name with number of members
+                team_name_str = f'**{team.name}**   ({len(team_role.members)})'  # Show team name with number of members
                 wins, losses = team.get_record()
 
-                embed.add_field(name=f'`{(counter + 1):>3}. {team_name_str:30}  (ELO: {team.elo:4})  W {wins} / L {losses}` {team.emoji}', value='\u200b', inline=False)
+                embed.add_field(name=f'{team.emoji} {(counter + 1):>3}. {team_name_str}\n`ELO: {team.elo:<8} W {wins} / L {losses}`', value='\u200b', inline=False)
         await ctx.send(embed=embed)
 
     @settings.in_bot_channel()
