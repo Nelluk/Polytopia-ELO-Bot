@@ -1067,14 +1067,50 @@ class Match(BaseModel):
     def capacity(self):
         return (len(self.matchplayers), sum(s.size for s in self.sides))
 
+    def embed(self):
+        embed = discord.Embed(title=f'Match **M{self.id}**\n{self.size_string()} *hosted by* {self.host.name}')
+        notes_str = self.notes if self.notes else "\u200b"
+        expiration = int((self.expiration - datetime.datetime.now()).total_seconds() / 3600.0)
+
+        embed.add_field(name='Notes', value=notes_str, inline=False)
+        embed.add_field(name='Expires in', value=f'{expiration} hours', inline=True)
+        embed.add_field(name='\u200b', value='\u200b', inline=False)
+
+        for side in self.sides:
+            side_name = ': **' + side.name + '**' if side.name else ''
+            side_capacity = side.capacity()
+            player_list = []
+            for matchplayer in side.sorted_players():
+                player_list.append(f'**{matchplayer.player.name}** ({matchplayer.player.elo})\n{matchplayer.player.discord_member.polytopia_id}')
+            player_str = '\u200b' if not player_list else '\n'.join(player_list)
+            embed.add_field(name=f'__Side {side.position}__{side_name} *({side_capacity[0]}/{side_capacity[1]})*', value=player_str)
+
+        return embed
+
+    def first_open_side(self):
+        for side in self.sides:
+            if len(side.sideplayers) < side.size:
+                return side
+        return None
+
+    def get_side(self, num: int):
+        for side in self.sides:
+            if side.position == num:
+                return side
+        return None
+
 
 class MatchSide(BaseModel):
     match = ForeignKeyField(Match, null=False, backref='sides', on_delete='CASCADE')
     name = TextField(null=True)
     size = SmallIntegerField(null=False, default=1)
+    position = SmallIntegerField(null=False, unique=False, default=1)
+
+    class Meta:
+        indexes = ((('match', 'position'), True),)   # Trailing comma is required
 
     def capacity(self):
-        return (len(self.matchplayers), self.size)
+        return (len(self.sideplayers), self.size)
 
     def sorted_players(self):
         q = MatchPlayer.select(MatchPlayer, Player, DiscordMember).join(Player).join(DiscordMember).where(

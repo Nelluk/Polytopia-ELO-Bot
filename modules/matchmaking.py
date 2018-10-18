@@ -103,8 +103,8 @@ class matchmaking():
         notes_str = match_notes if match_notes else "\u200b"
         expiration_timestamp = (datetime.datetime.now() + datetime.timedelta(hours=expiration_hours)).strftime("%Y-%m-%d %H:%M:%S")
         match = models.Match.create(host=match_host, expiration=expiration_timestamp, notes=match_notes, guild_id=ctx.guild.id)
-        for size in team_sizes:
-            team_objs.append(models.MatchSide.create(match=match, size=size))
+        for count, size in enumerate(team_sizes):
+            team_objs.append(models.MatchSide.create(match=match, size=size, position=count + 1))
 
         models.MatchPlayer.create(player=match_host, match=match, side=team_objs[0])
         await ctx.send(f'Starting new open match ID M{match.id}. Size: {team_size_str}. Expiration: {expiration_hours} hours.\nNotes: *{notes_str}*')
@@ -118,7 +118,7 @@ class matchmaking():
             return await ctx.send(f'Invalid side_number. Expecting 1-{len(match.sides)}.')
 
         with models.db:
-            matchside = match.sides[side_num - 1]
+            matchside = match.get_side(num=side_num)
             matchside.name = args
             matchside.save()
 
@@ -133,34 +133,22 @@ class matchmaking():
             return await ctx.send(f'No matching match was found. Use {ctx.prefix}listmatches to see available matches.')
         # if len(match.matchplayer) >= (match.team_size * 2):
         #         await ctx.send(f'Match M{match.id} is now full and the host should start the game with `{ctx.prefix}startmatch M{match.id}`.')
-        await ctx.send(embed=self.match_embed(match))
+        await ctx.send(embed=match.embed())
 
-    def match_embed(ctx, match):
-        embed = discord.Embed(title=f'Match **M{match.id}**\n{match.size_string()} *hosted by* {match.host.name}')
-        notes_str = match.notes if match.notes else "\u200b"
-        expiration = int((match.expiration - datetime.datetime.now()).total_seconds() / 3600.0)
+    @settings.in_bot_channel()
+    @commands.command(usage='match_id')
+    async def joinmatch(self, ctx, match: poly_match, *args):
+        """
+        Join an open match
+        **Example:**
+        `[p]joinmatch M25`
+        joinmatch m5
+        joinmatch m5 [ronin | 2]
+        joinmatch m5 jonathan [ronin | 2]
+        """
 
-        embed.add_field(name='Notes', value=notes_str, inline=False)
-        match_capacity = match.capacity()
-        embed.add_field(name='Capacity', value=f'{match_capacity[0]} / {match_capacity[1]}', inline=True)
-        embed.add_field(name='Expires in', value=f'{expiration} hours', inline=True)
-        embed.add_field(name='\u200b', value='\u200b', inline=False)
-
-        side_num = 1
-        for side in match.sides:
-            side_name = ':' + side.name if side.name else ''
-            player_list = []
-            for matchplayer in side.sorted_players():
-                player_list.append(f'**{matchplayer.player.name}** ({matchplayer.player.elo})\n{matchplayer.player.discord_member.polytopia_id}')
-            player_str = '\u200b' if not player_list else '\n'.join(player_list)
-            embed.add_field(name=f'Side {side_num + 1}{side_name}', value=player_str)
-            side_num += 1
-
-        # for player in match.matchplayer:
-        #     poly_str = player.player.polytopia_id if player.player.polytopia_id else '\u200b'
-        #     embed.add_field(name=f'{player.player.discord_name} ({player.player.elo})', value=poly_str, inline=True)
-
-        return embed
+        if match is None:
+            return await ctx.send(f'No matching match was found. Use {ctx.prefix}listmatches to see available matches.')
 
 
 def setup(bot):

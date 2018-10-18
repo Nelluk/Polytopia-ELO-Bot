@@ -2,6 +2,7 @@ import discord
 import argparse
 import traceback
 from discord.ext import commands
+from modules import models
 from modules import initialize_data
 import settings
 import logging
@@ -92,6 +93,10 @@ if __name__ == '__main__':
         logging.critical(f'Ignoring exception in command {ctx.command}: {exc} {exception_str}', exc_info=True)
         print(f'Exception raised. {exc}\n{exception_str}')
         await ctx.send(f'Unhandled error: {exc}')
+
+    @bot.after_invoke
+    async def post_invoke_cleanup(ctx):
+        models.db.close()
 
     initial_extensions = ['modules.games', 'modules.help', 'modules.game_import_export', 'modules.matchmaking']
     for extension in initial_extensions:
