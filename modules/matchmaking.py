@@ -1,14 +1,15 @@
 import discord
 from discord.ext import commands
-from modules.models import Player, Match, MatchPlayer, db
-from bot import logger, helper_roles, command_prefix, require_teams
-from modules.elo_games import get_matching_roles as get_matching_roles
-from modules.elo_games import get_teams_of_players as get_teams_of_players
-from modules.elo_games import in_bot_channel as in_bot_channel
+import modules.models as models
+import settings
+import modules.exceptions as exceptions
 import peewee
 import re
 import datetime
-import random
+# import random
+import logging
+
+logger = logging.getLogger('polybot.' + __name__)
 
 
 class matchmaking():
@@ -29,21 +30,21 @@ class matchmaking():
             if match_id.upper()[0] == 'M':
                 match_id = match_id[1:]
             else:
-                logger.warn(f'Game with ID {match_id} cannot be found.')
-                return
-        with db:
+                logger.warn(f'Match with ID {match_id} cannot be found.')
+                return None
+        with models.db:
             try:
-                match = Match.get(id=match_id)
-                logger.debug(f'Game with ID {match_id} found.')
+                match = models.Match.get(id=match_id)  # not sure the prefetch will work
+                logger.debug(f'Match with ID {match_id} found.')
                 return match
             except peewee.DoesNotExist:
-                logger.warn(f'Game with ID {match_id} cannot be found.')
+                logger.warn(f'Match with ID {match_id} cannot be found.')
                 return None
             except ValueError:
-                logger.error(f'Invalid game ID "{match_id}".')
+                logger.error(f'Invalid Match ID "{match_id}".')
                 return None
 
-    # @in_bot_channel()
+    @settings.in_bot_channel()
     @commands.command(usage='size expiration rules')
     async def openmatch(self, ctx, *args):
 
@@ -60,27 +61,31 @@ class matchmaking():
         # TODO: quote mark in this example fails:
         # $openmatch 1v1 let’s discuss the details
 
-        team_size = None
+        team_size = False
         expiration_hours = 24
-        note_args = []
+        note_args, team_objs = [], []
 
-        match_host = Player.get_by_string(f'<@{ctx.author.id}>')
-        if len(match_host) == 0:
-            return await ctx.send(f'You must be a registered player before hosting a match. Try `{command_prefix}setcode POLYCODE`')
+        try:
+            match_host = models.Player.get_or_except(str(ctx.author.id), ctx.guild.id)
+        except exceptions.NoSingleMatch:
+            return await ctx.send(f'You must be a registered player before hosting a match. Try `{ctx.prefix}setcode POLYCODE`')
 
-        if len(Match.select().join(Player).where(Match.host.discord_id == ctx.author.id)) > 4:
-            return await ctx.send(f'You have too many open matches already. Try using `{command_prefix}delmatch` on an existing one.')
+        if models.Match.select().where(models.Match.host == match_host).count() > 4:
+            return await ctx.send(f'You have too many open matches already. Try using `{ctx.prefix}delmatch` on an existing one.')
+
         for arg in args:
-            m = re.match(r"(\d+)v(\d+)", arg.lower())
+            m = re.fullmatch(r"\d+(?:(v|vs)\d+)+", arg.lower())
             if m:
-                # arg looks like '3v3'
-                if int(m[1]) != int(m[2]):
-                    return await ctx.send(f'Invalid match format {arg}. Sides must be equal.')
-                if team_size is not None:
-                    return await ctx.send(f'Multiple match formats included. Only include one, ie `{command_prefix}openmatch 3v3`')
-                if not 0 < int(m[1]) < 7:
-                    return await ctx.send(f'Invalid match size {arg}. Accepts 1v1 through 6v6')
-                team_size = int(m[1])
+                # arg looks like '3v3' or '1v1v1'
+                team_size_str = m[0]
+                team_sizes = [int(x) for x in arg.lower().split(m[1])]  # split on 'vs' or 'v'; whichever the regexp detects
+                if max(team_sizes) > 6:
+                    return await ctx.send(f'Invalid match size {team_size_str}: Teams cannot be larger than 6 players.')
+                if sum(team_sizes) > 12:
+                    return await ctx.send(f'Invalid match size {team_size_str}: Games can have a maximum of 12 players.')
+                if len(team_sizes) > 8:
+                    return await ctx.send(f'Invalid match size {team_size_str}: Games cannot have more than 8 teams.')
+                team_size = True
                 continue
             m = re.match(r"(\d+)h", arg.lower())
             if m:
@@ -91,234 +96,69 @@ class matchmaking():
                 continue
             note_args.append(arg)
 
-        if team_size is None:
+        if not team_size:
             return await ctx.send(f'Match size is required. Include argument like *2v2* to specify size')
 
-        match_notes = ' '.join(note_args)[:75]
+        match_notes = ' '.join(note_args)[:100]
         notes_str = match_notes if match_notes else "\u200b"
         expiration_timestamp = (datetime.datetime.now() + datetime.timedelta(hours=expiration_hours)).strftime("%Y-%m-%d %H:%M:%S")
-        match = Match.create(host=match_host[0], team_size=team_size, expiration=expiration_timestamp, notes=match_notes)
-        MatchPlayer.create(player=match_host[0], match=match)
-        await ctx.send(f'Starting new open match ID M{match.id}. Size: {team_size}v{team_size}. Expiration: {expiration_hours} hours.\nNotes: *{notes_str}*')
+        match = models.Match.create(host=match_host, expiration=expiration_timestamp, notes=match_notes, guild_id=ctx.guild.id)
+        for size in team_sizes:
+            team_objs.append(models.MatchSide.create(match=match, size=size))
 
-    @commands.command(usage='match_id')
-    async def leavematch(self, ctx, match: poly_match):
-        """
-        Leave a match that you have joined
-        **Example:**
-        `[p]leavematch M25`
-        """
-        if match is None:
-            return await ctx.send(f'No matching match was found. Use {command_prefix}listmatches to see available matches.')
-        if match.host.discord_id == ctx.author.id:
-            return await ctx.send(f'You can\'t leave your own match. Use `{command_prefix}delmatch` instead.')
+        models.MatchPlayer.create(player=match_host, match=match, side=team_objs[0])
+        await ctx.send(f'Starting new open match ID M{match.id}. Size: {team_size_str}. Expiration: {expiration_hours} hours.\nNotes: *{notes_str}*')
 
-        try:
-            matchplayer = MatchPlayer.select().join(Player).where((MatchPlayer.match == match) & (MatchPlayer.player.discord_id == ctx.author.id)).get()
-        except peewee.DoesNotExist:
-            return await ctx.send(f'You are not a member of match M{match.id}')
+    @commands.command(usage='match_id side_number Side Name')
+    async def matchside(self, ctx, match: poly_match, side_num: int, *, args):
+        if not match.is_hosted_by(ctx.author.id) or not settings.is_staff(ctx):
+            return await ctx.send(f'Only the match host or server staff can do this.')
 
-        with db:
-            matchplayer.delete_instance()
-            await ctx.send('Removing you from the match.')
+        if not (1 <= side_num <= len(match.sides)):
+            return await ctx.send(f'Invalid side_number. Expecting 1-{len(match.sides)}.')
 
-    # @in_bot_channel()
-    @commands.command(usage='match_id')
-    async def joinmatch(self, ctx, match: poly_match):
-        """
-        Join an open match
-        **Example:**
-        `[p]joinmatch M25`
-        """
+        with models.db:
+            matchside = match.sides[side_num - 1]
+            matchside.name = args
+            matchside.save()
 
-        if match is None:
-            return await ctx.send(f'No matching match was found. Use {command_prefix}listmatches to see available matches.')
-        if len(MatchPlayer.select().join(Player).where((MatchPlayer.player.discord_id == ctx.author.id) & (MatchPlayer.match == match))) > 0:
-            return await ctx.send(f'You are already a member of match M{match.id}.')
-        if len(match.matchplayer) >= (match.team_size * 2):
-            return await ctx.send(f'Match M{match.id} cannot be joined. It is currently full and waiting for its host to `{command_prefix}startmatch M{match.id}`.')
+        return await ctx.send(f'Side {side_num} for Match M{match.id} has been named "{args}"')
 
-        match_player = Player.get_by_string(f'<@{ctx.author.id}>')
-        if len(match_player) == 0:
-            return await ctx.send(f'You must be a registered player before joining a match. Try `{command_prefix}setcode POLYCODE`')
-
-        if require_teams is True:
-            _, player_teams = get_teams_of_players([ctx.message.author])
-            if None in player_teams:
-                return await ctx.send(f'You must be associated with one server Team.')
-
-        with db:
-            MatchPlayer.create(player=match_player[0], match=match)
-
-            await ctx.send(f'You have joined match M{match.id}')
-            if len(match.matchplayer) >= (match.team_size * 2):
-                await ctx.send(f'Match M{match.id} is now full and the host <@{match.host.discord_id}> should start the game with `{command_prefix}startmatch M{match.id}`.')
-
-            await ctx.send(embed=self.match_embed(match))
-
-    # @in_bot_channel()
-    @commands.command(aliases=['listmatches', 'matchlist', 'openmatches', 'listmatch'])
-    async def matches(self, ctx):
-        """
-        List open matches.
-        Full matches will still be listed until the host starts or deletes them with `[p]startmatch` / `[p]delmatch`
-        """
-        Match.purge_expired_matches()
-
-        embed = discord.Embed(title=f'Open matches - use `{command_prefix}joinmatch M#` to join one.')
-        embed.add_field(name=f'`{"ID":<10}{"Host":<50} {"Capacity":<7} {"Exp":>4}`', value='\u200b', inline=False)
-        for match in Match.select():
-            notes_str = match.notes if match.notes else "\u200b"
-            capacity_str = f' {len(match.matchplayer)} / {match.team_size * 2}'
-            expiration = int((match.expiration - datetime.datetime.now()).total_seconds() / 3600.0)
-
-            embed.add_field(name=f'`{"M"f"{match.id}":<10}{match.host.discord_name:<50} {capacity_str:<7} {expiration:>4}H`',
-                value=f'{notes_str}')
-        await ctx.send(embed=embed)
-
-    # @in_bot_channel()
-    @commands.command(aliases=['deletematch'], usage='match_id')
-    async def delmatch(self, ctx, match: poly_match):
-        """Deletes a match that you host
-        Staff can also delete any match.
-        **Example:**
-        `[p]delmatch M25`
-        """
-
-        if match is None:
-            return await ctx.send(f'No matching match was found. Use {command_prefix}listmatches to see available matches.')
-
-        if ctx.author.id == match.host.discord_id or len(get_matching_roles(ctx.author, helper_roles)) > 0:
-            # User is deleting their own match, or user has a staff role
-            await ctx.send(f'Deleting match M{match.id}')
-            match.delete_instance()
-            return
-        else:
-            return await ctx.send(f'You only have permission to delete your own matches.')
-
-    # @in_bot_channel()
-    @commands.command(usage='match_id')
-    async def startmatch(self, ctx, match: poly_match):
-        """
-        Display suggested lineup and delete match
-        Host should run this command after a match is full for instructions on how to get the match tracked as a normal game.
-        It will display a suggested lineup that the host can ignore, provide an example draft order, and the command to use to have the game tracked once it has been created.
-        The match will be deleted as soon as the host uses this command.
-        """
-
-        if match is None:
-            return await ctx.send(f'No matching match was found. Use {command_prefix}listmatches to see available matches.')
-
-        if ctx.author.id != match.host.discord_id:
-            return await ctx.send(f'Only the match host **{match.host.discord_name}** can do this.')
-
-        if len(match.matchplayer) < (match.team_size * 2):
-            return await ctx.send(f'This match is not yet full: {len(match.matchplayer)} / {match.team_size * 2} players.')
-
-        team_home, team_away = match.return_suggested_teams()
-
-        if match.team_size > 1:
-
-            draft_order_str = 'Use draft order '
-            if match.team_size == 2:
-                draft_order_str += '**A B B A**\n'
-            elif match.team_size == 3:
-                draft_order_str += '**A B B A B A**\n'
-            elif match.team_size == 4:
-                draft_order_str += '**A B B A B A A B**\n'
-            elif match.team_size == 5:
-                draft_order_str += '**A B B A B A A B A B**\n'
-            else:
-                draft_order_str = ''
-
-            await ctx.send(f'Suggested teams based on ELO:\n'
-                f'{" / ".join(team_home)}\n**VS**\n{" / ".join(team_away)}\n\n'
-                f'{draft_order_str}')
-
-        await ctx.send(
-            f'You\'ve got a match! Once you\'ve created the game in Polytopia, enter the following command to have it tracked for the ELO leaderboards:\n'
-            f'`{command_prefix}reqgame "Name of Game" {" ".join(team_home)} vs {" ".join(team_away)}`')
-
-        match.delete_instance()
-
-    @in_bot_channel()
+    @settings.in_bot_channel()
     @commands.command(usage='match_id')
     async def match(self, ctx, match: poly_match):
         """Display details on a match"""
 
         if match is None:
-            return await ctx.send(f'No matching match was found. Use {command_prefix}listmatches to see available matches.')
-        if len(match.matchplayer) >= (match.team_size * 2):
-                await ctx.send(f'Match M{match.id} is now full and the host should start the game with `{command_prefix}startmatch M{match.id}`.')
+            return await ctx.send(f'No matching match was found. Use {ctx.prefix}listmatches to see available matches.')
+        # if len(match.matchplayer) >= (match.team_size * 2):
+        #         await ctx.send(f'Match M{match.id} is now full and the host should start the game with `{ctx.prefix}startmatch M{match.id}`.')
         await ctx.send(embed=self.match_embed(match))
 
-    @commands.command(aliases=['rtribes', 'rtribe'], usage='game_size')
-    async def random_tribes(self, ctx, size='1v1'):
-        """Show a random tribe combination for a given game size.
-        This tries to keep the sides roughly equal in power.
-        **Example:**
-        `[p]rtribes 2v2` - Shows Ai-mo/Imperius & Xin-xi/Luxidoor
-        """
-
-        m = re.match(r"(\d+)v(\d+)", size.lower())
-        if m:
-            # arg looks like '3v3'
-            if int(m[1]) != int(m[2]):
-                return await ctx.send(f'Invalid match format {size}. Sides must be equal.')
-            if not 0 < int(m[1]) < 7:
-                return await ctx.send(f'Invalid match size {size}. Accepts 1v1 through 6v6')
-            team_size = int(m[1])
-
-        tribes = [
-            ('Bardur', 1),
-            ('Kickoo', 1),
-            ('Luxidoor', 1),
-            ('Imperius', 1),
-            ('Elyrion', 2),
-            ('Zebasi', 2),
-            ('Hoodrick', 2),
-            ('Aquarion', 2),
-            ('Oumaji', 3),
-            ('Quetzali', 3),
-            ('Vengir', 3),
-            ('Ai-mo', 3),
-            ('Xin-xi', 3)
-        ]
-
-        team_home, team_away = [], []
-
-        tribe_groups = {}
-        for tribe, group in tribes:
-            tribe_groups.setdefault(group, set()).add(tribe)
-
-        available_tribe_groups = list(tribe_groups.values())
-        for _ in range(team_size):
-            available_tribe_groups = [tg for tg in available_tribe_groups if len(tg) >= 2]
-
-            this_tribe_group = random.choice(available_tribe_groups)
-
-            new_home, new_away = random.sample(this_tribe_group, 2)
-            this_tribe_group.remove(new_home)
-            this_tribe_group.remove(new_away)
-
-            team_home.append(new_home)
-            team_away.append(new_away)
-
-        await ctx.send(f'Home Team: {" / ".join(team_home)}\nAway Team: {" / ".join(team_away)}')
-
     def match_embed(ctx, match):
-        embed = discord.Embed(title=f'Match **M{match.id}**\n{match.team_size}v{match.team_size} *hosted by* {match.host.discord_name}')
+        embed = discord.Embed(title=f'Match **M{match.id}**\n{match.size_string()} *hosted by* {match.host.name}')
         notes_str = match.notes if match.notes else "\u200b"
         expiration = int((match.expiration - datetime.datetime.now()).total_seconds() / 3600.0)
 
         embed.add_field(name='Notes', value=notes_str, inline=False)
-        embed.add_field(name='Capacity', value=f'{len(match.matchplayer)} / {match.team_size * 2}', inline=True)
+        match_capacity = match.capacity()
+        embed.add_field(name='Capacity', value=f'{match_capacity[0]} / {match_capacity[1]}', inline=True)
         embed.add_field(name='Expires in', value=f'{expiration} hours', inline=True)
         embed.add_field(name='\u200b', value='\u200b', inline=False)
 
-        for player in match.matchplayer:
-            poly_str = player.player.polytopia_id if player.player.polytopia_id else '\u200b'
-            embed.add_field(name=f'{player.player.discord_name} ({player.player.elo})', value=poly_str, inline=True)
+        side_num = 1
+        for side in match.sides:
+            side_name = ':' + side.name if side.name else ''
+            player_list = []
+            for matchplayer in side.sorted_players():
+                player_list.append(f'**{matchplayer.player.name}** ({matchplayer.player.elo})\n{matchplayer.player.discord_member.polytopia_id}')
+            player_str = '\u200b' if not player_list else '\n'.join(player_list)
+            embed.add_field(name=f'Side {side_num + 1}{side_name}', value=player_str)
+            side_num += 1
+
+        # for player in match.matchplayer:
+        #     poly_str = player.player.polytopia_id if player.player.polytopia_id else '\u200b'
+        #     embed.add_field(name=f'{player.player.discord_name} ({player.player.elo})', value=poly_str, inline=True)
 
         return embed
 

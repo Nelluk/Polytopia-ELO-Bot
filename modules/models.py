@@ -765,6 +765,12 @@ class Game(BaseModel):
     def recalculate_all_elo():
         # Reset all ELOs to 1000, reset completed game counts, and re-run Game.declare_winner() on all qualifying games
 
+        # This could be made less-DB intensive by:
+        # 1) limiting reset to one guild ID
+        # 2) have a way to only affect games that ended after a deleted game (if thats why recalc is occuring)
+
+        logger.warn('Resetting and recalculating all ELO')
+
         Player.update(elo=1000).execute()
         Team.update(elo=1000).execute()
         DiscordMember.update(elo=1000).execute()
@@ -781,7 +787,8 @@ class Game(BaseModel):
         for game in games:
             full_game = Game.load_full_game(game_id=game.id)
             print(f'Calculating ELO for game {game.id}')
-            full_game.declare_winner(winning_side=full_game.winner, confirm=True)
+            with db.atomic():
+                full_game.declare_winner(winning_side=full_game.winner, confirm=True)
 
 
 class Squad(BaseModel):
@@ -1046,22 +1053,41 @@ def tomorrow():
 
 class Match(BaseModel):
     host = ForeignKeyField(Player, null=False, backref='match')
-    team_size = SmallIntegerField(null=False, default=2)
     expiration = DateTimeField(null=False, default=tomorrow)
     notes = TextField(null=True)
     game = ForeignKeyField(Game, null=True, backref='match')
     guild_id = BitField(unique=False, null=False)
 
+    def is_hosted_by(self, discord_id: int):
+        return self.host.discord_member.discord_id == discord_id
+
+    def size_string(self):
+        return 'v'.join(str(s.size) for s in self.sides)
+
+    def capacity(self):
+        return (len(self.matchplayers), sum(s.size for s in self.sides))
+
 
 class MatchSide(BaseModel):
     match = ForeignKeyField(Match, null=False, backref='sides', on_delete='CASCADE')
     name = TextField(null=True)
+    size = SmallIntegerField(null=False, default=1)
+
+    def capacity(self):
+        return (len(self.matchplayers), self.size)
+
+    def sorted_players(self):
+        q = MatchPlayer.select(MatchPlayer, Player, DiscordMember).join(Player).join(DiscordMember).where(
+            MatchPlayer.side == self
+        ).order_by(MatchPlayer.position)
+        return q
 
 
 class MatchPlayer(BaseModel):
-    side = ForeignKeyField(MatchSide, null=False, backref='matchplayers', on_delete='CASCADE')
+    side = ForeignKeyField(MatchSide, null=False, backref='sideplayers', on_delete='CASCADE')
     match = ForeignKeyField(Match, null=False, backref='matchplayers', on_delete='CASCADE')
     player = ForeignKeyField(Player, null=False, backref='matches', on_delete='CASCADE')
+    position = SmallIntegerField(null=False, unique=False, default=0)
 
 
 with db:

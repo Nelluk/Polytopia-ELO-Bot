@@ -2,7 +2,6 @@ import discord
 import argparse
 import traceback
 from discord.ext import commands
-from modules import models
 from modules import initialize_data
 import settings
 import logging
@@ -94,13 +93,7 @@ if __name__ == '__main__':
         print(f'Exception raised. {exc}\n{exception_str}')
         await ctx.send(f'Unhandled error: {exc}')
 
-    @bot.after_invoke
-    async def post_invoke_cleanup(ctx):
-        models.db.close()
-
-    # Here we load our extensions(cogs) listed above in [initial_extensions].
-
-    initial_extensions = ['modules.games', 'modules.help', 'modules.game_import_export']
+    initial_extensions = ['modules.games', 'modules.help', 'modules.game_import_export', 'modules.matchmaking']
     for extension in initial_extensions:
         bot.load_extension(extension)
         try:

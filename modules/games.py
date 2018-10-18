@@ -236,7 +236,7 @@ class games():
             if len(args) == 0:
                 # Player looking for info on themselves
                 try:
-                    player = Player.get_or_except(player_string=f'<@{ctx.author.id}>', guild_id=ctx.guild.id)
+                    player = Player.get_or_except(player_string=str(ctx.author.id), guild_id=ctx.guild.id)
                 except exceptions.NoSingleMatch as ex:
                     return await ctx.send(f'{ex}\nTry setting your code with {ctx.prefix}setcode')
             else:
@@ -704,7 +704,7 @@ class games():
             # $startgame "Name of Game" p1 p2 vs p3 p4
             if not settings.guild_setting(ctx.guild.id, 'allow_teams'):
                 return await ctx.send('Only 1v1 games are enabled on this server. For team ELO games with squad leaderboards check out PolyChampions.')
-            if not settings.is_power_user(ctx):
+            if (not settings.is_power_user(ctx)) and ctx.guild.id != settings.server_ids['polychampions']:
                 return await ctx.send('You have not reached the level required to create 2v2 games.')
             if len(args) not in [3, 5, 7, 9, 11] or args[int(len(args) / 2)].upper() != 'VS':
                 return await ctx.send(f'Invalid format. {example_usage}')
@@ -850,7 +850,9 @@ class games():
 
         with db:
             gid = game.id
-            game.delete_game()
+            await self.bot.loop.run_in_executor(None, game.delete_game)
+            # Allows bot to remain responsive while this large operation is running.
+            # Can result in funky behavior especially if another operation tries to close DB connection, but seems to still get this operation done reliably
             await ctx.send(f'Game with ID {gid} has been deleted and team/player ELO changes have been reverted, if applicable.')
 
     @commands.command(usage='game_id player_name tribe_name [player2 tribe2 ... ]')
@@ -1011,10 +1013,26 @@ class games():
 
     @commands.command()
     @settings.is_staff_check()
-    async def ts(self, ctx, game: int, *args):
+    async def ts(self, ctx, input: str, *args):
 
-        async with ctx.channel.typing():
-            Game.recalculate_all_elo()
+        import re
+
+        m = re.match(r"\d+(?:(v|vs)\d+)+", input.lower())
+        print(m)
+
+        # vs_split = input.lower().split('v')
+        # print(vs_split)
+        # if all(isinstance(x, int) for x in vs_split):
+        #     print(sum(vs_split))
+        # print('invalid')
+
+        # try:
+        #     vs_split = [int(x) for x in input.lower().split('v')]
+
+        # except ValueError:
+        #     print('invalid')
+        # else:
+        #     print(sum(vs_split))
         return
 
         # team_a = Team.get(id=1)
