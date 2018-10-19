@@ -120,7 +120,7 @@ class matchmaking():
         # matchside m1 ronin nelluk rickdaheals jonathan
 
         with models.db:
-            matchside = match.get_side(lookup=side_lookup)
+            matchside, _ = match.get_side(lookup=side_lookup)
             if not matchside:
                 return await ctx.send(f'Can\'t find that side for match M{match.id}.')
             matchside.name = args
@@ -150,7 +150,6 @@ class matchmaking():
         joinmatch m5 [ronin | 2]            # 1 args
         joinmatch m5 jonathan <ronin | 2>   # 2 args
         """
-
         if match is None:
             return await ctx.send(f'No matching match was found. Use {ctx.prefix}listmatches to see available matches.')
 
@@ -169,8 +168,12 @@ class matchmaking():
             # TODO: permissions on this?
             target = args[0]
             side, side_open = match.get_side(lookup=args[1])
+            print(side, side_open)
         else:
             return await ctx.send(f'Invalid command. See `{ctx.prefix}help joinmatch` for usage examples.')
+
+        if not side:
+                return await ctx.send(f'Could not find side with "{args[1]}" in match M{match.id}. You can use a side number or name if available.')
 
         if not side_open:
             return await ctx.send(f'That side of match M{match.id} is already full. See `{ctx.prefix}match M{match.id}` for details.')
@@ -210,6 +213,10 @@ class matchmaking():
             await ctx.send(f'**Warning:** You are leaving your own match. You will still be the host. '
                 f'If you want to delete use `{ctx.prefix}deletematch M{match.id}`')
 
+        if match.is_started:
+            game_str = f' with game # {match.game.id}' if match.game else ''
+            return await ctx.send(f'Match M{match.id} has already started{game_str}.')
+
         matchplayer = match.player(discord_id=ctx.author.id)
         if not matchplayer:
             return await ctx.send(f'You are not a member of match M{match.id}')
@@ -217,6 +224,38 @@ class matchmaking():
         with models.db:
             matchplayer.delete_instance()
             await ctx.send('Removing you from the match.')
+
+    @commands.command(usage='match_id player')
+    async def kick(self, ctx, match: poly_match, player: str):
+        """
+        Kick a player from an open match
+        **Example:**
+        `[p]kick M25 koric`
+        """
+        if match is None:
+            return await ctx.send(f'No matching match was found. Use {ctx.prefix}listmatches to see available matches.')
+        if not match.is_hosted_by(ctx.author.id) or not settings.is_staff(ctx):
+            return await ctx.send(f'Only the match host or server staff can do this.')
+
+        if match.is_started:
+            game_str = f' with game # {match.game.id}' if match.game else ''
+            return await ctx.send(f'Match M{match.id} has already started{game_str}.')
+
+        try:
+            target = models.Player.get_or_except(player_string=player, guild_id=ctx.guild.id)
+        except exceptions.NoSingleMatch:
+            return await ctx.send(f'Could not match "{player}" to an ELO player.')
+
+        if target.discord_member.discord_id == ctx.author.id:
+            return await ctx.send('Stop kicking yourself!')
+
+        matchplayer = match.player(player=target)
+        if not matchplayer:
+            return await ctx.send(f'{target.name} is not a member of match M{match.id}.')
+
+        with models.db:
+            matchplayer.delete_instance()
+            await ctx.send(f'Removing {target.name} from the match.')
 
     @commands.command(aliases=['deletematch'], usage='match_id')
     async def delmatch(self, ctx, match: poly_match):
@@ -236,6 +275,70 @@ class matchmaking():
             return
         else:
             return await ctx.send(f'You only have permission to delete your own matches.')
+
+    @settings.in_bot_channel()
+    @commands.command(aliases=['listmatches', 'matchlist', 'openmatches', 'listmatch'])
+    async def matches(self, ctx, *args):
+        """
+        List open matches, with filtering options.
+        Full matches will still be listed until the host starts or deletes them with `[p]startmatch` / `[p]delmatch`
+        **Example:**
+        `[p]matches` - List all unexpired matches
+        `[p]matches Nelluk` - List all unexpired matches where Nelluk is a participant/host
+        `[p]matches Bardur` - List all unexpired matches where "Bardur" is in the match notes
+        `[p]matches Ronin` - List all unexpired matches where "Ronin" is in one of the sides' name.
+        """
+        models.Match.purge_expired_matches()
+
+        if args:
+            # Return any match where args_str appears in match side names, match notes, or if args_str is a Player, a match where player is a participant or host
+            arg_str = ' '.join(args)
+            title_str = f'Current matches matching "{arg_str}"'
+            try:
+                target = models.Player.get_or_except(player_string=arg_str, guild_id=ctx.guild.id)
+            except exceptions.NoSingleMatch:
+                target = None
+
+            arg_str = '%'.join(args)  # for SQL wildcard match
+            match_list = models.Match.search(guild_id=ctx.guild.id, player=target, search=arg_str)
+
+        else:
+            arg_str = 'All current matches'
+            match_list = models.Match.active_list(guild_id=ctx.guild.id)
+
+        embed = discord.Embed(title=f'{title_str}\nUse `{ctx.prefix}joinmatch M#` to join one or `{ctx.prefix}match M#` for more details.')
+        embed.add_field(name=f'`{"ID":<8}{"Host":<40} {"Type":<7} {"Capacity":<7} {"Exp":>4}`', value='\u200b', inline=False)
+        # for match in models.Match.active_list(guild_id=ctx.guild.id):
+        for match in match_list:
+
+            notes_str = match.notes if match.notes else "\u200b"
+            players, capacity = match.capacity()
+            capacity_str = f' {players}/{capacity}'
+            expiration = int((match.expiration - datetime.datetime.now()).total_seconds() / 3600.0)
+
+            embed.add_field(name=f'`{"M"f"{match.id}":<8}{match.host.name:<40} {match.size_string():<7} {capacity_str:<7} {expiration:>4}H`',
+                value=f'{notes_str}')
+        await ctx.send(embed=embed)
+
+    @settings.in_bot_channel()
+    @commands.command()
+    async def startmatch(self, ctx, match: poly_match, name: str):
+        if not match.is_hosted_by(ctx.author.id) or not settings.is_staff(ctx):
+            return await ctx.send(f'Only the match host or server staff can do this.')
+        teams = []
+
+        for side in match.sides:
+            team = []
+            for matchplayer in side.sideplayers:
+                team.append(matchplayer.player)
+            teams.append(team)
+
+        print(teams)
+
+        if len(teams) != 2 or len(teams[0]) != len(teams[1]):
+            await ctx.send(f'This match is now marked as started, but will not be tracked as an ELO game since it does not have two equally-sized teams.')
+        else:
+            pass
 
 
 def setup(bot):

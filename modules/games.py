@@ -124,7 +124,7 @@ class games():
                 team_name_str = f'**{team.name}**   ({len(team_role.members)})'  # Show team name with number of members
                 wins, losses = team.get_record()
 
-                embed.add_field(name=f'{team.emoji} {(counter + 1):>3}. {team_name_str}\n`ELO: {team.elo:<8} W {wins} / L {losses}`', value='\u200b', inline=False)
+                embed.add_field(name=f'{team.emoji} {(counter + 1):>3}. {team_name_str}\n`ELO: {team.elo:<5} W {wins} / L {losses}`', value='\u200b', inline=False)
         await ctx.send(embed=embed)
 
     @settings.in_bot_channel()

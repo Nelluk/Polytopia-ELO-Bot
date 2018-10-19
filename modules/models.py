@@ -1057,6 +1057,14 @@ class Match(BaseModel):
     notes = TextField(null=True)
     game = ForeignKeyField(Game, null=True, backref='match')
     guild_id = BitField(unique=False, null=False)
+    is_started = BooleanField(default=False)
+
+    def active_list(guild_id: int):
+        return Match.select().where(
+            (Match.expiration > datetime.datetime.now()) & (Match.guild_id == guild_id) & (Match.is_started == 0)
+        ).prefetch(MatchSide)
+        # TODO: Could limit list to matches with capacity by querying MatchPlayer count(*) < matchside.size, group_by(Match).distinct()?
+        # not sure exactly but that should get most of the way there. look for other queries in this file with " '*' " in them for similar
 
     def is_hosted_by(self, discord_id: int):
         return self.host.discord_member.discord_id == discord_id
@@ -1087,6 +1095,7 @@ class Match(BaseModel):
         embed.add_field(name='\u200b', value='\u200b', inline=False)
 
         for side in self.sides:
+            # TODO: this wont print in side.position order if they have been saved() in odd order after creation
             side_name = ': **' + side.name + '**' if side.name else ''
             side_capacity = side.capacity()
             player_list = []
@@ -1116,10 +1125,43 @@ class Match(BaseModel):
         for side in self.sides:
             if side_num and side.position == side_num:
                 return (side, bool(len(side.sideplayers) < side.size))
-            if side_name and len(side_name) > 2 and side_name.upper() in side.name.upper():
+            if side_name and side.name and len(side_name) > 2 and side_name.upper() in side.name.upper():
                 return (side, bool(len(side.sideplayers) < side.size))
 
         return None, False
+
+    def purge_expired_matches():
+
+        delete_query = Match.delete().where(
+            (Match.expiration < datetime.datetime.now()) & (Match.game.is_null(True))
+        )
+
+        logger.debug(f'purge_expired_matches: Purged {delete_query.execute()}  matches.')
+
+    def search(guild_id: int, player: Player = None, search: str = None):
+        player_q, search_q = [], []
+
+        if player:
+            psubq = MatchPlayer.select(MatchPlayer.match).join(Match).where(
+                (MatchPlayer.player == player)
+            ).group_by(MatchPlayer.match)
+
+            player_q = Match.select(Match.id).where(
+                (Match.host == player) | (Match.id.in_(psubq))
+            )
+
+        if search:
+            ssubq = MatchSide.select(MatchSide.match).join(Match).where(
+                (MatchSide.name.contains(search))
+            ).group_by(MatchSide.match)
+
+            search_q = Match.select(Match.id).where(
+                (Match.notes.contains(search)) | (Match.id.in_(ssubq))
+            )
+
+        return Match.select().where(
+            ((Match.id.in_(player_q)) | (Match.id.in_(search_q))) & (Match.expiration > datetime.datetime.now()) & (Match.guild_id == guild_id) & (Match.is_started == 0)
+        ).prefetch(MatchSide)
 
 
 class MatchSide(BaseModel):
