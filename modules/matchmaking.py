@@ -4,6 +4,7 @@ import modules.models as models
 import modules.utilities as utilities
 import settings
 import modules.exceptions as exceptions
+from modules.games import post_newgame_messaging
 import peewee
 import re
 import datetime
@@ -71,7 +72,9 @@ class matchmaking():
         except exceptions.NoSingleMatch:
             return await ctx.send(f'You must be a registered player before hosting a match. Try `{ctx.prefix}setcode POLYCODE`')
 
-        if models.Match.select().where(models.Match.host == match_host).count() > 4:
+        if models.Match.select().where(
+            (models.Match.host == match_host) & (models.Match.is_started == 0)
+        ).count() > 4:
             return await ctx.send(f'You have too many open matches already. Try using `{ctx.prefix}delmatch` on an existing one.')
 
         for arg in args:
@@ -163,17 +166,17 @@ class matchmaking():
             # ctx.author is joining a match, with a side specified
             target = str(ctx.author.id)
             side, side_open = match.get_side(lookup=args[0])
+            if not side:
+                return await ctx.send(f'Could not find side with "{args[0]}" in match M{match.id}. You can use a side number or name if available.')
         elif len(args) == 2:
             # author is putting a third party into this match
             # TODO: permissions on this?
             target = args[0]
             side, side_open = match.get_side(lookup=args[1])
-            print(side, side_open)
+            if not side:
+                return await ctx.send(f'Could not find side with "{args[1]}" in match M{match.id}. You can use a side number or name if available.')
         else:
             return await ctx.send(f'Invalid command. See `{ctx.prefix}help joinmatch` for usage examples.')
-
-        if not side:
-                return await ctx.send(f'Could not find side with "{args[1]}" in match M{match.id}. You can use a side number or name if available.')
 
         if not side_open:
             return await ctx.send(f'That side of match M{match.id} is already full. See `{ctx.prefix}match M{match.id}` for details.')
@@ -322,7 +325,7 @@ class matchmaking():
 
     @settings.in_bot_channel()
     @commands.command()
-    async def startmatch(self, ctx, match: poly_match, name: str):
+    async def startmatch(self, ctx, match: poly_match, *, name: str):
 
         if not match.is_hosted_by(ctx.author.id) or not settings.is_staff(ctx):
             return await ctx.send(f'Only the match host or server staff can do this.')
@@ -350,7 +353,15 @@ class matchmaking():
         if len(teams) != 2 or len(teams[0]) != len(teams[1]):
             await ctx.send(f'This match is now marked as started, but will not be tracked as an ELO game since it does not have two equally-sized teams.')
         else:
-            pass
+            newgame = models.Game.create_game(teams,
+                name=name, guild_id=ctx.guild.id,
+                require_teams=settings.guild_setting(ctx.guild.id, 'require_teams'))
+            match.game = newgame
+            match.save()
+            await post_newgame_messaging(ctx, game=newgame)
+
+        match.is_started = True
+        match.save()
 
 
 def setup(bot):

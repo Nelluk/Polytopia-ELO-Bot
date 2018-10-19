@@ -103,7 +103,7 @@ class Player(BaseModel):
     guild_id = BitField(unique=False, null=False)
     nick = TextField(unique=False, null=True)
     name = TextField(unique=False, null=True)
-    team = ForeignKeyField(Team, null=True, backref='player')
+    team = ForeignKeyField(Team, null=True, backref='player', on_delete='SET NULL')
     elo = SmallIntegerField(default=1000)
     trophies = ArrayField(CharField, null=True)
     # Add discord name here too so searches can hit just one table?
@@ -306,7 +306,7 @@ class Tribe(BaseModel):
 
 
 class TribeFlair(BaseModel):
-    tribe = ForeignKeyField(Tribe, unique=False, null=False)
+    tribe = ForeignKeyField(Tribe, unique=False, null=False, on_delete='CASCADE')
     emoji = TextField(null=False, default='')
     guild_id = BitField(unique=False, null=False)
 
@@ -356,7 +356,7 @@ class Game(BaseModel):
     date = DateField(default=datetime.datetime.today)
     completed_ts = DateTimeField(null=True, default=None)
     name = TextField(null=True)
-    winner = DeferredForeignKey('SquadGame', null=True)
+    winner = DeferredForeignKey('SquadGame', null=True, on_delete='RESTRICT')
     guild_id = BitField(unique=False, null=False)
 
     async def create_squad_channels(self, ctx):
@@ -408,8 +408,8 @@ class Game(BaseModel):
             return logger.warn('Couldn\'t get message in update_announacement')
 
         try:
-            embed = self.embed(ctx)
-            await message.edit(embed=embed)
+            embed, content = self.embed(ctx)
+            await message.edit(embed=embed, content=content)
         except discord.errors.HTTPException:
             return logger.warn('Couldn\'t update message in update_announacement')
 
@@ -459,12 +459,19 @@ class Game(BaseModel):
             for player, player_elo_str, tribe_emoji in roster:
                 embed.add_field(name=f'**{player.name}** {tribe_emoji}', value=f'ELO: {player_elo_str}', inline=True)
 
+        if self.match:
+            notes = f'\n**Notes:** {self.match[0].notes}' if self.match[0].notes else ''
+            embed_content = f'Matchmaking **M{self.match[0].id}**{notes}'
+        else:
+            embed_content = None
+
         if ctx.guild.id != 447883341463814144:
             embed.add_field(value='Powered by **PolyChampions** - https://discord.gg/cX7Ptnv', name='\u200b', inline=False)
+            embed.set_author(name='PolyChampions', url='https://discord.gg/cX7Ptnv', icon_url='https://cdn.discordapp.com/emojis/488510815893323787.png?v=1')
 
         embed.set_footer(text=f'Status: {"Completed" if self.is_completed else "Incomplete"}  -  Creation Date {str(self.date)}')
 
-        return embed
+        return embed, embed_content
 
     def get_headline(self):
         if len(self.squads) != 2:
@@ -944,7 +951,7 @@ class SquadMember(BaseModel):
 class SquadGame(BaseModel):
     game = ForeignKeyField(Game, null=False, backref='squads', on_delete='CASCADE')
     squad = ForeignKeyField(Squad, null=True, backref='squadgame', on_delete='CASCADE')
-    team = ForeignKeyField(Team, null=False, backref='squadgame')
+    team = ForeignKeyField(Team, null=False, backref='squadgame', on_delete='RESTRICT')
     elo_change_squad = SmallIntegerField(default=0)
     elo_change_team = SmallIntegerField(default=0)
     # team_chan_category = BitField(default=None, null=True)
@@ -997,10 +1004,10 @@ class SquadGame(BaseModel):
 
 
 class Lineup(BaseModel):
-    tribe = ForeignKeyField(TribeFlair, null=True)
+    tribe = ForeignKeyField(TribeFlair, null=True, on_delete='SET NULL')
     game = ForeignKeyField(Game, null=False, backref='lineup', on_delete='CASCADE')
-    squadgame = ForeignKeyField(SquadGame, null=False, backref='lineup')
-    player = ForeignKeyField(Player, null=False, backref='lineup')
+    squadgame = ForeignKeyField(SquadGame, null=False, backref='lineup', on_delete='CASCADE')
+    player = ForeignKeyField(Player, null=False, backref='lineup', on_delete='CASCADE')
     elo_change_player = SmallIntegerField(default=0)
 
     def change_elo_after_game(self, my_side_elo, opponent_elo, is_winner):
@@ -1052,10 +1059,10 @@ def tomorrow():
 
 
 class Match(BaseModel):
-    host = ForeignKeyField(Player, null=False, backref='match')
+    host = ForeignKeyField(Player, null=False, backref='match', on_delete='RESTRICT')
     expiration = DateTimeField(null=False, default=tomorrow)
     notes = TextField(null=True)
-    game = ForeignKeyField(Game, null=True, backref='match')
+    game = ForeignKeyField(Game, null=True, backref='match', on_delete='SET NULL')
     guild_id = BitField(unique=False, null=False)
     is_started = BooleanField(default=False)
 

@@ -481,8 +481,8 @@ class games():
         try:
             game_id = int(''.join(arg_list))
             game = Game.load_full_game(game_id=game_id)     # Argument is an int, so show game by ID
-            embed = game.embed(ctx)
-            return await ctx.send(embed=embed)
+            embed, content = game.embed(ctx)
+            return await ctx.send(embed=embed, content=content)
         except ValueError:
             pass
         except peewee.DoesNotExist:
@@ -744,30 +744,32 @@ class games():
             # TODO: possibly allow this in PolyChampions (rickdaheals likes to do this)
             return await ctx.send('You can\'t create a game that you are not a participant in.')
 
-        logger.debug(f'All input checks passed. Creating new game records with args: {args}')
+        logger.info(f'All input checks passed. Creating new game records with args: {args}')
 
         newgame = Game.create_game([side_home, side_away],
             name=game_name, guild_id=ctx.guild.id,
             require_teams=settings.guild_setting(ctx.guild.id, 'require_teams'))
 
-        if settings.guild_setting(ctx.guild.id, 'game_channel_category') is not None:
-            await newgame.create_squad_channels(ctx)
+        await post_newgame_messaging(ctx, game=newgame)
 
-        mentions = [p.mention for p in side_home + side_away]
-        embed = newgame.embed(ctx)
+        # if settings.guild_setting(ctx.guild.id, 'game_channel_category') is not None:
+        #     await newgame.create_squad_channels(ctx)
 
-        if settings.guild_setting(ctx.guild.id, 'game_announce_channel') is not None:
-            channel = ctx.guild.get_channel(settings.guild_setting(ctx.guild.id, 'game_announce_channel'))
-            if channel is not None:
-                await channel.send(f'New game ID {newgame.id} started! Roster: {" ".join(mentions)}')
-                announcement = await channel.send(embed=embed)
-                await ctx.send(f'New game ID {newgame.id} started! See {channel.mention} for full details.')
-                newgame.announcement_message = announcement.id
-                newgame.announcement_channel = announcement.channel.id
-                newgame.save()
-                return
-        await ctx.send(f'New game ID {newgame.id} started! Roster: {" ".join(mentions)}')
-        await ctx.send(embed=embed)
+        # mentions = [p.mention for p in side_home + side_away]
+        # embed = newgame.embed(ctx)
+
+        # if settings.guild_setting(ctx.guild.id, 'game_announce_channel') is not None:
+        #     channel = ctx.guild.get_channel(settings.guild_setting(ctx.guild.id, 'game_announce_channel'))
+        #     if channel is not None:
+        #         await channel.send(f'New game ID {newgame.id} started! Roster: {" ".join(mentions)}')
+        #         announcement = await channel.send(embed=embed)
+        #         await ctx.send(f'New game ID {newgame.id} started! See {channel.mention} for full details.')
+        #         newgame.announcement_message = announcement.id
+        #         newgame.announcement_channel = announcement.channel.id
+        #         newgame.save()
+        #         return
+        # await ctx.send(f'New game ID {newgame.id} started! Roster: {" ".join(mentions)}')
+        # await ctx.send(embed=embed)
 
     @commands.command(aliases=['endgame', 'win'], usage='game_id winner_name')
     @settings.is_staff_check()
@@ -1016,8 +1018,11 @@ class games():
 
     @commands.command()
     @settings.is_staff_check()
-    async def ts(self, ctx, input: str, *args):
+    async def ts(self, ctx, input: int, *, name: str):
 
+        print(input)
+        print(name)
+        return
         import re
 
         m = re.match(r"\d+(?:(v|vs)\d+)+", input.lower())
@@ -1056,7 +1061,7 @@ async def post_win_messaging(ctx, winning_game):
 
     await winning_game.delete_squad_channels(ctx=ctx)
     player_mentions = [f'<@{p.discord_member.discord_id}>' for p, _, _ in (winning_game.squads[0].roster() + winning_game.squads[1].roster())]
-    embed = winning_game.embed(ctx)
+    embed, content = winning_game.embed(ctx)
 
     if settings.guild_setting(ctx.guild.id, 'game_announce_channel') is not None:
         channel = ctx.guild.get_channel(settings.guild_setting(ctx.guild.id, 'game_announce_channel'))
@@ -1066,29 +1071,30 @@ async def post_win_messaging(ctx, winning_game):
             return await ctx.send(f'Game concluded! See {channel.mention} for full details.')
 
     await ctx.send(f'Game concluded! Congrats **{winning_game.get_winner().name}**. Roster: {" ".join(player_mentions)}')
-    await ctx.send(embed=embed)
+    await ctx.send(embed=embed, content=content)
 
 
-# async def post_game_setup(ctx, new_game):
+async def post_newgame_messaging(ctx, game):
 
-#     if settings.guild_setting(ctx.guild.id, 'game_channel_category') is not None:
-#             await newgame.create_squad_channels(ctx)
+    mentions_list = [f'<@{l.player.discord_member.discord_id}>' for l in game.lineup]
 
-#         mentions = [p.mention for p in side_home + side_away]
-#         embed = newgame.embed(ctx)
+    if settings.guild_setting(ctx.guild.id, 'game_channel_category') is not None:
+            await game.create_squad_channels(ctx)
 
-#         if settings.guild_setting(ctx.guild.id, 'game_announce_channel') is not None:
-#             channel = ctx.guild.get_channel(settings.guild_setting(ctx.guild.id, 'game_announce_channel'))
-#             if channel is not None:
-#                 await channel.send(f'New game ID {newgame.id} started! Roster: {" ".join(mentions)}')
-#                 announcement = await channel.send(embed=embed)
-#                 await ctx.send(f'New game ID {newgame.id} started! See {channel.mention} for full details.')
-#                 newgame.announcement_message = announcement.id
-#                 newgame.announcement_channel = announcement.channel.id
-#                 newgame.save()
-#                 return
-#         await ctx.send(f'New game ID {newgame.id} started! Roster: {" ".join(mentions)}')
-#         await ctx.send(embed=embed)
+    embed, content = game.embed(ctx)
+
+    if settings.guild_setting(ctx.guild.id, 'game_announce_channel') is not None:
+        channel = ctx.guild.get_channel(settings.guild_setting(ctx.guild.id, 'game_announce_channel'))
+        if channel is not None:
+            await channel.send(f'New game ID {game.id} started! Roster: {" ".join(mentions_list)}')
+            announcement = await channel.send(embed=embed, content=content)
+            await ctx.send(f'New game ID {game.id} started! See {channel.mention} for full details.')
+            game.announcement_message = announcement.id
+            game.announcement_channel = announcement.channel.id
+            game.save()
+            return
+    await ctx.send(f'New game ID {game.id} started! Roster: {" ".join(mentions_list)}')
+    await ctx.send(embed=embed, content=content)
 
 
 def parse_players_and_teams(input_list, guild_id: int):

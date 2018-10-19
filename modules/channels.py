@@ -87,10 +87,16 @@ async def create_squad_channel(ctx, game, team_name, player_list):
 async def greet_squad_channel(ctx, chan, player_list, roster_names, game):
     chan_mentions = [ctx.guild.get_member(p.discord_member.discord_id).mention for p in player_list]
 
+    if game.match:
+        notes = f'\n**Notes:** {game.match[0].notes}' if game.match[0].notes else ''
+        match_content = f'Matchmaking **M{game.match[0].id}**{notes}\n\n'
+    else:
+        match_content = ''
     try:
         await chan.send(f'This is the team channel for game **{game.name}**, ID {game.id}.\n'
             f'Your teammates are {" / ".join(chan_mentions)}\n'
             f'The teams for this game are: {roster_names}\n\n'
+            f'{match_content}'
             '*This channel will self-destruct as soon as the game is marked as concluded.*')
     except (discord.errors.Forbidden, discord.errors.HTTPException) as e:
         logger.error(f'Could not send to created channel:\n{e} - Status {e.status}, Code {e.code}: {e.text}')
