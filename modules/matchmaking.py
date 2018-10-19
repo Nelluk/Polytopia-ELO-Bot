@@ -8,7 +8,7 @@ from modules.games import post_newgame_messaging
 import peewee
 import re
 import datetime
-# import random
+import random
 import logging
 
 logger = logging.getLogger('polybot.' + __name__)
@@ -48,20 +48,18 @@ class matchmaking():
 
     @settings.in_bot_channel()
     @commands.command(usage='size expiration rules')
-    async def openmatch(self, ctx, *args):
+    async def openmatch(self, ctx, *, args):
 
         """
         Opens a matchmaking session for others to find
         Expiration can be between 1H - 96H
-        Size can be between 1v1 and 6v6
+        Size examples: 1v1, 2v2, 1v1v1v1v1, 3v3v3
 
         **Examples:**
         `[p]openmatch 1v1`
         `[p]openmatch 2v2 48h`  (Expires in 48 hours)
         `[p]openmatch 2v2 Large map, no bardur`  (Adds a note to the game)
         """
-        # TODO: quote mark in this example fails:
-        # $openmatch 1v1 let’s discuss the details
 
         team_size = False
         expiration_hours = 24
@@ -77,7 +75,7 @@ class matchmaking():
         ).count() > 4:
             return await ctx.send(f'You have too many open matches already. Try using `{ctx.prefix}delmatch` on an existing one.')
 
-        for arg in args:
+        for arg in args.split(' '):
             m = re.fullmatch(r"\d+(?:(v|vs)\d+)+", arg.lower())
             if m:
                 # arg looks like '3v3' or '1v1v1'
@@ -115,6 +113,12 @@ class matchmaking():
 
     @commands.command(usage='match_id side_number Side Name')
     async def matchside(self, ctx, match: poly_match, side_lookup: str, *, args):
+        """
+        Give a name to a side in a match you host
+        **Example:**
+        `[p]matchside m25 2 Ronin` - Names side 2 of Match M25 as 'The Ronin'
+        """
+
         if not match.is_hosted_by(ctx.author.id) or not settings.is_staff(ctx):
             return await ctx.send(f'Only the match host or server staff can do this.')
 
@@ -148,10 +152,10 @@ class matchmaking():
         """
         Join an open match
         **Example:**
-        `[p]joinmatch M25`
-        joinmatch m5                        # 0 args
-        joinmatch m5 [ronin | 2]            # 1 args
-        joinmatch m5 jonathan <ronin | 2>   # 2 args
+        `[p]joinmatch m25`
+        `[p]joinmatch m5 ronin` - Join match m5 to the side named 'ronin'
+        `[p]joinmatch m5 ronin 2` - Join match m5 to side number 2
+        `[p]joinmatch m5 rickdaheals jets` - Add a person to your match. Side must be specified.
         """
         if match is None:
             return await ctx.send(f'No matching match was found. Use {ctx.prefix}listmatches to see available matches.')
@@ -170,7 +174,9 @@ class matchmaking():
                 return await ctx.send(f'Could not find side with "{args[0]}" in match M{match.id}. You can use a side number or name if available.')
         elif len(args) == 2:
             # author is putting a third party into this match
-            # TODO: permissions on this?
+            if not settings.is_matchmaking_power_user(ctx):
+                return await ctx.send('You do not have permissions to add another person to a match. Tell them to use the command:\n'
+                    f'`{ctx.prefix}joinmatch M{match.id} {args[1]}` to join themselves.')
             target = args[0]
             side, side_open = match.get_side(lookup=args[1])
             if not side:
@@ -198,10 +204,15 @@ class matchmaking():
         models.MatchPlayer.create(player=target, match=match, side=side)
 
         await ctx.send(f'Joining <@{target.discord_member.discord_id}> to side {side.position} of match M{match.id}')
-        # TODO: Check if match full
+
+        players, capacity = match.capacity()
+        if players >= capacity:
+            await ctx.send(f'Match M{match.id} is now full and the host <@{match.host.discord_member.discord_id}> should start the game.\n'
+                f'Once game is started in Polytopia track it in the bot with `{ctx.prefix}startmatch M{match.id} Name of Game`.')
+            # TODO: output correct ordering
         await ctx.send(embed=match.embed())
 
-    @commands.command(usage='match_id')
+    @commands.command(usage='match_id', aliases=['leave'])
     async def leavematch(self, ctx, match: poly_match):
         """
         Leave a match that you have joined
@@ -211,8 +222,11 @@ class matchmaking():
         if match is None:
             return await ctx.send(f'No matching match was found. Use {ctx.prefix}listmatches to see available matches.')
         if match.is_hosted_by(ctx.author.id):
-            # TODO: permission check for this
-            # return await ctx.send(f'You can\'t leave your own match. Use `{ctx.prefix}delmatch` instead.')
+
+            if not settings.is_matchmaking_power_user(ctx):
+                return await ctx.send('You do not have permissions to leave your own match.\n'
+                    f'If you want to delete use `{ctx.prefix}deletematch M{match.id}`')
+
             await ctx.send(f'**Warning:** You are leaving your own match. You will still be the host. '
                 f'If you want to delete use `{ctx.prefix}deletematch M{match.id}`')
 
@@ -311,7 +325,7 @@ class matchmaking():
 
         embed = discord.Embed(title=f'{title_str}\nUse `{ctx.prefix}joinmatch M#` to join one or `{ctx.prefix}match M#` for more details.')
         embed.add_field(name=f'`{"ID":<8}{"Host":<40} {"Type":<7} {"Capacity":<7} {"Exp":>4}`', value='\u200b', inline=False)
-        # for match in models.Match.active_list(guild_id=ctx.guild.id):
+
         for match in match_list:
 
             notes_str = match.notes if match.notes else "\u200b"
@@ -324,11 +338,21 @@ class matchmaking():
         await ctx.send(embed=embed)
 
     @settings.in_bot_channel()
-    @commands.command()
-    async def startmatch(self, ctx, match: poly_match, *, name: str):
+    @commands.command(usage='match_id Name of Poly Game')
+    async def startmatch(self, ctx, match: poly_match, *, name: str = None):
+        """
+        Start match and track game with ELO bot
+        Use this command after you have created the game in Polytopia.
+        If the game is a compatible type (currently requires two equal teams) the game will be added as an ELO game.
+        **Example:**
+        `[p]startmatch M5 Fields of Fire`
+        """
 
         if not match.is_hosted_by(ctx.author.id) or not settings.is_staff(ctx):
             return await ctx.send(f'Only the match host or server staff can do this.')
+
+        if not name:
+            return await ctx.send(f'Game name is required. Example: `{ctx.prefix}startmatch M{match.id} Name of Game`')
 
         if match.is_started:
             return await ctx.send(f'Match M{match.id} has already started{" with game # " +  match.game.id if match.game else ""}.')
@@ -348,20 +372,74 @@ class matchmaking():
                 team.append(guild_member)
             teams.append(team)
 
-        print(teams)
-
         if len(teams) != 2 or len(teams[0]) != len(teams[1]):
+            logger.info(f'Match M{match.id} started as non-ELO game')
             await ctx.send(f'This match is now marked as started, but will not be tracked as an ELO game since it does not have two equally-sized teams.')
+            match.is_started = True
+            match.save()
         else:
             newgame = models.Game.create_game(teams,
                 name=name, guild_id=ctx.guild.id,
                 require_teams=settings.guild_setting(ctx.guild.id, 'require_teams'))
+            logger.info(f'Match M{match.id} started as ELO game {newgame.id}')
+            match.is_started = True
             match.game = newgame
             match.save()
             await post_newgame_messaging(ctx, game=newgame)
 
-        match.is_started = True
-        match.save()
+    @commands.command(aliases=['rtribes', 'rtribe'], usage='game_size')
+    async def random_tribes(self, ctx, size='1v1'):
+        """Show a random tribe combination for a given game size.
+        This tries to keep the sides roughly equal in power.
+        **Example:**
+        `[p]rtribes 2v2` - Shows Ai-mo/Imperius & Xin-xi/Luxidoor
+        """
+
+        m = re.match(r"(\d+)v(\d+)", size.lower())
+        if m:
+            # arg looks like '3v3'
+            if int(m[1]) != int(m[2]):
+                return await ctx.send(f'Invalid match format {size}. Sides must be equal.')
+            if not 0 < int(m[1]) < 7:
+                return await ctx.send(f'Invalid match size {size}. Accepts 1v1 through 6v6')
+            team_size = int(m[1])
+
+        tribes = [
+            ('Bardur', 1),
+            ('Kickoo', 1),
+            ('Luxidoor', 1),
+            ('Imperius', 1),
+            ('Elyrion', 2),
+            ('Zebasi', 2),
+            ('Hoodrick', 2),
+            ('Aquarion', 2),
+            ('Oumaji', 3),
+            ('Quetzali', 3),
+            ('Vengir', 3),
+            ('Ai-mo', 3),
+            ('Xin-xi', 3)
+        ]
+
+        team_home, team_away = [], []
+
+        tribe_groups = {}
+        for tribe, group in tribes:
+            tribe_groups.setdefault(group, set()).add(tribe)
+
+        available_tribe_groups = list(tribe_groups.values())
+        for _ in range(team_size):
+            available_tribe_groups = [tg for tg in available_tribe_groups if len(tg) >= 2]
+
+            this_tribe_group = random.choice(available_tribe_groups)
+
+            new_home, new_away = random.sample(this_tribe_group, 2)
+            this_tribe_group.remove(new_home)
+            this_tribe_group.remove(new_away)
+
+            team_home.append(new_home)
+            team_away.append(new_away)
+
+        await ctx.send(f'Home Team: {" / ".join(team_home)}\nAway Team: {" / ".join(team_away)}')
 
 
 def setup(bot):

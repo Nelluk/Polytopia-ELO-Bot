@@ -37,7 +37,7 @@ class import_export:
                 try:
                     guild_id = team['guild_id']
                 except KeyError:
-                    guild_id = 478571892832206869
+                    guild_id = 447883341463814144
                 try:
                     with db.atomic():
                         Team.create(name=team['name'], emoji=team['emoji'], image_url=team['image'], guild_id=guild_id)
@@ -48,14 +48,14 @@ class import_export:
                 try:
                     guild_id = tribe['guild_id']
                 except KeyError:
-                    guild_id = 478571892832206869
+                    guild_id = 447883341463814144
                 TribeFlair.upsert(name=tribe['name'], guild_id=guild_id, emoji=tribe['emoji'])
 
             for player in data['players']:
                 try:
                     guild_id = player['guild_id']
                 except KeyError:
-                    guild_id = 478571892832206869
+                    guild_id = 447883341463814144
 
                 if player['team'] is not None:
                     try:
@@ -85,7 +85,7 @@ class import_export:
                 try:
                     guild_id = game['guild_id']
                 except KeyError:
-                    guild_id = 478571892832206869
+                    guild_id = 447883341463814144
 
                 team1, _ = Team.get_or_create(name=game['team1'][0]['team'], guild_id=guild_id)
                 team2, _ = Team.get_or_create(name=game['team2'][0]['team'], guild_id=guild_id)

@@ -752,28 +752,16 @@ class games():
 
         await post_newgame_messaging(ctx, game=newgame)
 
-        # if settings.guild_setting(ctx.guild.id, 'game_channel_category') is not None:
-        #     await newgame.create_squad_channels(ctx)
-
-        # mentions = [p.mention for p in side_home + side_away]
-        # embed = newgame.embed(ctx)
-
-        # if settings.guild_setting(ctx.guild.id, 'game_announce_channel') is not None:
-        #     channel = ctx.guild.get_channel(settings.guild_setting(ctx.guild.id, 'game_announce_channel'))
-        #     if channel is not None:
-        #         await channel.send(f'New game ID {newgame.id} started! Roster: {" ".join(mentions)}')
-        #         announcement = await channel.send(embed=embed)
-        #         await ctx.send(f'New game ID {newgame.id} started! See {channel.mention} for full details.')
-        #         newgame.announcement_message = announcement.id
-        #         newgame.announcement_channel = announcement.channel.id
-        #         newgame.save()
-        #         return
-        # await ctx.send(f'New game ID {newgame.id} started! Roster: {" ".join(mentions)}')
-        # await ctx.send(embed=embed)
-
     @commands.command(aliases=['endgame', 'win'], usage='game_id winner_name')
-    @settings.is_staff_check()
     async def wingame(self, ctx, winning_game: poly_game, winning_side_name: str):
+        """
+        Declare winner of an existing game
+        If you are not a staff member the win will be pending until staff confirms it.
+        Use player name for 1v1 games, otherwise use team names *(Home/Away/etc)*
+        **Example:**
+        `[p]win 5 Ronin` - Declare Ronin winner of game 5
+        `[p]win 5 Nelluk` - Declare Nelluk winner of game 5
+        """
         if winning_game is None:
             return await ctx.send(f'No matching game was found.')
 
@@ -798,7 +786,6 @@ class games():
         except exceptions.MyBaseException as ex:
             return await ctx.send(f'{ex}')
 
-        is_staff = False  # TODO: clear this test line
         winning_game.declare_winner(winning_side=winning_side, confirm=is_staff)
 
         if is_staff:
@@ -1016,45 +1003,13 @@ class games():
 
             await ctx.send('Team **{}** has been renamed to **{}**.'.format(old_team_name, new_team_name))
 
-    @commands.command()
-    @settings.is_staff_check()
-    async def ts(self, ctx, input: int, *, name: str):
+    # @commands.command()
+    # @settings.is_staff_check()
+    # async def ts(self, ctx, input: int, *, name: str):
 
-        print(input)
-        print(name)
-        return
-        import re
-
-        m = re.match(r"\d+(?:(v|vs)\d+)+", input.lower())
-        print(m)
-
-        # vs_split = input.lower().split('v')
-        # print(vs_split)
-        # if all(isinstance(x, int) for x in vs_split):
-        #     print(sum(vs_split))
-        # print('invalid')
-
-        # try:
-        #     vs_split = [int(x) for x in input.lower().split('v')]
-
-        # except ValueError:
-        #     print('invalid')
-        # else:
-        #     print(sum(vs_split))
-        return
-
-        # team_a = Team.get(id=1)
-        # player_list = []
-        # players = Player.get_or_('nelluk', ctx.guild.id)
-        # for p in players:
-        #     player_list.append(p)
-        # teams = [team_a]
-
-        # games = Game.search(team_filter=[teams], player_filter=player_list, status_filter=6)
-        # print(games.count())
-
-        for g in q.dicts():
-            print(g)
+    #     print(input)
+    #     print(name)
+    #     return
 
 
 async def post_win_messaging(ctx, winning_game):

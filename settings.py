@@ -39,7 +39,7 @@ config = {'default':
                       'require_teams': True,
                       'allow_teams': True,
                       'max_team_size': 5,
-                      'command_prefix': '/',
+                      'command_prefix': '//',
                       'bot_channels': [479292913080336397, 481558031281160212, 480078679930830849],
                       'game_request_channel': 481558031281160212,
                       'game_announce_channel': 481558031281160212,
@@ -50,7 +50,7 @@ config = {'default':
                       'require_teams': True,
                       'allow_teams': True,
                       'max_team_size': 5,
-                      'command_prefix': '$',
+                      'command_prefix': '//',
                       'bot_channels': [487303307224940545, 487302138704429087, 487304043786665986, 487222333589815315, 487562981635522570, 447902433964851210],
                       'game_request_channel': 487562981635522570,
                       'game_announce_channel': 487302138704429087,
@@ -97,6 +97,9 @@ def get_matching_roles(discord_member, list_of_role_names):
 
 
 def is_power_user(ctx):
+    if is_staff(ctx):
+        return True
+
     if ctx.guild.id == server_ids['main']:
         minimum_role = discord.utils.get(ctx.guild.roles, name='Amphibian')
         if ctx.author.top_role < minimum_role:
@@ -104,6 +107,22 @@ def is_power_user(ctx):
             return False
     if ctx.guild.id == server_ids['test']:
         minimum_role = discord.utils.get(ctx.guild.roles, name='testers')
+        return ctx.author.top_role >= minimum_role
+
+    return True
+
+
+def is_matchmaking_power_user(ctx):
+    if is_staff(ctx):
+        return True
+
+    if ctx.guild.id == server_ids['main']:
+        minimum_role = discord.utils.get(ctx.guild.roles, name='Archer')
+        if ctx.author.top_role < minimum_role:
+            # await ctx.send('You must attain "Amphibian" role to do this.')
+            return False
+    if ctx.guild.id == server_ids['polychampions']:
+        minimum_role = discord.utils.get(ctx.guild.roles, name='Team Co-Leader')
         return ctx.author.top_role >= minimum_role
 
     return True
