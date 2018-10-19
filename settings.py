@@ -55,7 +55,7 @@ config = {'default':
                       'game_request_channel': 487562981635522570,
                       'game_announce_channel': 487302138704429087,
                       'game_channel_category': 488421911529914368},
-          447883341463814144:                           # Main Server
+          283436219780825088:                           # Main Server
                      {'helper_roles': ['Bot Master', 'Tribe Leader', 'Director', 'Bot Master'],
                       'mod_roles': ['MOD', 'Manager'],
                       'require_teams': False,
