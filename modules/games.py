@@ -65,6 +65,40 @@ class games():
         player.discord_member.save()
         player.generate_display_name(player_name=after.name, player_nick=after.nick)
 
+    @commands.command(usage='game 50 ')
+    @commands.cooldown(2, 30, commands.BucketType.user)
+    async def staffhelp(self, ctx):
+        """
+        Send staff updates/fixes for an ELO game
+        Teams should use this to notify staff of important events with their standard ELO games:
+        restarts, substitutions, tribe choices
+
+        Use `[p]seasongame` if the game is a League/Season game.
+        **Example:**
+        `[p]staffhelp Game 250 renamed to Fields of Fire`
+        `[p]staffhelp Game 250 tribe choices: nelluk ai-mo, koric bardur.`
+        """
+        # Used so that users can submit game information to staff - bot will relay the text in the command to a specific channel.
+        # Staff would then take action and create games. Also use this to notify staff of winners or name changes
+        if settings.guild_setting(ctx.guild.id, 'game_request_channel') is None:
+            return
+        channel = ctx.guild.get_channel(settings.guild_setting(ctx.guild.id, 'game_request_channel'))
+        await channel.send(f'{ctx.message.author} submitted: {ctx.message.clean_content}')
+        await ctx.send('Request has been logged')
+
+    @commands.command(brief='Sends staff details on a League game', usage='Week 2 game vs Mallards started called "Oceans of Fire"')
+    @settings.on_polychampions()
+    @commands.cooldown(2, 30, commands.BucketType.user)
+    async def seasongame(self, ctx):
+        """
+        Teams should use this to notify staff of important events with their League games: names of started games, restarts, substitutions, winners.
+        """
+        # Ping AnarchoRex and send output to #season-drafts when team leaders send in game info
+        channel = ctx.guild.get_channel(447902433964851210)
+        helper_role = discord.utils.get(ctx.guild.roles, name='Season Helper')
+        await channel.send(f'{ctx.message.author} submitted season game INFO <@&{helper_role.id}> <@451212023124983809>: {ctx.message.clean_content}')
+        await ctx.send('Request has been logged')
+
     @commands.command(aliases=['namegame'], usage='game_id "New Name"')
     @settings.is_staff_check()
     async def gamename(self, ctx, game: poly_game, *args):
@@ -503,11 +537,17 @@ class games():
 
             # Search for games by title
             # Any results will be added to player/team results, not restricted by
-            title_query = Game.select().where(Game.name.contains('%'.join(arg_list))).prefetch(SquadGame, Team, Lineup, Player)
-            game_list_titles = utilities.summarize_game_list(title_query[:50])
+            if arg_list:
+                title_query = Game.select().where(
+                    (Game.name.contains('%'.join(arg_list))) & (Game.guild_id == ctx.guild.id)
+                ).prefetch(SquadGame, Team, Lineup, Player)
+
+                game_list_titles = utilities.summarize_game_list(title_query[:50])
+            else:
+                game_list_titles, title_query = [], []
 
             if len(game_list_titles) > 0:
-                results_title.append(f'Including *{" ".join(arg_list)}* in name')
+                results_title.append(f'Including *{" ".join(arg_list)}* in name' if arg_list else '')
 
             # Search for games by all teams or players that appear in args
             player_matches, team_matches = parse_players_and_teams(target_list, ctx.guild.id)
@@ -518,7 +558,8 @@ class games():
             if t_names:
                 results_title.append(f'Including teams: *{"* & *".join(t_names)}*')
 
-            query = Game.search(player_filter=player_matches, team_filter=team_matches)
+            query = Game.search(player_filter=player_matches, team_filter=team_matches, guild_id=ctx.guild.id)
+            print(f'len of player/team query: {len(query)}')
             game_list = game_list_titles + utilities.summarize_game_list(query[:500])
 
             results_str = '\n'.join(results_title)
@@ -1003,13 +1044,30 @@ class games():
 
             await ctx.send('Team **{}** has been renamed to **{}**.'.format(old_team_name, new_team_name))
 
-    # @commands.command()
-    # @settings.is_staff_check()
-    # async def ts(self, ctx, input: int, *, name: str):
+    @commands.command()
+    @commands.is_owner()
+    async def ts(self, ctx, *, args):
 
-    #     print(input)
-    #     print(name)
-    #     return
+        role = discord.utils.get(ctx.guild.roles, name='ELO Player')
+        q = Lineup.select(Lineup.player).group_by(Lineup.player).having(peewee.fn.COUNT('*') > 3)
+        print(len(q))
+        for r in q:
+            # print(r.player.discord_member.discord_id)
+            member = ctx.guild.get_member(r.player.discord_member.discord_id)
+            if not member:
+                print(f'missing member {r.player.name}')
+            else:
+                await member.add_roles(role)
+
+    @commands.command()
+    @commands.is_owner()
+    async def truncate_all(self, ctx, *, confirm: str = None):
+
+        if not confirm or confirm.upper() != 'CONFIRM':
+            return await ctx.send('No confirmation supplied')
+
+        db.execute_sql("TRUNCATE TABLE game, team, player, discordmember, squad CASCADE;")
+        return await ctx.send('**All** game/player/team/match data deleted. I hope you know what you\'re doing!')
 
 
 async def post_win_messaging(ctx, winning_game):

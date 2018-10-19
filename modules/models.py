@@ -141,9 +141,12 @@ class Player(BaseModel):
         except IntegrityError:
             created = False
             player = Player.get(discord_member=discord_member, guild_id=guild_id)
-            player.nick = discord_nick
-            player.name = display_name
-            player.team = team
+            if display_name:
+                player.name = display_name
+            if team:
+                player.team = team
+            if discord_nick:
+                player.nick = discord_nick
             player.save()
 
         return player, created
@@ -1087,7 +1090,11 @@ class Match(BaseModel):
         return None
 
     def size_string(self):
-        return 'v'.join(str(s.size) for s in self.sides)
+        string = 'v'.join(str(s.size) for s in self.sides)
+        if string == '1v1v1' or string == '1v1v1v1' or string == '1v1v1v1v1' or string == '1v1v1v1v1v1':
+            return 'FFA'
+        else:
+            return string
 
     def capacity(self):
         return (len(self.matchplayers), sum(s.size for s in self.sides))

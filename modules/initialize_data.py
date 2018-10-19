@@ -22,7 +22,7 @@ def initialize_data():
 
     tribe_list = ['Bardur', 'Imperius', 'Xin-Xi', 'Oumaji', 'Kickoo', 'Hoodrick', 'Luxidoor', 'Vengir', 'Zebasi', 'Ai-Mo', 'Quetzali', 'Aquarion', 'Elyrion']
 
-    for guild_id in [478571892832206869, 447883341463814144]:
+    for guild_id in [478571892832206869]:
         # 447883341463814144 = Polychampions
         # 478571892832206869 = Nelluk Test Server
 

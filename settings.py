@@ -19,7 +19,7 @@ except KeyError:
 pastebin_key = config['DEFAULT'].get('pastebin_key', None)
 
 server_ids = {'main': 283436219780825088, 'polychampions': 447883341463814144, 'test': 478571892832206869}
-owner_id = 27251063912425062599  # Nelluk
+owner_id = 272510639124250625  # Nelluk
 
 config = {'default':
                      {'helper_roles': ['Helper'],
@@ -39,7 +39,7 @@ config = {'default':
                       'require_teams': True,
                       'allow_teams': True,
                       'max_team_size': 5,
-                      'command_prefix': '//',
+                      'command_prefix': '/',
                       'bot_channels': [479292913080336397, 481558031281160212, 480078679930830849],
                       'game_request_channel': 481558031281160212,
                       'game_announce_channel': 481558031281160212,
@@ -140,7 +140,6 @@ def is_staff(ctx):
 
 
 async def is_mod(ctx):
-    print(f'in is_mod, {ctx.author.id} {owner_id}')
 
     if ctx.author.id == owner_id:
         return True
@@ -163,6 +162,13 @@ def is_mod_check():
 
     def predicate(ctx):
         return is_mod(ctx)
+    return commands.check(predicate)
+
+
+def on_polychampions():
+
+    def predicate(ctx):
+        return ctx.guild.id == server_ids['polychampions']
     return commands.check(predicate)
 
 

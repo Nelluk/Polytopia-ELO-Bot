@@ -62,7 +62,10 @@ class import_export:
                         team = Team.get(name=player['team'], guild_id=guild_id)
                     except peewee.DoesNotExist:
                         logger.warn(f'Cannot add player {player["name"]} to team {player["team"]}')
+                        print(f'Cannot add player {player["name"]} to team {player["team"]}')
                         team = None
+                    else:
+                        print(f'adding to team {team.name}')
                 else:
                     team = None
 
