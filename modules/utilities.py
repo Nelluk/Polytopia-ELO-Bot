@@ -51,10 +51,7 @@ def summarize_game_list(games_query):
         if isinstance(game, models.SquadGame):
             game = game.game  # In case a list of SquadGames is passed instead of a list of Games
         if game.is_completed is False:
-            if game.is_pending:
-                status_str = 'Pending Matchmaking Session'
-            else:
-                status_str = 'Incomplete'
+            status_str = 'Incomplete'
         else:
             if game.is_confirmed is False:
                 status_str = status_str = f'**WINNER** (Unconfirmed): {game.get_winner().name}'

@@ -303,7 +303,7 @@ class matchmaking():
             match_list = models.Match.search(guild_id=ctx.guild.id, player=target, search=arg_str)
 
         else:
-            arg_str = 'All current matches'
+            title_str = 'All current matches'
             match_list = models.Match.active_list(guild_id=ctx.guild.id)
 
         embed = discord.Embed(title=f'{title_str}\nUse `{ctx.prefix}joinmatch M#` to join one or `{ctx.prefix}match M#` for more details.')
@@ -323,14 +323,26 @@ class matchmaking():
     @settings.in_bot_channel()
     @commands.command()
     async def startmatch(self, ctx, match: poly_match, name: str):
+
         if not match.is_hosted_by(ctx.author.id) or not settings.is_staff(ctx):
             return await ctx.send(f'Only the match host or server staff can do this.')
+
+        if match.is_started:
+            return await ctx.send(f'Match M{match.id} has already started{" with game # " +  match.game.id if match.game else ""}.')
+
+        players, capacity = match.capacity()
+        if players != capacity:
+            return await ctx.send(f'Match M{match.id} is not full.\nCapacity {players}/{capacity}.')
+
         teams = []
 
         for side in match.sides:
             team = []
             for matchplayer in side.sideplayers:
-                team.append(matchplayer.player)
+                guild_member = ctx.guild.get_member(matchplayer.player.discord_member.discord_id)
+                if not guild_member:
+                    return await ctx.send(f'Player *{matchplayer.player.name}* not found on this server. (Maybe they left?)')
+                team.append(guild_member)
             teams.append(team)
 
         print(teams)

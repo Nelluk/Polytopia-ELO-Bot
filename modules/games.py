@@ -493,34 +493,37 @@ class games():
         if len(args) == 1 and args[0].upper() == 'ALL':
             query = Game.search(status_filter=1, guild_id=ctx.guild.id)
             list_name = f'All games ({len(query)})'
+            game_list = utilities.summarize_game_list(query[:500])
         else:
             if not target_list:
                 # Target is person issuing command
                 target_list.append(str(ctx.author.id))
 
-        query = Game.select().where(Game.name.contains('%'.join(arg_list)))
+            results_title = []
 
-        if len(query) > 0:
-            if len(query) == 1:
-                # if only one matching game is found, display its embed
-                return await ctx.send(embed=query[0].embed(ctx))
-            else:
-                list_name = f'Games with titles matching *"{" ".join(arg_list)}"*'
-        else:
+            # Search for games by title
+            # Any results will be added to player/team results, not restricted by
+            title_query = Game.select().where(Game.name.contains('%'.join(arg_list))).prefetch(SquadGame, Team, Lineup, Player)
+            game_list_titles = utilities.summarize_game_list(title_query[:50])
+
+            if len(game_list_titles) > 0:
+                results_title.append(f'Including *{" ".join(arg_list)}* in name')
+
+            # Search for games by all teams or players that appear in args
             player_matches, team_matches = parse_players_and_teams(target_list, ctx.guild.id)
             p_names, t_names = [p.name for p in player_matches], [t.name for t in team_matches]
 
+            if p_names:
+                results_title.append(f'Including players: *{"* & *".join(p_names)}*')
+            if t_names:
+                results_title.append(f'Including teams: *{"* & *".join(t_names)}*')
+
             query = Game.search(player_filter=player_matches, team_filter=team_matches)
+            game_list = game_list_titles + utilities.summarize_game_list(query[:500])
 
-            list_name = f'{len(query)} game{"s" if len(query) != 1 else ""} '
-            if len(p_names) > 0:
-                list_name += f'that include *{"* & *".join(p_names)}*'
-                if len(t_names) > 0:
-                    list_name += f'\nIncluding teams: *{"* & *".join(t_names)}*'
-            elif len(t_names) > 0:
-                list_name += f'that include Team *{"* & *".join(t_names)}*'
+            results_str = '\n'.join(results_title)
+            list_name = f'{len(query) + len(title_query)} game{"s" if len(query) != 1 else ""}\n{results_str}'
 
-        game_list = utilities.summarize_game_list(query[:500])
         if len(game_list) == 0:
             await ctx.send(f'No results. See `{ctx.prefix}help games` for usage examples.')
         await utilities.paginate(self.bot, ctx, title=list_name, message_list=game_list, page_start=0, page_end=15, page_size=15)
@@ -1064,6 +1067,28 @@ async def post_win_messaging(ctx, winning_game):
 
     await ctx.send(f'Game concluded! Congrats **{winning_game.get_winner().name}**. Roster: {" ".join(player_mentions)}')
     await ctx.send(embed=embed)
+
+
+# async def post_game_setup(ctx, new_game):
+
+#     if settings.guild_setting(ctx.guild.id, 'game_channel_category') is not None:
+#             await newgame.create_squad_channels(ctx)
+
+#         mentions = [p.mention for p in side_home + side_away]
+#         embed = newgame.embed(ctx)
+
+#         if settings.guild_setting(ctx.guild.id, 'game_announce_channel') is not None:
+#             channel = ctx.guild.get_channel(settings.guild_setting(ctx.guild.id, 'game_announce_channel'))
+#             if channel is not None:
+#                 await channel.send(f'New game ID {newgame.id} started! Roster: {" ".join(mentions)}')
+#                 announcement = await channel.send(embed=embed)
+#                 await ctx.send(f'New game ID {newgame.id} started! See {channel.mention} for full details.')
+#                 newgame.announcement_message = announcement.id
+#                 newgame.announcement_channel = announcement.channel.id
+#                 newgame.save()
+#                 return
+#         await ctx.send(f'New game ID {newgame.id} started! Roster: {" ".join(mentions)}')
+#         await ctx.send(embed=embed)
 
 
 def parse_players_and_teams(input_list, guild_id: int):
