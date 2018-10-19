@@ -28,10 +28,10 @@ import re
 import inspect
 import itertools
 import logging
+import settings
 
 logger = logging.getLogger('polybot.' + __name__)
 # import traceback
-# from modules.elo_games import in_bot_channel as in_bot_channel
 
 
 empty = u'\u200b'
@@ -400,7 +400,7 @@ class Help(formatter.HelpFormatter):
                                   color=color, author=self.author)
         return embed
 
-    # @in_bot_channel()
+    @settings.in_bot_channel()
     @commands.command(name='help', pass_context=True, hidden=True)
     async def help(self, ctx, *cmds: str):
         if not ctx.message.author.permissions_in(ctx.channel).embed_links:

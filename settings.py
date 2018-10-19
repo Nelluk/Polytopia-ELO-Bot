@@ -140,6 +140,7 @@ def is_staff(ctx):
 
 
 async def is_mod(ctx):
+    print(f'in is_mod, {ctx.author.id} {owner_id}')
 
     if ctx.author.id == owner_id:
         return True
