@@ -46,7 +46,7 @@ class matchmaking():
                 logger.error(f'Invalid Match ID "{match_id}".')
                 return None
 
-    @settings.in_bot_channel()
+    # @settings.in_bot_channel()
     @commands.command(usage='size expiration rules')
     async def openmatch(self, ctx, *, args):
 
@@ -119,7 +119,7 @@ class matchmaking():
         `[p]matchside m25 2 Ronin` - Names side 2 of Match M25 as 'The Ronin'
         """
 
-        if not match.is_hosted_by(ctx.author.id) or not settings.is_staff(ctx):
+        if not match.is_hosted_by(ctx.author.id) and not settings.is_staff(ctx):
             return await ctx.send(f'Only the match host or server staff can do this.')
 
         # TODO: Have this command also allow side re-ordering
@@ -135,7 +135,7 @@ class matchmaking():
 
         return await ctx.send(f'Side {matchside.position} for Match M{match.id} has been named "{args}"')
 
-    @settings.in_bot_channel()
+    # @settings.in_bot_channel()
     @commands.command(usage='match_id')
     async def match(self, ctx, match: poly_match):
         """Display details on a match"""
@@ -147,7 +147,7 @@ class matchmaking():
         embed, content = match.embed(ctx)
         await ctx.send(embed=embed, content=content)
 
-    @settings.in_bot_channel()
+    # @settings.in_bot_channel()
     @commands.command(usage='match_id', aliases=['join'])
     async def joinmatch(self, ctx, match: poly_match, *args):
         """
@@ -253,7 +253,7 @@ class matchmaking():
         """
         if match is None:
             return await ctx.send(f'No matching match was found. Use {ctx.prefix}listmatches to see available matches.')
-        if not match.is_hosted_by(ctx.author.id) or not settings.is_staff(ctx):
+        if not match.is_hosted_by(ctx.author.id) and not settings.is_staff(ctx):
             return await ctx.send(f'Only the match host or server staff can do this.')
 
         if match.is_started:
@@ -295,7 +295,7 @@ class matchmaking():
         else:
             return await ctx.send(f'You only have permission to delete your own matches.')
 
-    @settings.in_bot_channel()
+    # @settings.in_bot_channel()
     @commands.command(aliases=['listmatches', 'matchlist', 'openmatches', 'listmatch'])
     async def matches(self, ctx, *args):
         """
@@ -339,7 +339,7 @@ class matchmaking():
                 value=f'{notes_str}')
         await ctx.send(embed=embed)
 
-    @settings.in_bot_channel()
+    # @settings.in_bot_channel()
     @commands.command(usage='match_id Name of Poly Game')
     async def startmatch(self, ctx, match: poly_match, *, name: str = None):
         """
@@ -350,7 +350,7 @@ class matchmaking():
         `[p]startmatch M5 Fields of Fire`
         """
 
-        if not match.is_hosted_by(ctx.author.id) or not settings.is_staff(ctx):
+        if not match.is_hosted_by(ctx.author.id) and not settings.is_staff(ctx):
             return await ctx.send(f'Only the match host or server staff can do this.')
 
         if not name:
@@ -378,10 +378,14 @@ class matchmaking():
         if len(teams) != 2 or len(teams[0]) != len(teams[1]):
             logger.info(f'Match M{match.id} started as non-ELO game')
             notes_str = f'\n**Notes:** {match.notes}' if match.notes else ''
-            await ctx.send(f'Match M{match.id} started as non-ELO game "**{name.title()}**.\nRoster: {" ".join(mentions)}{notes_str}'
+            await ctx.send(f'Match M{match.id} started as non-ELO game "**{name.title()}**."\nRoster: {" ".join(mentions)}{notes_str}'
                 '\nThis match is now marked as started, but will not be tracked as an ELO game since it does not have two equally-sized teams.')
+
             match.is_started = True
             match.save()
+
+            embed, content = match.embed(ctx)
+            await ctx.send(embed=embed, content=content)
         else:
             newgame = models.Game.create_game(teams,
                 name=name, guild_id=ctx.guild.id,
