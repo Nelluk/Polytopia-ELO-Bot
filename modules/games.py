@@ -563,12 +563,16 @@ class games():
             if t_names:
                 results_title.append(f'Including teams: *{"* & *".join(t_names)}*')
 
-            query = Game.search(player_filter=player_matches, team_filter=team_matches, guild_id=ctx.guild.id)
-            print(f'len of player/team query: {len(query)}')
-            game_list = game_list_titles + utilities.summarize_game_list(query[:500])
-
             results_str = '\n'.join(results_title)
-            list_name = f'{len(query) + len(title_query)} game{"s" if len(query) != 1 else ""}\n{results_str}'
+
+            if len(p_names) + len(t_names) > 0:
+                query = Game.search(player_filter=player_matches, team_filter=team_matches, guild_id=ctx.guild.id)
+                print(f'len of player/team query: {len(query)}')
+                game_list = game_list_titles + utilities.summarize_game_list(query[:500])
+                list_name = f'{len(query) + len(title_query)} game{"s" if len(query) + len(title_query) != 1 else ""}\n{results_str}'
+            else:
+                game_list = game_list_titles
+                list_name = f'{len(title_query)} game{"s" if len(title_query) != 1 else ""}\n{results_str}'
 
         if len(game_list) == 0:
             await ctx.send(f'No results. See `{ctx.prefix}help games` for usage examples.')
@@ -1068,16 +1072,22 @@ class games():
     @commands.is_owner()
     async def ts(self, ctx, *, args):
 
-        role = discord.utils.get(ctx.guild.roles, name='ELO Player')
-        q = Lineup.select(Lineup.player).group_by(Lineup.player).having(peewee.fn.COUNT('*') > 3)
-        print(len(q))
-        for r in q:
-            # print(r.player.discord_member.discord_id)
-            member = ctx.guild.get_member(r.player.discord_member.discord_id)
-            if not member:
-                print(f'missing member {r.player.name}')
+        q = SquadGame.select().join(Game).where(
+            (SquadGame.game.is_completed == 0) & (SquadGame.team_chan.is_null(True))
+        )
+        for sg in q:
+            team = sg.team.name.replace('The', '').strip()
+            channels = ctx.guild.channels
+            print(f'{sg.id} {sg.game_id} {sg.game.name}')
+            for c in channels:
+                if team.lower() in c.name and str(sg.game_id) in c.name and len(str(sg.game_id)) == 3:
+                    # sg.team_chan = c.id
+                    # sg.save()
+                    print(c.name)
+                    break
             else:
-                await member.add_roles(role)
+                print('None found')
+
 
     @commands.command()
     @commands.is_owner()

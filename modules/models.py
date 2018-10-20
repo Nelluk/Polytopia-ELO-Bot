@@ -389,6 +389,8 @@ class Game(BaseModel):
         for squadgame in self.squads:
             if squadgame.team_chan:
                 await channels.delete_squad_channel(ctx, channel_id=squadgame.team_chan)
+                squadgame.team_chan = None
+                squadgame.save()
 
     async def update_squad_channels(self, ctx):
 
@@ -1037,7 +1039,7 @@ class Lineup(BaseModel):
         elo_delta += elo_bonus
 
         # print(f'Player chance of winning: {chance_of_winning} opponent elo:{opponent_elo} my_side_elo: {my_side_elo},'
-                # f'elo_delta {elo_delta}, current_player_elo {self.player.elo}, new_player_elo {int(self.player.elo + elo_delta)}')
+        # f'elo_delta {elo_delta}, current_player_elo {self.player.elo}, new_player_elo {int(self.player.elo + elo_delta)}')
 
         self.player.elo = int(self.player.elo + elo_delta)
         self.elo_change_player = elo_delta
