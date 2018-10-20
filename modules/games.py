@@ -818,7 +818,7 @@ class games():
             is_staff = False
 
             try:
-                _, _ = winning_game.return_participant(ctx, name=ctx.author.id)
+                _, _ = winning_game.return_participant(ctx, name=str(ctx.author.id))
             except exceptions.MyBaseException as ex:
                 return await ctx.send(f'{ex}\nYou were not a participant in this game.')
 

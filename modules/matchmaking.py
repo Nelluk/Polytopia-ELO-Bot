@@ -144,7 +144,8 @@ class matchmaking():
             return await ctx.send(f'No matching match was found. Use {ctx.prefix}listmatches to see available matches.')
         # if len(match.matchplayer) >= (match.team_size * 2):
         #         await ctx.send(f'Match M{match.id} is now full and the host should start the game with `{ctx.prefix}startmatch M{match.id}`.')
-        await ctx.send(embed=match.embed())
+        embed, content = match.embed(ctx)
+        await ctx.send(embed=embed, content=content)
 
     @settings.in_bot_channel()
     @commands.command(usage='match_id', aliases=['join'])
@@ -209,8 +210,9 @@ class matchmaking():
         if players >= capacity:
             await ctx.send(f'Match M{match.id} is now full and the host <@{match.host.discord_member.discord_id}> should start the game.\n'
                 f'Once game is started in Polytopia track it in the bot with `{ctx.prefix}startmatch M{match.id} Name of Game`.')
-            # TODO: output correct ordering
-        await ctx.send(embed=match.embed())
+        # TODO: output correct ordering
+        embed, content = match.embed(ctx)
+        await ctx.send(embed=embed, content=content)
 
     @commands.command(usage='match_id', aliases=['leave'])
     async def leavematch(self, ctx, match: poly_match):
@@ -361,7 +363,7 @@ class matchmaking():
         if players != capacity:
             return await ctx.send(f'Match M{match.id} is not full.\nCapacity {players}/{capacity}.')
 
-        teams = []
+        teams, mentions = [], []
 
         for side in match.sides:
             team = []
@@ -370,11 +372,14 @@ class matchmaking():
                 if not guild_member:
                     return await ctx.send(f'Player *{matchplayer.player.name}* not found on this server. (Maybe they left?)')
                 team.append(guild_member)
+                mentions.append(guild_member.mention)
             teams.append(team)
 
         if len(teams) != 2 or len(teams[0]) != len(teams[1]):
             logger.info(f'Match M{match.id} started as non-ELO game')
-            await ctx.send(f'This match is now marked as started, but will not be tracked as an ELO game since it does not have two equally-sized teams.')
+            notes_str = f'\n**Notes:** {match.notes}' if match.notes else ''
+            await ctx.send(f'Match M{match.id} started as non-ELO game "**{name.title()}**.\nRoster: {" ".join(mentions)}{notes_str}'
+                '\nThis match is now marked as started, but will not be tracked as an ELO game since it does not have two equally-sized teams.')
             match.is_started = True
             match.save()
         else:

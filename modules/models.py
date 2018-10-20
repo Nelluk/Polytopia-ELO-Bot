@@ -1099,26 +1099,51 @@ class Match(BaseModel):
     def capacity(self):
         return (len(self.matchplayers), sum(s.size for s in self.sides))
 
-    def embed(self):
+    def embed(self, ctx):
         embed = discord.Embed(title=f'Match **M{self.id}**\n{self.size_string()} *hosted by* {self.host.name}')
         notes_str = self.notes if self.notes else "\u200b"
         expiration = int((self.expiration - datetime.datetime.now()).total_seconds() / 3600.0)
 
-        embed.add_field(name='Notes', value=notes_str, inline=False)
+        players, capacity = self.capacity()
+        if players >= capacity:
+            if self.is_started:
+                footer_str = f'Started - Game # {self.game.id} **{self.game.name}**' if self.game else 'Started'
+            else:
+                content_str = f'This match is now full and the host should create the game in Polytopia and start it with `{ctx.prefix}startmatch M{self.id} Name of Game`'
+                footer_str = 'Full - Waiting to start'
+        else:
+            if self.expiration < datetime.datetime.now():
+                footer_str = 'Expired'
+            else:
+                footer_str = f'Open - `{ctx.prefix}join M{self.id}`'
+        embed.add_field(name='Status', value=footer_str, inline=True)
+
+        # if self.is_started:
+        #     game_name = f'ID {self.game.id} **{self.game.name}**' if self.game else '\u200b'
+        #     embed.add_field(name='Game Started', value=game_name, inline=True)
+
+        content_str = None
         embed.add_field(name='Expires in', value=f'{expiration} hours', inline=True)
+        embed.add_field(name='Notes', value=notes_str, inline=False)
         embed.add_field(name='\u200b', value='\u200b', inline=False)
 
         for side in self.sides:
             # TODO: this wont print in side.position order if they have been saved() in odd order after creation
             side_name = ': **' + side.name + '**' if side.name else ''
             side_capacity = side.capacity()
+            capacity += side_capacity[1]
             player_list = []
             for matchplayer in side.sorted_players():
+                players += 1
                 player_list.append(f'**{matchplayer.player.name}** ({matchplayer.player.elo})\n{matchplayer.player.discord_member.polytopia_id}')
             player_str = '\u200b' if not player_list else '\n'.join(player_list)
             embed.add_field(name=f'__Side {side.position}__{side_name} *({side_capacity[0]}/{side_capacity[1]})*', value=player_str)
 
-        return embed
+        if players >= capacity and not self.is_started:
+            content_str = f'This match is now full and the host should create the game in Polytopia and start it with `{ctx.prefix}startmatch M{self.id} Name of Game`'
+
+        # embed.set_footer(text=footer_str)
+        return embed, content_str
 
     def first_open_side(self):
         for side in self.sides:
