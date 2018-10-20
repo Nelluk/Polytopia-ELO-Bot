@@ -690,7 +690,7 @@ class games():
     async def losses(self, ctx, *args):
         """List incomplete games for you or other players
         If any players names are listed, the first played is who the loss is checked against. If no players listed, then the first team listed is checked for the loss.
-        **Example:**
+        **Examples:**
         `[p]losses` - Lists all games you have lost
         `[p]losses anarchoRex` - Lists all losses for player anarchoRex
         `[p]losses anarchoRex Nelluk` - Lists all games for both players, in which the first player is the loser
@@ -725,8 +725,16 @@ class games():
             await ctx.send(f'No results. See `{ctx.prefix}help losses` for usage examples.')
         await utilities.paginate(self.bot, ctx, title=list_name, message_list=game_list, page_start=0, page_end=10, page_size=10)
 
-    @commands.command(aliases=['newgame'], brief='Helpers: Sets up a new game to be tracked', usage='"Name of Game" player1 player2 vs player3 player4')
+    @commands.command(aliases=['newgame'], usage='"Name of Game" player1 player2 vs player3 player4')
     async def startgame(self, ctx, game_name: str, *args):
+        """Adds a new game to the bot for tracking
+
+        **Examples:**
+        `[p]startgame "Name of Game" nelluk vs koric` - Sets up a 1v1 game
+        `[p]startgame "Name of Game" koric` - Sets up a 1v1 game versus yourself and koric (shortcut)
+        `[p]startgame "Name of Game" nelluk frodakcin vs bakalol ben` - Sets up a 2v2 game
+        """
+
         side_home, side_away = [], []
         example_usage = (f'Example usage:\n`{ctx.prefix}startgame "Name of Game" player2`- Starts a 1v1 game between yourself and player2'
             f'\n`{ctx.prefix}startgame "Name of Game" player1 player2 VS player3 player4` - Start a 2v2 game')
@@ -834,6 +842,13 @@ class games():
             await post_win_messaging(ctx, winning_game)
         else:
             await ctx.send(f'Game {winning_game.id} concluded pending staff confirmation of winner **{winning_game.get_winner().name}**')
+
+            if settings.guild_setting(ctx.guild.id, 'game_request_channel') is None:
+                return
+            channel = ctx.guild.get_channel(settings.guild_setting(ctx.guild.id, 'game_request_channel'))
+            await channel.send(f'{ctx.message.author} submitted game winner: Game {winning_game.id} - Winner: **{winning_game.get_winner().name}**'
+                f'\nUse `{ctx.prefix}confirm {winning_game.id}` to confirm win.'
+                f'\nUse `{ctx.prefix}confirm` to list all games awaiting confirmation.')
 
     @commands.command(aliases=['confirmgame'], usage='game_id')
     @settings.is_staff_check()
