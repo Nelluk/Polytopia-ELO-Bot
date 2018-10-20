@@ -50,7 +50,7 @@ config = {'default':
                       'require_teams': True,
                       'allow_teams': True,
                       'max_team_size': 5,
-                      'command_prefix': '//',
+                      'command_prefix': '$',
                       'bot_channels': [487303307224940545, 487302138704429087, 487304043786665986, 487222333589815315, 487562981635522570, 447902433964851210],
                       'game_request_channel': 487562981635522570,
                       'game_announce_channel': 487302138704429087,

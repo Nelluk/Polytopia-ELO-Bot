@@ -922,17 +922,12 @@ class Squad(BaseModel):
 
     def get_record(self):
 
-        # Filter 1v1 games from results
-        subq = Lineup.select(Lineup.squadgame.game).join(SquadGame).group_by(
-            Lineup.squadgame.game
-        ).having(fn.COUNT('*') > 2)
-
-        wins = Game.select(Game, SquadGame).join(SquadGame).where(
-            (Game.id.in_(subq)) & (Game.is_completed == 1) & (SquadGame.squad == self) & (SquadGame.id == Game.winner)
+        wins = SquadGame.select(SquadGame.id).join(Game).where(
+            (Game.is_completed == 1) & (SquadGame.squad == self) & (SquadGame.id == Game.winner)
         ).count()
 
-        losses = Game.select(Game, SquadGame).join(SquadGame).where(
-            (Game.id.in_(subq)) & (Game.is_completed == 1) & (SquadGame.squad == self) & (SquadGame.id != Game.winner)
+        losses = SquadGame.select(SquadGame.id).join(Game).where(
+            (Game.is_completed == 1) & (SquadGame.squad == self) & (SquadGame.id != Game.winner)
         ).count()
 
         return (wins, losses)
