@@ -449,18 +449,23 @@ class games():
         """Get game code of a player
         Just returns the code and nothing else so it can easily be copied."""
 
-        with db:
-            if not player_string:
-                player_string = str(ctx.author.id)
-            try:
-                player_target = Player.get_or_except(player_string, ctx.guild.id)
-            except exceptions.NoSingleMatch as ex:
-                return await ctx.send(f'{ex}\nCorrect usage: `{ctx.prefix}getcode @Player`')
+        if not player_string:
+            player_string = str(ctx.author.id)
 
-            if player_target.discord_member.polytopia_id:
-                await ctx.send(player_target.discord_member.polytopia_id)
-            else:
-                await ctx.send('User was found but does not have a Polytopia ID on file.')
+        guild_matches = await utilities.get_guild_member(ctx, player_string)
+        if len(guild_matches) == 0:
+            return await ctx.send(f'Could not find any server member matching "{player_string}". Try specifying with an @Mention')
+        elif len(guild_matches) > 1:
+            return await ctx.send(f'Found multiple server members matching "{player_string}". Try specifying with an @Mention')
+        target_discord_member = guild_matches[0]
+
+        with db:
+            discord_member = DiscordMember.get_or_none(discord_id=target_discord_member.id)
+
+        if discord_member and discord_member.polytopia_id:
+            return await ctx.send(discord_member.polytopia_id)
+        else:
+            return await ctx.send(f'Member **{target_discord_member.name}** has no code on file.')
 
     @commands.command(brief='Set in-game name', usage='new_name')
     async def setname(self, ctx, *args):
