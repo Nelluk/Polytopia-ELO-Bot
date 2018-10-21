@@ -10,18 +10,16 @@ import logging
 logger = logging.getLogger('polybot.' + __name__)
 
 
-class games():
-
-    def __init__(self, bot):
-        self.bot = bot
-
-    def poly_game(game_id):
-        # Give game ID integer return matching game or None. Can be used as a converter function for discord command input:
-        # https://discordpy.readthedocs.io/en/rewrite/ext/commands/commands.html#basic-converters
+class PolyGame(commands.Converter):
+    async def convert(self, ctx, game_id):
 
         try:
-            game = Game.get(id=(int(game_id)))
+            game = Game.get(id=int(game_id))
             logger.debug(f'Game with ID {game_id} found.')
+            if game.guild_id != ctx.guild.id:
+                logger.warn('Game does not belong to same guild - returning None')
+                await ctx.send('That game was found but attached to a different Discord Server.')
+                return None
             return game
         except ValueError:
             logger.warn(f'Invalid game ID "{game_id}".')
@@ -29,6 +27,12 @@ class games():
         except peewee.DoesNotExist:
             logger.warn(f'Game with ID {game_id} cannot be found.')
             return None
+
+
+class games():
+
+    def __init__(self, bot):
+        self.bot = bot
 
     async def on_member_update(self, before, after):
         # Updates display name in DB if user changes their discord name or guild nick
@@ -85,7 +89,7 @@ class games():
 
     @commands.command(aliases=['namegame'], usage='game_id "New Name"')
     @settings.is_staff_check()
-    async def gamename(self, ctx, game: poly_game, *args):
+    async def gamename(self, ctx, game: PolyGame, *args):
         """*Staff:* Renames an existing game
         **Example:**
         `[p]gamename 25 Mountains of Fire`
@@ -796,8 +800,8 @@ class games():
 
         await post_newgame_messaging(ctx, game=newgame)
 
-    @commands.command(aliases=['endgame', 'wingame'], usage='game_id winner_name')
-    async def win(self, ctx, winning_game: poly_game, winning_side_name: str):
+    @commands.command(aliases=['endgame', 'wingame', 'winner'], usage='game_id winner_name')
+    async def win(self, ctx, winning_game: PolyGame, winning_side_name: str):
         """
         Declare winner of an existing game
         The win must be confirmed by both winning and losing sides, or by server staff.
@@ -828,33 +832,43 @@ class games():
             if not has_player:
                 return await ctx.send(f'You were not a participant in this game.')
 
-            if winning_game.winner and winning_game.winner != author_side and len(winning_game.squads) == 2:
-                await ctx.send(f'Detected confirmation from losing player. Good game!')
-                confirm_win = True
+            if len(winning_game.squads) == 2:
+                if winning_side == author_side:
+                    # Author declaring their side won
+                    await ctx.send(f'Game {winning_game.id} concluded pending confirmation of winner **{winning_game.get_winner().name}**\n'
+                        f'To confirm, have a losing opponent use the same `{ctx.prefix}wingame` command, or ask server staff to confirm with `{ctx.prefix}staffhelp`')
+                    confirm_win = False
+                else:
+                    # Author declaring their side lost
+                    await ctx.send(f'Detected confirmation from losing side. Good game!')
+                    confirm_win = True
             else:
+                # Game with more than two teams - staff confirmation required. Possibly improve later so that every team can unanimously confirm
+                await ctx.send(f'Since this is a {len(winning_game.squads)}-team game, staff confirmation is required.')
                 confirm_win = False
+
+                # Automatically inform staff of needed confirmation if game_request_channel is enabled
+                if settings.guild_setting(ctx.guild.id, 'game_request_channel'):
+                    channel = ctx.guild.get_channel(settings.guild_setting(ctx.guild.id, 'game_request_channel'))
+                    try:
+                        await channel.send(f'{ctx.message.author} submitted game winner: Game {winning_game.id} - Winner: **{winning_game.get_winner().name}**'
+                            f'\nUse `{ctx.prefix}confirm {winning_game.id}` to confirm win.'
+                            f'\nUse `{ctx.prefix}confirm` to list all games awaiting confirmation.')
+                    except discord.errors.DiscordException:
+                        logger.warn(f'Could not send message to game_request_channel: {settings.guild_setting(ctx.guild.id, "game_request_channel")}')
+                        await ctx.send(f'Use `{ctx.prefix}staffhelp` to request staff confirm the win.')
+                    else:
+                        await ctx.send(f'Staff has automatically been informed of this win and confirming is pending.')
 
         winning_game.declare_winner(winning_side=winning_side, confirm=confirm_win)
 
         if confirm_win:
             # Cleanup game channels and announce winners
             await post_win_messaging(ctx, winning_game)
-        else:
-            await ctx.send(f'Game {winning_game.id} concluded pending confirmation of winner **{winning_game.get_winner().name}**\n'
-                f'To confirm, have a losing opponent use the same `{ctx.prefix}wingame` command, or ask server staff to confirm with `{ctx.prefix}helpstaff`')
-
-            if len(winning_game.squads) != 2:
-                await ctx.send(f'Since this is a {len(winning_game.squads)}-team game, staff confirmation is required and a request has been sent.')
-                if settings.guild_setting(ctx.guild.id, 'game_request_channel') is None:
-                    return
-                channel = ctx.guild.get_channel(settings.guild_setting(ctx.guild.id, 'game_request_channel'))
-                await channel.send(f'{ctx.message.author} submitted game winner: Game {winning_game.id} - Winner: **{winning_game.get_winner().name}**'
-                    f'\nUse `{ctx.prefix}confirm {winning_game.id}` to confirm win.'
-                    f'\nUse `{ctx.prefix}confirm` to list all games awaiting confirmation.')
 
     @commands.command(aliases=['confirmgame'], usage='game_id')
     @settings.is_staff_check()
-    async def confirm(self, ctx, winning_game: poly_game = None):
+    async def confirm(self, ctx, winning_game: PolyGame = None):
         """ List unconfirmed games, or let staff confirm winners
          **Examples**
         `[p]confirm` - List unconfirmed games
@@ -880,12 +894,38 @@ class games():
         await post_win_messaging(ctx, winning_game)
 
     @commands.command(usage='game_id')
+    @settings.is_staff_check()
+    async def unwin(self, ctx, game: PolyGame = None):
+
+        if game is None:
+            return await ctx.send(f'No matching game was found.')
+
+        if game.is_completed and game.is_confirmed:
+            async with ctx.typing():
+                with db:
+                    timestamp = game.completed_ts
+                    game.reverse_elo_changes()
+                    game.completed_ts = None
+                    game.is_confirmed = False
+                    game.is_completed = False
+                    game.winner = None
+                    game.save()
+
+                    Game.recalculate_elo_since(timestamp=timestamp)
+            return await ctx.send(f'Game {game.id} has been marked as *Incomplete*. ELO changes have been reverted and ELO from all subsequent games recalculated.')
+
+        else:
+            return await ctx.send(f'Game {game.id} does not have a confirmed winner.')
+
+    @commands.command(usage='game_id')
     @settings.is_mod_check()
-    async def deletegame(self, ctx, game: poly_game):
+    async def deletegame(self, ctx, game: NullConverter):
         """Mod: Deletes a game and reverts ELO changes"""
 
         if game is None:
             return await ctx.send('No matching game was found.')
+
+        # if game.guild_id != ctx.guild_id
 
         if game.winner:
             await ctx.send(f'Deleting game with ID {game.id} and re-calculating ELO for all subsequent games. This will take a few seconds.')
@@ -896,16 +936,17 @@ class games():
 
         await game.delete_squad_channels(ctx)
 
-        with db:
-            gid = game.id
-            await self.bot.loop.run_in_executor(None, game.delete_game)
-            # Allows bot to remain responsive while this large operation is running.
-            # Can result in funky behavior especially if another operation tries to close DB connection, but seems to still get this operation done reliably
-            await ctx.send(f'Game with ID {gid} has been deleted and team/player ELO changes have been reverted, if applicable.')
+        async with ctx.typing():
+            with db:
+                gid = game.id
+                await self.bot.loop.run_in_executor(None, game.delete_game)
+                # Allows bot to remain responsive while this large operation is running.
+                # Can result in funky behavior especially if another operation tries to close DB connection, but seems to still get this operation done reliably
+                await ctx.send(f'Game with ID {gid} has been deleted and team/player ELO changes have been reverted, if applicable.')
 
     @commands.command(aliases=['settribes'], usage='game_id player_name tribe_name [player2 tribe2 ... ]')
     @settings.is_staff_check()
-    async def settribe(self, ctx, game: poly_game, *args):
+    async def settribe(self, ctx, game: PolyGame, *args):
         """*Staff:* Set tribe of a player for a game
         **Examples**
         `[p]settribe 5 nelluk bardur` - Sets Nelluk to Bardur for game 5
@@ -1066,6 +1107,14 @@ class games():
         game = Game.load_full_game(game_id=206)
         foo = game.has_player(discord_id=1993393706903796)
         print(foo)
+
+    @commands.command()
+    @commands.is_owner()
+    async def recalc_elo(self, ctx):
+
+        async with ctx.typing():
+            await ctx.send('Recalculating ELO for all games in database.')
+            Game.recalculate_all_elo()
 
     @commands.command()
     @commands.is_owner()

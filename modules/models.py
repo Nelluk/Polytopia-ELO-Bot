@@ -585,46 +585,54 @@ class Game(BaseModel):
         return newgame
 
     def reverse_elo_changes(self):
-        for lineup in self.lineup:
-            print(f'game {self.id} pre-revision - player: {lineup.player.elo}')
-            lineup.player.elo += lineup.elo_change_player * -1
-            lineup.player.save()
-            print(f'post-revision - player: {lineup.player.elo}')
-            if lineup.elo_change_discordmember:
-                lineup.player.discord_member.elo += lineup.elo_change_discordmember * -1
+        with db.atomic():
+            for lineup in self.lineup:
+                print(f'game {self.id} pre-revision - player: {lineup.player.elo}')
+                lineup.player.elo += lineup.elo_change_player * -1
+                lineup.player.save()
+                lineup.elo_change_player = 0
+                print(f'post-revision - player: {lineup.player.elo}')
+                if lineup.elo_change_discordmember:
+                    lineup.player.discord_member.elo += lineup.elo_change_discordmember * -1
+                    lineup.elo_change_discordmember = 0
+                lineup.save()
 
-        for squadgame in self.squads:
-            if squadgame.squad:
-                print(f'pre-revision - squad: {squadgame.squad.elo}')
-                squadgame.squad.elo += (squadgame.elo_change_squad * -1)
-                squadgame.squad.save()
-                print(f'post-revision - squad: {squadgame.squad.elo}')
+            for squadgame in self.squads:
+                if squadgame.squad:
+                    print(f'pre-revision - squad: {squadgame.squad.elo}')
+                    squadgame.squad.elo += (squadgame.elo_change_squad * -1)
+                    squadgame.squad.save()
+                    squadgame.elo_change_squad = 0
+                    print(f'post-revision - squad: {squadgame.squad.elo}')
 
-            if squadgame.elo_change_team:
-                print(f'pre-revision - team: {squadgame.team.elo}')
-                squadgame.team.elo += (squadgame.elo_change_team * -1)
-                squadgame.team.save()
-                print(f'post-revision - team: {squadgame.team.elo}')
+                if squadgame.elo_change_team:
+                    print(f'pre-revision - team: {squadgame.team.elo}')
+                    squadgame.team.elo += (squadgame.elo_change_team * -1)
+                    squadgame.team.save()
+                    squadgame.elo_change_team = 0
+                    print(f'post-revision - team: {squadgame.team.elo}')
+
+                squadgame.save()
 
     def delete_game(self):
         # resets any relevant ELO changes to players and teams, deletes related lineup records, and deletes the game entry itself
 
-        if self.winner:
-            self.winner = None
-            recalculate = True
-            since = self.completed_ts
+        with db.atomic():
+            if self.winner:
+                self.winner = None
+                recalculate = True
+                since = self.completed_ts
 
-            self.reverse_elo_changes()
-        else:
-            recalculate = False
+                self.reverse_elo_changes()
+                self.save()
+            else:
+                recalculate = False
 
-        self.save()
+            for lineup in self.lineup:
+                lineup.delete_instance()
 
-        for lineup in self.lineup:
-            lineup.delete_instance()
-
-        for squadgame in self.squads:
-            squadgame.delete_instance()
+            for squadgame in self.squads:
+                squadgame.delete_instance()
 
         self.delete_instance()
 
