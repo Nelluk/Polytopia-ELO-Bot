@@ -10,6 +10,7 @@
 
 # SQLite3 database files:
 *.db*
+*.sql*
 
 config.ini
 

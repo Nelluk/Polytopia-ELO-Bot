@@ -648,6 +648,8 @@ class Game(BaseModel):
         self.save()
 
     def has_player(self, player: Player = None, discord_id: int = None):
+        # if player (or discord_id) was a participant in this game: return True, SquadGame
+        # else, return False, None
         if player:
             discord_id = player.discord_member.discord_id
 

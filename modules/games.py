@@ -46,9 +46,9 @@ class games():
         player.discord_member.save()
         player.generate_display_name(player_name=after.name, player_nick=after.nick)
 
-    @commands.command(aliases=['reqgame'])
+    @commands.command(aliases=['reqgame', 'helpstaff'])
     @commands.cooldown(2, 30, commands.BucketType.user)
-    async def staffhelp(self, ctx):
+    async def staffhelp(self, ctx, *, message: str = None):
         """
         Send staff updates/fixes for an ELO game
         Teams should use this to notify staff of important events with their standard ELO games:
@@ -63,6 +63,9 @@ class games():
         # Staff would then take action and create games. Also use this to notify staff of winners or name changes
         if settings.guild_setting(ctx.guild.id, 'game_request_channel') is None:
             return
+
+        if not message:
+            return await ctx.send(f'You must supply a help request, ie: `{ctx.prefix}staffhelp Game 51, restarted with name "Sweet New Game Name"`')
         channel = ctx.guild.get_channel(settings.guild_setting(ctx.guild.id, 'game_request_channel'))
         await channel.send(f'{ctx.message.author} submitted: {ctx.message.clean_content}')
         await ctx.send('Request has been logged')
@@ -118,7 +121,8 @@ class games():
                 )
 
         if ctx.guild.id != settings.server_ids['polychampions']:
-            await ctx.send('Powered by PolyChampions. League server with a team focus and additional bot features, supporting up to 5v5 play - <https://tinyurl.com/polychampions>')
+            await ctx.send('Powered by PolyChampions. League server with a team focus and competitive player.\n'
+                'Supporting up to 6-player team ELO games and automatic team channels. - <https://tinyurl.com/polychampions>')
             # link put behind url shortener to not show big invite embed
         await utilities.paginate(self.bot, ctx, title='**Individual Leaderboards**', message_list=leaderboard, page_start=0, page_end=10, page_size=10)
 
@@ -805,40 +809,46 @@ class games():
         if winning_game is None:
             return await ctx.send(f'No matching game was found.')
 
-        if winning_game.is_completed is True:
-            if winning_game.is_confirmed is True:
-                return await ctx.send(f'Game with ID {winning_game.id} is already marked as completed with winner **{winning_game.get_winner().name}**')
-            else:
-                await ctx.send(f'Warning: Unconfirmed game with ID {winning_game.id} had previously been marked with winner **{winning_game.get_winner().name}**')
-
-        if settings.is_staff(ctx):
-            is_staff = True
-        else:
-            is_staff = False
-
-            has_player, _ = winning_game.has_player(discord_id=ctx.author.id)
-            if not has_player:
-                return await ctx.send(f'You were not a participant in this game.')
-
         try:
             winning_obj, winning_side = winning_game.squadgame_by_name(ctx, name=winning_side_name)
         except exceptions.MyBaseException as ex:
             return await ctx.send(f'{ex}')
 
-        winning_game.declare_winner(winning_side=winning_side, confirm=is_staff)
+        if winning_game.is_completed is True:
+            if winning_game.is_confirmed is True:
+                return await ctx.send(f'Game with ID {winning_game.id} is already marked as completed with winner **{winning_game.get_winner().name}**')
+            elif winning_game.winner != winning_side:
+                await ctx.send(f'Warning: Unconfirmed game with ID {winning_game.id} had previously been marked with winner **{winning_game.get_winner().name}**')
 
-        if is_staff:
+        if settings.is_staff(ctx):
+            confirm_win = True
+        else:
+            has_player, author_side = winning_game.has_player(discord_id=ctx.author.id)
+
+            if not has_player:
+                return await ctx.send(f'You were not a participant in this game.')
+
+            if winning_game.winner and winning_game.winner != author_side:
+                await ctx.send(f'Detected confirmation from losing player. Good game!')
+                confirm_win = True
+            else:
+                confirm_win = False
+
+        winning_game.declare_winner(winning_side=winning_side, confirm=confirm_win)
+
+        if confirm_win:
             # Cleanup game channels and announce winners
             await post_win_messaging(ctx, winning_game)
         else:
-            await ctx.send(f'Game {winning_game.id} concluded pending staff confirmation of winner **{winning_game.get_winner().name}**')
+            await ctx.send(f'Game {winning_game.id} concluded pending confirmation of winner **{winning_game.get_winner().name}**\n'
+                f'To confirm, have a losing opponent use the same `{ctx.prefix}wingame` command, or ask server staff to confirm with `{ctx.prefix}helpstaff`')
 
-            if settings.guild_setting(ctx.guild.id, 'game_request_channel') is None:
-                return
-            channel = ctx.guild.get_channel(settings.guild_setting(ctx.guild.id, 'game_request_channel'))
-            await channel.send(f'{ctx.message.author} submitted game winner: Game {winning_game.id} - Winner: **{winning_game.get_winner().name}**'
-                f'\nUse `{ctx.prefix}confirm {winning_game.id}` to confirm win.'
-                f'\nUse `{ctx.prefix}confirm` to list all games awaiting confirmation.')
+            # if settings.guild_setting(ctx.guild.id, 'game_request_channel') is None:
+            #     return
+            # channel = ctx.guild.get_channel(settings.guild_setting(ctx.guild.id, 'game_request_channel'))
+            # await channel.send(f'{ctx.message.author} submitted game winner: Game {winning_game.id} - Winner: **{winning_game.get_winner().name}**'
+            #     f'\nUse `{ctx.prefix}confirm {winning_game.id}` to confirm win.'
+            #     f'\nUse `{ctx.prefix}confirm` to list all games awaiting confirmation.')
 
     @commands.command(aliases=['confirmgame'], usage='game_id')
     @settings.is_staff_check()

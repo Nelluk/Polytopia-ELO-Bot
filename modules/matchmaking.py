@@ -186,7 +186,8 @@ class matchmaking():
             target = args[0]
             side, side_open = match.get_side(lookup=args[1])
             if not side:
-                return await ctx.send(f'Could not find side with "{args[1]}" in match M{match.id}. You can use a side number or name if available.')
+                return await ctx.send(f'Could not find side with "{args[1]}" in match M{match.id}. You can use a side number or name if available.\n'
+                    f'Syntax: `{ctx.prefix}join M{match.id} <player> <side>`')
         else:
             return await ctx.send(f'Invalid command. See `{ctx.prefix}help joinmatch` for usage examples.')
 
