@@ -474,7 +474,14 @@ class Game(BaseModel):
             embed.add_field(value='Powered by **PolyChampions** - https://discord.gg/cX7Ptnv', name='\u200b', inline=False)
             embed.set_author(name='PolyChampions', url='https://discord.gg/cX7Ptnv', icon_url='https://cdn.discordapp.com/emojis/488510815893323787.png?v=1')
 
-        embed.set_footer(text=f'Status: {"Completed" if self.is_completed else "Incomplete"}  -  Creation Date {str(self.date)}')
+        if not self.is_completed:
+            status_str = 'Incomplete'
+        elif self.is_confirmed:
+            status_str = 'Completed'
+        else:
+            status_str = 'Unconfirmed'
+
+        embed.set_footer(text=f'Status: {status_str}  -  Creation Date {str(self.date)}')
 
         return embed, embed_content
 
@@ -577,12 +584,37 @@ class Game(BaseModel):
 
         return newgame
 
+    def reverse_elo_changes(self):
+        for lineup in self.lineup:
+            print(f'game {self.id} pre-revision - player: {lineup.player.elo}')
+            lineup.player.elo += lineup.elo_change_player * -1
+            lineup.player.save()
+            print(f'post-revision - player: {lineup.player.elo}')
+            if lineup.elo_change_discordmember:
+                lineup.player.discord_member.elo += lineup.elo_change_discordmember * -1
+
+        for squadgame in self.squads:
+            if squadgame.squad:
+                print(f'pre-revision - squad: {squadgame.squad.elo}')
+                squadgame.squad.elo += (squadgame.elo_change_squad * -1)
+                squadgame.squad.save()
+                print(f'post-revision - squad: {squadgame.squad.elo}')
+
+            if squadgame.elo_change_team:
+                print(f'pre-revision - team: {squadgame.team.elo}')
+                squadgame.team.elo += (squadgame.elo_change_team * -1)
+                squadgame.team.save()
+                print(f'post-revision - team: {squadgame.team.elo}')
+
     def delete_game(self):
         # resets any relevant ELO changes to players and teams, deletes related lineup records, and deletes the game entry itself
 
         if self.winner:
             self.winner = None
             recalculate = True
+            since = self.completed_ts
+
+            self.reverse_elo_changes()
         else:
             recalculate = False
 
@@ -597,7 +629,7 @@ class Game(BaseModel):
         self.delete_instance()
 
         if recalculate:
-            Game.recalculate_all_elo()
+            Game.recalculate_elo_since(timestamp=since)
 
     def declare_winner(self, winning_side: 'SquadGame', confirm: bool):
 
@@ -787,6 +819,23 @@ class Game(BaseModel):
         ).order_by(-Game.date).prefetch(SquadGame, Team, Lineup, Player)
 
         return game
+
+    def recalculate_elo_since(timestamp):
+        games = Game.select().where(
+            (Game.is_completed == 1) & (Game.completed_ts >= timestamp) & (Game.winner.is_null(False))
+        ).prefetch(SquadGame, Lineup)
+
+        for g in games:
+            with db.atomic():
+                g.reverse_elo_changes()
+                g.is_completed = 0  # To have correct completed game counts for new ELO calculations
+                g.save()
+
+        for g in games:
+            full_game = Game.load_full_game(game_id=g.id)
+            print(f'Calculating ELO for game {g.id}')
+            with db.atomic():
+                full_game.declare_winner(winning_side=full_game.winner, confirm=True)
 
     def recalculate_all_elo():
         # Reset all ELOs to 1000, reset completed game counts, and re-run Game.declare_winner() on all qualifying games
@@ -1023,6 +1072,7 @@ class Lineup(BaseModel):
     squadgame = ForeignKeyField(SquadGame, null=False, backref='lineup', on_delete='CASCADE')
     player = ForeignKeyField(Player, null=False, backref='lineup', on_delete='CASCADE')
     elo_change_player = SmallIntegerField(default=0)
+    elo_change_discordmember = SmallIntegerField(default=0)
 
     def change_elo_after_game(self, my_side_elo, opponent_elo, is_winner):
         # Average(Away Side Elo) is compared to Average(Home_Side_Elo) for calculation - ie all members on a side will have the same elo_delta

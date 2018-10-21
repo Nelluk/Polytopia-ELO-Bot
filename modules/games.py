@@ -796,8 +796,8 @@ class games():
 
         await post_newgame_messaging(ctx, game=newgame)
 
-    @commands.command(aliases=['endgame', 'win'], usage='game_id winner_name')
-    async def wingame(self, ctx, winning_game: poly_game, winning_side_name: str):
+    @commands.command(aliases=['endgame', 'wingame'], usage='game_id winner_name')
+    async def win(self, ctx, winning_game: poly_game, winning_side_name: str):
         """
         Declare winner of an existing game
         The win must be confirmed by both winning and losing sides, or by server staff.
@@ -888,7 +888,7 @@ class games():
             return await ctx.send('No matching game was found.')
 
         if game.winner:
-            await ctx.send(f'Deleting game with ID {game.id} and re-calculating ELO for all games. This will take a few seconds.')
+            await ctx.send(f'Deleting game with ID {game.id} and re-calculating ELO for all subsequent games. This will take a few seconds.')
 
         if game.announcement_message:
             game.name = f'~~{game.name}~~ GAME DELETED'
