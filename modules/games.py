@@ -919,7 +919,7 @@ class games():
 
     @commands.command(usage='game_id')
     @settings.is_mod_check()
-    async def deletegame(self, ctx, game: NullConverter):
+    async def deletegame(self, ctx, game: PolyGame):
         """Mod: Deletes a game and reverts ELO changes"""
 
         if game is None:
