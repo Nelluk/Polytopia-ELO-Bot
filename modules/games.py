@@ -18,28 +18,9 @@ class games():
     def poly_game(game_id):
         # Give game ID integer return matching game or None. Can be used as a converter function for discord command input:
         # https://discordpy.readthedocs.io/en/rewrite/ext/commands/commands.html#basic-converters
-        # all-related records are prefetched
-
-        # This pre-fetches all related game records such as lineups and tribe choices. Works great if you are only reading or updating objects it loads
-        # but this means if you want to, for example, udpate a specific Lineup associated with this game, you need to iterate through them rather than doing
-        # another DB query. The Game object thiat this returns would not be updated to reflect the latter unless it was refreshed from the DB.
 
         try:
-            game = Game.load_full_game(game_id=int(game_id))
-            logger.debug(f'Game with ID {game_id} found.')
-            return game
-        except ValueError:
-            logger.warn(f'Invalid game ID "{game_id}".')
-            return None
-        except peewee.DoesNotExist:
-            logger.warn(f'Game with ID {game_id} cannot be found.')
-            return None
-
-    def poly_game_mini(game_id):
-        # similar to poly_game except no related records are prefetched. Works better for functions like settribe where related records are updated and then displayed
-
-        try:
-            game = Game.get(id=int(game_id))
+            game = Game.get(id=(int(game_id)))
             logger.debug(f'Game with ID {game_id} found.')
             return game
         except ValueError:
@@ -654,7 +635,7 @@ class games():
 
         game_list = utilities.summarize_game_list(query[:500])
         if len(game_list) == 0:
-            await ctx.send(f'No results. See `{ctx.prefix}help incomplete` for usage examples.')
+            return await ctx.send(f'No results. See `{ctx.prefix}help incomplete` for usage examples.')
         await utilities.paginate(self.bot, ctx, title=list_name, message_list=game_list, page_start=0, page_end=10, page_size=10)
 
     @commands.command()
@@ -877,8 +858,6 @@ class games():
             await utilities.paginate(self.bot, ctx, title=f'{len(game_list)} unconfirmed games', message_list=game_list, page_start=0, page_end=15, page_size=15)
             return
 
-        if settings.is_staff(ctx) is False:
-            return await ctx.send('You are not authorized to confirm games')
         if not winning_game.is_completed:
             return await ctx.send(f'Game {winning_game.id} has no declared winner yet.')
         if winning_game.is_confirmed:
@@ -914,7 +893,7 @@ class games():
 
     @commands.command(usage='game_id player_name tribe_name [player2 tribe2 ... ]')
     @settings.is_staff_check()
-    async def settribe(self, ctx, game: poly_game_mini, *args):
+    async def settribe(self, ctx, game: poly_game, *args):
         """*Staff:* Set tribe of a player for a game
         **Examples**
         `[p]settribe 5 nelluk bardur` - Sets Nelluk to Bardur for game 5
