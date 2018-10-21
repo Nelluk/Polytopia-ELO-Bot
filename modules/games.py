@@ -68,7 +68,7 @@ class games():
             return await ctx.send(f'You must supply a help request, ie: `{ctx.prefix}staffhelp Game 51, restarted with name "Sweet New Game Name"`')
         channel = ctx.guild.get_channel(settings.guild_setting(ctx.guild.id, 'game_request_channel'))
         await channel.send(f'{ctx.message.author} submitted: {ctx.message.clean_content}')
-        await ctx.send('Request has been logged')
+        await ctx.send(f'Request has been logged\n**Reminder** Wins are now claimed using the `{ctx.prefix}win` command. See `{ctx.prefix}help win`')
 
     @commands.command(brief='Sends staff details on a League game', usage='Week 2 game vs Mallards started called "Oceans of Fire"')
     @settings.on_polychampions()
@@ -800,7 +800,7 @@ class games():
     async def wingame(self, ctx, winning_game: poly_game, winning_side_name: str):
         """
         Declare winner of an existing game
-        If you are not a staff member the win will be pending until staff confirms it.
+        The win must be confirmed by both winning and losing sides, or by server staff.
         Use player name for 1v1 games, otherwise use team names *(Home/Away/etc)*
         **Example:**
         `[p]win 5 Ronin` - Declare Ronin winner of game 5
@@ -828,7 +828,7 @@ class games():
             if not has_player:
                 return await ctx.send(f'You were not a participant in this game.')
 
-            if winning_game.winner and winning_game.winner != author_side:
+            if winning_game.winner and winning_game.winner != author_side and len(winning_game.squads) == 2:
                 await ctx.send(f'Detected confirmation from losing player. Good game!')
                 confirm_win = True
             else:
@@ -843,12 +843,14 @@ class games():
             await ctx.send(f'Game {winning_game.id} concluded pending confirmation of winner **{winning_game.get_winner().name}**\n'
                 f'To confirm, have a losing opponent use the same `{ctx.prefix}wingame` command, or ask server staff to confirm with `{ctx.prefix}helpstaff`')
 
-            # if settings.guild_setting(ctx.guild.id, 'game_request_channel') is None:
-            #     return
-            # channel = ctx.guild.get_channel(settings.guild_setting(ctx.guild.id, 'game_request_channel'))
-            # await channel.send(f'{ctx.message.author} submitted game winner: Game {winning_game.id} - Winner: **{winning_game.get_winner().name}**'
-            #     f'\nUse `{ctx.prefix}confirm {winning_game.id}` to confirm win.'
-            #     f'\nUse `{ctx.prefix}confirm` to list all games awaiting confirmation.')
+            if len(winning_game.squads) != 2:
+                await ctx.send(f'Since this is a {len(winning_game.squads)}-team game, staff confirmation is required and a request has been sent.')
+                if settings.guild_setting(ctx.guild.id, 'game_request_channel') is None:
+                    return
+                channel = ctx.guild.get_channel(settings.guild_setting(ctx.guild.id, 'game_request_channel'))
+                await channel.send(f'{ctx.message.author} submitted game winner: Game {winning_game.id} - Winner: **{winning_game.get_winner().name}**'
+                    f'\nUse `{ctx.prefix}confirm {winning_game.id}` to confirm win.'
+                    f'\nUse `{ctx.prefix}confirm` to list all games awaiting confirmation.')
 
     @commands.command(aliases=['confirmgame'], usage='game_id')
     @settings.is_staff_check()
