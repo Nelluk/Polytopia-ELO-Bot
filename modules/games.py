@@ -904,7 +904,7 @@ class games():
             await ctx.send(f'Game with ID {gid} has been deleted and team/player ELO changes have been reverted, if applicable.')
 
     @commands.command(usage='game_id player_name tribe_name [player2 tribe2 ... ]')
-    @settings.is_staff_check()
+    @settings.is_staff_check(aliases=['settribes'])
     async def settribe(self, ctx, game: poly_game, *args):
         """*Staff:* Set tribe of a player for a game
         **Examples**
