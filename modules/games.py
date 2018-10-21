@@ -557,7 +557,7 @@ class games():
                 list_name = f'{len(title_query)} game{"s" if len(title_query) != 1 else ""}\n{results_str}'
 
         if len(game_list) == 0:
-            await ctx.send(f'No results. See `{ctx.prefix}help games` for usage examples.')
+            return await ctx.send(f'No results. See `{ctx.prefix}help games` for usage examples.')
         await utilities.paginate(self.bot, ctx, title=list_name, message_list=game_list, page_start=0, page_end=15, page_size=15)
 
     @commands.command(aliases=['completed'])
@@ -596,7 +596,7 @@ class games():
 
         game_list = utilities.summarize_game_list(query[:500])
         if len(game_list) == 0:
-            await ctx.send(f'No results. See `{ctx.prefix}help complete` for usage examples.')
+            return await ctx.send(f'No results. See `{ctx.prefix}help complete` for usage examples.')
         await utilities.paginate(self.bot, ctx, title=list_name, message_list=game_list, page_start=0, page_end=10, page_size=10)
 
     @commands.command()
@@ -674,7 +674,7 @@ class games():
 
         game_list = utilities.summarize_game_list(query[:500])
         if len(game_list) == 0:
-            await ctx.send(f'No results. See `{ctx.prefix}help wins` for usage examples.')
+            return await ctx.send(f'No results. See `{ctx.prefix}help wins` for usage examples.')
         await utilities.paginate(self.bot, ctx, title=list_name, message_list=game_list, page_start=0, page_end=10, page_size=10)
 
     @commands.command(aliases=['loss', 'lose'])
@@ -713,7 +713,7 @@ class games():
 
         game_list = utilities.summarize_game_list(query[:500])
         if len(game_list) == 0:
-            await ctx.send(f'No results. See `{ctx.prefix}help losses` for usage examples.')
+            return await ctx.send(f'No results. See `{ctx.prefix}help losses` for usage examples.')
         await utilities.paginate(self.bot, ctx, title=list_name, message_list=game_list, page_start=0, page_end=10, page_size=10)
 
     @commands.command(aliases=['newgame'], usage='"Name of Game" player1 player2 vs player3 player4')
