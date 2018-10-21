@@ -470,7 +470,7 @@ class Game(BaseModel):
         else:
             embed_content = None
 
-        if ctx.guild.id != 447883341463814144:
+        if ctx.guild.id != settings.server_ids['polychampions']:
             embed.add_field(value='Powered by **PolyChampions** - https://discord.gg/cX7Ptnv', name='\u200b', inline=False)
             embed.set_author(name='PolyChampions', url='https://discord.gg/cX7Ptnv', icon_url='https://cdn.discordapp.com/emojis/488510815893323787.png?v=1')
 
@@ -647,7 +647,19 @@ class Game(BaseModel):
         self.completed_ts = datetime.datetime.now()
         self.save()
 
-    def return_participant(self, ctx, name: str):
+    def has_player(self, player: Player = None, discord_id: int = None):
+        if player:
+            discord_id = player.discord_member.discord_id
+
+        if not discord_id:
+            return (False, None)
+
+        for l in self.lineup:
+            if l.player.discord_member.discord_id == int(discord_id):
+                return (True, l.squadgame)
+        return (False, None)
+
+    def squadgame_by_name(self, ctx, name: str):
         # Given a string representing a player or a team (team name, player name/nick/ID)
         # Return a tuple of the participant and their squadgame, ie Player, SquadGame or Team, Squadgame
 

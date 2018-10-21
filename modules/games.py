@@ -65,7 +65,7 @@ class games():
         player.discord_member.save()
         player.generate_display_name(player_name=after.name, player_nick=after.nick)
 
-    @commands.command(usage='game 50 ')
+    @commands.command(aliases=['reqgame'])
     @commands.cooldown(2, 30, commands.BucketType.user)
     async def staffhelp(self, ctx):
         """
@@ -136,7 +136,7 @@ class games():
                     (f'`{(counter + 1):>3}.` {emoji_str}`{player.name}`', f'`(ELO: {player.elo:4}) W {wins} / L {losses}`')
                 )
 
-        if ctx.guild.id != 447883341463814144:
+        if ctx.guild.id != settings.server_ids['polychampions']:
             await ctx.send('Powered by PolyChampions. League server with a team focus and additional bot features, supporting up to 5v5 play - <https://tinyurl.com/polychampions>')
             # link put behind url shortener to not show big invite embed
         await utilities.paginate(self.bot, ctx, title='**Individual Leaderboards**', message_list=leaderboard, page_start=0, page_end=10, page_size=10)
@@ -514,6 +514,7 @@ class games():
         """
 
         # TODO: remove 'and/&' to remove confusion over game names like Ocean & Prophesy
+        # TODO: would be nice if $games S3W4 Ronin worked - extract team/players first then use whatevers left as a title match?
 
         arg_list = [arg.upper() for arg in args]
 
@@ -834,13 +835,12 @@ class games():
         else:
             is_staff = False
 
-            try:
-                _, _ = winning_game.return_participant(ctx, name=str(ctx.author.id))
-            except exceptions.MyBaseException as ex:
-                return await ctx.send(f'{ex}\nYou were not a participant in this game.')
+            has_player, _ = winning_game.has_player(discord_id=ctx.author.id)
+            if not has_player:
+                return await ctx.send(f'You were not a participant in this game.')
 
         try:
-            winning_obj, winning_side = winning_game.return_participant(ctx, name=winning_side_name)
+            winning_obj, winning_side = winning_game.squadgame_by_name(ctx, name=winning_side_name)
         except exceptions.MyBaseException as ex:
             return await ctx.send(f'{ex}')
 
@@ -1072,22 +1072,9 @@ class games():
     @commands.is_owner()
     async def ts(self, ctx, *, args):
 
-        q = SquadGame.select().join(Game).where(
-            (SquadGame.game.is_completed == 0) & (SquadGame.team_chan.is_null(True))
-        )
-        for sg in q:
-            team = sg.team.name.replace('The', '').strip()
-            channels = ctx.guild.channels
-            print(f'{sg.id} {sg.game_id} {sg.game.name}')
-            for c in channels:
-                if team.lower() in c.name and str(sg.game_id) in c.name and len(str(sg.game_id)) == 3:
-                    # sg.team_chan = c.id
-                    # sg.save()
-                    print(c.name)
-                    break
-            else:
-                print('None found')
-
+        game = Game.load_full_game(game_id=206)
+        foo = game.has_player(discord_id=1993393706903796)
+        print(foo)
 
     @commands.command()
     @commands.is_owner()

@@ -101,6 +101,11 @@ class matchmaking():
         if not team_size:
             return await ctx.send(f'Match size is required. Include argument like *2v2* to specify size')
 
+        server_size_max = settings.guild_setting(ctx.guild.id, 'max_team_size')
+        if max(team_sizes) > server_size_max and ctx.guild.id != settings.server_ids['polychampions']:
+            return await ctx.send(f'Maximium team size on this server is {server_size_max}.\n'
+                'For full functionality with support for up to 6-person teams and team channels check out PolyChampions - <https://tinyurl.com/polychampions>')
+
         match_notes = ' '.join(note_args)[:100]
         notes_str = match_notes if match_notes else "\u200b"
         expiration_timestamp = (datetime.datetime.now() + datetime.timedelta(hours=expiration_hours)).strftime("%Y-%m-%d %H:%M:%S")
@@ -208,8 +213,7 @@ class matchmaking():
 
         players, capacity = match.capacity()
         if players >= capacity:
-            await ctx.send(f'Match M{match.id} is now full and the host <@{match.host.discord_member.discord_id}> should start the game.\n'
-                f'Once game is started in Polytopia track it in the bot with `{ctx.prefix}startmatch M{match.id} Name of Game`.')
+            await ctx.send(f'Match M{match.id} is now full and the host <@{match.host.discord_member.discord_id}> should start the game.')
         # TODO: output correct ordering
         embed, content = match.embed(ctx)
         await ctx.send(embed=embed, content=content)

@@ -38,7 +38,7 @@ config = {'default':
                       'mod_roles': ['role1'],
                       'require_teams': True,
                       'allow_teams': True,
-                      'max_team_size': 5,
+                      'max_team_size': 2,
                       'command_prefix': '/',
                       'bot_channels': [479292913080336397, 481558031281160212, 480078679930830849],
                       'game_request_channel': 480078679930830849,
