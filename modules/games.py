@@ -835,7 +835,7 @@ class games():
             if len(winning_game.squads) == 2:
                 if winning_side == author_side:
                     # Author declaring their side won
-                    await ctx.send(f'Game {winning_game.id} concluded pending confirmation of winner **{winning_game.get_winner().name}**\n'
+                    await ctx.send(f'Game {winning_game.id} concluded pending confirmation of winner **{winning_obj.name}**\n'
                         f'To confirm, have a losing opponent use the same `{ctx.prefix}wingame` command, or ask server staff to confirm with `{ctx.prefix}staffhelp`')
                     confirm_win = False
                 else:
@@ -851,7 +851,7 @@ class games():
                 if settings.guild_setting(ctx.guild.id, 'game_request_channel'):
                     channel = ctx.guild.get_channel(settings.guild_setting(ctx.guild.id, 'game_request_channel'))
                     try:
-                        await channel.send(f'{ctx.message.author} submitted game winner: Game {winning_game.id} - Winner: **{winning_game.get_winner().name}**'
+                        await channel.send(f'{ctx.message.author} submitted game winner: Game {winning_game.id} - Winner: **{winning_obj.name}**'
                             f'\nUse `{ctx.prefix}confirm {winning_game.id}` to confirm win.'
                             f'\nUse `{ctx.prefix}confirm` to list all games awaiting confirmation.')
                     except discord.errors.DiscordException:
