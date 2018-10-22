@@ -12,6 +12,7 @@ async def get_guild_member(ctx, input):
 
         # Find matching Guild member by @Mention or Name. Fall back to case-insensitive search
         # TODO: support Username#Discriminator (ie an @mention without the @)
+        # TODO: use exceptions.NoSingleMatch etc like Player.get_or_except()
 
         guild_matches, substring_matches = [], []
         try:

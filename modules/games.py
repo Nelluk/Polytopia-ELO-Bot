@@ -140,7 +140,7 @@ class games():
         embed = discord.Embed(title='**Team Leaderboard**')
         with db:
             query = Team.select().where(
-                ((Team.name != 'Home') & (Team.name != 'Away') & (Team.guild_id == ctx.guild.id))
+                (Team.is_hidden == 0) & (Team.guild_id == ctx.guild.id)
             ).order_by(-Team.elo)
             for counter, team in enumerate(query):
                 team_role = discord.utils.get(ctx.guild.roles, name=team.name)
@@ -723,6 +723,37 @@ class games():
         if len(game_list) == 0:
             return await ctx.send(f'No results. See `{ctx.prefix}help losses` for usage examples.')
         await utilities.paginate(self.bot, ctx, title=list_name, message_list=game_list, page_start=0, page_end=10, page_size=10)
+
+    @commands.command()
+    async def startgamedev(self, ctx, game_name: str, *args):
+        from itertools import groupby
+
+        player_groups = [list(group) for k, group in groupby(args, lambda x: x.lower() in ('vs', 'versus')) if not k]
+        # split ['foo', 'bar', 'vs', 'baz', 'bat'] into [['foo', 'bar']['baz', 'bat']]
+        print(player_groups)
+        discord_groups = []
+        for group in player_groups:
+            # Convert each arg into a Discord Guild Member and build a new list of lists. Or return if any arg can't be matched.
+            discord_group = []
+            for p in group:
+                guild_matches = await utilities.get_guild_member(ctx, p)
+                if len(guild_matches) == 0:
+                    return await ctx.send(f'Could not match "{p}" to a server member. Try using an @Mention.')
+                if len(guild_matches) > 1:
+                    return await ctx.send(f'More than one server matches found for "{p}". Try being more specific or using an @Mention.')
+                discord_group.append(guild_matches[0])
+            discord_groups.append(discord_group)
+
+        print(discord_groups)
+
+        biggest_team = max(len(group) for group in discord_groups)
+        total_players = sum(len(group) for group in discord_groups)
+        if total_players > 12:
+            return await ctx.send(f'You cannot have more than twelve players.')
+        if biggest_team > settings.guild_setting(ctx.guild.id, 'max_team_size'):
+            return await ctx.send(f'This server has a maximum team size of {settings.guild_setting(ctx.guild.id, "max_team_size")}. For full functionality with support for up to 5-player team games and league play check out PolyChampions.')
+
+        newgame = Game.create_game_DEV(discord_groups, name=game_name, guild_id=ctx.guild.id, require_teams=settings.guild_setting(ctx.guild.id, 'require_teams'))
 
     @commands.command(aliases=['newgame'], usage='"Name of Game" player1 player2 vs player3 player4')
     async def startgame(self, ctx, game_name: str, *args):

@@ -8,9 +8,10 @@ migrator = PostgresqlMigrator(db)
 
 # position = SmallIntegerField(null=False, unique=False, default=1)
 # is_started = BooleanField(default=False)
-elo_change_discordmember = SmallIntegerField(default=0)
+# elo_change_discordmember = SmallIntegerField(default=0)
+is_hidden = BooleanField(default=False)
 
 migrate(
-    migrator.add_column('lineup', 'elo_change_discordmember', elo_change_discordmember),
+    migrator.add_column('team', 'is_hidden', is_hidden),
     # migrator.add_index('matchside', ('match_id', 'position'), True),
 )

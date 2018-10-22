@@ -21,9 +21,10 @@ class BaseModel(Model):
 class Team(BaseModel):
     name = TextField(unique=False, null=False)       # can't store in case insensitive way, need to use ILIKE operator
     elo = SmallIntegerField(default=1000)
-    emoji = TextField(null=False, default='')       # Changed default from nullable/None
+    emoji = TextField(null=False, default='')
     image_url = TextField(null=True)
-    guild_id = BitField(unique=False, null=False)   # Included for possible future expanson
+    guild_id = BitField(unique=False, null=False)    # Included for possible future expanson
+    is_hidden = BooleanField(default=False)             # True / generic team ie Home/Away, False = server team like Ronin
 
     class Meta:
         indexes = ((('name', 'guild_id'), True),)   # Trailing comma is required
@@ -448,6 +449,7 @@ class Game(BaseModel):
         away_team_elo_str, away_squad_elo_str = away_side.elo_strings()
 
         if home_side.team.name == 'Home' and away_side.team.name == 'Away':
+            # TODO: use is_hidden
             # Hide team ELO if its just generic Home/Away
             home_team_elo_str = away_team_elo_str = ''
 
@@ -517,40 +519,85 @@ class Game(BaseModel):
             raise DoesNotExist()
         return res[0]
 
-    def create_game_DEV(discord_members, guild_id, name: str = None, require_teams: bool = False):
-        # discord_members = list of lists [[d1, d2, d3], [d4, d5, d6]]. each item being a discord.Member object
+    def create_game_DEV(discord_groups, guild_id, name: str = None, require_teams: bool = False):
+        # discord_groups = list of lists [[d1, d2, d3], [d4, d5, d6]]. each item being a discord.Member object
 
-        # for each team of discordmembers:
-        #   check for Team Roles
-        #   if any team roles are missing and that setting is required, exit
-        #   if any team roles are mixed, set intermingled_flag
-        #
         generic_teams_short = [('Home', ':stadium:'), ('Away', ':airplane:')]  # For two-team games
-        generic_teams_long = [('Bats', ':bat:'), ('Sharks', ':shark:'), ('Owls', ':owl:'), ('Eagles', ':eagle:'),
-                              ('Tigers', ':tiger:'), ('Lions', ':lion:'), ('Koalas', ':koala:'), ('Bears', ':bear:'),
-                              ('Dogs', ':dog:'), ('Cats', ':cat:'), ('Birds', ':bird:'), ('Spiders', ':spider:')]
+        generic_teams_long = [('Sharks', ':shark:'), ('Owls', ':owl:'), ('Eagles', ':eagle:'), ('Tigers', ':tiger:'),
+                              ('Bears', ':bear:'), ('Koalas', ':koala:'), ('Dogs', ':dog:'), ('Bats', ':bat:'),
+                              ('Lions', ':lion:'), ('Cats', ':cat:'), ('Birds', ':bird:'), ('Spiders', ':spider:')]
 
-        list_of_detected_teams = []
+        list_of_detected_teams, list_of_final_teams, teams_for_each_discord_member = [], [], []
+        intermingled_flag = False
+        # False if all players on each side belong to the same server team, Ronin/Jets.True if players are mixed or on a server without teams
 
-        intermingled_flag = False  # False if all players on each side belong to the same server team, Ronin/Jets.  # True if players are mixed or on a server without teams
-
-        for discord_team in discord_members:
-            same_team, list_of_teams = Player.get_teams_of_players(guild_id=guild_id, list_of_players=discord_team)
+        for discord_group in discord_groups:
+            same_team, list_of_teams = Player.get_teams_of_players(guild_id=guild_id, list_of_players=discord_group)
+            teams_for_each_discord_member.append(list_of_teams)  # [[Team, Team][Team, Team]] for each team that a discord member is associated with, for Player.upsert()
             if None in list_of_teams:
                 if require_teams is True:
                     raise exceptions.CheckFailedError('One or more players listed cannot be matched to a Team (based on Discord Roles). Make sure player has exactly one matching Team role.')
                 else:
-                    # Set this to a home/away game if at least one player has no matching role, AND require_teams == false
+                    # Player(s) can't be matched to team, but server setting allows that.
                     intermingled_flag = True
+                    print('here1')
             if not same_team:
+                # Mixed players within same side
                 intermingled_flag = True
+                print('here2')
 
             if not intermingled_flag:
                 if list_of_teams[0] in list_of_detected_teams:
+                    # Detected team already present (ie. Ronin players vs Ronin players)
                     intermingled_flag = True
+                    print('here3')
                 else:
                     list_of_detected_teams.append(list_of_teams[0])
 
+        if not intermingled_flag:
+            # Use detected server teams for this game
+            assert len(list_of_detected_teams) == len(discord_groups), 'Mismatched lists!'
+            list_of_final_teams = list_of_detected_teams
+        else:
+            # Use Generic Teams
+            if len(discord_groups) == 2:
+                generic_teams = generic_teams_short
+            else:
+                generic_teams = generic_teams_long
+
+            for count in range(len(discord_groups)):
+                team_obj, created = Team.get_or_create(name=generic_teams[count][0], guild_id=guild_id,
+                                                       defaults={'emoji': generic_teams[count][1], 'is_hidden': True})
+                list_of_final_teams.append(team_obj)
+
+        with db:
+            newgame = Game.create(name=name,
+                                  guild_id=guild_id)
+
+            for team_group, allied_team, discord_group in zip(teams_for_each_discord_member, list_of_final_teams, discord_groups):
+                # team_group is each team that the individual discord.Member is associated with on the server, often None
+                # allied_team is the team that this entire group is playing for in this game. Either a Server Team or Generic. Never None.
+
+                player_group = []
+                for team, discord_member in zip(team_group, discord_group):
+                    # Upsert each discord.Member into a Player database object
+                    player_group.append(
+                        Player.upsert(discord_id=discord_member.id, discord_name=discord_member.name, discord_nick=discord_member.nick, guild_id=guild_id, team=team)[0]
+                    )
+
+                # Create Squad records if 2+ players are allied
+                if len(player_group) > 1:
+                    squad = Squad.upsert(player_list=player_group, guild_id=guild_id)
+                else:
+                    squad = None
+
+                squadgame = SquadGame.create(game=newgame, squad=squad, team=allied_team)
+
+                # Create Lineup records
+                for player in player_group:
+                    Lineup.create(game=newgame, squadgame=squadgame, player=player)
+
+        return new game
 
     def create_game(teams, guild_id, name: str = None, require_teams: bool = False):
         # teams = list of lists [[d1, d2, d3], [d4, d5, d6]]. each item being a discord.Member object
