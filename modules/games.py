@@ -87,7 +87,7 @@ class games():
         await channel.send(f'{ctx.message.author} submitted season game INFO <@&{helper_role.id}> <@451212023124983809>: {ctx.message.clean_content}')
         await ctx.send('Request has been logged')
 
-    @commands.command(aliases=['namegame'], usage='game_id "New Name"')
+    @commands.command(aliases=['namegame', 'rename'], usage='game_id "New Name"')
     @settings.is_staff_check()
     async def gamename(self, ctx, game: PolyGame, *args):
         """*Staff:* Renames an existing game
