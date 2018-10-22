@@ -517,6 +517,41 @@ class Game(BaseModel):
             raise DoesNotExist()
         return res[0]
 
+    def create_game_DEV(discord_members, guild_id, name: str = None, require_teams: bool = False):
+        # discord_members = list of lists [[d1, d2, d3], [d4, d5, d6]]. each item being a discord.Member object
+
+        # for each team of discordmembers:
+        #   check for Team Roles
+        #   if any team roles are missing and that setting is required, exit
+        #   if any team roles are mixed, set intermingled_flag
+        #
+        generic_teams_short = [('Home', ':stadium:'), ('Away', ':airplane:')]  # For two-team games
+        generic_teams_long = [('Bats', ':bat:'), ('Sharks', ':shark:'), ('Owls', ':owl:'), ('Eagles', ':eagle:'),
+                              ('Tigers', ':tiger:'), ('Lions', ':lion:'), ('Koalas', ':koala:'), ('Bears', ':bear:'),
+                              ('Dogs', ':dog:'), ('Cats', ':cat:'), ('Birds', ':bird:'), ('Spiders', ':spider:')]
+
+        list_of_detected_teams = []
+
+        intermingled_flag = False  # False if all players on each side belong to the same server team, Ronin/Jets.  # True if players are mixed or on a server without teams
+
+        for discord_team in discord_members:
+            same_team, list_of_teams = Player.get_teams_of_players(guild_id=guild_id, list_of_players=discord_team)
+            if None in list_of_teams:
+                if require_teams is True:
+                    raise exceptions.CheckFailedError('One or more players listed cannot be matched to a Team (based on Discord Roles). Make sure player has exactly one matching Team role.')
+                else:
+                    # Set this to a home/away game if at least one player has no matching role, AND require_teams == false
+                    intermingled_flag = True
+            if not same_team:
+                intermingled_flag = True
+
+            if not intermingled_flag:
+                if list_of_teams[0] in list_of_detected_teams:
+                    intermingled_flag = True
+                else:
+                    list_of_detected_teams.append(list_of_teams[0])
+
+
     def create_game(teams, guild_id, name: str = None, require_teams: bool = False):
         # teams = list of lists [[d1, d2, d3], [d4, d5, d6]]. each item being a discord.Member object
 
