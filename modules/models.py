@@ -165,23 +165,22 @@ class Player(BaseModel):
             member_roles = [x.name for x in discord_member.roles]
             return set(member_roles).intersection(list_of_role_names)
 
-        with db:
-            query = Team.select(Team.name).where(Team.guild_id == guild_id)
-            list_of_teams = [team.name for team in query]               # ['The Ronin', 'The Jets', ...]
-            list_of_matching_teams = []
-            for player in list_of_players:
-                matching_roles = get_matching_roles(player, list_of_teams)
-                if len(matching_roles) == 1:
-                    # TODO: This would be more efficient to do as one query and then looping over the list of teams one time for each player
-                    name = next(iter(matching_roles))
-                    list_of_matching_teams.append(
-                        Team.select().where(
-                            (Team.name == name) & (Team.guild_id == guild_id)
-                        ).get()
-                    )
-                else:
-                    list_of_matching_teams.append(None)
-                    # Would be here if no player Roles match any known teams, -or- if they have more than one match
+        query = Team.select(Team.name).where(Team.guild_id == guild_id)
+        list_of_teams = [team.name for team in query]               # ['The Ronin', 'The Jets', ...]
+        list_of_matching_teams = []
+        for player in list_of_players:
+            matching_roles = get_matching_roles(player, list_of_teams)
+            if len(matching_roles) == 1:
+                # TODO: This would be more efficient to do as one query and then looping over the list of teams one time for each player
+                name = next(iter(matching_roles))
+                list_of_matching_teams.append(
+                    Team.select().where(
+                        (Team.name == name) & (Team.guild_id == guild_id)
+                    ).get()
+                )
+            else:
+                list_of_matching_teams.append(None)
+                # Would be here if no player Roles match any known teams, -or- if they have more than one match
 
             same_team_flag = True if all(x == list_of_matching_teams[0] for x in list_of_matching_teams) else False
             return same_team_flag, list_of_matching_teams
@@ -519,7 +518,7 @@ class Game(BaseModel):
             raise DoesNotExist()
         return res[0]
 
-    def create_game_DEV(discord_groups, guild_id, name: str = None, require_teams: bool = False):
+    def create_game(discord_groups, guild_id, name: str = None, require_teams: bool = False):
         # discord_groups = list of lists [[d1, d2, d3], [d4, d5, d6]]. each item being a discord.Member object
 
         generic_teams_short = [('Home', ':stadium:'), ('Away', ':airplane:')]  # For two-team games
@@ -540,17 +539,14 @@ class Game(BaseModel):
                 else:
                     # Player(s) can't be matched to team, but server setting allows that.
                     intermingled_flag = True
-                    print('here1')
             if not same_team:
                 # Mixed players within same side
                 intermingled_flag = True
-                print('here2')
 
             if not intermingled_flag:
                 if list_of_teams[0] in list_of_detected_teams:
                     # Detected team already present (ie. Ronin players vs Ronin players)
                     intermingled_flag = True
-                    print('here3')
                 else:
                     list_of_detected_teams.append(list_of_teams[0])
 
@@ -570,7 +566,7 @@ class Game(BaseModel):
                                                        defaults={'emoji': generic_teams[count][1], 'is_hidden': True})
                 list_of_final_teams.append(team_obj)
 
-        with db:
+        with db.atomic():
             newgame = Game.create(name=name,
                                   guild_id=guild_id)
 
@@ -599,102 +595,34 @@ class Game(BaseModel):
 
         return newgame
 
-    def create_game(teams, guild_id, name: str = None, require_teams: bool = False):
-        # teams = list of lists [[d1, d2, d3], [d4, d5, d6]]. each item being a discord.Member object
-
-        # Determine what Team guild members are associated with
-        home_team_flag, list_of_home_teams = Player.get_teams_of_players(guild_id=guild_id, list_of_players=teams[0])  # get list of what server team each player is on, eg Ronin, Jets.
-        away_team_flag, list_of_away_teams = Player.get_teams_of_players(guild_id=guild_id, list_of_players=teams[1])
-
-        if (None in list_of_away_teams) or (None in list_of_home_teams):
-            if require_teams is True:
-                raise exceptions.CheckFailedError('One or more players listed cannot be matched to a Team (based on Discord Roles). Make sure player has exactly one matching Team role.')
-            else:
-                # Set this to a home/away game if at least one player has no matching role, AND require_teams == false
-                home_team_flag = away_team_flag = False
-
-        if home_team_flag and away_team_flag:
-            # If all players on both sides are playing with only members of their own Team (server team), those Teams are impacted by the game...
-            home_side_team = list_of_home_teams[0]
-            away_side_team = list_of_away_teams[0]
-
-            if home_side_team == away_side_team:
-                with db:
-                    # If Team Foo is playing against another squad from Team Foo, reset them to 'Home' and 'Away'
-                    home_side_team, _ = Team.get_or_create(name='Home', guild_id=guild_id, defaults={'emoji': ':stadium:'})
-                    away_side_team, _ = Team.get_or_create(name='Away', guild_id=guild_id, defaults={'emoji': ':airplane:'})
-
-        else:
-            # Otherwise the players are "intermingling" and the game just influences two hidden teams in the database called 'Home' and 'Away'
-            with db:
-                home_side_team, _ = Team.get_or_create(name='Home', guild_id=guild_id, defaults={'emoji': ':stadium:'})
-                away_side_team, _ = Team.get_or_create(name='Away', guild_id=guild_id, defaults={'emoji': ':airplane:'})
-
-        with db:
-            newgame = Game.create(name=name,
-                                  guild_id=guild_id)
-
-            side_home_players = []
-            side_away_players = []
-            # Create/update Player records
-            for player_discord, player_team in zip(teams[0], list_of_home_teams):
-                side_home_players.append(
-                    Player.upsert(discord_id=player_discord.id, discord_name=player_discord.name, discord_nick=player_discord.nick, guild_id=guild_id, team=player_team)[0]
-                )
-
-            for player_discord, player_team in zip(teams[1], list_of_away_teams):
-                side_away_players.append(
-                    Player.upsert(discord_id=player_discord.id, discord_name=player_discord.name, discord_nick=player_discord.nick, guild_id=guild_id, team=player_team)[0]
-                )
-
-            # Create/update Squad records
-            home_squad, away_squad = None, None
-            if len(side_home_players) > 1:
-                home_squad = Squad.upsert(player_list=side_home_players, guild_id=guild_id)
-            if len(side_away_players) > 1:
-                away_squad = Squad.upsert(player_list=side_away_players, guild_id=guild_id)
-
-            home_squadgame = SquadGame.create(game=newgame, squad=home_squad, team=home_side_team)
-
-            for p in side_home_players:
-                Lineup.create(game=newgame, squadgame=home_squadgame, player=p)
-
-            away_squadgame = SquadGame.create(game=newgame, squad=away_squad, team=away_side_team)
-
-            for p in side_away_players:
-                Lineup.create(game=newgame, squadgame=away_squadgame, player=p)
-
-        return newgame
-
     def reverse_elo_changes(self):
-        with db.atomic():
-            for lineup in self.lineup:
-                print(f'game {self.id} pre-revision - player: {lineup.player.elo}')
-                lineup.player.elo += lineup.elo_change_player * -1
-                lineup.player.save()
-                lineup.elo_change_player = 0
-                print(f'post-revision - player: {lineup.player.elo}')
-                if lineup.elo_change_discordmember:
-                    lineup.player.discord_member.elo += lineup.elo_change_discordmember * -1
-                    lineup.elo_change_discordmember = 0
-                lineup.save()
+        for lineup in self.lineup:
+            print(f'game {self.id} pre-revision - player: {lineup.player.elo}')
+            lineup.player.elo += lineup.elo_change_player * -1
+            lineup.player.save()
+            lineup.elo_change_player = 0
+            print(f'post-revision - player: {lineup.player.elo}')
+            if lineup.elo_change_discordmember:
+                lineup.player.discord_member.elo += lineup.elo_change_discordmember * -1
+                lineup.elo_change_discordmember = 0
+            lineup.save()
 
-            for squadgame in self.squads:
-                if squadgame.squad:
-                    print(f'pre-revision - squad: {squadgame.squad.elo}')
-                    squadgame.squad.elo += (squadgame.elo_change_squad * -1)
-                    squadgame.squad.save()
-                    squadgame.elo_change_squad = 0
-                    print(f'post-revision - squad: {squadgame.squad.elo}')
+        for squadgame in self.squads:
+            if squadgame.squad:
+                print(f'pre-revision - squad: {squadgame.squad.elo}')
+                squadgame.squad.elo += (squadgame.elo_change_squad * -1)
+                squadgame.squad.save()
+                squadgame.elo_change_squad = 0
+                print(f'post-revision - squad: {squadgame.squad.elo}')
 
-                if squadgame.elo_change_team:
-                    print(f'pre-revision - team: {squadgame.team.elo}')
-                    squadgame.team.elo += (squadgame.elo_change_team * -1)
-                    squadgame.team.save()
-                    squadgame.elo_change_team = 0
-                    print(f'post-revision - team: {squadgame.team.elo}')
+            if squadgame.elo_change_team:
+                print(f'pre-revision - team: {squadgame.team.elo}')
+                squadgame.team.elo += (squadgame.elo_change_team * -1)
+                squadgame.team.save()
+                squadgame.elo_change_team = 0
+                print(f'post-revision - team: {squadgame.team.elo}')
 
-                squadgame.save()
+            squadgame.save()
 
     def delete_game(self):
         # resets any relevant ELO changes to players and teams, deletes related lineup records, and deletes the game entry itself
@@ -716,10 +644,10 @@ class Game(BaseModel):
             for squadgame in self.squads:
                 squadgame.delete_instance()
 
-        self.delete_instance()
+            self.delete_instance()
 
-        if recalculate:
-            Game.recalculate_elo_since(timestamp=since)
+            if recalculate:
+                Game.recalculate_elo_since(timestamp=since)
 
     def declare_winner(self, winning_side: 'SquadGame', confirm: bool):
 
@@ -916,16 +844,14 @@ class Game(BaseModel):
         ).prefetch(SquadGame, Lineup)
 
         for g in games:
-            with db.atomic():
-                g.reverse_elo_changes()
-                g.is_completed = 0  # To have correct completed game counts for new ELO calculations
-                g.save()
+            g.reverse_elo_changes()
+            g.is_completed = 0  # To have correct completed game counts for new ELO calculations
+            g.save()
 
         for g in games:
             full_game = Game.load_full_game(game_id=g.id)
             print(f'Calculating ELO for game {g.id}')
-            with db.atomic():
-                full_game.declare_winner(winning_side=full_game.winner, confirm=True)
+            full_game.declare_winner(winning_side=full_game.winner, confirm=True)
 
     def recalculate_all_elo():
         # Reset all ELOs to 1000, reset completed game counts, and re-run Game.declare_winner() on all qualifying games
@@ -936,23 +862,23 @@ class Game(BaseModel):
 
         logger.warn('Resetting and recalculating all ELO')
 
-        Player.update(elo=1000).execute()
-        Team.update(elo=1000).execute()
-        DiscordMember.update(elo=1000).execute()
-        Squad.update(elo=1000).execute()
+        with db.atomic():
+            Player.update(elo=1000).execute()
+            Team.update(elo=1000).execute()
+            DiscordMember.update(elo=1000).execute()
+            Squad.update(elo=1000).execute()
 
-        Game.update(is_completed=0).where(
-            (Game.is_confirmed == 1) & (Game.winner.is_null(False))
-        ).execute()  # Resets completed game counts for players/squads/team ELO bonuses
+            Game.update(is_completed=0).where(
+                (Game.is_confirmed == 1) & (Game.winner.is_null(False))
+            ).execute()  # Resets completed game counts for players/squads/team ELO bonuses
 
-        games = Game.select().where(
-            (Game.is_completed == 0) & (Game.is_confirmed == 1) & (Game.winner.is_null(False))
-        ).order_by(Game.completed_ts)
+            games = Game.select().where(
+                (Game.is_completed == 0) & (Game.is_confirmed == 1) & (Game.winner.is_null(False))
+            ).order_by(Game.completed_ts)
 
-        for game in games:
-            full_game = Game.load_full_game(game_id=game.id)
-            print(f'Calculating ELO for game {game.id}')
-            with db.atomic():
+            for game in games:
+                full_game = Game.load_full_game(game_id=game.id)
+                print(f'Calculating ELO for game {game.id}')
                 full_game.declare_winner(winning_side=full_game.winner, confirm=True)
 
 

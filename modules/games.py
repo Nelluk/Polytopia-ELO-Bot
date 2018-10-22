@@ -6,6 +6,7 @@ import modules.exceptions as exceptions
 import peewee
 from modules.models import Game, db, Player, Team, DiscordMember, Squad, TribeFlair, Lineup, SquadGame
 import logging
+from itertools import groupby
 
 logger = logging.getLogger('polybot.' + __name__)
 
@@ -99,9 +100,8 @@ class games():
             return await ctx.send('No matching game was found.')
 
         new_game_name = ' '.join(args)
-        with db:
-            game.name = new_game_name.title()
-            game.save()
+        game.name = new_game_name.title()
+        game.save()
 
         await game.update_squad_channels(ctx)
         await game.update_announcement(ctx)
@@ -115,14 +115,13 @@ class games():
         """ Display individual leaderboard"""
 
         leaderboard = []
-        with db:
-            leaderboard_query = Player.leaderboard(date_cutoff=settings.date_cutoff, guild_id=ctx.guild.id)
-            for counter, player in enumerate(leaderboard_query[:500]):
-                wins, losses = player.get_record()
-                emoji_str = player.team.emoji if player.team else ''
-                leaderboard.append(
-                    (f'`{(counter + 1):>3}.` {emoji_str}`{player.name}`', f'`(ELO: {player.elo:4}) W {wins} / L {losses}`')
-                )
+        leaderboard_query = Player.leaderboard(date_cutoff=settings.date_cutoff, guild_id=ctx.guild.id)
+        for counter, player in enumerate(leaderboard_query[:500]):
+            wins, losses = player.get_record()
+            emoji_str = player.team.emoji if player.team else ''
+            leaderboard.append(
+                (f'`{(counter + 1):>3}.` {emoji_str}`{player.name}`', f'`(ELO: {player.elo:4}) W {wins} / L {losses}`')
+            )
 
         if ctx.guild.id != settings.server_ids['polychampions']:
             await ctx.send('Powered by PolyChampions. League server with a team focus and competitive player.\n'
@@ -138,16 +137,17 @@ class games():
         """display team leaderboard"""
         # TODO: Only show number of members who have an ELO ranking?
         embed = discord.Embed(title='**Team Leaderboard**')
-        with db:
-            query = Team.select().where(
-                (Team.is_hidden == 0) & (Team.guild_id == ctx.guild.id)
-            ).order_by(-Team.elo)
-            for counter, team in enumerate(query):
-                team_role = discord.utils.get(ctx.guild.roles, name=team.name)
-                team_name_str = f'**{team.name}**   ({len(team_role.members)})'  # Show team name with number of members
-                wins, losses = team.get_record()
 
-                embed.add_field(name=f'{team.emoji} {(counter + 1):>3}. {team_name_str}\n`ELO: {team.elo:<5} W {wins} / L {losses}`', value='\u200b', inline=False)
+        query = Team.select().where(
+            (Team.is_hidden == 0) & (Team.guild_id == ctx.guild.id)
+        ).order_by(-Team.elo)
+        for counter, team in enumerate(query):
+            team_role = discord.utils.get(ctx.guild.roles, name=team.name)
+            team_name_str = f'**{team.name}**   ({len(team_role.members)})'  # Show team name with number of members
+            wins, losses = team.get_record()
+
+            embed.add_field(name=f'{team.emoji} {(counter + 1):>3}. {team_name_str}\n`ELO: {team.elo:<5} W {wins} / L {losses}`', value='\u200b', inline=False)
+
         await ctx.send(embed=embed)
 
     @settings.in_bot_channel()
@@ -157,17 +157,16 @@ class games():
         """Display squad leaderboard"""
 
         leaderboard = []
-        with db:
-            squads = Squad.leaderboard(date_cutoff=settings.date_cutoff, guild_id=ctx.guild.id)
-            for counter, sq in enumerate(squads[:200]):
-                wins, losses = sq.get_record()
-                squad_members = sq.get_members()
-                emoji_list = [p.team.emoji for p in squad_members if p.team is not None]
-                emoji_string = ' '.join(emoji_list)
-                squad_names = ' / '.join(sq.get_names())
-                leaderboard.append(
-                    (f'`{(counter + 1):>3}.` {emoji_string}`{squad_names}`', f'`(ELO: {sq.elo:4}) W {wins} / L {losses}`')
-                )
+        squads = Squad.leaderboard(date_cutoff=settings.date_cutoff, guild_id=ctx.guild.id)
+        for counter, sq in enumerate(squads[:200]):
+            wins, losses = sq.get_record()
+            squad_members = sq.get_members()
+            emoji_list = [p.team.emoji for p in squad_members if p.team is not None]
+            emoji_string = ' '.join(emoji_list)
+            squad_names = ' / '.join(sq.get_names())
+            leaderboard.append(
+                (f'`{(counter + 1):>3}.` {emoji_string}`{squad_names}`', f'`(ELO: {sq.elo:4}) W {wins} / L {losses}`')
+            )
         await utilities.paginate(self.bot, ctx, title='**Squad Leaderboards**', message_list=leaderboard, page_start=0, page_end=10, page_size=10)
 
     @settings.in_bot_channel()
@@ -179,71 +178,69 @@ class games():
         `[p]squad Nelluk` - squads containing Nelluk
         `[p]squad Nelluk frodakcin` - squad containing both players
         """
-        with db:
-            try:
-                # Argument is an int, so show squad by ID
-                squad_id = int(''.join(args))
-                squad = Squad.get(id=squad_id)
-            except ValueError:
-                squad_id = None
-                # Args is not an int, which means search by game name
-            except peewee.DoesNotExist:
-                await ctx.send('Squad with ID {} cannot be found.'.format(squad_id))
-                return
+        try:
+            # Argument is an int, so show squad by ID
+            squad_id = int(''.join(args))
+            squad = Squad.get(id=squad_id)
+        except ValueError:
+            squad_id = None
+            # Args is not an int, which means search by game name
+        except peewee.DoesNotExist:
+            await ctx.send('Squad with ID {} cannot be found.'.format(squad_id))
+            return
 
-            if squad_id is None:
-                # Search by player names
-                squad_players = []
-                for p_name in args:
+        if squad_id is None:
+            # Search by player names
+            squad_players = []
+            for p_name in args:
 
-                    try:
-                        squad_players.append(Player.get_or_except(p_name, guild_id=ctx.guild.id))
-                    except exceptions.NoSingleMatch as e:
-                        return await ctx.send(e)
+                try:
+                    squad_players.append(Player.get_or_except(p_name, guild_id=ctx.guild.id))
+                except exceptions.NoSingleMatch as e:
+                    return await ctx.send(e)
 
-                squad_list = Squad.get_all_matching_squads(squad_players)
-                if len(squad_list) == 0:
-                    return await ctx.send(f'Found no squads containing players: {" / ".join([p.name for p in squad_players])}')
-                if len(squad_list) > 1:
-                    # More than one matching name found, so display a short list
-                    embed = discord.Embed(title=f'Found {len(squad_list)} matches. Try `{ctx.prefix}squad IDNUM`:')
-                    for squad in squad_list[:10]:
-                        wins, losses = squad.get_record()
-                        embed.add_field(
-                            name=f'`ID {squad.id:>3} - {" / ".join(squad.get_names()):40}`',
-                            value=f'`(ELO: {squad.elo}) W {wins} / L {losses}`',
-                            inline=False
-                        )
-                    return await ctx.send(embed=embed)
+            squad_list = Squad.get_all_matching_squads(squad_players)
+            if len(squad_list) == 0:
+                return await ctx.send(f'Found no squads containing players: {" / ".join([p.name for p in squad_players])}')
+            if len(squad_list) > 1:
+                # More than one matching name found, so display a short list
+                embed = discord.Embed(title=f'Found {len(squad_list)} matches. Try `{ctx.prefix}squad IDNUM`:')
+                for squad in squad_list[:10]:
+                    wins, losses = squad.get_record()
+                    embed.add_field(
+                        name=f'`ID {squad.id:>3} - {" / ".join(squad.get_names()):40}`',
+                        value=f'`(ELO: {squad.elo}) W {wins} / L {losses}`',
+                        inline=False
+                    )
+                return await ctx.send(embed=embed)
 
-                # Exact matching squad found by player name
-                squad = squad_list[0]
+            # Exact matching squad found by player name
+            squad = squad_list[0]
 
-        with db:
-            wins, losses = squad.get_record()
-            rank, lb_length = squad.leaderboard_rank(settings.date_cutoff)
+        wins, losses = squad.get_record()
+        rank, lb_length = squad.leaderboard_rank(settings.date_cutoff)
 
-            if rank is None:
-                rank_str = 'Unranked'
-            else:
-                rank_str = f'{rank} of {lb_length}'
+        if rank is None:
+            rank_str = 'Unranked'
+        else:
+            rank_str = f'{rank} of {lb_length}'
 
-            names_with_emoji = [f'{p.team.emoji} {p.name}' if p.team is not None else f'{p.name}' for p in squad.get_members()]
+        names_with_emoji = [f'{p.team.emoji} {p.name}' if p.team is not None else f'{p.name}' for p in squad.get_members()]
 
-            embed = discord.Embed(title=f'Squad card for Squad {squad.id}\n{"  /  ".join(names_with_emoji)}', value='\u200b')
-            embed.add_field(name='Results', value=f'ELO: {squad.elo},  W {wins} / L {losses}', inline=True)
-            embed.add_field(name='Ranking', value=rank_str, inline=True)
-            recent_games = SquadGame.select(Game).join(Game).where(
-                (SquadGame.squad == squad)
-            ).order_by(-Game.date)
+        embed = discord.Embed(title=f'Squad card for Squad {squad.id}\n{"  /  ".join(names_with_emoji)}', value='\u200b')
+        embed.add_field(name='Results', value=f'ELO: {squad.elo},  W {wins} / L {losses}', inline=True)
+        embed.add_field(name='Ranking', value=rank_str, inline=True)
+        recent_games = SquadGame.select(Game).join(Game).where(
+            (SquadGame.squad == squad)
+        ).order_by(-Game.date)
 
-            embed.add_field(value='\u200b', name='Most recent games', inline=False)
-            game_list = utilities.summarize_game_list(recent_games[:10])
+        embed.add_field(value='\u200b', name='Most recent games', inline=False)
+        game_list = utilities.summarize_game_list(recent_games[:10])
 
-            for game, result in game_list:
-                embed.add_field(name=game, value=result)
+        for game, result in game_list:
+            embed.add_field(name=game, value=result)
 
-            await ctx.send(embed=embed)
+        await ctx.send(embed=embed)
 
     @settings.in_bot_channel()
     @commands.command(brief='See details on a player', usage='player_name', aliases=['elo'])
@@ -255,80 +252,78 @@ class games():
         `[p]player Nelluk` - See Nelluk's card
         """
 
-        with db:
-            if len(args) == 0:
-                # Player looking for info on themselves
-                try:
-                    player = Player.get_or_except(player_string=str(ctx.author.id), guild_id=ctx.guild.id)
-                except exceptions.NoSingleMatch as ex:
-                    return await ctx.send(f'{ex}\nTry setting your code with {ctx.prefix}setcode')
-            else:
-                # Otherwise look for a player matching whatever they entered
-                player_mention = ' '.join(args)
+        if len(args) == 0:
+            # Player looking for info on themselves
+            try:
+                player = Player.get_or_except(player_string=str(ctx.author.id), guild_id=ctx.guild.id)
+            except exceptions.NoSingleMatch as ex:
+                return await ctx.send(f'{ex}\nTry setting your code with {ctx.prefix}setcode')
+        else:
+            # Otherwise look for a player matching whatever they entered
+            player_mention = ' '.join(args)
 
-                try:
-                    player = Player.get_or_except(player_string=player_mention, guild_id=ctx.guild.id)
-                except exceptions.NoMatches:
-                    # No matching name in database. Warn if player is found in guild.
-                    matches = await utilities.get_guild_member(ctx, player_mention)
-                    if len(matches) > 0:
-                        await ctx.send(f'"{player_mention}" was found in the server but is not registered with me. '
-                            f'Players can be registered with `{ctx.prefix}setcode` or being in a new game\'s lineup.')
+            try:
+                player = Player.get_or_except(player_string=player_mention, guild_id=ctx.guild.id)
+            except exceptions.NoMatches:
+                # No matching name in database. Warn if player is found in guild.
+                matches = await utilities.get_guild_member(ctx, player_mention)
+                if len(matches) > 0:
+                    await ctx.send(f'"{player_mention}" was found in the server but is not registered with me. '
+                        f'Players can be registered with `{ctx.prefix}setcode` or being in a new game\'s lineup.')
 
-                    return await ctx.send(f'Could not find \"{player_mention}\" by Discord name, Polytopia name, or Polytopia ID.')
-                except exceptions.TooManyMatches:
-                    return await ctx.send(f'There is more than one player found with name "{player_mention}". Specify user with @Mention.')
+                return await ctx.send(f'Could not find \"{player_mention}\" by Discord name, Polytopia name, or Polytopia ID.')
+            except exceptions.TooManyMatches:
+                return await ctx.send(f'There is more than one player found with name "{player_mention}". Specify user with @Mention.')
 
-        with db:
-            wins, losses = player.get_record()
-            rank, lb_length = player.leaderboard_rank(settings.date_cutoff)
+        wins, losses = player.get_record()
+        rank, lb_length = player.leaderboard_rank(settings.date_cutoff)
 
-            if rank is None:
-                rank_str = 'Unranked'
-            else:
-                rank_str = f'{rank} of {lb_length}'
+        if rank is None:
+            rank_str = 'Unranked'
+        else:
+            rank_str = f'{rank} of {lb_length}'
 
-            embed = discord.Embed(title=f'Player card for {player.name}')
-            embed.add_field(name='Results', value=f'ELO: {player.elo}, W {wins} / L {losses}')
-            embed.add_field(name='Ranking', value=rank_str)
+        embed = discord.Embed(title=f'Player card for {player.name}')
+        embed.add_field(name='Results', value=f'ELO: {player.elo}, W {wins} / L {losses}')
+        embed.add_field(name='Ranking', value=rank_str)
 
-            guild_member = ctx.guild.get_member(player.discord_member.discord_id)
-            if guild_member is not None:
-                embed.set_thumbnail(url=guild_member.avatar_url_as(size=512))
+        guild_member = ctx.guild.get_member(player.discord_member.discord_id)
+        if guild_member is not None:
+            embed.set_thumbnail(url=guild_member.avatar_url_as(size=512))
 
-            if player.team:
-                team_str = f'{player.team.name} {player.team.emoji}' if player.team.emoji else player.team.name
-                embed.add_field(name='Last-known Team', value=team_str)
-            if player.discord_member.polytopia_name:
-                embed.add_field(name='Polytopia Game Name', value=player.discord_member.polytopia_name)
-            if player.discord_member.polytopia_id:
-                embed.add_field(name='Polytopia ID', value=player.discord_member.polytopia_id)
-                content_str = player.discord_member.polytopia_id
-                # Used as a single message before player card so users can easily copy/paste Poly ID
-            else:
-                content_str = ''
+        if player.team:
+            team_str = f'{player.team.name} {player.team.emoji}' if player.team.emoji else player.team.name
+            embed.add_field(name='Last-known Team', value=team_str)
+        if player.discord_member.polytopia_name:
+            embed.add_field(name='Polytopia Game Name', value=player.discord_member.polytopia_name)
+        if player.discord_member.polytopia_id:
+            embed.add_field(name='Polytopia ID', value=player.discord_member.polytopia_id)
+            content_str = player.discord_member.polytopia_id
+            # Used as a single message before player card so users can easily copy/paste Poly ID
+        else:
+            content_str = ''
 
-            favorite_tribes = player.favorite_tribes(limit=3)
+        favorite_tribes = player.favorite_tribes(limit=3)
 
-            if favorite_tribes:
-                tribes_str = ' '.join([f'{t["emoji"] if t["emoji"] else t["name"]} ' for t in favorite_tribes])
-                embed.add_field(value=tribes_str, name='Most-logged Tribes', inline=True)
+        if favorite_tribes:
+            tribes_str = ' '.join([f'{t["emoji"] if t["emoji"] else t["name"]} ' for t in favorite_tribes])
+            embed.add_field(value=tribes_str, name='Most-logged Tribes', inline=True)
 
-            recent_games = Game.search(player_filter=[player])
-            if not recent_games:
-                recent_games_str = 'No games played'
-            else:
-                recent_games_str = f'Most recent games ({len(recent_games)} total):'
-            embed.add_field(value='\u200b', name=recent_games_str, inline=False)
+        recent_games = Game.search(player_filter=[player])
+        if not recent_games:
+            recent_games_str = 'No games played'
+        else:
+            recent_games_str = f'Most recent games ({len(recent_games)} total):'
+        embed.add_field(value='\u200b', name=recent_games_str, inline=False)
 
-            game_list = utilities.summarize_game_list(recent_games[:7])
-            for game, result in game_list:
-                embed.add_field(name=game, value=result)
+        game_list = utilities.summarize_game_list(recent_games[:7])
+        for game, result in game_list:
+            embed.add_field(name=game, value=result)
 
-            if ctx.guild.id != 447883341463814144:
-                embed.add_field(value='Powered by **PolyChampions** - https://discord.gg/cX7Ptnv', name='\u200b', inline=False)
+        if ctx.guild.id != 447883341463814144:
+            embed.add_field(value='Powered by **PolyChampions** - https://discord.gg/cX7Ptnv', name='\u200b', inline=False)
 
-            await ctx.send(content=content_str, embed=embed)
+        await ctx.send(content=content_str, embed=embed)
 
     @settings.in_bot_channel()
     @settings.teams_allowed()
@@ -419,14 +414,13 @@ class games():
 
         _, team_list = Player.get_teams_of_players(guild_id=ctx.guild.id, list_of_players=[target_discord_member])
 
-        with db:
-            player, created = Player.upsert(discord_id=target_discord_member.id,
-                                            discord_name=target_discord_member.name,
-                                            discord_nick=target_discord_member.nick,
-                                            guild_id=ctx.guild.id,
-                                            team=team_list[0])
-            player.discord_member.polytopia_id = new_id
-            player.discord_member.save()
+        player, created = Player.upsert(discord_id=target_discord_member.id,
+                                        discord_name=target_discord_member.name,
+                                        discord_nick=target_discord_member.nick,
+                                        guild_id=ctx.guild.id,
+                                        team=team_list[0])
+        player.discord_member.polytopia_id = new_id
+        player.discord_member.save()
 
         if created:
             await ctx.send('Player {0.name} added to system with Polytopia code {0.discord_member.polytopia_id} and ELO {0.elo}'.format(player))
@@ -448,8 +442,7 @@ class games():
             return await ctx.send(f'Found multiple server members matching "{player_string}". Try specifying with an @Mention')
         target_discord_member = guild_matches[0]
 
-        with db:
-            discord_member = DiscordMember.get_or_none(discord_id=target_discord_member.id)
+        discord_member = DiscordMember.get_or_none(discord_id=target_discord_member.id)
 
         if discord_member and discord_member.polytopia_id:
             return await ctx.send(discord_member.polytopia_id)
@@ -484,10 +477,9 @@ class games():
         except exceptions.NoSingleMatch as ex:
             return await ctx.send(f'{ex}\nCorrect usage: `{ctx.prefix}getcode @Player`')
 
-        with db:
-            player_target.discord_member.polytopia_name = new_name
-            player_target.discord_member.save()
-            await ctx.send(f'Player {player_target.name} updated in system with Polytopia name {new_name}.')
+        player_target.discord_member.polytopia_name = new_name
+        player_target.discord_member.save()
+        await ctx.send(f'Player {player_target.name} updated in system with Polytopia name {new_name}.')
 
     @settings.in_bot_channel()
     @commands.command(aliases=['games'], usage='game_id')
@@ -724,11 +716,20 @@ class games():
             return await ctx.send(f'No results. See `{ctx.prefix}help losses` for usage examples.')
         await utilities.paginate(self.bot, ctx, title=list_name, message_list=game_list, page_start=0, page_end=10, page_size=10)
 
-    @commands.command()
-    async def startgamedev(self, ctx, game_name: str, *args):
+    @commands.command(aliases=['newgame'], usage='"Name of Game" player1 player2 vs player3 player4')
+    async def startgame(self, ctx, game_name: str, *args):
+        """Adds a new game to the bot for tracking
+
+        **Examples:**
+        `[p]startgame "Name of Game" nelluk vs koric` - Sets up a 1v1 game
+        `[p]startgame "Name of Game" koric` - Sets up a 1v1 game versus yourself and koric (shortcut)
+        `[p]startgame "Name of Game" nelluk frodakcin vs bakalol ben` - Sets up a 2v2 game
+        """
+
         example_usage = (f'Example usage: `{ctx.prefix}startgame "Name of Game" player1 player2 VS player3 player4` - Start a 2v2 game')
 
-        from itertools import groupby
+        if not args:
+            return await ctx.send(f'Invalid format. {example_usage}')
 
         player_groups = [list(group) for k, group in groupby(args, lambda x: x.lower() in ('vs', 'versus')) if not k]
         # split ['foo', 'bar', 'vs', 'baz', 'bat'] into [['foo', 'bar']['baz', 'bat']]
@@ -746,7 +747,7 @@ class games():
         if biggest_team > settings.guild_setting(ctx.guild.id, 'max_team_size'):
             return await ctx.send(f'This server has a maximum team size of {settings.guild_setting(ctx.guild.id, "max_team_size")}. For full functionality with support for up to 5-player team games and league play check out PolyChampions.')
 
-        discord_groups = []
+        discord_groups, discord_players_flat = [], []
         author_found = False
         for group in player_groups:
             # Convert each arg into a Discord Guild Member and build a new list of lists. Or return if any arg can't be matched.
@@ -757,9 +758,17 @@ class games():
                     return await ctx.send(f'Could not match "{p}" to a server member. Try using an @Mention.')
                 if len(guild_matches) > 1:
                     return await ctx.send(f'More than one server matches found for "{p}". Try being more specific or using an @Mention.')
-                discord_group.append(guild_matches[0])
+
+                if guild_matches[0] in discord_players_flat:
+                    return await ctx.send('Duplicate players detected. Game not created.')
+                else:
+                    discord_players_flat.append(guild_matches[0])
+
                 if guild_matches[0] == ctx.author:
                     author_found = True
+
+                discord_group.append(guild_matches[0])
+
             discord_groups.append(discord_group)
 
         n = len(discord_groups[0])
@@ -769,88 +778,12 @@ class games():
             else:
                 return await ctx.send('Teams are not the same size. This is not allowed on this server. Game not created.')
 
-        if not all(len(g) == len(set(g)) for g in discord_groups):
-            return await ctx.send('Duplicate players detected. Game not created.')
-
         if not author_found and settings.is_staff(ctx) is False:
             # TODO: possibly allow this in PolyChampions (rickdaheals likes to do this)
             return await ctx.send('You can\'t create a game that you are not a participant in.')
 
-        newgame = Game.create_game_DEV(discord_groups, name=game_name, guild_id=ctx.guild.id, require_teams=settings.guild_setting(ctx.guild.id, 'require_teams'))
-
-    @commands.command(aliases=['newgame'], usage='"Name of Game" player1 player2 vs player3 player4')
-    async def startgame(self, ctx, game_name: str, *args):
-        """Adds a new game to the bot for tracking
-
-        **Examples:**
-        `[p]startgame "Name of Game" nelluk vs koric` - Sets up a 1v1 game
-        `[p]startgame "Name of Game" koric` - Sets up a 1v1 game versus yourself and koric (shortcut)
-        `[p]startgame "Name of Game" nelluk frodakcin vs bakalol ben` - Sets up a 2v2 game
-        """
-
-        side_home, side_away = [], []
-        example_usage = (f'Example usage:\n`{ctx.prefix}startgame "Name of Game" player2`- Starts a 1v1 game between yourself and player2'
-            f'\n`{ctx.prefix}startgame "Name of Game" player1 player2 VS player3 player4` - Start a 2v2 game')
-
-        if len(args) == 1:
-            # Shortcut version for 1v1s:
-            # $startgame "Name of Game" opponent_name
-            guild_matches = await utilities.get_guild_member(ctx, args[0])
-            if len(guild_matches) == 0:
-                return await ctx.send(f'Could not match "{args[0]}" to a server member. Try using an @Mention.')
-            if len(guild_matches) > 1:
-                return await ctx.send(f'More than one server matches found for "{args[0]}". Try being more specific or using an @Mention.')
-            if guild_matches[0] == ctx.author:
-                return await ctx.send(f'Stop playing with yourself!')
-            side_away.append(guild_matches[0])
-            side_home.append(ctx.author)
-
-        elif len(args) > 1:
-            # $startgame "Name of Game" p1 p2 vs p3 p4
-            if not settings.guild_setting(ctx.guild.id, 'allow_teams'):
-                return await ctx.send('Only 1v1 games are enabled on this server. For team ELO games with squad leaderboards check out PolyChampions.')
-            if (not settings.is_power_user(ctx)) and ctx.guild.id != settings.server_ids['polychampions']:
-                return await ctx.send('You have not reached the level required to create 2v2 games.')
-            if len(args) not in [3, 5, 7, 9, 11] or args[int(len(args) / 2)].upper() != 'VS':
-                return await ctx.send(f'Invalid format. {example_usage}')
-
-            for p in args[:int(len(args) / 2)]:         # Args in first half before 'VS', converted to Discord Members
-                guild_matches = await utilities.get_guild_member(ctx, p)
-                if len(guild_matches) == 0:
-                    return await ctx.send(f'Could not match "{p}" to a server member. Try using an @Mention.')
-                if len(guild_matches) > 1:
-                    return await ctx.send(f'More than one server matches found for "{p}". Try being more specific or using an @Mention.')
-                side_home.append(guild_matches[0])
-
-            for p in args[int(len(args) / 2) + 1:]:     # Args in second half after 'VS'
-                guild_matches = await utilities.get_guild_member(ctx, p)
-                if len(guild_matches) == 0:
-                    return await ctx.send(f'Could not match "{p}" to a server member. Try using an @Mention.')
-                if len(guild_matches) > 1:
-                    return await ctx.send(f'More than one server matches found for "{p}". Try being more specific or using an @Mention.')
-                side_away.append(guild_matches[0])
-
-            if len(side_home) > settings.guild_setting(ctx.guild.id, 'max_team_size') or len(side_home) > settings.guild_setting(ctx.guild.id, 'max_team_size'):
-                return await ctx.send('Maximium {0}v{0} games are enabled on this server. For full functionality with support for up to 5v5 games and league play check out PolyChampions.'.format(settings.guild_setting(ctx.guild.id, 'max_team_size')))
-
-        else:
-            return await ctx.send(f'Invalid format. {example_usage}')
-
-        if len(side_home + side_away) > len(set(side_home + side_away)):
-            if settings.guild_setting(ctx.guild.id, 'allow_uneven_teams'):
-                await ctx.send('Duplicate players detected. Are you sure this is what you want? (That means the two sides are uneven.)')
-            else:
-                return await ctx.send('Duplicate players detected. Game not created.')
-
-        if ctx.author not in (side_home + side_away) and settings.is_staff(ctx) is False:
-            # TODO: possibly allow this in PolyChampions (rickdaheals likes to do this)
-            return await ctx.send('You can\'t create a game that you are not a participant in.')
-
         logger.info(f'All input checks passed. Creating new game records with args: {args}')
-
-        newgame = Game.create_game([side_home, side_away],
-            name=game_name, guild_id=ctx.guild.id,
-            require_teams=settings.guild_setting(ctx.guild.id, 'require_teams'))
+        newgame = Game.create_game(discord_groups, name=game_name, guild_id=ctx.guild.id, require_teams=settings.guild_setting(ctx.guild.id, 'require_teams'))
 
         await post_newgame_messaging(ctx, game=newgame)
 
@@ -956,7 +889,7 @@ class games():
 
         if game.is_completed and game.is_confirmed:
             async with ctx.typing():
-                with db:
+                with db.atomic():
                     timestamp = game.completed_ts
                     game.reverse_elo_changes()
                     game.completed_ts = None
@@ -991,12 +924,11 @@ class games():
         await game.delete_squad_channels(ctx)
 
         async with ctx.typing():
-            with db:
-                gid = game.id
-                await self.bot.loop.run_in_executor(None, game.delete_game)
-                # Allows bot to remain responsive while this large operation is running.
-                # Can result in funky behavior especially if another operation tries to close DB connection, but seems to still get this operation done reliably
-                await ctx.send(f'Game with ID {gid} has been deleted and team/player ELO changes have been reverted, if applicable.')
+            gid = game.id
+            await self.bot.loop.run_in_executor(None, game.delete_game)
+            # Allows bot to remain responsive while this large operation is running.
+            # Can result in funky behavior especially if another operation tries to close DB connection, but seems to still get this operation done reliably
+            await ctx.send(f'Game with ID {gid} has been deleted and team/player ELO changes have been reverted, if applicable.')
 
     @commands.command(aliases=['settribes'], usage='game_id player_name tribe_name [player2 tribe2 ... ]')
     @settings.is_staff_check()
@@ -1015,31 +947,29 @@ class games():
 
         lineups = Lineup.select(Lineup, Player).join(Player).where(Lineup.game == game)
 
-        with db:
-            for i in range(0, len(args), 2):
-                # iterate over args two at a time
-                player_name = args[i]
-                tribe_name = args[i + 1]
+        for i in range(0, len(args), 2):
+            # iterate over args two at a time
+            player_name = args[i]
+            tribe_name = args[i + 1]
 
-                tribeflair = TribeFlair.get_by_name(name=tribe_name, guild_id=ctx.guild.id)
-                if not tribeflair:
-                    await ctx.send(f'Matching Tribe not found matching "{tribe_name}". Check spelling or be more specific.')
-                    continue
+            tribeflair = TribeFlair.get_by_name(name=tribe_name, guild_id=ctx.guild.id)
+            if not tribeflair:
+                await ctx.send(f'Matching Tribe not found matching "{tribe_name}". Check spelling or be more specific.')
+                continue
 
-                lineup_match = None
-                for lineup in lineups:
-                    if player_name.upper() in lineup.player.name.upper():
-                        lineup_match = lineup
-                        break
+            lineup_match = None
+            for lineup in lineups:
+                if player_name.upper() in lineup.player.name.upper():
+                    lineup_match = lineup
+                    break
 
-                if not lineup_match:
-                    await ctx.send(f'Matching player not found in game {game.id} matching "{player_name}". Check spelling or be more specific. @Mentions are not supported here.')
-                    continue
+            if not lineup_match:
+                await ctx.send(f'Matching player not found in game {game.id} matching "{player_name}". Check spelling or be more specific. @Mentions are not supported here.')
+                continue
 
-                with db.atomic():
-                    lineup_match.tribe = tribeflair
-                    lineup_match.save()
-                    await ctx.send(f'Player {lineup_match.player.name} assigned to tribe {tribeflair.tribe.name} in game {game.id} {tribeflair.emoji}')
+            lineup_match.tribe = tribeflair
+            lineup_match.save()
+            await ctx.send(f'Player {lineup_match.player.name} assigned to tribe {tribeflair.tribe.name} in game {game.id} {tribeflair.emoji}')
 
         game = game.load_full_game()
         await game.update_announcement(ctx)
@@ -1093,16 +1023,15 @@ class games():
         if len(emoji) != 1 and ('<:' not in emoji):
             return await ctx.send('Valid emoji not detected. Example: `{}team_emoji name :my_custom_emoji:`'.format(ctx.prefix))
 
-        with db:
-            matching_teams = Team.get_by_name(team_name, ctx.guild.id)
-            if len(matching_teams) != 1:
-                return await ctx.send('Can\'t find matching team or too many matches. Example: `{}team_emoji name :my_custom_emoji:`'.format(ctx.prefix))
+        matching_teams = Team.get_by_name(team_name, ctx.guild.id)
+        if len(matching_teams) != 1:
+            return await ctx.send('Can\'t find matching team or too many matches. Example: `{}team_emoji name :my_custom_emoji:`'.format(ctx.prefix))
 
-            team = matching_teams[0]
-            team.emoji = emoji
-            team.save()
+        team = matching_teams[0]
+        team.emoji = emoji
+        team.save()
 
-            await ctx.send('Team {0.name} updated with new emoji: {0.emoji}'.format(team))
+        await ctx.send('Team {0.name} updated with new emoji: {0.emoji}'.format(team))
 
     @commands.command(usage='team_name image_url')
     @settings.is_mod_check()
@@ -1118,18 +1047,17 @@ class games():
             return await ctx.send(f'Valid image url not detected. Example usage: `{ctx.prefix}team_image name http://url_to_image.png`')
             # This is a very dumb check to make sure user is passing a URL and not a random string. Assumes mod can figure it out from there.
 
-        with db:
-            try:
-                matching_teams = Team.get_or_except(team_name, ctx.guild.id)
-            except exceptions.NoSingleMatch as ex:
-                return await ctx.send(f'{ex}\nExample: `{ctx.prefix}team_emoji name :my_custom_emoji:`')
+        try:
+            matching_teams = Team.get_or_except(team_name, ctx.guild.id)
+        except exceptions.NoSingleMatch as ex:
+            return await ctx.send(f'{ex}\nExample: `{ctx.prefix}team_emoji name :my_custom_emoji:`')
 
-            team = matching_teams[0]
-            team.image_url = image_url
-            team.save()
+        team = matching_teams[0]
+        team.image_url = image_url
+        team.save()
 
-            await ctx.send(f'Team {team.name} updated with new image_url (image should appear below)')
-            await ctx.send(team.image_url)
+        await ctx.send(f'Team {team.name} updated with new image_url (image should appear below)')
+        await ctx.send(team.image_url)
 
     @commands.command(usage='old_name new_name')
     @settings.is_mod_check()
@@ -1142,17 +1070,16 @@ class games():
         `[p]team_name Amazeballs "The Wowbaggers"`
         """
 
-        with db:
-            try:
-                matching_teams = Team.get_or_except(old_team_name, ctx.guild.id)
-            except exceptions.NoSingleMatch as ex:
-                return await ctx.send(f'{ex}\nExample: `{ctx.prefix}team_name \"Current name\" \"New Team Name\"`')
+        try:
+            matching_teams = Team.get_or_except(old_team_name, ctx.guild.id)
+        except exceptions.NoSingleMatch as ex:
+            return await ctx.send(f'{ex}\nExample: `{ctx.prefix}team_name \"Current name\" \"New Team Name\"`')
 
-            team = matching_teams[0]
-            team.name = new_team_name
-            team.save()
+        team = matching_teams[0]
+        team.name = new_team_name
+        team.save()
 
-            await ctx.send('Team **{}** has been renamed to **{}**.'.format(old_team_name, new_team_name))
+        await ctx.send('Team **{}** has been renamed to **{}**.'.format(old_team_name, new_team_name))
 
     @commands.command()
     @commands.is_owner()

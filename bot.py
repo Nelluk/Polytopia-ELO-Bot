@@ -94,6 +94,10 @@ if __name__ == '__main__':
         print(f'Exception raised. {exc}\n{exception_str}')
         await ctx.send(f'Unhandled error: {exc}')
 
+    @bot.before_invoke
+    async def pre_invoke_setup(ctx):
+        models.db.connect(reuse_if_open=True)
+
     @bot.after_invoke
     async def post_invoke_cleanup(ctx):
         models.db.close()

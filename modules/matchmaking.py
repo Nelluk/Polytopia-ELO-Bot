@@ -136,12 +136,11 @@ class matchmaking():
         # matchside m1 1 name ronin
         # matchside m1 ronin nelluk rickdaheals jonathan
 
-        with models.db:
-            matchside, _ = match.get_side(lookup=side_lookup)
-            if not matchside:
-                return await ctx.send(f'Can\'t find that side for match M{match.id}.')
-            matchside.name = args
-            matchside.save()
+        matchside, _ = match.get_side(lookup=side_lookup)
+        if not matchside:
+            return await ctx.send(f'Can\'t find that side for match M{match.id}.')
+        matchside.name = args
+        matchside.save()
 
         return await ctx.send(f'Side {matchside.position} for Match M{match.id} has been named "{args}"')
 
@@ -250,9 +249,8 @@ class matchmaking():
         if not matchplayer:
             return await ctx.send(f'You are not a member of match M{match.id}')
 
-        with models.db:
-            matchplayer.delete_instance()
-            await ctx.send('Removing you from the match.')
+        matchplayer.delete_instance()
+        await ctx.send('Removing you from the match.')
 
     @commands.command(usage='match_id player')
     async def kick(self, ctx, match: PolyMatch, player: str):
@@ -282,9 +280,8 @@ class matchmaking():
         if not matchplayer:
             return await ctx.send(f'{target.name} is not a member of match M{match.id}.')
 
-        with models.db:
-            matchplayer.delete_instance()
-            await ctx.send(f'Removing {target.name} from the match.')
+        matchplayer.delete_instance()
+        await ctx.send(f'Removing {target.name} from the match.')
 
     @commands.command(aliases=['deletematch'], usage='match_id')
     async def delmatch(self, ctx, match: PolyMatch):
