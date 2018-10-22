@@ -14,17 +14,8 @@ import logging
 logger = logging.getLogger('polybot.' + __name__)
 
 
-class matchmaking():
-    """
-    Helps players find other players.
-    """
-
-    def __init__(self, bot):
-        self.bot = bot
-
-    def poly_match(match_id):
-        # Give game ID integer return matching Match or None. Can be used as a converter function for discord command input:
-        # https://discordpy.readthedocs.io/en/rewrite/ext/commands/commands.html#basic-converters
+class PolyMatch(commands.Converter):
+    async def convert(self, ctx, match_id):
 
         try:
             match_id = int(match_id)
@@ -36,8 +27,13 @@ class matchmaking():
                 return None
         with models.db:
             try:
-                match = models.Match.get(id=match_id)  # not sure the prefetch will work
+                match = models.Match.get(id=match_id)
                 logger.debug(f'Match with ID {match_id} found.')
+
+                if match.guild_id != ctx.guild.id:
+                    logger.warn('Match does not belong to same guild - returning None')
+                    return None
+
                 return match
             except peewee.DoesNotExist:
                 logger.warn(f'Match with ID {match_id} cannot be found.')
@@ -45,6 +41,15 @@ class matchmaking():
             except ValueError:
                 logger.error(f'Invalid Match ID "{match_id}".')
                 return None
+
+
+class matchmaking():
+    """
+    Helps players find other players.
+    """
+
+    def __init__(self, bot):
+        self.bot = bot
 
     # @settings.in_bot_channel()
     @commands.command(usage='size expiration rules')
@@ -117,7 +122,7 @@ class matchmaking():
         await ctx.send(f'Starting new open match ID M{match.id}. Size: {team_size_str}. Expiration: {expiration_hours} hours.\nNotes: *{notes_str}*')
 
     @commands.command(usage='match_id side_number Side Name')
-    async def matchside(self, ctx, match: poly_match, side_lookup: str, *, args):
+    async def matchside(self, ctx, match: PolyMatch, side_lookup: str, *, args):
         """
         Give a name to a side in a match you host
         **Example:**
@@ -142,7 +147,7 @@ class matchmaking():
 
     # @settings.in_bot_channel()
     @commands.command(usage='match_id')
-    async def match(self, ctx, match: poly_match):
+    async def match(self, ctx, match: PolyMatch):
         """Display details on a match"""
 
         if match is None:
@@ -154,7 +159,7 @@ class matchmaking():
 
     # @settings.in_bot_channel()
     @commands.command(usage='match_id', aliases=['join'])
-    async def joinmatch(self, ctx, match: poly_match, *args):
+    async def joinmatch(self, ctx, match: PolyMatch, *args):
         """
         Join an open match
         **Example:**
@@ -220,7 +225,7 @@ class matchmaking():
         await ctx.send(embed=embed, content=content)
 
     @commands.command(usage='match_id', aliases=['leave'])
-    async def leavematch(self, ctx, match: poly_match):
+    async def leavematch(self, ctx, match: PolyMatch):
         """
         Leave a match that you have joined
         **Example:**
@@ -250,7 +255,7 @@ class matchmaking():
             await ctx.send('Removing you from the match.')
 
     @commands.command(usage='match_id player')
-    async def kick(self, ctx, match: poly_match, player: str):
+    async def kick(self, ctx, match: PolyMatch, player: str):
         """
         Kick a player from an open match
         **Example:**
@@ -282,7 +287,7 @@ class matchmaking():
             await ctx.send(f'Removing {target.name} from the match.')
 
     @commands.command(aliases=['deletematch'], usage='match_id')
-    async def delmatch(self, ctx, match: poly_match):
+    async def delmatch(self, ctx, match: PolyMatch):
         """Deletes a match that you host
         Staff can also delete any match.
         **Example:**
@@ -346,7 +351,7 @@ class matchmaking():
 
     # @settings.in_bot_channel()
     @commands.command(usage='match_id Name of Poly Game')
-    async def startmatch(self, ctx, match: poly_match, *, name: str = None):
+    async def startmatch(self, ctx, match: PolyMatch, *, name: str = None):
         """
         Start match and track game with ELO bot
         Use this command after you have created the game in Polytopia.

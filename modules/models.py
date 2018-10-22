@@ -597,7 +597,7 @@ class Game(BaseModel):
                 for player in player_group:
                     Lineup.create(game=newgame, squadgame=squadgame, player=player)
 
-        return new game
+        return newgame
 
     def create_game(teams, guild_id, name: str = None, require_teams: bool = False):
         # teams = list of lists [[d1, d2, d3], [d4, d5, d6]]. each item being a discord.Member object
@@ -1253,28 +1253,30 @@ class Match(BaseModel):
     def embed(self, ctx):
         embed = discord.Embed(title=f'Match **M{self.id}**\n{self.size_string()} *hosted by* {self.host.name}')
         notes_str = self.notes if self.notes else "\u200b"
-        expiration = int((self.expiration - datetime.datetime.now()).total_seconds() / 3600.0)
+
+        if self.expiration < datetime.datetime.now():
+            expiration_str = f'*Expired*'
+            status_str = 'Expired'
+        else:
+            expiration_str = f'{int((self.expiration - datetime.datetime.now()).total_seconds() / 3600.0)} hours'
+            status_str = f'Open - `{ctx.prefix}join M{self.id}`'
 
         players, capacity = self.capacity()
         if players >= capacity:
             if self.is_started:
-                footer_str = f'Started - Game # {self.game.id} **{self.game.name}**' if self.game else 'Started'
+                status_str = f'Started - Game # {self.game.id} **{self.game.name}**' if self.game else 'Started'
             else:
                 content_str = f'This match is now full and the host should create the game in Polytopia and start it with `{ctx.prefix}startmatch M{self.id} Name of Game`'
-                footer_str = 'Full - Waiting to start'
-        else:
-            if self.expiration < datetime.datetime.now():
-                footer_str = 'Expired'
-            else:
-                footer_str = f'Open - `{ctx.prefix}join M{self.id}`'
-        embed.add_field(name='Status', value=footer_str, inline=True)
+                status_str = 'Full - Waiting to start'
+
+        embed.add_field(name='Status', value=status_str, inline=True)
 
         # if self.is_started:
         #     game_name = f'ID {self.game.id} **{self.game.name}**' if self.game else '\u200b'
         #     embed.add_field(name='Game Started', value=game_name, inline=True)
 
         content_str = None
-        embed.add_field(name='Expires in', value=f'{expiration} hours', inline=True)
+        embed.add_field(name='Expires in', value=f'{expiration_str}', inline=True)
         embed.add_field(name='Notes', value=notes_str, inline=False)
         embed.add_field(name='\u200b', value='\u200b', inline=False)
 
@@ -1293,7 +1295,6 @@ class Match(BaseModel):
         if players >= capacity and not self.is_started:
             content_str = f'This match is now full and the host should create the game in Polytopia and start it with `{ctx.prefix}startmatch M{self.id} Name of Game`'
 
-        # embed.set_footer(text=footer_str)
         return embed, content_str
 
     def first_open_side(self):
