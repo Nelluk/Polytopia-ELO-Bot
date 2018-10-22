@@ -726,12 +726,28 @@ class games():
 
     @commands.command()
     async def startgamedev(self, ctx, game_name: str, *args):
+        example_usage = (f'Example usage: `{ctx.prefix}startgame "Name of Game" player1 player2 VS player3 player4` - Start a 2v2 game')
+
         from itertools import groupby
 
         player_groups = [list(group) for k, group in groupby(args, lambda x: x.lower() in ('vs', 'versus')) if not k]
         # split ['foo', 'bar', 'vs', 'baz', 'bat'] into [['foo', 'bar']['baz', 'bat']]
-        print(player_groups)
+
+        biggest_team = max(len(group) for group in player_groups)
+        total_players = sum(len(group) for group in player_groups)
+
+        if len(player_groups) < 2:
+            return await ctx.send(f'Invalid format. {example_usage}')
+        if total_players > 2 and (not settings.is_power_user(ctx)) and ctx.guild.id != settings.server_ids['polychampions']:
+            return await ctx.send('You only have permissions to create 1v1 games. More active server members can create larger games.')
+
+        if total_players > 12:
+            return await ctx.send(f'You cannot have more than twelve players.')
+        if biggest_team > settings.guild_setting(ctx.guild.id, 'max_team_size'):
+            return await ctx.send(f'This server has a maximum team size of {settings.guild_setting(ctx.guild.id, "max_team_size")}. For full functionality with support for up to 5-player team games and league play check out PolyChampions.')
+
         discord_groups = []
+        author_found = False
         for group in player_groups:
             # Convert each arg into a Discord Guild Member and build a new list of lists. Or return if any arg can't be matched.
             discord_group = []
@@ -742,16 +758,23 @@ class games():
                 if len(guild_matches) > 1:
                     return await ctx.send(f'More than one server matches found for "{p}". Try being more specific or using an @Mention.')
                 discord_group.append(guild_matches[0])
+                if guild_matches[0] == ctx.author:
+                    author_found = True
             discord_groups.append(discord_group)
 
-        print(discord_groups)
+        n = len(discord_groups[0])
+        if not all(len(g) == n for g in discord_groups):
+            if settings.guild_setting(ctx.guild.id, 'allow_uneven_teams'):
+                await ctx.send('**Warning:** Teams are not the same size. This is allowed but may not be what you want.')
+            else:
+                return await ctx.send('Teams are not the same size. This is not allowed on this server. Game not created.')
 
-        biggest_team = max(len(group) for group in discord_groups)
-        total_players = sum(len(group) for group in discord_groups)
-        if total_players > 12:
-            return await ctx.send(f'You cannot have more than twelve players.')
-        if biggest_team > settings.guild_setting(ctx.guild.id, 'max_team_size'):
-            return await ctx.send(f'This server has a maximum team size of {settings.guild_setting(ctx.guild.id, "max_team_size")}. For full functionality with support for up to 5-player team games and league play check out PolyChampions.')
+        if not all(len(g) == len(set(g)) for g in discord_groups):
+            return await ctx.send('Duplicate players detected. Game not created.')
+
+        if not author_found and settings.is_staff(ctx) is False:
+            # TODO: possibly allow this in PolyChampions (rickdaheals likes to do this)
+            return await ctx.send('You can\'t create a game that you are not a participant in.')
 
         newgame = Game.create_game_DEV(discord_groups, name=game_name, guild_id=ctx.guild.id, require_teams=settings.guild_setting(ctx.guild.id, 'require_teams'))
 
