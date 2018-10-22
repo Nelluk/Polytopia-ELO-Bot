@@ -487,15 +487,21 @@ class Game(BaseModel):
         return embed, embed_content
 
     def get_headline(self):
-        if len(self.squads) != 2:
-            raise exceptions.CheckFailedError('Support for games with >2 sides not yet implemented')
+        # yields string like:
+        # Game 481   :fried_shrimp: The Crawfish vs :fried_shrimp: TestAccount1 vs :spy: TestBoye1\n*Name of Game*
+        squad_strings = []
+        for squad in self.squads:
+            if len(squad.lineup) > 1 or not squad.team.is_hidden:
+                emoji = squad.team.emoji
+            else:
+                emoji = ''
+            squad_strings.append(f'{emoji} **{squad.name()}**')
+        full_squad_string = ' *vs* '.join(squad_strings)
 
-        home_name, away_name = self.squads[0].name(), self.squads[1].name()
-        home_emoji = self.squads[0].team.emoji if self.squads[0].team.emoji else ''
-        away_emoji = self.squads[1].team.emoji if self.squads[1].team.emoji else ''
-        game_name = f'\u00a0*{self.name}*' if self.name and self.name.strip() else ''  # \u00a0 is used as an invisible delimeter so game_name can be split out easily
+        game_name = f'\n\u00a0*{self.name}*' if self.name and self.name.strip() else ''
+        # \u00a0 is used as an invisible delimeter so game_name can be split out easily
 
-        return f'Game {self.id}   {home_emoji} **{home_name}** *vs* **{away_name}** {away_emoji}{game_name}'
+        return f'Game {self.id}   {full_squad_string}{game_name}'
 
     def team_size(self):
         return len(self.squads[0].lineup)
