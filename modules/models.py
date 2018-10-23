@@ -489,74 +489,6 @@ class Game(BaseModel):
 
         return embed, embed_content
 
-    def embed_old(self, ctx):
-        # if len(self.squads) != 2:
-        #     raise exceptions.CheckFailedError('Support for games with >2 sides not yet implemented')
-
-        # home_side = self.squads[0]
-        # away_side = self.squads[1]
-
-        # winner = self.get_winner()
-
-        # game_headline = self.get_headline()
-        # game_headline = game_headline.replace('\u00a0', '\n')   # Put game.name onto its own line if its there
-
-        # embed = discord.Embed(title=game_headline)
-
-        # if self.is_completed == 1:
-        #     embed.title += f'\n\nWINNER: {winner.name}'
-
-        # # Set embed image (profile picture or team logo)
-        #     if self.team_size() == 1:
-        #         winning_discord_member = ctx.guild.get_member(winner.discord_member.discord_id)
-        #         if winning_discord_member is not None:
-        #             embed.set_thumbnail(url=winning_discord_member.avatar_url_as(size=512))
-        #     elif winner.image_url:
-        #         embed.set_thumbnail(url=winner.image_url)
-
-        # TEAM/SQUAD ELOs and ELO DELTAS
-        home_team_elo_str, home_squad_elo_str = home_side.elo_strings()
-        away_team_elo_str, away_squad_elo_str = away_side.elo_strings()
-
-        if home_side.team.name == 'Home' and away_side.team.name == 'Away':
-            # TODO: use is_hidden
-            # Hide team ELO if its just generic Home/Away
-            home_team_elo_str = away_team_elo_str = ''
-
-        if self.team_size() == 1:
-            # Hide squad ELO stats for 1v1 games
-            home_squad_elo_str = away_squad_elo_str = '\u200b'
-
-        game_data = [(home_side, home_team_elo_str, home_squad_elo_str, home_side.roster()), (away_side, away_team_elo_str, away_squad_elo_str, away_side.roster())]
-
-        for side, elo_str, squad_str, roster in game_data:
-            if self.team_size() > 1:
-                embed.add_field(name=f'Lineup for Team **{side.team.name}** {elo_str}', value=squad_str, inline=False)
-
-            for player, player_elo_str, tribe_emoji in roster:
-                embed.add_field(name=f'**{player.name}** {tribe_emoji}', value=f'ELO: {player_elo_str}', inline=True)
-
-        if self.match:
-            notes = f'\n**Notes:** {self.match[0].notes}' if self.match[0].notes else ''
-            embed_content = f'Matchmaking **M{self.match[0].id}**{notes}'
-        else:
-            embed_content = None
-
-        if ctx.guild.id != settings.server_ids['polychampions']:
-            embed.add_field(value='Powered by **PolyChampions** - https://discord.gg/cX7Ptnv', name='\u200b', inline=False)
-            embed.set_author(name='PolyChampions', url='https://discord.gg/cX7Ptnv', icon_url='https://cdn.discordapp.com/emojis/488510815893323787.png?v=1')
-
-        if not self.is_completed:
-            status_str = 'Incomplete'
-        elif self.is_confirmed:
-            status_str = 'Completed'
-        else:
-            status_str = 'Unconfirmed'
-
-        embed.set_footer(text=f'Status: {status_str}  -  Creation Date {str(self.date)}')
-
-        return embed, embed_content
-
     def get_headline(self):
         # yields string like:
         # Game 481   :fried_shrimp: The Crawfish vs :fried_shrimp: TestAccount1 vs :spy: TestBoye1\n*Name of Game*
@@ -804,29 +736,33 @@ class Game(BaseModel):
         return (False, None)
 
     def squadgame_by_name(self, ctx, name: str):
-        # Given a string representing a player or a team (team name, player name/nick/ID)
+        # Given a string representing a game side's name (team name for 2+ players, player name for 1 player)
         # Return a tuple of the participant and their squadgame, ie Player, SquadGame or Team, Squadgame
 
-        if self.team_size() == 1:
-            # Search by player name
-            player_obj = Player.get_or_except(player_string=name, guild_id=ctx.guild.id)
+        if len(name) < 3:
+            raise exceptions.CheckFailedError('Name given is not enough characters. Be more specific')
 
-            for squadgame in self.squads:
-                for p in squadgame.lineup:
-                    if p.player == player_obj:
-                        return player_obj, squadgame
+        matches = []
+        for squad in self.squads:
+            if len(squad.lineup) == 1:
+                # Compare to single squad player's name
+                if name.lower() in squad.lineup[0].player.name.lower():
+                    matches.append(
+                        (squad.lineup[0].player, squad)
+                    )
+            else:
+                # Compare to squad team's name
+                if name.lower() in squad.team.name.lower():
+                    matches.append(
+                        (squad.team, squad)
+                    )
 
-            raise exceptions.CheckFailedError(f'{player_obj.name} did not play in game {self.id}.')
-
+        if len(matches) == 1:
+            return matches[0]
+        if len(matches) == 0:
+            raise exceptions.NoMatches(f'No matches found for "{name}" in game {self.id}.')
         else:
-            # Search by team name
-            team_obj = Team.get_or_except(team_name=name, guild_id=ctx.guild.id)
-
-            for squadgame in self.squads:
-                if squadgame.team == team_obj:
-                    return team_obj, squadgame
-
-            raise exceptions.CheckFailedError(f'{team_obj.name} did not play in game {self.id}.')
+            raise exceptions.TooManyMatches(f'{len(matches)} matches found for "{name}" in game {self.id}.')
 
     def get_winner(self):
         # Returns player object of winner if its a 1v1, or team object of winning side if its a group game
@@ -1125,8 +1061,7 @@ class SquadGame(BaseModel):
     team = ForeignKeyField(Team, null=False, backref='squadgame', on_delete='RESTRICT')
     elo_change_squad = SmallIntegerField(default=0)
     elo_change_team = SmallIntegerField(default=0)
-    # team_chan_category = BitField(default=None, null=True)
-    team_chan = BitField(default=None, null=True)   # Store category/ID of team channel for more consistent renaming-deletion
+    team_chan = BitField(default=None, null=True)
 
     def elo_strings(self):
         # Returns a tuple of strings for team ELO and squad ELO display. ie:

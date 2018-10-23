@@ -807,6 +807,8 @@ class games():
         except exceptions.MyBaseException as ex:
             return await ctx.send(f'{ex}')
 
+        return
+
         if winning_game.is_completed is True:
             if winning_game.is_confirmed is True:
                 return await ctx.send(f'Game with ID {winning_game.id} is already marked as completed with winner **{winning_game.get_winner().name}**')
