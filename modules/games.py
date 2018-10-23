@@ -787,6 +787,7 @@ class games():
             return await ctx.send('You can\'t create a game that you are not a participant in.')
 
         logger.info(f'All input checks passed. Creating new game records with args: {args}')
+
         with db.atomic():
             newgame = Game.create_game(discord_groups, name=game_name, guild_id=ctx.guild.id, require_teams=settings.guild_setting(ctx.guild.id, 'require_teams'))
 
@@ -1091,8 +1092,17 @@ class games():
     async def ts(self, ctx, game_id: int):
 
         game = Game.load_full_game(game_id=game_id)
-        embed, content = game.embed(ctx)
-        await ctx.send(content=content, embed=embed)
+        print(game.size_string())
+        # embed, content = game.embed(ctx)
+        # await ctx.send(content=content, embed=embed)
+
+    @commands.command()
+    @commands.is_owner()
+    async def tb(self, ctx, game_id: int):
+        p1 = (await utilities.get_guild_member(ctx, 'nelluk'))[0]
+        p2 = (await utilities.get_guild_member(ctx, 'testboye1'))[0]
+        foo = Player.get_teams_of_players(ctx.guild.id, [p2, p1])
+        print(foo)
 
     @commands.command()
     @commands.is_owner()

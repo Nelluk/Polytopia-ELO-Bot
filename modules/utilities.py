@@ -59,10 +59,9 @@ def summarize_game_list(games_query):
             else:
                 status_str = f'**WINNER:** {game.get_winner().name}'
 
-        team_size = game.team_size()
         game_list.append((
             f'{game.get_headline()}',
-            f'{(str(game.date))} - {team_size}v{team_size} - {status_str}'
+            f'{(str(game.date))} - {game.size_string()} - {status_str}'
         ))
     return game_list
 

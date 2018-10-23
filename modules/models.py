@@ -161,7 +161,7 @@ class Player(BaseModel):
         # output: True, [<Ronin>, <Ronin>]
 
         def get_matching_roles(discord_member, list_of_role_names):
-            # Given a Discord.Member and a ['List of', 'Role names'], return set of role names that the Member has.polytopia_id
+            # Given a Discord.Member and a ['List of', 'Role names'], return set of role names that the Member has.
             member_roles = [x.name for x in discord_member.roles]
             return set(member_roles).intersection(list_of_role_names)
 
@@ -182,8 +182,8 @@ class Player(BaseModel):
                 list_of_matching_teams.append(None)
                 # Would be here if no player Roles match any known teams, -or- if they have more than one match
 
-            same_team_flag = True if all(x == list_of_matching_teams[0] for x in list_of_matching_teams) else False
-            return same_team_flag, list_of_matching_teams
+        same_team_flag = True if all(x == list_of_matching_teams[0] for x in list_of_matching_teams) else False
+        return same_team_flag, list_of_matching_teams
 
     def string_matches(player_string: str, guild_id: int):
         # Returns QuerySet containing players in current guild matching string. Searches against discord mention ID first, then exact discord name match,
@@ -421,9 +421,10 @@ class Game(BaseModel):
     def embed(self, ctx):
 
         game_headline = self.get_headline()
+        print(game_headline)
         # game_headline = game_headline.replace('\n\u00a0', '\n')   # Put game.name onto its own line if its there
 
-        embed = discord.Embed(title=game_headline)
+        embed = discord.Embed(title=f'{game_headline} - *{self.size_string()}*')
 
         if self.is_completed == 1:
             winning_obj, winning_side = self.get_winner(), self.winner
@@ -445,7 +446,7 @@ class Game(BaseModel):
 
             if squad.team.is_hidden:
                 # Hide team ELO if generic Team
-                team_elo_str = ''
+                team_elo_str = '\u200b'
 
             if len(squad.lineup) == 1:
                 # Hide squad ELO stats for 1-player teams
@@ -455,14 +456,14 @@ class Game(BaseModel):
 
         side_num = 1
         for side, elo_str, squad_str, roster in game_data:
-
+            embed.add_field(name='\u200b', value='___________', inline=False)  # Separator between sides
             if len(side.lineup) > 1:
-                team_str = f'Team **{side.team.name}** {elo_str}'
+                team_str = f'Lineup for Team **{side.team.name}** {elo_str}'
 
                 embed.add_field(name=team_str, value=squad_str, inline=False)
-            else:
-                team_str = f'__Side {side_num}__'
-                embed.add_field(name=team_str, value=squad_str, inline=False)
+            # else:
+            #     team_str = f'__Side {side_num}__'
+            #     embed.add_field(name=team_str, value=squad_str, inline=False)
 
             for player, player_elo_str, tribe_emoji in roster:
                 embed.add_field(name=f'**{player.name}** {tribe_emoji}', value=f'ELO: {player_elo_str}', inline=True)
@@ -559,11 +560,17 @@ class Game(BaseModel):
 
         game_name = f'\n\u00a0*{self.name}*' if self.name and self.name.strip() else ''
         # \u00a0 is used as an invisible delimeter so game_name can be split out easily
-
         return f'Game {self.id}   {full_squad_string}{game_name}'
 
     def largest_team(self):
-        max(len(squad.lineup) for squad in self.squads)
+        return max(len(squad.lineup) for squad in self.squads)
+
+    def size_string(self):
+
+        if self.largest_team() == 1 and len(self.squads) > 2:
+            return 'FFA'
+        else:
+            return 'v'.join(str(len(s.lineup)) for s in self.squads)
 
     def team_size(self):
         # TODO: Deprecated
@@ -601,6 +608,7 @@ class Game(BaseModel):
 
         for discord_group in discord_groups:
             same_team, list_of_teams = Player.get_teams_of_players(guild_id=guild_id, list_of_players=discord_group)
+            print(list_of_teams)
             teams_for_each_discord_member.append(list_of_teams)  # [[Team, Team][Team, Team]] for each team that a discord member is associated with, for Player.upsert()
             if None in list_of_teams:
                 if require_teams is True:
@@ -639,12 +647,15 @@ class Game(BaseModel):
             newgame = Game.create(name=name,
                                   guild_id=guild_id)
 
+            # print(discord_groups)
             for team_group, allied_team, discord_group in zip(teams_for_each_discord_member, list_of_final_teams, discord_groups):
                 # team_group is each team that the individual discord.Member is associated with on the server, often None
                 # allied_team is the team that this entire group is playing for in this game. Either a Server Team or Generic. Never None.
 
                 player_group = []
+                # print('dg', len(team_group), len(discord_group), discord_group)
                 for team, discord_member in zip(team_group, discord_group):
+                    # print(team, discord_member)
                     # Upsert each discord.Member into a Player database object
                     player_group.append(
                         Player.upsert(discord_id=discord_member.id, discord_name=discord_member.name, discord_nick=discord_member.nick, guild_id=guild_id, team=team)[0]
@@ -660,6 +671,7 @@ class Game(BaseModel):
 
                 # Create Lineup records
                 for player in player_group:
+                    print(f'Creating lineup for player {player.name}')
                     Lineup.create(game=newgame, squadgame=squadgame, player=player)
 
         return newgame
