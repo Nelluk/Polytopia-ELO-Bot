@@ -419,29 +419,88 @@ class Game(BaseModel):
             return logger.warn('Couldn\'t update message in update_announacement')
 
     def embed(self, ctx):
-        if len(self.squads) != 2:
-            raise exceptions.CheckFailedError('Support for games with >2 sides not yet implemented')
-
-        home_side = self.squads[0]
-        away_side = self.squads[1]
-
-        winner = self.get_winner()
 
         game_headline = self.get_headline()
-        game_headline = game_headline.replace('\u00a0', '\n')   # Put game.name onto its own line if its there
+        # game_headline = game_headline.replace('\n\u00a0', '\n')   # Put game.name onto its own line if its there
 
         embed = discord.Embed(title=game_headline)
 
         if self.is_completed == 1:
-            embed.title += f'\n\nWINNER: {winner.name}'
+            winning_obj, winning_side = self.get_winner(), self.winner
+            embed.title += f'\n\nWINNER: {winning_obj.name}'
 
-        # Set embed image (profile picture or team logo)
-            if self.team_size() == 1:
-                winning_discord_member = ctx.guild.get_member(winner.discord_member.discord_id)
+            # Set embed image (profile picture or team logo)
+            if len(winning_side.lineup) == 1:
+                # Winner is individual player
+                winning_discord_member = ctx.guild.get_member(winning_obj.discord_member.discord_id)
                 if winning_discord_member is not None:
                     embed.set_thumbnail(url=winning_discord_member.avatar_url_as(size=512))
-            elif winner.image_url:
-                embed.set_thumbnail(url=winner.image_url)
+            elif winning_obj.image_url:
+                # Winner is a team of players - use team image if present
+                embed.set_thumbnail(url=winning_obj.image_url)
+
+        game_data = []
+        for squad in self.squads:
+            team_elo_str, squad_elo_str = squad.elo_strings()
+
+            if squad.team.is_hidden:
+                # Hide team ELO if generic Team
+                team_elo_str = ''
+
+            if len(squad.lineup) == 1:
+                # Hide squad ELO stats for 1-player teams
+                squad_elo_str = '\u200b'
+
+            game_data.append((squad, team_elo_str, squad_elo_str, squad.roster()))
+
+        side_num = 1
+        for side, elo_str, squad_str, roster in game_data:
+
+            if len(side.lineup) > 1:
+                team_str = f'Team **{side.team.name}** {elo_str}'
+
+                embed.add_field(name=team_str, value=squad_str, inline=False)
+            else:
+                team_str = f'__Side {side_num}__'
+                embed.add_field(name=team_str, value=squad_str, inline=False)
+
+            for player, player_elo_str, tribe_emoji in roster:
+                embed.add_field(name=f'**{player.name}** {tribe_emoji}', value=f'ELO: {player_elo_str}', inline=True)
+
+            side_num = side_num + 1
+
+        if self.match:
+            notes = f'\n**Notes:** {self.match[0].notes}' if self.match[0].notes else ''
+            embed_content = f'Matchmaking **M{self.match[0].id}**{notes}'
+        else:
+            embed_content = None
+
+        return embed, embed_content
+
+    def embed_old(self, ctx):
+        # if len(self.squads) != 2:
+        #     raise exceptions.CheckFailedError('Support for games with >2 sides not yet implemented')
+
+        # home_side = self.squads[0]
+        # away_side = self.squads[1]
+
+        # winner = self.get_winner()
+
+        # game_headline = self.get_headline()
+        # game_headline = game_headline.replace('\u00a0', '\n')   # Put game.name onto its own line if its there
+
+        # embed = discord.Embed(title=game_headline)
+
+        # if self.is_completed == 1:
+        #     embed.title += f'\n\nWINNER: {winner.name}'
+
+        # # Set embed image (profile picture or team logo)
+        #     if self.team_size() == 1:
+        #         winning_discord_member = ctx.guild.get_member(winner.discord_member.discord_id)
+        #         if winning_discord_member is not None:
+        #             embed.set_thumbnail(url=winning_discord_member.avatar_url_as(size=512))
+        #     elif winner.image_url:
+        #         embed.set_thumbnail(url=winner.image_url)
 
         # TEAM/SQUAD ELOs and ELO DELTAS
         home_team_elo_str, home_squad_elo_str = home_side.elo_strings()
@@ -503,7 +562,11 @@ class Game(BaseModel):
 
         return f'Game {self.id}   {full_squad_string}{game_name}'
 
+    def largest_team(self):
+        max(len(squad.lineup) for squad in self.squads)
+
     def team_size(self):
+        # TODO: Deprecated
         return len(self.squads[0].lineup)
 
     def load_full_game(game_id: int):

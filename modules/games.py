@@ -725,13 +725,17 @@ class games():
         `[p]startgame "Name of Game" koric` - Sets up a 1v1 game versus yourself and koric (shortcut)
         `[p]startgame "Name of Game" nelluk frodakcin vs bakalol ben` - Sets up a 2v2 game
         """
-
-        example_usage = (f'Example usage: `{ctx.prefix}startgame "Name of Game" player1 player2 VS player3 player4` - Start a 2v2 game')
+        example_usage = (f'Example usage:\n`{ctx.prefix}startgame "Name of Game" player1 player2 VS player3 player4` - Start a 2v2 game\n'
+                         f'`{ctx.prefix}startgame "Name of Game" player2` - Start a 1v1 with yourself and player2')
 
         if not args:
             return await ctx.send(f'Invalid format. {example_usage}')
+        if len(args) == 1:
+            args_list = [str(ctx.author.id), 'vs', args[0]]
+        else:
+            args_list = list(args)
 
-        player_groups = [list(group) for k, group in groupby(args, lambda x: x.lower() in ('vs', 'versus')) if not k]
+        player_groups = [list(group) for k, group in groupby(args_list, lambda x: x.lower() in ('vs', 'versus')) if not k]
         # split ['foo', 'bar', 'vs', 'baz', 'bat'] into [['foo', 'bar']['baz', 'bat']]
 
         biggest_team = max(len(group) for group in player_groups)
@@ -783,9 +787,10 @@ class games():
             return await ctx.send('You can\'t create a game that you are not a participant in.')
 
         logger.info(f'All input checks passed. Creating new game records with args: {args}')
-        newgame = Game.create_game(discord_groups, name=game_name, guild_id=ctx.guild.id, require_teams=settings.guild_setting(ctx.guild.id, 'require_teams'))
+        with db.atomic():
+            newgame = Game.create_game(discord_groups, name=game_name, guild_id=ctx.guild.id, require_teams=settings.guild_setting(ctx.guild.id, 'require_teams'))
 
-        await post_newgame_messaging(ctx, game=newgame)
+            await post_newgame_messaging(ctx, game=newgame)
 
     @commands.command(aliases=['endgame', 'wingame', 'winner'], usage='game_id winner_name')
     async def win(self, ctx, winning_game: PolyGame, winning_side_name: str):
@@ -1083,11 +1088,11 @@ class games():
 
     @commands.command()
     @commands.is_owner()
-    async def ts(self, ctx, *, args):
+    async def ts(self, ctx, game_id: int):
 
-        game = Game.load_full_game(game_id=206)
-        foo = game.has_player(discord_id=1993393706903796)
-        print(foo)
+        game = Game.load_full_game(game_id=game_id)
+        embed, content = game.embed(ctx)
+        await ctx.send(content=content, embed=embed)
 
     @commands.command()
     @commands.is_owner()
