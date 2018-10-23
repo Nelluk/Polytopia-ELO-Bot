@@ -804,6 +804,8 @@ class games():
 
         try:
             winning_obj, winning_side = winning_game.squadgame_by_name(ctx, name=winning_side_name)
+            # winning_obj will be a Team or a Player depending on squad size
+            # winning_side will be their SquadGame
         except exceptions.MyBaseException as ex:
             return await ctx.send(f'{ex}')
 
@@ -811,9 +813,9 @@ class games():
 
         if winning_game.is_completed is True:
             if winning_game.is_confirmed is True:
-                return await ctx.send(f'Game with ID {winning_game.id} is already marked as completed with winner **{winning_game.get_winner().name}**')
+                return await ctx.send(f'Game with ID {winning_game.id} is already marked as completed with winner **{winning_game.winner.name()}**')
             elif winning_game.winner != winning_side:
-                await ctx.send(f'Warning: Unconfirmed game with ID {winning_game.id} had previously been marked with winner **{winning_game.get_winner().name}**')
+                await ctx.send(f'Warning: Unconfirmed game with ID {winning_game.id} had previously been marked with winner **{winning_game.winner.name()}**')
 
         if settings.is_staff(ctx):
             confirm_win = True
@@ -878,7 +880,7 @@ class games():
         if not winning_game.is_completed:
             return await ctx.send(f'Game {winning_game.id} has no declared winner yet.')
         if winning_game.is_confirmed:
-            return await ctx.send(f'Game with ID {winning_game.id} is already confirmed as completed with winner **{winning_game.get_winner().name}**')
+            return await ctx.send(f'Game with ID {winning_game.id} is already confirmed as completed with winner **{winning_game.winner.name()}**')
 
         winning_game.declare_winner(winning_side=winning_game.winner, confirm=True)
 
@@ -1122,11 +1124,11 @@ async def post_win_messaging(ctx, winning_game):
     if settings.guild_setting(ctx.guild.id, 'game_announce_channel') is not None:
         channel = ctx.guild.get_channel(settings.guild_setting(ctx.guild.id, 'game_announce_channel'))
         if channel is not None:
-            await channel.send(f'Game concluded! Congrats **{winning_game.get_winner().name}**. Roster: {" ".join(player_mentions)}')
+            await channel.send(f'Game concluded! Congrats **{winning_game.winner.name()}**. Roster: {" ".join(player_mentions)}')
             await channel.send(embed=embed)
             return await ctx.send(f'Game concluded! See {channel.mention} for full details.')
 
-    await ctx.send(f'Game concluded! Congrats **{winning_game.get_winner().name}**. Roster: {" ".join(player_mentions)}')
+    await ctx.send(f'Game concluded! Congrats **{winning_game.winner.name()}**. Roster: {" ".join(player_mentions)}')
     await ctx.send(embed=embed, content=content)
 
 

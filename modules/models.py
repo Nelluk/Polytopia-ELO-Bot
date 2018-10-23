@@ -423,18 +423,17 @@ class Game(BaseModel):
         embed = discord.Embed(title=f'{self.get_headline()} — *{self.size_string()}*')
 
         if self.is_completed == 1:
-            winning_obj, winning_side = self.get_winner(), self.winner
-            embed.title += f'\n\nWINNER: {winning_obj.name}'
+            embed.title += f'\n\nWINNER: {self.winner.name()}'
 
             # Set embed image (profile picture or team logo)
-            if len(winning_side.lineup) == 1:
+            if len(self.winner.lineup) == 1:
                 # Winner is individual player
-                winning_discord_member = ctx.guild.get_member(winning_obj.discord_member.discord_id)
+                winning_discord_member = ctx.guild.get_member(self.winner.lineup[0].player.discord_member.discord_id)
                 if winning_discord_member is not None:
                     embed.set_thumbnail(url=winning_discord_member.avatar_url_as(size=512))
-            elif winning_obj.image_url:
+            elif self.winner.team.image_url:
                 # Winner is a team of players - use team image if present
-                embed.set_thumbnail(url=winning_obj.image_url)
+                embed.set_thumbnail(url=self.winner.team.image_url)
 
         game_data = []
         for squad in self.squads:
@@ -763,18 +762,6 @@ class Game(BaseModel):
             raise exceptions.NoMatches(f'No matches found for "{name}" in game {self.id}.')
         else:
             raise exceptions.TooManyMatches(f'{len(matches)} matches found for "{name}" in game {self.id}.')
-
-    def get_winner(self):
-        # Returns player object of winner if its a 1v1, or team object of winning side if its a group game
-
-        for squadgame in self.squads:
-            if squadgame == self.winner:
-                if len(squadgame.lineup) > 1:
-                    return squadgame.team
-                else:
-                    return squadgame.lineup[0].player
-
-        return None
 
     def search(player_filter=None, team_filter=None, status_filter: int = 0, guild_id: int = None):
         # Returns Games by almost any combination of player/team participation, and game status
