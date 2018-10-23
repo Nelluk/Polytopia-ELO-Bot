@@ -16,18 +16,16 @@ class PolyGame(commands.Converter):
 
         try:
             game = Game.get(id=int(game_id))
+        except ValueError:
+            return await ctx.send(f'Invalid game ID "{game_id}".')
+        except peewee.DoesNotExist:
+            return await ctx.send(f'Game with ID {game_id} cannot be found.')
+        else:
             logger.debug(f'Game with ID {game_id} found.')
             if game.guild_id != ctx.guild.id:
-                logger.warn('Game does not belong to same guild - returning None')
-                await ctx.send('That game was found but attached to a different Discord Server.')
-                return None
+                logger.warn('Game does not belong to same guild')
+                return await ctx.send(f'Game with ID {game_id} cannot be found on this Discord server.')
             return game
-        except ValueError:
-            logger.warn(f'Invalid game ID "{game_id}".')
-            return None
-        except peewee.DoesNotExist:
-            logger.warn(f'Game with ID {game_id} cannot be found.')
-            return None
 
 
 class games():
@@ -95,9 +93,6 @@ class games():
         **Example:**
         `[p]gamename 25 Mountains of Fire`
         """
-
-        if game is None:
-            return await ctx.send('No matching game was found.')
 
         new_game_name = ' '.join(args)
         game.name = new_game_name.title()
@@ -502,12 +497,15 @@ class games():
         try:
             game_id = int(''.join(arg_list))
             game = Game.load_full_game(game_id=game_id)     # Argument is an int, so show game by ID
-            embed, content = game.embed(ctx)
-            return await ctx.send(embed=embed, content=content)
         except ValueError:
             pass
         except peewee.DoesNotExist:
-            return await ctx.send('Game with ID {} cannot be found.'.format(game_id))
+            return await ctx.send(f'Game with ID {game_id} cannot be found.')
+        else:
+            if game.guild_id != ctx.guild.id:
+                return await ctx.send(f'Game with ID {game_id} cannot be found on this server.')
+            embed, content = game.embed(ctx)
+            return await ctx.send(embed=embed, content=content)
 
         target_list = list(args)
 
@@ -803,8 +801,6 @@ class games():
         `[p]win 5 Ronin` - Declare Ronin winner of game 5
         `[p]win 5 Nelluk` - Declare Nelluk winner of game 5
         """
-        if winning_game is None:
-            return await ctx.send(f'No matching game was found.')
 
         try:
             winning_obj, winning_side = winning_game.squadgame_by_name(ctx, name=winning_side_name)
@@ -915,11 +911,6 @@ class games():
     async def deletegame(self, ctx, game: PolyGame):
         """Mod: Deletes a game and reverts ELO changes"""
 
-        if game is None:
-            return await ctx.send('No matching game was found.')
-
-        # if game.guild_id != ctx.guild_id
-
         if game.winner:
             await ctx.send(f'Deleting game with ID {game.id} and re-calculating ELO for all subsequent games. This will take a few seconds.')
 
@@ -944,9 +935,6 @@ class games():
         `[p]settribe 5 nelluk bardur` - Sets Nelluk to Bardur for game 5
         `[p]settribe 5 nelluk bardur rickdaheals kickoo` - Sets both player tribes in one command
         """
-
-        if game is None:
-            return await ctx.send(f'No matching game was found.')
 
         if len(args) % 2 != 0:
             return await ctx.send(f'Wrong number of arguments. See `{ctx.prefix}help settribe` for usage examples.')
@@ -1092,9 +1080,9 @@ class games():
     async def ts(self, ctx, game_id: int):
 
         game = Game.load_full_game(game_id=game_id)
-        print(game.size_string())
-        # embed, content = game.embed(ctx)
-        # await ctx.send(content=content, embed=embed)
+        # print(game.size_string())
+        embed, content = game.embed(ctx)
+        await ctx.send(content=content, embed=embed)
 
     @commands.command()
     @commands.is_owner()

@@ -23,24 +23,20 @@ class PolyMatch(commands.Converter):
             if match_id.upper()[0] == 'M':
                 match_id = match_id[1:]
             else:
-                logger.warn(f'Match with ID {match_id} cannot be found.')
-                return None
+                return await ctx.send(f'Match with ID {match_id} cannot be found. Use {ctx.prefix}listmatches to see available matches.')
         with models.db:
             try:
                 match = models.Match.get(id=match_id)
                 logger.debug(f'Match with ID {match_id} found.')
 
                 if match.guild_id != ctx.guild.id:
-                    logger.warn('Match does not belong to same guild - returning None')
-                    return None
+                    return await ctx.send(f'Match with ID {match_id} cannot be found on this server. Use {ctx.prefix}listmatches to see available matches.')
 
                 return match
             except peewee.DoesNotExist:
-                logger.warn(f'Match with ID {match_id} cannot be found.')
-                return None
+                return await ctx.send(f'Match with ID {match_id} cannot be found. Use {ctx.prefix}listmatches to see available matches.')
             except ValueError:
-                logger.error(f'Invalid Match ID "{match_id}".')
-                return None
+                return await ctx.send(f'Invalid Match ID "{match_id}".')
 
 
 class matchmaking():
@@ -149,8 +145,6 @@ class matchmaking():
     async def match(self, ctx, match: PolyMatch):
         """Display details on a match"""
 
-        if match is None:
-            return await ctx.send(f'No matching match was found. Use {ctx.prefix}listmatches to see available matches.')
         # if len(match.matchplayer) >= (match.team_size * 2):
         #         await ctx.send(f'Match M{match.id} is now full and the host should start the game with `{ctx.prefix}startmatch M{match.id}`.')
         embed, content = match.embed(ctx)
@@ -167,9 +161,6 @@ class matchmaking():
         `[p]joinmatch m5 ronin 2` - Join match m5 to side number 2
         `[p]joinmatch m5 rickdaheals jets` - Add a person to your match. Side must be specified.
         """
-        if match is None:
-            return await ctx.send(f'No matching match was found. Use {ctx.prefix}listmatches to see available matches.')
-
         if len(args) == 0:
             # ctx.author is joining a match, no side given
             target = str(ctx.author.id)
@@ -230,8 +221,6 @@ class matchmaking():
         **Example:**
         `[p]leavematch M25`
         """
-        if match is None:
-            return await ctx.send(f'No matching match was found. Use {ctx.prefix}listmatches to see available matches.')
         if match.is_hosted_by(ctx.author.id):
 
             if not settings.is_matchmaking_power_user(ctx):
@@ -259,8 +248,6 @@ class matchmaking():
         **Example:**
         `[p]kick M25 koric`
         """
-        if match is None:
-            return await ctx.send(f'No matching match was found. Use {ctx.prefix}listmatches to see available matches.')
         if not match.is_hosted_by(ctx.author.id) and not settings.is_staff(ctx):
             return await ctx.send(f'Only the match host or server staff can do this.')
 
@@ -290,10 +277,6 @@ class matchmaking():
         **Example:**
         `[p]delmatch M25`
         """
-
-        if match is None:
-            return await ctx.send(f'No matching match was found. Use {ctx.prefix}listmatches to see available matches.')
-
         if match.is_hosted_by(ctx.author.id) or settings.is_staff(ctx):
             # User is deleting their own match, or user has a staff role
             await ctx.send(f'Deleting match M{match.id}')

@@ -420,11 +420,7 @@ class Game(BaseModel):
 
     def embed(self, ctx):
 
-        game_headline = self.get_headline()
-        print(game_headline)
-        # game_headline = game_headline.replace('\n\u00a0', '\n')   # Put game.name onto its own line if its there
-
-        embed = discord.Embed(title=f'{game_headline} - *{self.size_string()}*')
+        embed = discord.Embed(title=f'{self.get_headline()} — *{self.size_string()}*')
 
         if self.is_completed == 1:
             winning_obj, winning_side = self.get_winner(), self.winner
@@ -454,27 +450,42 @@ class Game(BaseModel):
 
             game_data.append((squad, team_elo_str, squad_elo_str, squad.roster()))
 
-        side_num = 1
+        use_separator = False
         for side, elo_str, squad_str, roster in game_data:
-            embed.add_field(name='\u200b', value='___________', inline=False)  # Separator between sides
+
+            if use_separator:
+                embed.add_field(name='\u200b', value='\u200b', inline=False)  # Separator between sides
+
             if len(side.lineup) > 1:
-                team_str = f'Lineup for Team **{side.team.name}** {elo_str}'
+                team_str = f'__Lineup for Team **{side.team.name}**__ {elo_str}'
 
                 embed.add_field(name=team_str, value=squad_str, inline=False)
-            # else:
-            #     team_str = f'__Side {side_num}__'
-            #     embed.add_field(name=team_str, value=squad_str, inline=False)
 
             for player, player_elo_str, tribe_emoji in roster:
-                embed.add_field(name=f'**{player.name}** {tribe_emoji}', value=f'ELO: {player_elo_str}', inline=True)
-
-            side_num = side_num + 1
+                if len(side.lineup) > 1:
+                    embed.add_field(name=f'**{player.name}** {tribe_emoji}', value=f'ELO: {player_elo_str}', inline=True)
+                else:
+                    embed.add_field(name=f'__**{player.name}**__ {tribe_emoji}', value=f'ELO: {player_elo_str}', inline=True)
+            use_separator = True
 
         if self.match:
             notes = f'\n**Notes:** {self.match[0].notes}' if self.match[0].notes else ''
             embed_content = f'Matchmaking **M{self.match[0].id}**{notes}'
         else:
             embed_content = None
+
+        if ctx.guild.id != settings.server_ids['polychampions']:
+            embed.add_field(value='Powered by **PolyChampions** - https://discord.gg/cX7Ptnv', name='\u200b', inline=False)
+            embed.set_author(name='PolyChampions', url='https://discord.gg/cX7Ptnv', icon_url='https://cdn.discordapp.com/emojis/488510815893323787.png?v=1')
+
+        if not self.is_completed:
+            status_str = 'Incomplete'
+        elif self.is_confirmed:
+            status_str = 'Completed'
+        else:
+            status_str = 'Unconfirmed'
+
+        embed.set_footer(text=f'Status: {status_str}  -  Creation Date {str(self.date)}')
 
         return embed, embed_content
 
