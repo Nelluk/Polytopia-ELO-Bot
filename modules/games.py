@@ -740,7 +740,7 @@ class games():
         # split ['foo', 'bar', 'vs', 'baz', 'bat'] into [['foo', 'bar']['baz', 'bat']]
 
         # TODO - remove once compatible
-        if len(player_groups) != 2:
+        if len(player_groups) > 2:
             raise exceptions.CheckFailedError('Support for games with >2 sides not yet implemented')
         biggest_team = max(len(group) for group in player_groups)
         total_players = sum(len(group) for group in player_groups)
