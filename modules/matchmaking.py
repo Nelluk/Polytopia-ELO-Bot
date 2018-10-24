@@ -242,7 +242,7 @@ class matchmaking():
         await ctx.send('Removing you from the match.')
 
     @commands.command(usage='match_id', aliases=['notes'])
-    async def matchnotes(self, ctx, match: PolyMatch, notes: str = None):
+    async def matchnotes(self, ctx, match: PolyMatch, *, notes: str = None):
         """
         Edit notes for a match you host
         **Example:**
