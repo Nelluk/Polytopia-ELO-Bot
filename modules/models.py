@@ -21,9 +21,10 @@ class BaseModel(Model):
 class Team(BaseModel):
     name = TextField(unique=False, null=False)       # can't store in case insensitive way, need to use ILIKE operator
     elo = SmallIntegerField(default=1000)
-    emoji = TextField(null=False, default='')       # Changed default from nullable/None
+    emoji = TextField(null=False, default='')
     image_url = TextField(null=True)
-    guild_id = BitField(unique=False, null=False)   # Included for possible future expanson
+    guild_id = BitField(unique=False, null=False)    # Included for possible future expanson
+    is_hidden = BooleanField(default=False)             # True / generic team ie Home/Away, False = server team like Ronin
 
     class Meta:
         indexes = ((('name', 'guild_id'), True),)   # Trailing comma is required
@@ -160,30 +161,29 @@ class Player(BaseModel):
         # output: True, [<Ronin>, <Ronin>]
 
         def get_matching_roles(discord_member, list_of_role_names):
-            # Given a Discord.Member and a ['List of', 'Role names'], return set of role names that the Member has.polytopia_id
+            # Given a Discord.Member and a ['List of', 'Role names'], return set of role names that the Member has.
             member_roles = [x.name for x in discord_member.roles]
             return set(member_roles).intersection(list_of_role_names)
 
-        with db:
-            query = Team.select(Team.name).where(Team.guild_id == guild_id)
-            list_of_teams = [team.name for team in query]               # ['The Ronin', 'The Jets', ...]
-            list_of_matching_teams = []
-            for player in list_of_players:
-                matching_roles = get_matching_roles(player, list_of_teams)
-                if len(matching_roles) == 1:
-                    # TODO: This would be more efficient to do as one query and then looping over the list of teams one time for each player
-                    name = next(iter(matching_roles))
-                    list_of_matching_teams.append(
-                        Team.select().where(
-                            (Team.name == name) & (Team.guild_id == guild_id)
-                        ).get()
-                    )
-                else:
-                    list_of_matching_teams.append(None)
-                    # Would be here if no player Roles match any known teams, -or- if they have more than one match
+        query = Team.select(Team.name).where(Team.guild_id == guild_id)
+        list_of_teams = [team.name for team in query]               # ['The Ronin', 'The Jets', ...]
+        list_of_matching_teams = []
+        for player in list_of_players:
+            matching_roles = get_matching_roles(player, list_of_teams)
+            if len(matching_roles) == 1:
+                # TODO: This would be more efficient to do as one query and then looping over the list of teams one time for each player
+                name = next(iter(matching_roles))
+                list_of_matching_teams.append(
+                    Team.select().where(
+                        (Team.name == name) & (Team.guild_id == guild_id)
+                    ).get()
+                )
+            else:
+                list_of_matching_teams.append(None)
+                # Would be here if no player Roles match any known teams, -or- if they have more than one match
 
-            same_team_flag = True if all(x == list_of_matching_teams[0] for x in list_of_matching_teams) else False
-            return same_team_flag, list_of_matching_teams
+        same_team_flag = True if all(x == list_of_matching_teams[0] for x in list_of_matching_teams) else False
+        return same_team_flag, list_of_matching_teams
 
     def string_matches(player_string: str, guild_id: int):
         # Returns QuerySet containing players in current guild matching string. Searches against discord mention ID first, then exact discord name match,
@@ -191,38 +191,41 @@ class Player(BaseModel):
 
         try:
             p_id = int(player_string.strip('<>!@'))
+        except ValueError:
+            pass
+        else:
             # lookup either on <@####> mention string or raw ID #
             return Player.select(Player, DiscordMember).join(DiscordMember).where(
                 (DiscordMember.discord_id == p_id) & (Player.guild_id == guild_id)
             )
-        except ValueError:
-            if len(player_string.split('#', 1)[0]) > 2:
-                discord_str = player_string.split('#', 1)[0]
-                # If query is something like 'Nelluk#7034', use just the 'Nelluk' to match against discord_name.
-                # This happens if user does an @Mention then removes the @ character
-            else:
-                discord_str = player_str
 
-            name_exact_match = Player.select(Player, DiscordMember).join(DiscordMember).where(
-                (DiscordMember.name == discord_str) & (Player.guild_id == guild_id)
-            )
-            if name_exact_match.count() == 1:
-                # String matches DiscordUser.name exactly
-                return name_exact_match
+        if len(player_string.split('#', 1)[0]) > 2:
+            discord_str = player_string.split('#', 1)[0]
+            # If query is something like 'Nelluk#7034', use just the 'Nelluk' to match against discord_name.
+            # This happens if user does an @Mention then removes the @ character
+        else:
+            discord_str = player_str
 
-            # If no exact match, return any substring matches
-            name_substring_match = Player.select(Player, DiscordMember).join(DiscordMember).where(
-                ((Player.nick.contains(player_string)) | (DiscordMember.name.contains(discord_str))) & (Player.guild_id == guild_id)
-            )
+        name_exact_match = Player.select(Player, DiscordMember).join(DiscordMember).where(
+            (DiscordMember.name == discord_str) & (Player.guild_id == guild_id)
+        )
+        if name_exact_match.count() == 1:
+            # String matches DiscordUser.name exactly
+            return name_exact_match
 
-            if name_substring_match.count() > 0:
-                return name_substring_match
+        # If no exact match, return any substring matches
+        name_substring_match = Player.select(Player, DiscordMember).join(DiscordMember).where(
+            ((Player.nick.contains(player_string)) | (DiscordMember.name.contains(discord_str))) & (Player.guild_id == guild_id)
+        )
 
-            # If no substring name matches, return anything with matching polytopia name or code
-            poly_fields_match = Player.select(Player, DiscordMember).join(DiscordMember).where(
-                ((DiscordMember.polytopia_id.contains(player_string)) | (DiscordMember.polytopia_name.contains(player_string))) & (Player.guild_id == guild_id)
-            )
-            return poly_fields_match
+        if name_substring_match.count() > 0:
+            return name_substring_match
+
+        # If no substring name matches, return anything with matching polytopia name or code
+        poly_fields_match = Player.select(Player, DiscordMember).join(DiscordMember).where(
+            ((DiscordMember.polytopia_id.contains(player_string)) | (DiscordMember.polytopia_name.contains(player_string))) & (Player.guild_id == guild_id)
+        )
+        return poly_fields_match
 
     def get_or_except(player_string: str, guild_id: int):
         results = Player.string_matches(player_string=player_string, guild_id=guild_id)
@@ -419,50 +422,53 @@ class Game(BaseModel):
             return logger.warn('Couldn\'t update message in update_announacement')
 
     def embed(self, ctx):
-        if len(self.squads) != 2:
-            raise exceptions.CheckFailedError('Support for games with >2 sides not yet implemented')
 
-        home_side = self.squads[0]
-        away_side = self.squads[1]
-
-        winner = self.get_winner()
-
-        game_headline = self.get_headline()
-        game_headline = game_headline.replace('\u00a0', '\n')   # Put game.name onto its own line if its there
-
-        embed = discord.Embed(title=game_headline)
+        embed = discord.Embed(title=f'{self.get_headline()} — *{self.size_string()}*')
 
         if self.is_completed == 1:
-            embed.title += f'\n\nWINNER: {winner.name}'
+            embed.title += f'\n\nWINNER: {self.winner.name()}'
 
-        # Set embed image (profile picture or team logo)
-            if self.team_size() == 1:
-                winning_discord_member = ctx.guild.get_member(winner.discord_member.discord_id)
+            # Set embed image (profile picture or team logo)
+            if len(self.winner.lineup) == 1:
+                # Winner is individual player
+                winning_discord_member = ctx.guild.get_member(self.winner.lineup[0].player.discord_member.discord_id)
                 if winning_discord_member is not None:
                     embed.set_thumbnail(url=winning_discord_member.avatar_url_as(size=512))
-            elif winner.image_url:
-                embed.set_thumbnail(url=winner.image_url)
+            elif self.winner.team.image_url:
+                # Winner is a team of players - use team image if present
+                embed.set_thumbnail(url=self.winner.team.image_url)
 
-        # TEAM/SQUAD ELOs and ELO DELTAS
-        home_team_elo_str, home_squad_elo_str = home_side.elo_strings()
-        away_team_elo_str, away_squad_elo_str = away_side.elo_strings()
+        game_data = []
+        for squad in self.squads:
+            team_elo_str, squad_elo_str = squad.elo_strings()
 
-        if home_side.team.name == 'Home' and away_side.team.name == 'Away':
-            # Hide team ELO if its just generic Home/Away
-            home_team_elo_str = away_team_elo_str = ''
+            if squad.team.is_hidden:
+                # Hide team ELO if generic Team
+                team_elo_str = '\u200b'
 
-        if self.team_size() == 1:
-            # Hide squad ELO stats for 1v1 games
-            home_squad_elo_str = away_squad_elo_str = '\u200b'
+            if len(squad.lineup) == 1:
+                # Hide squad ELO stats for 1-player teams
+                squad_elo_str = '\u200b'
 
-        game_data = [(home_side, home_team_elo_str, home_squad_elo_str, home_side.roster()), (away_side, away_team_elo_str, away_squad_elo_str, away_side.roster())]
+            game_data.append((squad, team_elo_str, squad_elo_str, squad.roster()))
 
+        use_separator = False
         for side, elo_str, squad_str, roster in game_data:
-            if self.team_size() > 1:
-                embed.add_field(name=f'Lineup for Team **{side.team.name}** {elo_str}', value=squad_str, inline=False)
+
+            if use_separator:
+                embed.add_field(name='\u200b', value='\u200b', inline=False)  # Separator between sides
+
+            if len(side.lineup) > 1:
+                team_str = f'__Lineup for Team **{side.team.name}**__ {elo_str}'
+
+                embed.add_field(name=team_str, value=squad_str, inline=False)
 
             for player, player_elo_str, tribe_emoji in roster:
-                embed.add_field(name=f'**{player.name}** {tribe_emoji}', value=f'ELO: {player_elo_str}', inline=True)
+                if len(side.lineup) > 1:
+                    embed.add_field(name=f'**{player.name}** {tribe_emoji}', value=f'ELO: {player_elo_str}', inline=True)
+                else:
+                    embed.add_field(name=f'__**{player.name}**__ {tribe_emoji}', value=f'ELO: {player_elo_str}', inline=True)
+            use_separator = True
 
         if self.match:
             notes = f'\n**Notes:** {self.match[0].notes}' if self.match[0].notes else ''
@@ -486,17 +492,33 @@ class Game(BaseModel):
         return embed, embed_content
 
     def get_headline(self):
-        if len(self.squads) != 2:
-            raise exceptions.CheckFailedError('Support for games with >2 sides not yet implemented')
+        # yields string like:
+        # Game 481   :fried_shrimp: The Crawfish vs :fried_shrimp: TestAccount1 vs :spy: TestBoye1\n*Name of Game*
+        squad_strings = []
+        for squad in self.squads:
+            if len(squad.lineup) > 1 or not squad.team.is_hidden:
+                emoji = squad.team.emoji
+            else:
+                emoji = ''
+            squad_strings.append(f'{emoji} **{squad.name()}**')
+        full_squad_string = ' *vs* '.join(squad_strings)
 
-        home_name, away_name = self.squads[0].name(), self.squads[1].name()
-        home_emoji = self.squads[0].team.emoji if self.squads[0].team.emoji else ''
-        away_emoji = self.squads[1].team.emoji if self.squads[1].team.emoji else ''
-        game_name = f'\u00a0*{self.name}*' if self.name and self.name.strip() else ''  # \u00a0 is used as an invisible delimeter so game_name can be split out easily
+        game_name = f'\n\u00a0*{self.name}*' if self.name and self.name.strip() else ''
+        # \u00a0 is used as an invisible delimeter so game_name can be split out easily
+        return f'Game {self.id}   {full_squad_string}{game_name}'
 
-        return f'Game {self.id}   {home_emoji} **{home_name}** *vs* **{away_name}** {away_emoji}{game_name}'
+    def largest_team(self):
+        return max(len(squad.lineup) for squad in self.squads)
+
+    def size_string(self):
+
+        if self.largest_team() == 1 and len(self.squads) > 2:
+            return 'FFA'
+        else:
+            return 'v'.join(str(len(s.lineup)) for s in self.squads)
 
     def team_size(self):
+        # TODO: Deprecated
         return len(self.squads[0].lineup)
 
     def load_full_game(game_id: int):
@@ -517,102 +539,116 @@ class Game(BaseModel):
             raise DoesNotExist()
         return res[0]
 
-    def create_game(teams, guild_id, name: str = None, require_teams: bool = False):
-        # teams = list of lists [[d1, d2, d3], [d4, d5, d6]]. each item being a discord.Member object
+    def create_game(discord_groups, guild_id, name: str = None, require_teams: bool = False):
+        # discord_groups = list of lists [[d1, d2, d3], [d4, d5, d6]]. each item being a discord.Member object
 
-        # Determine what Team guild members are associated with
-        home_team_flag, list_of_home_teams = Player.get_teams_of_players(guild_id=guild_id, list_of_players=teams[0])  # get list of what server team each player is on, eg Ronin, Jets.
-        away_team_flag, list_of_away_teams = Player.get_teams_of_players(guild_id=guild_id, list_of_players=teams[1])
+        generic_teams_short = [('Home', ':stadium:'), ('Away', ':airplane:')]  # For two-team games
+        generic_teams_long = [('Sharks', ':shark:'), ('Owls', ':owl:'), ('Eagles', ':eagle:'), ('Tigers', ':tiger:'),
+                              ('Bears', ':bear:'), ('Koalas', ':koala:'), ('Dogs', ':dog:'), ('Bats', ':bat:'),
+                              ('Lions', ':lion:'), ('Cats', ':cat:'), ('Birds', ':bird:'), ('Spiders', ':spider:')]
 
-        if (None in list_of_away_teams) or (None in list_of_home_teams):
-            if require_teams is True:
-                raise exceptions.CheckFailedError('One or more players listed cannot be matched to a Team (based on Discord Roles). Make sure player has exactly one matching Team role.')
-            else:
-                # Set this to a home/away game if at least one player has no matching role, AND require_teams == false
-                home_team_flag = away_team_flag = False
+        list_of_detected_teams, list_of_final_teams, teams_for_each_discord_member = [], [], []
+        intermingled_flag = False
+        # False if all players on each side belong to the same server team, Ronin/Jets.True if players are mixed or on a server without teams
 
-        if home_team_flag and away_team_flag:
-            # If all players on both sides are playing with only members of their own Team (server team), those Teams are impacted by the game...
-            home_side_team = list_of_home_teams[0]
-            away_side_team = list_of_away_teams[0]
+        for discord_group in discord_groups:
+            same_team, list_of_teams = Player.get_teams_of_players(guild_id=guild_id, list_of_players=discord_group)
+            print(list_of_teams)
+            teams_for_each_discord_member.append(list_of_teams)  # [[Team, Team][Team, Team]] for each team that a discord member is associated with, for Player.upsert()
+            if None in list_of_teams:
+                if require_teams is True:
+                    raise exceptions.CheckFailedError('One or more players listed cannot be matched to a Team (based on Discord Roles). Make sure player has exactly one matching Team role.')
+                else:
+                    # Player(s) can't be matched to team, but server setting allows that.
+                    intermingled_flag = True
+            if not same_team:
+                # Mixed players within same side
+                intermingled_flag = True
 
-            if home_side_team == away_side_team:
-                with db:
-                    # If Team Foo is playing against another squad from Team Foo, reset them to 'Home' and 'Away'
-                    home_side_team, _ = Team.get_or_create(name='Home', guild_id=guild_id, defaults={'emoji': ':stadium:'})
-                    away_side_team, _ = Team.get_or_create(name='Away', guild_id=guild_id, defaults={'emoji': ':airplane:'})
+            if not intermingled_flag:
+                if list_of_teams[0] in list_of_detected_teams:
+                    # Detected team already present (ie. Ronin players vs Ronin players)
+                    intermingled_flag = True
+                else:
+                    list_of_detected_teams.append(list_of_teams[0])
 
+        if not intermingled_flag:
+            # Use detected server teams for this game
+            assert len(list_of_detected_teams) == len(discord_groups), 'Mismatched lists!'
+            list_of_final_teams = list_of_detected_teams
         else:
-            # Otherwise the players are "intermingling" and the game just influences two hidden teams in the database called 'Home' and 'Away'
-            with db:
-                home_side_team, _ = Team.get_or_create(name='Home', guild_id=guild_id, defaults={'emoji': ':stadium:'})
-                away_side_team, _ = Team.get_or_create(name='Away', guild_id=guild_id, defaults={'emoji': ':airplane:'})
+            # Use Generic Teams
+            if len(discord_groups) == 2:
+                generic_teams = generic_teams_short
+            else:
+                generic_teams = generic_teams_long
 
-        with db:
+            for count in range(len(discord_groups)):
+                team_obj, created = Team.get_or_create(name=generic_teams[count][0], guild_id=guild_id,
+                                                       defaults={'emoji': generic_teams[count][1], 'is_hidden': True})
+                list_of_final_teams.append(team_obj)
+
+        with db.atomic():
             newgame = Game.create(name=name,
                                   guild_id=guild_id)
 
-            side_home_players = []
-            side_away_players = []
-            # Create/update Player records
-            for player_discord, player_team in zip(teams[0], list_of_home_teams):
-                side_home_players.append(
-                    Player.upsert(discord_id=player_discord.id, discord_name=player_discord.name, discord_nick=player_discord.nick, guild_id=guild_id, team=player_team)[0]
-                )
+            # print(discord_groups)
+            for team_group, allied_team, discord_group in zip(teams_for_each_discord_member, list_of_final_teams, discord_groups):
+                # team_group is each team that the individual discord.Member is associated with on the server, often None
+                # allied_team is the team that this entire group is playing for in this game. Either a Server Team or Generic. Never None.
 
-            for player_discord, player_team in zip(teams[1], list_of_away_teams):
-                side_away_players.append(
-                    Player.upsert(discord_id=player_discord.id, discord_name=player_discord.name, discord_nick=player_discord.nick, guild_id=guild_id, team=player_team)[0]
-                )
+                player_group = []
+                # print('dg', len(team_group), len(discord_group), discord_group)
+                for team, discord_member in zip(team_group, discord_group):
+                    # print(team, discord_member)
+                    # Upsert each discord.Member into a Player database object
+                    player_group.append(
+                        Player.upsert(discord_id=discord_member.id, discord_name=discord_member.name, discord_nick=discord_member.nick, guild_id=guild_id, team=team)[0]
+                    )
 
-            # Create/update Squad records
-            home_squad, away_squad = None, None
-            if len(side_home_players) > 1:
-                home_squad = Squad.upsert(player_list=side_home_players, guild_id=guild_id)
-            if len(side_away_players) > 1:
-                away_squad = Squad.upsert(player_list=side_away_players, guild_id=guild_id)
+                # Create Squad records if 2+ players are allied
+                if len(player_group) > 1:
+                    squad = Squad.upsert(player_list=player_group, guild_id=guild_id)
+                else:
+                    squad = None
 
-            home_squadgame = SquadGame.create(game=newgame, squad=home_squad, team=home_side_team)
+                squadgame = SquadGame.create(game=newgame, squad=squad, team=allied_team)
 
-            for p in side_home_players:
-                Lineup.create(game=newgame, squadgame=home_squadgame, player=p)
-
-            away_squadgame = SquadGame.create(game=newgame, squad=away_squad, team=away_side_team)
-
-            for p in side_away_players:
-                Lineup.create(game=newgame, squadgame=away_squadgame, player=p)
+                # Create Lineup records
+                for player in player_group:
+                    print(f'Creating lineup for player {player.name}')
+                    Lineup.create(game=newgame, squadgame=squadgame, player=player)
 
         return newgame
 
     def reverse_elo_changes(self):
-        with db.atomic():
-            for lineup in self.lineup:
-                print(f'game {self.id} pre-revision - player: {lineup.player.elo}')
-                lineup.player.elo += lineup.elo_change_player * -1
-                lineup.player.save()
-                lineup.elo_change_player = 0
-                print(f'post-revision - player: {lineup.player.elo}')
-                if lineup.elo_change_discordmember:
-                    lineup.player.discord_member.elo += lineup.elo_change_discordmember * -1
-                    lineup.elo_change_discordmember = 0
-                lineup.save()
+        for lineup in self.lineup:
+            print(f'game {self.id} pre-revision - player: {lineup.player.elo}')
+            lineup.player.elo += lineup.elo_change_player * -1
+            lineup.player.save()
+            lineup.elo_change_player = 0
+            print(f'post-revision - player: {lineup.player.elo}')
+            if lineup.elo_change_discordmember:
+                lineup.player.discord_member.elo += lineup.elo_change_discordmember * -1
+                lineup.elo_change_discordmember = 0
+            lineup.save()
 
-            for squadgame in self.squads:
-                if squadgame.squad:
-                    print(f'pre-revision - squad: {squadgame.squad.elo}')
-                    squadgame.squad.elo += (squadgame.elo_change_squad * -1)
-                    squadgame.squad.save()
-                    squadgame.elo_change_squad = 0
-                    print(f'post-revision - squad: {squadgame.squad.elo}')
+        for squadgame in self.squads:
+            if squadgame.squad:
+                print(f'pre-revision - squad: {squadgame.squad.elo}')
+                squadgame.squad.elo += (squadgame.elo_change_squad * -1)
+                squadgame.squad.save()
+                squadgame.elo_change_squad = 0
+                print(f'post-revision - squad: {squadgame.squad.elo}')
 
-                if squadgame.elo_change_team:
-                    print(f'pre-revision - team: {squadgame.team.elo}')
-                    squadgame.team.elo += (squadgame.elo_change_team * -1)
-                    squadgame.team.save()
-                    squadgame.elo_change_team = 0
-                    print(f'post-revision - team: {squadgame.team.elo}')
+            if squadgame.elo_change_team:
+                print(f'pre-revision - team: {squadgame.team.elo}')
+                squadgame.team.elo += (squadgame.elo_change_team * -1)
+                squadgame.team.save()
+                squadgame.elo_change_team = 0
+                print(f'post-revision - team: {squadgame.team.elo}')
 
-                squadgame.save()
+            squadgame.save()
 
     def delete_game(self):
         # resets any relevant ELO changes to players and teams, deletes related lineup records, and deletes the game entry itself
@@ -634,10 +670,10 @@ class Game(BaseModel):
             for squadgame in self.squads:
                 squadgame.delete_instance()
 
-        self.delete_instance()
+            self.delete_instance()
 
-        if recalculate:
-            Game.recalculate_elo_since(timestamp=since)
+            if recalculate:
+                Game.recalculate_elo_since(timestamp=since)
 
     def declare_winner(self, winning_side: 'SquadGame', confirm: bool):
 
@@ -702,41 +738,33 @@ class Game(BaseModel):
         return (False, None)
 
     def squadgame_by_name(self, ctx, name: str):
-        # Given a string representing a player or a team (team name, player name/nick/ID)
+        # Given a string representing a game side's name (team name for 2+ players, player name for 1 player)
         # Return a tuple of the participant and their squadgame, ie Player, SquadGame or Team, Squadgame
 
-        if self.team_size() == 1:
-            # Search by player name
-            player_obj = Player.get_or_except(player_string=name, guild_id=ctx.guild.id)
+        if len(name) < 3:
+            raise exceptions.CheckFailedError('Name given is not enough characters. Be more specific')
 
-            for squadgame in self.squads:
-                for p in squadgame.lineup:
-                    if p.player == player_obj:
-                        return player_obj, squadgame
+        matches = []
+        for squad in self.squads:
+            if len(squad.lineup) == 1:
+                # Compare to single squad player's name
+                if name.lower() in squad.lineup[0].player.name.lower():
+                    matches.append(
+                        (squad.lineup[0].player, squad)
+                    )
+            else:
+                # Compare to squad team's name
+                if name.lower() in squad.team.name.lower():
+                    matches.append(
+                        (squad.team, squad)
+                    )
 
-            raise exceptions.CheckFailedError(f'{player_obj.name} did not play in game {self.id}.')
-
+        if len(matches) == 1:
+            return matches[0]
+        if len(matches) == 0:
+            raise exceptions.NoMatches(f'No matches found for "{name}" in game {self.id}.')
         else:
-            # Search by team name
-            team_obj = Team.get_or_except(team_name=name, guild_id=ctx.guild.id)
-
-            for squadgame in self.squads:
-                if squadgame.team == team_obj:
-                    return team_obj, squadgame
-
-            raise exceptions.CheckFailedError(f'{team_obj.name} did not play in game {self.id}.')
-
-    def get_winner(self):
-        # Returns player object of winner if its a 1v1, or team object of winning side if its a group game
-
-        for squadgame in self.squads:
-            if squadgame == self.winner:
-                if len(squadgame.lineup) > 1:
-                    return squadgame.team
-                else:
-                    return squadgame.lineup[0].player
-
-        return None
+            raise exceptions.TooManyMatches(f'{len(matches)} matches found for "{name}" in game {self.id}.')
 
     def search(player_filter=None, team_filter=None, status_filter: int = 0, guild_id: int = None):
         # Returns Games by almost any combination of player/team participation, and game status
@@ -834,16 +862,14 @@ class Game(BaseModel):
         ).prefetch(SquadGame, Lineup)
 
         for g in games:
-            with db.atomic():
-                g.reverse_elo_changes()
-                g.is_completed = 0  # To have correct completed game counts for new ELO calculations
-                g.save()
+            g.reverse_elo_changes()
+            g.is_completed = 0  # To have correct completed game counts for new ELO calculations
+            g.save()
 
         for g in games:
             full_game = Game.load_full_game(game_id=g.id)
             print(f'Calculating ELO for game {g.id}')
-            with db.atomic():
-                full_game.declare_winner(winning_side=full_game.winner, confirm=True)
+            full_game.declare_winner(winning_side=full_game.winner, confirm=True)
 
     def recalculate_all_elo():
         # Reset all ELOs to 1000, reset completed game counts, and re-run Game.declare_winner() on all qualifying games
@@ -854,23 +880,23 @@ class Game(BaseModel):
 
         logger.warn('Resetting and recalculating all ELO')
 
-        Player.update(elo=1000).execute()
-        Team.update(elo=1000).execute()
-        DiscordMember.update(elo=1000).execute()
-        Squad.update(elo=1000).execute()
+        with db.atomic():
+            Player.update(elo=1000).execute()
+            Team.update(elo=1000).execute()
+            DiscordMember.update(elo=1000).execute()
+            Squad.update(elo=1000).execute()
 
-        Game.update(is_completed=0).where(
-            (Game.is_confirmed == 1) & (Game.winner.is_null(False))
-        ).execute()  # Resets completed game counts for players/squads/team ELO bonuses
+            Game.update(is_completed=0).where(
+                (Game.is_confirmed == 1) & (Game.winner.is_null(False))
+            ).execute()  # Resets completed game counts for players/squads/team ELO bonuses
 
-        games = Game.select().where(
-            (Game.is_completed == 0) & (Game.is_confirmed == 1) & (Game.winner.is_null(False))
-        ).order_by(Game.completed_ts)
+            games = Game.select().where(
+                (Game.is_completed == 0) & (Game.is_confirmed == 1) & (Game.winner.is_null(False))
+            ).order_by(Game.completed_ts)
 
-        for game in games:
-            full_game = Game.load_full_game(game_id=game.id)
-            print(f'Calculating ELO for game {game.id}')
-            with db.atomic():
+            for game in games:
+                full_game = Game.load_full_game(game_id=game.id)
+                print(f'Calculating ELO for game {game.id}')
                 full_game.declare_winner(winning_side=full_game.winner, confirm=True)
 
 
@@ -1025,8 +1051,7 @@ class SquadGame(BaseModel):
     team = ForeignKeyField(Team, null=False, backref='squadgame', on_delete='RESTRICT')
     elo_change_squad = SmallIntegerField(default=0)
     elo_change_team = SmallIntegerField(default=0)
-    # team_chan_category = BitField(default=None, null=True)
-    team_chan = BitField(default=None, null=True)   # Store category/ID of team channel for more consistent renaming-deletion
+    team_chan = BitField(default=None, null=True)
 
     def elo_strings(self):
         # Returns a tuple of strings for team ELO and squad ELO display. ie:
@@ -1171,28 +1196,30 @@ class Match(BaseModel):
     def embed(self, ctx):
         embed = discord.Embed(title=f'Match **M{self.id}**\n{self.size_string()} *hosted by* {self.host.name}')
         notes_str = self.notes if self.notes else "\u200b"
-        expiration = int((self.expiration - datetime.datetime.now()).total_seconds() / 3600.0)
+
+        if self.expiration < datetime.datetime.now():
+            expiration_str = f'*Expired*'
+            status_str = 'Expired'
+        else:
+            expiration_str = f'{int((self.expiration - datetime.datetime.now()).total_seconds() / 3600.0)} hours'
+            status_str = f'Open - `{ctx.prefix}join M{self.id}`'
 
         players, capacity = self.capacity()
         if players >= capacity:
             if self.is_started:
-                footer_str = f'Started - Game # {self.game.id} **{self.game.name}**' if self.game else 'Started'
+                status_str = f'Started - Game # {self.game.id} **{self.game.name}**' if self.game else 'Started'
             else:
                 content_str = f'This match is now full and the host should create the game in Polytopia and start it with `{ctx.prefix}startmatch M{self.id} Name of Game`'
-                footer_str = 'Full - Waiting to start'
-        else:
-            if self.expiration < datetime.datetime.now():
-                footer_str = 'Expired'
-            else:
-                footer_str = f'Open - `{ctx.prefix}join M{self.id}`'
-        embed.add_field(name='Status', value=footer_str, inline=True)
+                status_str = 'Full - Waiting to start'
+
+        embed.add_field(name='Status', value=status_str, inline=True)
 
         # if self.is_started:
         #     game_name = f'ID {self.game.id} **{self.game.name}**' if self.game else '\u200b'
         #     embed.add_field(name='Game Started', value=game_name, inline=True)
 
         content_str = None
-        embed.add_field(name='Expires in', value=f'{expiration} hours', inline=True)
+        embed.add_field(name='Expires in', value=f'{expiration_str}', inline=True)
         embed.add_field(name='Notes', value=notes_str, inline=False)
         embed.add_field(name='\u200b', value='\u200b', inline=False)
 
@@ -1211,7 +1238,6 @@ class Match(BaseModel):
         if players >= capacity and not self.is_started:
             content_str = f'This match is now full and the host should create the game in Polytopia and start it with `{ctx.prefix}startmatch M{self.id} Name of Game`'
 
-        # embed.set_footer(text=footer_str)
         return embed, content_str
 
     def first_open_side(self):

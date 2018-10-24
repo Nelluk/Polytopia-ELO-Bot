@@ -6,15 +6,23 @@ from modules import models
 from modules import initialize_data
 import settings
 import logging
+import sys
 from logging.handlers import RotatingFileHandler
 
 
+# Logger config is a bit of a mess and probably could be simplified a lot, but works. debug and above sent to file / error above sent to stderr
 handler = RotatingFileHandler(filename='discord.log', encoding='utf-8', maxBytes=500 * 1024, backupCount=1)
 handler.setFormatter(logging.Formatter('%(asctime)s:%(levelname)s:%(name)s: %(message)s'))
 
 my_logger = logging.getLogger('polybot')
 my_logger.setLevel(logging.DEBUG)
 my_logger.addHandler(handler)  # root handler for app. module-specific loggers will inherit this
+
+err = logging.StreamHandler(sys.stderr)
+err.setLevel(logging.ERROR)
+err.setFormatter(logging.Formatter('%(asctime)s:%(levelname)s:%(name)s: %(message)s'))
+my_logger.addHandler(err)
+
 
 discord_logger = logging.getLogger('discord')
 discord_logger.setLevel(logging.INFO)
@@ -31,6 +39,8 @@ if (logger_peewee.hasHandlers()):
     logger_peewee.handlers.clear()
 
 logger_peewee.addHandler(handler)
+
+logger = logging.getLogger('polybot.' + __name__)
 
 
 def main():
@@ -86,13 +96,17 @@ if __name__ == '__main__':
 
         # Anything in ignored will return and prevent anything happening.
         if isinstance(exc, ignored):
-            logging.warn(f'Exception on ignored list raised in {ctx.command}. {exc}')
+            logger.warn(f'Exception on ignored list raised in {ctx.command}. {exc}')
             return
 
         exception_str = ''.join(traceback.format_exception(etype=type(exc), value=exc, tb=exc.__traceback__))
-        logging.critical(f'Ignoring exception in command {ctx.command}: {exc} {exception_str}', exc_info=True)
-        print(f'Exception raised. {exc}\n{exception_str}')
+        logger.critical(f'Ignoring exception in command {ctx.command}: {exc} {exception_str}', exc_info=True)
+        # print(f'Exception raised. {exc}\n{exception_str}')
         await ctx.send(f'Unhandled error: {exc}')
+
+    @bot.before_invoke
+    async def pre_invoke_setup(ctx):
+        models.db.connect(reuse_if_open=True)
 
     @bot.after_invoke
     async def post_invoke_cleanup(ctx):
