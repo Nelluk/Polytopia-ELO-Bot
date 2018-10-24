@@ -14,17 +14,8 @@ import logging
 logger = logging.getLogger('polybot.' + __name__)
 
 
-class matchmaking():
-    """
-    Helps players find other players.
-    """
-
-    def __init__(self, bot):
-        self.bot = bot
-
-    def poly_match(match_id):
-        # Give game ID integer return matching Match or None. Can be used as a converter function for discord command input:
-        # https://discordpy.readthedocs.io/en/rewrite/ext/commands/commands.html#basic-converters
+class PolyMatch(commands.Converter):
+    async def convert(self, ctx, match_id):
 
         try:
             match_id = int(match_id)
@@ -32,19 +23,29 @@ class matchmaking():
             if match_id.upper()[0] == 'M':
                 match_id = match_id[1:]
             else:
-                logger.warn(f'Match with ID {match_id} cannot be found.')
-                return None
+                return await ctx.send(f'Match with ID {match_id} cannot be found. Use {ctx.prefix}listmatches to see available matches.')
         with models.db:
             try:
-                match = models.Match.get(id=match_id)  # not sure the prefetch will work
+                match = models.Match.get(id=match_id)
                 logger.debug(f'Match with ID {match_id} found.')
+
+                if match.guild_id != ctx.guild.id:
+                    return await ctx.send(f'Match with ID {match_id} cannot be found on this server. Use {ctx.prefix}listmatches to see available matches.')
+
                 return match
             except peewee.DoesNotExist:
-                logger.warn(f'Match with ID {match_id} cannot be found.')
-                return None
+                return await ctx.send(f'Match with ID {match_id} cannot be found. Use {ctx.prefix}listmatches to see available matches.')
             except ValueError:
-                logger.error(f'Invalid Match ID "{match_id}".')
-                return None
+                return await ctx.send(f'Invalid Match ID "{match_id}".')
+
+
+class matchmaking():
+    """
+    Helps players find other players.
+    """
+
+    def __init__(self, bot):
+        self.bot = bot
 
     # @settings.in_bot_channel()
     @commands.command(usage='size expiration rules')
@@ -117,7 +118,7 @@ class matchmaking():
         await ctx.send(f'Starting new open match ID M{match.id}. Size: {team_size_str}. Expiration: {expiration_hours} hours.\nNotes: *{notes_str}*')
 
     @commands.command(usage='match_id side_number Side Name')
-    async def matchside(self, ctx, match: poly_match, side_lookup: str, *, args):
+    async def matchside(self, ctx, match: PolyMatch, side_lookup: str, *, args):
         """
         Give a name to a side in a match you host
         **Example:**
@@ -131,22 +132,19 @@ class matchmaking():
         # matchside m1 1 name ronin
         # matchside m1 ronin nelluk rickdaheals jonathan
 
-        with models.db:
-            matchside, _ = match.get_side(lookup=side_lookup)
-            if not matchside:
-                return await ctx.send(f'Can\'t find that side for match M{match.id}.')
-            matchside.name = args
-            matchside.save()
+        matchside, _ = match.get_side(lookup=side_lookup)
+        if not matchside:
+            return await ctx.send(f'Can\'t find that side for match M{match.id}.')
+        matchside.name = args
+        matchside.save()
 
         return await ctx.send(f'Side {matchside.position} for Match M{match.id} has been named "{args}"')
 
     # @settings.in_bot_channel()
     @commands.command(usage='match_id')
-    async def match(self, ctx, match: poly_match):
+    async def match(self, ctx, match: PolyMatch):
         """Display details on a match"""
 
-        if match is None:
-            return await ctx.send(f'No matching match was found. Use {ctx.prefix}listmatches to see available matches.')
         # if len(match.matchplayer) >= (match.team_size * 2):
         #         await ctx.send(f'Match M{match.id} is now full and the host should start the game with `{ctx.prefix}startmatch M{match.id}`.')
         embed, content = match.embed(ctx)
@@ -154,7 +152,7 @@ class matchmaking():
 
     # @settings.in_bot_channel()
     @commands.command(usage='match_id', aliases=['join'])
-    async def joinmatch(self, ctx, match: poly_match, *args):
+    async def joinmatch(self, ctx, match: PolyMatch, *args):
         """
         Join an open match
         **Example:**
@@ -163,9 +161,6 @@ class matchmaking():
         `[p]joinmatch m5 ronin 2` - Join match m5 to side number 2
         `[p]joinmatch m5 rickdaheals jets` - Add a person to your match. Side must be specified.
         """
-        if match is None:
-            return await ctx.send(f'No matching match was found. Use {ctx.prefix}listmatches to see available matches.')
-
         if len(args) == 0:
             # ctx.author is joining a match, no side given
             target = str(ctx.author.id)
@@ -220,14 +215,12 @@ class matchmaking():
         await ctx.send(embed=embed, content=content)
 
     @commands.command(usage='match_id', aliases=['leave'])
-    async def leavematch(self, ctx, match: poly_match):
+    async def leavematch(self, ctx, match: PolyMatch):
         """
         Leave a match that you have joined
         **Example:**
         `[p]leavematch M25`
         """
-        if match is None:
-            return await ctx.send(f'No matching match was found. Use {ctx.prefix}listmatches to see available matches.')
         if match.is_hosted_by(ctx.author.id):
 
             if not settings.is_matchmaking_power_user(ctx):
@@ -245,19 +238,34 @@ class matchmaking():
         if not matchplayer:
             return await ctx.send(f'You are not a member of match M{match.id}')
 
-        with models.db:
-            matchplayer.delete_instance()
-            await ctx.send('Removing you from the match.')
+        matchplayer.delete_instance()
+        await ctx.send('Removing you from the match.')
+
+    @commands.command(usage='match_id', aliases=['notes'])
+    async def matchnotes(self, ctx, match: PolyMatch, notes: str = None):
+        """
+        Edit notes for a match you host
+        **Example:**
+        `[p]matchnotes M25 Large map`
+        """
+
+        if not match.is_hosted_by(ctx.author.id) and not settings.is_staff(ctx):
+            return await ctx.send(f'Only the match host or server staff can do this.')
+
+        match.notes = notes
+        match.save()
+
+        await ctx.send(f'Updated notes for match M{match.id} to: {" " if not notes else notes}')
+        embed, content = match.embed(ctx)
+        await ctx.send(embed=embed, content=content)
 
     @commands.command(usage='match_id player')
-    async def kick(self, ctx, match: poly_match, player: str):
+    async def kick(self, ctx, match: PolyMatch, player: str):
         """
         Kick a player from an open match
         **Example:**
         `[p]kick M25 koric`
         """
-        if match is None:
-            return await ctx.send(f'No matching match was found. Use {ctx.prefix}listmatches to see available matches.')
         if not match.is_hosted_by(ctx.author.id) and not settings.is_staff(ctx):
             return await ctx.send(f'Only the match host or server staff can do this.')
 
@@ -277,21 +285,16 @@ class matchmaking():
         if not matchplayer:
             return await ctx.send(f'{target.name} is not a member of match M{match.id}.')
 
-        with models.db:
-            matchplayer.delete_instance()
-            await ctx.send(f'Removing {target.name} from the match.')
+        matchplayer.delete_instance()
+        await ctx.send(f'Removing {target.name} from the match.')
 
     @commands.command(aliases=['deletematch'], usage='match_id')
-    async def delmatch(self, ctx, match: poly_match):
+    async def delmatch(self, ctx, match: PolyMatch):
         """Deletes a match that you host
         Staff can also delete any match.
         **Example:**
         `[p]delmatch M25`
         """
-
-        if match is None:
-            return await ctx.send(f'No matching match was found. Use {ctx.prefix}listmatches to see available matches.')
-
         if match.is_hosted_by(ctx.author.id) or settings.is_staff(ctx):
             # User is deleting their own match, or user has a staff role
             await ctx.send(f'Deleting match M{match.id}')
@@ -346,7 +349,7 @@ class matchmaking():
 
     # @settings.in_bot_channel()
     @commands.command(usage='match_id Name of Poly Game')
-    async def startmatch(self, ctx, match: poly_match, *, name: str = None):
+    async def startmatch(self, ctx, match: PolyMatch, *, name: str = None):
         """
         Start match and track game with ELO bot
         Use this command after you have created the game in Polytopia.
