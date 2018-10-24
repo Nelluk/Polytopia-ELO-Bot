@@ -252,10 +252,11 @@ class matchmaking():
         if not match.is_hosted_by(ctx.author.id) and not settings.is_staff(ctx):
             return await ctx.send(f'Only the match host or server staff can do this.')
 
-        match.notes = notes
+        old_notes = match.notes
+        match.notes = notes[:100] if notes else None
         match.save()
 
-        await ctx.send(f'Updated notes for match M{match.id} to: {" " if not notes else notes}')
+        await ctx.send(f'Updated notes for match M{match.id} to: {match.notes}\nPrevious notes were: {old_notes}')
         embed, content = match.embed(ctx)
         await ctx.send(embed=embed, content=content)
 
