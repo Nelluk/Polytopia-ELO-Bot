@@ -73,7 +73,7 @@ class matchmaking():
 
         if models.Match.select().where(
             (models.Match.host == match_host) & (models.Match.is_started == 0)
-        ).count() > 4:
+        ).count() > 30:
             return await ctx.send(f'You have too many open matches already. Try using `{ctx.prefix}delmatch` on an existing one.')
 
         for arg in args.split(' '):
@@ -334,8 +334,8 @@ class matchmaking():
             title_str = 'All current matches'
             match_list = models.Match.active_list(guild_id=ctx.guild.id)
 
-        embed = discord.Embed(title=f'{title_str}\nUse `{ctx.prefix}joinmatch M#` to join one or `{ctx.prefix}match M#` for more details.')
-        embed.add_field(name=f'`{"ID":<8}{"Host":<40} {"Type":<7} {"Capacity":<7} {"Exp":>4}`', value='\u200b', inline=False)
+        title_str_full = title_str + f'\nUse `{ctx.prefix}joinmatch M#` to join one or `{ctx.prefix}match M#` for more details.'
+        matchlist_fields = [(f'`{"ID":<8}{"Host":<40} {"Type":<7} {"Capacity":<7} {"Exp":>4}`', '\u200b')]
 
         for match in match_list:
 
@@ -344,9 +344,10 @@ class matchmaking():
             capacity_str = f' {players}/{capacity}'
             expiration = int((match.expiration - datetime.datetime.now()).total_seconds() / 3600.0)
 
-            embed.add_field(name=f'`{"M"f"{match.id}":<8}{match.host.name:<40} {match.size_string():<7} {capacity_str:<7} {expiration:>4}H`',
-                value=f'{notes_str}')
-        await ctx.send(embed=embed)
+            matchlist_fields.append((f'`{"M"f"{match.id}":<8}{match.host.name:<40} {match.size_string():<7} {capacity_str:<7} {expiration:>4}H`',
+                notes_str))
+
+        await utilities.paginate(self.bot, ctx, title=title_str_full, message_list=matchlist_fields, page_start=0, page_end=15, page_size=15)
 
     # @settings.in_bot_channel()
     @commands.command(usage='match_id Name of Poly Game')

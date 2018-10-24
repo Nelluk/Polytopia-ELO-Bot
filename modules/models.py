@@ -1166,7 +1166,7 @@ class Match(BaseModel):
     def active_list(guild_id: int):
         return Match.select().where(
             (Match.expiration > datetime.datetime.now()) & (Match.guild_id == guild_id) & (Match.is_started == 0)
-        ).prefetch(MatchSide)
+        ).order_by(Match.expiration).prefetch(MatchSide)
         # TODO: Could limit list to matches with capacity by querying MatchPlayer count(*) < matchside.size, group_by(Match).distinct()?
         # not sure exactly but that should get most of the way there. look for other queries in this file with " '*' " in them for similar
 
@@ -1273,6 +1273,7 @@ class Match(BaseModel):
         logger.debug(f'purge_expired_matches: Purged {delete_query.execute()}  matches.')
 
     def search(guild_id: int, player: Player = None, search: str = None):
+        # Returns matches where player is a participant/host, OR search is found in match notes OR search is found in match side names
         player_q, search_q = [], []
 
         if player:

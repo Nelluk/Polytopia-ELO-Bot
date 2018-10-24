@@ -68,6 +68,7 @@ def summarize_game_list(games_query):
 
 async def paginate(bot, ctx, title, message_list, page_start=0, page_end=10, page_size=10):
     # Allows user to page through a long list of messages with reactions
+    # message_list should be a [(List of, two-item tuples)]. Each tuple will be split into an embed field name/value
 
     page_end = page_end if len(message_list) > page_end else len(message_list)
 
