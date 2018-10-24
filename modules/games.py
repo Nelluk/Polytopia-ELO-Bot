@@ -739,6 +739,9 @@ class games():
         player_groups = [list(group) for k, group in groupby(args_list, lambda x: x.lower() in ('vs', 'versus')) if not k]
         # split ['foo', 'bar', 'vs', 'baz', 'bat'] into [['foo', 'bar']['baz', 'bat']]
 
+        # TODO - remove once compatible
+        if len(player_groups) != 2:
+            raise exceptions.CheckFailedError('Support for games with >2 sides not yet implemented')
         biggest_team = max(len(group) for group in player_groups)
         total_players = sum(len(group) for group in player_groups)
 
@@ -814,8 +817,6 @@ class games():
             # winning_side will be their SquadGame
         except exceptions.MyBaseException as ex:
             return await ctx.send(f'{ex}')
-
-        return
 
         if winning_game.is_completed is True:
             if winning_game.is_confirmed is True:
