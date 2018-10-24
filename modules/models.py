@@ -191,38 +191,41 @@ class Player(BaseModel):
 
         try:
             p_id = int(player_string.strip('<>!@'))
+        except ValueError:
+            pass
+        else:
             # lookup either on <@####> mention string or raw ID #
             return Player.select(Player, DiscordMember).join(DiscordMember).where(
                 (DiscordMember.discord_id == p_id) & (Player.guild_id == guild_id)
             )
-        except ValueError:
-            if len(player_string.split('#', 1)[0]) > 2:
-                discord_str = player_string.split('#', 1)[0]
-                # If query is something like 'Nelluk#7034', use just the 'Nelluk' to match against discord_name.
-                # This happens if user does an @Mention then removes the @ character
-            else:
-                discord_str = player_str
 
-            name_exact_match = Player.select(Player, DiscordMember).join(DiscordMember).where(
-                (DiscordMember.name == discord_str) & (Player.guild_id == guild_id)
-            )
-            if name_exact_match.count() == 1:
-                # String matches DiscordUser.name exactly
-                return name_exact_match
+        if len(player_string.split('#', 1)[0]) > 2:
+            discord_str = player_string.split('#', 1)[0]
+            # If query is something like 'Nelluk#7034', use just the 'Nelluk' to match against discord_name.
+            # This happens if user does an @Mention then removes the @ character
+        else:
+            discord_str = player_str
 
-            # If no exact match, return any substring matches
-            name_substring_match = Player.select(Player, DiscordMember).join(DiscordMember).where(
-                ((Player.nick.contains(player_string)) | (DiscordMember.name.contains(discord_str))) & (Player.guild_id == guild_id)
-            )
+        name_exact_match = Player.select(Player, DiscordMember).join(DiscordMember).where(
+            (DiscordMember.name == discord_str) & (Player.guild_id == guild_id)
+        )
+        if name_exact_match.count() == 1:
+            # String matches DiscordUser.name exactly
+            return name_exact_match
 
-            if name_substring_match.count() > 0:
-                return name_substring_match
+        # If no exact match, return any substring matches
+        name_substring_match = Player.select(Player, DiscordMember).join(DiscordMember).where(
+            ((Player.nick.contains(player_string)) | (DiscordMember.name.contains(discord_str))) & (Player.guild_id == guild_id)
+        )
 
-            # If no substring name matches, return anything with matching polytopia name or code
-            poly_fields_match = Player.select(Player, DiscordMember).join(DiscordMember).where(
-                ((DiscordMember.polytopia_id.contains(player_string)) | (DiscordMember.polytopia_name.contains(player_string))) & (Player.guild_id == guild_id)
-            )
-            return poly_fields_match
+        if name_substring_match.count() > 0:
+            return name_substring_match
+
+        # If no substring name matches, return anything with matching polytopia name or code
+        poly_fields_match = Player.select(Player, DiscordMember).join(DiscordMember).where(
+            ((DiscordMember.polytopia_id.contains(player_string)) | (DiscordMember.polytopia_name.contains(player_string))) & (Player.guild_id == guild_id)
+        )
+        return poly_fields_match
 
     def get_or_except(player_string: str, guild_id: int):
         results = Player.string_matches(player_string=player_string, guild_id=guild_id)

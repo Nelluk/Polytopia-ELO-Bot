@@ -347,7 +347,7 @@ class matchmaking():
             return await ctx.send(f'Game name is required. Example: `{ctx.prefix}startmatch M{match.id} Name of Game`')
 
         if match.is_started:
-            return await ctx.send(f'Match M{match.id} has already started{" with game # " +  match.game.id if match.game else ""}.')
+            return await ctx.send(f'Match M{match.id} has already started{" with game # " +  str(match.game.id) if match.game else ""}.')
 
         players, capacity = match.capacity()
         if players != capacity:

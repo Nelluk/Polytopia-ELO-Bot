@@ -525,7 +525,7 @@ class games():
             if arg_list:
                 title_query = Game.select().where(
                     (Game.name.contains('%'.join(arg_list))) & (Game.guild_id == ctx.guild.id)
-                ).prefetch(SquadGame, Team, Lineup, Player)
+                ).order_by(-Game.date).prefetch(SquadGame, Team, Lineup, Player)
 
                 game_list_titles = utilities.summarize_game_list(title_query[:50])
             else:
@@ -795,8 +795,11 @@ class games():
     async def win(self, ctx, winning_game: PolyGame, winning_side_name: str):
         """
         Declare winner of an existing game
-        The win must be confirmed by both winning and losing sides, or by server staff.
-        Use player name for 1v1 games, otherwise use team names *(Home/Away/etc)*
+        The win must be confirmed by a member of the losing side (or staff) if the game has two sides.
+        If the game has more than two sides, staff will need to confirm the win.
+        Use player name for 1v1 games, otherwise use team names *(Home/Away/Owls/Sharks/etc)*
+
+        To request staff help with confirmation use `[p]staffhelp`
         **Example:**
         `[p]win 5 Ronin` - Declare Ronin winner of game 5
         `[p]win 5 Nelluk` - Declare Nelluk winner of game 5
