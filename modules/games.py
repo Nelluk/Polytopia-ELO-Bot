@@ -17,14 +17,17 @@ class PolyGame(commands.Converter):
         try:
             game = Game.get(id=int(game_id))
         except ValueError:
-            return await ctx.send(f'Invalid game ID "{game_id}".')
+            await ctx.send(f'Invalid game ID "{game_id}".')
+            raise commands.UserInputError()
         except peewee.DoesNotExist:
-            return await ctx.send(f'Game with ID {game_id} cannot be found.')
+            await ctx.send(f'Game with ID {game_id} cannot be found.')
+            raise commands.UserInputError()
         else:
             logger.debug(f'Game with ID {game_id} found.')
             if game.guild_id != ctx.guild.id:
                 logger.warn('Game does not belong to same guild')
-                return await ctx.send(f'Game with ID {game_id} cannot be found on this Discord server.')
+                await ctx.send(f'Game with ID {game_id} cannot be found on this Discord server.')
+                raise commands.UserInputError()
             return game
 
 
@@ -1085,11 +1088,15 @@ class games():
     @commands.command()
     @commands.is_owner()
     async def ts(self, ctx, game_id: int):
+        return
+        # q = Match.waiting_to_start(host_discord_id=ctx.author.id)
+        # q = Match.waiting_to_start()
+        # for m in q.dicts():
+        #     print(m)
 
-        game = Game.load_full_game(game_id=game_id)
-        # print(game.size_string())
-        embed, content = game.embed(ctx)
-        await ctx.send(content=content, embed=embed)
+        # match = Match.get(id=game_id)
+        # embed, content = match.embed(ctx)
+        # await ctx.send(embed=embed, content=content)
 
     @commands.command()
     @commands.is_owner()

@@ -55,9 +55,9 @@ def summarize_game_list(games_query):
             status_str = 'Incomplete'
         else:
             if game.is_confirmed is False:
-                status_str = status_str = f'**WINNER** (Unconfirmed): {game.get_winner().name}'
+                status_str = status_str = f'**WINNER** (Unconfirmed): {game.winner.name()}'
             else:
-                status_str = f'**WINNER:** {game.get_winner().name}'
+                status_str = f'**WINNER:** {game.winner.name()}'
 
         game_list.append((
             f'{game.get_headline()}',

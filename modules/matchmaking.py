@@ -1,4 +1,4 @@
-import discord
+# import discord
 from discord.ext import commands
 import modules.models as models
 import modules.utilities as utilities
@@ -10,6 +10,7 @@ import re
 import datetime
 import random
 import logging
+import asyncio
 
 logger = logging.getLogger('polybot.' + __name__)
 
@@ -23,20 +24,24 @@ class PolyMatch(commands.Converter):
             if match_id.upper()[0] == 'M':
                 match_id = match_id[1:]
             else:
-                return await ctx.send(f'Match with ID {match_id} cannot be found. Use {ctx.prefix}listmatches to see available matches.')
+                await ctx.send(f'Match with ID {match_id} cannot be found. Use {ctx.prefix}listmatches to see available matches.')
+                raise commands.UserInputError()
         with models.db:
             try:
                 match = models.Match.get(id=match_id)
                 logger.debug(f'Match with ID {match_id} found.')
 
                 if match.guild_id != ctx.guild.id:
-                    return await ctx.send(f'Match with ID {match_id} cannot be found on this server. Use {ctx.prefix}listmatches to see available matches.')
+                    await ctx.send(f'Match with ID {match_id} cannot be found on this server. Use {ctx.prefix}listmatches to see available matches.')
+                    raise commands.UserInputError()
 
                 return match
             except peewee.DoesNotExist:
-                return await ctx.send(f'Match with ID {match_id} cannot be found. Use {ctx.prefix}listmatches to see available matches.')
+                await ctx.send(f'Match with ID {match_id} cannot be found. Use {ctx.prefix}listmatches to see available matches.')
+                raise commands.UserInputError()
             except ValueError:
-                return await ctx.send(f'Invalid Match ID "{match_id}".')
+                await ctx.send(f'Invalid Match ID "{match_id}".')
+                raise commands.UserInputError()
 
 
 class matchmaking():
@@ -308,31 +313,52 @@ class matchmaking():
     @commands.command(aliases=['listmatches', 'matchlist', 'openmatches', 'listmatch'])
     async def matches(self, ctx, *args):
         """
-        List open matches, with filtering options.
+        List current matches, with filtering options.
         Full matches will still be listed until the host starts or deletes them with `[p]startmatch` / `[p]delmatch`
+        Add **OPEN** or **FULL** to command to filter by open/full matches
+        Anything else will compare to current participants, the host, or the match notes.
         **Example:**
         `[p]matches` - List all unexpired matches
         `[p]matches Nelluk` - List all unexpired matches where Nelluk is a participant/host
+        `[p]matches Nelluk full` - List all unexpired matches with Nelluk that are full
         `[p]matches Bardur` - List all unexpired matches where "Bardur" is in the match notes
         `[p]matches Ronin` - List all unexpired matches where "Ronin" is in one of the sides' name.
         """
         models.Match.purge_expired_matches()
 
+        args_list = [arg.upper() for arg in args]
         if args:
+            if 'FULL' in args_list:
+                args_list.remove('FULL')
+                status_filter = 2
+                status_word = ' *full*'
+            elif 'CLOSED' in args_list:
+                args_list.remove('CLOSED')
+                status_filter = 2
+                status_word = ' *full*'
+            elif 'OPEN' in args_list:
+                args_list.remove('OPEN')
+                status_filter = 1
+                status_word = ' *open*'
+            else:
+                status_filter = None
+                status_word = ''
+
             # Return any match where args_str appears in match side names, match notes, or if args_str is a Player, a match where player is a participant or host
-            arg_str = ' '.join(args)
-            title_str = f'Current matches matching "{arg_str}"'
+            arg_str = ' '.join(args_list)
+            title_str = f'Current{status_word} matches matching "{arg_str}"'
             try:
                 target = models.Player.get_or_except(player_string=arg_str, guild_id=ctx.guild.id)
             except exceptions.NoSingleMatch:
                 target = None
 
-            arg_str = '%'.join(args)  # for SQL wildcard match
-            match_list = models.Match.search(guild_id=ctx.guild.id, player=target, search=arg_str)
+            arg_str = '%'.join(args_list)  # for SQL wildcard match
+            match_list = models.Match.search(guild_id=ctx.guild.id, player=target, search=arg_str, status=status_filter)
 
         else:
             title_str = 'All current matches'
-            match_list = models.Match.active_list(guild_id=ctx.guild.id)
+            # match_list = models.Match.active_list(guild_id=ctx.guild.id)
+            match_list = models.Match.search(guild_id=ctx.guild.id, player=None, search=None, status=None)
 
         title_str_full = title_str + f'\nUse `{ctx.prefix}joinmatch M#` to join one or `{ctx.prefix}match M#` for more details.'
         matchlist_fields = [(f'`{"ID":<8}{"Host":<40} {"Type":<7} {"Capacity":<7} {"Exp":>4}`', '\u200b')]
@@ -347,7 +373,14 @@ class matchmaking():
             matchlist_fields.append((f'`{"M"f"{match.id}":<8}{match.host.name:<40} {match.size_string():<7} {capacity_str:<7} {expiration:>4}H`',
                 notes_str))
 
-        await utilities.paginate(self.bot, ctx, title=title_str_full, message_list=matchlist_fields, page_start=0, page_end=15, page_size=15)
+        self.bot.loop.create_task(utilities.paginate(self.bot, ctx, title=title_str_full, message_list=matchlist_fields, page_start=0, page_end=15, page_size=15))
+        # paginator done as a task because otherwise it will not let the waitlist message send until after pagination is complete (20+ seconds)
+
+        waitlist = [f'M{m.id}' for m in models.Match.waiting_to_start(host_discord_id=ctx.author.id)]
+        if waitlist:
+            await asyncio.sleep(1)
+            await ctx.send(f'You have full matches waiting to start: **{", ".join(waitlist)}**\n'
+                f'Type `{ctx.prefix}match M#` for more details.')
 
     # @settings.in_bot_channel()
     @commands.command(usage='match_id Name of Poly Game')
@@ -406,12 +439,13 @@ class matchmaking():
             match.save()
             await post_newgame_messaging(ctx, game=newgame)
 
-    @commands.command(aliases=['rtribes', 'rtribe'], usage='game_size')
-    async def random_tribes(self, ctx, size='1v1'):
+    @commands.command(aliases=['rtribes', 'rtribe'], usage='game_size [-banned_tribe ...]')
+    async def random_tribes(self, ctx, size='1v1', *args):
         """Show a random tribe combination for a given game size.
         This tries to keep the sides roughly equal in power.
         **Example:**
         `[p]rtribes 2v2` - Shows Ai-mo/Imperius & Xin-xi/Luxidoor
+        `[p]rtribes 2v2 -hoodrick -aquarion` - Remove Hoodrick and Aquarion from the random pool. This could cause problems if lots of tribes are removed.
         """
 
         m = re.match(r"(\d+)v(\d+)", size.lower())
@@ -422,6 +456,10 @@ class matchmaking():
             if not 0 < int(m[1]) < 7:
                 return await ctx.send(f'Invalid match size {size}. Accepts 1v1 through 6v6')
             team_size = int(m[1])
+        else:
+            team_size = 1
+            args = list(args) + [size]
+            # Handle case of no size argument, but with tribe bans
 
         tribes = [
             ('Bardur', 1),
@@ -438,6 +476,12 @@ class matchmaking():
             ('Ai-mo', 3),
             ('Xin-xi', 3)
         ]
+        for arg in args:
+            # Remove tribes from tribe list. This could cause problems if too many tribes are removed.
+            if arg[0] != '-':
+                continue
+            removal = next(t for t in tribes if t[0].upper() == arg[1:].upper())
+            tribes.remove(removal)
 
         team_home, team_away = [], []
 

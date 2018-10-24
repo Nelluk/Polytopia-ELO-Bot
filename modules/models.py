@@ -204,7 +204,7 @@ class Player(BaseModel):
             # If query is something like 'Nelluk#7034', use just the 'Nelluk' to match against discord_name.
             # This happens if user does an @Mention then removes the @ character
         else:
-            discord_str = player_str
+            discord_str = player_string
 
         name_exact_match = Player.select(Player, DiscordMember).join(DiscordMember).where(
             (DiscordMember.name == discord_str) & (Player.guild_id == guild_id)
@@ -1163,13 +1163,6 @@ class Match(BaseModel):
     guild_id = BitField(unique=False, null=False)
     is_started = BooleanField(default=False)
 
-    def active_list(guild_id: int):
-        return Match.select().where(
-            (Match.expiration > datetime.datetime.now()) & (Match.guild_id == guild_id) & (Match.is_started == 0)
-        ).order_by(Match.expiration).prefetch(MatchSide)
-        # TODO: Could limit list to matches with capacity by querying MatchPlayer count(*) < matchside.size, group_by(Match).distinct()?
-        # not sure exactly but that should get most of the way there. look for other queries in this file with " '*' " in them for similar
-
     def is_hosted_by(self, discord_id: int):
         return self.host.discord_member.discord_id == discord_id
 
@@ -1266,13 +1259,56 @@ class Match(BaseModel):
 
     def purge_expired_matches():
 
+        # Full matches that expired more than 3 days ago (ie. host has 3 days to start match before it vanishes)
+        purge_deadline = (datetime.datetime.now() + datetime.timedelta(days=-3))
+
         delete_query = Match.delete().where(
-            (Match.expiration < datetime.datetime.now()) & (Match.game.is_null(True))
+            (Match.expiration < purge_deadline) & (Match.game.is_null(True))
         )
 
-        logger.debug(f'purge_expired_matches: Purged {delete_query.execute()}  matches.')
+        # Expired matches that never became full
+        delete_query2 = Match.delete().where(
+            (Match.expiration < datetime.datetime.now()) & (Match.id.in_(Match.subq_open_matches()))
+        )
 
-    def search(guild_id: int, player: Player = None, search: str = None):
+        logger.debug(f'purge_expired_matches #1: Purged {delete_query.execute()}  matches.')
+        logger.debug(f'purge_expired_matches #2: Purged {delete_query2.execute()}  matches.')
+
+    def subq_open_matches(guild_id: int = None):
+        # All Matches that have open capacity
+        # not restricted by expiration
+
+        # Subq: MatchSides with openings
+        subq = MatchSide.select(MatchSide.id).join(MatchPlayer, JOIN.LEFT_OUTER).group_by(MatchSide.id, MatchSide.size).having(
+            fn.COUNT(MatchPlayer.id) < MatchSide.size)
+
+        if guild_id:
+            q = MatchSide.select(MatchSide.match).join(Match).where(
+                (MatchSide.id.in_(subq)) & (MatchSide.match.guild_id == guild_id)
+            ).group_by(MatchSide.match).order_by(MatchSide.match)
+
+        else:
+            q = MatchSide.select(MatchSide.match).join(Match).where(
+                (MatchSide.id.in_(subq))
+            ).group_by(MatchSide.match).order_by(MatchSide.match)
+
+        return q
+
+    def waiting_to_start(host_discord_id: int = None):
+        # Could be rolled in to Match.search but that method would need to be changed to allow expired matches in results
+
+        if host_discord_id:
+            q = Match.select().join(Player).join(DiscordMember).where(
+                (Match.id.not_in(Match.subq_open_matches())) & (Match.host.discord_member.discord_id == host_discord_id) & (Match.game.is_null(True))
+            )
+        else:
+            q = Match.select().where(
+                (Match.id.not_in(Match.subq_open_matches())) & (Match.game.is_null(True))
+            )
+        return q
+
+    def search(guild_id: int, player: Player = None, search: str = None, status: int = None):
+        # Status: 1 - not full, 2 - full
         # Returns matches where player is a participant/host, OR search is found in match notes OR search is found in match side names
         player_q, search_q = [], []
 
@@ -1294,8 +1330,18 @@ class Match(BaseModel):
                 (Match.notes.contains(search)) | (Match.id.in_(ssubq))
             )
 
+        if not player and not search:
+            search_q = Match.select(Match.id)
+
+        if status == 1:
+            status_filter = Match.select(Match.id).where(Match.id.in_(Match.subq_open_matches()))
+        elif status == 2:
+            status_filter = Match.select(Match.id).where(Match.id.not_in(Match.subq_open_matches()))
+        else:
+            status_filter = Match.select(Match.id)
+
         return Match.select().where(
-            ((Match.id.in_(player_q)) | (Match.id.in_(search_q))) & (Match.expiration > datetime.datetime.now()) & (Match.guild_id == guild_id) & (Match.is_started == 0)
+            ((Match.id.in_(player_q)) | (Match.id.in_(search_q))) & (Match.expiration > datetime.datetime.now()) & (Match.guild_id == guild_id) & (Match.id.in_(status_filter))
         ).prefetch(MatchSide)
 
 
