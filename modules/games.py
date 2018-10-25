@@ -923,7 +923,7 @@ class games():
         else:
             return await ctx.send(f'Game {game.id} does not have a confirmed winner.')
 
-    @commands.command(usage='game_id')
+    @commands.command(usage='game_id', aliases=['delete_game'])
     @settings.is_mod_check()
     async def deletegame(self, ctx, game: PolyGame):
         """Mod: Deletes a game and reverts ELO changes"""
