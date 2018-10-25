@@ -30,6 +30,7 @@ config = {'default':
                       'max_team_size': 1,
                       'command_prefix': '/',
                       'bot_channels': [],
+                      'match_challenge_channel': None,
                       'game_request_channel': None,
                       'game_announce_channel': None,
                       'game_channel_category': None},
@@ -54,9 +55,10 @@ config = {'default':
                       'max_team_size': 5,
                       'command_prefix': '$',
                       'bot_channels': [487303307224940545, 487302138704429087, 487304043786665986, 487222333589815315, 487562981635522570, 447902433964851210, 448317497473630229],
-                      'game_request_channel': 487562981635522570,
-                      'game_announce_channel': 487302138704429087,
-                      'game_channel_category': 488421911529914368},
+                      'match_challenge_channel': 452639822616723457,  # elo-challenges
+                      'game_request_channel': 487562981635522570,  # $staffhelp output
+                      'game_announce_channel': 487302138704429087,  # elo-drafts
+                      'game_channel_category': 488421911529914368},  # ELO CHALLENGES
           283436219780825088:                           # Main Server
                      {'helper_roles': ['Bot Master', 'Tribe Leader', 'Director', 'Bot Master'],
                       'mod_roles': ['MOD', 'Manager'],
