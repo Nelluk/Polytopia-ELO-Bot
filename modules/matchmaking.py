@@ -329,6 +329,9 @@ class matchmaking():
         models.Match.purge_expired_matches()
 
         args_list = [arg.upper() for arg in args]
+        if ctx.invoked_with.upper() == 'OPENMATCHES' and 'OPEN' not in args_list:
+            args_list.append('OPEN')
+
         if len(args_list) == 1 and args_list[0] == 'WAITING':
             match_list = models.Match.waiting_to_start(guild_id=ctx.guild.id)
             title_str = 'Matches that are full and waiting for host to start (including expired)'
@@ -341,7 +344,7 @@ class matchmaking():
                 args_list.remove('CLOSED')
                 status_filter = 2
                 status_word = ' *full*'
-            elif 'OPEN' in args_list:
+            elif 'OPEN' in args_list:  # wont work
                 args_list.remove('OPEN')
                 status_filter = 1
                 status_word = ' *open*'
