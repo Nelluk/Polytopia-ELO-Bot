@@ -141,6 +141,9 @@ class games():
         ).order_by(-Team.elo)
         for counter, team in enumerate(query):
             team_role = discord.utils.get(ctx.guild.roles, name=team.name)
+            if not team_role:
+                logger.error(f'Could not find matching role for team {team.name}')
+                continue
             team_name_str = f'**{team.name}**   ({len(team_role.members)})'  # Show team name with number of members
             wins, losses = team.get_record()
 
