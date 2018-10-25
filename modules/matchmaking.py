@@ -323,11 +323,15 @@ class matchmaking():
         `[p]matches Nelluk full` - List all unexpired matches with Nelluk that are full
         `[p]matches Bardur` - List all unexpired matches where "Bardur" is in the match notes
         `[p]matches Ronin` - List all unexpired matches where "Ronin" is in one of the sides' name.
+        `[p]matches waiting` - *Special filter* - all full matches without a game, including expired. Purged after a few days.
         """
         models.Match.purge_expired_matches()
 
         args_list = [arg.upper() for arg in args]
-        if args:
+        if len(args_list) == 1 and args_list[0] == 'WAITING':
+            match_list = models.Match.waiting_to_start()
+            title_str = 'Matches that are full and waiting for host to start (including expired)'
+        elif args:
             if 'FULL' in args_list:
                 args_list.remove('FULL')
                 status_filter = 2
@@ -369,8 +373,9 @@ class matchmaking():
             players, capacity = match.capacity()
             capacity_str = f' {players}/{capacity}'
             expiration = int((match.expiration - datetime.datetime.now()).total_seconds() / 3600.0)
+            expiration = 'Exp' if expiration < 0 else f'{expiration}H'
 
-            matchlist_fields.append((f'`{"M"f"{match.id}":<8}{match.host.name:<40} {match.size_string():<7} {capacity_str:<7} {expiration:>4}H`',
+            matchlist_fields.append((f'`{"M"f"{match.id}":<8}{match.host.name:<40} {match.size_string():<7} {capacity_str:<7} {expiration:>5}`',
                 notes_str))
 
         self.bot.loop.create_task(utilities.paginate(self.bot, ctx, title=title_str_full, message_list=matchlist_fields, page_start=0, page_end=15, page_size=15))
