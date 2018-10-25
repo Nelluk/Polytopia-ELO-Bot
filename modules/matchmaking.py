@@ -519,6 +519,7 @@ class matchmaking():
                 if not chan:
                     continue
 
+                models.Match.purge_expired_matches()
                 match_list = models.Match.search(guild_id=chan.guild.id, status=1)[:12]
                 if not match_list:
                     continue
