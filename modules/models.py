@@ -616,7 +616,6 @@ class Game(BaseModel):
 
                 # Create Lineup records
                 for player in player_group:
-                    print(f'Creating lineup for player {player.name}')
                     Lineup.create(game=newgame, squadgame=squadgame, player=player)
 
         return newgame
