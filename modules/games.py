@@ -284,7 +284,7 @@ class games():
         else:
             rank_str = f'{rank} of {lb_length}'
 
-        embed = discord.Embed(title=f'Player card for {player.name}')
+        embed = discord.Embed(title=f'Player card for __{player.name}__')
         embed.add_field(name='Results', value=f'ELO: {player.elo}, W {wins} / L {losses}')
         embed.add_field(name='Ranking', value=rank_str)
 
@@ -356,7 +356,7 @@ class games():
                 else:
                     wins, losses = p[0].get_record()
                     rank_str = f', #{p[0].leaderboard_rank(date_cutoff=settings.date_cutoff)[0]}' if p[0].leaderboard_rank(date_cutoff=settings.date_cutoff)[0] else ''
-                    member_stats.append((f'{p[0].name}', p[0].elo, f'*({p[0].elo}{rank_str})*'))
+                    member_stats.append((f'{p[0].name}', p[0].elo, f'**({p[0].elo}{rank_str})**'))
 
             member_stats.sort(key=lambda tup: tup[1], reverse=True)     # sort the list descending by ELO
             members_sorted = [f'{x[0]} {x[2]}' for x in member_stats]    # create list of strings like Nelluk(1000)
