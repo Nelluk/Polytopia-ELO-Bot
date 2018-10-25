@@ -43,6 +43,7 @@ config = {'default':
                       'max_team_size': 2,
                       'command_prefix': '/',
                       'bot_channels': [479292913080336397, 481558031281160212, 480078679930830849],
+                      'match_challenge_channel': 481558031281160212,
                       'game_request_channel': 480078679930830849,
                       'game_announce_channel': 481558031281160212,
                       'game_channel_category': 493149162238640161},
@@ -67,6 +68,7 @@ config = {'default':
                       'max_team_size': 2,
                       'command_prefix': '$',
                       'bot_channels': [396069729657421824],
+                      'match_challenge_channel': None,
                       'game_request_channel': None,
                       'game_announce_channel': None,
                       'game_channel_category': None}

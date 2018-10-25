@@ -1293,16 +1293,19 @@ class Match(BaseModel):
 
         return q
 
-    def waiting_to_start(host_discord_id: int = None):
+    def waiting_to_start(guild_id: int, host_discord_id: int = None):
         # Could be rolled in to Match.search but that method would need to be changed to allow expired matches in results
 
         if host_discord_id:
             q = Match.select().join(Player).join(DiscordMember).where(
-                (Match.id.not_in(Match.subq_open_matches())) & (Match.host.discord_member.discord_id == host_discord_id) & (Match.game.is_null(True))
+                (Match.id.not_in(Match.subq_open_matches())) &
+                (Match.host.discord_member.discord_id == host_discord_id) &
+                (Match.game.is_null(True)) &
+                (Match.guild_id == guild_id)
             )
         else:
             q = Match.select().where(
-                (Match.id.not_in(Match.subq_open_matches())) & (Match.game.is_null(True))
+                (Match.id.not_in(Match.subq_open_matches())) & (Match.game.is_null(True)) & (Match.guild_id == guild_id)
             )
         return q
 

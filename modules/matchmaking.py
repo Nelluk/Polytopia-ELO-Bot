@@ -1,4 +1,4 @@
-# import discord
+import discord
 from discord.ext import commands
 import modules.models as models
 import modules.utilities as utilities
@@ -51,6 +51,7 @@ class matchmaking():
 
     def __init__(self, bot):
         self.bot = bot
+        self.bg_task = bot.loop.create_task(self.task_print_matchlist())
 
     # @settings.in_bot_channel()
     @commands.command(usage='size expiration rules')
@@ -329,7 +330,7 @@ class matchmaking():
 
         args_list = [arg.upper() for arg in args]
         if len(args_list) == 1 and args_list[0] == 'WAITING':
-            match_list = models.Match.waiting_to_start()
+            match_list = models.Match.waiting_to_start(guild_id=ctx.guild.id)
             title_str = 'Matches that are full and waiting for host to start (including expired)'
         elif args:
             if 'FULL' in args_list:
@@ -381,7 +382,7 @@ class matchmaking():
         self.bot.loop.create_task(utilities.paginate(self.bot, ctx, title=title_str_full, message_list=matchlist_fields, page_start=0, page_end=15, page_size=15))
         # paginator done as a task because otherwise it will not let the waitlist message send until after pagination is complete (20+ seconds)
 
-        waitlist = [f'M{m.id}' for m in models.Match.waiting_to_start(host_discord_id=ctx.author.id)]
+        waitlist = [f'M{m.id}' for m in models.Match.waiting_to_start(guild_id=ctx.guild.id, host_discord_id=ctx.author.id)]
         if waitlist:
             await asyncio.sleep(1)
             await ctx.send(f'You have full matches waiting to start: **{", ".join(waitlist)}**\n'
@@ -508,6 +509,35 @@ class matchmaking():
             team_away.append(new_away)
 
         await ctx.send(f'Home Team: {" / ".join(team_home)}\nAway Team: {" / ".join(team_away)}')
+
+    async def task_print_matchlist(self):
+
+        await self.bot.wait_until_ready()
+        challenge_channels = [g.get_channel(settings.guild_setting(g.id, 'match_challenge_channel')) for g in self.bot.guilds]
+        while not self.bot.is_closed():
+            for chan in challenge_channels:
+                if not chan:
+                    continue
+
+                match_list = models.Match.waiting_to_start(guild_id=chan.guild.id)[:12]
+                if not match_list:
+                    continue
+
+                embed = discord.Embed(title='Recent open matches')
+                embed.add_field(name=f'`{"ID":<8}{"Host":<40} {"Type":<7} {"Capacity":<7} {"Exp":>4}`', value='\u200b', inline=False)
+                for match in match_list:
+
+                    notes_str = match.notes if match.notes else "\u200b"
+                    players, capacity = match.capacity()
+                    capacity_str = f' {players}/{capacity}'
+                    expiration = int((match.expiration - datetime.datetime.now()).total_seconds() / 3600.0)
+                    expiration = 'Exp' if expiration < 0 else f'{expiration}H'
+
+                    embed.add_field(name=f'`{"M"f"{match.id}":<8}{match.host.name:<40} {match.size_string():<7} {capacity_str:<7} {expiration:>5}`', value=notes_str)
+
+                await chan.send(embed=embed)
+
+            await asyncio.sleep(60 * 60)  # task runs every 60 minutes
 
 
 def setup(bot):
