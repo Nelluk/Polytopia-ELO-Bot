@@ -589,7 +589,7 @@ class Game(BaseModel):
                 list_of_final_teams.append(team_obj)
 
         with db.atomic():
-            newgame = Game.create(name=name,
+            newgame = Game.create(name=name.title(),
                                   guild_id=guild_id)
 
             # print(discord_groups)
@@ -1340,8 +1340,12 @@ class Match(BaseModel):
             status_filter = Match.select(Match.id)
 
         return Match.select().where(
-            ((Match.id.in_(player_q)) | (Match.id.in_(search_q))) & (Match.expiration > datetime.datetime.now()) & (Match.guild_id == guild_id) & (Match.id.in_(status_filter))
-        ).prefetch(MatchSide)
+            ((Match.id.in_(player_q)) | (Match.id.in_(search_q))) &
+            (Match.expiration > datetime.datetime.now()) &
+            (Match.guild_id == guild_id) &
+            (Match.id.in_(status_filter)) &
+            (Match.game.is_null(True))
+        ).order_by(-Match.id).prefetch(MatchSide)
 
 
 class MatchSide(BaseModel):

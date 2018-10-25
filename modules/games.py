@@ -731,6 +731,8 @@ class games():
 
         if not args:
             return await ctx.send(f'Invalid format. {example_usage}')
+        if game_name.upper()[:1] == 'M' and str.isdigit(game_name[1:]):
+            return await ctx.send(f'It looks like you\'re trying to start a matchmaking session. You probably want `{ctx.prefix}startmatch {game_name} "Name of Game"`')
         if len(args) == 1:
             args_list = [str(ctx.author.id), 'vs', args[0]]
         else:
