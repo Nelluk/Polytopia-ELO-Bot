@@ -519,7 +519,7 @@ class matchmaking():
                 if not chan:
                     continue
 
-                match_list = models.Match.waiting_to_start(guild_id=chan.guild.id)[:12]
+                match_list = models.Match.search(guild_id=chan.guild.id, status=1)[:12]
                 if not match_list:
                     continue
 
