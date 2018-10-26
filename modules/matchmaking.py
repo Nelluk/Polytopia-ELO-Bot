@@ -527,7 +527,9 @@ class matchmaking():
                 if not match_list:
                     continue
 
-                embed = discord.Embed(title='Recent open matches')
+                pfx = settings.guild_setting(chan.guild.id, 'command_prefix')
+                embed = discord.Embed(title='Recent open matches\n'
+                    f'Use `{pfx}joinmatch M#` to join one or `{pfx}match M#` for more details.')
                 embed.add_field(name=f'`{"ID":<8}{"Host":<40} {"Type":<7} {"Capacity":<7} {"Exp":>4}`', value='\u200b', inline=False)
                 for match in match_list:
 
@@ -541,7 +543,7 @@ class matchmaking():
 
                 await chan.send(embed=embed)
 
-            await asyncio.sleep(60 * 60)  # task runs every 60 minutes
+            await asyncio.sleep(60 * 90)  # task runs every 90 minutes
 
 
 def setup(bot):

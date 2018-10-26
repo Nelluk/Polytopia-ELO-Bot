@@ -722,7 +722,7 @@ class games():
         await utilities.paginate(self.bot, ctx, title=list_name, message_list=game_list, page_start=0, page_end=10, page_size=10)
 
     @commands.command(aliases=['newgame'], usage='"Name of Game" player1 player2 vs player3 player4')
-    async def startgame(self, ctx, game_name: str, *args):
+    async def startgame(self, ctx, game_name: str = None, *args):
         """Adds a new game to the bot for tracking
 
         **Examples:**
@@ -732,7 +732,8 @@ class games():
         """
         example_usage = (f'Example usage:\n`{ctx.prefix}startgame "Name of Game" player1 player2 VS player3 player4` - Start a 2v2 game\n'
                          f'`{ctx.prefix}startgame "Name of Game" player2` - Start a 1v1 with yourself and player2')
-
+        if not game_name:
+            return await ctx.send(f'Invalid format. {example_usage}')
         if not args:
             return await ctx.send(f'Invalid format. {example_usage}')
         if game_name.upper()[:1] == 'M' and str.isdigit(game_name[1:]):
