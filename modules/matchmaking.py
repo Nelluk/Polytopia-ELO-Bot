@@ -427,26 +427,14 @@ class matchmaking():
                 mentions.append(guild_member.mention)
             teams.append(team)
 
-        if len(teams) != 2 or len(teams[0]) != len(teams[1]):
-            logger.info(f'Match M{match.id} started as non-ELO game')
-            notes_str = f'\n**Notes:** {match.notes}' if match.notes else ''
-            await ctx.send(f'Match M{match.id} started as non-ELO game "**{name.title()}**."\nRoster: {" ".join(mentions)}{notes_str}'
-                '\nThis match is now marked as started, but will not be tracked as an ELO game since it does not have two equally-sized teams.')
-
-            match.is_started = True
-            match.save()
-
-            embed, content = match.embed(ctx)
-            await ctx.send(embed=embed, content=content)
-        else:
-            newgame = models.Game.create_game(teams,
-                name=name, guild_id=ctx.guild.id,
-                require_teams=settings.guild_setting(ctx.guild.id, 'require_teams'))
-            logger.info(f'Match M{match.id} started as ELO game {newgame.id}')
-            match.is_started = True
-            match.game = newgame
-            match.save()
-            await post_newgame_messaging(ctx, game=newgame)
+        newgame = models.Game.create_game(teams,
+            name=name, guild_id=ctx.guild.id,
+            require_teams=settings.guild_setting(ctx.guild.id, 'require_teams'))
+        logger.info(f'Match M{match.id} started as ELO game {newgame.id}')
+        match.is_started = True
+        match.game = newgame
+        match.save()
+        await post_newgame_messaging(ctx, game=newgame)
 
     @commands.command(aliases=['rtribes', 'rtribe'], usage='game_size [-banned_tribe ...]')
     async def random_tribes(self, ctx, size='1v1', *args):

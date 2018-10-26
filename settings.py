@@ -40,7 +40,7 @@ config = {'default':
                       'require_teams': True,
                       'allow_teams': True,
                       'allow_uneven_teams': True,
-                      'max_team_size': 2,
+                      'max_team_size': 6,
                       'command_prefix': '/',
                       'bot_channels': [479292913080336397, 481558031281160212, 480078679930830849],
                       'match_challenge_channel': 481558031281160212,

@@ -1161,7 +1161,7 @@ class Match(BaseModel):
     notes = TextField(null=True)
     game = ForeignKeyField(Game, null=True, backref='match', on_delete='SET NULL')
     guild_id = BitField(unique=False, null=False)
-    is_started = BooleanField(default=False)
+    is_started = BooleanField(default=False)  # game = None and is_started = True if related game gets deleted
 
     def is_hosted_by(self, discord_id: int):
         return self.host.discord_member.discord_id == discord_id
