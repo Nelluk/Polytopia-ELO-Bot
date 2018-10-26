@@ -734,6 +734,8 @@ class games():
                          f'`{ctx.prefix}startgame "Name of Game" player2` - Start a 1v1 with yourself and player2')
         if not game_name:
             return await ctx.send(f'Invalid format. {example_usage}')
+        if len(game_name.split(' ')) < 2 and ctx.author.id != settings.owner_id:
+            return await ctx.send(f'Invalid game name. Make sure to use "quotation marks" around the full game name.\n{example_usage}')
         if not args:
             return await ctx.send(f'Invalid format. {example_usage}')
         if game_name.upper()[:1] == 'M' and str.isdigit(game_name[1:]):
