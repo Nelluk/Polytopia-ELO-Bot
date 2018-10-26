@@ -1124,7 +1124,7 @@ class games():
 async def post_win_messaging(ctx, winning_game):
 
     await winning_game.delete_squad_channels(ctx=ctx)
-    player_mentions = [f'<@{p.discord_member.discord_id}>' for p in winning_game.lineup]
+    player_mentions = [f'<@{l.player.discord_member.discord_id}>' for l in winning_game.lineup]
     embed, content = winning_game.embed(ctx)
 
     if settings.guild_setting(ctx.guild.id, 'game_announce_channel') is not None:
