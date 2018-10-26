@@ -1,0 +1,255 @@
+from discord.ext import commands
+import modules.models as models
+import modules.utilities as utilities
+import settings
+import logging
+import modules.exceptions as exceptions
+from modules.games import PolyGame, post_win_messaging
+
+logger = logging.getLogger('polybot.' + __name__)
+
+
+class administration:
+    def __init__(self, bot):
+        self.bot = bot
+
+    @commands.command(aliases=['confirmgame'], usage='game_id')
+    @settings.is_staff_check()
+    async def confirm(self, ctx, winning_game: PolyGame = None):
+        """ *Staff*: List unconfirmed games, or let staff confirm winners
+         **Examples**
+        `[p]confirm` - List unconfirmed games
+        `[p]confirm 5` - Confirms the winner of game 5 and performs ELO changes
+        """
+
+        if winning_game is None:
+            # display list of unconfirmed games
+            game_query = models.Game.search(status_filter=5)
+            game_list = utilities.summarize_game_list(game_query)
+            if len(game_list) == 0:
+                return await ctx.send(f'No unconfirmed games found.')
+            await utilities.paginate(self.bot, ctx, title=f'{len(game_list)} unconfirmed games', message_list=game_list, page_start=0, page_end=15, page_size=15)
+            return
+
+        if not winning_game.is_completed:
+            return await ctx.send(f'Game {winning_game.id} has no declared winner yet.')
+        if winning_game.is_confirmed:
+            return await ctx.send(f'Game with ID {winning_game.id} is already confirmed as completed with winner **{winning_game.winner.name()}**')
+
+        winning_game.declare_winner(winning_side=winning_game.winner, confirm=True)
+
+        await post_win_messaging(ctx, winning_game)
+
+    @commands.command(usage='game_id')
+    @settings.is_staff_check()
+    async def unwin(self, ctx, game: PolyGame = None):
+        """ *Staff*: Reset a completed game to incomplete
+        Reverts ELO changes from the completed game and any subsequent completed game.
+        Resets the game as if it were still incomplete with no declared winner.
+         **Examples**
+        `[p]unwin 50`
+        """
+
+        if game is None:
+            return await ctx.send(f'No matching game was found.')
+
+        if game.is_completed and game.is_confirmed:
+            async with ctx.typing():
+                with models.db.atomic():
+                    timestamp = game.completed_ts
+                    game.reverse_elo_changes()
+                    game.completed_ts = None
+                    game.is_confirmed = False
+                    game.is_completed = False
+                    game.winner = None
+                    game.save()
+
+                    models.Game.recalculate_elo_since(timestamp=timestamp)
+            return await ctx.send(f'Game {game.id} has been marked as *Incomplete*. ELO changes have been reverted and ELO from all subsequent games recalculated.')
+
+        else:
+            return await ctx.send(f'Game {game.id} does not have a confirmed winner.')
+
+    @commands.command(usage='game_id', aliases=['delete_game'])
+    @settings.is_mod_check()
+    async def deletegame(self, ctx, game: PolyGame):
+        """*Mod*: Deletes a game and reverts ELO changes"""
+
+        if game.winner:
+            await ctx.send(f'Deleting game with ID {game.id} and re-calculating ELO for all subsequent games. This will take a few seconds.')
+
+        if game.announcement_message:
+            game.name = f'~~{game.name}~~ GAME DELETED'
+            await game.update_announcement(ctx)
+
+        await game.delete_squad_channels(ctx)
+
+        async with ctx.typing():
+            gid = game.id
+            await self.bot.loop.run_in_executor(None, game.delete_game)
+            # Allows bot to remain responsive while this large operation is running.
+            # Can result in funky behavior especially if another operation tries to close DB connection, but seems to still get this operation done reliably
+            await ctx.send(f'Game with ID {gid} has been deleted and team/player ELO changes have been reverted, if applicable.')
+
+    @commands.command(aliases=['settribes'], usage='game_id player_name tribe_name [player2 tribe2 ... ]')
+    @settings.is_staff_check()
+    async def settribe(self, ctx, game: PolyGame, *args):
+        """*Staff:* Set tribe of a player for a game
+        **Examples**
+        `[p]settribe 5 nelluk bardur` - Sets Nelluk to Bardur for game 5
+        `[p]settribe 5 nelluk bardur rickdaheals kickoo` - Sets both player tribes in one command
+        """
+
+        if len(args) % 2 != 0:
+            return await ctx.send(f'Wrong number of arguments. See `{ctx.prefix}help settribe` for usage examples.')
+
+        lineups = models.Lineup.select(models.Lineup, models.Player).join(models.Player).where(models.Lineup.game == game)
+
+        for i in range(0, len(args), 2):
+            # iterate over args two at a time
+            player_name = args[i]
+            tribe_name = args[i + 1]
+
+            tribeflair = models.TribeFlair.get_by_name(name=tribe_name, guild_id=ctx.guild.id)
+            if not tribeflair:
+                await ctx.send(f'Matching Tribe not found matching "{tribe_name}". Check spelling or be more specific.')
+                continue
+
+            lineup_match = None
+            for lineup in lineups:
+                if player_name.upper() in lineup.player.name.upper():
+                    lineup_match = lineup
+                    break
+
+            if not lineup_match:
+                await ctx.send(f'Matching player not found in game {game.id} matching "{player_name}". Check spelling or be more specific. @Mentions are not supported here.')
+                continue
+
+            lineup_match.tribe = tribeflair
+            lineup_match.save()
+            await ctx.send(f'Player {lineup_match.player.name} assigned to tribe {tribeflair.tribe.name} in game {game.id} {tribeflair.emoji}')
+
+        game = game.load_full_game()
+        await game.update_announcement(ctx)
+
+    @commands.command(usage='tribe_name new_emoji')
+    @settings.is_mod_check()
+    async def tribe_emoji(self, ctx, tribe_name: str, emoji):
+        """*Mod*: Assign an emoji to a tribe
+        **Example:**
+        `[p]tribe_emoji Bardur :new_bardur_emoji:`
+        """
+
+        if len(emoji) != 1 and ('<:' not in emoji):
+            return await ctx.send('Valid emoji not detected. Example: `{}tribe_emoji Tribename :my_custom_emoji:`'.format(ctx.prefix))
+
+        try:
+            tribeflair = models.TribeFlair.upsert(name=tribe_name, guild_id=ctx.guild.id, emoji=emoji)
+        except exceptions.CheckFailedError as e:
+            return await ctx.send(e)
+
+        await ctx.send('Tribe {0.tribe.name} updated with new emoji: {0.emoji}'.format(tribeflair))
+
+    @commands.command(aliases=['addteam'], usage='new_team_name')
+    @settings.is_mod_check()
+    @settings.teams_allowed()
+    async def team_add(self, ctx, *args):
+        """*Mod*: Create new server Team
+        The team should have a Role with an identical name.
+        **Example:**
+        `[p]team_add The Amazeballs`
+        """
+
+        name = ' '.join(args)
+        try:
+            with db.atomic():
+                team = Team.create(name=name, guild_id=ctx.guild.id)
+        except peewee.IntegrityError:
+            return await ctx.send('That team already exists!')
+
+        await ctx.send(f'Team {name} created! Starting ELO: {team.elo}. Players with a Discord Role exactly matching \"{name}\" will be considered team members. '
+                f'You can now set the team flair with `{ctx.prefix}`team_emoji and `{ctx.prefix}team_image`.')
+
+    @commands.command(usage='team_name new_emoji')
+    @settings.is_mod_check()
+    async def team_emoji(self, ctx, team_name: str, emoji):
+        """*Mod*: Assign an emoji to a team
+        **Example:**
+        `[p]team_emoji Amazeballs :my_fancy_emoji:`
+        """
+
+        if len(emoji) != 1 and ('<:' not in emoji):
+            return await ctx.send('Valid emoji not detected. Example: `{}team_emoji name :my_custom_emoji:`'.format(ctx.prefix))
+
+        matching_teams = Team.get_by_name(team_name, ctx.guild.id)
+        if len(matching_teams) != 1:
+            return await ctx.send('Can\'t find matching team or too many matches. Example: `{}team_emoji name :my_custom_emoji:`'.format(ctx.prefix))
+
+        team = matching_teams[0]
+        team.emoji = emoji
+        team.save()
+
+        await ctx.send('Team {0.name} updated with new emoji: {0.emoji}'.format(team))
+
+    @commands.command(usage='team_name image_url')
+    @settings.is_mod_check()
+    @settings.teams_allowed()
+    async def team_image(self, ctx, team_name: str, image_url):
+        """*Mod*: Set a team's logo image
+
+        **Example:**
+        `[p]team_image Amazeballs http://www.path.to/image.png`
+        """
+
+        if 'http' not in image_url:
+            return await ctx.send(f'Valid image url not detected. Example usage: `{ctx.prefix}team_image name http://url_to_image.png`')
+            # This is a very dumb check to make sure user is passing a URL and not a random string. Assumes mod can figure it out from there.
+
+        try:
+            matching_teams = Team.get_or_except(team_name, ctx.guild.id)
+        except exceptions.NoSingleMatch as ex:
+            return await ctx.send(f'{ex}\nExample: `{ctx.prefix}team_emoji name :my_custom_emoji:`')
+
+        team = matching_teams[0]
+        team.image_url = image_url
+        team.save()
+
+        await ctx.send(f'Team {team.name} updated with new image_url (image should appear below)')
+        await ctx.send(team.image_url)
+
+    @commands.command(usage='old_name new_name')
+    @settings.is_mod_check()
+    @settings.teams_allowed()
+    async def team_name(self, ctx, old_team_name: str, new_team_name: str):
+        """*Mod*: Change a team's name
+        The team should have a Role with an identical name.
+        Old name doesn't need to be precise, but new name does. Include quotes if it's more than one word.
+        **Example:**
+        `[p]team_name Amazeballs "The Wowbaggers"`
+        """
+
+        try:
+            matching_teams = Team.get_or_except(old_team_name, ctx.guild.id)
+        except exceptions.NoSingleMatch as ex:
+            return await ctx.send(f'{ex}\nExample: `{ctx.prefix}team_name \"Current name\" \"New Team Name\"`')
+
+        team = matching_teams[0]
+        team.name = new_team_name
+        team.save()
+
+        await ctx.send('Team **{}** has been renamed to **{}**.'.format(old_team_name, new_team_name))
+
+    @commands.command()
+    @commands.is_owner()
+    async def recalc_elo(self, ctx):
+        """*Owner*: Recalculate ELO for all games
+        Intended to be used when a change to the ELO math is made to apply to all games retroactively
+        """
+
+        async with ctx.typing():
+            await ctx.send('Recalculating ELO for all games in database.')
+            models.Game.recalculate_all_elo()
+
+
+def setup(bot):
+    bot.add_cog(administration(bot))

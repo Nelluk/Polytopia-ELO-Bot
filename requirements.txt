@@ -1,4 +1,3 @@
 git+https://github.com/Rapptz/discord.py@rewrite#egg=discord.py
 peewee
-pbwrap
 psycopg2-binary
