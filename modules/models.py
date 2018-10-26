@@ -51,22 +51,16 @@ class Team(BaseModel):
 
         return num_games
 
-    def change_elo_after_game(self, opponent_elo, is_winner):
-
+    def change_elo_after_game(self, chance_of_winning: float, is_winner: bool):
         if self.completed_game_count() < 11:
             max_elo_delta = 50
         else:
             max_elo_delta = 32
 
-        chance_of_winning = round(1 / (1 + (10 ** ((opponent_elo - self.elo) / 400.0))), 3)
-
         if is_winner is True:
-            new_elo = round(self.elo + (max_elo_delta * (1 - chance_of_winning)), 0)
+            elo_delta = int(round((max_elo_delta * (1 - chance_of_winning)), 0))
         else:
-            new_elo = round(self.elo + (max_elo_delta * (0 - chance_of_winning)), 0)
-
-        elo_delta = int(new_elo - self.elo)
-        # print('Team chance of winning: {} opponent elo {} current ELO {}, new elo {}, elo_delta {}'.format(chance_of_winning, opponent_elo, self.elo, new_elo, elo_delta))
+            elo_delta = int(round((max_elo_delta * (0 - chance_of_winning)), 0))
 
         self.elo = int(self.elo + elo_delta)
         self.save()
@@ -517,10 +511,6 @@ class Game(BaseModel):
         else:
             return 'v'.join(str(len(s.lineup)) for s in self.squads)
 
-    def team_size(self):
-        # TODO: Deprecated
-        return len(self.squads[0].lineup)
-
     def load_full_game(game_id: int):
         # Returns a single Game object with all related tables pre-fetched. or None
 
@@ -675,79 +665,48 @@ class Game(BaseModel):
                 Game.recalculate_elo_since(timestamp=since)
 
     def declare_winner(self, winning_side: 'SquadGame', confirm: bool):
-        n = len(self.squads)
 
-        # Adjust team elos when the amount of players on each team
-        # is imbalanced, e.g. 1v2. It changes nothing when sizes are equal
-        adjusted_side_elo = []
-        sum_elo = 0
-        sum_raw_elo = sum(s.average_elo() for s in self.squads)
-        for s in self.squads:
-            missing_players = self.largest_team() - len(s.lineup)
-            avg_opponent_elos = int(round((sum_raw_elo - s.average_elo()) / (n - 1)))
-            adj_side_elo = s.adjusted_elo(missing_players, avg_opponent_elos)
-            adjusted_side_elo.append(adj_side_elo)
-            sum_elo += adj_side_elo
-
-        # Compute proper win chances when there are more than 2 teams,
-        # e.g. 2v2v2. It changes nothing when there are only 2 teams
-        win_chance_unnorm = []
-        normalization_factor = 0
-        for own_elo, side in zip(adjusted_side_elo, self.squads):
-            win_chance = side.calc_win_chance(own_elo, (sum_elo - own_elo) / (n - 1))
-            win_chance_unnorm.append(win_chance)
-            normalization_factor += win_chance
-
-        # Apply the win/loss results for each team given their win% chance
-        # for i in range(n):
-        for side_win_chance_unnorm, side in zip(win_chance_unnorm, self.squads):
-            win_chance = round(side_win_chance_unnorm / normalization_factor, 3)
-            is_winner = True if side == winning_side else False
-            for p in side.lineup:
-                p.change_elo_after_game(win_chance, is_winner)
-
-    def declare_winner_old(self, winning_side: 'SquadGame', confirm: bool):
-
-        # TODO: does not support games != 2 sides
-        if len(self.squads) != 2:
-            raise exceptions.CheckFailedError('Support for games with >2 sides not yet implemented')
-
-        found_winner = False
-        for squadgame in self.squads:
-            if squadgame != winning_side:
-                losing_side = squadgame
-            elif squadgame == winning_side:
-                found_winner = True
-
-        if not found_winner:
+        if winning_side.game != self:
             raise exceptions.CheckFailedError(f'SquadGame id {winning_side.id} did not play in this game')
 
-        if confirm:
-            self.is_confirmed = True
+        if confirm is True:
+            n = len(self.squads)
 
-            # STEP 1: INDIVIDUAL/PLAYER ELO
-            winning_side_ave_elo = winning_side.get_member_average_elo()
-            losing_side_ave_elo = losing_side.get_member_average_elo()
+            # Adjust team elos when the amount of players on each team
+            # is imbalanced, e.g. 1v2. It changes nothing when sizes are equal
+            adjusted_side_elo = []
+            sum_elo = 0
+            sum_raw_elo = sum(s.average_elo() for s in self.squads)
+            for s in self.squads:
+                missing_players = self.largest_team() - len(s.lineup)
+                avg_opponent_elos = int(round((sum_raw_elo - s.average_elo()) / (n - 1)))
+                adj_side_elo = s.adjusted_elo(missing_players, avg_opponent_elos)
+                adjusted_side_elo.append(adj_side_elo)
+                sum_elo += adj_side_elo
 
-            for winning_member in winning_side.lineup:
-                winning_member.change_elo_after_game(my_side_elo=winning_side_ave_elo, opponent_elo=losing_side_ave_elo, is_winner=True)
+            # Compute proper win chances when there are more than 2 teams,
+            # e.g. 2v2v2. It changes nothing when there are only 2 teams
+            win_chance_unnorm = []
+            normalization_factor = 0
+            for own_elo, side in zip(adjusted_side_elo, self.squads):
+                win_chance = SquadGame.calc_win_chance(own_elo, (sum_elo - own_elo) / (n - 1))
+                win_chance_unnorm.append(win_chance)
+                normalization_factor += win_chance
 
-            for losing_member in losing_side.lineup:
-                losing_member.change_elo_after_game(my_side_elo=losing_side_ave_elo, opponent_elo=winning_side_ave_elo, is_winner=False)
+            # Apply the win/loss results for each team given their win% chance
+            # for i in range(n):
+            for side_win_chance_unnorm, adj_side_elo, side in zip(win_chance_unnorm, adjusted_side_elo, self.squads):
+                win_chance = round(side_win_chance_unnorm / normalization_factor, 3)
+                is_winner = True if side == winning_side else False
+                for p in side.lineup:
+                    elo_change = p.change_elo_after_game(win_chance, is_winner)
 
-            if self.team_size() > 1:
-                # STEP 2: SQUAD ELO
-                winning_squad_elo, losing_squad_elo = winning_side.squad.elo, losing_side.squad.elo
-                winning_side.elo_change_squad = winning_side.squad.change_elo_after_game(opponent_elo=losing_squad_elo, is_winner=True)
-                losing_side.elo_change_squad = losing_side.squad.change_elo_after_game(opponent_elo=winning_squad_elo, is_winner=False)
+                if len(side.lineup) > 1:
+                    side.elo_change_team = side.team.change_elo_after_game(win_chance, is_winner)
+                    side.elo_change_squad = side.squad.change_elo_after_game(win_chance, is_winner)
 
-                # STEP 3: TEAM ELO
-                winning_team_elo, losing_team_elo = winning_side.team.elo, losing_side.team.elo
-                winning_side.elo_change_team = winning_side.team.change_elo_after_game(opponent_elo=losing_team_elo, is_winner=True)
-                losing_side.elo_change_team = losing_side.team.change_elo_after_game(opponent_elo=winning_team_elo, is_winner=False)
-
-            winning_side.save()
-            losing_side.save()
+                print(f'win_chance: {win_chance}  (elo {side.average_elo()} adjusted {adj_side_elo}) {elo_change}')
+                side.save()
 
         self.winner = winning_side
         self.is_completed = True
@@ -956,22 +915,16 @@ class Squad(BaseModel):
 
         return num_games
 
-    def change_elo_after_game(self, opponent_elo, is_winner):
-
+    def change_elo_after_game(self, chance_of_winning: float, is_winner: bool):
         if self.completed_game_count() < 6:
             max_elo_delta = 50
         else:
             max_elo_delta = 32
 
-        chance_of_winning = round(1 / (1 + (10 ** ((opponent_elo - self.elo) / 400.0))), 3)
-
         if is_winner is True:
-            new_elo = round(self.elo + (max_elo_delta * (1 - chance_of_winning)), 0)
+            elo_delta = int(round((max_elo_delta * (1 - chance_of_winning)), 0))
         else:
-            new_elo = round(self.elo + (max_elo_delta * (0 - chance_of_winning)), 0)
-
-        elo_delta = int(new_elo - self.elo)
-        # print('Squad chance of winning: {} opponent elo:{} current ELO {}, new elo {}, elo_delta {}'.format(chance_of_winning, opponent_elo, self.elo, new_elo, elo_delta))
+            elo_delta = int(round((max_elo_delta * (0 - chance_of_winning)), 0))
 
         self.elo = int(self.elo + elo_delta)
         self.save()
@@ -1084,6 +1037,10 @@ class SquadGame(BaseModel):
     elo_change_team = SmallIntegerField(default=0)
     team_chan = BitField(default=None, null=True)
 
+    def calc_win_chance(my_side_elo: int, opponent_elo: int):
+        chance_of_winning = round(1 / (1 + (10 ** ((opponent_elo - my_side_elo) / 400.0))), 3)
+        return chance_of_winning
+
     def elo_strings(self):
         # Returns a tuple of strings for team ELO and squad ELO display. ie:
         # ('1200 +30', '1300')
@@ -1115,10 +1072,11 @@ class SquadGame(BaseModel):
         # (compared to 58.8% for 1v1v1 for the 1400 player)
         handicap = 300  # the elo difference for a 50% 1v2 chance
         handicap_elo = handicap * 2 + max(own_elo - opponent_elos - handicap, 0)
+        size = len(self.lineup)
 
         # "fill up" missing players with placeholder handicapped elos
         missing_player_elo = own_elo - handicap_elo
-        return int(round((own_elo * self.size + missing_player_elo * missing_players) / (self.size + missing_players)))
+        return int(round((own_elo * size + missing_player_elo * missing_players) / (size + missing_players)))
 
     def name(self):
         if len(self.lineup) == 1:
@@ -1151,10 +1109,6 @@ class Lineup(BaseModel):
     elo_change_player = SmallIntegerField(default=0)
     elo_change_discordmember = SmallIntegerField(default=0)
 
-    def calc_win_chance(my_side_elo: int, opponent_elo: int):
-        chance_of_winning = round(1 / (1 + (10 ** ((opponent_elo - my_side_elo) / 400.0))), 3)
-        return chance_of_winning
-
     def change_elo_after_game(self, chance_of_winning: float, is_winner: bool):
         # Average(Away Side Elo) is compared to Average(Home_Side_Elo) for calculation - ie all members on a side will have the same elo_delta
         # Team A: p1 900 elo, p2 1000 elo = 950 average
@@ -1175,7 +1129,7 @@ class Lineup(BaseModel):
         else:
             elo_delta = int(round((max_elo_delta * (0 - chance_of_winning)), 0))
 
-        elo_boost = .60 * ((1200 - max(min(p1.elo, 1200), 900)) / 300)  # 60% boost to delta at elo 900, gradually shifts to 0% boost at 1200 ELO
+        elo_boost = .60 * ((1200 - max(min(self.player.elo, 1200), 900)) / 300)  # 60% boost to delta at elo 900, gradually shifts to 0% boost at 1200 ELO
         elo_bonus = int(abs(elo_delta) * elo_boost)
         elo_delta += elo_bonus
 
