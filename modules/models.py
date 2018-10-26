@@ -579,7 +579,7 @@ class Game(BaseModel):
                 list_of_final_teams.append(team_obj)
 
         with db.atomic():
-            newgame = Game.create(name=name.title(),
+            newgame = Game.create(name=name.strip('\"').strip('\'').title(),
                                   guild_id=guild_id)
 
             # print(discord_groups)
