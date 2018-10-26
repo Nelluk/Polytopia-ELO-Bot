@@ -504,6 +504,7 @@ class matchmaking():
         await self.bot.wait_until_ready()
         challenge_channels = [g.get_channel(settings.guild_setting(g.id, 'match_challenge_channel')) for g in self.bot.guilds]
         while not self.bot.is_closed():
+            await asyncio.sleep(60 * 30)  # delay before and after loop so bot wont spam if its being restarted several times
             for chan in challenge_channels:
                 if not chan:
                     continue
@@ -529,7 +530,7 @@ class matchmaking():
 
                 await chan.send(embed=embed)
 
-            await asyncio.sleep(60 * 90)  # task runs every 90 minutes
+            await asyncio.sleep(60 * 60)
 
 
 def setup(bot):

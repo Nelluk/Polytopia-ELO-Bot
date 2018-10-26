@@ -1307,12 +1307,12 @@ class Match(BaseModel):
             q = Match.select().join(Player).join(DiscordMember).where(
                 (Match.id.not_in(Match.subq_open_matches())) &
                 (Match.host.discord_member.discord_id == host_discord_id) &
-                (Match.game.is_null(True)) &
+                (Match.is_started == 0) &
                 (Match.guild_id == guild_id)
             )
         else:
             q = Match.select().where(
-                (Match.id.not_in(Match.subq_open_matches())) & (Match.game.is_null(True)) & (Match.guild_id == guild_id)
+                (Match.id.not_in(Match.subq_open_matches())) & (Match.is_started == 0) & (Match.guild_id == guild_id)
             )
         return q
 

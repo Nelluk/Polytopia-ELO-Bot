@@ -4,7 +4,7 @@ import modules.utilities as utilities
 import settings
 import modules.exceptions as exceptions
 import peewee
-from modules.models import Game, db, Player, Team, DiscordMember, Squad, SquadGame
+from modules.models import Game, db, Player, Team, DiscordMember, Squad, SquadGame, Match
 import logging
 from itertools import groupby
 
@@ -718,6 +718,14 @@ class games():
         """
         example_usage = (f'Example usage:\n`{ctx.prefix}startgame "Name of Game" player1 player2 VS player3 player4` - Start a 2v2 game\n'
                          f'`{ctx.prefix}startgame "Name of Game" player2` - Start a 1v1 with yourself and player2')
+
+        waitlist = [f'M{m.id}' for m in Match.waiting_to_start(guild_id=ctx.guild.id, host_discord_id=ctx.author.id)]
+
+        if waitlist and not settings.is_staff(ctx):
+            return await ctx.send(f'You have matches waiting to be started as games: **{", ".join(waitlist)}**\n'
+                f'Type `{ctx.prefix}match M#` for more details or if the game is created start it with `{ctx.prefix}startmatch M# Name of Game`.\n'
+                f'The `{ctx.prefix}{ctx.invoked_with}` command is for creating a game that had no matchmaking session.')
+
         if not game_name:
             return await ctx.send(f'Invalid format. {example_usage}')
         if not args:
@@ -780,7 +788,7 @@ class games():
             else:
                 return await ctx.send('Teams are not the same size. This is not allowed on this server. Game not created.')
 
-        if not author_found and settings.is_staff(ctx) is False:
+        if not author_found and not settings.is_staff(ctx):
             # TODO: possibly allow this in PolyChampions (rickdaheals likes to do this)
             return await ctx.send('You can\'t create a game that you are not a participant in.')
 
