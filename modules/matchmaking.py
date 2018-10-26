@@ -79,7 +79,7 @@ class matchmaking():
 
         if models.Match.select().where(
             (models.Match.host == match_host) & (models.Match.is_started == 0)
-        ).count() > 30:
+        ).count() > 5:
             return await ctx.send(f'You have too many open matches already. Try using `{ctx.prefix}delmatch` on an existing one.')
 
         for arg in args.split(' '):
@@ -92,8 +92,6 @@ class matchmaking():
                     return await ctx.send(f'Invalid match size {team_size_str}: Teams cannot be larger than 6 players.')
                 if sum(team_sizes) > 12:
                     return await ctx.send(f'Invalid match size {team_size_str}: Games can have a maximum of 12 players.')
-                if len(team_sizes) > 8:
-                    return await ctx.send(f'Invalid match size {team_size_str}: Games cannot have more than 8 teams.')
                 team_size = True
                 continue
             m = re.match(r"(\d+)h", arg.lower())
