@@ -67,7 +67,7 @@ if __name__ == '__main__':
 
     main()
 
-    bot = commands.Bot(command_prefix=get_prefix)
+    bot = commands.Bot(command_prefix=get_prefix, owner_id=settings.owner_id)
     # bot.remove_command('help')
 
     @bot.check

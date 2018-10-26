@@ -3,6 +3,7 @@ import modules.models as models
 import modules.utilities as utilities
 import settings
 import logging
+import peewee
 import modules.exceptions as exceptions
 from modules.games import PolyGame, post_win_messaging
 
@@ -13,8 +14,10 @@ class administration:
     def __init__(self, bot):
         self.bot = bot
 
+    async def __local_check(self, ctx):
+        return settings.is_staff(ctx)
+
     @commands.command(aliases=['confirmgame'], usage='game_id')
-    @settings.is_staff_check()
     async def confirm(self, ctx, winning_game: PolyGame = None):
         """ *Staff*: List unconfirmed games, or let staff confirm winners
          **Examples**
@@ -41,7 +44,6 @@ class administration:
         await post_win_messaging(ctx, winning_game)
 
     @commands.command(usage='game_id')
-    @settings.is_staff_check()
     async def unwin(self, ctx, game: PolyGame = None):
         """ *Staff*: Reset a completed game to incomplete
         Reverts ELO changes from the completed game and any subsequent completed game.
@@ -92,7 +94,6 @@ class administration:
             await ctx.send(f'Game with ID {gid} has been deleted and team/player ELO changes have been reverted, if applicable.')
 
     @commands.command(aliases=['settribes'], usage='game_id player_name tribe_name [player2 tribe2 ... ]')
-    @settings.is_staff_check()
     async def settribe(self, ctx, game: PolyGame, *args):
         """*Staff:* Set tribe of a player for a game
         **Examples**
@@ -162,8 +163,8 @@ class administration:
 
         name = ' '.join(args)
         try:
-            with db.atomic():
-                team = Team.create(name=name, guild_id=ctx.guild.id)
+            with models.db.atomic():
+                team = models.Team.create(name=name, guild_id=ctx.guild.id)
         except peewee.IntegrityError:
             return await ctx.send('That team already exists!')
 
@@ -181,7 +182,7 @@ class administration:
         if len(emoji) != 1 and ('<:' not in emoji):
             return await ctx.send('Valid emoji not detected. Example: `{}team_emoji name :my_custom_emoji:`'.format(ctx.prefix))
 
-        matching_teams = Team.get_by_name(team_name, ctx.guild.id)
+        matching_teams = models.Team.get_by_name(team_name, ctx.guild.id)
         if len(matching_teams) != 1:
             return await ctx.send('Can\'t find matching team or too many matches. Example: `{}team_emoji name :my_custom_emoji:`'.format(ctx.prefix))
 
@@ -206,7 +207,7 @@ class administration:
             # This is a very dumb check to make sure user is passing a URL and not a random string. Assumes mod can figure it out from there.
 
         try:
-            matching_teams = Team.get_or_except(team_name, ctx.guild.id)
+            matching_teams = models.Team.get_or_except(team_name, ctx.guild.id)
         except exceptions.NoSingleMatch as ex:
             return await ctx.send(f'{ex}\nExample: `{ctx.prefix}team_emoji name :my_custom_emoji:`')
 
@@ -229,7 +230,7 @@ class administration:
         """
 
         try:
-            matching_teams = Team.get_or_except(old_team_name, ctx.guild.id)
+            matching_teams = models.Team.get_or_except(old_team_name, ctx.guild.id)
         except exceptions.NoSingleMatch as ex:
             return await ctx.send(f'{ex}\nExample: `{ctx.prefix}team_name \"Current name\" \"New Team Name\"`')
 
@@ -249,6 +250,25 @@ class administration:
         async with ctx.typing():
             await ctx.send('Recalculating ELO for all games in database.')
             models.Game.recalculate_all_elo()
+
+    @commands.command(aliases=['dbb'])
+    @commands.is_owner()
+    async def backup_db(self, ctx):
+        """*Owner*: Backup PSQL database to a file
+        Intended to be used when a change to the ELO math is made to apply to all games retroactively
+        """
+        import subprocess
+        from subprocess import PIPE
+
+        async with ctx.typing():
+            await ctx.send('Executing backup script')
+            process = subprocess.run(['/home/nelluk/backup_db.sh'], stdout=PIPE, stderr=PIPE)
+            if process.returncode == 0:
+                logger.info('Backup script executed')
+                return await ctx.send(f'Execution successfull: {str(process.stdout)}')
+            else:
+                logger.error('Error during execution')
+                return await ctx.send(f'Error during execution: {str(process.stderr)}')
 
 
 def setup(bot):
