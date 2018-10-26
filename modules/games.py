@@ -527,42 +527,28 @@ class games():
 
             results_title = []
 
-            # Search for games by title
-            # Any results will be added to player/team results, not restricted by
-            if arg_list:
-                title_query = Game.select().where(
-                    (Game.name.contains('%'.join(arg_list))) & (Game.guild_id == ctx.guild.id)
-                ).order_by(-Game.date).prefetch(SquadGame, Team, Lineup, Player)
-
-                game_list_titles = utilities.summarize_game_list(title_query[:50])
-            else:
-                game_list_titles, title_query = [], []
-
-            if len(game_list_titles) > 0:
-                results_title.append(f'Including *{" ".join(arg_list)}* in name' if arg_list else '')
-
-            # Search for games by all teams or players that appear in args
-            player_matches, team_matches = parse_players_and_teams(target_list, ctx.guild.id)
+            player_matches, team_matches, remaining_args = parse_players_and_teams(target_list, ctx.guild.id)
             p_names, t_names = [p.name for p in player_matches], [t.name for t in team_matches]
 
             if p_names:
                 results_title.append(f'Including players: *{"* & *".join(p_names)}*')
             if t_names:
                 results_title.append(f'Including teams: *{"* & *".join(t_names)}*')
+            if remaining_args:
+                results_title.append(f'Included in name: *{"* *".join(remaining_args)}*')
 
             results_str = '\n'.join(results_title)
+            if not results_title:
+                results_str = 'No filters applied'
 
-            if len(p_names) + len(t_names) > 0:
-                query = Game.search(player_filter=player_matches, team_filter=team_matches, guild_id=ctx.guild.id)
-                print(f'len of player/team query: {len(query)}')
-                game_list = game_list_titles + utilities.summarize_game_list(query[:500])
-                list_name = f'{len(query) + len(title_query)} game{"s" if len(query) + len(title_query) != 1 else ""}\n{results_str}'
-            else:
-                game_list = game_list_titles
-                list_name = f'{len(title_query)} game{"s" if len(title_query) != 1 else ""}\n{results_str}'
+            print(player_matches, team_matches, remaining_args)
+            query = Game.search(player_filter=player_matches, team_filter=team_matches, title_filter=remaining_args, guild_id=ctx.guild.id)
+            print(f'len of player/team query: {len(query)}')
+            game_list = utilities.summarize_game_list(query[:500])
+            list_name = f'{len(query)} game{"s" if len(query) != 1 else ""}\n{results_str}'
 
         if len(game_list) == 0:
-            return await ctx.send(f'No results. See `{ctx.prefix}help games` for usage examples.')
+            return await ctx.send(f'No results. See `{ctx.prefix}help games` for usage examples. Searched for:\n{results_str}')
         await utilities.paginate(self.bot, ctx, title=list_name, message_list=game_list, page_start=0, page_end=15, page_size=15)
 
     @commands.command(aliases=['completed'])
@@ -586,7 +572,7 @@ class games():
                 # Target is person issuing command
                 target_list.append(str(ctx.author.id))
 
-            player_matches, team_matches = parse_players_and_teams(target_list, ctx.guild.id)
+            player_matches, team_matches, _ = parse_players_and_teams(target_list, ctx.guild.id)
             p_names, t_names = [p.name for p in player_matches], [t.name for t in team_matches]
 
             query = Game.search(status_filter=1, player_filter=player_matches, team_filter=team_matches)
@@ -625,7 +611,7 @@ class games():
                 # Target is person issuing command
                 target_list.append(str(ctx.author.id))
 
-            player_matches, team_matches = parse_players_and_teams(target_list, ctx.guild.id)
+            player_matches, team_matches, _ = parse_players_and_teams(target_list, ctx.guild.id)
             p_names, t_names = [p.name for p in player_matches], [t.name for t in team_matches]
 
             query = Game.search(status_filter=2, player_filter=player_matches, team_filter=team_matches)
@@ -660,7 +646,7 @@ class games():
             # Target is person issuing command
             target_list.append(str(ctx.author.id))
 
-        player_matches, team_matches = parse_players_and_teams(target_list, ctx.guild.id)
+        player_matches, team_matches, _ = parse_players_and_teams(target_list, ctx.guild.id)
         p_names, t_names = [p.name for p in player_matches], [t.name for t in team_matches]
 
         query = Game.search(status_filter=3, player_filter=player_matches, team_filter=team_matches)
@@ -699,7 +685,7 @@ class games():
             # Target is person issuing command
             target_list.append(str(ctx.author.id))
 
-        player_matches, team_matches = parse_players_and_teams(target_list, ctx.guild.id)
+        player_matches, team_matches, _ = parse_players_and_teams(target_list, ctx.guild.id)
         p_names, t_names = [p.name for p in player_matches], [t.name for t in team_matches]
 
         query = Game.search(status_filter=4, player_filter=player_matches, team_filter=team_matches)
@@ -916,18 +902,22 @@ async def post_newgame_messaging(ctx, game):
 
 def parse_players_and_teams(input_list, guild_id: int):
     # Given a [List, of, string, args], try to match each one against a Team or a Player, and return lists of those matches
+    # return any args that matched nothing back in edited input_list
 
     player_matches, team_matches = [], []
-    for arg in input_list:
+    for arg in list(input_list):  # Copy of list
         teams = Team.get_by_name(arg, guild_id)
         if len(teams) == 1:
             team_matches.append(teams[0])
+            input_list.remove(arg)
         else:
             players = Player.string_matches(arg, guild_id)
             if len(players) == 1:
                 player_matches.append(players[0])
+                input_list.remove(arg)
 
-    return player_matches, team_matches
+    print(input_list)
+    return player_matches, team_matches, input_list
 
 
 def setup(bot):

@@ -757,7 +757,7 @@ class Game(BaseModel):
         else:
             raise exceptions.TooManyMatches(f'{len(matches)} matches found for "{name}" in game {self.id}.')
 
-    def search(player_filter=None, team_filter=None, status_filter: int = 0, guild_id: int = None):
+    def search(player_filter=None, team_filter=None, title_filter=None, status_filter: int = 0, guild_id: int = None):
         # Returns Games by almost any combination of player/team participation, and game status
         # player_filter/team_filter should be a [List, of, Player/Team, objects] (or ID #s)
         # status_filter:
@@ -800,6 +800,11 @@ class Game(BaseModel):
         else:
             player_subq = Game.select(Game.id)
 
+        if title_filter:
+            title_subq = Game.select(Game.id).where(Game.name.contains('%'.join(title_filter)))
+        else:
+            title_subq = Game.select(Game.id)
+
         if (not player_filter and not team_filter) or status_filter not in [3, 4]:
             # No filtering on wins/losses
             victory_subq = Game.select(Game.id)
@@ -834,6 +839,8 @@ class Game(BaseModel):
                 Game.id.in_(team_subq)
             ) & (
                 Game.id.in_(player_subq)
+            ) & (
+                Game.id.in_(title_subq)
             ) & (
                 Game.is_completed.in_(completed_filter)
             ) & (
