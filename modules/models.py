@@ -1141,8 +1141,6 @@ class Lineup(BaseModel):
         elo_bonus = int(abs(elo_delta) * elo_boost)
         elo_delta += elo_bonus
 
-        elo_delta += elo_bonus
-
         # print(f'Player chance of winning: {chance_of_winning} opponent elo:{opponent_elo} my_side_elo: {my_side_elo},'
         # f'elo_delta {elo_delta}, current_player_elo {self.player.elo}, new_player_elo {int(self.player.elo + elo_delta)}')
 
