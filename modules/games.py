@@ -902,6 +902,12 @@ class games():
     @commands.command(usage='game_id')
     @settings.is_staff_check()
     async def unwin(self, ctx, game: PolyGame = None):
+        """ *Staff*: Reset a completed game to incomplete
+        Reverts ELO changes from the completed game and any subsequent completed game.
+        Resets the game as if it were still incomplete with no declared winner.
+         **Examples**
+        `[p]unwin 50`
+        """
 
         if game is None:
             return await ctx.send(f'No matching game was found.')
@@ -926,7 +932,7 @@ class games():
     @commands.command(usage='game_id', aliases=['delete_game'])
     @settings.is_mod_check()
     async def deletegame(self, ctx, game: PolyGame):
-        """Mod: Deletes a game and reverts ELO changes"""
+        """*Mod*: Deletes a game and reverts ELO changes"""
 
         if game.winner:
             await ctx.send(f'Deleting game with ID {game.id} and re-calculating ELO for all subsequent games. This will take a few seconds.')
@@ -988,7 +994,7 @@ class games():
     @commands.command(usage='tribe_name new_emoji')
     @settings.is_mod_check()
     async def tribe_emoji(self, ctx, tribe_name: str, emoji):
-        """Mod: Assign an emoji to a tribe
+        """*Mod*: Assign an emoji to a tribe
         **Example:**
         `[p]tribe_emoji Bardur :new_bardur_emoji:`
         """
@@ -1007,7 +1013,7 @@ class games():
     @settings.is_mod_check()
     @settings.teams_allowed()
     async def team_add(self, ctx, *args):
-        """Mod: Create new server Team
+        """*Mod*: Create new server Team
         The team should have a Role with an identical name.
         **Example:**
         `[p]team_add The Amazeballs`
@@ -1026,7 +1032,7 @@ class games():
     @commands.command(usage='team_name new_emoji')
     @settings.is_mod_check()
     async def team_emoji(self, ctx, team_name: str, emoji):
-        """Mod: Assign an emoji to a team
+        """*Mod*: Assign an emoji to a team
         **Example:**
         `[p]team_emoji Amazeballs :my_fancy_emoji:`
         """
@@ -1048,7 +1054,7 @@ class games():
     @settings.is_mod_check()
     @settings.teams_allowed()
     async def team_image(self, ctx, team_name: str, image_url):
-        """Mod: Set a team's logo image
+        """*Mod*: Set a team's logo image
 
         **Example:**
         `[p]team_image Amazeballs http://www.path.to/image.png`
@@ -1074,7 +1080,7 @@ class games():
     @settings.is_mod_check()
     @settings.teams_allowed()
     async def team_name(self, ctx, old_team_name: str, new_team_name: str):
-        """Mod: Change a team's name
+        """*Mod*: Change a team's name
         The team should have a Role with an identical name.
         Old name doesn't need to be precise, but new name does. Include quotes if it's more than one word.
         **Example:**
@@ -1092,7 +1098,7 @@ class games():
 
         await ctx.send('Team **{}** has been renamed to **{}**.'.format(old_team_name, new_team_name))
 
-    @commands.command()
+    @commands.command(hidden=True)
     @commands.is_owner()
     async def ts(self, ctx, game_id: int):
         return
@@ -1107,29 +1113,14 @@ class games():
 
     @commands.command()
     @commands.is_owner()
-    async def tb(self, ctx, game_id: int):
-        p1 = (await utilities.get_guild_member(ctx, 'nelluk'))[0]
-        p2 = (await utilities.get_guild_member(ctx, 'testboye1'))[0]
-        foo = Player.get_teams_of_players(ctx.guild.id, [p2, p1])
-        print(foo)
-
-    @commands.command()
-    @commands.is_owner()
     async def recalc_elo(self, ctx):
+        """*Owner*: Recalculate ELO for all games
+        Intended to be used when a change to the ELO math is made to apply to all games retroactively
+        """
 
         async with ctx.typing():
             await ctx.send('Recalculating ELO for all games in database.')
             Game.recalculate_all_elo()
-
-    @commands.command()
-    @commands.is_owner()
-    async def truncate_all(self, ctx, *, confirm: str = None):
-
-        if not confirm or confirm.upper() != 'CONFIRM':
-            return await ctx.send('No confirmation supplied')
-
-        db.execute_sql("TRUNCATE TABLE game, team, player, discordmember, squad CASCADE;")
-        return await ctx.send('**All** game/player/team/match data deleted. I hope you know what you\'re doing!')
 
 
 async def post_win_messaging(ctx, winning_game):
