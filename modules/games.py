@@ -803,6 +803,7 @@ class games():
     async def win(self, ctx, winning_game: PolyGame, winning_side_name: str):
         """
         Declare winner of an existing game
+
         The win must be confirmed by a member of the losing side (or staff) if the game has two sides.
         If the game has more than two sides, staff will need to confirm the win.
         Use player name for 1v1 games, otherwise use team names *(Home/Away/Owls/Sharks/etc)*

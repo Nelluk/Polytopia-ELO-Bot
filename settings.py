@@ -67,10 +67,10 @@ config = {'default':
                       'allow_teams': True,
                       'max_team_size': 2,
                       'command_prefix': '$',
-                      'bot_channels': [396069729657421824],
+                      'bot_channels': [396069729657421824, 403724174532673536],
                       'match_challenge_channel': None,
                       'game_request_channel': None,
-                      'game_announce_channel': None,
+                      'game_announce_channel': 505523961812090900,
                       'game_channel_category': None}
 
           }
