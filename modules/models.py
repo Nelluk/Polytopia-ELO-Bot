@@ -670,6 +670,7 @@ class Game(BaseModel):
             raise exceptions.CheckFailedError(f'SquadGame id {winning_side.id} did not play in this game')
 
         if confirm is True:
+            self.is_confirmed = True
             n = len(self.squads)
 
             # Adjust team elos when the amount of players on each team
