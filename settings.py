@@ -66,7 +66,7 @@ config = {'default':
                      {'helper_roles': ['Bot Master', 'Tribe Leader', 'Director'],
                       'mod_roles': ['MOD', 'Manager'],
                       'require_teams': False,
-                      'allow_teams': True,
+                      'allow_teams': False,
                       'max_team_size': 2,
                       'command_prefix': '$',
                       'include_in_global_lb': True,
@@ -156,6 +156,23 @@ async def is_mod(ctx):
 
     target_match = get_matching_roles(ctx.author, mod_roles)
     return len(target_match) > 0
+
+
+async def is_user(ctx):
+    if ctx.guild.id == server_ids['main']:
+        minimum_role = discord.utils.get(ctx.guild.roles, name='Rider')
+        if ctx.author.top_role < minimum_role:
+            await ctx.send('You must attain *"Rider"* role to use this command. Please participate in the server more.')
+            return False
+    return True
+
+
+def is_user_check():
+    # restrict commands to is_staff with syntax like @settings.is_staff_check()
+
+    def predicate(ctx):
+        return is_user(ctx)
+    return commands.check(predicate)
 
 
 def is_staff_check():

@@ -54,6 +54,7 @@ class matchmaking():
         self.bg_task = bot.loop.create_task(self.task_print_matchlist())
 
     # @settings.in_bot_channel()
+    @settings.is_user_check()
     @commands.command(usage='size expiration rules')
     async def openmatch(self, ctx, *, args):
 
@@ -105,6 +106,9 @@ class matchmaking():
 
         if not team_size:
             return await ctx.send(f'Match size is required. Include argument like *2v2* to specify size')
+
+        if sum(team_sizes) > 2 and (not settings.is_power_user(ctx)) and ctx.guild.id != settings.server_ids['polychampions']:
+            return await ctx.send('You only have permissions to create 1v1 matches. More active server members can create larger matches.')
 
         server_size_max = settings.guild_setting(ctx.guild.id, 'max_team_size')
         if max(team_sizes) > server_size_max and ctx.guild.id != settings.server_ids['polychampions']:
@@ -397,7 +401,7 @@ class matchmaking():
     @commands.command(usage='match_id Name of Poly Game')
     async def startmatch(self, ctx, match: PolyMatch, *, name: str = None):
         """
-        Start match and track game with ELO bot
+        Start a full match and track the game for ELO
         Use this command after you have created the game in Polytopia.
         If the game is a compatible type (currently requires two equal teams) the game will be added as an ELO game.
         **Example:**

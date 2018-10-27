@@ -72,6 +72,23 @@ class administration:
         else:
             return await ctx.send(f'Game {game.id} does not have a confirmed winner.')
 
+    @commands.command(aliases=['namegame', 'rename'], usage='game_id "New Name"')
+    @settings.is_staff_check()
+    async def gamename(self, ctx, game: PolyGame, *args):
+        """*Staff:* Renames an existing game
+        **Example:**
+        `[p]gamename 25 Mountains of Fire`
+        """
+
+        new_game_name = ' '.join(args)
+        game.name = new_game_name.title()
+        game.save()
+
+        await game.update_squad_channels(ctx)
+        await game.update_announcement(ctx)
+
+        await ctx.send(f'Game ID {game.id} has been renamed to "{game.name}"')
+
     @commands.command(usage='game_id', aliases=['delete_game'])
     @settings.is_mod_check()
     async def deletegame(self, ctx, game: PolyGame):

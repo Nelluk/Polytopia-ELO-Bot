@@ -89,23 +89,6 @@ class games():
         await channel.send(f'{ctx.message.author} submitted season game INFO <@&{helper_role.id}> <@451212023124983809>: {ctx.message.clean_content}')
         await ctx.send('Request has been logged')
 
-    @commands.command(aliases=['namegame', 'rename'], usage='game_id "New Name"')
-    @settings.is_staff_check()
-    async def gamename(self, ctx, game: PolyGame, *args):
-        """*Staff:* Renames an existing game
-        **Example:**
-        `[p]gamename 25 Mountains of Fire`
-        """
-
-        new_game_name = ' '.join(args)
-        game.name = new_game_name.title()
-        game.save()
-
-        await game.update_squad_channels(ctx)
-        await game.update_announcement(ctx)
-
-        await ctx.send(f'Game ID {game.id} has been renamed to "{game.name}"')
-
     @settings.in_bot_channel()
     @commands.command()
     @commands.cooldown(2, 30, commands.BucketType.channel)
@@ -718,6 +701,7 @@ class games():
         await utilities.paginate(self.bot, ctx, title=list_name, message_list=game_list, page_start=0, page_end=10, page_size=10)
 
     @commands.command(aliases=['newgame'], usage='"Name of Game" player1 player2 vs player3 player4')
+    @settings.is_user_check()
     async def startgame(self, ctx, game_name: str = None, *args):
         """Adds a new game to the bot for tracking
 
@@ -810,6 +794,7 @@ class games():
             await post_newgame_messaging(ctx, game=newgame)
 
     @commands.command(aliases=['endgame', 'wingame', 'winner'], usage='game_id winner_name')
+    @settings.is_user_check()
     async def win(self, ctx, winning_game: PolyGame, winning_side_name: str):
         """
         Declare winner of an existing game

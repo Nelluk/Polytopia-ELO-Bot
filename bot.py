@@ -75,16 +75,6 @@ if __name__ == '__main__':
         # Should prevent bot from being able to be controlled via DM
         return ctx.guild is not None
 
-    @bot.check
-    async def is_user(ctx):
-        if ctx.guild.id == settings.server_ids['main']:
-            minimum_role = discord.utils.get(ctx.guild.roles, name='Rider')
-            if ctx.author.top_role < minimum_role:
-                await ctx.send('You must attain "Rider" role to use this bot')
-                return False
-
-        return True
-
     @bot.event
     async def on_command_error(ctx, exc):
 
