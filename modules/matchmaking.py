@@ -384,6 +384,10 @@ class matchmaking():
         # paginator done as a task because otherwise it will not let the waitlist message send until after pagination is complete (20+ seconds)
 
         waitlist = [f'M{m.id}' for m in models.Match.waiting_to_start(guild_id=ctx.guild.id, host_discord_id=ctx.author.id)]
+        if ctx.guild.id != settings.server_ids['polychampions']:
+            await asyncio.sleep(1)
+            await ctx.send('Powered by PolyChampions. League server with a team focus and competitive player.\n'
+                '<https://tinyurl.com/polychampions>')
         if waitlist:
             await asyncio.sleep(1)
             await ctx.send(f'You have full matches waiting to start: **{", ".join(waitlist)}**\n'
