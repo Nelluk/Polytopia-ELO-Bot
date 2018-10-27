@@ -364,7 +364,9 @@ class Help(formatter.HelpFormatter):
 
         if reason:
             # print(f'Reason:{reason}')
-            emb['embed']['title'] = "{0}".format(reason)
+            emb['embed']['title'] = f'{reason}'
+        else:
+            emb['embed']['title'] = f'See __`{ctx.prefix}guide`__ for a basic intro.'
         embeds = []
         embed = discord.Embed(color=self.color, **emb['embed'])
         embed.set_author(name='{0} Help Manual Page 1'.format(self.bot.user.name), icon_url=self.avatar)
