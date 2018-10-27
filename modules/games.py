@@ -458,7 +458,8 @@ class games():
         if discord_member and discord_member.polytopia_id:
             return await ctx.send(discord_member.polytopia_id)
         else:
-            return await ctx.send(f'Member **{target_discord_member.name}** has no code on file.')
+            return await ctx.send(f'Member **{target_discord_member.name}** has no code on file.\n'
+                f'Register your own code with `{ctx.prefix}setcode mYlOnGp0lYc0de`')
 
     @commands.command(brief='Set in-game name', usage='new_name')
     async def setname(self, ctx, *args):

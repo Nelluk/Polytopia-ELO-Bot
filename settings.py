@@ -29,6 +29,7 @@ config = {'default':
                       'allow_uneven_teams': False,
                       'max_team_size': 1,
                       'command_prefix': '/',
+                      'include_in_global_lb': False,
                       'bot_channels': [],
                       'match_challenge_channel': None,
                       'game_request_channel': None,
@@ -55,6 +56,7 @@ config = {'default':
                       'allow_uneven_teams': True,
                       'max_team_size': 5,
                       'command_prefix': '$',
+                      'include_in_global_lb': True,
                       'bot_channels': [487303307224940545, 487302138704429087, 487304043786665986, 487222333589815315, 487562981635522570, 447902433964851210, 448317497473630229],
                       'match_challenge_channel': 452639822616723457,  # elo-challenges
                       'game_request_channel': 487562981635522570,  # $staffhelp output
@@ -67,6 +69,7 @@ config = {'default':
                       'allow_teams': True,
                       'max_team_size': 2,
                       'command_prefix': '$',
+                      'include_in_global_lb': True,
                       'bot_channels': [396069729657421824, 403724174532673536],
                       'match_challenge_channel': None,
                       'game_request_channel': None,
