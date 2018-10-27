@@ -82,7 +82,7 @@ class games():
             f'If the loser will not confirm the winner can use the same __`{ctx.prefix}win`__ command, and ask a server staff member to confirm it. Please have a game screenshot read.')
 
         embed.set_thumbnail(url=self.bot.user.avatar_url_as(size=512))
-        embed.set_footer(text='Developer: __Nelluk__')
+        embed.set_footer(text='Developer: Nelluk')
         await ctx.send(embed=embed)
 
     @commands.command(aliases=['reqgame', 'helpstaff'])
