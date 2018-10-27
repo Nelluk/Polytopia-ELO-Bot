@@ -61,7 +61,7 @@ config = {'default':
                       'game_announce_channel': 487302138704429087,  # elo-drafts
                       'game_channel_category': 488421911529914368},  # ELO CHALLENGES
           283436219780825088:                           # Main Server
-                     {'helper_roles': ['Bot Master', 'Tribe Leader', 'Director', 'Bot Master'],
+                     {'helper_roles': ['Bot Master', 'Tribe Leader', 'Director'],
                       'mod_roles': ['MOD', 'Manager'],
                       'require_teams': False,
                       'allow_teams': True,

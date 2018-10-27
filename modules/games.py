@@ -253,28 +253,37 @@ class games():
         `[p]player Nelluk` - See Nelluk's card
         """
 
-        if len(args) == 0:
+        args_list = list(args)
+        if len(args_list) == 0:
             # Player looking for info on themselves
-            try:
-                player = Player.get_or_except(player_string=str(ctx.author.id), guild_id=ctx.guild.id)
-            except exceptions.NoSingleMatch as ex:
-                return await ctx.send(f'{ex}\nTry setting your code with {ctx.prefix}setcode')
-        else:
-            # Otherwise look for a player matching whatever they entered
-            player_mention = ' '.join(args)
+            args_list.append(f'<@{ctx.author.id}>')
 
-            try:
-                player = Player.get_or_except(player_string=player_mention, guild_id=ctx.guild.id)
-            except exceptions.NoMatches:
-                # No matching name in database. Warn if player is found in guild.
-                matches = await utilities.get_guild_member(ctx, player_mention)
-                if len(matches) > 0:
-                    await ctx.send(f'"{player_mention}" was found in the server but is not registered with me. '
-                        f'Players can be registered with `{ctx.prefix}setcode` or being in a new game\'s lineup.')
+        # Otherwise look for a player matching whatever they entered
+        player_mention = ' '.join(args_list)
 
-                return await ctx.send(f'Could not find \"{player_mention}\" by Discord name, Polytopia name, or Polytopia ID.')
-            except exceptions.TooManyMatches:
+        try:
+            player = Player.get_or_except(player_string=player_mention, guild_id=ctx.guild.id)
+        except exceptions.TooManyMatches:
+            return await ctx.send(f'There is more than one player found with name "{player_mention}". Specify user with @Mention.')
+        except exceptions.NoMatches:
+            # No Player matches - check for guild membership
+            guild_matches = await utilities.get_guild_member(ctx, player_mention)
+            if len(guild_matches) > 1:
                 return await ctx.send(f'There is more than one player found with name "{player_mention}". Specify user with @Mention.')
+            if len(guild_matches) == 0:
+                return await ctx.send(f'Could not find \"{player_mention}\" by Discord name, Polytopia name, or Polytopia ID.')
+
+            # Matching guild member found. Check to see if they have a Player on a different guild, if so auto-register them
+            try:
+                _ = DiscordMember.get(discord_id=guild_matches[0].id)
+            except peewee.DoesNotExist:
+                # Matching guild member but no Player or DiscordMember
+                return await ctx.send(f'"{player_mention}" was found in the server but is not registered with me. '
+                    f'Players can be registered with `{ctx.prefix}setcode` or being in a new game\'s lineup.')
+            else:
+                # DiscordMember record from a different guild found. Upsert a new player record for this guild
+                player, _ = Player.upsert(discord_id=guild_matches[0].id, discord_name=guild_matches[0].name, discord_nick=guild_matches[0].nick, guild_id=ctx.guild.id)
+                logger.info(f'Upserting new player for discord ID {guild_matches[0].id}')
 
         wins, losses = player.get_record()
         rank, lb_length = player.leaderboard_rank(settings.date_cutoff)
