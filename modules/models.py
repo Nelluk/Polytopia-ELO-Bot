@@ -10,7 +10,7 @@ import logging
 
 logger = logging.getLogger('polybot.' + __name__)
 
-db = PostgresqlDatabase('polytopia', user=settings.psql_user)
+db = PostgresqlDatabase(settings.psql_db, user=settings.psql_user)
 
 
 class BaseModel(Model):
