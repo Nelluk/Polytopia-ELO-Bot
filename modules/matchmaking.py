@@ -160,7 +160,7 @@ class matchmaking():
 
     # @settings.in_bot_channel()
     @commands.command(usage='match_id', aliases=['join'])
-    async def joinmatch(self, ctx, match: PolyMatch, *args):
+    async def joinmatch(self, ctx, match: PolyMatch = None, *args):
         """
         Join an open match
         **Example:**
@@ -169,6 +169,9 @@ class matchmaking():
         `[p]joinmatch m5 ronin 2` - Join match m5 to side number 2
         `[p]joinmatch m5 rickdaheals jets` - Add a person to your match. Side must be specified.
         """
+        if not match:
+            return await ctx.send(f'No Match ID provided. Use `{ctx.prefix}openmatches` to list open matches you can join.')
+
         if len(args) == 0:
             # ctx.author is joining a match, no side given
             target = str(ctx.author.id)

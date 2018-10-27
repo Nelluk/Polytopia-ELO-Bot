@@ -71,7 +71,7 @@ config = {'default':
                       'max_team_size': 2,
                       'command_prefix': '$',
                       'include_in_global_lb': True,
-                      'bot_channels': [396069729657421824, 403724174532673536],
+                      'bot_channels': [396069729657421824, 403724174532673536, 418175357137453058],
                       'match_challenge_channel': None,
                       'game_request_channel': None,
                       'game_announce_channel': 505523961812090900,
