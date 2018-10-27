@@ -59,8 +59,10 @@ def get_prefix(bot, message):
         # Current guild is allowed
         return commands.when_mentioned_or(settings.guild_setting(message.guild.id, 'command_prefix'))(bot, message)
     else:
-        logging.error(f'Message received not from allowed guild. ID {message.guild.id}')
-        return commands.when_mentioned_or(settings.get_setting('command_prefix'))(bot, message)
+        if message.guild:
+            logging.error(f'Message received not from allowed guild. ID {message.guild.id }')
+        # probably a PM
+        return None
 
 
 if __name__ == '__main__':

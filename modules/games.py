@@ -81,7 +81,7 @@ class games():
             'Use the player name for a 1v1, otherwise use a team name.'
             f'If the loser will not confirm the winner can use the same __`{ctx.prefix}win`__ command, and ask a server staff member to confirm it. Please have a game screenshot read.')
 
-        embed.set_thumbnail(url=ctx.guild.me.avatar_url_as(size=512))
+        embed.set_thumbnail(url=self.bot.user.avatar_url_as(size=512))
         embed.set_footer(text='Developer: __Nelluk__')
         await ctx.send(embed=embed)
 
@@ -567,9 +567,7 @@ class games():
             if not results_title:
                 results_str = 'No filters applied'
 
-            print(player_matches, team_matches, remaining_args)
             query = Game.search(player_filter=player_matches, team_filter=team_matches, title_filter=remaining_args, guild_id=ctx.guild.id)
-            print(f'len of player/team query: {len(query)}')
             game_list = utilities.summarize_game_list(query[:500])
             list_name = f'{len(query)} game{"s" if len(query) != 1 else ""}\n{results_str}'
 
@@ -954,7 +952,6 @@ def parse_players_and_teams(input_list, guild_id: int):
                 player_matches.append(players[0])
                 input_list.remove(arg)
 
-    print(input_list)
     return player_matches, team_matches, input_list
 
 
