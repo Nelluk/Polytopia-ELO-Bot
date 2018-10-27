@@ -12,8 +12,9 @@ config.read('config.ini')
 try:
     discord_key = config['DEFAULT']['discord_key']
     psql_user = config['DEFAULT']['psql_user']
+    psql_db = config['DEFAULT']['psql_db']
 except KeyError:
-    logger.error('Error finding a required setting (discord_key / psql_user) in config.ini file')
+    logger.error('Error finding a required setting (discord_key / psql_user / psql_db) in config.ini file')
     exit(0)
 
 pastebin_key = config['DEFAULT'].get('pastebin_key', None)
