@@ -651,7 +651,7 @@ class games():
 
     @commands.command()
     async def wins(self, ctx, *args):
-        """List incomplete games for you or other players
+        """List games that you or others have won
         If any players names are listed, the first played is who the win is checked against. If no players listed, then the first team listed is checked for the win.
         **Example:**
         `[p]wins` - Lists all games you have won

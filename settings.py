@@ -160,10 +160,12 @@ async def is_mod(ctx):
 
 
 async def is_user(ctx):
+
     if ctx.guild.id == server_ids['main']:
         minimum_role = discord.utils.get(ctx.guild.roles, name='Rider')
         if ctx.author.top_role < minimum_role:
-            await ctx.send('You must attain *"Rider"* role to use this command. Please participate in the server more.')
+            if ctx.invoked_with != 'help':
+                await ctx.send('You must attain *"Rider"* role to use this command. Please participate in the server more.')
             return False
     return True
 
@@ -215,7 +217,8 @@ def in_bot_channel():
         if ctx.message.channel.id in guild_setting(ctx.guild.id, 'bot_channels'):
             return True
         else:
-            primary_bot_channel = guild_setting(ctx.guild.id, 'bot_channels')[0]
-            await ctx.send(f'This command can only be used in a designated ELO bot channel. Try <#{primary_bot_channel}>')
+            if ctx.invoked_with != 'help':
+                primary_bot_channel = guild_setting(ctx.guild.id, 'bot_channels')[0]
+                await ctx.send(f'This command can only be used in a designated ELO bot channel. Try <#{primary_bot_channel}>')
             return False
     return commands.check(predicate)
