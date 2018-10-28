@@ -766,11 +766,20 @@ class Game(BaseModel):
         matches = []
         for squad in self.squads:
             if len(squad.lineup) == 1:
-                # Compare to single squad player's name
-                if name.lower() in squad.lineup[0].player.name.lower():
-                    matches.append(
-                        (squad.lineup[0].player, squad)
-                    )
+                try:
+                    p_id = int(name.strip('<>!@'))
+                except ValueError:
+                    # Compare to single squad player's name
+                    if name.lower() in squad.lineup[0].player.name.lower():
+                        matches.append(
+                            (squad.lineup[0].player, squad)
+                        )
+                else:
+                    # name is a <@PlayerMention>
+                    # compare to single squad player's discord ID
+                    if p_id == squad.lineup[0].player.discord_member.discord_id:
+                        print('found by d.id')
+                        return (squad.lineup[0].player, squad)
             else:
                 # Compare to squad team's name
                 if name.lower() in squad.team.name.lower():
