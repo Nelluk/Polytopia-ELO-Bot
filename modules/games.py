@@ -291,17 +291,11 @@ class games():
             if len(guild_matches) == 0:
                 return await ctx.send(f'Could not find \"{player_mention}\" by Discord name, Polytopia name, or Polytopia ID.')
 
-            # Matching guild member found. Check to see if they have a Player on a different guild, if so auto-register them
-            try:
-                _ = DiscordMember.get(discord_id=guild_matches[0].id)
-            except peewee.DoesNotExist:
+            player, _ = Player.get_by_discord_id(discord_id=guild_matches[0].id, discord_name=guild_matches[0].name, discord_nick=guild_matches[0].nick, guild_id=ctx.guild.id)
+            if not player:
                 # Matching guild member but no Player or DiscordMember
                 return await ctx.send(f'"{player_mention}" was found in the server but is not registered with me. '
-                    f'Players can be registered with `{ctx.prefix}setcode` or being in a new game\'s lineup.')
-            else:
-                # DiscordMember record from a different guild found. Upsert a new player record for this guild
-                player, _ = Player.upsert(discord_id=guild_matches[0].id, discord_name=guild_matches[0].name, discord_nick=guild_matches[0].nick, guild_id=ctx.guild.id)
-                logger.info(f'Upserting new player for discord ID {guild_matches[0].id}')
+                    f'Players can be registered with `{ctx.prefix}setcode`.')
 
         wins, losses = player.get_record()
         rank, lb_length = player.leaderboard_rank(settings.date_cutoff)
@@ -316,7 +310,7 @@ class games():
         embed.add_field(name='Ranking', value=rank_str)
 
         guild_member = ctx.guild.get_member(player.discord_member.discord_id)
-        if guild_member is not None:
+        if guild_member:
             embed.set_thumbnail(url=guild_member.avatar_url_as(size=512))
 
         if player.team:

@@ -230,6 +230,30 @@ class Player(BaseModel):
 
         return results[0]
 
+    def get_by_discord_id(discord_id: int, guild_id: int, discord_nick: str = None, discord_name: str = None):
+        # if no matching player, will check to see if there is already a DiscordMember created from another guild's player
+        # if exists, Player will be upserted
+        # return PlayerObj, Bool. bool = True if player was upserted
+
+        try:
+            player = Player.select().join(DiscordMember).where(
+                (DiscordMember.discord_id == discord_id) & (Player.guild_id == guild_id)).get()
+            return player, False
+        except DoesNotExist:
+            pass
+
+        # no current player. check to see if DiscordMember exists
+        try:
+            _ = DiscordMember.get(discord_id=discord_id)
+        except DoesNotExist:
+            # No matching player or discordmember
+            return None, False
+        else:
+            # DiscordMember found, upserting new player
+            player, _ = Player.upsert(discord_id=discord_id, discord_name=discord_name, discord_nick=discord_nick, guild_id=guild_id)
+            logger.info(f'Upserting new player for discord ID {discord_id}')
+            return player, True
+
     def completed_game_count(self):
 
         num_games = Lineup.select().join(Game).where(

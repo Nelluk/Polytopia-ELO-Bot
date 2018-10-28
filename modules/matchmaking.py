@@ -56,7 +56,7 @@ class matchmaking():
     # @settings.in_bot_channel()
     @settings.is_user_check()
     @commands.command(usage='size expiration rules')
-    async def openmatch(self, ctx, *, args):
+    async def openmatch(self, ctx, *, args=None):
 
         """
         Opens a matchmaking session for others to find
@@ -73,10 +73,15 @@ class matchmaking():
         expiration_hours = 24
         note_args, team_objs = [], []
 
-        try:
-            match_host = models.Player.get_or_except(str(ctx.author.id), ctx.guild.id)
-        except exceptions.NoSingleMatch:
+        if not args:
+            return await ctx.send('Match size is required. Include argument like *2v2* to specify size.'
+                f'\nExample: `{ctx.prefix}openmatch 1v1 large map`')
+
+        match_host, _ = models.Player.get_by_discord_id(discord_id=ctx.author.id, discord_name=ctx.author.name, discord_nick=ctx.author.nick, guild_id=ctx.guild.id)
+        if not match_host:
+            # Matching guild member but no Player or DiscordMember
             return await ctx.send(f'You must be a registered player before hosting a match. Try `{ctx.prefix}setcode POLYCODE`')
+        print(match_host)
 
         if models.Match.select().where(
             (models.Match.host == match_host) & (models.Match.is_started == 0)
@@ -168,12 +173,14 @@ class matchmaking():
             side, side_open = match.first_open_side(), True
             if not side:
                 return await ctx.send(f'Match M{match.id} is completely full!')
+
         elif len(args) == 1:
             # ctx.author is joining a match, with a side specified
-            target = str(ctx.author.id)
+            target = f'<@{ctx.author.id}>'
             side, side_open = match.get_side(lookup=args[0])
             if not side:
                 return await ctx.send(f'Could not find side with "{args[0]}" in match M{match.id}. You can use a side number or name if available.')
+
         elif len(args) == 2:
             # author is putting a third party into this match
             if not settings.is_matchmaking_power_user(ctx):
@@ -190,17 +197,17 @@ class matchmaking():
         if not side_open:
             return await ctx.send(f'That side of match M{match.id} is already full. See `{ctx.prefix}match M{match.id}` for details.')
 
-        try:
-            target = models.Player.get_or_except(player_string=target, guild_id=ctx.guild.id)
-        except exceptions.NoMatches:
-            # No matching name in database. Warn if player is found in guild.
-            matches = await utilities.get_guild_member(ctx, target)
-            if len(matches) > 0:
-                await ctx.send(f'"{matches[0].name}" was found in the server but is not registered with me. '
-                    f'Players can be registered with `{ctx.prefix}setcode`')
-            return await ctx.send(f'Could not find an ELO player matching "{target}".')  # Check for existing discord member esp if target==author
-        except exceptions.TooManyMatches:
-            return await ctx.send(f'More than one player found matching "{target}". be more specific or use an @Mention.')
+        guild_matches = await utilities.get_guild_member(ctx, target)
+        if len(guild_matches) > 1:
+            return await ctx.send(f'There is more than one player found with name "{target}". Specify user with @Mention.')
+        if len(guild_matches) == 0:
+            return await ctx.send(f'Could not find \"{target}\" on this server.')
+
+        player, _ = models.Player.get_by_discord_id(discord_id=guild_matches[0].id, discord_name=guild_matches[0].name, discord_nick=guild_matches[0].nick, guild_id=ctx.guild.id)
+        if not player:
+            # Matching guild member but no Player or DiscordMember
+            return await ctx.send(f'"{guild_matches[0].name}" was found in the server but is not registered with me. '
+                f'Players can be register themselves with `{ctx.prefix}setcode POLYTOPIA_CODE`.')
 
         if match.player(target):
             return await ctx.send(f'You are already in match M{match.id}. If you are trying to change sides, use `{ctx.prefix}leavematch M{match.id}` first.')
