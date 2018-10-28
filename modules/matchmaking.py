@@ -211,9 +211,9 @@ class matchmaking():
 
         if match.player(target):
             return await ctx.send(f'You are already in match M{match.id}. If you are trying to change sides, use `{ctx.prefix}leavematch M{match.id}` first.')
-        models.MatchPlayer.create(player=target, match=match, side=side)
+        models.MatchPlayer.create(player=player, match=match, side=side)
 
-        await ctx.send(f'Joining <@{target.discord_member.discord_id}> to side {side.position} of match M{match.id}')
+        await ctx.send(f'Joining <@{player.discord_member.discord_id}> to side {side.position} of match M{match.id}')
 
         players, capacity = match.capacity()
         if players >= capacity:
