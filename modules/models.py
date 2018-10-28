@@ -415,6 +415,11 @@ class Game(BaseModel):
         except discord.errors.HTTPException:
             return logger.warn('Couldn\'t update message in update_announacement')
 
+    def is_hosted_by(self, discord_id: int):
+        if self.match:
+            return self.match[0].is_hosted_by(discord_id)
+        return False, None
+
     def embed(self, ctx):
 
         embed = discord.Embed(title=f'{self.get_headline()} — *{self.size_string()}*')
@@ -1170,7 +1175,7 @@ class Match(BaseModel):
     is_started = BooleanField(default=False)  # game = None and is_started = True if related game gets deleted
 
     def is_hosted_by(self, discord_id: int):
-        return self.host.discord_member.discord_id == discord_id
+        return self.host.discord_member.discord_id == discord_id, self.host
 
     def player(self, player: Player = None, discord_id: int = None):
         # return match.matchplayer based on either Player object or discord_id. else None

@@ -139,7 +139,7 @@ def is_matchmaking_power_user(ctx):
 
 
 def is_staff(ctx):
-
+    return False
     if ctx.author.id == owner_id:
         return True
     helper_roles = guild_setting(ctx.guild.id, 'helper_roles')

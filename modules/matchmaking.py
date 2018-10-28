@@ -133,7 +133,7 @@ class matchmaking():
         `[p]matchside m25 2 Ronin` - Names side 2 of Match M25 as 'The Ronin'
         """
 
-        if not match.is_hosted_by(ctx.author.id) and not settings.is_staff(ctx):
+        if not match.is_hosted_by(ctx.author.id)[0] and not settings.is_staff(ctx):
             return await ctx.send(f'Only the match host or server staff can do this.')
 
         # TODO: Have this command also allow side re-ordering
@@ -147,16 +147,6 @@ class matchmaking():
         matchside.save()
 
         return await ctx.send(f'Side {matchside.position} for Match M{match.id} has been named "{args}"')
-
-    # @settings.in_bot_channel()
-    @commands.command(usage='match_id')
-    async def match(self, ctx, match: PolyMatch):
-        """Display details on a match"""
-
-        # if len(match.matchplayer) >= (match.team_size * 2):
-        #         await ctx.send(f'Match M{match.id} is now full and the host should start the game with `{ctx.prefix}startmatch M{match.id}`.')
-        embed, content = match.embed(ctx)
-        await ctx.send(embed=embed, content=content)
 
     # @settings.in_bot_channel()
     @commands.command(usage='match_id', aliases=['join'])
@@ -232,7 +222,7 @@ class matchmaking():
         **Example:**
         `[p]leavematch M25`
         """
-        if match.is_hosted_by(ctx.author.id):
+        if match.is_hosted_by(ctx.author.id)[0]:
 
             if not settings.is_matchmaking_power_user(ctx):
                 return await ctx.send('You do not have permissions to leave your own match.\n'
@@ -260,7 +250,7 @@ class matchmaking():
         `[p]matchnotes M25 Large map`
         """
 
-        if not match.is_hosted_by(ctx.author.id) and not settings.is_staff(ctx):
+        if not match.is_hosted_by(ctx.author.id)[0] and not settings.is_staff(ctx):
             return await ctx.send(f'Only the match host or server staff can do this.')
 
         old_notes = match.notes
@@ -278,7 +268,7 @@ class matchmaking():
         **Example:**
         `[p]kick M25 koric`
         """
-        if not match.is_hosted_by(ctx.author.id) and not settings.is_staff(ctx):
+        if not match.is_hosted_by(ctx.author.id)[0] and not settings.is_staff(ctx):
             return await ctx.send(f'Only the match host or server staff can do this.')
 
         if match.is_started:
@@ -307,7 +297,7 @@ class matchmaking():
         **Example:**
         `[p]delmatch M25`
         """
-        if match.is_hosted_by(ctx.author.id) or settings.is_staff(ctx):
+        if match.is_hosted_by(ctx.author.id)[0] or settings.is_staff(ctx):
             # User is deleting their own match, or user has a staff role
             await ctx.send(f'Deleting match M{match.id}')
             match.delete_instance()
@@ -316,7 +306,7 @@ class matchmaking():
             return await ctx.send(f'You only have permission to delete your own matches.')
 
     # @settings.in_bot_channel()
-    @commands.command(aliases=['listmatches', 'matchlist', 'openmatches', 'listmatch'])
+    @commands.command(aliases=['listmatches', 'matchlist', 'openmatches', 'listmatch', 'match'])
     async def matches(self, ctx, *args):
         """
         List current matches, with filtering options.
@@ -325,6 +315,7 @@ class matchmaking():
         Anything else will compare to current participants, the host, or the match notes.
         **Example:**
         `[p]matches` - List all unexpired matches
+        `[p]match m55` - Show details on specific match
         `[p]matches Nelluk` - List all unexpired matches where Nelluk is a participant/host
         `[p]matches Nelluk full` - List all unexpired matches with Nelluk that are full
         `[p]matches Bardur` - List all unexpired matches where "Bardur" is in the match notes
@@ -332,6 +323,12 @@ class matchmaking():
         `[p]matches waiting` - *Special filter* - all full matches without a game, including expired. Purged after a few days.
         """
         models.Match.purge_expired_matches()
+
+        if len(args) == 1 and (args[0][:1].upper() == 'M' or args[0][:1].isdigit()):
+            # $matches m60
+            match = await PolyMatch().convert(ctx, args[0])
+            embed, content = match.embed(ctx)
+            return await ctx.send(embed=embed, content=content)
 
         args_list = [arg.upper() for arg in args]
         if ctx.invoked_with.upper() == 'OPENMATCHES' and 'OPEN' not in args_list:
@@ -411,7 +408,7 @@ class matchmaking():
         `[p]startmatch M5 Fields of Fire`
         """
 
-        if not match.is_hosted_by(ctx.author.id) and not settings.is_staff(ctx):
+        if not match.is_hosted_by(ctx.author.id)[0] and not settings.is_staff(ctx):
             return await ctx.send(f'Only the match host or server staff can do this.')
 
         if not name:

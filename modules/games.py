@@ -79,7 +79,7 @@ class games():
             f'For example once Nelluk defeats Scott in a 1v1 game, # **400**, Scott would use the command __`{ctx.prefix}win 400 nelluk`__.\n'
             f'If it is a team game (2v2 or larger), a member of the losing team would use __`{ctx.prefix}win 400 Home`__ for example.'
             'Use the player name for a 1v1, otherwise use a team name.'
-            f'If the loser will not confirm the winner can use the same __`{ctx.prefix}win`__ command, and ask a server staff member to confirm it. Please have a game screenshot read.')
+            f'If the loser will not confirm the winner can use the same __`{ctx.prefix}win`__ command, and ask a server staff member to confirm it. Please have a game screenshot ready.')
 
         embed.set_thumbnail(url=self.bot.user.avatar_url_as(size=512))
         embed.set_footer(text='Developer: Nelluk')
@@ -894,6 +894,34 @@ class games():
         if confirm_win:
             # Cleanup game channels and announce winners
             await post_win_messaging(ctx, winning_game)
+
+    @commands.command(aliases=['namegame', 'gamename'], usage='game_id "New Name"')
+    async def rename(self, ctx, game: PolyGame = None, *args):
+        """Renames an existing game
+
+        You can rename a game for which you hosted the original matchmaking session.
+        **Example:**
+        `[p]gamename 25 Mountains of Fire`
+        """
+
+        if not game:
+            return await ctx.send(f'No game ID supplied')
+
+        is_hosted_by, host = game.is_hosted_by(ctx.author.id)
+        if not is_hosted_by and not settings.is_staff(ctx):
+            host_name = f' **{host.name}**' if host else ''
+            return await ctx.send(f'Only the game host{host_name} or server staff can do this.')
+
+        new_game_name = ' '.join(args)
+        old_game_name = game.name
+        game.name = new_game_name.strip('\"').strip('\'').title()[:35]
+
+        game.save()
+
+        await game.update_squad_channels(ctx)
+        await game.update_announcement(ctx)
+
+        await ctx.send(f'Game ID {game.id} has been renamed to "**{game.name}**" from "**{old_game_name}**"')
 
 
 async def post_win_messaging(ctx, winning_game):
