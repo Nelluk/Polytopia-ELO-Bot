@@ -87,6 +87,7 @@ class games():
 
     @commands.command(aliases=['reqgame', 'helpstaff'])
     @commands.cooldown(2, 30, commands.BucketType.user)
+    @settings.on_polychampions()
     async def staffhelp(self, ctx, *, message: str = None):
         """
         Send staff updates/fixes for an ELO game
@@ -100,12 +101,13 @@ class games():
         """
         # Used so that users can submit game information to staff - bot will relay the text in the command to a specific channel.
         # Staff would then take action and create games. Also use this to notify staff of winners or name changes
-        if settings.guild_setting(ctx.guild.id, 'game_request_channel') is None:
-            return
+        channel = ctx.guild.get_channel(settings.guild_setting(ctx.guild.id, 'game_request_channel'))
+        if not channel:
+            return await ctx.send(f'This server has not been configured for `{ctx.prefix}staffhelp` requests. You will need to ping a staff member.')
 
         if not message:
             return await ctx.send(f'You must supply a help request, ie: `{ctx.prefix}staffhelp Game 51, restarted with name "Sweet New Game Name"`')
-        channel = ctx.guild.get_channel(settings.guild_setting(ctx.guild.id, 'game_request_channel'))
+
         await channel.send(f'{ctx.message.author} submitted: {ctx.message.clean_content}')
         await ctx.send(f'Request has been logged\n**Reminder** Wins are now claimed using the `{ctx.prefix}win` command. See `{ctx.prefix}help win`')
 
@@ -897,7 +899,7 @@ class games():
 
     @commands.command(aliases=['namegame', 'gamename'], usage='game_id "New Name"')
     async def rename(self, ctx, game: PolyGame = None, *args):
-        """Renames an existing game
+        """Renames an existing game (due to restarts)
 
         You can rename a game for which you hosted the original matchmaking session.
         **Example:**
