@@ -76,7 +76,7 @@ class games():
 
         embed.add_field(name='Finishing tracked games',
             value='When an ELO game is concluded the best way to have the points count is by having the loser confirm the status.\n'
-            f'For example once Nelluk defeats Scott a 1v1 game, # **400**, Scott would use the command __`{ctx.prefix}win 400 nelluk`__.\n'
+            f'For example once Nelluk defeats Scott in a 1v1 game, # **400**, Scott would use the command __`{ctx.prefix}win 400 nelluk`__.\n'
             f'If it is a team game (2v2 or larger), a member of the losing team would use __`{ctx.prefix}win 400 Home`__ for example.'
             'Use the player name for a 1v1, otherwise use a team name.'
             f'If the loser will not confirm the winner can use the same __`{ctx.prefix}win`__ command, and ask a server staff member to confirm it. Please have a game screenshot read.')
