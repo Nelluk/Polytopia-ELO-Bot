@@ -164,7 +164,7 @@ class matchmaking():
 
         if len(args) == 0:
             # ctx.author is joining a match, no side given
-            target = str(ctx.author.id)
+            target = f'<@{ctx.author.id}>'
             side, side_open = match.first_open_side(), True
             if not side:
                 return await ctx.send(f'Match M{match.id} is completely full!')

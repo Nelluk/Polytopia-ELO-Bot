@@ -257,7 +257,7 @@ class games():
         game_list = utilities.summarize_game_list(recent_games[:10])
 
         for game, result in game_list:
-            embed.add_field(name=game, value=result)
+            embed.add_field(name=game, value=result, inline=False)
 
         await ctx.send(embed=embed)
 
@@ -346,9 +346,9 @@ class games():
 
         game_list = utilities.summarize_game_list(recent_games[:7])
         for game, result in game_list:
-            embed.add_field(name=game, value=result)
+            embed.add_field(name=game, value=result, inline=False)
 
-        if ctx.guild.id != 447883341463814144:
+        if ctx.guild.id != settings.server_ids['polychampions']:
             embed.add_field(value='Powered by **PolyChampions** - https://discord.gg/cX7Ptnv', name='\u200b', inline=False)
 
         await ctx.send(content=content_str, embed=embed)
