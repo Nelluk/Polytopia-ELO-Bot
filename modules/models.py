@@ -1314,11 +1314,14 @@ class Match(BaseModel):
             if self.is_started:
                 status_str = f'Started - Game # {self.game.id} **{self.game.name}**' if self.game else 'Started'
             else:
-                draft_order = ['__**Balanced Draft Order**__']
-                for draft in self.draft_order():
-                    draft_order.append(f'__Side {draft[1] if draft[1] else draft[0]}__:  {draft[2].player.name}')
-                draft_order_str = '\n'.join(draft_order)
-                content_str = (f'This match is now full and the host should create the game in Polytopia and start it with `{ctx.prefix}startmatch M{self.id} Name of Game`\n'
+                if players > 2:
+                    draft_order = ['\n__**Balanced Draft Order**__']
+                    for draft in self.draft_order():
+                        draft_order.append(f'__Side {draft[1] if draft[1] else draft[0]}__:  {draft[2].player.name}')
+                    draft_order_str = '\n'.join(draft_order)
+                else:
+                    draft_order_str = ''
+                content_str = (f'This match is now full and the host should create the game in Polytopia and start it with `{ctx.prefix}startmatch M{self.id} Name of Game`'
                         f'{draft_order_str}')
                 status_str = 'Full - Waiting to start'
 
