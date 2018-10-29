@@ -730,15 +730,15 @@ class games():
             return await ctx.send(f'No results. See `{ctx.prefix}help losses` for usage examples.')
         await utilities.paginate(self.bot, ctx, title=list_name, message_list=game_list, page_start=0, page_end=10, page_size=10)
 
-    @commands.command(aliases=['newgame'], usage='"Name of Game" player1 player2 vs player3 player4')
+    @commands.command(usage='"Name of Game" player1 player2 vs player3 player4')
     @settings.is_user_check()
-    async def startgame(self, ctx, game_name: str = None, *args):
+    async def newgame(self, ctx, game_name: str = None, *args):
         """Adds a new game to the bot for tracking
 
         **Examples:**
-        `[p]startgame "Name of Game" nelluk vs koric` - Sets up a 1v1 game
-        `[p]startgame "Name of Game" koric` - Sets up a 1v1 game versus yourself and koric (shortcut)
-        `[p]startgame "Name of Game" nelluk frodakcin vs bakalol ben` - Sets up a 2v2 game
+        `[p]newgame "Name of Game" nelluk vs koric` - Sets up a 1v1 game
+        `[p]newgame "Name of Game" koric` - Sets up a 1v1 game versus yourself and koric (shortcut)
+        `[p]newgame "Name of Game" nelluk frodakcin vs bakalol ben` - Sets up a 2v2 game
         """
         example_usage = (f'Example usage:\n`{ctx.prefix}startgame "Name of Game" player1 player2 VS player3 player4` - Start a 2v2 game\n'
                          f'`{ctx.prefix}startgame "Name of Game" player2` - Start a 1v1 with yourself and player2')

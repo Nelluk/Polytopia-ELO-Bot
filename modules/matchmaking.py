@@ -405,12 +405,12 @@ class matchmaking():
                 f'Type `{ctx.prefix}match M#` for more details.')
 
     # @settings.in_bot_channel()
-    @commands.command(usage='match_id Name of Poly Game')
+    @commands.command(aliases=['startgame'], usage='match_id Name of Poly Game')
     async def startmatch(self, ctx, match: PolyMatch, *, name: str = None):
         """
         Start a full match and track the game for ELO
         Use this command after you have created the game in Polytopia.
-        If the game is a compatible type (currently requires two equal teams) the game will be added as an ELO game.
+        The matchmaking session will be converted into a game and get a new ID.
         **Example:**
         `[p]startmatch M5 Fields of Fire`
         """
