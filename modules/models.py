@@ -52,6 +52,7 @@ class Team(BaseModel):
         return num_games
 
     def change_elo_after_game(self, chance_of_winning: float, is_winner: bool):
+        print(f'Team CoW: {chance_of_winning}')
         if self.completed_game_count() < 11:
             max_elo_delta = 50
         else:
@@ -982,6 +983,7 @@ class Squad(BaseModel):
         return num_games
 
     def change_elo_after_game(self, chance_of_winning: float, is_winner: bool):
+        print(f'Squad CoW: {chance_of_winning}')
         if self.completed_game_count() < 6:
             max_elo_delta = 50
         else:
@@ -1181,6 +1183,7 @@ class Lineup(BaseModel):
         # Team B: p1 1000 elo, p2 1200 elo = 1100 average
         # ELO is compared 950 vs 1100 and all players treated equally
 
+        print(f'Player CoW: {chance_of_winning}')
         num_games = self.player.completed_game_count()
 
         if num_games < 6:
