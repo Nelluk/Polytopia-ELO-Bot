@@ -709,10 +709,6 @@ class Game(BaseModel):
             adjusted_side_elo.append(adj_side_elo)
             sum_elo += adj_side_elo
 
-        # "fill up" missing players with placeholder handicapped elos
-        missing_player_elo = own_elo - handicap_elo
-        return int(round((own_elo * size + missing_player_elo * missing_players) / (size + missing_players)))
-
         # Compute proper win chances when there are more than 2 teams,
         # e.g. 2v2v2. It changes nothing when there are only 2 teams
         win_chance_unnorm = []
