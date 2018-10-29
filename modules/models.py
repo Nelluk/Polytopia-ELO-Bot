@@ -696,6 +696,7 @@ class Game(BaseModel):
 
     def get_side_win_chances(largest_team: int, squadgame_list, squadgame_elo_list):
         n = len(squadgame_list)
+        print(squadgame_elo_list)
 
         # Adjust team elos when the amount of players on each team
         # is imbalanced, e.g. 1v2. It changes nothing when sizes are equal
