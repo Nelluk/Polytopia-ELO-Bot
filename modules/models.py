@@ -725,6 +725,7 @@ class Game(BaseModel):
             win_chance = round(side_win_chance_unnorm / normalization_factor, 3)
             win_chance_list.append(win_chance)
 
+        print(win_chance_list)
         return win_chance_list
 
     def declare_winner(self, winning_side: 'SquadGame', confirm: bool):
