@@ -573,7 +573,6 @@ class Game(BaseModel):
 
         for discord_group in discord_groups:
             same_team, list_of_teams = Player.get_teams_of_players(guild_id=guild_id, list_of_players=discord_group)
-            print(list_of_teams)
             teams_for_each_discord_member.append(list_of_teams)  # [[Team, Team][Team, Team]] for each team that a discord member is associated with, for Player.upsert()
             if None in list_of_teams:
                 if require_teams is True:
@@ -801,11 +800,20 @@ class Game(BaseModel):
         matches = []
         for squad in self.squads:
             if len(squad.lineup) == 1:
-                # Compare to single squad player's name
-                if name.lower() in squad.lineup[0].player.name.lower():
-                    matches.append(
-                        (squad.lineup[0].player, squad)
-                    )
+                try:
+                    p_id = int(name.strip('<>!@'))
+                except ValueError:
+                    # Compare to single squad player's name
+                    if name.lower() in squad.lineup[0].player.name.lower():
+                        matches.append(
+                            (squad.lineup[0].player, squad)
+                        )
+                else:
+                    # name is a <@PlayerMention>
+                    # compare to single squad player's discord ID
+                    if p_id == squad.lineup[0].player.discord_member.discord_id:
+                        print('found by d.id')
+                        return (squad.lineup[0].player, squad)
             else:
                 # Compare to squad team's name
                 if name.lower() in squad.team.name.lower():

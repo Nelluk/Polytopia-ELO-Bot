@@ -114,10 +114,13 @@ class games():
     @commands.command(brief='Sends staff details on a League game', usage='Week 2 game vs Mallards started called "Oceans of Fire"')
     @settings.on_polychampions()
     @commands.cooldown(2, 30, commands.BucketType.user)
-    async def seasongame(self, ctx):
+    async def seasongame(self, ctx, *, message: str = None):
         """
         Teams should use this to notify staff of important events with their League games: names of started games, restarts, substitutions, winners.
         """
+        if not message:
+            return await ctx.send(f'You must supply a help request, ie: `{ctx.prefix}seasongame Week 2 game Ronin vs Jets started "Fields of Fire"`')
+
         # Ping AnarchoRex and send output to #season-drafts when team leaders send in game info
         channel = ctx.guild.get_channel(447902433964851210)
         helper_role = discord.utils.get(ctx.guild.roles, name='Season Helper')
@@ -651,7 +654,7 @@ class games():
 
     @commands.command()
     async def wins(self, ctx, *args):
-        """List incomplete games for you or other players
+        """List games that you or others have won
         If any players names are listed, the first played is who the win is checked against. If no players listed, then the first team listed is checked for the win.
         **Example:**
         `[p]wins` - Lists all games you have won
