@@ -70,7 +70,7 @@ if __name__ == '__main__':
     main()
 
     bot = commands.Bot(command_prefix=get_prefix, owner_id=settings.owner_id)
-    # bot.remove_command('help')
+    cooldown = commands.CooldownMapping.from_cooldown(3, 30.0, commands.BucketType.user)
 
     @bot.check
     async def globally_block_dms(ctx):
@@ -82,6 +82,23 @@ if __name__ == '__main__':
         if ctx.author.id in settings.ban_list:
             await ctx.send('You are banned from using this bot. :wink:')
             return False
+        return True
+
+    @bot.check
+    async def cooldown_check(ctx):
+        if ctx.invoked_with == 'help' and ctx.command.name != 'help':
+            # otherwise check will run once for every command in the bot when someone invokes $help
+            return True
+        if ctx.author.id == settings.owner_id:
+            return True
+        bucket = cooldown.get_bucket(ctx.message)
+        retry_after = bucket.update_rate_limit()
+        if retry_after:
+            await ctx.send('You\'re on cooldown. Slow down those commands!')
+            logger.warn(f'Cooldown limit reached for user {ctx.author.id}')
+            return False
+
+        # not on cooldown
         return True
 
     @bot.event

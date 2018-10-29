@@ -833,7 +833,6 @@ class games():
         If the game has more than two sides, staff will need to confirm the win.
         Use player name for 1v1 games, otherwise use team names *(Home/Away/Owls/Sharks/etc)*
 
-        To request staff help with confirmation use `[p]staffhelp`
         **Example:**
         `[p]win 5 Ronin` - Declare Ronin winner of game 5
         `[p]win 5 Nelluk` - Declare Nelluk winner of game 5
@@ -864,7 +863,7 @@ class games():
                 if winning_side == author_side:
                     # Author declaring their side won
                     await ctx.send(f'Game {winning_game.id} concluded pending confirmation of winner **{winning_obj.name}**\n'
-                        f'To confirm, have a losing opponent use the same `{ctx.prefix}wingame` command, or ask server staff to confirm with `{ctx.prefix}staffhelp`')
+                        f'To confirm, have a losing opponent use the same `{ctx.prefix}wingame` command, or ask server staff to confirm your win.')
                     confirm_win = False
                 else:
                     # Author declaring their side lost
