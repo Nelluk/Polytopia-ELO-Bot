@@ -77,6 +77,13 @@ if __name__ == '__main__':
         # Should prevent bot from being able to be controlled via DM
         return ctx.guild is not None
 
+    @bot.check
+    async def restrict_banned_users(ctx):
+        if ctx.author.id in settings.ban_list:
+            await ctx.send('You are banned from using this bot. :wink:')
+            return False
+        return True
+
     @bot.event
     async def on_command_error(ctx, exc):
 

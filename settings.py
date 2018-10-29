@@ -79,6 +79,10 @@ config = {'default':
 
           }
 
+ban_list = [
+    436330481341169675,  # Mr Bucky
+]
+
 date_cutoff = datetime.datetime.today() - datetime.timedelta(days=90)  # Players who haven't played since cutoff are not included in leaderboards
 
 
