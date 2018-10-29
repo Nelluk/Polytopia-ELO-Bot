@@ -713,8 +713,6 @@ class Game(BaseModel):
         missing_player_elo = own_elo - handicap_elo
         return int(round((own_elo * size + missing_player_elo * missing_players) / (size + missing_players)))
 
-        print(adjusted_side_elo)
-
         # Compute proper win chances when there are more than 2 teams,
         # e.g. 2v2v2. It changes nothing when there are only 2 teams
         win_chance_unnorm = []
