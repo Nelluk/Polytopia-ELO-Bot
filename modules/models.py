@@ -705,9 +705,13 @@ class Game(BaseModel):
         for s, elo in zip(squadgame_list, squadgame_elo_list):
             missing_players = largest_team - len(s.lineup)
             avg_opponent_elos = int(round((sum_raw_elo - elo) / (n - 1)))
-            adj_side_elo = s.adjusted_elo(missing_players, avg_opponent_elos)
+            adj_side_elo = s.adjusted_elo(missing_players, elo, avg_opponent_elos)
             adjusted_side_elo.append(adj_side_elo)
             sum_elo += adj_side_elo
+
+        # "fill up" missing players with placeholder handicapped elos
+        missing_player_elo = own_elo - handicap_elo
+        return int(round((own_elo * size + missing_player_elo * missing_players) / (size + missing_players)))
 
         print(adjusted_side_elo)
 
@@ -1144,8 +1148,7 @@ class SquadGame(BaseModel):
         elo_list = [l.player.elo for l in self.lineup]
         return int(round(sum(elo_list) / len(elo_list)))
 
-    def adjusted_elo(self, missing_players: int, opponent_elos: int):
-        own_elo = self.average_elo()
+    def adjusted_elo(self, missing_players: int, own_elo: int, opponent_elos: int):
         # If teams have imbalanced size, adjust win% based on a
         # function of the team's elos involved, e.g.
         # 1v2  [1400] vs [1100, 1100] adjusts to represent 50% win
