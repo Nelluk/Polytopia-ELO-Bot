@@ -1252,6 +1252,41 @@ class Match(BaseModel):
                 return matchplayer
         return None
 
+    def draft_order(self):
+        # Returns list of tuples, in order of recommended draft order list:
+        # [(Side #, Side Name, Player 1), ... ]
+
+        players, capacity = self.capacity()
+        if players < capacity:
+            raise exceptions.CheckFailedError('This match is not full')
+
+        sides = MatchSide.select().where(
+            (MatchSide.match == self)
+        ).order_by(MatchSide.position).prefetch(MatchPlayer, Player)
+
+        picks = []
+        side_objs = [{'side': s, 'pick_score': 0, 'size': s.size} for s in sides]
+        num_tribes = sum([s.size for s in sides])
+
+        for pick in range(num_tribes):
+            picking_team = None
+            lowest_score = 99
+            # for team in teams:
+            for side_obj in side_objs:
+                # Find side with lowest pick_score
+                if side_obj['pick_score'] <= lowest_score and lowest_score > 0 and side_obj['size'] > 0:
+                    picking_team = side_obj
+                    lowest_score = side_obj['pick_score']
+
+            picking_team['pick_score'] = picking_team['pick_score'] + num_tribes
+            picking_team['size'] = picking_team['size'] - 1
+            num_tribes = num_tribes - 1
+            picks.append(
+                (picking_team['side'].position, picking_team['side'].name, picking_team['side'].sideplayers.pop(0))
+            )
+
+        return picks
+
     def size_string(self):
         string = 'v'.join(str(s.size) for s in self.sides)
         if string == '1v1v1' or string == '1v1v1v1' or string == '1v1v1v1v1' or string == '1v1v1v1v1v1':
@@ -1265,6 +1300,7 @@ class Match(BaseModel):
     def embed(self, ctx):
         embed = discord.Embed(title=f'Match **M{self.id}**\n{self.size_string()} *hosted by* {self.host.name}')
         notes_str = self.notes if self.notes else "\u200b"
+        content_str = None
 
         if self.expiration < datetime.datetime.now():
             expiration_str = f'*Expired*'
@@ -1278,16 +1314,15 @@ class Match(BaseModel):
             if self.is_started:
                 status_str = f'Started - Game # {self.game.id} **{self.game.name}**' if self.game else 'Started'
             else:
-                content_str = f'This match is now full and the host should create the game in Polytopia and start it with `{ctx.prefix}startmatch M{self.id} Name of Game`'
+                draft_order = ['__**Balanced Draft Order**__']
+                for draft in self.draft_order():
+                    draft_order.append(f'__Side {draft[1] if draft[1] else draft[0]}__:  {draft[2].player.name}')
+                draft_order_str = '\n'.join(draft_order)
+                content_str = (f'This match is now full and the host should create the game in Polytopia and start it with `{ctx.prefix}startmatch M{self.id} Name of Game`\n'
+                        f'{draft_order_str}')
                 status_str = 'Full - Waiting to start'
 
         embed.add_field(name='Status', value=status_str, inline=True)
-
-        # if self.is_started:
-        #     game_name = f'ID {self.game.id} **{self.game.name}**' if self.game else '\u200b'
-        #     embed.add_field(name='Game Started', value=game_name, inline=True)
-
-        content_str = None
         embed.add_field(name='Expires in', value=f'{expiration_str}', inline=True)
         embed.add_field(name='Notes', value=notes_str, inline=False)
         embed.add_field(name='\u200b', value='\u200b', inline=False)
@@ -1303,9 +1338,6 @@ class Match(BaseModel):
                 player_list.append(f'**{matchplayer.player.name}** ({matchplayer.player.elo})\n{matchplayer.player.discord_member.polytopia_id}')
             player_str = '\u200b' if not player_list else '\n'.join(player_list)
             embed.add_field(name=f'__Side {side.position}__{side_name} *({side_capacity[0]}/{side_capacity[1]})*', value=player_str)
-
-        if players >= capacity and not self.is_started:
-            content_str = f'This match is now full and the host should create the game in Polytopia and start it with `{ctx.prefix}startmatch M{self.id} Name of Game`'
 
         return embed, content_str
 
