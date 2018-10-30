@@ -693,7 +693,7 @@ class games():
 
     @commands.command(aliases=['loss', 'lose'])
     async def losses(self, ctx, *args):
-        """List incomplete games for you or other players
+        """List games that you have lost, or others
         If any players names are listed, the first played is who the loss is checked against. If no players listed, then the first team listed is checked for the loss.
         **Examples:**
         `[p]losses` - Lists all games you have lost
