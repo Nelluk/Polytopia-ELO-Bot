@@ -974,6 +974,31 @@ class Game(BaseModel):
                 print(f'Calculating ELO for game {game.id}')
                 full_game.declare_winner(winning_side=full_game.winner, confirm=True)
 
+    def first_open_side(self):
+        for side in self.gamesides:
+            if len(side.lineup) < side.size:
+                return side
+        return None
+
+    def get_side(self, lookup):
+        # lookup can be a side number/position (integer) or side name
+        # returns (GameSide, bool) where bool==True if side has space to add a player
+        try:
+            side_num = int(lookup)
+            side_name = None
+        except ValueError:
+            side_num = None
+            side_name = lookup
+
+        for side in self.gamesides:
+            print(side)
+            if side_num and side.position == side_num:
+                return (side, bool(len(side.lineup) < side.size))
+            if side_name and side.name and len(side_name) > 2 and side_name.upper() in side.sidename.upper():
+                return (side, bool(len(side.lineup) < side.size))
+
+        return None, False
+
 
 class Squad(BaseModel):
     elo = SmallIntegerField(default=1000)
@@ -1122,6 +1147,9 @@ class GameSide(BaseModel):
     elo_change_squad = SmallIntegerField(default=0)
     elo_change_team = SmallIntegerField(default=0)
     team_chan = BitField(default=None, null=True)
+    sidename = TextField(null=True)  # for pending open games/matchmaking
+    size = SmallIntegerField(null=False, default=1)
+    position = SmallIntegerField(null=False, unique=False, default=1)
 
     def calc_win_chance(my_side_elo: int, opponent_elo: int):
         chance_of_winning = round(1 / (1 + (10 ** ((opponent_elo - my_side_elo) / 400.0))), 3)
@@ -1494,7 +1522,7 @@ class MatchPlayer(BaseModel):
 
 
 with db:
-    db.create_tables([Team, DiscordMember, Game, Player, Tribe, Squad, GameSide, SquadMember, Lineup, TribeFlair, Match, MatchSide, MatchPlayer])
+    db.create_tables([Team, DiscordMember, Game, Player, Tribe, Squad, GameSide, SquadMember, Lineup, TribeFlair])
     # Only creates missing tables so should be safe to run each time
     try:
         # Creates deferred FK http://docs.peewee-orm.com/en/latest/peewee/models.html#circular-foreign-key-dependencies

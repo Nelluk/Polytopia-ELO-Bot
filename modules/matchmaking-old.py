@@ -16,16 +16,25 @@ logger = logging.getLogger('polybot.' + __name__)
 
 
 class PolyMatch(commands.Converter):
-    async def convert(self, ctx, match_id: int):
+    async def convert(self, ctx, match_id):
 
+        try:
+            match_id = int(match_id)
+        except ValueError:
+            if match_id.upper()[0] == 'M':
+                match_id = match_id[1:]
+            else:
+                await ctx.send(f'Match with ID {match_id} cannot be found. Use {ctx.prefix}listmatches to see available matches.')
+                raise commands.UserInputError()
         with models.db:
             try:
-                match = models.Game.get(id=match_id)
+                match = models.Match.get(id=match_id)
                 logger.debug(f'Match with ID {match_id} found.')
 
                 if match.guild_id != ctx.guild.id:
                     await ctx.send(f'Match with ID {match_id} cannot be found on this server. Use {ctx.prefix}listmatches to see available matches.')
                     raise commands.UserInputError()
+
                 return match
             except peewee.DoesNotExist:
                 await ctx.send(f'Match with ID {match_id} cannot be found. Use {ctx.prefix}listmatches to see available matches.')
@@ -46,38 +55,38 @@ class matchmaking():
 
     # @settings.in_bot_channel()
     @settings.is_user_check()
-    @commands.command(aliases=['openmatch'], usage='size expiration rules')
-    async def opengame(self, ctx, *, args=None):
+    @commands.command(usage='size expiration rules')
+    async def openmatch(self, ctx, *, args=None):
 
         """
-        Opens a game that others can join
+        Opens a matchmaking session for others to find
         Expiration can be between 1H - 96H
         Size examples: 1v1, 2v2, 1v1v1v1v1, 3v3v3
 
         **Examples:**
-        `[p]opengame 1v1`
-        `[p]opengame 2v2 48h`  (Expires in 48 hours)
-        `[p]opengame 2v2 Large map, no bardur`  (Adds a note to the game)
+        `[p]openmatch 1v1`
+        `[p]openmatch 2v2 48h`  (Expires in 48 hours)
+        `[p]openmatch 2v2 Large map, no bardur`  (Adds a note to the game)
         """
 
         team_size = False
         expiration_hours = 24
-        note_args = []
+        note_args, team_objs = [], []
 
         if not args:
-            return await ctx.send('Game size is required. Include argument like *2v2* to specify size.'
-                f'\nExample: `{ctx.prefix}opengame 1v1 large map`')
+            return await ctx.send('Match size is required. Include argument like *2v2* to specify size.'
+                f'\nExample: `{ctx.prefix}openmatch 1v1 large map`')
 
-        host, _ = models.Player.get_by_discord_id(discord_id=ctx.author.id, discord_name=ctx.author.name, discord_nick=ctx.author.nick, guild_id=ctx.guild.id)
-        if not host:
+        match_host, _ = models.Player.get_by_discord_id(discord_id=ctx.author.id, discord_name=ctx.author.name, discord_nick=ctx.author.nick, guild_id=ctx.guild.id)
+        if not match_host:
             # Matching guild member but no Player or DiscordMember
             return await ctx.send(f'You must be a registered player before hosting a match. Try `{ctx.prefix}setcode POLYCODE`')
+        print(match_host)
 
-        # if models.Match.select().where(
-        if models.Game.select().where(
-            (models.Game.host == host) & (models.Game.is_pending == 1)
+        if models.Match.select().where(
+            (models.Match.host == match_host) & (models.Match.is_started == 0)
         ).count() > 5:
-            return await ctx.send(f'You have too many open games already. Try using `{ctx.prefix}delgame` on an existing one.')
+            return await ctx.send(f'You have too many open matches already. Try using `{ctx.prefix}delmatch` on an existing one.')
 
         for arg in args.split(' '):
             m = re.fullmatch(r"\d+(?:(v|vs)\d+)+", arg.lower())
@@ -86,9 +95,9 @@ class matchmaking():
                 team_size_str = m[0]
                 team_sizes = [int(x) for x in arg.lower().split(m[1])]  # split on 'vs' or 'v'; whichever the regexp detects
                 if max(team_sizes) > 6:
-                    return await ctx.send(f'Invalid game size {team_size_str}: Teams cannot be larger than 6 players.')
+                    return await ctx.send(f'Invalid match size {team_size_str}: Teams cannot be larger than 6 players.')
                 if sum(team_sizes) > 12:
-                    return await ctx.send(f'Invalid game size {team_size_str}: Games can have a maximum of 12 players.')
+                    return await ctx.send(f'Invalid match size {team_size_str}: Games can have a maximum of 12 players.')
                 team_size = True
                 continue
             m = re.match(r"(\d+)h", arg.lower())
@@ -101,7 +110,7 @@ class matchmaking():
             note_args.append(arg)
 
         if not team_size:
-            return await ctx.send(f'Game size is required. Include argument like *2v2* to specify size')
+            return await ctx.send(f'Match size is required. Include argument like *2v2* to specify size')
 
         if sum(team_sizes) > 2 and (not settings.is_power_user(ctx)) and ctx.guild.id != settings.server_ids['polychampions']:
             return await ctx.send('You only have permissions to create 1v1 matches. More active server members can create larger matches.')
@@ -111,94 +120,82 @@ class matchmaking():
             return await ctx.send(f'Maximium team size on this server is {server_size_max}.\n'
                 'For full functionality with support for up to 6-person teams and team channels check out PolyChampions - <https://tinyurl.com/polychampions>')
 
-        game_notes = ' '.join(note_args)[:100]
-        notes_str = game_notes if game_notes else "\u200b"
+        match_notes = ' '.join(note_args)[:100]
+        notes_str = match_notes if match_notes else "\u200b"
         expiration_timestamp = (datetime.datetime.now() + datetime.timedelta(hours=expiration_hours)).strftime("%Y-%m-%d %H:%M:%S")
+        match = models.Match.create(host=match_host, expiration=expiration_timestamp, notes=match_notes, guild_id=ctx.guild.id)
+        for count, size in enumerate(team_sizes):
+            team_objs.append(models.MatchSide.create(match=match, size=size, position=count + 1))
 
-        with models.db.atomic():
-            opengame = models.Game.create(host=host, expiration=expiration_timestamp, notes=game_notes, guild_id=ctx.guild.id, is_pending=True)
-            for count, size in enumerate(team_sizes):
-                models.GameSide.create(game=opengame, size=size, position=count + 1)
+        models.MatchPlayer.create(player=match_host, match=match, side=team_objs[0])
+        await ctx.send(f'Starting new open match ID M{match.id}. Size: {team_size_str}. Expiration: {expiration_hours} hours.\nNotes: *{notes_str}*')
 
-            models.Lineup.create(player=host, game=opengame, gameside=opengame.gamesides[0])
-        await ctx.send(f'Starting new open match ID M{opengame.id}. Size: {team_size_str}. Expiration: {expiration_hours} hours.\nNotes: *{notes_str}*')
-
-    @commands.command()
-    async def gtest(self, ctx):
-        game = models.Game.get(id=537)
-        gameside = game.gamesides[0]
-        print(gameside)
-
-    @commands.command(aliases=['matchside'], usage='match_id side_number Side Name')
-    async def gameside(self, ctx, game: PolyMatch, side_lookup: str, *, args):
+    @commands.command(usage='match_id side_number Side Name')
+    async def matchside(self, ctx, match: PolyMatch, side_lookup: str, *, args):
         """
-        Give a name to a side in an open game that you host
+        Give a name to a side in a match you host
         **Example:**
-        `[p]gameside m25 2 Ronin` - Names side 2 of Match M25 as 'The Ronin'
+        `[p]matchside m25 2 Ronin` - Names side 2 of Match M25 as 'The Ronin'
         """
 
-        if not game.is_pending:
-            return await ctx.send(f'The game has already started and this can no longer be changed.')
-        if not game.is_hosted_by(ctx.author.id)[0] and not settings.is_staff(ctx):
-            return await ctx.send(f'Only the game host or server staff can do this.')
+        if not match.is_hosted_by(ctx.author.id)[0] and not settings.is_staff(ctx):
+            return await ctx.send(f'Only the match host or server staff can do this.')
 
         # TODO: Have this command also allow side re-ordering
         # matchside m1 1 name ronin
         # matchside m1 ronin nelluk rickdaheals jonathan
 
-        gameside, _ = game.get_side(lookup=side_lookup)
-        if not gameside:
-            return await ctx.send(f'Can\'t find that side for game {game.id}.')
-        gameside.sidename = args
-        gameside.save()
+        matchside, _ = match.get_side(lookup=side_lookup)
+        if not matchside:
+            return await ctx.send(f'Can\'t find that side for match M{match.id}.')
+        matchside.name = args
+        matchside.save()
 
-        return await ctx.send(f'Side {gameside.position} for game {game.id} has been named "{args}"')
+        return await ctx.send(f'Side {matchside.position} for Match M{match.id} has been named "{args}"')
 
     # @settings.in_bot_channel()
-    @commands.command(usage='match_id', aliases=['join', 'joinmatch'])
-    async def joingame(self, ctx, game: PolyMatch = None, *args):
+    @commands.command(usage='match_id', aliases=['join'])
+    async def joinmatch(self, ctx, match: PolyMatch = None, *args):
         """
-        Join an open game
+        Join an open match
         **Example:**
-        `[p]joingame 25`
-        `[p]joingame 5 ronin` - Join match m5 to the side named 'ronin'
-        `[p]joingame 5 ronin 2` - Join match m5 to side number 2
-        `[p]joingame 5 rickdaheals jets` - Add a person to your match. Side must be specified.
+        `[p]joinmatch m25`
+        `[p]joinmatch m5 ronin` - Join match m5 to the side named 'ronin'
+        `[p]joinmatch m5 ronin 2` - Join match m5 to side number 2
+        `[p]joinmatch m5 rickdaheals jets` - Add a person to your match. Side must be specified.
         """
-        if not game:
-            return await ctx.send(f'No game ID provided. Use `{ctx.prefix}opengames` to list open matches you can join.')
-        if not game.is_pending:
-            return await ctx.send(f'The game has already started and this can no longer be joined.')
+        if not match:
+            return await ctx.send(f'No Match ID provided. Use `{ctx.prefix}openmatches` to list open matches you can join.')
 
         if len(args) == 0:
-            # ctx.author is joining a game, no side given
+            # ctx.author is joining a match, no side given
             target = f'<@{ctx.author.id}>'
-            side, side_open = game.first_open_side(), True
+            side, side_open = match.first_open_side(), True
             if not side:
-                return await ctx.send(f'Game {game.id} is completely full!')
+                return await ctx.send(f'Match M{match.id} is completely full!')
 
         elif len(args) == 1:
             # ctx.author is joining a match, with a side specified
             target = f'<@{ctx.author.id}>'
-            side, side_open = game.get_side(lookup=args[0])
+            side, side_open = match.get_side(lookup=args[0])
             if not side:
-                return await ctx.send(f'Could not find side with "{args[0]}" in game {game.id}. You can use a side number or name if available.')
+                return await ctx.send(f'Could not find side with "{args[0]}" in match M{match.id}. You can use a side number or name if available.')
 
         elif len(args) == 2:
             # author is putting a third party into this match
             if not settings.is_matchmaking_power_user(ctx):
-                return await ctx.send('You do not have permissions to add another person to a game. Tell them to use the command:\n'
-                    f'`{ctx.prefix}joingame {game.id} {args[1]}` to join themselves.')
+                return await ctx.send('You do not have permissions to add another person to a match. Tell them to use the command:\n'
+                    f'`{ctx.prefix}joinmatch M{match.id} {args[1]}` to join themselves.')
             target = args[0]
-            side, side_open = game.get_side(lookup=args[1])
+            side, side_open = match.get_side(lookup=args[1])
             if not side:
-                return await ctx.send(f'Could not find side with "{args[1]}" in game {game.id}. You can use a side number or name if available.\n'
-                    f'Syntax: `{ctx.prefix}join {game.id} <player> <side>`')
+                return await ctx.send(f'Could not find side with "{args[1]}" in match M{match.id}. You can use a side number or name if available.\n'
+                    f'Syntax: `{ctx.prefix}join M{match.id} <player> <side>`')
         else:
             return await ctx.send(f'Invalid command. See `{ctx.prefix}help joinmatch` for usage examples.')
 
         if not side_open:
-            return await ctx.send(f'That side of game {game.id} is already full. See `{ctx.prefix}game {game.id}` for details.')
+            return await ctx.send(f'That side of match M{match.id} is already full. See `{ctx.prefix}match M{match.id}` for details.')
 
         guild_matches = await utilities.get_guild_member(ctx, target)
         if len(guild_matches) > 1:
