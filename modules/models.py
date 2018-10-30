@@ -1288,11 +1288,10 @@ class Match(BaseModel):
         return picks
 
     def size_string(self):
-        string = 'v'.join(str(s.size) for s in self.sides)
-        if string == '1v1v1' or string == '1v1v1v1' or string == '1v1v1v1v1' or string == '1v1v1v1v1v1':
+        if max(s.size for s in self.sides):
             return 'FFA'
         else:
-            return string
+            return 'v'.join(str(s.size) for s in self.sides)
 
     def capacity(self):
         return (len(self.matchplayers), sum(s.size for s in self.sides))
