@@ -13,6 +13,10 @@ logger = logging.getLogger('polybot.' + __name__)
 db = PostgresqlDatabase(settings.psql_db, user=settings.psql_user)
 
 
+def tomorrow():
+    return (datetime.datetime.now() + datetime.timedelta(hours=24)).strftime("%Y-%m-%d %H:%M:%S")
+
+
 class BaseModel(Model):
     class Meta:
         database = db
@@ -45,8 +49,8 @@ class Team(BaseModel):
 
     def completed_game_count(self):
 
-        num_games = SquadGame.select().join(Game).where(
-            (SquadGame.team == self) & (SquadGame.game.is_completed == 1)
+        num_games = GameSide.select().join(Game).where(
+            (GameSide.team == self) & (GameSide.game.is_completed == 1)
         ).count()
 
         return num_games
@@ -75,12 +79,12 @@ class Team(BaseModel):
 
     def get_record(self):
 
-        wins = SquadGame.select().join(Game).where(
-            (Game.id.in_(Team.team_games_subq())) & (Game.is_completed == 1) & (SquadGame.team == self) & (SquadGame.id == Game.winner)
+        wins = GameSide.select().join(Game).where(
+            (Game.id.in_(Team.team_games_subq())) & (Game.is_completed == 1) & (GameSide.team == self) & (GameSide.id == Game.winner)
         ).count()
 
-        losses = SquadGame.select().join(Game).where(
-            (Game.id.in_(Team.team_games_subq())) & (Game.is_completed == 1) & (SquadGame.team == self) & (SquadGame.id != Game.winner)
+        losses = GameSide.select().join(Game).where(
+            (Game.id.in_(Team.team_games_subq())) & (Game.is_completed == 1) & (GameSide.team == self) & (GameSide.id != Game.winner)
         ).count()
 
         return (wins, losses)
@@ -266,15 +270,15 @@ class Player(BaseModel):
     def wins(self):
         # TODO: Could combine wins/losses into one function that takes an argument and modifies query
 
-        q = Lineup.select().join(Game).join_from(Lineup, SquadGame).where(
-            (Lineup.game.is_completed == 1) & (Lineup.player == self) & (Game.winner == Lineup.squadgame.id)
+        q = Lineup.select().join(Game).join_from(Lineup, GameSide).where(
+            (Lineup.game.is_completed == 1) & (Lineup.player == self) & (Game.winner == Lineup.gameside.id)
         )
 
         return q
 
     def losses(self):
-        q = Lineup.select().join(Game).join_from(Lineup, SquadGame).where(
-            (Lineup.game.is_completed == 1) & (Lineup.player == self) & (Game.winner != Lineup.squadgame.id)
+        q = Lineup.select().join(Game).join_from(Lineup, GameSide).where(
+            (Lineup.game.is_completed == 1) & (Lineup.player == self) & (Game.winner != Lineup.gameside.id)
         )
 
         return q
@@ -381,25 +385,29 @@ class Game(BaseModel):
     date = DateField(default=datetime.datetime.today)
     completed_ts = DateTimeField(null=True, default=None)
     name = TextField(null=True)
-    winner = DeferredForeignKey('SquadGame', null=True, on_delete='RESTRICT')
+    winner = DeferredForeignKey('GameSide', null=True, on_delete='RESTRICT')
     guild_id = BitField(unique=False, null=False)
+    host = ForeignKeyField(Player, null=True, backref='hosting', on_delete='SET NULL')
+    expiration = DateTimeField(null=True, default=tomorrow)  # For pending/matchmaking status
+    notes = TextField(null=True)
+    is_pending = BooleanField(default=False)
 
     async def create_squad_channels(self, ctx):
         game_roster = []
-        for squadgame in self.squads:
-            game_roster.append([r[0].name for r in squadgame.roster()])
+        for gameside in self.gamesides:
+            game_roster.append([r[0].name for r in gameside.roster()])
 
         roster_names = ' -vs- '.join([' '.join(side) for side in game_roster])
         # yields a string like 'Player1 Player2 -vs- Player3 Player4'
 
-        for squadgame in self.squads:
-            player_list = [r[0] for r in squadgame.roster()]
+        for gameside in self.gameside:
+            player_list = [r[0] for r in gameside.roster()]
             if len(player_list) < 2:
                 continue
-            chan = await channels.create_squad_channel(ctx, game=self, team_name=squadgame.team.name, player_list=player_list)
+            chan = await channels.create_squad_channel(ctx, game=self, team_name=gameside.team.name, player_list=player_list)
             if chan:
-                squadgame.team_chan = chan.id
-                squadgame.save()
+                gameside.team_chan = chan.id
+                gameside.save()
 
                 await channels.greet_squad_channel(ctx, chan=chan, player_list=player_list, roster_names=roster_names, game=self)
 
@@ -408,17 +416,17 @@ class Game(BaseModel):
         if self.name.lower()[:2] == 's3' or self.name.lower()[:2] == 's4' or self.name.lower()[:2] == 's5':
             return logger.warn(f'Skipping team channel deletion for game {self.id} {self.name} since it is a Season game')
 
-        for squadgame in self.squads:
-            if squadgame.team_chan:
-                await channels.delete_squad_channel(ctx, channel_id=squadgame.team_chan)
-                squadgame.team_chan = None
-                squadgame.save()
+        for gameside in self.gamesides:
+            if gameside.team_chan:
+                await channels.delete_squad_channel(ctx, channel_id=gameside.team_chan)
+                gameside.team_chan = None
+                gameside.save()
 
     async def update_squad_channels(self, ctx):
 
-        for squadgame in self.squads:
-            if squadgame.team_chan:
-                await channels.update_squad_channel_name(ctx, channel_id=squadgame.team_chan, game_id=self.id, game_name=self.name, team_name=squadgame.team.name)
+        for gameside in self.gamesides:
+            if gameside.team_chan:
+                await channels.update_squad_channel_name(ctx, channel_id=gameside.team_chan, game_id=self.id, game_name=self.name, team_name=gameside.team.name)
 
     async def update_announcement(self, ctx):
         # Updates contents of new game announcement with updated game_embed card
@@ -463,18 +471,18 @@ class Game(BaseModel):
                 embed.set_thumbnail(url=self.winner.team.image_url)
 
         game_data = []
-        for squad in self.squads:
-            team_elo_str, squad_elo_str = squad.elo_strings()
+        for gameside in self.gamesides:
+            team_elo_str, squad_elo_str = gameside.elo_strings()
 
-            if squad.team.is_hidden:
+            if gameside.team.is_hidden:
                 # Hide team ELO if generic Team
                 team_elo_str = '\u200b'
 
-            if len(squad.lineup) == 1:
-                # Hide squad ELO stats for 1-player teams
+            if len(gameside.lineup) == 1:
+                # Hide gamesides ELO stats for 1-player teams
                 squad_elo_str = '\u200b'
 
-            game_data.append((squad, team_elo_str, squad_elo_str, squad.roster()))
+            game_data.append((gameside, team_elo_str, squad_elo_str, gameside.roster()))
 
         use_separator = False
         for side, elo_str, squad_str, roster in game_data:
@@ -518,34 +526,34 @@ class Game(BaseModel):
     def get_headline(self):
         # yields string like:
         # Game 481   :fried_shrimp: The Crawfish vs :fried_shrimp: TestAccount1 vs :spy: TestBoye1\n*Name of Game*
-        squad_strings = []
-        for squad in self.squads:
-            if len(squad.lineup) > 1 or not squad.team.is_hidden:
-                emoji = squad.team.emoji
+        gameside_strings = []
+        for gameside in self.gamesides:
+            if len(gameside.lineup) > 1 or not gameside.team.is_hidden:
+                emoji = gameside.team.emoji
             else:
                 emoji = ''
-            squad_strings.append(f'{emoji} **{squad.name()}**')
-        full_squad_string = ' *vs* '.join(squad_strings)
+            gameside_strings.append(f'{emoji} **{gameside.name()}**')
+        full_squad_string = ' *vs* '.join(gameside_strings)
 
         game_name = f'\n\u00a0*{self.name}*' if self.name and self.name.strip() else ''
         # \u00a0 is used as an invisible delimeter so game_name can be split out easily
         return f'Game {self.id}   {full_squad_string}{game_name}'
 
     def largest_team(self):
-        return max(len(squad.lineup) for squad in self.squads)
+        return max(len(gameside.lineup) for gameside in self.gamesides)
 
     def size_string(self):
 
-        if self.largest_team() == 1 and len(self.squads) > 2:
+        if self.largest_team() == 1 and len(self.gamesides) > 2:
             return 'FFA'
         else:
-            return 'v'.join(str(len(s.lineup)) for s in self.squads)
+            return 'v'.join(str(len(s.lineup)) for s in self.gamesides)
 
     def load_full_game(game_id: int):
         # Returns a single Game object with all related tables pre-fetched. or None
 
         game = Game.select().where(Game.id == game_id)
-        subq = SquadGame.select(SquadGame, Team).join(Team, JOIN.LEFT_OUTER).join_from(SquadGame, Squad, JOIN.LEFT_OUTER)
+        subq = GameSide.select(GameSide, Team).join(Team, JOIN.LEFT_OUTER).join_from(GameSide, Squad, JOIN.LEFT_OUTER)
 
         subq2 = Lineup.select(
             Lineup, Tribe, TribeFlair, Player, DiscordMember).join(
@@ -631,11 +639,11 @@ class Game(BaseModel):
                 else:
                     squad = None
 
-                squadgame = SquadGame.create(game=newgame, squad=squad, team=allied_team)
+                gameside = GameSide.create(game=newgame, squad=squad, team=allied_team)
 
                 # Create Lineup records
                 for player in player_group:
-                    Lineup.create(game=newgame, squadgame=squadgame, player=player)
+                    Lineup.create(game=newgame, gameside=gameside, player=player)
 
         return newgame
 
@@ -651,22 +659,22 @@ class Game(BaseModel):
                 lineup.elo_change_discordmember = 0
             lineup.save()
 
-        for squadgame in self.squads:
-            if squadgame.squad:
-                print(f'pre-revision - squad: {squadgame.squad.elo}')
-                squadgame.squad.elo += (squadgame.elo_change_squad * -1)
-                squadgame.squad.save()
-                squadgame.elo_change_squad = 0
-                print(f'post-revision - squad: {squadgame.squad.elo}')
+        for gameside in self.gameside:
+            if gameside.squad:
+                print(f'pre-revision - squad: {gameside.squad.elo}')
+                gameside.squad.elo += (gameside.elo_change_squad * -1)
+                gameside.squad.save()
+                gameside.elo_change_squad = 0
+                print(f'post-revision - squad: {gameside.squad.elo}')
 
-            if squadgame.elo_change_team:
-                print(f'pre-revision - team: {squadgame.team.elo}')
-                squadgame.team.elo += (squadgame.elo_change_team * -1)
-                squadgame.team.save()
-                squadgame.elo_change_team = 0
-                print(f'post-revision - team: {squadgame.team.elo}')
+            if gameside.elo_change_team:
+                print(f'pre-revision - team: {gameside.team.elo}')
+                gameside.team.elo += (gameside.elo_change_team * -1)
+                gameside.team.save()
+                gameside.elo_change_team = 0
+                print(f'post-revision - team: {gameside.team.elo}')
 
-            squadgame.save()
+            gameside.save()
 
     def delete_game(self):
         # resets any relevant ELO changes to players and teams, deletes related lineup records, and deletes the game entry itself
@@ -685,24 +693,24 @@ class Game(BaseModel):
             for lineup in self.lineup:
                 lineup.delete_instance()
 
-            for squadgame in self.squads:
-                squadgame.delete_instance()
+            for gameside in self.gamesides:
+                gameside.delete_instance()
 
             self.delete_instance()
 
             if recalculate:
                 Game.recalculate_elo_since(timestamp=since)
 
-    def get_side_win_chances(largest_team: int, squadgame_list, squadgame_elo_list):
-        n = len(squadgame_list)
-        print(squadgame_elo_list)
+    def get_side_win_chances(largest_team: int, gameside_list, gameside_elo_list):
+        n = len(gameside_list)
+        print(gameside_elo_list)
 
         # Adjust team elos when the amount of players on each team
         # is imbalanced, e.g. 1v2. It changes nothing when sizes are equal
         adjusted_side_elo, win_chance_list = [], []
         sum_elo = 0
-        sum_raw_elo = sum(squadgame_elo_list)
-        for s, elo in zip(squadgame_list, squadgame_elo_list):
+        sum_raw_elo = sum(gameside_elo_list)
+        for s, elo in zip(gameside_list, gameside_elo_list):
             missing_players = largest_team - len(s.lineup)
             avg_opponent_elos = int(round((sum_raw_elo - elo) / (n - 1)))
             adj_side_elo = s.adjusted_elo(missing_players, elo, avg_opponent_elos)
@@ -713,51 +721,51 @@ class Game(BaseModel):
         # e.g. 2v2v2. It changes nothing when there are only 2 teams
         win_chance_unnorm = []
         normalization_factor = 0
-        for own_elo, side in zip(adjusted_side_elo, squadgame_list):
-            win_chance = SquadGame.calc_win_chance(own_elo, (sum_elo - own_elo) / (n - 1))
+        for own_elo, side in zip(adjusted_side_elo, gameside_list):
+            win_chance = GameSide.calc_win_chance(own_elo, (sum_elo - own_elo) / (n - 1))
             win_chance_unnorm.append(win_chance)
             normalization_factor += win_chance
 
         # Apply the win/loss results for each team given their win% chance
         # for i in range(n):
-        for side_win_chance_unnorm, adj_side_elo, side in zip(win_chance_unnorm, adjusted_side_elo, squadgame_list):
+        for side_win_chance_unnorm, adj_side_elo, side in zip(win_chance_unnorm, adjusted_side_elo, gameside_list):
             win_chance = round(side_win_chance_unnorm / normalization_factor, 3)
             win_chance_list.append(win_chance)
 
         print(win_chance_list)
         return win_chance_list
 
-    def declare_winner(self, winning_side: 'SquadGame', confirm: bool):
+    def declare_winner(self, winning_side: 'GameSide', confirm: bool):
 
         if winning_side.game != self:
-            raise exceptions.CheckFailedError(f'SquadGame id {winning_side.id} did not play in this game')
+            raise exceptions.CheckFailedError(f'GameSide id {winning_side.id} did not play in this game')
 
         if confirm is True:
             self.is_confirmed = True
             largest_side = self.largest_team()
-            smallest_side = min(len(squad.lineup) for squad in self.squads)
+            smallest_side = min(len(gameside.lineup) for gameside in self.gamesides)
 
-            side_elos = [s.average_elo() for s in self.squads]
-            team_elos = [s.team.elo if s.team else None for s in self.squads]
-            squad_elos = [s.squad.elo if s.squad else None for s in self.squads]
+            side_elos = [s.average_elo() for s in self.gamesides]
+            team_elos = [s.team.elo if s.team else None for s in self.gamesides]
+            squad_elos = [s.squad.elo if s.squad else None for s in self.gamesides]
 
-            side_win_chances = Game.get_side_win_chances(largest_side, self.squads, side_elos)
+            side_win_chances = Game.get_side_win_chances(largest_side, self.gamesides, side_elos)
 
             if smallest_side > 1:
                 if None not in team_elos:
-                    team_win_chances = Game.get_side_win_chances(largest_side, self.squads, team_elos)
+                    team_win_chances = Game.get_side_win_chances(largest_side, self.gamesides, team_elos)
                 else:
                     team_win_chances = None
 
                 if None not in squad_elos:
-                    squad_win_chances = Game.get_side_win_chances(largest_side, self.squads, squad_elos)
+                    squad_win_chances = Game.get_side_win_chances(largest_side, self.gamesides, squad_elos)
                 else:
                     squad_win_chances = None
             else:
                 team_win_chances, squad_win_chances = None, None
 
-            for i in range(len(self.squads)):
-                side = self.squads[i]
+            for i in range(len(self.gamesides)):
+                side = self.gamesides[i]
                 is_winner = True if side == winning_side else False
                 for p in side.lineup:
                     p.change_elo_after_game(side_win_chances[i], is_winner)
@@ -775,7 +783,7 @@ class Game(BaseModel):
         self.save()
 
     def has_player(self, player: Player = None, discord_id: int = None):
-        # if player (or discord_id) was a participant in this game: return True, SquadGame
+        # if player (or discord_id) was a participant in this game: return True, GameSide
         # else, return False, None
         if player:
             discord_id = player.discord_member.discord_id
@@ -785,38 +793,38 @@ class Game(BaseModel):
 
         for l in self.lineup:
             if l.player.discord_member.discord_id == int(discord_id):
-                return (True, l.squadgame)
+                return (True, l.gameside)
         return (False, None)
 
-    def squadgame_by_name(self, ctx, name: str):
+    def gameside_by_name(self, ctx, name: str):
         # Given a string representing a game side's name (team name for 2+ players, player name for 1 player)
-        # Return a tuple of the participant and their squadgame, ie Player, SquadGame or Team, Squadgame
+        # Return a tuple of the participant and their gameside, ie Player, GameSide or Team, gameside
 
         if len(name) < 3:
             raise exceptions.CheckFailedError('Name given is not enough characters. Be more specific')
 
         matches = []
-        for squad in self.squads:
-            if len(squad.lineup) == 1:
+        for gameside in self.gamesides:
+            if len(gamesides.lineup) == 1:
                 try:
                     p_id = int(name.strip('<>!@'))
                 except ValueError:
-                    # Compare to single squad player's name
-                    if name.lower() in squad.lineup[0].player.name.lower():
+                    # Compare to single gamesides player's name
+                    if name.lower() in gameside.lineup[0].player.name.lower():
                         matches.append(
-                            (squad.lineup[0].player, squad)
+                            (gameside.lineup[0].player, gameside)
                         )
                 else:
                     # name is a <@PlayerMention>
                     # compare to single squad player's discord ID
-                    if p_id == squad.lineup[0].player.discord_member.discord_id:
+                    if p_id == gameside.lineup[0].player.discord_member.discord_id:
                         print('found by d.id')
-                        return (squad.lineup[0].player, squad)
+                        return (gameside.lineup[0].player, gameside)
             else:
-                # Compare to squad team's name
-                if name.lower() in squad.team.name.lower():
+                # Compare to gamesidess team's name
+                if name.lower() in gameside.team.name.lower():
                     matches.append(
-                        (squad.team, squad)
+                        (gameside.team, gameside)
                     )
 
         if len(matches) == 1:
@@ -852,10 +860,10 @@ class Game(BaseModel):
             guild_filter = Game.select(Game.id)
 
         if team_filter:
-            team_subq = SquadGame.select(SquadGame.game).join(Game).where(
-                (SquadGame.team.in_(team_filter)) & (SquadGame.game.in_(Team.team_games_subq()))
-            ).group_by(SquadGame.game).having(
-                fn.COUNT(SquadGame.team) == len(team_filter)
+            team_subq = GameSide.select(GameSide.game).join(Game).where(
+                (GameSide.team.in_(team_filter)) & (GameSide.game.in_(Team.team_games_subq()))
+            ).group_by(GameSide.game).having(
+                fn.COUNT(GameSide.team) == len(team_filter)
             )
         else:
             team_subq = Game.select(Game.id)
@@ -882,25 +890,25 @@ class Game(BaseModel):
                 # Filter wins/losses on first entry in player_filter
                 if status_filter == 3:
                     # Games that player has won
-                    victory_subq = Lineup.select(Lineup.game).join(Game).join_from(Lineup, SquadGame).where(
-                        (Lineup.game.is_completed == 1) & (Lineup.player == player_filter[0]) & (Game.winner == Lineup.squadgame.id)
+                    victory_subq = Lineup.select(Lineup.game).join(Game).join_from(Lineup, GameSide).where(
+                        (Lineup.game.is_completed == 1) & (Lineup.player == player_filter[0]) & (Game.winner == Lineup.gameside.id)
                     )
                 elif status_filter == 4:
                     # Games that player has lost
-                    victory_subq = Lineup.select(Lineup.game).join(Game).join_from(Lineup, SquadGame).where(
-                        (Lineup.game.is_completed == 1) & (Lineup.player == player_filter[0]) & (Game.winner != Lineup.squadgame.id)
+                    victory_subq = Lineup.select(Lineup.game).join(Game).join_from(Lineup, GameSide).where(
+                        (Lineup.game.is_completed == 1) & (Lineup.player == player_filter[0]) & (Game.winner != Lineup.gameside.id)
                     )
             else:
                 # Filter wins/losses on first entry in team_filter
                 if status_filter == 3:
                     # Games that team has won
-                    victory_subq = SquadGame.select(SquadGame.game).join(Game).where(
-                        (SquadGame.team == team_filter[0]) & (SquadGame.id == Game.winner)
+                    victory_subq = GameSide.select(GameSide.game).join(Game).where(
+                        (GameSide.team == team_filter[0]) & (GameSide.id == Game.winner)
                     )
                 elif status_filter == 4:
                     # Games that team has lost
-                    victory_subq = SquadGame.select(SquadGame.game).join(Game).where(
-                        (SquadGame.team == team_filter[0]) & (SquadGame.id != Game.winner)
+                    victory_subq = GameSide.select(GameSide.game).join(Game).where(
+                        (GameSide.team == team_filter[0]) & (GameSide.id != Game.winner)
                     )
 
         game = Game.select().where(
@@ -919,14 +927,14 @@ class Game(BaseModel):
             ) & (
                 Game.id.in_(guild_filter)
             )
-        ).order_by(-Game.date).prefetch(SquadGame, Team, Lineup, Player)
+        ).order_by(-Game.date).prefetch(GameSide, Team, Lineup, Player)
 
         return game
 
     def recalculate_elo_since(timestamp):
         games = Game.select().where(
             (Game.is_completed == 1) & (Game.completed_ts >= timestamp) & (Game.winner.is_null(False))
-        ).prefetch(SquadGame, Lineup)
+        ).prefetch(GameSide, Lineup)
 
         for g in games:
             g.reverse_elo_changes()
@@ -986,8 +994,8 @@ class Squad(BaseModel):
 
     def completed_game_count(self):
 
-        num_games = SquadGame.select().join(Game).where(
-            (Game.is_completed == 1) & (SquadGame.squad == self)
+        num_games = GameSide.select().join(Game).where(
+            (Game.is_completed == 1) & (GameSide.squad == self)
         ).count()
 
         return num_games
@@ -1024,8 +1032,8 @@ class Squad(BaseModel):
 
     def subq_squads_with_completed_games(min_games: int=1):
         # Defaults to squads who have completed more than 0 games
-        return SquadGame.select(SquadGame.squad).join(Game).where(Game.is_completed == 1).group_by(
-            SquadGame.squad
+        return GameSide.select(GameSide.squad).join(Game).where(Game.is_completed == 1).group_by(
+            GameSide.squad
         ).having(fn.COUNT('*') >= min_games)
 
     def leaderboard_rank(self, date_cutoff):
@@ -1051,7 +1059,7 @@ class Squad(BaseModel):
         else:
             min_games = 2
 
-        q = Squad.select().join(SquadGame).join(Game).where(
+        q = Squad.select().join(GameSide).join(Game).where(
             (
                 Squad.id.in_(Squad.subq_squads_with_completed_games(min_games=min_games))
             ) & (Squad.guild_id == guild_id) & (Game.date > date_cutoff)
@@ -1083,12 +1091,12 @@ class Squad(BaseModel):
 
     def get_record(self):
 
-        wins = SquadGame.select(SquadGame.id).join(Game).where(
-            (Game.is_completed == 1) & (SquadGame.squad == self) & (SquadGame.id == Game.winner)
+        wins = GameSide.select(GameSide.id).join(Game).where(
+            (Game.is_completed == 1) & (GameSide.squad == self) & (GameSide.id == Game.winner)
         ).count()
 
-        losses = SquadGame.select(SquadGame.id).join(Game).where(
-            (Game.is_completed == 1) & (SquadGame.squad == self) & (SquadGame.id != Game.winner)
+        losses = GameSide.select(GameSide.id).join(Game).where(
+            (Game.is_completed == 1) & (GameSide.squad == self) & (GameSide.id != Game.winner)
         ).count()
 
         return (wins, losses)
@@ -1107,10 +1115,10 @@ class SquadMember(BaseModel):
     squad = ForeignKeyField(Squad, null=False, backref='squadmembers', on_delete='CASCADE')
 
 
-class SquadGame(BaseModel):
-    game = ForeignKeyField(Game, null=False, backref='squads', on_delete='CASCADE')
-    squad = ForeignKeyField(Squad, null=True, backref='squadgame', on_delete='CASCADE')
-    team = ForeignKeyField(Team, null=False, backref='squadgame', on_delete='RESTRICT')
+class GameSide(BaseModel):
+    game = ForeignKeyField(Game, null=False, backref='gamesides', on_delete='CASCADE')
+    squad = ForeignKeyField(Squad, null=True, backref='gamesides', on_delete='CASCADE')
+    team = ForeignKeyField(Team, null=False, backref='gamesides', on_delete='RESTRICT')
     elo_change_squad = SmallIntegerField(default=0)
     elo_change_team = SmallIntegerField(default=0)
     team_chan = BitField(default=None, null=True)
@@ -1181,7 +1189,7 @@ class SquadGame(BaseModel):
 class Lineup(BaseModel):
     tribe = ForeignKeyField(TribeFlair, null=True, on_delete='SET NULL')
     game = ForeignKeyField(Game, null=False, backref='lineup', on_delete='CASCADE')
-    squadgame = ForeignKeyField(SquadGame, null=False, backref='lineup', on_delete='CASCADE')
+    gameside = ForeignKeyField(GameSide, null=False, backref='lineup', on_delete='CASCADE')
     player = ForeignKeyField(Player, null=False, backref='lineup', on_delete='CASCADE')
     elo_change_player = SmallIntegerField(default=0)
     elo_change_discordmember = SmallIntegerField(default=0)
@@ -1225,10 +1233,6 @@ class Lineup(BaseModel):
             return self.tribe.emoji
         else:
             return ''
-
-
-def tomorrow():
-    return (datetime.datetime.now() + datetime.timedelta(hours=24)).strftime("%Y-%m-%d %H:%M:%S")
 
 
 class Match(BaseModel):
@@ -1490,7 +1494,7 @@ class MatchPlayer(BaseModel):
 
 
 with db:
-    db.create_tables([Team, DiscordMember, Game, Player, Tribe, Squad, SquadGame, SquadMember, Lineup, TribeFlair, Match, MatchSide, MatchPlayer])
+    db.create_tables([Team, DiscordMember, Game, Player, Tribe, Squad, GameSide, SquadMember, Lineup, TribeFlair, Match, MatchSide, MatchPlayer])
     # Only creates missing tables so should be safe to run each time
     try:
         # Creates deferred FK http://docs.peewee-orm.com/en/latest/peewee/models.html#circular-foreign-key-dependencies

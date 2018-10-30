@@ -431,6 +431,7 @@ class matchmaking():
         teams, mentions = [], []
 
         for side in match.sides:
+            # TODO: This won't necessarily respect side ordering
             team = []
             for matchplayer in side.sideplayers:
                 guild_member = ctx.guild.get_member(matchplayer.player.discord_member.discord_id)

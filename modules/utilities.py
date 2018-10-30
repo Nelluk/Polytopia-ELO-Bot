@@ -42,15 +42,15 @@ def get_matching_roles(discord_member, list_of_role_names):
 
 
 def summarize_game_list(games_query):
-    # Turns a list/query-result of several games (or SquadGames) into a List of Tuples that can be sent to the pagination function
+    # Turns a list/query-result of several games (or GameSide) into a List of Tuples that can be sent to the pagination function
     # ie. [('Game 330   :nauseated_face: DrippyIsGod vs Nelluk :spy: Mountain Of Songs', '2018-10-05 - 1v1 - WINNER: Nelluk')]
     game_list = []
 
     # for counter, game in enumerate(games_query):
-    # for game in peewee.prefetch(games_query, models.SquadGame):
+    # for game in peewee.prefetch(games_query, models.GameSide):
     for game in games_query:
-        if isinstance(game, models.SquadGame):
-            game = game.game  # In case a list of SquadGames is passed instead of a list of Games
+        if isinstance(game, models.GameSide):
+            game = game.game  # In case a list of GameSide is passed instead of a list of Games
         if game.is_completed is False:
             status_str = 'Incomplete'
         else:

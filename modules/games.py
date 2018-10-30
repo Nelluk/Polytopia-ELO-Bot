@@ -4,7 +4,7 @@ import modules.utilities as utilities
 import settings
 import modules.exceptions as exceptions
 import peewee
-from modules.models import Game, db, Player, Team, DiscordMember, Squad, SquadGame, Match
+from modules.models import Game, db, Player, Team, DiscordMember, Squad, GameSide, Match
 import logging
 from itertools import groupby
 
@@ -55,6 +55,7 @@ class games():
     @commands.command(hidden=True, usage=None)
     async def guide(self, ctx):
         """
+        Guide:
         Type `[p]guide` for an overview of what this bot is for and how to use it.
         """
         bot_desc = ('This bot is designed to improve Polytopia multiplier by filling in gaps in two areas: competitive leaderboards, and matchmaking.\n'
@@ -252,8 +253,8 @@ class games():
         embed = discord.Embed(title=f'Squad card for Squad {squad.id}\n{"  /  ".join(names_with_emoji)}', value='\u200b')
         embed.add_field(name='Results', value=f'ELO: {squad.elo},  W {wins} / L {losses}', inline=True)
         embed.add_field(name='Ranking', value=rank_str, inline=True)
-        recent_games = SquadGame.select(Game).join(Game).where(
-            (SquadGame.squad == squad)
+        recent_games = GameSide.select(Game).join(Game).where(
+            (GameSide.squad == squad)
         ).order_by(-Game.date)
 
         embed.add_field(value='\u200b', name='Most recent games', inline=False)
@@ -839,9 +840,9 @@ class games():
         """
 
         try:
-            winning_obj, winning_side = winning_game.squadgame_by_name(ctx, name=winning_side_name)
+            winning_obj, winning_side = winning_game.gameside_by_name(ctx, name=winning_side_name)
             # winning_obj will be a Team or a Player depending on squad size
-            # winning_side will be their SquadGame
+            # winning_side will be their GameSide
         except exceptions.MyBaseException as ex:
             return await ctx.send(f'{ex}')
 
