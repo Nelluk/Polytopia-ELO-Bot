@@ -212,17 +212,18 @@ class matchmaking():
             return await ctx.send(f'"{guild_matches[0].name}" was found in the server but is not registered with me. '
                 f'Players can be register themselves with `{ctx.prefix}setcode POLYTOPIA_CODE`.')
 
-        if match.player(player):
-            return await ctx.send(f'You are already in match M{match.id}. If you are trying to change sides, use `{ctx.prefix}leavematch M{match.id}` first.')
-        models.MatchPlayer.create(player=player, match=match, side=side)
+        if game.player(player):
+            return await ctx.send(f'You are already in game {game.id}. If you are trying to change sides, use `{ctx.prefix}leave {game.id}` first.')
+            models.Lineup.create(player=player, game=game, gameside=side)
 
-        await ctx.send(f'Joining <@{player.discord_member.discord_id}> to side {side.position} of match M{match.id}')
+        await ctx.send(f'Joining <@{player.discord_member.discord_id}> to side {side.position} of game {game.id}')
 
-        players, capacity = match.capacity()
+        players, capacity = game.capacity()
         if players >= capacity:
-            await ctx.send(f'Match M{match.id} is now full and the host <@{match.host.discord_member.discord_id}> should start the game.')
+            await ctx.send(f'Game {game.id} is now full and the host <@{game.host.discord_member.discord_id}> should start the game.')
         # TODO: output correct ordering respecting side.position
-        embed, content = match.embed(ctx)
+        embed, content = game.embed(ctx)
+        # TODO: fix embeds
         await ctx.send(embed=embed, content=content)
 
     @commands.command(usage='match_id', aliases=['leave'])
