@@ -60,7 +60,7 @@ def summarize_game_list(games_query):
                 status_str = f'**WINNER:** {game.winner.name()}'
 
         game_list.append((
-            f'{game.get_headline()}',
+            f'{game.get_headline()}'[:255],
             f'{(str(game.date))} - {game.size_string()} - {status_str}'
         ))
     return game_list

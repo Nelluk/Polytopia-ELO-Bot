@@ -456,7 +456,7 @@ class Game(BaseModel):
 
     def embed(self, ctx):
 
-        embed = discord.Embed(title=f'{self.get_headline()} — *{self.size_string()}*')
+        embed = discord.Embed(title=f'{self.get_headline()} — *{self.size_string()}*'[:255])
 
         if self.is_completed == 1:
             embed.title += f'\n\nWINNER: {self.winner.name()}'
@@ -530,11 +530,12 @@ class Game(BaseModel):
         gameside_strings = []
         for gameside in self.gamesides:
             if len(gameside.lineup) > 1 or not gameside.team.is_hidden:
-                emoji = gameside.team.emoji
+                emoji = gameside.team.emoji if gameside.team else ''
             else:
                 emoji = ''
-            gameside_strings.append(f'{emoji} **{gameside.name()}**')
-        full_squad_string = ' *vs* '.join(gameside_strings)
+
+        gameside_strings.append(f'{emoji} **{gameside.name()}**')
+        full_squad_string = ' *vs* '.join(gameside_strings)[:225]
 
         game_name = f'\n\u00a0*{self.name}*' if self.name and self.name.strip() else ''
         # \u00a0 is used as an invisible delimeter so game_name can be split out easily
@@ -661,14 +662,14 @@ class Game(BaseModel):
             lineup.save()
 
         for gameside in self.gameside:
-            if gameside.squad:
+            if gameside.elo_change_squad and gameside.squad:
                 print(f'pre-revision - squad: {gameside.squad.elo}')
                 gameside.squad.elo += (gameside.elo_change_squad * -1)
                 gameside.squad.save()
                 gameside.elo_change_squad = 0
                 print(f'post-revision - squad: {gameside.squad.elo}')
 
-            if gameside.elo_change_team:
+            if gameside.elo_change_team and gameside.team:
                 print(f'pre-revision - team: {gameside.team.elo}')
                 gameside.team.elo += (gameside.elo_change_team * -1)
                 gameside.team.save()
@@ -823,6 +824,7 @@ class Game(BaseModel):
                         return (gameside.lineup[0].player, gameside)
             else:
                 # Compare to gamesidess team's name
+                assert bool(gameside.team), 'GameSide obj has no team'
                 if name.lower() in gameside.team.name.lower():
                     matches.append(
                         (gameside.team, gameside)
@@ -1194,8 +1196,13 @@ class GameSide(BaseModel):
 
     def name(self):
         if len(self.lineup) == 1:
-            # 1v1 game
-            return self.lineup[0].player.name
+            # 1-player side
+            if len(self.game.lineup) > 10:
+                return self.lineup[0].player.discord_member.name[:10]
+            elif len(self.game.lineup) > 6:
+                return self.lineup[0].player.discord_member.name[:20]
+            else:
+                return self.lineup[0].player.name[:30]
         else:
             # Team game
             return self.team.name

@@ -27,7 +27,7 @@ class administration:
 
         if winning_game is None:
             # display list of unconfirmed games
-            game_query = models.Game.search(status_filter=5)
+            game_query = models.Game.search(status_filter=5, guild_id=ctx.guild.id)
             game_list = utilities.summarize_game_list(game_query)
             if len(game_list) == 0:
                 return await ctx.send(f'No unconfirmed games found.')
