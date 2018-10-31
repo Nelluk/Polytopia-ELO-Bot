@@ -694,7 +694,7 @@ class games():
 
     @commands.command(aliases=['loss', 'lose'])
     async def losses(self, ctx, *args):
-        """List incomplete games for you or other players
+        """List games that you have lost, or others
         If any players names are listed, the first played is who the loss is checked against. If no players listed, then the first team listed is checked for the loss.
         **Examples:**
         `[p]losses` - Lists all games you have lost
@@ -893,6 +893,9 @@ class games():
         if confirm_win:
             # Cleanup game channels and announce winners
             await post_win_messaging(ctx, winning_game)
+            if winning_game.squads[0].lineup[0].elo_change_player == 0 or winning_game.squads[1].lineup[0].elo_change_player == 0:
+                logger.critical(f'Possibly ELO bug in result from {winning_game.id}')
+                await ctx.send(f'Alert for <@{settings.owner_id}>, result of last completed game may be incorrect')
 
     @commands.command(aliases=['namegame', 'gamename'], usage='game_id "New Name"')
     async def rename(self, ctx, game: PolyGame = None, *args):
