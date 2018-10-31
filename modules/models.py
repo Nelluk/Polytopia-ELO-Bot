@@ -1159,11 +1159,11 @@ class SquadGame(BaseModel):
         if len(self.lineup) == 1:
             # 1-player side
             if len(self.game.lineup) > 10:
-                return self.lineup[0].player.nick[:15]
+                return self.lineup[0].player.name[:15]
             elif len(self.game.lineup) > 6:
-                return self.lineup[0].player.nick[:20]
+                return self.lineup[0].player.name[:20]
             else:
-                return self.lineup[0].player.nick[:30]
+                return self.lineup[0].player.name[:30]
         else:
             # Team game
             return self.team.name
