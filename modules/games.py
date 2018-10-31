@@ -522,7 +522,6 @@ class games():
         """
 
         # TODO: remove 'and/&' to remove confusion over game names like Ocean & Prophesy
-        # TODO: would be nice if $games S3W4 Ronin worked - extract team/players first then use whatevers left as a title match?
 
         arg_list = [arg.upper() for arg in args]
 
@@ -542,7 +541,7 @@ class games():
         target_list = list(args)
 
         if len(args) == 1 and args[0].upper() == 'ALL':
-            query = Game.search(status_filter=1, guild_id=ctx.guild.id)
+            query = Game.search(status_filter=0, guild_id=ctx.guild.id)
             list_name = f'All games ({len(query)})'
             game_list = utilities.summarize_game_list(query[:500])
         else:
