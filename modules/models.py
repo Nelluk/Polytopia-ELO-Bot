@@ -10,7 +10,8 @@ import logging
 
 logger = logging.getLogger('polybot.' + __name__)
 
-db = PostgresqlDatabase(settings.psql_db, user=settings.psql_user)
+# db = PostgresqlDatabase(settings.psql_db, user=settings.psql_user)
+db = PostgresqlDatabase('polytopia_dev2', user=settings.psql_user)
 
 
 def tomorrow():

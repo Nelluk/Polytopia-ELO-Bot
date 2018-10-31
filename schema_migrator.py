@@ -4,7 +4,8 @@ import modules.models as models
 
 # http://docs.peewee-orm.com/en/latest/peewee/playhouse.html#schema-migrations
 
-db = PostgresqlDatabase(settings.psql_db, user=settings.psql_user)
+# db = PostgresqlDatabase(settings.psql_db, user=settings.psql_user)
+db = PostgresqlDatabase('polytopia_dev2', user=settings.psql_user)
 migrator = PostgresqlMigrator(db)
 
 host = ForeignKeyField(models.Player, field=models.Player.id, null=True, backref='hosting', on_delete='SET NULL')
