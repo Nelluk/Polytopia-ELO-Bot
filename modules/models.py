@@ -447,7 +447,7 @@ class Game(BaseModel):
 
     def embed(self, ctx):
 
-        embed = discord.Embed(title=f'{self.get_headline()} — *{self.size_string()}*')
+        embed = discord.Embed(title=f'{self.get_headline()} — *{self.size_string()}*'[:255])
 
         if self.is_completed == 1:
             embed.title += f'\n\nWINNER: {self.winner.name()}'
@@ -1160,7 +1160,7 @@ class SquadGame(BaseModel):
         if len(self.lineup) == 1:
             # 1-player side
             if len(self.game.lineup) > 10:
-                return self.lineup[0].player.name[:10]
+                return self.lineup[0].player.discord_member.name[:10]
             elif len(self.game.lineup) > 6:
                 return self.lineup[0].player.name[:20]
             else:
