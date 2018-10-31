@@ -1027,7 +1027,7 @@ class Squad(BaseModel):
 
         if min_games <= 0:
             # Squads who at least have one in progress game
-            return SquadGame.select(SquadGame.squad).join(Game).where(Game.is_pending == 0).group_by(
+            return SquadGame.select(SquadGame.squad).join(Game).group_by(
                 SquadGame.squad
             ).having(fn.COUNT('*') >= min_games)
 
