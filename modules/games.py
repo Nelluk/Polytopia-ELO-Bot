@@ -432,7 +432,7 @@ class games():
             new_id = args[1]
         else:
             # Unexpected input
-            await ctx.send(f'Wrong number of arguments. Use `{ctx.prefix}setcode my_polytopia_code`')
+            await ctx.send(f'Wrong number of arguments. Use `{ctx.prefix}setcode YOURCODEHERE`')
             return
 
         if len(new_id) != 16 or new_id.isalnum() is False:
@@ -475,7 +475,7 @@ class games():
             return await ctx.send(discord_member.polytopia_id)
         else:
             return await ctx.send(f'Member **{target_discord_member.name}** has no code on file.\n'
-                f'Register your own code with `{ctx.prefix}setcode mYlOnGp0lYc0de`')
+                f'Register your own code with `{ctx.prefix}setcode YOURCODEHERE`')
 
     @commands.command(brief='Set in-game name', usage='new_name')
     async def setname(self, ctx, *args):
