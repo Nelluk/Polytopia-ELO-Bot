@@ -797,6 +797,20 @@ class Game(BaseModel):
                 return (True, l.gameside)
         return (False, None)
 
+    def player(self, player: Player = None, discord_id: int = None):
+        # return game.lineup, based on either Player object or discord_id. else None
+
+        if player:
+            discord_id = player.discord_member.discord_id
+
+        if not discord_id:
+            return None
+
+        for l in self.lineup:
+            if l.player.discord_member.discord_id == int(discord_id):
+                return l
+        return None
+
     def capacity(self):
         return (len(self.lineup), sum(s.size for s in self.gamesides))
 

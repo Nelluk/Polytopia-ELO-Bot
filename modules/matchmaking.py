@@ -121,13 +121,7 @@ class matchmaking():
                 models.GameSide.create(game=opengame, size=size, position=count + 1)
 
             models.Lineup.create(player=host, game=opengame, gameside=opengame.gamesides[0])
-        await ctx.send(f'Starting new open match ID M{opengame.id}. Size: {team_size_str}. Expiration: {expiration_hours} hours.\nNotes: *{notes_str}*')
-
-    @commands.command()
-    async def gtest(self, ctx):
-        game = models.Game.get(id=537)
-        gameside = game.gamesides[0]
-        print(gameside)
+        await ctx.send(f'Starting new open game ID {opengame.id}. Size: {team_size_str}. Expiration: {expiration_hours} hours.\nNotes: *{notes_str}*')
 
     @commands.command(aliases=['matchside'], usage='match_id side_number Side Name')
     async def gameside(self, ctx, game: PolyMatch, side_lookup: str, *, args):
@@ -155,18 +149,18 @@ class matchmaking():
         return await ctx.send(f'Side {gameside.position} for game {game.id} has been named "{args}"')
 
     # @settings.in_bot_channel()
-    @commands.command(usage='match_id', aliases=['join', 'joinmatch'])
+    @commands.command(usage='game_id', aliases=['join', 'joinmatch'])
     async def joingame(self, ctx, game: PolyMatch = None, *args):
         """
         Join an open game
         **Example:**
-        `[p]joingame 25`
-        `[p]joingame 5 ronin` - Join match m5 to the side named 'ronin'
-        `[p]joingame 5 ronin 2` - Join match m5 to side number 2
-        `[p]joingame 5 rickdaheals jets` - Add a person to your match. Side must be specified.
+        `[p]joingame 25` - Join open game 25 to the first side with room
+        `[p]joingame 5 ronin` - Join open game 5 to the side named 'ronin'
+        `[p]joingame 5 2` - Join open game 5 to side number 2
+        `[p]joingame 5 rickdaheals 2` - Add a person to a game you are hosting. Side must be specified.
         """
         if not game:
-            return await ctx.send(f'No game ID provided. Use `{ctx.prefix}opengames` to list open matches you can join.')
+            return await ctx.send(f'No game ID provided. Use `{ctx.prefix}opengames` to list open games you can join.')
         if not game.is_pending:
             return await ctx.send(f'The game has already started and this can no longer be joined.')
 
@@ -195,7 +189,7 @@ class matchmaking():
                 return await ctx.send(f'Could not find side with "{args[1]}" in game {game.id}. You can use a side number or name if available.\n'
                     f'Syntax: `{ctx.prefix}join {game.id} <player> <side>`')
         else:
-            return await ctx.send(f'Invalid command. See `{ctx.prefix}help joinmatch` for usage examples.')
+            return await ctx.send(f'Invalid command. See `{ctx.prefix}help joingame` for usage examples.')
 
         if not side_open:
             return await ctx.send(f'That side of game {game.id} is already full. See `{ctx.prefix}game {game.id}` for details.')
@@ -226,65 +220,69 @@ class matchmaking():
         # TODO: fix embeds
         await ctx.send(embed=embed, content=content)
 
-    @commands.command(usage='match_id', aliases=['leave'])
-    async def leavematch(self, ctx, match: PolyMatch):
+    @commands.command(usage='game_id', aliases=['leave', 'leavematch'])
+    async def leavegame(self, ctx, game: PolyMatch):
         """
-        Leave a match that you have joined
+        Leave a game that you have joined
+
         **Example:**
-        `[p]leavematch M25`
+        `[p]leavegame 25`
         """
-        if match.is_hosted_by(ctx.author.id)[0]:
+        if game.is_hosted_by(ctx.author.id)[0]:
 
             if not settings.is_matchmaking_power_user(ctx):
                 return await ctx.send('You do not have permissions to leave your own match.\n'
-                    f'If you want to delete use `{ctx.prefix}deletematch M{match.id}`')
+                    f'If you want to delete use `{ctx.prefix}deletegame {game.id}`')
 
-            await ctx.send(f'**Warning:** You are leaving your own match. You will still be the host. '
-                f'If you want to delete use `{ctx.prefix}deletematch M{match.id}`')
+            await ctx.send(f'**Warning:** You are leaving your own game. You will still be the host. '
+                f'If you want to delete use `{ctx.prefix}deletegame {game.id}`')
 
-        if match.is_started:
-            game_str = f' with game # {match.game.id}' if match.game else ''
-            return await ctx.send(f'Match M{match.id} has already started{game_str}.')
+        if not game.is_pending:
+            return await ctx.send(f'Game {game.id} has already started and cannot be left.')
 
-        matchplayer = match.player(discord_id=ctx.author.id)
-        if not matchplayer:
-            return await ctx.send(f'You are not a member of match M{match.id}')
+        lineup = game.player(discord_id=ctx.author.id)
+        if not lineup:
+            return await ctx.send(f'You are not a member of game {game.id}')
 
-        matchplayer.delete_instance()
-        await ctx.send('Removing you from the match.')
+        lineup.delete_instance()
+        await ctx.send('Removing you from the game.')
 
-    @commands.command(usage='match_id', aliases=['notes'])
-    async def matchnotes(self, ctx, match: PolyMatch, *, notes: str = None):
+    @commands.command(usage='game_id', aliases=['notes', 'matchnotes'])
+    async def gamenotes(self, ctx, game: PolyMatch, *, notes: str = None):
         """
-        Edit notes for a match you host
+        Edit notes for an open game you host
         **Example:**
-        `[p]matchnotes M25 Large map`
+        `[p]gamenotes 100 Large map, no bans`
         """
 
-        if not match.is_hosted_by(ctx.author.id)[0] and not settings.is_staff(ctx):
-            return await ctx.send(f'Only the match host or server staff can do this.')
+        if not game.is_hosted_by(ctx.author.id)[0] and not settings.is_staff(ctx):
+            return await ctx.send(f'Only the game host or server staff can do this.')
 
-        old_notes = match.notes
-        match.notes = notes[:100] if notes else None
-        match.save()
+        old_notes = game.notes
+        if game.is_pending:
+            game.notes = notes[:100] if notes else None
+        else:
+            # Preserve original notes and indicate they've been edited, if game is in progress
+            old_notes_redacted = f'{"~~" + old_notes + "~~"} ' if old_notes else ''
+            game.notes = f'{old_notes_redacted}{notes[:100]}' if notes else old_notes_redacted
+        game.save()
 
-        await ctx.send(f'Updated notes for match M{match.id} to: {match.notes}\nPrevious notes were: {old_notes}')
-        embed, content = match.embed(ctx)
+        await ctx.send(f'Updated notes for game {game.id} to: {game.notes}\nPrevious notes were: {old_notes}')
+        embed, content = game.embed(ctx)
         await ctx.send(embed=embed, content=content)
 
-    @commands.command(usage='match_id player')
-    async def kick(self, ctx, match: PolyMatch, player: str):
+    @commands.command(usage='game_id player')
+    async def kick(self, ctx, game: PolyMatch, player: str):
         """
-        Kick a player from an open match
+        Kick a player from an open game
         **Example:**
-        `[p]kick M25 koric`
+        `[p]kick 25 koric`
         """
-        if not match.is_hosted_by(ctx.author.id)[0] and not settings.is_staff(ctx):
-            return await ctx.send(f'Only the match host or server staff can do this.')
+        if not game.is_hosted_by(ctx.author.id)[0] and not settings.is_staff(ctx):
+            return await ctx.send(f'Only the game host or server staff can do this.')
 
-        if match.is_started:
-            game_str = f' with game # {match.game.id}' if match.game else ''
-            return await ctx.send(f'Match M{match.id} has already started{game_str}.')
+        if not game.is_pending:
+            return await ctx.send(f'Game {game.id} has already started.')
 
         try:
             target = models.Player.get_or_except(player_string=player, guild_id=ctx.guild.id)
@@ -294,12 +292,12 @@ class matchmaking():
         if target.discord_member.discord_id == ctx.author.id:
             return await ctx.send('Stop kicking yourself!')
 
-        matchplayer = match.player(player=target)
-        if not matchplayer:
-            return await ctx.send(f'{target.name} is not a member of match M{match.id}.')
+        lineup = game.player(player=target)
+        if not lineup:
+            return await ctx.send(f'{target.name} is not a member of game {game.id}')
 
-        matchplayer.delete_instance()
-        await ctx.send(f'Removing {target.name} from the match.')
+        lineup.delete_instance()
+        await ctx.send(f'Removing {target.name} from the game.')
 
     @commands.command(aliases=['deletematch'], usage='match_id')
     async def delmatch(self, ctx, match: PolyMatch):
