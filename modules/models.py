@@ -1043,10 +1043,10 @@ class Squad(BaseModel):
 
     def leaderboard(date_cutoff, guild_id: int):
 
-        games_logged = Game.select().count()
-        if games_logged < 10:
+        num_squads = Squad.select().where(Squad.guild_id == guild_id).count()
+        if num_squads < 15:
             min_games = 0
-        elif games_logged < 30:
+        elif num_squads < 25:
             min_games = 1
         else:
             min_games = 2
