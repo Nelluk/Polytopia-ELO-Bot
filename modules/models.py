@@ -1024,6 +1024,13 @@ class Squad(BaseModel):
 
     def subq_squads_with_completed_games(min_games: int=1):
         # Defaults to squads who have completed more than 0 games
+
+        if min_games <= 0:
+            # Squads who at least have one in progress game
+            return SquadGame.select(SquadGame.squad).join(Game).where(Game.is_pending == 0).group_by(
+                SquadGame.squad
+            ).having(fn.COUNT('*') >= min_games)
+
         return SquadGame.select(SquadGame.squad).join(Game).where(Game.is_completed == 1).group_by(
             SquadGame.squad
         ).having(fn.COUNT('*') >= min_games)
@@ -1074,7 +1081,7 @@ class Squad(BaseModel):
 
         # Limited to squads with at least 2 members and at least 1 completed game
         query = Squad.select().join(SquadMember).where(
-            (Squad.id.in_(Squad.subq_squads_by_size(min_size=2))) & (Squad.id.in_(Squad.subq_squads_with_completed_games()))
+            (Squad.id.in_(Squad.subq_squads_by_size(min_size=2))) & (Squad.id.in_(Squad.subq_squads_with_completed_games(min_games=1)))
         ).group_by(Squad.id).having(
             (fn.SUM(SquadMember.player.in_(player_list).cast('integer')) == len(player_list))
         )
