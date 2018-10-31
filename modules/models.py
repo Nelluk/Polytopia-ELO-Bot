@@ -526,7 +526,6 @@ class Game(BaseModel):
                 emoji = ''
             squad_strings.append(f'{emoji} **{squad.name()}**')
         full_squad_string = ' *vs* '.join(squad_strings)[:225]
-        print(full_squad_string)
 
         game_name = f'\n\u00a0*{self.name}*' if self.name and self.name.strip() else ''
         # \u00a0 is used as an invisible delimeter so game_name can be split out easily
