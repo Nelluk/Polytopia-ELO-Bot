@@ -525,7 +525,7 @@ class Game(BaseModel):
             else:
                 emoji = ''
             squad_strings.append(f'{emoji} **{squad.name()}**')
-        full_squad_string = ' *vs* '.join(squad_strings)[:210]
+        full_squad_string = ' *vs* '.join(squad_strings)[:205]
         print(full_squad_string)
 
         game_name = f'\n\u00a0*{self.name}*' if self.name and self.name.strip() else ''
@@ -1160,7 +1160,7 @@ class SquadGame(BaseModel):
         if len(self.lineup) == 1:
             # 1-player side
             if len(self.game.lineup) > 10:
-                return self.lineup[0].player.name[:15]
+                return self.lineup[0].player.name[:10]
             elif len(self.game.lineup) > 6:
                 return self.lineup[0].player.name[:20]
             else:
