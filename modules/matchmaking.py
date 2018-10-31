@@ -212,10 +212,10 @@ class matchmaking():
             return await ctx.send(f'"{guild_matches[0].name}" was found in the server but is not registered with me. '
                 f'Players can be register themselves with `{ctx.prefix}setcode POLYTOPIA_CODE`.')
 
-        if game.player(player):
+        if game.has_player(player)[0]:
             return await ctx.send(f'You are already in game {game.id}. If you are trying to change sides, use `{ctx.prefix}leave {game.id}` first.')
-            models.Lineup.create(player=player, game=game, gameside=side)
 
+        models.Lineup.create(player=player, game=game, gameside=side)
         await ctx.send(f'Joining <@{player.discord_member.discord_id}> to side {side.position} of game {game.id}')
 
         players, capacity = game.capacity()

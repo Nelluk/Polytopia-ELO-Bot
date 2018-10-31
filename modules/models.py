@@ -450,9 +450,8 @@ class Game(BaseModel):
             return logger.warn('Couldn\'t update message in update_announacement')
 
     def is_hosted_by(self, discord_id: int):
-        if self.match:
-            return self.match[0].is_hosted_by(discord_id)
-        return False, None
+
+        return self.host.discord_member.discord_id == discord_id, self.host
 
     def embed(self, ctx):
 
@@ -467,7 +466,7 @@ class Game(BaseModel):
                 winning_discord_member = ctx.guild.get_member(self.winner.lineup[0].player.discord_member.discord_id)
                 if winning_discord_member is not None:
                     embed.set_thumbnail(url=winning_discord_member.avatar_url_as(size=512))
-            elif self.winner.team.image_url:
+            elif self.winner.team and self.winner.team.image_url:
                 # Winner is a team of players - use team image if present
                 embed.set_thumbnail(url=self.winner.team.image_url)
 
@@ -475,7 +474,7 @@ class Game(BaseModel):
         for gameside in self.gamesides:
             team_elo_str, squad_elo_str = gameside.elo_strings()
 
-            if gameside.team.is_hidden:
+            if not gameside.team or gameside.team.is_hidden:
                 # Hide team ELO if generic Team
                 team_elo_str = '\u200b'
 
@@ -492,7 +491,7 @@ class Game(BaseModel):
                 embed.add_field(name='\u200b', value='\u200b', inline=False)  # Separator between sides
 
             if len(side.lineup) > 1:
-                team_str = f'__Lineup for Team **{side.team.name}**__ {elo_str}'
+                team_str = f'__Lineup for Team **{side.team.name if side.team else "None"}**__ {elo_str}'
 
                 embed.add_field(name=team_str, value=squad_str, inline=False)
 
@@ -529,12 +528,12 @@ class Game(BaseModel):
         # Game 481   :fried_shrimp: The Crawfish vs :fried_shrimp: TestAccount1 vs :spy: TestBoye1\n*Name of Game*
         gameside_strings = []
         for gameside in self.gamesides:
-            if len(gameside.lineup) > 1 or not gameside.team.is_hidden:
-                emoji = gameside.team.emoji if gameside.team else ''
-            else:
-                emoji = ''
+            emoji = ''
+            if gameside.team:
+                if len(gameside.lineup) > 1 or not gameside.team.is_hidden:
+                    emoji = gameside.team.emoji
 
-        gameside_strings.append(f'{emoji} **{gameside.name()}**')
+            gameside_strings.append(f'{emoji} **{gameside.name()}**')
         full_squad_string = ' *vs* '.join(gameside_strings)[:225]
 
         game_name = f'\n\u00a0*{self.name}*' if self.name and self.name.strip() else ''
@@ -797,6 +796,9 @@ class Game(BaseModel):
             if l.player.discord_member.discord_id == int(discord_id):
                 return (True, l.gameside)
         return (False, None)
+
+    def capacity(self):
+        return (len(self.lineup), sum(s.size for s in self.gamesides))
 
     def gameside_by_name(self, ctx, name: str):
         # Given a string representing a game side's name (team name for 2+ players, player name for 1 player)
@@ -1146,7 +1148,7 @@ class SquadMember(BaseModel):
 class GameSide(BaseModel):
     game = ForeignKeyField(Game, null=False, backref='gamesides', on_delete='CASCADE')
     squad = ForeignKeyField(Squad, null=True, backref='gamesides', on_delete='CASCADE')
-    team = ForeignKeyField(Team, null=False, backref='gamesides', on_delete='RESTRICT')
+    team = ForeignKeyField(Team, null=True, backref='gamesides', on_delete='RESTRICT')
     elo_change_squad = SmallIntegerField(default=0)
     elo_change_team = SmallIntegerField(default=0)
     team_chan = BitField(default=None, null=True)
@@ -1162,9 +1164,13 @@ class GameSide(BaseModel):
         # Returns a tuple of strings for team ELO and squad ELO display. ie:
         # ('1200 +30', '1300')
 
-        team_elo_str = str(self.elo_change_team) if self.elo_change_team != 0 else ''
-        if self.elo_change_team > 0:
-            team_elo_str = '+' + team_elo_str
+        if self.team:
+            team_elo_str = str(self.elo_change_team) if self.elo_change_team != 0 else ''
+            if self.elo_change_team > 0:
+                team_elo_str = '+' + team_elo_str
+            team_elo_str = f'({self.team.elo} {team_elo_str})'
+        else:
+            team_elo_str = None
 
         if self.squad:
             squad_elo_str = str(self.elo_change_squad) if self.elo_change_squad != 0 else ''
@@ -1173,9 +1179,11 @@ class GameSide(BaseModel):
             if squad_elo_str:
                 squad_elo_str = '(' + squad_elo_str + ')'
 
-            return (f'({self.team.elo} {team_elo_str})', f'{self.squad.elo} {squad_elo_str}')
+            squad_elo_str = f'{self.squad.elo} {squad_elo_str}'
         else:
-            return (f'({self.team.elo} {team_elo_str})', None)
+            squad_elo_str = None
+
+        return (team_elo_str, squad_elo_str)
 
     def average_elo(self):
         elo_list = [l.player.elo for l in self.lineup]
