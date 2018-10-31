@@ -823,7 +823,6 @@ class games():
             await post_newgame_messaging(ctx, game=newgame)
 
     @commands.command(aliases=['endgame', 'wingame', 'winner'], usage='game_id winner_name')
-    @settings.is_user_check()
     async def win(self, ctx, winning_game: PolyGame, winning_side_name: str):
         """
         Declare winner of an existing game
