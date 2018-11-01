@@ -70,7 +70,7 @@ if __name__ == '__main__':
     main()
 
     bot = commands.Bot(command_prefix=get_prefix, owner_id=settings.owner_id)
-    cooldown = commands.CooldownMapping.from_cooldown(3, 30.0, commands.BucketType.user)
+    cooldown = commands.CooldownMapping.from_cooldown(6, 30.0, commands.BucketType.user)
 
     @bot.check
     async def globally_block_dms(ctx):
