@@ -453,6 +453,41 @@ class Game(BaseModel):
 
         return self.host.discord_member.discord_id == discord_id, self.host
 
+    def draft_order(self):
+        # Returns list of tuples, in order of recommended draft order list:
+        # [(Side #, Side Name, Player 1), ... ]
+
+        players, capacity = self.capacity()
+        if players < capacity:
+            raise exceptions.CheckFailedError('This match is not full')
+
+        sides = GameSide.select().where(
+            (GameSide.game == self)
+        ).order_by(GameSide.position).prefetch(Lineup, Player)
+
+        picks = []
+        side_objs = [{'side': s, 'pick_score': 0, 'size': s.size} for s in sides]
+        num_tribes = sum([s.size for s in sides])
+
+        for pick in range(num_tribes):
+            picking_team = None
+            lowest_score = 99
+            # for team in teams:
+            for side_obj in side_objs:
+                # Find side with lowest pick_score
+                if side_obj['pick_score'] <= lowest_score and lowest_score > 0 and side_obj['size'] > 0:
+                    picking_team = side_obj
+                    lowest_score = side_obj['pick_score']
+
+            picking_team['pick_score'] = picking_team['pick_score'] + num_tribes
+            picking_team['size'] = picking_team['size'] - 1
+            num_tribes = num_tribes - 1
+            picks.append(
+                (picking_team['side'].position, picking_team['side'].name, picking_team['side'].lineup.pop(0))
+            )
+
+        return picks
+
     def embed(self, ctx):
 
         embed = discord.Embed(title=f'{self.get_headline()} — *{self.size_string()}*'[:255])
@@ -522,6 +557,53 @@ class Game(BaseModel):
         embed.set_footer(text=f'Status: {status_str}  -  Creation Date {str(self.date)}')
 
         return embed, embed_content
+
+    def embed_pending_game(self, ctx):
+        embed = discord.Embed(title=f'**Open Game {self.id}**\n{self.size_string()} *hosted by* {self.host.name}')
+        notes_str = self.notes if self.notes else "\u200b"
+        content_str = None
+
+        if self.expiration < datetime.datetime.now():
+            expiration_str = f'*Expired*'
+            status_str = 'Expired'
+        else:
+            expiration_str = f'{int((self.expiration - datetime.datetime.now()).total_seconds() / 3600.0)} hours'
+            status_str = f'Open - `{ctx.prefix}join {self.id}`'
+
+        players, capacity = self.capacity()
+        if players >= capacity:
+            if not self.is_pending:
+                status_str = f'Started - **{self.name}**' if self.name else 'Started'
+            else:
+                if players > 2:
+                    draft_order = ['\n__**Balanced Draft Order**__']
+                    for draft in self.draft_order():
+                        draft_order.append(f'__Side {draft[1] if draft[1] else draft[0]}__:  {draft[2].player.name}')
+                    draft_order_str = '\n'.join(draft_order)
+                else:
+                    draft_order_str = ''
+                content_str = (f'This match is now full and the host should create the game in Polytopia and start it with `{ctx.prefix}startgame {self.id} Name of Game`'
+                        f'{draft_order_str}')
+                status_str = 'Full - Waiting to start'
+
+        embed.add_field(name='Status', value=status_str, inline=True)
+        embed.add_field(name='Expires in', value=f'{expiration_str}', inline=True)
+        embed.add_field(name='Notes', value=notes_str, inline=False)
+        embed.add_field(name='\u200b', value='\u200b', inline=False)
+
+        for side in self.sides:
+            # TODO: this wont print in side.position order if they have been saved() in odd order after creation
+            side_name = ': **' + side.name + '**' if side.name else ''
+            side_capacity = side.capacity()
+            capacity += side_capacity[1]
+            player_list = []
+            for gameplayer in side.lineup():
+                players += 1
+                player_list.append(f'**{gameplayer.player.name}** ({gameplayer.player.elo})\n{gameplayer.player.discord_member.polytopia_id}')
+            player_str = '\u200b' if not player_list else '\n'.join(player_list)
+            embed.add_field(name=f'__Side {side.position}__{side_name} *({side_capacity[0]}/{side_capacity[1]})*', value=player_str)
+
+        return embed, content_str
 
     def get_headline(self):
         # yields string like:
@@ -1317,6 +1399,9 @@ class GameSide(BaseModel):
             )
 
         return players
+
+    def capacity(self):
+        return (len(self.lineup), self.size)
 
 
 class Lineup(BaseModel):
