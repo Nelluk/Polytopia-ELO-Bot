@@ -303,85 +303,54 @@ class matchmaking():
     @commands.command(aliases=['listmatches', 'matchlist', 'openmatches', 'listmatch', 'match', 'matches'])
     async def opengames(self, ctx, *args):
         """
-        List current matches, with filtering options.
-        Full matches will still be listed until the host starts or deletes them with `[p]startmatch` / `[p]delmatch`
+        List current open games
+
+        Full games will still be listed until the host starts or deletes them with `[p]startgame` / `[p]deletegame`
         Add **OPEN** or **FULL** to command to filter by open/full matches
-        Anything else will compare to current participants, the host, or the match notes.
         **Example:**
-        `[p]matches` - List all unexpired matches
-        `[p]match m55` - Show details on specific match
-        `[p]matches Nelluk` - List all unexpired matches where Nelluk is a participant/host
-        `[p]matches Nelluk full` - List all unexpired matches with Nelluk that are full
-        `[p]matches Bardur` - List all unexpired matches where "Bardur" is in the match notes
-        `[p]matches Ronin` - List all unexpired matches where "Ronin" is in one of the sides' name.
-        `[p]matches waiting` - *Special filter* - all full matches without a game, including expired. Purged after a few days.
+        `[p]opengames` - List all unexpired open games
+        `[p]opengames open` - List all open games that still have openings
+        `[p]opengames waiting` - Lists open games that are full but not yet started
         """
-        models.Match.purge_expired_matches()
+        syntax = (f'`{ctx.prefix}opengames` - List all unexpired open games\n'
+                  f'`{ctx.prefix}opengames open` - List all open games that still have openings\n'
+                  f'`{ctx.prefix}opengames waiting` - Lists open games that are full but not yet started')
+        models.Game.purge_expired_games()
 
-        if len(args) == 1 and (args[0][:1].upper() == 'M' or args[0][:1].isdigit()):
-            # $matches m60
-            match = await PolyMatch().convert(ctx, args[0])
-            embed, content = match.embed(ctx)
-            return await ctx.send(embed=embed, content=content)
-
-        args_list = [arg.upper() for arg in args]
-        if ctx.invoked_with.upper() == 'OPENMATCHES' and 'OPEN' not in args_list:
-            args_list.append('OPEN')
-
-        if len(args_list) == 1 and args_list[0] == 'WAITING':
-            match_list = models.Match.waiting_to_start(guild_id=ctx.guild.id)
-            title_str = 'Matches that are full and waiting for host to start (including expired)'
-        elif args:
-            if 'FULL' in args_list:
-                args_list.remove('FULL')
-                status_filter = 2
-                status_word = ' *full*'
-            elif 'CLOSED' in args_list:
-                args_list.remove('CLOSED')
-                status_filter = 2
-                status_word = ' *full*'
-            elif 'OPEN' in args_list:  # wont work
-                args_list.remove('OPEN')
-                status_filter = 1
-                status_word = ' *open*'
-            else:
-                status_filter = None
-                status_word = ''
-
-            # Return any match where args_str appears in match side names, match notes, or if args_str is a Player, a match where player is a participant or host
-            arg_str = ' '.join(args_list)
-            title_str = f'Current{status_word} matches matching "{arg_str}"'
-            try:
-                target = models.Player.get_or_except(player_string=arg_str, guild_id=ctx.guild.id)
-            except exceptions.NoSingleMatch:
-                target = None
-
-            arg_str = '%'.join(args_list)  # for SQL wildcard match
-            match_list = models.Match.search(guild_id=ctx.guild.id, player=target, search=arg_str, status=status_filter)
-
+        if len(args) > 0 and args[0].upper() == 'OPEN':
+            title_str = f'Current open games with available spots'
+            game_list = models.Game.select().where(
+                (models.Game.id.in_(models.Game.subq_open_games_with_capacity())) & (models.Game.is_pending == 1) & (models.Game.guild_id == ctx.guild.id)
+            )
+        elif len(args) > 0 and args[0].upper() == 'WAITING':
+            title_str = f'Full games waiting to start'
+            game_list = models.Game.waiting_to_start(guild_id=ctx.guild.id)
+        elif len(args) == 0:
+            title_str = f'Current open games'
+            game_list = models.Game.select().where(
+                (models.Game.is_pending == 1) & (models.Game.guild_id == ctx.guild.id)
+            )
         else:
-            title_str = 'All current matches'
-            # match_list = models.Match.active_list(guild_id=ctx.guild.id)
-            match_list = models.Match.search(guild_id=ctx.guild.id, player=None, search=None, status=None)
+            return await ctx.send(f'Syntax error. Example usage:\n{syntax}')
 
-        title_str_full = title_str + f'\nUse `{ctx.prefix}joinmatch M#` to join one or `{ctx.prefix}match M#` for more details.'
-        matchlist_fields = [(f'`{"ID":<8}{"Host":<40} {"Type":<7} {"Capacity":<7} {"Exp":>4}`', '\u200b')]
+        title_str_full = title_str + f'\nUse `{ctx.prefix}joingame #` to join one or `{ctx.prefix}game #` for more details.'
+        gamelist_fields = [(f'`{"ID":<8}{"Host":<40} {"Type":<7} {"Capacity":<7} {"Exp":>4}`', '\u200b')]
 
-        for match in match_list:
+        for game in game_list:
 
-            notes_str = match.notes if match.notes else "\u200b"
-            players, capacity = match.capacity()
+            notes_str = game.notes if game.notes else "\u200b"
+            players, capacity = game.capacity()
             capacity_str = f' {players}/{capacity}'
-            expiration = int((match.expiration - datetime.datetime.now()).total_seconds() / 3600.0)
+            expiration = int((game.expiration - datetime.datetime.now()).total_seconds() / 3600.0)
             expiration = 'Exp' if expiration < 0 else f'{expiration}H'
 
-            matchlist_fields.append((f'`{"M"f"{match.id}":<8}{match.host.name:<40} {match.size_string():<7} {capacity_str:<7} {expiration:>5}`',
+            gamelist_fields.append((f'`{f"{game.id}":<8}{game.host.name:<40} {game.size_string():<7} {capacity_str:<7} {expiration:>5}`',
                 notes_str))
 
-        self.bot.loop.create_task(utilities.paginate(self.bot, ctx, title=title_str_full, message_list=matchlist_fields, page_start=0, page_end=15, page_size=15))
+        self.bot.loop.create_task(utilities.paginate(self.bot, ctx, title=title_str_full, message_list=gamelist_fields, page_start=0, page_end=15, page_size=15))
         # paginator done as a task because otherwise it will not let the waitlist message send until after pagination is complete (20+ seconds)
 
-        waitlist = [f'M{m.id}' for m in models.Match.waiting_to_start(guild_id=ctx.guild.id, host_discord_id=ctx.author.id)]
+        waitlist = [f'{g.id}' for g in models.Game.waiting_to_start(guild_id=ctx.guild.id, host_discord_id=ctx.author.id)]
         if ctx.guild.id != settings.server_ids['polychampions']:
             await asyncio.sleep(1)
             await ctx.send('Powered by PolyChampions. League server with a focus on team play:\n'
@@ -389,7 +358,7 @@ class matchmaking():
         if waitlist:
             await asyncio.sleep(1)
             await ctx.send(f'You have full matches waiting to start: **{", ".join(waitlist)}**\n'
-                f'Type `{ctx.prefix}match M#` for more details.')
+                f'Type `{ctx.prefix}game #` for more details.')
 
     # @settings.in_bot_channel()
     @commands.command(aliases=['startgame'], usage='match_id Name of Poly Game')

@@ -545,6 +545,14 @@ class Game(BaseModel):
 
     def size_string(self):
 
+        if self.is_pending:
+            # use capacity for matchmaking strings
+            if max(s.size for s in self.gamesides) and len(self.gamesides) > 2:
+                return 'FFA'
+            else:
+                return 'v'.join(str(s.size) for s in self.gamesides)
+
+        # this might be superfluous, combined Match and Game functions together
         if self.largest_team() == 1 and len(self.gamesides) > 2:
             return 'FFA'
         else:
@@ -1036,6 +1044,22 @@ class Game(BaseModel):
                 (GameSide.id.in_(subq)) & (GameSide.game.is_pending == 1)
             ).group_by(GameSide.game).order_by(GameSide.game)
 
+        return q
+
+    def waiting_to_start(guild_id: int, host_discord_id: int = None):
+        # Open games that are full and still pending
+
+        if host_discord_id:
+            q = Game.select().join(Player).join(DiscordMember).where(
+                (Game.id.not_in(Game.subq_open_games_with_capacity())) &
+                (Game.host.discord_member.discord_id == host_discord_id) &
+                (Game.is_pending == 1) &
+                (Game.guild_id == guild_id)
+            )
+        else:
+            q = Game.select().where(
+                (Game.id.not_in(Game.subq_open_games_with_capacity())) & (Game.is_pending == 1) & (Game.guild_id == guild_id)
+            )
         return q
 
     def purge_expired_games():
