@@ -321,7 +321,8 @@ class matchmaking():
             title_str = f'Current open games with available spots'
             game_list = models.Game.select().where(
                 (models.Game.id.in_(models.Game.subq_open_games_with_capacity())) & (models.Game.is_pending == 1) & (models.Game.guild_id == ctx.guild.id)
-            )
+            ).order_by(-models.Game.id).prefetch(models.GameSide)
+
         elif len(args) > 0 and args[0].upper() == 'WAITING':
             title_str = f'Full games waiting to start'
             game_list = models.Game.waiting_to_start(guild_id=ctx.guild.id)
@@ -497,24 +498,26 @@ class matchmaking():
                 if not chan:
                     continue
 
-                models.Match.purge_expired_matches()
-                match_list = models.Match.search(guild_id=chan.guild.id, status=1)[:12]
-                if not match_list:
+                models.Game.purge_expired_games()
+                game_list = models.Game.select().where(
+                    (models.Game.id.in_(models.Game.subq_open_games_with_capacity())) & (models.Game.is_pending == 1) & (models.Game.guild_id == chan.guild.id)
+                ).order_by(-models.Game.id).prefetch(models.GameSide)[:12]
+                if not game_list:
                     continue
 
                 pfx = settings.guild_setting(chan.guild.id, 'command_prefix')
-                embed = discord.Embed(title='Recent open matches\n'
-                    f'Use `{pfx}joinmatch M#` to join one or `{pfx}match M#` for more details.')
+                embed = discord.Embed(title='Recent open games\n'
+                    f'Use `{pfx}joingame #` to join one or `{pfx}game #` for more details.')
                 embed.add_field(name=f'`{"ID":<8}{"Host":<40} {"Type":<7} {"Capacity":<7} {"Exp":>4}`', value='\u200b', inline=False)
-                for match in match_list:
+                for game in game_list:
 
-                    notes_str = match.notes if match.notes else "\u200b"
-                    players, capacity = match.capacity()
+                    notes_str = game.notes if game.notes else "\u200b"
+                    players, capacity = game.capacity()
                     capacity_str = f' {players}/{capacity}'
-                    expiration = int((match.expiration - datetime.datetime.now()).total_seconds() / 3600.0)
+                    expiration = int((game.expiration - datetime.datetime.now()).total_seconds() / 3600.0)
                     expiration = 'Exp' if expiration < 0 else f'{expiration}H'
 
-                    embed.add_field(name=f'`{"M"f"{match.id}":<8}{match.host.name:<40} {match.size_string():<7} {capacity_str:<7} {expiration:>5}`', value=notes_str)
+                    embed.add_field(name=f'`{game.id:<8}{game.host.name:<40} {game.size_string():<7} {capacity_str:<7} {expiration:>5}`', value=notes_str)
 
                 await chan.send(embed=embed)
 
