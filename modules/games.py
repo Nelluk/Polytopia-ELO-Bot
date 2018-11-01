@@ -773,8 +773,8 @@ class games():
 
         if len(player_groups) < 2:
             return await ctx.send(f'Invalid format. {example_usage}')
-        if total_players > 2 and (not settings.is_power_user(ctx)) and ctx.guild.id != settings.server_ids['polychampions']:
-            return await ctx.send('You only have permissions to create 1v1 games. More active server members can create larger games.')
+        if total_players > 4 and (not settings.is_power_user(ctx)) and ctx.guild.id != settings.server_ids['polychampions']:
+            return await ctx.send('You only have permissions to create games of up to 4 players. More active server members can create larger games.')
 
         if total_players > 12:
             return await ctx.send(f'You cannot have more than twelve players.')
