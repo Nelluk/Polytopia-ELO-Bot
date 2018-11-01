@@ -87,9 +87,9 @@ async def create_squad_channel(ctx, game, team_name, player_list):
 async def greet_squad_channel(ctx, chan, player_list, roster_names, game):
     chan_mentions = [ctx.guild.get_member(p.discord_member.discord_id).mention for p in player_list]
 
-    if game.match:
-        notes = f'\n**Notes:** {game.match[0].notes}' if game.match[0].notes else ''
-        match_content = f'Matchmaking **M{game.match[0].id}**{notes}\n\n'
+    if game.host or game.notes:
+        match_content = f'Game hosted by **{game.host.name}**\n' if game.host else ''
+        match_content = match_content + f'**Notes:** {game.notes}' if game.notes else match_content
     else:
         match_content = ''
     try:

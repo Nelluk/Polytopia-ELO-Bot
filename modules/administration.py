@@ -72,27 +72,6 @@ class administration:
         else:
             return await ctx.send(f'Game {game.id} does not have a confirmed winner.')
 
-    @commands.command(usage='game_id', aliases=['delete_game'])
-    @settings.is_mod_check()
-    async def deletegame(self, ctx, game: PolyGame):
-        """*Mod*: Deletes a game and reverts ELO changes"""
-
-        if game.winner:
-            await ctx.send(f'Deleting game with ID {game.id} and re-calculating ELO for all subsequent games. This will take a few seconds.')
-
-        if game.announcement_message:
-            game.name = f'~~{game.name}~~ GAME DELETED'
-            await game.update_announcement(ctx)
-
-        await game.delete_squad_channels(ctx)
-
-        async with ctx.typing():
-            gid = game.id
-            await self.bot.loop.run_in_executor(None, game.delete_game)
-            # Allows bot to remain responsive while this large operation is running.
-            # Can result in funky behavior especially if another operation tries to close DB connection, but seems to still get this operation done reliably
-            await ctx.send(f'Game with ID {gid} has been deleted and team/player ELO changes have been reverted, if applicable.')
-
     @commands.command(aliases=['settribes'], usage='game_id player_name tribe_name [player2 tribe2 ... ]')
     async def settribe(self, ctx, game: PolyGame, *args):
         """*Staff:* Set tribe of a player for a game

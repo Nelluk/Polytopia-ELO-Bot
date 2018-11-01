@@ -820,6 +820,12 @@ class games():
 
         with db.atomic():
             newgame = Game.create_game(discord_groups, name=game_name, guild_id=ctx.guild.id, require_teams=settings.guild_setting(ctx.guild.id, 'require_teams'))
+            host_player, _ = Player.get_by_discord_id(discord_id=ctx.author.id, guild_id=ctx.guild.id)
+            if host_player:
+                newgame.host = host_player
+                newgame.save()
+            else:
+                logger.error('Could not add host for newgame')
 
             await post_newgame_messaging(ctx, game=newgame)
 
@@ -849,6 +855,9 @@ class games():
                 return await ctx.send(f'Game with ID {winning_game.id} is already marked as completed with winner **{winning_game.winner.name()}**')
             elif winning_game.winner != winning_side:
                 await ctx.send(f'Warning: Unconfirmed game with ID {winning_game.id} had previously been marked with winner **{winning_game.winner.name()}**')
+
+        if winning_game.is_pending:
+            return await ctx.send(f'This game has not started yet.')
 
         if settings.is_staff(ctx):
             confirm_win = True
@@ -895,17 +904,53 @@ class games():
                 logger.critical(f'Possibly ELO bug in result from {winning_game.id}')
                 await ctx.send(f'Alert for <@{settings.owner_id}>, result of last completed game may be incorrect')
 
+    @commands.command(usage='game_id', aliases=['delete_game', 'delgame', 'delmatch'])
+    async def deletegame(self, ctx, game: PolyGame):
+        """Deletes a game
+
+        You can delete a game if you are the host and is has not started yet.
+        Mods can delete completed games which will reverse any ELO changes they caused.
+        **Example:**
+        `[p]deletegame 25`
+        """
+
+        if game.is_pending:
+            is_hosted_by, host = game.is_hosted_by(ctx.author.id)
+            if not is_hosted_by and not settings.is_staff(ctx):
+                host_name = f' **{host.name}**' if host else ''
+                return await ctx.send(f'Only the game host{host_name} or server staff can do this.')
+            game.delete_game()
+            return await ctx.send(f'Deleting open game {game.id}')
+
+        if game.winner:
+            await ctx.send(f'Deleting game with ID {game.id} and re-calculating ELO for all subsequent games. This will take a few seconds.')
+
+        if game.announcement_message:
+            game.name = f'~~{game.name}~~ GAME DELETED'
+            await game.update_announcement(ctx)
+
+        await game.delete_squad_channels(ctx)
+
+        async with ctx.typing():
+            gid = game.id
+            await self.bot.loop.run_in_executor(None, game.delete_game)
+            # Allows bot to remain responsive while this large operation is running.
+            # Can result in funky behavior especially if another operation tries to close DB connection, but seems to still get this operation done reliably
+            await ctx.send(f'Game with ID {gid} has been deleted and team/player ELO changes have been reverted, if applicable.')
+
     @commands.command(aliases=['namegame', 'gamename'], usage='game_id "New Name"')
     async def rename(self, ctx, game: PolyGame = None, *args):
         """Renames an existing game (due to restarts)
 
-        You can rename a game for which you hosted the original matchmaking session.
+        You can rename a game for which you are the host
         **Example:**
         `[p]gamename 25 Mountains of Fire`
         """
 
         if not game:
             return await ctx.send(f'No game ID supplied')
+        if game.is_pending:
+            await ctx.send(f'This game has not started yet.')
 
         is_hosted_by, host = game.is_hosted_by(ctx.author.id)
         if not is_hosted_by and not settings.is_staff(ctx):

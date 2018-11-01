@@ -21,17 +21,17 @@ class PolyMatch(commands.Converter):
         with models.db:
             try:
                 match = models.Game.get(id=match_id)
-                logger.debug(f'Match with ID {match_id} found.')
+                logger.debug(f'Game with ID {match_id} found.')
 
                 if match.guild_id != ctx.guild.id:
-                    await ctx.send(f'Match with ID {match_id} cannot be found on this server. Use {ctx.prefix}listmatches to see available matches.')
+                    await ctx.send(f'Game with ID {match_id} cannot be found on this server. Use {ctx.prefix}opengames to see available matches.')
                     raise commands.UserInputError()
                 return match
             except peewee.DoesNotExist:
-                await ctx.send(f'Match with ID {match_id} cannot be found. Use {ctx.prefix}listmatches to see available matches.')
+                await ctx.send(f'Game with ID {match_id} cannot be found. Use {ctx.prefix}opengames to see available matches.')
                 raise commands.UserInputError()
             except ValueError:
-                await ctx.send(f'Invalid Match ID "{match_id}".')
+                await ctx.send(f'Invalid Game ID "{match_id}".')
                 raise commands.UserInputError()
 
 
@@ -121,7 +121,8 @@ class matchmaking():
                 models.GameSide.create(game=opengame, size=size, position=count + 1)
 
             models.Lineup.create(player=host, game=opengame, gameside=opengame.gamesides[0])
-        await ctx.send(f'Starting new open game ID {opengame.id}. Size: {team_size_str}. Expiration: {expiration_hours} hours.\nNotes: *{notes_str}*')
+        await ctx.send(f'Starting new open game ID {opengame.id}. Size: {team_size_str}. Expiration: {expiration_hours} hours.\nNotes: *{notes_str}*\n'
+            f'Other players can join this game with `{ctx.prefix}join {opengame.id}`.')
 
     @commands.command(aliases=['matchside'], usage='match_id side_number Side Name')
     async def gameside(self, ctx, game: PolyMatch, side_lookup: str, *, args):
@@ -263,7 +264,7 @@ class matchmaking():
             game.notes = notes[:100] if notes else None
         else:
             # Preserve original notes and indicate they've been edited, if game is in progress
-            old_notes_redacted = f'{"~~" + old_notes + "~~"} ' if old_notes else ''
+            old_notes_redacted = f'{"~~" + old_notes.replace("~", "") + "~~"} ' if old_notes else ''
             game.notes = f'{old_notes_redacted}{notes[:100]}' if notes else old_notes_redacted
         game.save()
 
@@ -306,13 +307,13 @@ class matchmaking():
         List current open games
 
         Full games will still be listed until the host starts or deletes them with `[p]startgame` / `[p]deletegame`
-        Add **OPEN** or **FULL** to command to filter by open/full matches
+
         **Example:**
-        `[p]opengames` - List all unexpired open games
+        `[p]opengames` - List all unexpired games that haven't started yet
         `[p]opengames open` - List all open games that still have openings
         `[p]opengames waiting` - Lists open games that are full but not yet started
         """
-        syntax = (f'`{ctx.prefix}opengames` - List all unexpired open games\n'
+        syntax = (f'`{ctx.prefix}opengames` - List all unexpired games that haven\'t started yet\n'
                   f'`{ctx.prefix}opengames open` - List all open games that still have openings\n'
                   f'`{ctx.prefix}opengames waiting` - Lists open games that are full but not yet started')
         models.Game.purge_expired_games()

@@ -489,6 +489,8 @@ class Game(BaseModel):
         return picks
 
     def embed(self, ctx):
+        if self.is_pending:
+            return self.embed_pending_game(ctx)
 
         embed = discord.Embed(title=f'{self.get_headline()} — *{self.size_string()}*'[:255])
 
@@ -537,9 +539,9 @@ class Game(BaseModel):
                     embed.add_field(name=f'__**{player.name}**__ {tribe_emoji}', value=f'ELO: {player_elo_str}', inline=True)
             use_separator = True
 
-        if self.match:
-            notes = f'\n**Notes:** {self.match[0].notes}' if self.match[0].notes else ''
-            embed_content = f'Matchmaking **M{self.match[0].id}**{notes}'
+        if self.host or self.notes:
+            embed_content = f'Game hosted by **{self.host.name}**\n' if self.host else ''
+            embed_content = embed_content + f'**Notes:** {self.notes}' if self.notes else embed_content
         else:
             embed_content = None
 
@@ -591,13 +593,13 @@ class Game(BaseModel):
         embed.add_field(name='Notes', value=notes_str, inline=False)
         embed.add_field(name='\u200b', value='\u200b', inline=False)
 
-        for side in self.sides:
+        for side in self.gamesides:
             # TODO: this wont print in side.position order if they have been saved() in odd order after creation
-            side_name = ': **' + side.name + '**' if side.name else ''
+            side_name = ': **' + side.sidename + '**' if side.sidename else ''
             side_capacity = side.capacity()
             capacity += side_capacity[1]
             player_list = []
-            for gameplayer in side.lineup():
+            for gameplayer in side.lineup:
                 players += 1
                 player_list.append(f'**{gameplayer.player.name}** ({gameplayer.player.elo})\n{gameplayer.player.discord_member.polytopia_id}')
             player_str = '\u200b' if not player_list else '\n'.join(player_list)
@@ -1042,7 +1044,8 @@ class Game(BaseModel):
                 Game.id.in_(victory_subq)
             ) & (
                 Game.id.in_(guild_filter)
-            )
+            ) & (
+                Game.is_pending == 0)
         ).order_by(-Game.date).prefetch(GameSide, Team, Lineup, Player)
 
         return game
