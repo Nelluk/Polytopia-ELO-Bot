@@ -1418,7 +1418,7 @@ class Match(BaseModel):
         return picks
 
     def size_string(self):
-        if max(s.size for s in self.sides) and len(self.sides) > 2:
+        if max(s.size for s in self.sides) == 1 and len(self.sides) > 2:
             return 'FFA'
         else:
             return 'v'.join(str(s.size) for s in self.sides)
