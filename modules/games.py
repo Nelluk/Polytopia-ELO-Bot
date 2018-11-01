@@ -975,7 +975,7 @@ def parse_players_and_teams(input_list, guild_id: int):
             input_list.remove(arg)
         else:
             players = Player.string_matches(arg, guild_id)
-            if len(players) == 1:
+            if len(players) > 0:
                 player_matches.append(players[0])
                 input_list.remove(arg)
 
