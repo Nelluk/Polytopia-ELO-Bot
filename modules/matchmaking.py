@@ -299,24 +299,9 @@ class matchmaking():
         lineup.delete_instance()
         await ctx.send(f'Removing {target.name} from the game.')
 
-    @commands.command(aliases=['deletematch'], usage='match_id')
-    async def delmatch(self, ctx, match: PolyMatch):
-        """Deletes a match that you host
-        Staff can also delete any match.
-        **Example:**
-        `[p]delmatch M25`
-        """
-        if match.is_hosted_by(ctx.author.id)[0] or settings.is_staff(ctx):
-            # User is deleting their own match, or user has a staff role
-            await ctx.send(f'Deleting match M{match.id}')
-            match.delete_instance()
-            return
-        else:
-            return await ctx.send(f'You only have permission to delete your own matches.')
-
     # @settings.in_bot_channel()
-    @commands.command(aliases=['listmatches', 'matchlist', 'openmatches', 'listmatch', 'match'])
-    async def matches(self, ctx, *args):
+    @commands.command(aliases=['listmatches', 'matchlist', 'openmatches', 'listmatch', 'match', 'matches'])
+    async def opengames(self, ctx, *args):
         """
         List current matches, with filtering options.
         Full matches will still be listed until the host starts or deletes them with `[p]startmatch` / `[p]delmatch`

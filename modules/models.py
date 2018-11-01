@@ -1018,6 +1018,43 @@ class Game(BaseModel):
 
         return None, False
 
+    def subq_open_games_with_capacity(guild_id: int = None):
+        # All games that have open capacity
+        # not restricted by expiration
+
+        # Subq: MatchSides with openings
+        subq = GameSide.select(GameSide.id).join(Lineup, JOIN.LEFT_OUTER).group_by(GameSide.id, GameSide.size).having(
+            fn.COUNT(Lineup.id) < GameSide.size)
+
+        if guild_id:
+            q = GameSide.select(GameSide.game).join(Game).where(
+                (GameSide.id.in_(subq)) & (GameSide.game.guild_id == guild_id) & (GameSide.game.is_pending == 1)
+            ).group_by(GameSide.game).order_by(GameSide.game)
+
+        else:
+            q = GameSide.select(GameSide.game).join(Game).where(
+                (GameSide.id.in_(subq)) & (GameSide.game.is_pending == 1)
+            ).group_by(GameSide.game).order_by(GameSide.game)
+
+        return q
+
+    def purge_expired_games():
+
+        # Full matches that expired more than 3 days ago (ie. host has 3 days to start match before it vanishes)
+        purge_deadline = (datetime.datetime.now() + datetime.timedelta(days=-3))
+
+        delete_query = Game.delete().where(
+            (Game.expiration < purge_deadline) & (Game.is_pending == 1)
+        )
+
+        # Expired matches that never became full
+        delete_query2 = Game.delete().where(
+            (Game.expiration < datetime.datetime.now()) & (Game.id.in_(Game.subq_open_games_with_capacity())) & (Game.is_pending == 1)
+        )
+
+        logger.info(f'purge_expired_games #1: Purged {delete_query.execute()}  games.')
+        logger.info(f'purge_expired_games #2: Purged {delete_query2.execute()}  games.')
+
 
 class Squad(BaseModel):
     elo = SmallIntegerField(default=1000)
