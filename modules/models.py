@@ -547,7 +547,7 @@ class Game(BaseModel):
 
         if self.is_pending:
             # use capacity for matchmaking strings
-            if max(s.size for s in self.gamesides) and len(self.gamesides) > 2:
+            if max(s.size for s in self.gamesides) == 1 and len(self.gamesides) > 2:
                 return 'FFA'
             else:
                 return 'v'.join(str(s.size) for s in self.gamesides)
