@@ -10,8 +10,7 @@ import logging
 
 logger = logging.getLogger('polybot.' + __name__)
 
-# db = PostgresqlDatabase(settings.psql_db, user=settings.psql_user)
-db = PostgresqlDatabase('polytopia_dev2', user=settings.psql_user)
+db = PostgresqlDatabase(settings.psql_db, user=settings.psql_user)
 
 
 def tomorrow():
@@ -593,8 +592,7 @@ class Game(BaseModel):
         embed.add_field(name='Notes', value=notes_str, inline=False)
         embed.add_field(name='\u200b', value='\u200b', inline=False)
 
-        for side in self.gamesides:
-            # TODO: this wont print in side.position order if they have been saved() in odd order after creation
+        for side in GameSide.select().where(GameSide.game == self).order_by(GameSide.position).prefetch(Lineup, Player):
             side_name = ': **' + side.sidename + '**' if side.sidename else ''
             side_capacity = side.capacity()
             capacity += side_capacity[1]

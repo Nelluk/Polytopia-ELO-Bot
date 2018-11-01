@@ -65,8 +65,8 @@ class games():
         embed = discord.Embed(title=f'PolyELO Bot Guide', url='https://discord.gg/cX7Ptnv', description=bot_desc)
 
         embed.add_field(name='Matchmaking',
-            value=f'This helps players organize and arrange games.\nFor example, use __`{ctx.prefix}openmatch 1v1`__ to create an open 1v1 matchmaking session.\n'
-                f'To see a list of open matches you can join use __`{ctx.prefix}openmatches`__. Once the match is full the host would use __`{ctx.prefix}startmatch`__ to track it in the bot as an ELO game.\n'
+            value=f'This helps players organize and arrange games.\nFor example, use __`{ctx.prefix}opengame 1v1`__ to create an open 1v1 game that others can join.\n'
+                f'To see a list of open games you can join use __`{ctx.prefix}opengames`__. Once the game is full the host would use __`{ctx.prefix}startgame`__ to close it and track it for the leaderboards.\n'
                 f'See __`{ctx.prefix}help matchmaking`__ for all commands.')
 
         embed.add_field(name='ELO Leaderboards',
