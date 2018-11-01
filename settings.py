@@ -68,7 +68,7 @@ config = {'default':
                       'mod_roles': ['MOD', 'Manager'],
                       'require_teams': False,
                       'allow_teams': False,
-                      'max_team_size': 2,
+                      'max_team_size': 1,
                       'command_prefix': '$',
                       'include_in_global_lb': True,
                       'bot_channels': [396069729657421824, 403724174532673536, 418175357137453058],
