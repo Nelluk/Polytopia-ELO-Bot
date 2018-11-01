@@ -401,7 +401,7 @@ class Game(BaseModel):
         roster_names = ' -vs- '.join([' '.join(side) for side in game_roster])
         # yields a string like 'Player1 Player2 -vs- Player3 Player4'
 
-        for gameside in self.gameside:
+        for gameside in self.gamesides:
             player_list = [r[0] for r in gameside.roster()]
             if len(player_list) < 2:
                 continue
@@ -576,13 +576,13 @@ class Game(BaseModel):
             raise DoesNotExist()
         return res[0]
 
-    def create_game(discord_groups, guild_id, name: str = None, require_teams: bool = False):
+    def pregame_check(discord_groups, guild_id, require_teams: bool = False):
         # discord_groups = list of lists [[d1, d2, d3], [d4, d5, d6]]. each item being a discord.Member object
-
-        generic_teams_short = [('Home', ':stadium:'), ('Away', ':airplane:')]  # For two-team games
-        generic_teams_long = [('Sharks', ':shark:'), ('Owls', ':owl:'), ('Eagles', ':eagle:'), ('Tigers', ':tiger:'),
-                              ('Bears', ':bear:'), ('Koalas', ':koala:'), ('Dogs', ':dog:'), ('Bats', ':bat:'),
-                              ('Lions', ':lion:'), ('Cats', ':cat:'), ('Birds', ':bird:'), ('Spiders', ':spider:')]
+        # returns (ListOfLists1, List2)
+        # ListOfLists1 represents one Server Team for each discord member in [[discord_groups]], or None if they arent in one
+        # List2 represents Team that each discord_group will be playing for in a game, based on whether the groups are homogeneous and server settings
+        # ie discord_groups input = [[nelluk, bakalol], [rickdaheals, jonathan]]
+        # returns ([[Ronin, Ronin], [Jets, Jets]], [Ronin, Jets])
 
         list_of_detected_teams, list_of_final_teams, teams_for_each_discord_member = [], [], []
         intermingled_flag = False
@@ -615,14 +615,21 @@ class Game(BaseModel):
         else:
             # Use Generic Teams
             if len(discord_groups) == 2:
-                generic_teams = generic_teams_short
+                generic_teams = settings.generic_teams_short
             else:
-                generic_teams = generic_teams_long
+                generic_teams = settings.generic_teams_long
 
             for count in range(len(discord_groups)):
                 team_obj, created = Team.get_or_create(name=generic_teams[count][0], guild_id=guild_id,
                                                        defaults={'emoji': generic_teams[count][1], 'is_hidden': True})
                 list_of_final_teams.append(team_obj)
+
+        return (teams_for_each_discord_member, list_of_final_teams)
+
+    def create_game(discord_groups, guild_id, name: str = None, require_teams: bool = False):
+        # discord_groups = list of lists [[d1, d2, d3], [d4, d5, d6]]. each item being a discord.Member object
+
+        teams_for_each_discord_member, list_of_final_teams = Game.pregame_check(discord_groups, guild_id, require_teams)
 
         with db.atomic():
             newgame = Game.create(name=name.strip('\"').strip('\'').title()[:35],
@@ -668,7 +675,7 @@ class Game(BaseModel):
                 lineup.elo_change_discordmember = 0
             lineup.save()
 
-        for gameside in self.gameside:
+        for gameside in self.gamesides:
             if gameside.elo_change_squad and gameside.squad:
                 print(f'pre-revision - squad: {gameside.squad.elo}')
                 gameside.squad.elo += (gameside.elo_change_squad * -1)

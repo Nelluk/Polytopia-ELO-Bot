@@ -361,50 +361,66 @@ class matchmaking():
                 f'Type `{ctx.prefix}game #` for more details.')
 
     # @settings.in_bot_channel()
-    @commands.command(aliases=['startgame'], usage='match_id Name of Poly Game')
-    async def startmatch(self, ctx, match: PolyMatch, *, name: str = None):
+    @commands.command(aliases=['startmatch'], usage='game_id Name of Poly Game')
+    async def startgame(self, ctx, game: PolyMatch, *, name: str = None):
         """
-        Start a full match and track the game for ELO
+        Start a full game and track it for ELO
         Use this command after you have created the game in Polytopia.
-        The matchmaking session will be converted into a game and get a new ID.
         **Example:**
-        `[p]startmatch M5 Fields of Fire`
+        `[p]startgame 100 Fields of Fire`
         """
 
-        if not match.is_hosted_by(ctx.author.id)[0] and not settings.is_staff(ctx):
+        if not game.is_hosted_by(ctx.author.id)[0] and not settings.is_staff(ctx):
             return await ctx.send(f'Only the match host or server staff can do this.')
 
         if not name:
-            return await ctx.send(f'Game name is required. Example: `{ctx.prefix}startmatch M{match.id} Name of Game`')
+            return await ctx.send(f'Game name is required. Example: `{ctx.prefix}startgame {game.id} Name of Game`')
 
-        if match.is_started:
-            return await ctx.send(f'Match M{match.id} has already started{" with game # " +  str(match.game.id) if match.game else ""}.')
+        if not game.is_pending:
+            return await ctx.send(f'Game {game.id} has already started with name **{game.name}**')
 
-        players, capacity = match.capacity()
+        players, capacity = game.capacity()
         if players != capacity:
-            return await ctx.send(f'Match M{match.id} is not full.\nCapacity {players}/{capacity}.')
+            return await ctx.send(f'Game {game.id} is not full.\nCapacity {players}/{capacity}.')
 
-        teams, mentions = [], []
+        sides, mentions = [], []
 
-        for side in match.sides:
+        for side in game.gamesides:
             # TODO: This won't necessarily respect side ordering
-            team = []
-            for matchplayer in side.sideplayers:
-                guild_member = ctx.guild.get_member(matchplayer.player.discord_member.discord_id)
+            current_side = []
+            for gameplayer in side.lineup:
+                guild_member = ctx.guild.get_member(gameplayer.player.discord_member.discord_id)
                 if not guild_member:
-                    return await ctx.send(f'Player *{matchplayer.player.name}* not found on this server. (Maybe they left?)')
-                team.append(guild_member)
+                    return await ctx.send(f'Player *{gameplayer.player.name}* not found on this server. (Maybe they left?)')
+                current_side.append(guild_member)
                 mentions.append(guild_member.mention)
-            teams.append(team)
+            sides.append(current_side)
 
-        newgame = models.Game.create_game(teams,
-            name=name, guild_id=ctx.guild.id,
-            require_teams=settings.guild_setting(ctx.guild.id, 'require_teams'))
-        logger.info(f'Match M{match.id} started as ELO game {newgame.id}')
-        match.is_started = True
-        match.game = newgame
-        match.save()
-        await post_newgame_messaging(ctx, game=newgame)
+        teams_for_each_discord_member, list_of_final_teams = models.Game.pregame_check(discord_groups=sides,
+                                                                guild_id=ctx.guild.id,
+                                                                require_teams=settings.guild_setting(ctx.guild.id, 'require_teams'))
+
+        with models.db.atomic():
+            # Convert game from pending matchmaking session to in-progress game
+            for team_group, allied_team, side in zip(teams_for_each_discord_member, list_of_final_teams, game.gamesides):
+                side_players = []
+                for team, lineup in zip(team_group, side.lineup):
+                    lineup.team = team
+                    lineup.save()
+                    side_players.append(lineup.player)
+
+                if len(side_players) > 1:
+                    squad = models.Squad.upsert(player_list=side_players, guild_id=ctx.guild.id)
+                    side.squad = squad
+
+                side.team = allied_team
+                side.save()
+
+            game.is_pending = False
+            game.save()
+
+        logger.info(f'Game {game.id} closed and being tracked for ELO')
+        await post_newgame_messaging(ctx, game=game)
 
     @commands.command(aliases=['rtribes', 'rtribe'], usage='game_size [-banned_tribe ...]')
     async def random_tribes(self, ctx, size='1v1', *args):
