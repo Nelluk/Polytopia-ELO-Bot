@@ -394,7 +394,7 @@ class Game(BaseModel):
 
     def __setattr__(self, name, value):
         if name == 'name':
-            value = value.strip('\"').strip('\'').title()[:35]
+            value = value.strip('\"').strip('\'').title()[:35] if value else value
         return super().__setattr__(name, value)
 
     async def create_squad_channels(self, ctx):
@@ -905,10 +905,11 @@ class Game(BaseModel):
     def player(self, player: Player = None, discord_id: int = None, name: str = None):
         # return game.lineup, based on either Player object or discord_id. else None
 
-        try:
-            discord_id = int(name.strip('<>!@'))
-        except ValueError:
-            pass
+        if name:
+            try:
+                discord_id = int(name.strip('<>!@'))
+            except ValueError:
+                pass
 
         if player:
             discord_id = player.discord_member.discord_id
@@ -917,10 +918,12 @@ class Game(BaseModel):
             return None
 
         for l in self.lineup:
-            if discord_id and l.player.discord_member.discord_id == int(discord_id):
-                return l
-            if name and name.upper() in l.player.name.upper():
-                return l
+            if discord_id:
+                if l.player.discord_member.discord_id == int(discord_id):
+                    return l
+            else:
+                if name and name.upper() in l.player.name.upper():
+                    return l
         return None
 
     def capacity(self):
