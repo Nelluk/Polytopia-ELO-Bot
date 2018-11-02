@@ -983,9 +983,6 @@ async def post_newgame_messaging(ctx, game):
 
     mentions_list = [f'<@{l.player.discord_member.discord_id}>' for l in game.lineup]
 
-    if settings.guild_setting(ctx.guild.id, 'game_channel_category') is not None:
-            await game.create_squad_channels(ctx)
-
     embed, content = game.embed(ctx)
 
     if settings.guild_setting(ctx.guild.id, 'game_announce_channel') is not None:
@@ -1000,6 +997,9 @@ async def post_newgame_messaging(ctx, game):
             return
     await ctx.send(f'New game ID {game.id} started! Roster: {" ".join(mentions_list)}')
     await ctx.send(embed=embed, content=content)
+
+    if settings.guild_setting(ctx.guild.id, 'game_channel_category') is not None:
+            await game.create_squad_channels(ctx)
 
 
 def parse_players_and_teams(input_list, guild_id: int):
