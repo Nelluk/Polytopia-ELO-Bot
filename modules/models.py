@@ -1230,12 +1230,12 @@ class Squad(BaseModel):
 
         if min_games <= 0:
             # Squads who at least have one in progress game
-            return SquadGame.select(SquadGame.squad).join(Game).where(Game.is_pending == 0).group_by(
-                SquadGame.squad
+            return GameSide.select(GameSide.squad).join(Game).where(Game.is_pending == 0).group_by(
+                GameSide.squad
             ).having(fn.COUNT('*') >= min_games)
 
-        return SquadGame.select(SquadGame.squad).join(Game).where(Game.is_completed == 1).group_by(
-            SquadGame.squad
+        return GameSide.select(GameSide.squad).join(Game).where(Game.is_completed == 1).group_by(
+            GameSide.squad
         ).having(fn.COUNT('*') >= min_games)
 
     def leaderboard_rank(self, date_cutoff):
