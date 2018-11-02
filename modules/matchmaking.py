@@ -301,7 +301,7 @@ class matchmaking():
         await ctx.send(f'Removing {target.name} from the game.')
 
     # @settings.in_bot_channel()
-    @commands.command(aliases=['listmatches', 'matchlist', 'openmatches', 'listmatch', 'match', 'matches'])
+    @commands.command(aliases=['listmatches', 'matchlist', 'openmatches', 'listmatch', 'matches'])
     async def opengames(self, ctx, *args):
         """
         List current open games
