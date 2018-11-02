@@ -392,6 +392,11 @@ class Game(BaseModel):
     notes = TextField(null=True)
     is_pending = BooleanField(default=False)
 
+    def __setattr__(self, name, value):
+        if name == 'name':
+            value = value.strip('\"').strip('\'').title()[:35]
+        return super().__setattr__(name, value)
+
     async def create_squad_channels(self, ctx):
         game_roster = []
         for gameside in self.gamesides:
@@ -716,7 +721,7 @@ class Game(BaseModel):
         teams_for_each_discord_member, list_of_final_teams = Game.pregame_check(discord_groups, guild_id, require_teams)
 
         with db.atomic():
-            newgame = Game.create(name=name.strip('\"').strip('\'').title()[:35],
+            newgame = Game.create(name=name,
                                   guild_id=guild_id)
 
             side_position = 1

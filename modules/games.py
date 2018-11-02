@@ -952,7 +952,7 @@ class elo_games():
 
         new_game_name = ' '.join(args)
         old_game_name = game.name
-        game.name = new_game_name.strip('\"').strip('\'').title()[:35]
+        game.name = new_game_name
 
         game.save()
 
