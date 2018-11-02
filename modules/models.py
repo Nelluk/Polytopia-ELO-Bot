@@ -404,6 +404,8 @@ class Game(BaseModel):
             player_list = [r[0] for r in gameside.roster()]
             if len(player_list) < 2:
                 continue
+            print(gameside.team)
+            print(gameside.id)
             chan = await channels.create_squad_channel(ctx, game=self, team_name=gameside.team.name, player_list=player_list)
             if chan:
                 gameside.team_chan = chan.id
@@ -1119,7 +1121,7 @@ class Game(BaseModel):
             print(side)
             if side_num and side.position == side_num:
                 return (side, bool(len(side.lineup) < side.size))
-            if side_name and side.name and len(side_name) > 2 and side_name.upper() in side.sidename.upper():
+            if side_name and side.sidename and len(side_name) > 2 and side_name.upper() in side.sidename.upper():
                 return (side, bool(len(side.lineup) < side.size))
 
         return None, False

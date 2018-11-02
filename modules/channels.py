@@ -12,6 +12,7 @@ logger = logging.getLogger('polybot.' + __name__)
 def generate_channel_name(game_id, game_name, team_name):
     # Turns game named 'The Mountain of Fire' to something like #e41-mountain-of-fire_ronin
 
+    print(f'gn {game_name} tn {team_name}')
     game_team = f'{game_name.replace("the ","").replace("The ","")}_{team_name.replace("the ","").replace("The ","")}'
 
     if game_name.lower()[:2] == 's3' or game_name.lower()[:2] == 's4':

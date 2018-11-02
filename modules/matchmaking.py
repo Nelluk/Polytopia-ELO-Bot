@@ -414,6 +414,7 @@ class matchmaking():
                 side.team = allied_team
                 side.save()
 
+            game.name = name
             game.is_pending = False
             game.save()
 
