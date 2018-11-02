@@ -285,20 +285,16 @@ class matchmaking():
         if not game.is_pending:
             return await ctx.send(f'Game {game.id} has already started.')
 
-        try:
-            target = models.Player.get_or_except(player_string=player, guild_id=ctx.guild.id)
-        except exceptions.NoSingleMatch:
-            return await ctx.send(f'Could not match "{player}" to an ELO player.')
+        lineup = game.player(name=player)
 
-        if target.discord_member.discord_id == ctx.author.id:
+        if not lineup:
+            return await ctx.send(f'Could not find a match for **{player}** in game {game.id}.')
+
+        if lineup.player.discord_member.discord_id == ctx.author.id:
             return await ctx.send('Stop kicking yourself!')
 
-        lineup = game.player(player=target)
-        if not lineup:
-            return await ctx.send(f'{target.name} is not a member of game {game.id}')
-
+        await ctx.send(f'Removing **{lineup.player.name}** from the game.')
         lineup.delete_instance()
-        await ctx.send(f'Removing {target.name} from the game.')
 
     # @settings.in_bot_channel()
     @commands.command(aliases=['listmatches', 'matchlist', 'openmatches', 'listmatch', 'matches'])

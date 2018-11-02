@@ -83,8 +83,6 @@ class administration:
         if len(args) % 2 != 0:
             return await ctx.send(f'Wrong number of arguments. See `{ctx.prefix}help settribe` for usage examples.')
 
-        lineups = models.Lineup.select(models.Lineup, models.Player).join(models.Player).where(models.Lineup.game == game)
-
         for i in range(0, len(args), 2):
             # iterate over args two at a time
             player_name = args[i]
@@ -95,11 +93,7 @@ class administration:
                 await ctx.send(f'Matching Tribe not found matching "{tribe_name}". Check spelling or be more specific.')
                 continue
 
-            lineup_match = None
-            for lineup in lineups:
-                if player_name.upper() in lineup.player.name.upper():
-                    lineup_match = lineup
-                    break
+            lineup_match = game.player(name=player_name)
 
             if not lineup_match:
                 await ctx.send(f'Matching player not found in game {game.id} matching "{player_name}". Check spelling or be more specific. @Mentions are not supported here.')
