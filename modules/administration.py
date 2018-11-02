@@ -44,6 +44,31 @@ class administration:
         await post_win_messaging(ctx, winning_game)
 
     @commands.command(usage='game_id')
+    async def unstart(self, ctx, game: PolyGame = None):
+        """ *Staff*: Resets an in progress game to a pending matchmaking sesson
+
+         **Examples**
+        `[p]unstart 50`
+        """
+
+        if game is None:
+            return await ctx.send(f'No matching game was found.')
+        if game.is_completed or game.is_confirmed:
+            return await ctx.send(f'Game {game.id} is marked as completed already.')
+        if game.is_pending:
+            return await ctx.send(f'Game {game.id} is already a pending matchmaking session.')
+
+        if game.announcement_message:
+            game.name = f'~~{game.name}~~ GAME CANCELLED'
+            await game.update_announcement(ctx)
+
+        await game.delete_squad_channels(ctx)
+
+        game.is_pending = True
+        game.save()
+        return await ctx.send(f'Game {game.id} is now an open game and no longer in progress.')
+
+    @commands.command(usage='game_id')
     async def unwin(self, ctx, game: PolyGame = None):
         """ *Staff*: Reset a completed game to incomplete
         Reverts ELO changes from the completed game and any subsequent completed game.
