@@ -413,7 +413,7 @@ class Game(BaseModel):
 
     async def delete_squad_channels(self, ctx):
 
-        if self.name.lower()[:2] == 's3' or self.name.lower()[:2] == 's4' or self.name.lower()[:2] == 's5':
+        if self.name and (self.name.lower()[:2] == 's3' or self.name.lower()[:2] == 's4' or self.name.lower()[:2] == 's5'):
             return logger.warn(f'Skipping team channel deletion for game {self.id} {self.name} since it is a Season game')
 
         for gameside in self.gamesides:

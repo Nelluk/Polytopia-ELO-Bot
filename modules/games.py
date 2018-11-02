@@ -510,7 +510,7 @@ class games():
         await ctx.send(f'Player {player_target.name} updated in system with Polytopia name {new_name}.')
 
     @settings.in_bot_channel()
-    @commands.command(aliases=['games'], usage='game_id')
+    @commands.command(aliases=['games', 'match'], usage='game_id')
     async def game(self, ctx, *args):
 
         """See a game's details, or list all games for various player/team combinations
@@ -743,13 +743,6 @@ class games():
         example_usage = (f'Example usage:\n`{ctx.prefix}newgame "Name of Game" player1 player2 VS player3 player4` - Start a 2v2 game\n'
                          f'`{ctx.prefix}newgame "Name of Game" player2` - Start a 1v1 with yourself and player2')
 
-        waitlist = [f'M{m.id}' for m in Match.waiting_to_start(guild_id=ctx.guild.id, host_discord_id=ctx.author.id)]
-
-        if waitlist and not settings.is_staff(ctx):
-            return await ctx.send(f'You have matches waiting to be started as games: **{", ".join(waitlist)}**\n'
-                f'Type `{ctx.prefix}match M#` for more details or if the game is created start it with `{ctx.prefix}startmatch M# Name of Game`.\n'
-                f'The `{ctx.prefix}{ctx.invoked_with}` command is for creating a game that had no matchmaking session.')
-
         if not game_name:
             return await ctx.send(f'Invalid format. {example_usage}')
         if not args:
@@ -867,7 +860,7 @@ class games():
             if not has_player:
                 return await ctx.send(f'You were not a participant in this game.')
 
-            if len(winning_game.squads) == 2:
+            if len(winning_game.gamesides) == 2:
                 if winning_side == author_side:
                     # Author declaring their side won
                     await ctx.send(f'Game {winning_game.id} concluded pending confirmation of winner **{winning_obj.name}**\n'
@@ -879,7 +872,7 @@ class games():
                     confirm_win = True
             else:
                 # Game with more than two teams - staff confirmation required. Possibly improve later so that every team can unanimously confirm
-                await ctx.send(f'Since this is a {len(winning_game.squads)}-team game, staff confirmation is required.')
+                await ctx.send(f'Since this is a {len(winning_game.gamesides)}-team game, staff confirmation is required.')
                 confirm_win = False
 
                 # Automatically inform staff of needed confirmation if game_request_channel is enabled
