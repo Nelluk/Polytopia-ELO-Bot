@@ -717,7 +717,7 @@ class Game(BaseModel):
             newgame = Game.create(name=name.strip('\"').strip('\'').title()[:35],
                                   guild_id=guild_id)
 
-            # print(discord_groups)
+            side_position = 1
             for team_group, allied_team, discord_group in zip(teams_for_each_discord_member, list_of_final_teams, discord_groups):
                 # team_group is each team that the individual discord.Member is associated with on the server, often None
                 # allied_team is the team that this entire group is playing for in this game. Either a Server Team or Generic. Never None.
@@ -737,7 +737,8 @@ class Game(BaseModel):
                 else:
                     squad = None
 
-                gameside = GameSide.create(game=newgame, squad=squad, team=allied_team)
+                gameside = GameSide.create(game=newgame, squad=squad, team=allied_team, position=side_position)
+                side_position = side_position + 1
 
                 # Create Lineup records
                 for player in player_group:
