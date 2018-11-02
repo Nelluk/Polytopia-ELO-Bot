@@ -37,7 +37,7 @@ class PolyMatch(commands.Converter):
 
 class matchmaking():
     """
-    Helps players find other players.
+    Host open and find open games.
     """
 
     def __init__(self, bot):
