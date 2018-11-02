@@ -920,7 +920,7 @@ class Game(BaseModel):
 
         matches = []
         for gameside in self.gamesides:
-            if len(gamesides.lineup) == 1:
+            if len(gameside.lineup) == 1:
                 try:
                     p_id = int(name.strip('<>!@'))
                 except ValueError:
