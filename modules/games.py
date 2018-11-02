@@ -4,7 +4,7 @@ import modules.utilities as utilities
 import settings
 import modules.exceptions as exceptions
 import peewee
-from modules.models import Game, db, Player, Team, DiscordMember, Squad, GameSide, Match
+from modules.models import Game, db, Player, Team, DiscordMember, Squad, GameSide
 import logging
 from itertools import groupby
 
@@ -31,7 +31,7 @@ class PolyGame(commands.Converter):
             return game
 
 
-class games():
+class elo_games():
 
     def __init__(self, bot):
         self.bot = bot
@@ -1022,4 +1022,4 @@ def parse_players_and_teams(input_list, guild_id: int):
 
 
 def setup(bot):
-    bot.add_cog(games(bot))
+    bot.add_cog(elo_games(bot))
