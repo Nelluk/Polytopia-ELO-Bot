@@ -118,7 +118,7 @@ class DiscordMember(BaseModel):
     def completed_game_count(self):
 
         num_games = Lineup.select().join(Player).join_from(Lineup, Game).where(
-            (Lineup.game.is_completed == 1) & (Lineup.player.discord_member == self)
+            (Lineup.game.is_completed == 1) & (Lineup.game.is_ranked == 1) & (Lineup.player.discord_member == self)
         ).count()
 
         return num_games
@@ -315,7 +315,7 @@ class Player(BaseModel):
     def completed_game_count(self):
 
         num_games = Lineup.select().join(Game).where(
-            (Lineup.game.is_completed == 1) & (Lineup.player == self)
+            (Lineup.game.is_completed == 1) & (Lineup.game.is_ranked == 1) & (Lineup.player == self)
         ).count()
 
         return num_games
