@@ -360,7 +360,7 @@ class matchmaking():
                 '<https://tinyurl.com/polychampions>')
         if waitlist:
             await asyncio.sleep(1)
-            await ctx.send(f'You have full matches waiting to start: **{", ".join(waitlist)}**\n'
+            await ctx.send(f'You have full games waiting to start: **{", ".join(waitlist)}**\n'
                 f'Type `{ctx.prefix}game #` for more details.')
 
     # @settings.in_bot_channel()
