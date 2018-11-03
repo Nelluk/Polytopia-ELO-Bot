@@ -129,7 +129,7 @@ class elo_games():
         await ctx.send('Request has been logged')
 
     @settings.in_bot_channel()
-    @commands.command()
+    @commands.command(aliases=['leaderboard', 'leaderboards'])
     @commands.cooldown(2, 30, commands.BucketType.channel)
     async def lb(self, ctx):
         """ Display individual leaderboard"""
@@ -148,6 +148,26 @@ class elo_games():
                 'Supporting up to 6-player team ELO games and automatic team channels. - <https://tinyurl.com/polychampions>')
             # link put behind url shortener to not show big invite embed
         await utilities.paginate(self.bot, ctx, title='**Individual Leaderboards**', message_list=leaderboard, page_start=0, page_end=10, page_size=10)
+
+    @settings.in_bot_channel()
+    @commands.command(aliases=['leaderboardglobal'])
+    @commands.cooldown(2, 30, commands.BucketType.channel)
+    async def lbg(self, ctx):
+        """ Display global leaderboard"""
+
+        leaderboard = []
+        leaderboard_query = DiscordMember.leaderboard(date_cutoff=settings.date_cutoff)
+        for counter, d_player in enumerate(leaderboard_query[:500]):
+            wins, losses = d_player.get_record()
+            leaderboard.append(
+                (f'{(counter + 1):>3}. {d_player.name}', f'`(ELO: {d_player.elo:4}) W {wins} / L {losses}`')
+            )
+
+        if ctx.guild.id != settings.server_ids['polychampions']:
+            await ctx.send('Powered by PolyChampions. League server with a team focus and competitive players.\n'
+                'Supporting up to 6-player team ELO games and automatic team channels. - <https://tinyurl.com/polychampions>')
+            # link put behind url shortener to not show big invite embed
+        await utilities.paginate(self.bot, ctx, title='**Global Leaderboards**', message_list=leaderboard, page_start=0, page_end=10, page_size=10)
 
     @settings.in_bot_channel()
     @settings.teams_allowed()

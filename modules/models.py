@@ -96,6 +96,25 @@ class DiscordMember(BaseModel):
     polytopia_id = TextField(null=True)
     polytopia_name = TextField(null=True)
 
+    def wins(self):
+
+        q = Lineup.select().join(Game).join_from(Lineup, GameSide).join_from(Lineup, Player).where(
+            (Lineup.game.is_completed == 1) & (Lineup.player.discord_member == self) & (Game.winner == Lineup.gameside.id)
+        )
+
+        return q
+
+    def losses(self):
+        q = Lineup.select().join(Game).join_from(Lineup, GameSide).join_from(Lineup, Player).where(
+            (Lineup.game.is_completed == 1) & (Lineup.player.discord_member == self) & (Game.winner != Lineup.gameside.id)
+        )
+
+        return q
+
+    def get_record(self):
+
+        return (self.wins().count(), self.losses().count())
+
     def completed_game_count(self):
 
         num_games = Lineup.select().join(Player).join_from(Lineup, Game).where(
