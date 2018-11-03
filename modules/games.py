@@ -150,10 +150,10 @@ class elo_games():
         await utilities.paginate(self.bot, ctx, title='**Individual Leaderboards**', message_list=leaderboard, page_start=0, page_end=10, page_size=10)
 
     @settings.in_bot_channel()
-    @commands.command(aliases=['leaderboardglobal'])
+    @commands.command(aliases=['leaderboardglobal', 'lbg', 'globallb'])
     @commands.cooldown(2, 30, commands.BucketType.channel)
-    async def lbg(self, ctx):
-        """ Display global leaderboard"""
+    async def lbglobal(self, ctx):
+        """ Display global individual leaderboard"""
 
         leaderboard = []
         leaderboard_query = DiscordMember.leaderboard(date_cutoff=settings.date_cutoff)
@@ -565,6 +565,7 @@ class elo_games():
             query = Game.search(status_filter=0, guild_id=ctx.guild.id)
             list_name = f'All games ({len(query)})'
             game_list = utilities.summarize_game_list(query[:500])
+            results_str = 'All games'
         else:
             if not target_list:
                 # Target is person issuing command
@@ -913,8 +914,8 @@ class elo_games():
         if confirm_win:
             # Cleanup game channels and announce winners
             await post_win_messaging(ctx, winning_game)
-            if winning_game.gamesides[0].lineup[0].elo_change_player == 0 or winning_game.gamesides[1].lineup[0].elo_change_player == 0:
-                logger.critical(f'Possibly ELO bug in result from {winning_game.id}')
+            if winning_game.is_ranked and (winning_game.gamesides[0].lineup[0].elo_change_player == 0 or winning_game.gamesides[1].lineup[0].elo_change_player == 0):
+                logger.critical(f'Possible ELO bug in result from {winning_game.id}')
                 await ctx.send(f'Alert for <@{settings.owner_id}>, result of last completed game may be incorrect')
 
     @commands.command(usage='game_id', aliases=['delete_game', 'delgame', 'delmatch'])

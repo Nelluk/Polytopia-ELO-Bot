@@ -56,11 +56,12 @@ class matchmaking():
 
         **Examples:**
         `[p]opengame 1v1`
-        `[p]opengame 2v2 48h`  (Expires in 48 hours)
+        `[p]opengame 1v1 48h`  (Expires in 48 hours)
+        `[p]opengame 1v1 unranked`  (Add word *unranked* to have game not count for ELO)
         `[p]opengame 2v2 Large map, no bardur`  (Adds a note to the game)
         """
 
-        team_size = False
+        team_size, is_ranked = False, True
         expiration_hours = 24
         note_args = []
 
@@ -98,6 +99,9 @@ class matchmaking():
                     return await ctx.send(f'Invalid expiration {arg}. Must be between 1H and 96H (One hour through four days).')
                 expiration_hours = int(m[1])
                 continue
+            if arg.lower() == 'unranked':
+                is_ranked = False
+                continue
             note_args.append(arg)
 
         if not team_size:
@@ -116,12 +120,12 @@ class matchmaking():
         expiration_timestamp = (datetime.datetime.now() + datetime.timedelta(hours=expiration_hours)).strftime("%Y-%m-%d %H:%M:%S")
 
         with models.db.atomic():
-            opengame = models.Game.create(host=host, expiration=expiration_timestamp, notes=game_notes, guild_id=ctx.guild.id, is_pending=True)
+            opengame = models.Game.create(host=host, expiration=expiration_timestamp, notes=game_notes, guild_id=ctx.guild.id, is_pending=True, is_ranked=is_ranked)
             for count, size in enumerate(team_sizes):
                 models.GameSide.create(game=opengame, size=size, position=count + 1)
 
             models.Lineup.create(player=host, game=opengame, gameside=opengame.gamesides[0])
-        await ctx.send(f'Starting new open game ID {opengame.id}. Size: {team_size_str}. Expiration: {expiration_hours} hours.\nNotes: *{notes_str}*\n'
+        await ctx.send(f'Starting new {"unranked " if not is_ranked else ""}open game ID {opengame.id}. Size: {team_size_str}. Expiration: {expiration_hours} hours.\nNotes: *{notes_str}*\n'
             f'Other players can join this game with `{ctx.prefix}join {opengame.id}`.')
 
     @commands.command(aliases=['matchside'], usage='match_id side_number Side Name')
@@ -332,7 +336,7 @@ class matchmaking():
             return await ctx.send(f'Syntax error. Example usage:\n{syntax}')
 
         title_str_full = title_str + f'\nUse `{ctx.prefix}joingame #` to join one or `{ctx.prefix}game #` for more details.'
-        gamelist_fields = [(f'`{"ID":<8}{"Host":<40} {"Type":<7} {"Capacity":<7} {"Exp":>4}`', '\u200b')]
+        gamelist_fields = [(f'`{"ID":<8}{"Host":<40} {"Type":<7} {"Capacity":<7} {"Exp":>4}` ', '\u200b')]
 
         for game in game_list:
 
@@ -341,8 +345,9 @@ class matchmaking():
             capacity_str = f' {players}/{capacity}'
             expiration = int((game.expiration - datetime.datetime.now()).total_seconds() / 3600.0)
             expiration = 'Exp' if expiration < 0 else f'{expiration}H'
+            ranked = ' ' if game.is_ranked else 'U'
 
-            gamelist_fields.append((f'`{f"{game.id}":<8}{game.host.name:<40} {game.size_string():<7} {capacity_str:<7} {expiration:>5}`',
+            gamelist_fields.append((f'`{f"{game.id}":<8}{game.host.name:<40} {game.size_string():<7} {capacity_str:<7} {expiration:>5} {ranked}`',
                 notes_str))
 
         self.bot.loop.create_task(utilities.paginate(self.bot, ctx, title=title_str_full, message_list=gamelist_fields, page_start=0, page_end=15, page_size=15))
@@ -506,7 +511,7 @@ class matchmaking():
                 pfx = settings.guild_setting(chan.guild.id, 'command_prefix')
                 embed = discord.Embed(title='Recent open games\n'
                     f'Use `{pfx}joingame #` to join one or `{pfx}game #` for more details.')
-                embed.add_field(name=f'`{"ID":<8}{"Host":<40} {"Type":<7} {"Capacity":<7} {"Exp":>4}`', value='\u200b', inline=False)
+                embed.add_field(name=f'`{"ID":<8}{"Host":<40} {"Type":<7} {"Capacity":<7} {"Exp":>4} `', value='\u200b', inline=False)
                 for game in game_list:
 
                     notes_str = game.notes if game.notes else "\u200b"
@@ -514,8 +519,9 @@ class matchmaking():
                     capacity_str = f' {players}/{capacity}'
                     expiration = int((game.expiration - datetime.datetime.now()).total_seconds() / 3600.0)
                     expiration = 'Exp' if expiration < 0 else f'{expiration}H'
+                    ranked = ' ' if game.is_ranked else 'U'
 
-                    embed.add_field(name=f'`{game.id:<8}{game.host.name:<40} {game.size_string():<7} {capacity_str:<7} {expiration:>5}`', value=notes_str)
+                    embed.add_field(name=f'`{game.id:<8}{game.host.name:<40} {game.size_string():<7} {capacity_str:<7} {expiration:>5} {ranked}`', value=notes_str)
 
                 await chan.send(embed=embed)
 

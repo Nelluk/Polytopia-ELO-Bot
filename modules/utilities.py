@@ -59,9 +59,10 @@ def summarize_game_list(games_query):
             else:
                 status_str = f'**WINNER:** {game.winner.name()}'
 
+        rank_str = 'Unranked - ' if not game.is_ranked else ''
         game_list.append((
             f'{game.get_headline()}'[:255],
-            f'{(str(game.date))} - {game.size_string()} - {status_str}'
+            f'{(str(game.date))} - {rank_str}{game.size_string()} - {status_str}'
         ))
     return game_list
 

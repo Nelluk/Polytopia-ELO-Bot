@@ -444,6 +444,7 @@ class Game(BaseModel):
     expiration = DateTimeField(null=True, default=tomorrow)  # For pending/matchmaking status
     notes = TextField(null=True)
     is_pending = BooleanField(default=False)
+    is_ranked = BooleanField(default=True)
 
     def __setattr__(self, name, value):
         if name == 'name':
@@ -548,8 +549,8 @@ class Game(BaseModel):
     def embed(self, ctx):
         if self.is_pending:
             return self.embed_pending_game(ctx)
-
-        embed = discord.Embed(title=f'{self.get_headline()} — *{self.size_string()}*'[:255])
+        ranked_str = '' if self.is_ranked else 'Unranked — '
+        embed = discord.Embed(title=f'{self.get_headline()} — {ranked_str}*{self.size_string()}*'[:255])
 
         if self.is_completed == 1:
             embed.title += f'\n\nWINNER: {self.winner.name()}'
@@ -618,7 +619,8 @@ class Game(BaseModel):
         return embed, embed_content
 
     def embed_pending_game(self, ctx):
-        embed = discord.Embed(title=f'**Open Game {self.id}**\n{self.size_string()} *hosted by* {self.host.name}')
+        ranked_str = 'Unranked ' if not self.is_ranked else ''
+        embed = discord.Embed(title=f'**{ranked_str}Open Game {self.id}**\n{self.size_string()} *hosted by* {self.host.name}')
         notes_str = self.notes if self.notes else "\u200b"
         content_str = None
 
@@ -889,43 +891,46 @@ class Game(BaseModel):
 
         if confirm is True:
             self.is_confirmed = True
-            largest_side = self.largest_team()
-            smallest_side = min(len(gameside.lineup) for gameside in self.gamesides)
+            if self.is_ranked:
+                # run elo calculations for player, discordmember, team, squad
 
-            side_elos = [s.average_elo() for s in self.gamesides]
-            side_elos_discord = [s.average_elo(by_discord_member=True) for s in self.gamesides]
-            team_elos = [s.team.elo if s.team else None for s in self.gamesides]
-            squad_elos = [s.squad.elo if s.squad else None for s in self.gamesides]
+                largest_side = self.largest_team()
+                smallest_side = min(len(gameside.lineup) for gameside in self.gamesides)
 
-            side_win_chances = Game.get_side_win_chances(largest_side, self.gamesides, side_elos)
-            side_win_chances_discord = Game.get_side_win_chances(largest_side, self.gamesides, side_elos_discord)
+                side_elos = [s.average_elo() for s in self.gamesides]
+                side_elos_discord = [s.average_elo(by_discord_member=True) for s in self.gamesides]
+                team_elos = [s.team.elo if s.team else None for s in self.gamesides]
+                squad_elos = [s.squad.elo if s.squad else None for s in self.gamesides]
 
-            if smallest_side > 1:
-                if None not in team_elos:
-                    team_win_chances = Game.get_side_win_chances(largest_side, self.gamesides, team_elos)
+                side_win_chances = Game.get_side_win_chances(largest_side, self.gamesides, side_elos)
+                side_win_chances_discord = Game.get_side_win_chances(largest_side, self.gamesides, side_elos_discord)
+
+                if smallest_side > 1:
+                    if None not in team_elos:
+                        team_win_chances = Game.get_side_win_chances(largest_side, self.gamesides, team_elos)
+                    else:
+                        team_win_chances = None
+
+                    if None not in squad_elos:
+                        squad_win_chances = Game.get_side_win_chances(largest_side, self.gamesides, squad_elos)
+                    else:
+                        squad_win_chances = None
                 else:
-                    team_win_chances = None
+                    team_win_chances, squad_win_chances = None, None
 
-                if None not in squad_elos:
-                    squad_win_chances = Game.get_side_win_chances(largest_side, self.gamesides, squad_elos)
-                else:
-                    squad_win_chances = None
-            else:
-                team_win_chances, squad_win_chances = None, None
+                for i in range(len(self.gamesides)):
+                    side = self.gamesides[i]
+                    is_winner = True if side == winning_side else False
+                    for p in side.lineup:
+                        p.change_elo_after_game(side_win_chances[i], is_winner)
+                        p.change_elo_after_game(side_win_chances_discord[i], is_winner, by_discord_member=True)
 
-            for i in range(len(self.gamesides)):
-                side = self.gamesides[i]
-                is_winner = True if side == winning_side else False
-                for p in side.lineup:
-                    p.change_elo_after_game(side_win_chances[i], is_winner)
-                    p.change_elo_after_game(side_win_chances_discord[i], is_winner, by_discord_member=True)
+                    if team_win_chances:
+                        side.elo_change_team = side.team.change_elo_after_game(team_win_chances[i], is_winner)
+                    if squad_win_chances:
+                        side.elo_change_squad = side.squad.change_elo_after_game(squad_win_chances[i], is_winner)
 
-                if team_win_chances:
-                    side.elo_change_team = side.team.change_elo_after_game(team_win_chances[i], is_winner)
-                if squad_win_chances:
-                    side.elo_change_squad = side.squad.change_elo_after_game(squad_win_chances[i], is_winner)
-
-                side.save()
+                    side.save()
 
         self.winner = winning_side
         self.is_completed = True
