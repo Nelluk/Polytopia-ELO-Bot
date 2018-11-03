@@ -158,7 +158,7 @@ def is_staff(ctx):
     return len(target_match) > 0
 
 
-def is_mod(ctx):
+async def is_mod(ctx):
 
     if ctx.author.id == owner_id:
         return True
