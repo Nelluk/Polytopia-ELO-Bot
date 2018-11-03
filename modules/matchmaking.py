@@ -73,6 +73,13 @@ class matchmaking():
             # Matching guild member but no Player or DiscordMember
             return await ctx.send(f'You must be a registered player before hosting a match. Try `{ctx.prefix}setcode POLYCODE`')
 
+        if settings.guild_setting(ctx.guild.id, 'require_teams'):
+            print('here')
+            _, list_of_teams = models.Player.get_teams_of_players(guild_id=ctx.guild.id, list_of_players=[ctx.author])
+            print(list_of_teams)
+            if not list_of_teams or None in list_of_teams:
+                return await ctx.send(f'You must join a Team in order to participate in games on this server.')
+
         # if models.Match.select().where(
         if models.Game.select().where(
             (models.Game.host == host) & (models.Game.is_pending == 1)
@@ -207,6 +214,11 @@ class matchmaking():
             return await ctx.send(f'There is more than one player found with name "{target}". Specify user with @Mention.')
         if len(guild_matches) == 0:
             return await ctx.send(f'Could not find \"{target}\" on this server.')
+
+        if settings.guild_setting(ctx.guild.id, 'require_teams'):
+            _, list_of_teams = models.Player.get_teams_of_players(guild_id=ctx.guild.id, list_of_players=guild_matches)
+            if not list_of_teams or None in list_of_teams:
+                return await ctx.send(f'**{guild_matches[0].name}** must join a Team in order to participate in games on this server.')
 
         player, _ = models.Player.get_by_discord_id(discord_id=guild_matches[0].id, discord_name=guild_matches[0].name, discord_nick=guild_matches[0].nick, guild_id=ctx.guild.id)
         if not player:

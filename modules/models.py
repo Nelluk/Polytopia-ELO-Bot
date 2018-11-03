@@ -222,7 +222,7 @@ class Player(BaseModel):
         list_of_matching_teams = []
         for player in list_of_players:
             matching_roles = get_matching_roles(player, list_of_teams)
-            if len(matching_roles) == 1:
+            if len(matching_roles) > 0:
                 # TODO: This would be more efficient to do as one query and then looping over the list of teams one time for each player
                 name = next(iter(matching_roles))
                 list_of_matching_teams.append(
@@ -232,7 +232,7 @@ class Player(BaseModel):
                 )
             else:
                 list_of_matching_teams.append(None)
-                # Would be here if no player Roles match any known teams, -or- if they have more than one match
+                # Would be here if no player Roles match any known teams
 
         same_team_flag = True if all(x == list_of_matching_teams[0] for x in list_of_matching_teams) else False
         return same_team_flag, list_of_matching_teams
