@@ -237,6 +237,12 @@ class Player(BaseModel):
         same_team_flag = True if all(x == list_of_matching_teams[0] for x in list_of_matching_teams) else False
         return same_team_flag, list_of_matching_teams
 
+    def is_in_team(guild_id, discord_member):
+        _, list_of_teams = Player.get_teams_of_players(guild_id=guild_id, list_of_players=[discord_member])
+        if not list_of_teams or None in list_of_teams:
+            return False
+        return True
+
     def string_matches(player_string: str, guild_id: int):
         # Returns QuerySet containing players in current guild matching string. Searches against discord mention ID first, then exact discord name match,
         # then falls back to substring match on name/nick, then a lastly a substring match of polytopia ID or polytopia in-game name
