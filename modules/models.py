@@ -56,7 +56,6 @@ class Team(BaseModel):
         return num_games
 
     def change_elo_after_game(self, chance_of_winning: float, is_winner: bool):
-        print(f'Team CoW: {chance_of_winning}')
         if self.completed_game_count() < 11:
             max_elo_delta = 50
         else:
@@ -96,6 +95,41 @@ class DiscordMember(BaseModel):
     elo = SmallIntegerField(default=1000)
     polytopia_id = TextField(null=True)
     polytopia_name = TextField(null=True)
+
+    def completed_game_count(self):
+
+        num_games = Lineup.select().join(Player).join_from(Lineup, Game).where(
+            (Lineup.game.is_completed == 1) & (Lineup.player.discord_member == self)
+        ).count()
+
+        return num_games
+
+    def leaderboard_rank(self, date_cutoff):
+        # TODO: This could be replaced with Postgresql Window functions to have the DB calculate the rank.
+        # Advantages: Probably moderately more efficient, and will resolve ties in a sensible way
+        # But no idea how to write the query :/
+
+        query = DiscordMember.leaderboard(date_cutoff=date_cutoff)
+
+        is_found = False
+        for counter, p in enumerate(query.tuples()):
+            if p[0] == self.id:
+                is_found = True
+                break
+
+        rank = counter + 1 if is_found else None
+        return (rank, query.count())
+
+    def leaderboard(date_cutoff):
+        query = DiscordMember.select().join(Player).join(Lineup).join(Game).where(
+            (Game.is_completed == 1) & (Game.date > date_cutoff)
+        ).distinct().order_by(-DiscordMember.elo)
+
+        if query.count() < 10:
+            # Include all registered players on leaderboard if not many games played
+            query = DiscordMember.select().order_by(-DiscordMember.elo)
+
+        return query
 
 
 class Player(BaseModel):
@@ -409,8 +443,6 @@ class Game(BaseModel):
             player_list = [r[0] for r in gameside.roster()]
             if len(player_list) < 2:
                 continue
-            print(gameside.team)
-            print(gameside.id)
             chan = await channels.create_squad_channel(ctx, game=self, team_name=gameside.team.name, player_list=player_list)
             if chan:
                 gameside.team_chan = chan.id
@@ -730,9 +762,7 @@ class Game(BaseModel):
                 # allied_team is the team that this entire group is playing for in this game. Either a Server Team or Generic. Never None.
 
                 player_group = []
-                # print('dg', len(team_group), len(discord_group), discord_group)
                 for team, discord_member in zip(team_group, discord_group):
-                    # print(team, discord_member)
                     # Upsert each discord.Member into a Player database object
                     player_group.append(
                         Player.upsert(discord_id=discord_member.id, discord_name=discord_member.name, discord_nick=discord_member.nick, guild_id=guild_id, team=team)[0]
@@ -755,11 +785,9 @@ class Game(BaseModel):
 
     def reverse_elo_changes(self):
         for lineup in self.lineup:
-            print(f'game {self.id} pre-revision - player: {lineup.player.elo}')
             lineup.player.elo += lineup.elo_change_player * -1
             lineup.player.save()
             lineup.elo_change_player = 0
-            print(f'post-revision - player: {lineup.player.elo}')
             if lineup.elo_change_discordmember:
                 lineup.player.discord_member.elo += lineup.elo_change_discordmember * -1
                 lineup.elo_change_discordmember = 0
@@ -767,18 +795,14 @@ class Game(BaseModel):
 
         for gameside in self.gamesides:
             if gameside.elo_change_squad and gameside.squad:
-                print(f'pre-revision - squad: {gameside.squad.elo}')
                 gameside.squad.elo += (gameside.elo_change_squad * -1)
                 gameside.squad.save()
                 gameside.elo_change_squad = 0
-                print(f'post-revision - squad: {gameside.squad.elo}')
 
             if gameside.elo_change_team and gameside.team:
-                print(f'pre-revision - team: {gameside.team.elo}')
                 gameside.team.elo += (gameside.elo_change_team * -1)
                 gameside.team.save()
                 gameside.elo_change_team = 0
-                print(f'post-revision - team: {gameside.team.elo}')
 
             gameside.save()
 
@@ -809,7 +833,6 @@ class Game(BaseModel):
 
     def get_side_win_chances(largest_team: int, gameside_list, gameside_elo_list):
         n = len(gameside_list)
-        print(gameside_elo_list)
 
         # Adjust team elos when the amount of players on each team
         # is imbalanced, e.g. 1v2. It changes nothing when sizes are equal
@@ -838,7 +861,6 @@ class Game(BaseModel):
             win_chance = round(side_win_chance_unnorm / normalization_factor, 3)
             win_chance_list.append(win_chance)
 
-        print(win_chance_list)
         return win_chance_list
 
     def declare_winner(self, winning_side: 'GameSide', confirm: bool):
@@ -852,10 +874,12 @@ class Game(BaseModel):
             smallest_side = min(len(gameside.lineup) for gameside in self.gamesides)
 
             side_elos = [s.average_elo() for s in self.gamesides]
+            side_elos_discord = [s.average_elo(by_discord_member=True) for s in self.gamesides]
             team_elos = [s.team.elo if s.team else None for s in self.gamesides]
             squad_elos = [s.squad.elo if s.squad else None for s in self.gamesides]
 
             side_win_chances = Game.get_side_win_chances(largest_side, self.gamesides, side_elos)
+            side_win_chances_discord = Game.get_side_win_chances(largest_side, self.gamesides, side_elos_discord)
 
             if smallest_side > 1:
                 if None not in team_elos:
@@ -875,6 +899,7 @@ class Game(BaseModel):
                 is_winner = True if side == winning_side else False
                 for p in side.lineup:
                     p.change_elo_after_game(side_win_chances[i], is_winner)
+                    p.change_elo_after_game(side_win_chances_discord[i], is_winner, by_discord_member=True)
 
                 if team_win_chances:
                     side.elo_change_team = side.team.change_elo_after_game(team_win_chances[i], is_winner)
@@ -1126,7 +1151,6 @@ class Game(BaseModel):
             side_name = lookup
 
         for side in self.gamesides:
-            print(side)
             if side_num and side.position == side_num:
                 return (side, bool(len(side.lineup) < side.size))
             if side_name and side.sidename and len(side_name) > 2 and side_name.upper() in side.sidename.upper():
@@ -1214,7 +1238,6 @@ class Squad(BaseModel):
         return num_games
 
     def change_elo_after_game(self, chance_of_winning: float, is_winner: bool):
-        print(f'Squad CoW: {chance_of_winning}')
         if self.completed_game_count() < 6:
             max_elo_delta = 50
         else:
@@ -1375,8 +1398,12 @@ class GameSide(BaseModel):
 
         return (team_elo_str, squad_elo_str)
 
-    def average_elo(self):
-        elo_list = [l.player.elo for l in self.lineup]
+    def average_elo(self, by_discord_member: bool = False):
+        if by_discord_member is True:
+            elo_list = [l.player.discord_member.elo for l in self.lineup]
+        else:
+            elo_list = [l.player.elo for l in self.lineup]
+
         return int(round(sum(elo_list) / len(elo_list)))
 
     def adjusted_elo(self, missing_players: int, own_elo: int, opponent_elos: int):
@@ -1431,14 +1458,21 @@ class Lineup(BaseModel):
     elo_change_player = SmallIntegerField(default=0)
     elo_change_discordmember = SmallIntegerField(default=0)
 
-    def change_elo_after_game(self, chance_of_winning: float, is_winner: bool):
+    def change_elo_after_game(self, chance_of_winning: float, is_winner: bool, by_discord_member: bool = False):
         # Average(Away Side Elo) is compared to Average(Home_Side_Elo) for calculation - ie all members on a side will have the same elo_delta
         # Team A: p1 900 elo, p2 1000 elo = 950 average
         # Team B: p1 1000 elo, p2 1200 elo = 1100 average
         # ELO is compared 950 vs 1100 and all players treated equally
 
-        print(f'Player CoW: {chance_of_winning}')
-        num_games = self.player.completed_game_count()
+        if by_discord_member is True:
+            if not settings.guild_setting(self.game.guild_id, 'include_in_global_lb'):
+                logger.info(f'Skipping ELO change by discord member because {self.game.guild_id} is set to be excluded.')
+                return
+            num_games = self.player.discord_member.completed_game_count()
+            elo = self.player.discord_member.elo
+        else:
+            num_games = self.player.completed_game_count()
+            elo = self.player.elo
 
         if num_games < 6:
             max_elo_delta = 75
@@ -1452,17 +1486,23 @@ class Lineup(BaseModel):
         else:
             elo_delta = int(round((max_elo_delta * (0 - chance_of_winning)), 0))
 
-        elo_boost = .60 * ((1200 - max(min(self.player.elo, 1200), 900)) / 300)  # 60% boost to delta at elo 900, gradually shifts to 0% boost at 1200 ELO
+        elo_boost = .60 * ((1200 - max(min(elo, 1200), 900)) / 300)  # 60% boost to delta at elo 900, gradually shifts to 0% boost at 1200 ELO
         elo_bonus = int(abs(elo_delta) * elo_boost)
         elo_delta += elo_bonus
 
         # print(f'Player chance of winning: {chance_of_winning} opponent elo:{opponent_elo} my_side_elo: {my_side_elo},'
         # f'elo_delta {elo_delta}, current_player_elo {self.player.elo}, new_player_elo {int(self.player.elo + elo_delta)}')
 
-        self.player.elo = int(self.player.elo + elo_delta)
-        self.elo_change_player = elo_delta
-        self.player.save()
-        self.save()
+        if by_discord_member is True:
+            self.player.discord_member.elo = int(elo + elo_delta)
+            self.elo_change_discordmember = elo_delta
+            self.player.discord_member.save()
+            self.save()
+        else:
+            self.player.elo = int(elo + elo_delta)
+            self.elo_change_player = elo_delta
+            self.player.save()
+            self.save()
 
     def emoji_str(self):
 

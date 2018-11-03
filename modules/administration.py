@@ -247,7 +247,8 @@ class administration:
 
         async with ctx.typing():
             await ctx.send('Recalculating ELO for all games in database.')
-            models.Game.recalculate_all_elo()
+            await self.bot.loop.run_in_executor(None, models.Game.recalculate_all_elo)
+            # Allows bot to remain responsive while this large operation is running.
 
     @commands.command(aliases=['dbb'])
     @commands.is_owner()

@@ -39,6 +39,7 @@ config = {'default':
           478571892832206869:                           # Nelluk Test Server (discord server ID)
                      {'helper_roles': ['testers'],
                       'mod_roles': ['role1'],
+                      'display_name': 'Development Server',
                       'require_teams': True,
                       'allow_teams': True,
                       'allow_uneven_teams': True,
@@ -52,6 +53,7 @@ config = {'default':
           447883341463814144:                           # Polychampions
                      {'helper_roles': ['Helper', 'ELO Helper', 'Team Leader'],
                       'mod_roles': ['Mod'],
+                      'display_name': 'PolyChampions',
                       'require_teams': True,
                       'allow_teams': True,
                       'allow_uneven_teams': True,
@@ -66,6 +68,7 @@ config = {'default':
           283436219780825088:                           # Main Server
                      {'helper_roles': ['Bot Master', 'Tribe Leader', 'Director', 'ELO Helper'],
                       'mod_roles': ['MOD', 'Manager'],
+                      'display_name': 'Polytopia',
                       'require_teams': False,
                       'allow_teams': False,
                       'max_team_size': 1,
@@ -158,7 +161,7 @@ def is_staff(ctx):
     return len(target_match) > 0
 
 
-async def is_mod(ctx):
+def is_mod(ctx):
 
     if ctx.author.id == owner_id:
         return True
@@ -221,7 +224,7 @@ def in_bot_channel():
     async def predicate(ctx):
         if guild_setting(ctx.guild.id, 'bot_channels') is None:
             return True
-        if await is_mod(ctx):
+        if is_mod(ctx):
             return True
         if ctx.message.channel.id in guild_setting(ctx.guild.id, 'bot_channels'):
             return True
