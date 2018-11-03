@@ -784,6 +784,7 @@ class elo_games():
 
         biggest_team = max(len(group) for group in player_groups)
         total_players = sum(len(group) for group in player_groups)
+        print(player_groups, biggest_team)
 
         if len(player_groups) < 2:
             return await ctx.send(f'Invalid format. {example_usage}')

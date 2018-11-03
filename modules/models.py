@@ -79,11 +79,11 @@ class Team(BaseModel):
     def get_record(self):
 
         wins = GameSide.select().join(Game).where(
-            (Game.id.in_(Team.team_games_subq())) & (Game.is_completed == 1) & (GameSide.team == self) & (GameSide.id == Game.winner)
+            (Game.id.in_(Team.team_games_subq())) & (Game.is_completed == 1) & (Game.is_ranked == 1) & (GameSide.team == self) & (GameSide.id == Game.winner)
         ).count()
 
         losses = GameSide.select().join(Game).where(
-            (Game.id.in_(Team.team_games_subq())) & (Game.is_completed == 1) & (GameSide.team == self) & (GameSide.id != Game.winner)
+            (Game.id.in_(Team.team_games_subq())) & (Game.is_completed == 1) & (Game.is_ranked == 1) & (GameSide.team == self) & (GameSide.id != Game.winner)
         ).count()
 
         return (wins, losses)
@@ -99,14 +99,14 @@ class DiscordMember(BaseModel):
     def wins(self):
 
         q = Lineup.select().join(Game).join_from(Lineup, GameSide).join_from(Lineup, Player).where(
-            (Lineup.game.is_completed == 1) & (Lineup.player.discord_member == self) & (Game.winner == Lineup.gameside.id)
+            (Lineup.game.is_completed == 1) & (Lineup.game.is_ranked == 1) & (Lineup.player.discord_member == self) & (Game.winner == Lineup.gameside.id)
         )
 
         return q
 
     def losses(self):
         q = Lineup.select().join(Game).join_from(Lineup, GameSide).join_from(Lineup, Player).where(
-            (Lineup.game.is_completed == 1) & (Lineup.player.discord_member == self) & (Game.winner != Lineup.gameside.id)
+            (Lineup.game.is_completed == 1) & (Lineup.game.is_ranked == 1) & (Lineup.player.discord_member == self) & (Game.winner != Lineup.gameside.id)
         )
 
         return q
@@ -1363,11 +1363,11 @@ class Squad(BaseModel):
     def get_record(self):
 
         wins = GameSide.select(GameSide.id).join(Game).where(
-            (Game.is_completed == 1) & (GameSide.squad == self) & (GameSide.id == Game.winner)
+            (Game.is_completed == 1) & (Game.is_ranked == 1) & (GameSide.squad == self) & (GameSide.id == Game.winner)
         ).count()
 
         losses = GameSide.select(GameSide.id).join(Game).where(
-            (Game.is_completed == 1) & (GameSide.squad == self) & (GameSide.id != Game.winner)
+            (Game.is_completed == 1) & (Game.is_ranked == 1) & (GameSide.squad == self) & (GameSide.id != Game.winner)
         ).count()
 
         return (wins, losses)
