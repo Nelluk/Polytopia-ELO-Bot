@@ -364,7 +364,7 @@ class matchmaking():
                 f'Type `{ctx.prefix}game #` for more details.')
 
     # @settings.in_bot_channel()
-    @commands.command(aliases=['startmatch'], usage='game_id Name of Poly Game')
+    @commands.command(aliases=['startmatch', 'start'], usage='game_id Name of Poly Game')
     async def startgame(self, ctx, game: PolyMatch, *, name: str = None):
         """
         Start a full game and track it for ELO

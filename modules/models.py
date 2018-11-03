@@ -1159,7 +1159,11 @@ class Game(BaseModel):
                 full_game.declare_winner(winning_side=full_game.winner, confirm=True)
 
     def first_open_side(self):
-        for side in self.gamesides:
+        sides = GameSide.select().where(
+            (GameSide.game == self)
+        ).order_by(GameSide.position).prefetch(Lineup)
+
+        for side in sides:
             if len(side.lineup) < side.size:
                 return side
         return None
