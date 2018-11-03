@@ -50,7 +50,7 @@ config = {'default':
                       'game_announce_channel': 481558031281160212,
                       'game_channel_category': 493149162238640161},
           447883341463814144:                           # Polychampions
-                     {'helper_roles': ['Helper', 'ELO Helper'],
+                     {'helper_roles': ['Helper', 'ELO Helper', 'Team Leader'],
                       'mod_roles': ['Mod'],
                       'require_teams': True,
                       'allow_teams': True,

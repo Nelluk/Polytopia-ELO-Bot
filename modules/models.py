@@ -23,12 +23,12 @@ class BaseModel(Model):
 
 
 class Team(BaseModel):
-    name = TextField(unique=False, null=False)       # can't store in case insensitive way, need to use ILIKE operator
+    name = TextField(unique=False, null=False)
     elo = SmallIntegerField(default=1000)
     emoji = TextField(null=False, default='')
     image_url = TextField(null=True)
-    guild_id = BitField(unique=False, null=False)    # Included for possible future expanson
-    is_hidden = BooleanField(default=False)             # True / generic team ie Home/Away, False = server team like Ronin
+    guild_id = BitField(unique=False, null=False)
+    is_hidden = BooleanField(default=False)             # True = generic team ie Home/Away, False = server team like Ronin
 
     class Meta:
         indexes = ((('name', 'guild_id'), True),)   # Trailing comma is required
