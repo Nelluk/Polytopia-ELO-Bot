@@ -540,7 +540,7 @@ class Game(BaseModel):
         ).order_by(GameSide.position).prefetch(Lineup, Player)
 
         picks = []
-        side_objs = [{'side': s, 'pick_score': 0, 'size': s.size} for s in sides]
+        side_objs = [{'side': s, 'pick_score': 0, 'size': s.size, 'lineups': s.ordered_player_list()} for s in sides]
         num_tribes = sum([s.size for s in sides])
 
         for pick in range(num_tribes):
@@ -557,7 +557,7 @@ class Game(BaseModel):
             picking_team['size'] = picking_team['size'] - 1
             num_tribes = num_tribes - 1
             picks.append(
-                (picking_team['side'].position, picking_team['side'].sidename, picking_team['side'].lineup.pop(0))
+                (picking_team['side'].position, picking_team['side'].sidename, picking_team['lineups'].pop(0))
             )
 
         return picks
@@ -655,7 +655,7 @@ class Game(BaseModel):
                 if self.largest_team() > 1:
                     draft_order = ['\n__**Balanced Draft Order**__']
                     for draft in self.draft_order():
-                        draft_order.append(f'__Side {draft[1] if draft[1] else draft[0]}__:  {draft[2].player.name}')
+                        draft_order.append(f'__Side {draft[1] if draft[1] else draft[0]}__:  {draft[2].name}')
                     draft_order_str = '\n'.join(draft_order)
                 else:
                     draft_order_str = ''
@@ -668,14 +668,14 @@ class Game(BaseModel):
         embed.add_field(name='Notes', value=notes_str, inline=False)
         embed.add_field(name='\u200b', value='\u200b', inline=False)
 
-        for side in GameSide.select().where(GameSide.game == self).order_by(GameSide.position).prefetch(Lineup, Player):
+        for side in GameSide.select().where(GameSide.game == self).order_by(GameSide.position):
             side_name = ': **' + side.sidename + '**' if side.sidename else ''
             side_capacity = side.capacity()
             capacity += side_capacity[1]
             player_list = []
-            for gameplayer in side.lineup:
+            for player in side.ordered_player_list():
                 players += 1
-                player_list.append(f'**{gameplayer.player.name}** ({gameplayer.player.elo})\n{gameplayer.player.discord_member.polytopia_id}')
+                player_list.append(f'**{player.name}** ({player.elo})\n{player.discord_member.polytopia_id}')
             player_str = '\u200b' if not player_list else '\n'.join(player_list)
             embed.add_field(name=f'__Side {side.position}__{side_name} *({side_capacity[0]}/{side_capacity[1]})*', value=player_str)
 
@@ -1492,6 +1492,14 @@ class GameSide(BaseModel):
 
     def capacity(self):
         return (len(self.lineup), self.size)
+
+    def ordered_player_list(self):
+        player_list = []
+        q = Lineup.select(Lineup, Player).join(Player).where(Lineup.gameside == self).order_by(Lineup.id)
+        for l in q:
+            player_list.append(l.player)
+
+        return player_list
 
 
 class Lineup(BaseModel):

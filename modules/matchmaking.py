@@ -227,6 +227,7 @@ class matchmaking():
             return await ctx.send('It looks like you are the host trying to rejoin this game. The host is required to be on side 1. Clear out space in side 1 and use:'
                                  f'\n`{ctx.prefix}join {game.id} 1`')
 
+        logger.info(f'Checks passed. Joining player {player.discord_member.discord_id} to side {side.position} of game {game.id}')
         models.Lineup.create(player=player, game=game, gameside=side)
         await ctx.send(f'Joining <@{player.discord_member.discord_id}> to side {side.position} of game {game.id}')
 
