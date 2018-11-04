@@ -160,8 +160,8 @@ class matchmaking():
         return await ctx.send(f'Side {gameside.position} for game {game.id} has been named "{args}"')
 
     # @settings.in_bot_channel()
-    @commands.command(usage='game_id', aliases=['join', 'joinmatch'])
-    async def joingame(self, ctx, game: PolyMatch = None, *args):
+    @commands.command(usage='game_id', aliases=['joingame', 'joinmatch'])
+    async def join(self, ctx, game: PolyMatch = None, *args):
         """
         Join an open game
         **Example:**
@@ -234,8 +234,8 @@ class matchmaking():
         # TODO: fix embeds
         await ctx.send(embed=embed, content=content)
 
-    @commands.command(usage='game_id', aliases=['leave', 'leavematch'])
-    async def leavegame(self, ctx, game: PolyMatch):
+    @commands.command(usage='game_id', aliases=['leavegame', 'leavematch'])
+    async def leave(self, ctx, game: PolyMatch):
         """
         Leave a game that you have joined
 
@@ -344,7 +344,7 @@ class matchmaking():
         else:
             return await ctx.send(f'Syntax error. Example usage:\n{syntax}')
 
-        title_str_full = title_str + f'\nUse `{ctx.prefix}joingame #` to join one or `{ctx.prefix}game #` for more details.'
+        title_str_full = title_str + f'\nUse `{ctx.prefix}join #` to join one or `{ctx.prefix}game #` for more details.'
         gamelist_fields = [(f'`{"ID":<8}{"Host":<40} {"Type":<7} {"Capacity":<7} {"Exp":>4}` ', '\u200b')]
 
         for game in game_list:
@@ -519,7 +519,7 @@ class matchmaking():
 
                 pfx = settings.guild_setting(chan.guild.id, 'command_prefix')
                 embed = discord.Embed(title='Recent open games\n'
-                    f'Use `{pfx}joingame #` to join one or `{pfx}game #` for more details.')
+                    f'Use `{pfx}join #` to join one or `{pfx}game #` for more details.')
                 embed.add_field(name=f'`{"ID":<8}{"Host":<40} {"Type":<7} {"Capacity":<7} {"Exp":>4} `', value='\u200b', inline=False)
                 for game in game_list:
 
