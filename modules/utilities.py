@@ -20,6 +20,7 @@ async def get_guild_member(ctx, input):
         except commands.errors.BadArgument:
             pass
             # No matches in standard MemberConverter. Move on to a case-insensitive search.
+            input = input.strip('@')  # Attempt to handle fake @Mentions that sometimes slip through
             for p in ctx.guild.members:
                 name_str = p.nick.upper() + p.name.upper() if p.nick else p.name.upper()
                 if p.name.upper() == input.upper():
