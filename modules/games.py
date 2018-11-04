@@ -976,7 +976,7 @@ class elo_games():
 
         You can rename a game for which you are the host
         **Example:**
-        `[p]gamename 25 Mountains of Fire`
+        `[p]rename 25 Mountains of Fire`
         """
 
         if not game:
