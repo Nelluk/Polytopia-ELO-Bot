@@ -342,14 +342,14 @@ class Player(BaseModel):
         # TODO: Could combine wins/losses into one function that takes an argument and modifies query
 
         q = Lineup.select().join(Game).join_from(Lineup, GameSide).where(
-            (Lineup.game.is_completed == 1) & (Lineup.player == self) & (Game.winner == Lineup.gameside.id)
+            (Lineup.game.is_completed == 1) & (Lineup.game.is_ranked == 1) & (Lineup.player == self) & (Game.winner == Lineup.gameside.id)
         )
 
         return q
 
     def losses(self):
         q = Lineup.select().join(Game).join_from(Lineup, GameSide).where(
-            (Lineup.game.is_completed == 1) & (Lineup.player == self) & (Game.winner != Lineup.gameside.id)
+            (Lineup.game.is_completed == 1) & (Lineup.game.is_ranked == 1) & (Lineup.player == self) & (Game.winner != Lineup.gameside.id)
         )
 
         return q
