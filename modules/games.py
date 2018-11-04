@@ -324,13 +324,23 @@ class elo_games():
         wins, losses = player.get_record()
         rank, lb_length = player.leaderboard_rank(settings.date_cutoff)
 
+        wins_g, losses_g = player.discord_member.get_record()
+        rank_g, lb_length_g = player.discord_member.leaderboard_rank(settings.date_cutoff)
+
         if rank is None:
             rank_str = 'Unranked'
         else:
             rank_str = f'{rank} of {lb_length}'
 
+        results_str = f'ELO: {player.elo}\u00A0\u00A0\u00A0\u00A0W {wins} / L {losses}'
+
+        if rank_g:
+            rank_str = f'{rank_str}\n{rank_g} of {lb_length_g} *Global*'
+        if wins_g > wins or losses_g > losses:
+            results_str = f'{results_str}\n__*Global*__\nELO: {player.discord_member.elo}\u00A0\u00A0\u00A0\u00A0W {wins_g} / L {losses_g}'
+
         embed = discord.Embed(title=f'Player card for __{player.name}__')
-        embed.add_field(name='Results', value=f'ELO: {player.elo}, W {wins} / L {losses}')
+        embed.add_field(name='Results', value=results_str)
         embed.add_field(name='Ranking', value=rank_str)
 
         guild_member = ctx.guild.get_member(player.discord_member.discord_id)
