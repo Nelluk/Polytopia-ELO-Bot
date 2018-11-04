@@ -193,7 +193,7 @@ class matchmaking():
             # author is putting a third party into this match
             if not settings.is_matchmaking_power_user(ctx):
                 return await ctx.send('You do not have permissions to add another person to a game. Tell them to use the command:\n'
-                    f'`{ctx.prefix}joingame {game.id} {args[1]}` to join themselves.')
+                    f'`{ctx.prefix}join {game.id} {args[1]}` to join themselves.')
             target = args[0]
             side, side_open = game.get_side(lookup=args[1])
             if not side:
@@ -221,7 +221,11 @@ class matchmaking():
                 f'Players can be register themselves with `{ctx.prefix}setcode POLYTOPIA_CODE`.')
 
         if game.has_player(player)[0]:
-            return await ctx.send(f'You are already in game {game.id}. If you are trying to change sides, use `{ctx.prefix}leave {game.id}` first.')
+            return await ctx.send(f'**{player.name}** is already in game {game.id}. If you are trying to change sides, use `{ctx.prefix}leave {game.id}` first.')
+
+        if game.is_hosted_by(player.discord_member.discord_id)[0] and side.position != 1:
+            return await ctx.send('It looks like you are the host trying to rejoin this game. The host is required to be on side 1. Clear out space in side 1 and use:'
+                                 f'\n`{ctx.prefix}join {game.id} 1`')
 
         models.Lineup.create(player=player, game=game, gameside=side)
         await ctx.send(f'Joining <@{player.discord_member.discord_id}> to side {side.position} of game {game.id}')
