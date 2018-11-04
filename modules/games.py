@@ -844,7 +844,7 @@ class elo_games():
             await post_newgame_messaging(ctx, game=newgame)
 
     @commands.command(aliases=['endgame', 'wingame', 'winner'], usage='game_id winner_name')
-    async def win(self, ctx, winning_game: PolyGame, winning_side_name: str):
+    async def win(self, ctx, winning_game: PolyGame = None, winning_side_name: str = None):
         """
         Declare winner of an existing game
 
@@ -856,6 +856,11 @@ class elo_games():
         `[p]win 5 Ronin` - Declare Ronin winner of game 5
         `[p]win 5 Nelluk` - Declare Nelluk winner of game 5
         """
+
+        usage = ('Include both game ID and the name of the winning side. Example usage:\n'
+                f'`{ctx.prefix}win 422 Nelluk`\n`{ctx.prefix}win 425 Owls` *For a team game*')
+        if not winning_game or not winning_side_name:
+            return await ctx.send(usage)
 
         try:
             winning_obj, winning_side = winning_game.gameside_by_name(ctx, name=winning_side_name)

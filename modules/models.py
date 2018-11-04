@@ -642,7 +642,7 @@ class Game(BaseModel):
             if not self.is_pending:
                 status_str = f'Started - **{self.name}**' if self.name else 'Started'
             else:
-                if players > 2:
+                if self.largest_team() > 1:
                     draft_order = ['\n__**Balanced Draft Order**__']
                     for draft in self.draft_order():
                         draft_order.append(f'__Side {draft[1] if draft[1] else draft[0]}__:  {draft[2].player.name}')
