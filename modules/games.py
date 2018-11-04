@@ -4,7 +4,7 @@ import modules.utilities as utilities
 import settings
 import modules.exceptions as exceptions
 import peewee
-from modules.models import Game, db, Player, Team, DiscordMember, Squad, GameSide
+from modules.models import Game, db, Player, Team, DiscordMember, Squad, GameSide, TribeFlair
 import logging
 from itertools import groupby
 
@@ -359,10 +359,10 @@ class elo_games():
         else:
             content_str = ''
 
-        favorite_tribes = player.favorite_tribes(limit=3)
-
+        favorite_tribes = player.discord_member.favorite_tribes(limit=3)
         if favorite_tribes:
-            tribes_str = ' '.join([f'{t["emoji"] if t["emoji"] else t["name"]} ' for t in favorite_tribes])
+            favorite_tribe_objs = [TribeFlair.get_by_name(name=t['name'], guild_id=ctx.guild.id) for t in favorite_tribes]
+            tribes_str = ' '.join([f'{t.emoji if t.emoji else t.tribe.name}' for t in favorite_tribe_objs])
             embed.add_field(value=tribes_str, name='Most-logged Tribes', inline=True)
 
         recent_games = Game.search(player_filter=[player])

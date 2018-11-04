@@ -150,6 +150,18 @@ class DiscordMember(BaseModel):
 
         return query
 
+    def favorite_tribes(self, limit=3):
+        # Returns a list of dicts of format:
+        # {'tribe': 7, 'name': 'Luxidoor', 'tribe_count': 14}
+        # doesnt include TribeFlair.emoji like Player.favorite_tribes() because it needs to get the emoji based on the context of the discord guild
+
+        q = Lineup.select(Lineup.tribe, Tribe.name, fn.COUNT(Lineup.tribe).alias('tribe_count')).join(
+            TribeFlair).join(Tribe).join_from(Lineup, Player).where(
+            (Lineup.player.discord_member == self) & (Lineup.tribe.is_null(False))
+        ).group_by(Lineup.tribe, Tribe.name).order_by(-SQL('tribe_count')).limit(limit)
+
+        return q.dicts()
+
 
 class Player(BaseModel):
     discord_member = ForeignKeyField(DiscordMember, unique=False, null=False, backref='guildmember', on_delete='CASCADE')
@@ -376,8 +388,6 @@ class Player(BaseModel):
     def favorite_tribes(self, limit=3):
         # Returns a list of dicts of format:
         # {'tribe': 7, 'emoji': '<:luxidoor:448015285212151809>', 'name': 'Luxidoor', 'tribe_count': 14}
-
-        # TODO: take into account tribe selections from parent DiscordMember, not just single guild-player. Should be a relatively easy change
 
         q = Lineup.select(Lineup.tribe, TribeFlair.emoji, Tribe.name, fn.COUNT(Lineup.tribe).alias('tribe_count')).join(TribeFlair).join(Tribe).where(
             (Lineup.player == self) & (Lineup.tribe.is_null(False))
