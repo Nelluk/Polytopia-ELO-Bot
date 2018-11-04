@@ -337,7 +337,7 @@ class elo_games():
         if rank_g:
             rank_str = f'{rank_str}\n{rank_g} of {lb_length_g} *Global*'
         if wins_g > wins or losses_g > losses:
-            results_str = f'{results_str}\n__*Global*__\nELO: {player.discord_member.elo}\u00A0\u00A0\u00A0\u00A0W {wins_g} / L {losses_g}'
+            results_str = f'{results_str}\n**Global**\nELO: {player.discord_member.elo}\u00A0\u00A0\u00A0\u00A0W {wins_g} / L {losses_g}'
 
         embed = discord.Embed(title=f'Player card for __{player.name}__')
         embed.add_field(name='Results', value=results_str)
