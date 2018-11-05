@@ -769,7 +769,10 @@ class elo_games():
         if total_players > 12:
             return await ctx.send(f'You cannot have more than twelve players.')
         if biggest_team > settings.guild_setting(ctx.guild.id, 'max_team_size'):
-            return await ctx.send(f'This server has a maximum team size of {settings.guild_setting(ctx.guild.id, "max_team_size")}. For full functionality with support for up to 5-player team games and league play check out PolyChampions.')
+            if settings.is_mod(ctx):
+                await ctx.send('Moderator over-riding server size limits')
+            else:
+                return await ctx.send(f'This server has a maximum team size of {settings.guild_setting(ctx.guild.id, "max_team_size")}. For full functionality with support for up to 5-player team games and league play check out PolyChampions.')
 
         discord_groups, discord_players_flat = [], []
         author_found = False

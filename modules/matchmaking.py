@@ -115,9 +115,12 @@ class matchmaking():
             return await ctx.send('You only have permissions to create 1v1 games. More active server members can create larger games.')
 
         server_size_max = settings.guild_setting(ctx.guild.id, 'max_team_size')
-        if max(team_sizes) > server_size_max and ctx.guild.id != settings.server_ids['polychampions']:
-            return await ctx.send(f'Maximium team size on this server is {server_size_max}.\n'
-                'For full functionality with support for up to 6-person teams and team channels check out PolyChampions - <https://tinyurl.com/polychampions>')
+        if max(team_sizes) > server_size_max:
+            if settings.is_mod(ctx):
+                await ctx.send('Moderator over-riding server size limits')
+            else:
+                return await ctx.send(f'Maximum team size on this server is {server_size_max}.\n'
+                    'For full functionality with support for up to 6-person teams and team channels check out PolyChampions - <https://tinyurl.com/polychampions>')
 
         game_notes = ' '.join(note_args)[:100]
         notes_str = game_notes if game_notes else "\u200b"
