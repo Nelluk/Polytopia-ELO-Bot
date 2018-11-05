@@ -25,13 +25,14 @@ async def get_guild_member(ctx, input):
                 name_str = p.nick.upper() + p.name.upper() if p.nick else p.name.upper()
                 if p.name.upper() == input.upper():
                     guild_matches.append(p)
-                if input.upper() in name_str:
+                elif input.upper() in name_str:
                     substring_matches.append(p)
 
-            if len(guild_matches) > 0:
-                return guild_matches
-            if len(input) > 2:
-                return substring_matches
+            return guild_matches + substring_matches
+            # if len(guild_matches) > 0:
+            #     return guild_matches
+            # if len(input) > 2:
+            #     return substring_matches
 
         return guild_matches
 
