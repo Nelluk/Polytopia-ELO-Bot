@@ -52,40 +52,6 @@ class elo_games():
         player.discord_member.save()
         player.generate_display_name(player_name=after.name, player_nick=after.nick)
 
-    @commands.command(hidden=True, usage=None)
-    async def guide(self, ctx):
-        """
-        Guide:
-        Type `[p]guide` for an overview of what this bot is for and how to use it.
-        """
-        bot_desc = ('This bot is designed to improve Polytopia multiplier by filling in gaps in two areas: competitive leaderboards, and matchmaking.\n'
-                    'Its primary home is [PolyChampions](https://discord.gg/cX7Ptnv), a server focused on team play organized into a league.\n'
-                    f'To register as a player with the bot use __`{ctx.prefix}setcode YOURPOLYCODEHERE`__')
-
-        embed = discord.Embed(title=f'PolyELO Bot Guide', url='https://discord.gg/cX7Ptnv', description=bot_desc)
-
-        embed.add_field(name='Matchmaking',
-            value=f'This helps players organize and arrange games.\nFor example, use __`{ctx.prefix}opengame 1v1`__ to create an open 1v1 game that others can join.\n'
-                f'To see a list of open games you can join use __`{ctx.prefix}opengames`__. Once the game is full the host would use __`{ctx.prefix}startgame`__ to close it and track it for the leaderboards.\n'
-                f'See __`{ctx.prefix}help matchmaking`__ for all commands.')
-
-        embed.add_field(name='ELO Leaderboards',
-            value='Win your games and climb the leaderboards! Earn sweet ELO points!\n'
-                'ELO points are gained or lost based on your game results. You will gain more points if you defeat an opponent with a higher ELO.\n'
-                f'Use __`{ctx.prefix}lb`__ to view the individual leaderboards. There is also a __`{ctx.prefix}lbsquad`__ squad leaderboard. Form a squad by playing with the same person in multiple games!'
-                f'\nSee __`{ctx.prefix}help games`__ for all commands.')
-
-        embed.add_field(name='Finishing tracked games',
-            value='When an ELO game is concluded the best way to have the points count is by having the loser confirm the status.\n'
-            f'For example once Nelluk defeats Scott in a 1v1 game, # **400**, Scott would use the command __`{ctx.prefix}win 400 nelluk`__.\n'
-            f'If it is a team game (2v2 or larger), a member of the losing team would use __`{ctx.prefix}win 400 Home`__ for example.'
-            'Use the player name for a 1v1, otherwise use a team name.'
-            f'If the loser will not confirm the winner can use the same __`{ctx.prefix}win`__ command, and ask a server staff member to confirm it. Please have a game screenshot ready.')
-
-        embed.set_thumbnail(url=self.bot.user.avatar_url_as(size=512))
-        embed.set_footer(text='Developer: Nelluk')
-        await ctx.send(embed=embed)
-
     @commands.command(aliases=['reqgame', 'helpstaff'])
     @commands.cooldown(2, 30, commands.BucketType.user)
     @settings.on_polychampions()

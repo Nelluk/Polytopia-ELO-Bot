@@ -127,7 +127,7 @@ if __name__ == '__main__':
     async def post_invoke_cleanup(ctx):
         models.db.close()
 
-    initial_extensions = ['modules.games', 'modules.help', 'modules.matchmaking', 'modules.administration']
+    initial_extensions = ['modules.games', 'modules.help', 'modules.matchmaking', 'modules.administration', 'modules.misc']
     for extension in initial_extensions:
         bot.load_extension(extension)
         try:

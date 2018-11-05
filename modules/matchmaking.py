@@ -3,12 +3,11 @@ from discord.ext import commands
 import modules.models as models
 import modules.utilities as utilities
 import settings
-import modules.exceptions as exceptions
+# import modules.exceptions as exceptions
 from modules.games import post_newgame_messaging
 import peewee
 import re
 import datetime
-import random
 import logging
 import asyncio
 
@@ -439,71 +438,6 @@ class matchmaking():
 
         logger.info(f'Game {game.id} closed and being tracked for ELO')
         await post_newgame_messaging(ctx, game=game)
-
-    @commands.command(aliases=['rtribes', 'rtribe'], usage='game_size [-banned_tribe ...]')
-    async def random_tribes(self, ctx, size='1v1', *args):
-        """Show a random tribe combination for a given game size.
-        This tries to keep the sides roughly equal in power.
-        **Example:**
-        `[p]rtribes 2v2` - Shows Ai-mo/Imperius & Xin-xi/Luxidoor
-        `[p]rtribes 2v2 -hoodrick -aquarion` - Remove Hoodrick and Aquarion from the random pool. This could cause problems if lots of tribes are removed.
-        """
-
-        m = re.match(r"(\d+)v(\d+)", size.lower())
-        if m:
-            # arg looks like '3v3'
-            if int(m[1]) != int(m[2]):
-                return await ctx.send(f'Invalid match format {size}. Sides must be equal.')
-            if not 0 < int(m[1]) < 7:
-                return await ctx.send(f'Invalid match size {size}. Accepts 1v1 through 6v6')
-            team_size = int(m[1])
-        else:
-            team_size = 1
-            args = list(args) + [size]
-            # Handle case of no size argument, but with tribe bans
-
-        tribes = [
-            ('Bardur', 1),
-            ('Kickoo', 1),
-            ('Luxidoor', 1),
-            ('Imperius', 1),
-            ('Elyrion', 2),
-            ('Zebasi', 2),
-            ('Hoodrick', 2),
-            ('Aquarion', 2),
-            ('Oumaji', 3),
-            ('Quetzali', 3),
-            ('Vengir', 3),
-            ('Ai-mo', 3),
-            ('Xin-xi', 3)
-        ]
-        for arg in args:
-            # Remove tribes from tribe list. This could cause problems if too many tribes are removed.
-            if arg[0] != '-':
-                continue
-            removal = next(t for t in tribes if t[0].upper() == arg[1:].upper())
-            tribes.remove(removal)
-
-        team_home, team_away = [], []
-
-        tribe_groups = {}
-        for tribe, group in tribes:
-            tribe_groups.setdefault(group, set()).add(tribe)
-
-        available_tribe_groups = list(tribe_groups.values())
-        for _ in range(team_size):
-            available_tribe_groups = [tg for tg in available_tribe_groups if len(tg) >= 2]
-
-            this_tribe_group = random.choice(available_tribe_groups)
-
-            new_home, new_away = random.sample(this_tribe_group, 2)
-            this_tribe_group.remove(new_home)
-            this_tribe_group.remove(new_away)
-
-            team_home.append(new_home)
-            team_away.append(new_away)
-
-        await ctx.send(f'Home Team: {" / ".join(team_home)}\nAway Team: {" / ".join(team_away)}')
 
     async def task_print_matchlist(self):
 
