@@ -239,13 +239,16 @@ class matchmaking():
         await ctx.send(embed=embed, content=content)
 
     @commands.command(usage='game_id', aliases=['leavegame', 'leavematch'])
-    async def leave(self, ctx, game: PolyMatch):
+    async def leave(self, ctx, game: PolyMatch = None):
         """
         Leave a game that you have joined
 
         **Example:**
         `[p]leavegame 25`
         """
+        if not game:
+            return await ctx.send(f'No game ID provided. Use `{ctx.prefix}leave ID` to leave a specific game.')
+
         if game.is_hosted_by(ctx.author.id)[0]:
 
             if not settings.is_matchmaking_power_user(ctx):
