@@ -421,9 +421,9 @@ class elo_games():
             # Try to find matching guild/server member
             guild_matches = await utilities.get_guild_member(ctx, args[0])
             if len(guild_matches) == 0:
-                return await ctx.send(f'Could not find any server member matching "{args[0]}". Try specifying with an @Mention')
+                return await ctx.send(f'Could not find any server member matching *{args[0]}*. Try specifying with an @Mention')
             elif len(guild_matches) > 1:
-                return await ctx.send(f'Found multiple server members matching "{args[0]}". Try specifying with an @Mention')
+                return await ctx.send(f'Found {len(guild_matches)} server members matching *{args[0]}*. Try specifying with an @Mention')
             target_discord_member = guild_matches[0]
             new_id = args[1]
         else:
@@ -465,7 +465,7 @@ class elo_games():
         elif len(guild_matches) > 1:
             player_matches = Player.string_matches(player_string=player_string, guild_id=ctx.guild.id)
             if len(player_matches) == 1:
-                await ctx.send(f'Found {len(guild_matches)} server members matching *{player_string}*, but only **{player_matches[0].name}** has a code on file.')
+                await ctx.send(f'Found {len(guild_matches)} server members matching *{player_string}*, but only **{player_matches[0].name}** is registered.')
                 return await ctx.send(player_matches[0].discord_member.polytopia_id)
 
             return await ctx.send(f'Found {len(guild_matches)} server members matching *{player_string}*. Try specifying with an @Mention')
