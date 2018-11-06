@@ -106,14 +106,14 @@ class elo_games():
             wins, losses = player.get_record()
             emoji_str = player.team.emoji if player.team else ''
             leaderboard.append(
-                (f'`{(counter + 1):>3}.` {emoji_str}`{player.name}`', f'`(ELO: {player.elo:4}) W {wins} / L {losses}`')
+                (f'{(counter + 1):>3}. {emoji_str}{player.name}', f'`ELO {player.elo}\u00A0\u00A0\u00A0\u00A0W {wins} / L {losses}`')
             )
 
         if ctx.guild.id != settings.server_ids['polychampions']:
             await ctx.send('Powered by PolyChampions. League server with a team focus and competitive players.\n'
                 'Supporting up to 6-player team ELO games and automatic team channels. - <https://tinyurl.com/polychampions>')
             # link put behind url shortener to not show big invite embed
-        await utilities.paginate(self.bot, ctx, title='**Individual Leaderboards**', message_list=leaderboard, page_start=0, page_end=10, page_size=10)
+        await utilities.paginate(self.bot, ctx, title=f'**Individual Leaderboards**\n{leaderboard_query.count()} ranked players', message_list=leaderboard, page_start=0, page_end=10, page_size=10)
 
     @settings.in_bot_channel()
     @commands.command(aliases=['leaderboardglobal', 'lbg', 'globallb'])
@@ -126,14 +126,14 @@ class elo_games():
         for counter, d_player in enumerate(leaderboard_query[:500]):
             wins, losses = d_player.get_record()
             leaderboard.append(
-                (f'{(counter + 1):>3}. {d_player.name}', f'`(ELO: {d_player.elo:4}) W {wins} / L {losses}`')
+                (f'{(counter + 1):>3}. {d_player.name}', f'`ELO {d_player.elo}\u00A0\u00A0\u00A0\u00A0W {wins} / L {losses}`')
             )
 
         if ctx.guild.id != settings.server_ids['polychampions']:
             await ctx.send('Powered by PolyChampions. League server with a team focus and competitive players.\n'
                 'Supporting up to 6-player team ELO games and automatic team channels. - <https://tinyurl.com/polychampions>')
             # link put behind url shortener to not show big invite embed
-        await utilities.paginate(self.bot, ctx, title='**Global Leaderboards**', message_list=leaderboard, page_start=0, page_end=10, page_size=10)
+        await utilities.paginate(self.bot, ctx, title=f'**Global Leaderboards**\n{leaderboard_query.count()} ranked players', message_list=leaderboard, page_start=0, page_end=10, page_size=10)
 
     @settings.in_bot_channel()
     @settings.teams_allowed()
