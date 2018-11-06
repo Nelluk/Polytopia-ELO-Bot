@@ -744,8 +744,6 @@ class elo_games():
             return await ctx.send(f'Invalid format. {example_usage}')
         if not args:
             return await ctx.send(f'Invalid format. {example_usage}')
-        if game_name.upper()[:1] == 'M' and str.isdigit(game_name[1:]):
-            return await ctx.send(f'It looks like you\'re trying to start a full matchmaking session. You probably want `{ctx.prefix}startmatch {game_name} "Name of Game"`')
 
         if len(game_name.split(' ')) < 2 and ctx.author.id != settings.owner_id:
             return await ctx.send(f'Invalid game name. Make sure to use "quotation marks" around the full game name.\n{example_usage}')

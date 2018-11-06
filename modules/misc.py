@@ -67,6 +67,7 @@ class misc:
         await ctx.send(embed=embed)
 
     @commands.command(usage='game_id')
+    @settings.in_bot_channel()
     @commands.cooldown(1, 60, commands.BucketType.user)
     async def ping(self, ctx, game: PolyGame = None, *message):
         """ Ping everyone in one of your games with a message

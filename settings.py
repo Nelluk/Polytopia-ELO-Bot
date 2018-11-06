@@ -60,7 +60,7 @@ config = {'default':
                       'max_team_size': 5,
                       'command_prefix': '$',
                       'include_in_global_lb': True,
-                      'bot_channels': [487303307224940545, 487302138704429087, 487304043786665986, 487222333589815315, 447902433964851210, 448317497473630229],
+                      'bot_channels': [487303307224940545, 487302138704429087, 487304043786665986, 487222333589815315, 447902433964851210, 448317497473630229, 469027618289614850],
                       'match_challenge_channel': 452639822616723457,  # elo-challenges
                       'game_request_channel': 487304043786665986,  # $staffhelp output
                       'game_announce_channel': 487302138704429087,  # elo-drafts
