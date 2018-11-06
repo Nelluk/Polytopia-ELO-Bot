@@ -255,7 +255,7 @@ class Player(BaseModel):
             return False
         return True
 
-    def string_matches(player_string: str, guild_id: int):
+    def string_matches(player_string: str, guild_id: int, include_poly_info: bool = True):
         # Returns QuerySet containing players in current guild matching string. Searches against discord mention ID first, then exact discord name match,
         # then falls back to substring match on name/nick, then a lastly a substring match of polytopia ID or polytopia in-game name
 
@@ -291,11 +291,15 @@ class Player(BaseModel):
         if name_substring_match.count() > 0:
             return name_substring_match
 
-        # If no substring name matches, return anything with matching polytopia name or code
-        poly_fields_match = Player.select(Player, DiscordMember).join(DiscordMember).where(
-            ((DiscordMember.polytopia_id.contains(player_string)) | (DiscordMember.polytopia_name.contains(player_string))) & (Player.guild_id == guild_id)
-        )
-        return poly_fields_match
+        if include_poly_info:
+            # If no substring name matches, return anything with matching polytopia name or code
+            poly_fields_match = Player.select(Player, DiscordMember).join(DiscordMember).where(
+                ((DiscordMember.polytopia_id.contains(player_string)) | (DiscordMember.polytopia_name.contains(player_string))) & (Player.guild_id == guild_id)
+            )
+            return poly_fields_match
+        else:
+            # if include_poly_info == False, then do not fall back to searching by polytopia_id or polytopia_name
+            return []
 
     def get_or_except(player_string: str, guild_id: int):
         results = Player.string_matches(player_string=player_string, guild_id=guild_id)
@@ -677,7 +681,7 @@ class Game(BaseModel):
                 players += 1
                 player_list.append(f'**{player.name}** ({player.elo})\n{player.discord_member.polytopia_id}')
             player_str = '\u200b' if not player_list else '\n'.join(player_list)
-            embed.add_field(name=f'__Side {side.position}__{side_name} *({side_capacity[0]}/{side_capacity[1]})*', value=player_str)
+            embed.add_field(name=f'__Side {side.position}__{side_name} *({side_capacity[0]}/{side_capacity[1]})*', value=player_str, inline=False)
 
         return embed, content_str
 

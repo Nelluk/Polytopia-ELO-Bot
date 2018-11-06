@@ -405,8 +405,8 @@ class elo_games():
         """
         Sets your own Polytopia code, or allows a staff member to set a player's code. This also will register the player with the bot if not already.
         **Examples:**
-        `[p]setcode somelongpolycode`
-        `[p]setcode Nelluk somelongpolycode`
+        `[p]setcode YOUR_POLY_GAME_CODE`
+        `[p]setcode Nelluk YOUR_POLY_GAME_CODE`
         """
 
         if len(args) == 1:      # User setting code for themselves. No special permissions required.
@@ -1020,7 +1020,7 @@ def parse_players_and_teams(input_list, guild_id: int):
             team_matches.append(teams[0])
             input_list.remove(arg)
         else:
-            players = Player.string_matches(arg, guild_id)
+            players = Player.string_matches(player_string=arg, guild_id=guild_id, include_poly_info=False)
             if len(players) > 0:
                 player_matches.append(players[0])
                 input_list.remove(arg)

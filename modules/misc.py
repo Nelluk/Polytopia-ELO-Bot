@@ -7,6 +7,7 @@ import logging
 # import peewee
 # import modules.exceptions as exceptions
 import re
+import datetime
 import random
 from modules.games import PolyGame
 
@@ -68,15 +69,14 @@ class misc:
 
     @commands.command()
     async def stats(self, ctx):
-        import datetime
+
+        embed = discord.Embed(title='PolyELO Statistics')
         last_month = (datetime.datetime.now() + datetime.timedelta(days=-30))
 
         games_played = models.Game.select().where(models.Game.is_completed == 1)
         games_played_30d = games_played.where(models.Game.completed_ts > last_month)
-
         incomplete_games = models.Game.select().where((models.Game.is_pending == 0) & (models.Game.is_completed == 0))
 
-        embed = discord.Embed(title='PolyELO Statistics')
         game_stats = (f'`{"Total games completed:":<35}\u200b` {games_played.count()}\n'
                       f'`{"--- on this server:":<35}\u200b` {games_played.where(models.Game.guild_id == ctx.guild.id).count()}\n'
                       f'`{"Games completed in last 30 days:":<35}\u200b`\u200b {games_played_30d.count()}\n'
@@ -90,7 +90,7 @@ class misc:
     @commands.command(usage='game_id')
     @settings.in_bot_channel()
     @commands.cooldown(1, 60, commands.BucketType.user)
-    async def ping(self, ctx, game: PolyGame = None, *message):
+    async def ping(self, ctx, game: PolyGame = None, *, message: str = None):
         """ Ping everyone in one of your games with a message
 
          **Examples**
@@ -102,8 +102,9 @@ class misc:
             return await ctx.send(f'You are not a player in game {game.id}')
         if not message:
             return await ctx.send(f'Message was not included. Example usage: `{ctx.prefix}ping 100 Here\'s a nice note`')
+
         player_mentions = [f'<@{l.player.discord_member.discord_id}>' for l in game.lineup]
-        await ctx.send(f'Message from {ctx.author.mention} regarding game {game.id} **{game.name}**:\n*{" ".join(message)}*\n{" ".join(player_mentions)}')
+        await ctx.send(f'Message from {ctx.author.mention} regarding game {game.id} **{game.name}**:\n*{message}*\n{" ".join(player_mentions)}')
 
     @commands.command(aliases=['random_tribes', 'rtribe'], usage='game_size [-banned_tribe ...]')
     async def rtribes(self, ctx, size='1v1', *args):
