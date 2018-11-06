@@ -1,6 +1,6 @@
 import discord
 from discord.ext import commands
-# import modules.models as models
+import modules.models as models
 # import modules.utilities as utilities
 import settings
 import logging
@@ -64,6 +64,27 @@ class misc:
         embed.add_field(name='Contributions', value='rickdaheals, koric, Gerenuk, Octo', inline=False)
 
         embed.set_thumbnail(url=self.bot.user.avatar_url_as(size=512))
+        await ctx.send(embed=embed)
+
+    @commands.command()
+    async def stats(self, ctx):
+        import datetime
+        last_month = (datetime.datetime.now() + datetime.timedelta(days=-30))
+
+        games_played = models.Game.select().where(models.Game.is_completed == 1)
+        games_played_30d = games_played.where(models.Game.completed_ts > last_month)
+
+        incomplete_games = models.Game.select().where((models.Game.is_pending == 0) & (models.Game.is_completed == 0))
+
+        embed = discord.Embed(title='PolyELO Statistics')
+        game_stats = (f'`{"Total games completed:":<35}\u200b` {games_played.count()}\n'
+                      f'`{"--- on this server:":<35}\u200b` {games_played.where(models.Game.guild_id == ctx.guild.id).count()}\n'
+                      f'`{"Games completed in last 30 days:":<35}\u200b`\u200b {games_played_30d.count()}\n'
+                      f'`{"--- on this server:":<35}\u200b` {games_played_30d.where(models.Game.guild_id == ctx.guild.id).count()}\n'
+                      f'`{"Incomplete games:":<35}\u200b` {incomplete_games.count()}\n'
+                      f'`{"--- on this server:":<35}\u200b` {incomplete_games.where(models.Game.guild_id == ctx.guild.id).count()}\n'
+                      )
+        embed.add_field(value='\u200b', name=game_stats)
         await ctx.send(embed=embed)
 
     @commands.command(usage='game_id')

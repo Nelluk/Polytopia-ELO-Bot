@@ -515,6 +515,7 @@ class elo_games():
         `[p]games Jets`
         `[p]games Jets Ronin`
         `[p]games Nelluk`
+        `[p]games Nelluk oceans` - See games that included player Nelluk and the word *oceans* in the game name
         `[p]games Nelluk rickdaheals frodakcin Jets Ronin` - See games in which three players and two teams were all involved
         """
 
