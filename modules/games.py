@@ -459,10 +459,16 @@ class elo_games():
             player_string = str(ctx.author.id)
 
         guild_matches = await utilities.get_guild_member(ctx, player_string)
+
         if len(guild_matches) == 0:
-            return await ctx.send(f'Could not find any server member matching "{player_string}". Try specifying with an @Mention')
+            return await ctx.send(f'Could not find any server member matching *{player_string}*. Try specifying with an @Mention')
         elif len(guild_matches) > 1:
-            return await ctx.send(f'Found multiple server members matching "{player_string}". Try specifying with an @Mention')
+            player_matches = Player.string_matches(player_string=player_string, guild_id=ctx.guild.id)
+            if len(player_matches) == 1:
+                await ctx.send(f'Found {len(guild_matches)} server members matching *{player_string}*, but only **{player_matches[0].name}** has a code on file.')
+                return await ctx.send(player_matches[0].discord_member.polytopia_id)
+
+            return await ctx.send(f'Found {len(guild_matches)} server members matching *{player_string}*. Try specifying with an @Mention')
         target_discord_member = guild_matches[0]
 
         discord_member = DiscordMember.get_or_none(discord_id=target_discord_member.id)

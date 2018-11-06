@@ -277,8 +277,9 @@ class Player(BaseModel):
             discord_str = player_string
 
         name_exact_match = Player.select(Player, DiscordMember).join(DiscordMember).where(
-            (DiscordMember.name == discord_str) & (Player.guild_id == guild_id)
+            (DiscordMember.name ** discord_str) & (Player.guild_id == guild_id)  # ** is case-insensitive
         )
+
         if name_exact_match.count() == 1:
             # String matches DiscordUser.name exactly
             return name_exact_match

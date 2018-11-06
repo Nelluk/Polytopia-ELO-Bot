@@ -18,6 +18,14 @@ class misc:
     def __init__(self, bot):
         self.bot = bot
 
+    @commands.command(hidden=True, aliases=['test'])
+    @commands.is_owner()
+    async def ts(self, ctx, *, arg: str = None):
+        p = models.Player.string_matches(player_string=arg, guild_id=ctx.guild.id)
+        print(len(p))
+        for player in p.dicts():
+            print(p)
+
     @commands.command(usage=None)
     async def guide(self, ctx):
         """
