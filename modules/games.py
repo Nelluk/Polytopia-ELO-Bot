@@ -1021,6 +1021,9 @@ def parse_players_and_teams(input_list, guild_id: int):
 
     player_matches, team_matches = [], []
     for arg in list(input_list):  # Copy of list
+        if arg.upper() in ['THE', 'OF', 'AND', '&']:
+            input_list.remove(arg)
+            continue
         teams = Team.get_by_name(arg, guild_id)
         if len(teams) == 1:
             team_matches.append(teams[0])

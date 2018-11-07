@@ -82,11 +82,11 @@ class misc:
         last_month = (datetime.datetime.now() + datetime.timedelta(days=-30))
 
         games_played = models.Game.select().where(models.Game.is_completed == 1)
-        games_played_30d = games_played.where(models.Game.completed_ts > last_month)
+        games_played_30d = models.Game.select().where((models.Game.is_pending == 0) & (models.Game.date > last_month))
         incomplete_games = models.Game.select().where((models.Game.is_pending == 0) & (models.Game.is_completed == 0))
 
         game_stats = (f'`{"Total games completed:":<35}\u200b` {games_played.count()} ({games_played.where(models.Game.guild_id == ctx.guild.id).count()})\n'
-                      f'`{"Games completed in last 30 days:":<35}\u200b`\u200b {games_played_30d.count()} ({games_played_30d.where(models.Game.guild_id == ctx.guild.id).count()})\n'
+                      f'`{"Games created in last 30 days:":<35}\u200b`\u200b {games_played_30d.count()} ({games_played_30d.where(models.Game.guild_id == ctx.guild.id).count()})\n'
                       f'`{"Incomplete games:":<35}\u200b` {incomplete_games.count()} ({incomplete_games.where(models.Game.guild_id == ctx.guild.id).count()})\n'
                       )
         embed.add_field(value='\u200b', name=game_stats)
