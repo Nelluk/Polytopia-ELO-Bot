@@ -451,7 +451,7 @@ class elo_games():
             await ctx.send('Player {0.name} updated in system with Polytopia code {0.discord_member.polytopia_id}.'.format(player))
 
     @commands.command(aliases=['code'], usage='player_name')
-    async def getcode(self, ctx, player_string: str = None):
+    async def getcode(self, ctx, *, player_string: str = None):
         """Get game code of a player
         Just returns the code and nothing else so it can easily be copied."""
 
