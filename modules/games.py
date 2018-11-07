@@ -272,20 +272,20 @@ class elo_games():
         try:
             player = Player.get_or_except(player_string=player_mention, guild_id=ctx.guild.id)
         except exceptions.TooManyMatches:
-            return await ctx.send(f'There is more than one player found with name "{player_mention}". Specify user with @Mention.')
+            return await ctx.send(f'There is more than one player found with name *{player_mention}*. Specify user with @Mention.')
         except exceptions.NoMatches:
             # No Player matches - check for guild membership
             guild_matches = await utilities.get_guild_member(ctx, player_mention)
             if len(guild_matches) > 1:
-                return await ctx.send(f'There is more than one player found with name "{player_mention}". Specify user with @Mention.')
+                return await ctx.send(f'There is more than one member found with name *{player_mention}*. Specify user with @Mention.')
             if len(guild_matches) == 0:
-                return await ctx.send(f'Could not find \"{player_mention}\" by Discord name, Polytopia name, or Polytopia ID.')
+                return await ctx.send(f'Could not find *{player_mention}* by Discord name, Polytopia name, or Polytopia ID.')
 
             player, _ = Player.get_by_discord_id(discord_id=guild_matches[0].id, discord_name=guild_matches[0].name, discord_nick=guild_matches[0].nick, guild_id=ctx.guild.id)
             if not player:
                 # Matching guild member but no Player or DiscordMember
-                return await ctx.send(f'"{player_mention}" was found in the server but is not registered with me. '
-                    f'Players can be registered with `{ctx.prefix}setcode`.')
+                return await ctx.send(f'*{player_mention}* was found in the server but is not registered with me. '
+                    f'Players can be register themselves with  `{ctx.prefix}setcode YOUR_POLYCODE`.')
 
         wins, losses = player.get_record()
         rank, lb_length = player.leaderboard_rank(settings.date_cutoff)

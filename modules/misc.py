@@ -85,12 +85,9 @@ class misc:
         games_played_30d = games_played.where(models.Game.completed_ts > last_month)
         incomplete_games = models.Game.select().where((models.Game.is_pending == 0) & (models.Game.is_completed == 0))
 
-        game_stats = (f'`{"Total games completed:":<35}\u200b` {games_played.count()}\n'
-                      f'`{"--- on this server:":<35}\u200b` {games_played.where(models.Game.guild_id == ctx.guild.id).count()}\n'
-                      f'`{"Games completed in last 30 days:":<35}\u200b`\u200b {games_played_30d.count()}\n'
-                      f'`{"--- on this server:":<35}\u200b` {games_played_30d.where(models.Game.guild_id == ctx.guild.id).count()}\n'
-                      f'`{"Incomplete games:":<35}\u200b` {incomplete_games.count()}\n'
-                      f'`{"--- on this server:":<35}\u200b` {incomplete_games.where(models.Game.guild_id == ctx.guild.id).count()}\n'
+        game_stats = (f'`{"Total games completed:":<35}\u200b` {games_played.count()} ({games_played.where(models.Game.guild_id == ctx.guild.id).count()})\n'
+                      f'`{"Games completed in last 30 days:":<35}\u200b`\u200b {games_played_30d.count()} ({games_played_30d.where(models.Game.guild_id == ctx.guild.id).count()})\n'
+                      f'`{"Incomplete games:":<35}\u200b` {incomplete_games.count()} ({incomplete_games.where(models.Game.guild_id == ctx.guild.id).count()})\n'
                       )
         embed.add_field(value='\u200b', name=game_stats)
         await ctx.send(embed=embed)
