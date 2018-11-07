@@ -405,8 +405,9 @@ class Help(formatter.HelpFormatter):
     @settings.in_bot_channel()
     @commands.command(name='help', pass_context=True, hidden=True)
     async def help(self, ctx, *cmds: str):
-        if not ctx.message.author.permissions_in(ctx.channel).embed_links:
-            return await ctx.send(content="You don't have permissions to send embeds here. Find a different server/channel where you can embed links and try the help command there.")
+        # if not ctx.message.author.permissions_in(ctx.channel).embed_links:
+            # removing this check as it is affecting one or two users for no apparent reason and i dont see what the point of this check is anyway
+            # return await ctx.send(content="You don't have permissions to send embeds here. Find a different server/channel where you can embed links and try the help command there.")
 
         """Shows help documentation.
         [p]**help**: Shows the help manual.
