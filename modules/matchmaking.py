@@ -106,13 +106,13 @@ class matchmaking():
             note_args.append(arg)
 
         if not team_size:
-            return await ctx.send(f'Game size is required. Include argument like *2v2* to specify size')
+            return await ctx.send(f'Game size is required. Include argument like *1v1* to specify size')
 
-        if is_ranked and not await settings.is_user(ctx):
-            return await ctx.send('You can only create *unranked* games until you participate in the server more. Added *unranked* to the end of your command.')
+        # if is_ranked and not await settings.is_user(ctx):
+        #     return await ctx.send('You can only create *unranked* games until you participate in the server more. Added *unranked* to the end of your command.')
 
-        if sum(team_sizes) > 2 and (not settings.is_power_user(ctx)) and ctx.guild.id != settings.server_ids['polychampions']:
-            return await ctx.send('You only have permissions to create 1v1 games. More active server members can create larger games.')
+        # if sum(team_sizes) > 2 and (not settings.is_power_user(ctx)) and ctx.guild.id != settings.server_ids['polychampions']:
+        #     return await ctx.send('You only have permissions to create 1v1 games. More active server members can create larger games.')
 
         server_size_max = settings.guild_setting(ctx.guild.id, 'max_team_size')
         if max(team_sizes) > server_size_max:
