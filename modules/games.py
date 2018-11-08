@@ -379,10 +379,10 @@ class elo_games():
                     lb_rank = p[0].leaderboard_rank(date_cutoff=settings.date_cutoff)[0]
                     games_played = p[0].games_played(in_days=30).count()
                     rank_str = f'#{lb_rank}' if lb_rank else 'Unranked'
-                    member_stats.append((f'**{p[0].discord_member.name}**', p[0].elo, f' - {p[0].elo} - {rank_str} - {games_played}'))
+                    member_stats.append(({p[0].discord_member.name}, p[0].elo, f'`{p[0].discord_member.name:.<25}{p[0].elo:.<6}{rank_str:.<4}{games_played:.<4}`'))
 
             member_stats.sort(key=lambda tup: tup[1], reverse=True)     # sort the list descending by ELO
-            members_sorted = [f'{x[0]} {x[2]}' for x in member_stats]    # create list of strings like Nelluk(1000)
+            members_sorted = [str(x[2].replace(".", "\u200b ")) for x in member_stats]    # create list of strings like Nelluk(1000)
             members_str = "\n".join(members_sorted) if len(members_sorted) > 0 else '\u200b'
             embed.add_field(name=f'Members({len(member_stats)})\nPlayer - ELO - Ranking - Recent Games', value=f'{members_str}', inline=False)
         else:
