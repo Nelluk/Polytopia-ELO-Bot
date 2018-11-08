@@ -373,14 +373,15 @@ class elo_games():
                 # Create a list of members - pull ELO score from database if they are registered, or with 0 ELO if they are not
                 p = Player.string_matches(player_string=str(member.id), guild_id=ctx.guild.id)
                 if len(p) == 0:
-                    member_stats.append((member.name, 0, '\u200b'))
+                    member_stats.append((member.name, 0, f'`{member.name[:23]:.<25}{" - ":.<6}{" - ":.<4}{" - ":.<4}`'))
                 else:
                     wins, losses = p[0].get_record()
                     lb_rank = p[0].leaderboard_rank(date_cutoff=settings.date_cutoff)[0]
                     games_played = p[0].games_played(in_days=30).count()
                     rank_str = f'#{lb_rank}' if lb_rank else 'Unranked'
-                    member_stats.append(({p[0].discord_member.name}, p[0].elo, f'`{p[0].discord_member.name:.<25}{p[0].elo:.<6}{rank_str:.<4}{games_played:.<4}`'))
+                    member_stats.append(({p[0].discord_member.name}, p[0].elo, f'`{p[0].discord_member.name[:23]:.<25}{p[0].elo:.<6}{rank_str:.<4}{games_played:.<4}`'))
 
+            print(member_stats)
             member_stats.sort(key=lambda tup: tup[1], reverse=True)     # sort the list descending by ELO
             members_sorted = [str(x[2].replace(".", "\u200b ")) for x in member_stats]    # create list of strings like Nelluk(1000)
             members_str = "\n".join(members_sorted) if len(members_sorted) > 0 else '\u200b'
