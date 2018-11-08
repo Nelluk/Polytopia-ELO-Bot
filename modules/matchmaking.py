@@ -136,7 +136,7 @@ class matchmaking():
         await ctx.send(f'Starting new {"unranked " if not is_ranked else ""}open game ID {opengame.id}. Size: {team_size_str}. Expiration: {expiration_hours} hours.\nNotes: *{notes_str}*\n'
             f'Other players can join this game with `{ctx.prefix}join {opengame.id}`.')
 
-    @commands.command(aliases=['matchside'], usage='match_id side_number Side Name')
+    @commands.command(aliases=['matchside'], usage='match_id side_number Side Name', hidden=True)
     async def gameside(self, ctx, game: PolyMatch, side_lookup: str, *, args):
         """
         Give a name to a side in an open game that you host

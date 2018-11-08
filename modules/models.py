@@ -542,7 +542,7 @@ class Game(BaseModel):
 
         sides = GameSide.select().where(
             (GameSide.game == self)
-        ).order_by(GameSide.position).prefetch(Lineup, Player)
+        ).order_by(GameSide.position)
 
         picks = []
         side_objs = [{'side': s, 'pick_score': 0, 'size': s.size, 'lineups': s.ordered_player_list()} for s in sides]

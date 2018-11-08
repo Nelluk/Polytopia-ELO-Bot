@@ -48,7 +48,7 @@ class misc:
             value='Win your games and climb the leaderboards! Earn sweet ELO points!\n'
                 'ELO points are gained or lost based on your game results. You will gain more points if you defeat an opponent with a higher ELO.\n'
                 f'Use __`{ctx.prefix}lb`__ to view the individual leaderboards. There is also a __`{ctx.prefix}lbsquad`__ squad leaderboard. Form a squad by playing with the same person in multiple games!'
-                f'\nSee __`{ctx.prefix}help games`__ for all commands.')
+                f'\nSee __`{ctx.prefix}help`__ for all commands.')
 
         embed.add_field(name='Finishing tracked games',
             value='When an ELO game is concluded the best way to have the points count is by having the loser confirm the status.\n'
