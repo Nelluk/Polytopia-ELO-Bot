@@ -377,7 +377,7 @@ class elo_games():
                 else:
                     wins, losses = p[0].get_record()
                     lb_rank = p[0].leaderboard_rank(date_cutoff=settings.date_cutoff)[0]
-                    games_played = p[0].games_played().count()
+                    games_played = p[0].games_played(in_days=30).count()
                     rank_str = f'#{lb_rank}' if lb_rank else ''
                     member_stats.append((f'**{p[0].discord_member.name}**', p[0].elo, f' - {p[0].elo} - {rank_str} - {games_played}'))
 
