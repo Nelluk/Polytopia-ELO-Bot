@@ -378,7 +378,7 @@ class elo_games():
                     wins, losses = p[0].get_record()
                     lb_rank = p[0].leaderboard_rank(date_cutoff=settings.date_cutoff)[0]
                     games_played = p[0].games_played(in_days=30).count()
-                    rank_str = f'#{lb_rank}' if lb_rank else ''
+                    rank_str = f'#{lb_rank}' if lb_rank else 'Unranked'
                     member_stats.append((f'**{p[0].discord_member.name}**', p[0].elo, f' - {p[0].elo} - {rank_str} - {games_played}'))
 
             member_stats.sort(key=lambda tup: tup[1], reverse=True)     # sort the list descending by ELO
