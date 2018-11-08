@@ -376,13 +376,15 @@ class elo_games():
                     member_stats.append((member.name, 0, '\u200b'))
                 else:
                     wins, losses = p[0].get_record()
-                    rank_str = f', #{p[0].leaderboard_rank(date_cutoff=settings.date_cutoff)[0]}' if p[0].leaderboard_rank(date_cutoff=settings.date_cutoff)[0] else ''
-                    member_stats.append((f'{p[0].name}', p[0].elo, f'**({p[0].elo}{rank_str})**'))
+                    lb_rank = p[0].leaderboard_rank(date_cutoff=settings.date_cutoff)[0]
+                    games_played = p[0].games_played().count()
+                    rank_str = f'#{lb_rank}' if lb_rank else ''
+                    member_stats.append((f'**{p[0].discord_member.name}**', p[0].elo, f' - {p[0].elo} - {rank_str} - {games_played}'))
 
             member_stats.sort(key=lambda tup: tup[1], reverse=True)     # sort the list descending by ELO
             members_sorted = [f'{x[0]} {x[2]}' for x in member_stats]    # create list of strings like Nelluk(1000)
-            members_str = " / ".join(members_sorted) if len(members_sorted) > 0 else '\u200b'
-            embed.add_field(name=f'Members({len(member_stats)})', value=f'{members_str}')
+            members_str = "\n".join(members_sorted) if len(members_sorted) > 0 else '\u200b'
+            embed.add_field(name=f'Members({len(member_stats)})\nPlayer - ELO - Ranking - Recent Games', value=f'{members_str}', inline=False)
         else:
             await ctx.send(f'Warning: No matching discord role "{team.name}" could be found. Player membership cannot be detected.')
 
@@ -393,7 +395,7 @@ class elo_games():
 
         recent_games = Game.search(team_filter=[team])
 
-        game_list = utilities.summarize_game_list(recent_games[:10])
+        game_list = utilities.summarize_game_list(recent_games[:5])
 
         for game, result in game_list:
             embed.add_field(name=game, value=result)

@@ -343,6 +343,15 @@ class Player(BaseModel):
 
         return num_games
 
+    def games_played(self, in_days: int = None):
+
+        if in_days:
+            date_cutoff = (datetime.datetime.now() + datetime.timedelta(days=-in_days))
+        else:
+            date_cutoff = datetime.date.min  # 'forever' ?
+
+        return Lineup.select(Lineup.game).join(Game).where((Lineup.game.date > date_cutoff) & (Lineup.player == self))
+
     def wins(self):
         # TODO: Could combine wins/losses into one function that takes an argument and modifies query
 
