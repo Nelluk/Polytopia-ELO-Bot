@@ -457,7 +457,7 @@ class Game(BaseModel):
     announcement_message = BitField(default=None, null=True)
     announcement_channel = BitField(default=None, null=True)
     date = DateField(default=datetime.datetime.today)
-    completed_ts = DateTimeField(null=True, default=None)
+    completed_ts = DateTimeField(null=True, default=None)  # Gets reset whenever ELO is recalculated so calculated_ts would be a more accurate name
     name = TextField(null=True)
     winner = DeferredForeignKey('GameSide', null=True, on_delete='RESTRICT')
     guild_id = BitField(unique=False, null=False)
@@ -469,7 +469,7 @@ class Game(BaseModel):
 
     def __setattr__(self, name, value):
         if name == 'name':
-            value = value.strip('\"').strip('\'').title()[:35] if value else value
+            value = value.strip('\"').strip('\'').strip('”').strip('“').title()[:35] if value else value
         return super().__setattr__(name, value)
 
     async def create_squad_channels(self, ctx):
