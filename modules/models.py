@@ -547,8 +547,10 @@ class Game(BaseModel):
         first_side = GameSide.select().where(
             (GameSide.game == self)
         ).order_by(GameSide.position).limit(1).get()
-
-        return first_side.ordered_player_list()[0]
+        side_players = first_side.ordered_player_list()
+        if side_players:
+            return first_side.ordered_player_list()[0]
+        return None
 
     def draft_order(self):
         # Returns list of tuples, in order of recommended draft order list:

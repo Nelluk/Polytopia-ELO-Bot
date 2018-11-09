@@ -368,8 +368,9 @@ class matchmaking():
             expiration = int((game.expiration - datetime.datetime.now()).total_seconds() / 3600.0)
             expiration = 'Exp' if expiration < 0 else f'{expiration}H'
             ranked = ' ' if game.is_ranked else 'U'
-
-            gamelist_fields.append((f'`{f"{game.id}":<8}{game.host.name:<40} {game.size_string():<7} {capacity_str:<7} {expiration:>5} {ranked}`',
+            creating_player = game.creating_player()
+            host_name = creating_player.name if creating_player else '<Vacant>'
+            gamelist_fields.append((f'`{f"{game.id}":<8}{host_name:<40} {game.size_string():<7} {capacity_str:<7} {expiration:>5} {ranked}`',
                 notes_str))
 
         self.bot.loop.create_task(utilities.paginate(self.bot, ctx, title=title_str_full, message_list=gamelist_fields, page_start=0, page_end=15, page_size=15))
