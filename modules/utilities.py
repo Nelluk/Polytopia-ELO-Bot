@@ -108,7 +108,7 @@ async def paginate(bot, ctx, title, message_list, page_start=0, page_end=10, pag
             return ((user == ctx.message.author) and (reaction.message.id == sent_message.id) and compare)
 
         try:
-            reaction, user = await bot.wait_for('reaction_add', timeout=30.0, check=check)
+            reaction, user = await bot.wait_for('reaction_add', timeout=45.0, check=check)
         except asyncio.TimeoutError:
             try:
                 await sent_message.clear_reactions()
