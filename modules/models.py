@@ -541,6 +541,15 @@ class Game(BaseModel):
 
         return self.host.discord_member.discord_id == discord_id, self.host
 
+    def creating_player(self):
+        # return Player who is in 'first position' for this game, ie. the game creator in Polytopia
+        # will not always be Game.host if it was a staff member who removed themselves from lineup
+        first_side = GameSide.select().where(
+            (GameSide.game == self)
+        ).order_by(GameSide.position).limit(1).get()
+
+        return first_side.ordered_player_list()[0]
+
     def draft_order(self):
         # Returns list of tuples, in order of recommended draft order list:
         # [(Side #, Side Name, Player 1), ... ]
@@ -666,6 +675,7 @@ class Game(BaseModel):
             if not self.is_pending:
                 status_str = f'Started - **{self.name}**' if self.name else 'Started'
             else:
+                creating_player = self.creating_player()
                 if self.largest_team() > 1:
                     draft_order = ['\n__**Balanced Draft Order**__']
                     for draft in self.draft_order():
@@ -673,7 +683,7 @@ class Game(BaseModel):
                     draft_order_str = '\n'.join(draft_order)
                 else:
                     draft_order_str = ''
-                content_str = (f'This match is now full and the host should create the game in Polytopia and start it with `{ctx.prefix}startgame {self.id} Name of Game`'
+                content_str = (f'This match is now full and **{creating_player.name}** should create the game in Polytopia and start it with `{ctx.prefix}startgame {self.id} Name of Game`'
                         f'{draft_order_str}')
                 status_str = 'Full - Waiting to start'
 

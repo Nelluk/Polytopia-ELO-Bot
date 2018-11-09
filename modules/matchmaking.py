@@ -235,10 +235,13 @@ class matchmaking():
 
         players, capacity = game.capacity()
         if players >= capacity:
-            await ctx.send(f'Game {game.id} is now full and the host <@{game.host.discord_member.discord_id}> should start the game.')
-        # TODO: output correct ordering respecting side.position
+            creating_player = game.creating_player()
+            await ctx.send(f'Game {game.id} is now full and <@{creating_player.discord_member.discord_id}> should create the game in Polytopia.')
+
+            if game.host != creating_player:
+                await ctx.send(f'Matchmaking host <@{game.host.discord_member.discord_id}> is not in the game lineup.')
+
         embed, content = game.embed(ctx)
-        # TODO: fix embeds
         await ctx.send(embed=embed, content=content)
 
     @commands.command(usage='game_id', aliases=['leavegame', 'leavematch'])
