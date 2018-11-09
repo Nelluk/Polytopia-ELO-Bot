@@ -4,7 +4,7 @@ import modules.models as models
 # import modules.utilities as utilities
 import settings
 import logging
-# import peewee
+import peewee
 # import modules.exceptions as exceptions
 import re
 import datetime
@@ -18,13 +18,17 @@ class misc:
     def __init__(self, bot):
         self.bot = bot
 
-    @commands.command(hidden=True, aliases=['test'])
+    @commands.command(hidden=True, aliases=['ts'])
     @commands.is_owner()
-    async def ts(self, ctx, *, arg: str = None):
-        p = models.Player.string_matches(player_string=arg, guild_id=ctx.guild.id)
-        print(len(p))
-        for player in p.dicts():
-            print(p)
+    async def test(self, ctx, *, arg: str = None):
+        last_month = (datetime.datetime.now() + datetime.timedelta(days=-30))
+
+        query = models.Player.select(models.Player, peewee.fn.COUNT(models.Lineup.id).alias('count')).join(models.Lineup).join(models.Game).where(
+            (models.Lineup.player == models.Player.id) & (models.Game.is_pending == 0) & (models.Game.date > last_month) & (models.Game.guild_id == ctx.guild.id)
+        ).group_by(models.Player.id).order_by(-peewee.SQL('count'))
+        print(len(query))
+        for player in query.dicts():
+            print(player)
 
     @commands.command(usage=None)
     async def guide(self, ctx):

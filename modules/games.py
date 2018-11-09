@@ -4,7 +4,7 @@ import modules.utilities as utilities
 import settings
 import modules.exceptions as exceptions
 import peewee
-from modules.models import Game, db, Player, Team, DiscordMember, Squad, GameSide, TribeFlair
+from modules.models import Game, db, Player, Team, DiscordMember, Squad, GameSide, TribeFlair, Lineup, Player
 import logging
 from itertools import groupby
 
@@ -114,6 +114,33 @@ class elo_games():
                 'Supporting up to 6-player team ELO games and automatic team channels. - <https://tinyurl.com/polychampions>')
             # link put behind url shortener to not show big invite embed
         await utilities.paginate(self.bot, ctx, title=f'**Individual Leaderboards**\n{leaderboard_query.count()} ranked players', message_list=leaderboard, page_start=0, page_end=10, page_size=10)
+
+    @settings.in_bot_channel()
+    @commands.command(aliases=['recent', 'active'])
+    @commands.cooldown(2, 30, commands.BucketType.channel)
+    async def lbrecent(self, ctx):
+        """ Display most active recent players"""
+        import datetime
+        last_month = (datetime.datetime.now() + datetime.timedelta(days=-30))
+
+        leaderboard = []
+
+        query = Player.select(Player, peewee.fn.COUNT(Lineup.id).alias('count')).join(Lineup).join(Game).where(
+            (Lineup.player == Player.id) & (Game.is_pending == 0) & (Game.date > last_month) & (Game.guild_id == ctx.guild.id)
+        ).group_by(Player.id).order_by(-peewee.SQL('count'))
+
+        for counter, player in enumerate(query[:500]):
+            wins, losses = player.get_record()
+            emoji_str = player.team.emoji if player.team else ''
+            leaderboard.append(
+                (f'{(counter + 1):>3}. {emoji_str}{player.name}', f'`ELO {player.elo}\u00A0\u00A0\u00A0\u00A0Recent Games {player.count}`')
+            )
+
+        if ctx.guild.id != settings.server_ids['polychampions']:
+            await ctx.send('Powered by PolyChampions. League server with a team focus and competitive players.\n'
+                'Supporting up to 6-player team ELO games and automatic team channels. - <https://tinyurl.com/polychampions>')
+            # link put behind url shortener to not show big invite embed
+        await utilities.paginate(self.bot, ctx, title=f'**Most Active Recent Players**\n{query.count()} player in past 30 days', message_list=leaderboard, page_start=0, page_end=10, page_size=10)
 
     @settings.in_bot_channel()
     @commands.command(aliases=['leaderboardglobal', 'lbg', 'globallb'])
