@@ -478,8 +478,10 @@ class matchmaking():
                     expiration = int((game.expiration - datetime.datetime.now()).total_seconds() / 3600.0)
                     expiration = 'Exp' if expiration < 0 else f'{expiration}H'
                     ranked = ' ' if game.is_ranked else 'U'
+                    creating_player = game.creating_player()
+                    host_name = creating_player.name if creating_player else '<Vacant>'
 
-                    embed.add_field(name=f'`{game.id:<8}{game.host.name:<40} {game.size_string():<7} {capacity_str:<7} {expiration:>5} {ranked}`', value=notes_str)
+                    embed.add_field(name=f'`{game.id:<8}{host_name:<40} {game.size_string():<7} {capacity_str:<7} {expiration:>5} {ranked}`', value=notes_str)
 
                 await chan.send(embed=embed)
 
