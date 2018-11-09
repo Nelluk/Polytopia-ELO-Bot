@@ -541,6 +541,10 @@ class Game(BaseModel):
 
         return self.host.discord_member.discord_id == discord_id, self.host
 
+    def is_created_by(self, discord_id: int):
+        creating_player = self.creating_player
+        return creating_player.discord_member.discord_id == discord_id if creating_player else False
+
     def creating_player(self):
         # return Player who is in 'first position' for this game, ie. the game creator in Polytopia
         # will not always be Game.host if it was a staff member who removed themselves from lineup

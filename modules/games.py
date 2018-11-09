@@ -408,11 +408,11 @@ class elo_games():
                     rank_str = f'#{lb_rank}' if lb_rank else ' - '
                     member_stats.append(({p[0].discord_member.name}, p[0].elo, f'`{p[0].discord_member.name[:23]:.<25}{p[0].elo:.<8}{rank_str:.<5}{games_played:.<4}`'))
 
-            print(member_stats)
             member_stats.sort(key=lambda tup: tup[1], reverse=True)     # sort the list descending by ELO
-            members_sorted = [str(x[2].replace(".", "\u200b ")) for x in member_stats]    # create list of strings like Nelluk(1000)
+            members_sorted = [str(x[2].replace(".", "\u200b ")) for x in member_stats[:20]]    # create list of strings like 'Nelluk  1277 #3  21'.
+            # replacing '.' with "\u200b " (alternated zero width space with a normal space) so discord wont strip spaces
+
             members_str = "\n".join(members_sorted) if len(members_sorted) > 0 else '\u200b'
-            # embed.add_field(name=f'Members({len(member_stats)})\nPlayer - ELO - Ranking - Recent Games', value=f'{members_str}', inline=False)
             embed.description = f'**Members({len(member_stats)})**\n__Player - ELO - Ranking - Recent Games__\n{members_str}'
         else:
             await ctx.send(f'Warning: No matching discord role "{team.name}" could be found. Player membership cannot be detected.')

@@ -396,7 +396,7 @@ class matchmaking():
         `[p]startgame 100 Fields of Fire`
         """
 
-        if not game.is_hosted_by(ctx.author.id)[0] and not settings.is_staff(ctx):
+        if not game.is_hosted_by(ctx.author.id)[0] and not settings.is_staff(ctx) and not game.is_created_by(ctx.author.id):
             return await ctx.send(f'Only the match host or server staff can do this.')
 
         if not name:
