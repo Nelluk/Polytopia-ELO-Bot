@@ -484,9 +484,9 @@ class elo_games():
         player.discord_member.save()
 
         if created:
-            await ctx.send('Player {0.name} added to system with Polytopia code {0.discord_member.polytopia_id} and ELO {0.elo}'.format(player))
+            await ctx.send('Player **{0.name}** added to system with Polytopia code {0.discord_member.polytopia_id} and ELO {0.elo}'.format(player))
         else:
-            await ctx.send('Player {0.name} updated in system with Polytopia code {0.discord_member.polytopia_id}.'.format(player))
+            await ctx.send('Player **{0.name}** updated in system with Polytopia code {0.discord_member.polytopia_id}.'.format(player))
 
     @commands.command(aliases=['code'], usage='player_name')
     async def getcode(self, ctx, *, player_string: str = None):
@@ -994,7 +994,7 @@ class elo_games():
         if not game:
             return await ctx.send(f'No game ID supplied')
         if game.is_pending:
-            await ctx.send(f'This game has not started yet.')
+            return await ctx.send(f'This game has not started yet.')
 
         is_hosted_by, host = game.is_hosted_by(ctx.author.id)
         if not is_hosted_by and not settings.is_staff(ctx):

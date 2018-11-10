@@ -219,7 +219,7 @@ class matchmaking():
         player, _ = models.Player.get_by_discord_id(discord_id=guild_matches[0].id, discord_name=guild_matches[0].name, discord_nick=guild_matches[0].nick, guild_id=ctx.guild.id)
         if not player:
             # Matching guild member but no Player or DiscordMember
-            return await ctx.send(f'"{guild_matches[0].name}" was found in the server but is not registered with me. '
+            return await ctx.send(f'*{guild_matches[0].name}* was found in the server but is not registered with me. '
                 f'Players can be register themselves with `{ctx.prefix}setcode POLYTOPIA_CODE`.')
 
         if game.has_player(player)[0]:
