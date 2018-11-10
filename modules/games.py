@@ -41,16 +41,23 @@ class elo_games():
         if before.nick == after.nick and before.name == after.name:
             return
 
-        try:
-            player = Player.select(Player, DiscordMember).join(DiscordMember).where(
-                (DiscordMember.discord_id == after.id) & (Player.guild_id == after.guild.id)
-            ).get()
-        except peewee.DoesNotExist:
-            return
+        if before.nick != after.nick:
+            # update nick in guild's Player record
+            try:
+                player = Player.select(Player, DiscordMember).join(DiscordMember).where(
+                    (DiscordMember.discord_id == after.id) & (Player.guild_id == after.guild.id)
+                ).get()
+            except peewee.DoesNotExist:
+                return
+            player.generate_display_name(player_name=after.name, player_nick=after.nick)
 
-        player.discord_member.name = after.name
-        player.discord_member.save()
-        player.generate_display_name(player_name=after.name, player_nick=after.nick)
+        if before.name != after.name:
+            # update Discord Member Name, and update display name for each Guild/Player they share with the bot
+            try:
+                discord_member = DiscordMember.select().where(DiscordMember.discord_id == after.id).get()
+            except peewee.DoesNotExist:
+                return
+            discord_member.update_name(new_name=after.name)
 
     @commands.command(aliases=['reqgame', 'helpstaff'])
     @commands.cooldown(2, 30, commands.BucketType.user)

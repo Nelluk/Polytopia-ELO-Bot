@@ -96,6 +96,12 @@ class DiscordMember(BaseModel):
     polytopia_id = TextField(null=True)
     polytopia_name = TextField(null=True)
 
+    def update_name(self, new_name: str):
+        self.name = new_name
+        self.save()
+        for guildmember in self.guildmember:
+            guildmember.generate_display_name(player_name=new_name, player_nick=guildmember.nick)
+
     def wins(self):
 
         q = Lineup.select().join(Game).join_from(Lineup, GameSide).join_from(Lineup, Player).where(
