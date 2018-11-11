@@ -946,7 +946,7 @@ class elo_games():
                 logger.critical(f'Possible ELO bug in result from {winning_game.id}')
                 await ctx.send(f'Alert for <@{settings.owner_id}>, result of last completed game may be incorrect')
 
-    @commands.command(usage='game_id', aliases=['delete_game', 'delgame', 'delmatch'])
+    @commands.command(usage='game_id', aliases=['delete_game', 'delgame', 'delmatch', 'delete'])
     async def deletegame(self, ctx, game: PolyGame):
         """Deletes a game
 
