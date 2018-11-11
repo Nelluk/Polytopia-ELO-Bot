@@ -356,7 +356,7 @@ class Player(BaseModel):
         else:
             date_cutoff = datetime.date.min  # 'forever' ?
 
-        return Lineup.select(Lineup.game).join(Game).where((Lineup.game.date > date_cutoff) & (Lineup.player == self))
+        return Lineup.select(Lineup.game).join(Game).where((Lineup.game.date > date_cutoff) & (Lineup.player == self)).order_by(-Game.date)
 
     def wins(self):
         # TODO: Could combine wins/losses into one function that takes an argument and modifies query

@@ -365,14 +365,15 @@ class elo_games():
             tribes_str = ' '.join([f'{t.emoji if t.emoji else t.tribe.name}' for t in favorite_tribe_objs])
             embed.add_field(value=tribes_str, name='Most-logged Tribes', inline=True)
 
-        recent_games = Game.search(player_filter=[player])
-        if not recent_games:
+        games_list = Game.search(player_filter=[player])
+        if not games_list:
             recent_games_str = 'No games played'
         else:
-            recent_games_str = f'Most recent games ({len(recent_games)} total):'
+            recent_games_count = player.games_played(in_days=30).count()
+            recent_games_str = f'Most recent games ({games_list.count()} total, {recent_games_count} recently):'
         embed.add_field(value='\u200b', name=recent_games_str, inline=False)
 
-        game_list = utilities.summarize_game_list(recent_games[:7])
+        game_list = utilities.summarize_game_list(games_list[:7])
         for game, result in game_list:
             embed.add_field(name=game, value=result, inline=False)
 
