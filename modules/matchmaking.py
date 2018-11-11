@@ -145,7 +145,7 @@ class matchmaking():
         """
 
         if not game.is_pending:
-            return await ctx.send(f'The game has already started and this can no longer be changed.')
+            return await ctx.send(f'The game has already started and can no longer be changed.')
         if not game.is_hosted_by(ctx.author.id)[0] and not settings.is_staff(ctx):
             return await ctx.send(f'Only the game host or server staff can do this.')
 
@@ -175,7 +175,7 @@ class matchmaking():
         if not game:
             return await ctx.send(f'No game ID provided. Use `{ctx.prefix}opengames` to list open games you can join.')
         if not game.is_pending:
-            return await ctx.send(f'The game has already started and this can no longer be joined.')
+            return await ctx.send(f'The game has already started and can no longer be joined.')
 
         if len(args) == 0:
             # ctx.author is joining a game, no side given
