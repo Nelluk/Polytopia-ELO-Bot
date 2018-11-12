@@ -147,7 +147,7 @@ class elo_games():
             await ctx.send('Powered by PolyChampions. League server with a team focus and competitive players.\n'
                 'Supporting up to 6-player team ELO games and automatic team channels. - <https://tinyurl.com/polychampions>')
             # link put behind url shortener to not show big invite embed
-        await utilities.paginate(self.bot, ctx, title=f'**Most Active Recent Players**\n{query.count()} player in past 30 days', message_list=leaderboard, page_start=0, page_end=10, page_size=10)
+        await utilities.paginate(self.bot, ctx, title=f'**Most Active Recent Players**\n{query.count()} players in past 30 days', message_list=leaderboard, page_start=0, page_end=10, page_size=10)
 
     @settings.in_bot_channel()
     @commands.command(aliases=['leaderboardglobal', 'lbg', 'globallb'])
