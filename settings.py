@@ -75,7 +75,7 @@ config = {'default':
                       'command_prefix': '$',
                       'include_in_global_lb': True,
                       'bot_channels_limited': [403724174532673536, 418175357137453058],
-                      'bot_channels': [403724174532673536, 396069729657421824, 418175357137453058],
+                      'bot_channels': [511316081160355852, 403724174532673536, 396069729657421824, 418175357137453058],
                       'match_challenge_channel': None,
                       'game_request_channel': None,
                       'game_announce_channel': 505523961812090900,
