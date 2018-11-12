@@ -5,6 +5,7 @@ import settings
 import logging
 import peewee
 import modules.exceptions as exceptions
+import datetime
 from modules.games import PolyGame, post_win_messaging
 
 logger = logging.getLogger('polybot.' + __name__)
@@ -65,6 +66,8 @@ class administration:
         await game.delete_squad_channels(ctx)
 
         game.is_pending = True
+        tomorrow = (datetime.datetime.now() + datetime.timedelta(hours=24))
+        game.expiration = tomorrow if game.expiration < tomorrow else game.expiration
         game.save()
         return await ctx.send(f'Game {game.id} is now an open game and no longer in progress.')
 
