@@ -417,7 +417,7 @@ class elo_games():
                     member_stats.append(({p[0].discord_member.name}, p[0].elo, f'`{p[0].discord_member.name[:23]:.<25}{p[0].elo:.<8}{rank_str:.<5}{games_played:.<4}`'))
 
             member_stats.sort(key=lambda tup: tup[1], reverse=True)     # sort the list descending by ELO
-            members_sorted = [str(x[2].replace(".", "\u200b ")) for x in member_stats[:20]]    # create list of strings like 'Nelluk  1277 #3  21'.
+            members_sorted = [str(x[2].replace(".", "\u200b ")) for x in member_stats[:28]]    # create list of strings like 'Nelluk  1277 #3  21'.
             # replacing '.' with "\u200b " (alternated zero width space with a normal space) so discord wont strip spaces
 
             members_str = "\n".join(members_sorted) if len(members_sorted) > 0 else '\u200b'
