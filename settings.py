@@ -33,6 +33,9 @@ config = {'default':
                       'include_in_global_lb': False,
                       'bot_channels': [],
                       'match_challenge_channel': None,
+                      'bot_channels_private': [],  # channels here will pass any bot channel check, and not linked in bot messages
+                      'bot_channels_strict': [],  # channels where the most limited commands work, like leaderboards
+                      'bot_channels': [],  # channels were more common commands work, like matchmaking
                       'game_request_channel': None,
                       'game_announce_channel': None,
                       'game_channel_category': None},
@@ -61,7 +64,8 @@ config = {'default':
                       'max_team_size': 5,
                       'command_prefix': '$',
                       'include_in_global_lb': True,
-                      'bot_channels_strict': [487303307224940545, 448317497473630229, 487304043786665986],  # 545 elo-commands, 229 bot-commands, 986 elo-staff-talk
+                      'bot_channels_private': [487304043786665986],  # 986 elo-staff-talk
+                      'bot_channels_strict': [487303307224940545, 448317497473630229],  # 545 elo-commands, 229 bot-commands
                       'bot_channels': [487303307224940545, 448317497473630229, 487304043786665986, 469027618289614850],  # 850 dont-timeout
                       'match_challenge_channel': 452639822616723457,  # elo-challenges
                       'game_request_channel': 487304043786665986,  # $staffhelp output
@@ -77,8 +81,9 @@ config = {'default':
                       'max_team_size': 1,
                       'command_prefix': '$',
                       'include_in_global_lb': True,
-                      'bot_channels_strict': [403724174532673536, 418175357137453058],  # 536 BotCommands, 058 TestChamber
-                      'bot_channels': [403724174532673536, 418175357137453058, 511906353476927498, 511316081160355852],  # 498 unranked-games, 852 ranked-games
+                      'bot_channels_private': [418175357137453058],  # 058 testchamber
+                      'bot_channels_strict': [403724174532673536],  # 536 BotCommands
+                      'bot_channels': [403724174532673536, 511906353476927498, 511316081160355852],  # 498 unranked-games, 852 ranked-games
                       'match_challenge_channel': None,
                       'game_request_channel': None,
                       'game_announce_channel': 505523961812090900,
@@ -231,14 +236,13 @@ def in_bot_channel():
             return True
         if is_mod(ctx):
             return True
-        if ctx.message.channel.id in guild_setting(ctx.guild.id, 'bot_channels'):
+        if ctx.message.channel.id in guild_setting(ctx.guild.id, 'bot_channels') + guild_setting(ctx.guild.id, 'bot_channels_private'):
             return True
         else:
             if ctx.invoked_with == 'help' and ctx.command.name != 'help':
                 # Silently fail check when help cycles through every bot command for a check.
                 pass
             else:
-                # primary_bot_channel = guild_setting(ctx.guild.id, 'bot_channels')[0]
                 channel_tags = [f'<#{chan_id}>' for chan_id in guild_setting(ctx.guild.id, 'bot_channels')]
                 await ctx.send(f'This command can only be used in a designated ELO bot channel. Try: {" ".join(channel_tags)}')
             return False
@@ -251,9 +255,9 @@ def in_bot_channel_strict():
             if guild_setting(ctx.guild.id, 'bot_channels') is None:
                 return True
             else:
-                chan_list = guild_setting(ctx.guild.id, 'bot_channels')
+                chan_list = guild_setting(ctx.guild.id, 'bot_channels') + guild_setting(ctx.guild.id, 'bot_channels_private')
         else:
-            chan_list = guild_setting(ctx.guild.id, 'bot_channels_strict')
+            chan_list = guild_setting(ctx.guild.id, 'bot_channels_strict') + guild_setting(ctx.guild.id, 'bot_channels_private')
         if is_mod(ctx):
             return True
         if ctx.message.channel.id in chan_list:
