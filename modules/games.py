@@ -122,7 +122,7 @@ class elo_games():
             # link put behind url shortener to not show big invite embed
         await utilities.paginate(self.bot, ctx, title=f'**Individual Leaderboards**\n{leaderboard_query.count()} ranked players', message_list=leaderboard, page_start=0, page_end=10, page_size=10)
 
-    @settings.in_bot_channel()
+    @settings.in_bot_channel_strict()
     @commands.command(aliases=['recent', 'active'])
     @commands.cooldown(2, 30, commands.BucketType.channel)
     async def lbrecent(self, ctx):
@@ -149,7 +149,7 @@ class elo_games():
             # link put behind url shortener to not show big invite embed
         await utilities.paginate(self.bot, ctx, title=f'**Most Active Recent Players**\n{query.count()} players in past 30 days', message_list=leaderboard, page_start=0, page_end=10, page_size=10)
 
-    @settings.in_bot_channel()
+    @settings.in_bot_channel_strict()
     @commands.command(aliases=['leaderboardglobal', 'lbg', 'globallb'])
     @commands.cooldown(2, 30, commands.BucketType.channel)
     async def lbglobal(self, ctx):
@@ -169,7 +169,7 @@ class elo_games():
             # link put behind url shortener to not show big invite embed
         await utilities.paginate(self.bot, ctx, title=f'**Global Leaderboards**\n{leaderboard_query.count()} ranked players', message_list=leaderboard, page_start=0, page_end=10, page_size=10)
 
-    @settings.in_bot_channel()
+    @settings.in_bot_channel_strict()
     @settings.teams_allowed()
     @commands.command(aliases=['teamlb'])
     @commands.cooldown(2, 30, commands.BucketType.channel)
@@ -193,7 +193,7 @@ class elo_games():
 
         await ctx.send(embed=embed)
 
-    @settings.in_bot_channel()
+    @settings.in_bot_channel_strict()
     @commands.command(aliases=['squadlb'])
     @commands.cooldown(2, 30, commands.BucketType.channel)
     async def lbsquad(self, ctx):
@@ -617,6 +617,7 @@ class elo_games():
             return await ctx.send(f'No results. See `{ctx.prefix}help games` for usage examples. Searched for:\n{results_str}')
         await utilities.paginate(self.bot, ctx, title=list_name, message_list=game_list, page_start=0, page_end=15, page_size=15)
 
+    @settings.in_bot_channel_strict()
     @commands.command(aliases=['completed'])
     async def complete(self, ctx, *args):
         """List complete games for you or other players
@@ -656,6 +657,7 @@ class elo_games():
             return await ctx.send(f'No results. See `{ctx.prefix}help complete` for usage examples.')
         await utilities.paginate(self.bot, ctx, title=list_name, message_list=game_list, page_start=0, page_end=10, page_size=10)
 
+    @settings.in_bot_channel_strict()
     @commands.command()
     async def incomplete(self, ctx, *args):
         """List incomplete games for you or other players
@@ -695,6 +697,7 @@ class elo_games():
             return await ctx.send(f'No results. See `{ctx.prefix}help incomplete` for usage examples.')
         await utilities.paginate(self.bot, ctx, title=list_name, message_list=game_list, page_start=0, page_end=10, page_size=10)
 
+    @settings.in_bot_channel_strict()
     @commands.command()
     async def wins(self, ctx, *args):
         """List games that you or others have won
@@ -734,6 +737,7 @@ class elo_games():
             return await ctx.send(f'No results. See `{ctx.prefix}help wins` for usage examples.')
         await utilities.paginate(self.bot, ctx, title=list_name, message_list=game_list, page_start=0, page_end=10, page_size=10)
 
+    @settings.in_bot_channel_strict()
     @commands.command(aliases=['loss', 'lose'])
     async def losses(self, ctx, *args):
         """List games that you have lost, or others
@@ -773,6 +777,7 @@ class elo_games():
             return await ctx.send(f'No results. See `{ctx.prefix}help losses` for usage examples.')
         await utilities.paginate(self.bot, ctx, title=list_name, message_list=game_list, page_start=0, page_end=10, page_size=10)
 
+    @settings.in_bot_channel()
     @commands.command(usage='"Name of Game" player1 player2 vs player3 player4')
     @settings.is_user_check()
     async def newgame(self, ctx, game_name: str = None, *args):
@@ -869,6 +874,7 @@ class elo_games():
 
             await post_newgame_messaging(ctx, game=newgame)
 
+    @settings.in_bot_channel()
     @commands.command(aliases=['endgame', 'wingame', 'winner'], usage='game_id winner_name')
     async def win(self, ctx, winning_game: PolyGame = None, winning_side_name: str = None):
         """
@@ -949,6 +955,7 @@ class elo_games():
                 logger.critical(f'Possible ELO bug in result from {winning_game.id}')
                 await ctx.send(f'Alert for <@{settings.owner_id}>, result of last completed game may be incorrect')
 
+    @settings.in_bot_channel()
     @commands.command(usage='game_id', aliases=['delete_game', 'delgame', 'delmatch', 'delete'])
     async def deletegame(self, ctx, game: PolyGame):
         """Deletes a game
@@ -986,6 +993,7 @@ class elo_games():
             # Can result in funky behavior especially if another operation tries to close DB connection, but seems to still get this operation done reliably
             await ctx.send(f'Game with ID {gid} has been deleted and team/player ELO changes have been reverted, if applicable.')
 
+    @settings.in_bot_channel()
     @commands.command(aliases=['namegame', 'gamename'], usage='game_id "New Name"')
     async def rename(self, ctx, game: PolyGame = None, *args):
         """Renames an existing game (due to restarts)

@@ -43,7 +43,7 @@ class matchmaking():
         self.bot = bot
         self.bg_task = bot.loop.create_task(self.task_print_matchlist())
 
-    # @settings.in_bot_channel()
+    @settings.in_bot_channel()
     @commands.command(aliases=['openmatch'], usage='size expiration rules')
     async def opengame(self, ctx, *, args=None):
 
@@ -138,6 +138,7 @@ class matchmaking():
         await ctx.send(f'Starting new {"unranked " if not is_ranked else ""}open game ID {opengame.id}. Size: {team_size_str}. Expiration: {expiration_hours} hours.\nNotes: *{notes_str}*\n'
             f'Other players can join this game with `{ctx.prefix}join {opengame.id}`.')
 
+    @settings.in_bot_channel()
     @commands.command(aliases=['matchside'], usage='match_id side_number Side Name', hidden=True)
     async def gameside(self, ctx, game: PolyMatch, side_lookup: str, *, args):
         """
@@ -163,7 +164,7 @@ class matchmaking():
 
         return await ctx.send(f'Side {gameside.position} for game {game.id} has been named "{args}"')
 
-    # @settings.in_bot_channel()
+    @settings.in_bot_channel()
     @commands.command(usage='game_id', aliases=['joingame', 'joinmatch'])
     async def join(self, ctx, game: PolyMatch = None, *args):
         """
@@ -246,6 +247,7 @@ class matchmaking():
         embed, content = game.embed(ctx)
         await ctx.send(embed=embed, content=content)
 
+    @settings.in_bot_channel()
     @commands.command(usage='game_id', aliases=['leavegame', 'leavematch'])
     async def leave(self, ctx, game: PolyMatch = None):
         """
@@ -276,6 +278,7 @@ class matchmaking():
         lineup.delete_instance()
         await ctx.send('Removing you from the game.')
 
+    @settings.in_bot_channel()
     @commands.command(usage='game_id', aliases=['notes', 'matchnotes'])
     async def gamenotes(self, ctx, game: PolyMatch, *, notes: str = None):
         """
@@ -300,6 +303,7 @@ class matchmaking():
         embed, content = game.embed(ctx)
         await ctx.send(embed=embed, content=content)
 
+    @settings.in_bot_channel()
     @commands.command(usage='game_id player')
     async def kick(self, ctx, game: PolyMatch, player: str):
         """
@@ -324,7 +328,7 @@ class matchmaking():
         await ctx.send(f'Removing **{lineup.player.name}** from the game.')
         lineup.delete_instance()
 
-    # @settings.in_bot_channel()
+    @settings.in_bot_channel()
     @commands.command(aliases=['listmatches', 'matchlist', 'openmatches', 'listmatch', 'matches'])
     async def opengames(self, ctx, *args):
         """
@@ -388,7 +392,7 @@ class matchmaking():
             await ctx.send(f'You have full games waiting to start: **{", ".join(waitlist)}**\n'
                 f'Type `{ctx.prefix}game #` for more details.')
 
-    # @settings.in_bot_channel()
+    @settings.in_bot_channel()
     @commands.command(aliases=['startmatch', 'start'], usage='game_id Name of Poly Game')
     async def startgame(self, ctx, game: PolyMatch, *, name: str = None):
         """

@@ -48,6 +48,7 @@ class misc:
             print(f'{c.name} - {c.id}')
 
     @commands.command(usage=None)
+    @settings.in_bot_channel_strict()
     async def guide(self, ctx):
         """
         Show an oveview of what the bot is for
@@ -83,6 +84,7 @@ class misc:
         await ctx.send(embed=embed)
 
     @commands.command(usage=None)
+    @settings.in_bot_channel_strict()
     async def credits(self, ctx):
         """
         Display development credits
@@ -97,6 +99,7 @@ class misc:
         await ctx.send(embed=embed)
 
     @commands.command()
+    @settings.in_bot_channel_strict()
     async def stats(self, ctx):
 
         embed = discord.Embed(title='PolyELO Statistics')
@@ -141,6 +144,7 @@ class misc:
         await ctx.send(f'Message from {ctx.author.mention} regarding game {game.id} **{game.name}**:\n*{message}*\n{" ".join(player_mentions)}')
 
     @commands.command(aliases=['random_tribes', 'rtribe'], usage='game_size [-banned_tribe ...]')
+    @settings.in_bot_channel()
     async def rtribes(self, ctx, size='1v1', *args):
         """Show a random tribe combination for a given game size.
         This tries to keep the sides roughly equal in power.
