@@ -133,6 +133,7 @@ class DiscordMember(BaseModel):
         # TODO: This could be replaced with Postgresql Window functions to have the DB calculate the rank.
         # Advantages: Probably moderately more efficient, and will resolve ties in a sensible way
         # But no idea how to write the query :/
+        # http://docs.peewee-orm.com/en/latest/peewee/query_examples.html#find-the-top-three-revenue-generating-facilities
 
         query = DiscordMember.leaderboard(date_cutoff=date_cutoff)
 
@@ -382,6 +383,7 @@ class Player(BaseModel):
         # TODO: This could be replaced with Postgresql Window functions to have the DB calculate the rank.
         # Advantages: Probably moderately more efficient, and will resolve ties in a sensible way
         # But no idea how to write the query :/
+        # http://docs.peewee-orm.com/en/latest/peewee/query_examples.html#find-the-top-three-revenue-generating-facilities
 
         query = Player.leaderboard(date_cutoff=date_cutoff, guild_id=self.guild_id)
 

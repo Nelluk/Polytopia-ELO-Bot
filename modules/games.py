@@ -803,6 +803,7 @@ class elo_games():
         # split ['foo', 'bar', 'vs', 'baz', 'bat'] into [['foo', 'bar']['baz', 'bat']]
 
         biggest_team = max(len(group) for group in player_groups)
+        smallest_team = min(len(group) for group in player_groups)
         total_players = sum(len(group) for group in player_groups)
 
         if len(player_groups) < 2:
@@ -815,6 +816,8 @@ class elo_games():
         if biggest_team > settings.guild_setting(ctx.guild.id, 'max_team_size'):
             if settings.is_mod(ctx):
                 await ctx.send('Moderator over-riding server size limits')
+            elif settings.guild_setting(ctx.guild.id, 'allow_uneven_teams') and smallest_team <= settings.guild_setting(ctx.guild.id, 'max_team_size'):
+                await ctx.send('Warning: Team sizes are uneven.')
             else:
                 return await ctx.send(f'This server has a maximum team size of {settings.guild_setting(ctx.guild.id, "max_team_size")}. For full functionality with support for up to 5-player team games and league play check out PolyChampions.')
 

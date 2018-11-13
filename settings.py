@@ -69,6 +69,7 @@ config = {'default':
                      {'helper_roles': ['Bot Master', 'Tribe Leader', 'Director', 'ELO Helper'],
                       'mod_roles': ['MOD', 'Manager'],
                       'display_name': 'Polytopia',
+                      'allow_uneven_teams': True,
                       'require_teams': False,
                       'allow_teams': False,
                       'max_team_size': 1,

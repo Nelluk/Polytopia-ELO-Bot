@@ -21,14 +21,28 @@ class misc:
     @commands.command(hidden=True, aliases=['ts'])
     @commands.is_owner()
     async def test(self, ctx, *, arg: str = None):
-        last_month = (datetime.datetime.now() + datetime.timedelta(days=-30))
+        # last_month = (datetime.datetime.now() + datetime.timedelta(days=-30))
 
-        query = models.Player.select(models.Player, peewee.fn.COUNT(models.Lineup.id).alias('count')).join(models.Lineup).join(models.Game).where(
-            (models.Lineup.player == models.Player.id) & (models.Game.is_pending == 0) & (models.Game.date > last_month) & (models.Game.guild_id == ctx.guild.id)
-        ).group_by(models.Player.id).order_by(-peewee.SQL('count'))
+        # query = models.Player.select(models.Player, peewee.fn.COUNT(models.Lineup.id).alias('count')).join(models.Lineup).join(models.Game).where(
+        #     (models.Lineup.player == models.Player.id) & (models.Game.is_pending == 0) & (models.Game.date > last_month) & (models.Game.guild_id == ctx.guild.id)
+        # ).group_by(models.Player.id).order_by(-peewee.SQL('count'))
+        # print(len(query))
+        # for player in query.dicts():
+        #     print(player)
+
+        query = models.Game.select(
+            models.Game,
+            peewee.fn.SUM(models.GameSide.size).alias('player_capacity'),
+            peewee.fn.COUNT(models.Lineup.id).alias('player_count'),
+        ).join(models.GameSide, on=(models.GameSide.game == models.Game.id)).join(models.Lineup, peewee.JOIN.LEFT_OUTER).where(
+            (models.Game.is_pending == 1)
+        ).group_by(models.Game.id).order_by(
+            (peewee.fn.SUM(models.GameSide.size) - peewee.fn.COUNT(models.Lineup.id))
+        )
+
         print(len(query))
-        for player in query.dicts():
-            print(player)
+        for g in query.dicts():
+            print(g)
 
     @commands.command(usage=None)
     async def guide(self, ctx):

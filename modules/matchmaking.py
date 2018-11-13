@@ -75,10 +75,7 @@ class matchmaking():
         if settings.guild_setting(ctx.guild.id, 'require_teams') and not models.Player.is_in_team(guild_id=ctx.guild.id, discord_member=ctx.author):
             return await ctx.send(f'You must join a Team in order to participate in games on this server.')
 
-        # if models.Match.select().where(
-        if models.Game.select().where(
-            (models.Game.host == host) & (models.Game.is_pending == 1)
-        ).count() > 5:
+        if models.Game.select().where((models.Game.host == host) & (models.Game.is_pending == 1)).count() > 5:
             return await ctx.send(f'You have too many open games already. Try using `{ctx.prefix}delgame` on an existing one.')
 
         for arg in args.split(' '):
@@ -114,10 +111,15 @@ class matchmaking():
         # if sum(team_sizes) > 2 and (not settings.is_power_user(ctx)) and ctx.guild.id != settings.server_ids['polychampions']:
         #     return await ctx.send('You only have permissions to create 1v1 games. More active server members can create larger games.')
 
+        if not settings.guild_setting(ctx.guild.id, 'allow_uneven_teams') and not all(x == team_sizes[0] for x in team_sizes):
+            return await ctx.send('Uneven team games are not allowed on this server.')
+
         server_size_max = settings.guild_setting(ctx.guild.id, 'max_team_size')
         if max(team_sizes) > server_size_max:
             if settings.is_mod(ctx):
                 await ctx.send('Moderator over-riding server size limits')
+            elif settings.guild_setting(ctx.guild.id, 'allow_uneven_teams') and min(team_sizes) <= server_size_max:
+                await ctx.send('Warning: Team sizes are uneven.')
             else:
                 return await ctx.send(f'Maximum team size on this server is {server_size_max}.\n'
                     'For full functionality with support for up to 6-person teams and team channels check out PolyChampions - <https://tinyurl.com/polychampions>')
