@@ -255,12 +255,12 @@ def in_bot_channel_strict():
             if guild_setting(ctx.guild.id, 'bot_channels') is None:
                 return True
             else:
-                chan_list = guild_setting(ctx.guild.id, 'bot_channels') + guild_setting(ctx.guild.id, 'bot_channels_private')
+                chan_list = guild_setting(ctx.guild.id, 'bot_channels')
         else:
-            chan_list = guild_setting(ctx.guild.id, 'bot_channels_strict') + guild_setting(ctx.guild.id, 'bot_channels_private')
+            chan_list = guild_setting(ctx.guild.id, 'bot_channels_strict')
         if is_mod(ctx):
             return True
-        if ctx.message.channel.id in chan_list:
+        if ctx.message.channel.id in chan_list + guild_setting(ctx.guild.id, 'bot_channels_private'):
             return True
         else:
             if ctx.invoked_with == 'help' and ctx.command.name != 'help':
