@@ -44,6 +44,9 @@ class misc:
         for g in query.dicts():
             print(g)
 
+        for c in ctx.guild.channels:
+            print(f'{c.name} - {c.id}')
+
     @commands.command(usage=None)
     async def guide(self, ctx):
         """

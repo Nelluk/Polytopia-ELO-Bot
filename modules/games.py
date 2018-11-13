@@ -101,7 +101,7 @@ class elo_games():
         await channel.send(f'{ctx.message.author} submitted season game INFO <@&{helper_role.id}> <@451212023124983809>: {ctx.message.clean_content}')
         await ctx.send('Request has been logged')
 
-    @settings.in_bot_channel()
+    @settings.in_bot_channel_strict()
     @commands.command(aliases=['leaderboard', 'leaderboards'])
     @commands.cooldown(2, 30, commands.BucketType.channel)
     async def lb(self, ctx):

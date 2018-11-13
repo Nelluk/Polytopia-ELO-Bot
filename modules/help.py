@@ -402,7 +402,7 @@ class Help(formatter.HelpFormatter):
                                   color=color, author=self.author)
         return embed
 
-    @settings.in_bot_channel()
+    @settings.in_bot_channel_strict()
     @commands.command(name='help', pass_context=True, hidden=True)
     async def help(self, ctx, *cmds: str):
         # if not ctx.message.author.permissions_in(ctx.channel).embed_links:

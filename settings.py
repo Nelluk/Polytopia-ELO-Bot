@@ -45,6 +45,7 @@ config = {'default':
                       'allow_uneven_teams': True,
                       'max_team_size': 6,
                       'command_prefix': '/',
+                      'bot_channels_strict': [479292913080336397],
                       'bot_channels': [479292913080336397, 481558031281160212, 480078679930830849],
                       'match_challenge_channel': 481558031281160212,
                       'game_request_channel': 480078679930830849,
@@ -75,8 +76,8 @@ config = {'default':
                       'max_team_size': 1,
                       'command_prefix': '$',
                       'include_in_global_lb': True,
-                      'bot_channels_limited': [403724174532673536, 418175357137453058],
-                      'bot_channels': [511316081160355852, 403724174532673536, 396069729657421824, 418175357137453058],
+                      'bot_channels_strict': [403724174532673536, 418175357137453058],  # 536 BotCommands, 058 TestChamber
+                      'bot_channels': [403724174532673536, 418175357137453058, 511906353476927498, 511316081160355852],  # 498 unranked-games, 852 ranked-games
                       'match_challenge_channel': None,
                       'game_request_channel': None,
                       'game_announce_channel': 505523961812090900,
@@ -232,8 +233,35 @@ def in_bot_channel():
         if ctx.message.channel.id in guild_setting(ctx.guild.id, 'bot_channels'):
             return True
         else:
-            if ctx.invoked_with != 'help':
+            if ctx.invoked_with == 'help' and ctx.command.name != 'help':
+                # Silently fail check when help cycles through every bot command for a check.
+                pass
+            else:
                 primary_bot_channel = guild_setting(ctx.guild.id, 'bot_channels')[0]
+                await ctx.send(f'This command can only be used in a designated ELO bot channel. Try <#{primary_bot_channel}>')
+            return False
+    return commands.check(predicate)
+
+
+def in_bot_channel_strict():
+    async def predicate(ctx):
+        if guild_setting(ctx.guild.id, 'bot_channels_strict') is None:
+            if guild_setting(ctx.guild.id, 'bot_channels') is None:
+                return True
+            else:
+                chan_list = guild_setting(ctx.guild.id, 'bot_channels')
+        else:
+            chan_list = guild_setting(ctx.guild.id, 'bot_channels_strict')
+        if is_mod(ctx):
+            return True
+        if ctx.message.channel.id in chan_list:
+            return True
+        else:
+            if ctx.invoked_with == 'help' and ctx.command.name != 'help':
+                # Silently fail check when help cycles through every bot command for a check.
+                pass
+            else:
+                primary_bot_channel = chan_list[0]
                 await ctx.send(f'This command can only be used in a designated ELO bot channel. Try <#{primary_bot_channel}>')
             return False
     return commands.check(predicate)
