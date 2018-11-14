@@ -36,6 +36,8 @@ config = {'default':
                       'bot_channels_private': [],  # channels here will pass any bot channel check, and not linked in bot messages
                       'bot_channels_strict': [],  # channels where the most limited commands work, like leaderboards
                       'bot_channels': [],  # channels were more common commands work, like matchmaking
+                      'ranked_game_channel': None,
+                      'unranked_game_channel': None,
                       'game_request_channel': None,
                       'game_announce_channel': None,
                       'game_channel_category': None},
@@ -49,8 +51,10 @@ config = {'default':
                       'max_team_size': 6,
                       'command_prefix': '/',
                       'bot_channels_strict': [479292913080336397],
-                      'bot_channels': [479292913080336397, 481558031281160212, 480078679930830849],
-                      'match_challenge_channel': 481558031281160212,
+                      'bot_channels': [479292913080336397, 481558031281160212, 480078679930830849],  # 397 Bot Spam,  849 Admin Spam
+                      'match_challenge_channel': 481558031281160212,  # 212 Testroom1
+                      'ranked_game_channel': 479292913080336397,
+                      'unranked_game_channel': 481558031281160212,
                       'game_request_channel': 480078679930830849,
                       'game_announce_channel': 481558031281160212,
                       'game_channel_category': 493149162238640161},
@@ -66,7 +70,9 @@ config = {'default':
                       'include_in_global_lb': True,
                       'bot_channels_private': [487304043786665986],  # 986 elo-staff-talk
                       'bot_channels_strict': [487303307224940545, 448317497473630229],  # 545 elo-commands, 229 bot-commands
-                      'bot_channels': [487303307224940545, 448317497473630229, 487304043786665986, 469027618289614850],  # 850 dont-timeout
+                      'bot_channels': [487303307224940545, 448317497473630229, 469027618289614850],  # 850 dont-timeout
+                      'ranked_game_channel': None,
+                      'unranked_game_channel': None,
                       'match_challenge_channel': 452639822616723457,  # elo-challenges
                       'game_request_channel': 487304043786665986,  # $staffhelp output
                       'game_announce_channel': 487302138704429087,  # elo-drafts
@@ -84,6 +90,8 @@ config = {'default':
                       'bot_channels_private': [418175357137453058],  # 058 testchamber
                       'bot_channels_strict': [403724174532673536],  # 536 BotCommands
                       'bot_channels': [403724174532673536, 511316081160355852, 511906353476927498],  # 498 unranked-games, 852 ranked-games
+                      'ranked_game_channel': None,
+                      'unranked_game_channel': None,
                       'match_challenge_channel': None,
                       'game_request_channel': None,
                       'game_announce_channel': 505523961812090900,
