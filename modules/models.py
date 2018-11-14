@@ -1071,6 +1071,58 @@ class Game(BaseModel):
         else:
             raise exceptions.TooManyMatches(f'{len(matches)} matches found for "{name}" in game {self.id}.')
 
+    def search_pending(status_filter: int = 0, ranked_filter: int = 2, guild_id: int = None, host_discord_id: int = None):
+        # status_filter
+        # 0 = all open games
+        # 1 = full games / waiting to start
+        # 2 = games with capacity
+        # ranked_filter
+        # 0 = unranked (is_ranked == False)
+        # 1 = ranked (is_ranked == True)
+        # 2 = any
+
+        ranked_filter = [0, 1] if ranked_filter == 2 else [ranked_filter]  # [0] or [1]
+
+        if guild_id:
+            guild_filter = Game.select(Game.id).where(Game.guild_id == guild_id)
+        else:
+            guild_filter = Game.select(Game.id)
+
+        if status_filter == 1:
+            # full games / waiting to start
+            if host_discord_id:
+                q = Game.select().join(Player).join(DiscordMember).where(
+                    (Game.id.not_in(Game.subq_open_games_with_capacity())) &
+                    (Game.host.discord_member.discord_id == host_discord_id) &
+                    (Game.is_pending == 1) &
+                    (Game.id.in_(guild_filter)) &
+                    (Game.is_ranked.in_(ranked_filter))
+                )
+            else:
+                q = Game.select().where(
+                    (Game.id.not_in(Game.subq_open_games_with_capacity())) & (Game.is_pending == 1) & (Game.id.in_(guild_filter)) & (Game.is_ranked.in_(ranked_filter))
+                )
+            return q.prefetch(GameSide, Lineup, Player)
+
+        elif status_filter == 2:
+            # games with open capacity
+            return Game.select().where(
+                (Game.id.in_(Game.subq_open_games_with_capacity())) & (Game.is_pending == 1) & (Game.id.in_(guild_filter)) & (Game.is_ranked.in_(ranked_filter))
+            ).order_by(-Game.id).prefetch(GameSide, Lineup, Player)
+
+        else:
+            # Any kind of open game
+            # sorts by capacity-player_count, so full games are at bottom of list
+            return Game.select(
+                Game, fn.SUM(GameSide.size).alias('player_capacity'), fn.COUNT(Lineup.id).alias('player_count'),
+            ).join(GameSide, on=(GameSide.game == Game.id)).join(Lineup, JOIN.LEFT_OUTER).where(
+                (Game.is_pending == 1) &
+                (Game.id.in_(guild_filter)) &
+                (Game.is_ranked.in_(ranked_filter))
+            ).group_by(Game.id).order_by(
+                -(fn.SUM(GameSide.size) - fn.COUNT(Lineup.id))
+            ).prefetch(GameSide, Lineup, Player)
+
     def search(player_filter=None, team_filter=None, title_filter=None, status_filter: int = 0, guild_id: int = None):
         # Returns Games by almost any combination of player/team participation, and game status
         # player_filter/team_filter should be a [List, of, Player/Team, objects] (or ID #s)
@@ -1258,22 +1310,6 @@ class Game(BaseModel):
                 (GameSide.id.in_(subq)) & (GameSide.game.is_pending == 1)
             ).group_by(GameSide.game).order_by(GameSide.game)
 
-        return q
-
-    def waiting_to_start(guild_id: int, host_discord_id: int = None):
-        # Open games that are full and still pending
-
-        if host_discord_id:
-            q = Game.select().join(Player).join(DiscordMember).where(
-                (Game.id.not_in(Game.subq_open_games_with_capacity())) &
-                (Game.host.discord_member.discord_id == host_discord_id) &
-                (Game.is_pending == 1) &
-                (Game.guild_id == guild_id)
-            )
-        else:
-            q = Game.select().where(
-                (Game.id.not_in(Game.subq_open_games_with_capacity())) & (Game.is_pending == 1) & (Game.guild_id == guild_id)
-            )
         return q
 
     def purge_expired_games():

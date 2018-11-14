@@ -83,7 +83,7 @@ config = {'default':
                       'include_in_global_lb': True,
                       'bot_channels_private': [418175357137453058],  # 058 testchamber
                       'bot_channels_strict': [403724174532673536],  # 536 BotCommands
-                      'bot_channels': [403724174532673536, 511906353476927498, 511316081160355852],  # 498 unranked-games, 852 ranked-games
+                      'bot_channels': [403724174532673536, 511316081160355852, 511906353476927498],  # 498 unranked-games, 852 ranked-games
                       'match_challenge_channel': None,
                       'game_request_channel': None,
                       'game_announce_channel': 505523961812090900,

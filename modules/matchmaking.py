@@ -348,18 +348,14 @@ class matchmaking():
 
         if len(args) > 0 and args[0].upper() == 'OPEN':
             title_str = f'Current open games with available spots'
-            game_list = models.Game.select().where(
-                (models.Game.id.in_(models.Game.subq_open_games_with_capacity())) & (models.Game.is_pending == 1) & (models.Game.guild_id == ctx.guild.id)
-            ).order_by(-models.Game.id).prefetch(models.GameSide)
+            game_list = models.Game.search_pending(status_filter=2, guild_id=ctx.guild.id)
 
         elif len(args) > 0 and args[0].upper() == 'WAITING':
             title_str = f'Full games waiting to start'
-            game_list = models.Game.waiting_to_start(guild_id=ctx.guild.id)
+            game_list = models.Game.search_pending(status_filter=1, guild_id=ctx.guild.id)
         elif len(args) == 0:
             title_str = f'Current open games'
-            game_list = models.Game.select().where(
-                (models.Game.is_pending == 1) & (models.Game.guild_id == ctx.guild.id)
-            )
+            game_list = models.Game.search_pending(status_filter=0, guild_id=ctx.guild.id)
         else:
             return await ctx.send(f'Syntax error. Example usage:\n{syntax}')
 
@@ -382,7 +378,8 @@ class matchmaking():
         self.bot.loop.create_task(utilities.paginate(self.bot, ctx, title=title_str_full, message_list=gamelist_fields, page_start=0, page_end=15, page_size=15))
         # paginator done as a task because otherwise it will not let the waitlist message send until after pagination is complete (20+ seconds)
 
-        waitlist = [f'{g.id}' for g in models.Game.waiting_to_start(guild_id=ctx.guild.id, host_discord_id=ctx.author.id)]
+        waitlist = [f'{g.id}' for g in models.Game.search_pending(status_filter=1, guild_id=ctx.guild.id, host_discord_id=ctx.author.id)]
+
         if ctx.guild.id != settings.server_ids['polychampions']:
             await asyncio.sleep(1)
             await ctx.send('Powered by PolyChampions. League server with a focus on team play:\n'
@@ -466,9 +463,7 @@ class matchmaking():
                     continue
 
                 models.Game.purge_expired_games()
-                game_list = models.Game.select().where(
-                    (models.Game.id.in_(models.Game.subq_open_games_with_capacity())) & (models.Game.is_pending == 1) & (models.Game.guild_id == chan.guild.id)
-                ).order_by(-models.Game.id).prefetch(models.GameSide)[:12]
+                game_list = models.Game.search_pending(status_filter=2, guild_id=chan.guild.id)[:12]
                 if not game_list:
                     continue
 
