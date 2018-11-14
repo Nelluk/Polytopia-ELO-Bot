@@ -70,7 +70,7 @@ config = {'default':
                       'include_in_global_lb': True,
                       'bot_channels_private': [487304043786665986],  # 986 elo-staff-talk
                       'bot_channels_strict': [487303307224940545, 448317497473630229],  # 545 elo-commands, 229 bot-commands
-                      'bot_channels': [487303307224940545, 448317497473630229, 469027618289614850],  # 850 dont-timeout
+                      'bot_channels': [487303307224940545, 448317497473630229, 452639822616723457, 469027618289614850],  # 457 elo-chalenges, 850 dont-timeout
                       'ranked_game_channel': None,
                       'unranked_game_channel': None,
                       'match_challenge_channel': 452639822616723457,  # elo-challenges
