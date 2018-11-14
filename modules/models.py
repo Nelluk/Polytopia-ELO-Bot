@@ -580,6 +580,13 @@ class Game(BaseModel):
         side_objs = [{'side': s, 'pick_score': 0, 'size': s.size, 'lineups': s.ordered_player_list()} for s in sides]
         num_tribes = sum([s.size for s in sides])
 
+        # # adjust for imbalanced team sizes
+        # num2 = num_tribes
+        # max_tribes = max([t['size'] for t in teams])
+        # for team in teams:
+        #   team['pick_score'] -= max_tribes - team['size']
+        #   print(team)
+
         for pick in range(num_tribes):
             picking_team = None
             lowest_score = 99

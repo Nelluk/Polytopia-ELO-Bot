@@ -8,6 +8,15 @@ import modules.models as models
 logger = logging.getLogger('polybot.' + __name__)
 
 
+def is_valid_poly_gamename(input: str):
+    key_words = ["War", "Spirit", "Faith", "Glory", "Blood",
+                 "Empires", "Songs", "Dawn", "Prophecy", "Prophesy", "Gold",
+                 "Fire", "Swords", "Queens", "Kings", "Tribes", "Tales",
+                 "Hills", "Fields", "Lands", "Forest", "Ocean", "Fruit", "Mountain", "Lake",
+                 "Test", "Unknown"]
+    return any(word.upper() in input.upper() for word in key_words)
+
+
 async def get_guild_member(ctx, input):
 
         # Find matching Guild member by @Mention or Name. Fall back to case-insensitive search

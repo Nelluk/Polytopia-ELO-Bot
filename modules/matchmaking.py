@@ -419,6 +419,10 @@ class matchmaking():
         if not name:
             return await ctx.send(f'Game name is required. Example: `{ctx.prefix}startgame {game.id} Name of Game`')
 
+        if not utilities.is_valid_poly_gamename(input=name):
+            return await ctx.send('That name looks made up. :thinking: You need to manually create the game __in Polytopia__, come back and input the name of the new game you made.\n'
+                f'You can use `{ctx.prefix}code NAME` to get the code of each player in this game.')
+
         if not game.is_pending:
             return await ctx.send(f'Game {game.id} has already started with name **{game.name}**')
 

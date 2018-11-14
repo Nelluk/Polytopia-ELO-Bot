@@ -799,6 +799,10 @@ class elo_games():
         if len(game_name.split(' ')) < 2 and ctx.author.id != settings.owner_id:
             return await ctx.send(f'Invalid game name. Make sure to use "quotation marks" around the full game name.\n{example_usage}')
 
+        if not utilities.is_valid_poly_gamename(input=game_name):
+            return await ctx.send('That name looks made up. :thinking: You need to manually create the game __in Polytopia__, come back and input the name of the new game you made.\n'
+                f'You can use `{ctx.prefix}code NAME` to get the code of each player in this game.')
+
         if len(args) == 1:
             args_list = [str(ctx.author.id), 'vs', args[0]]
         else:
