@@ -448,8 +448,8 @@ class matchmaking():
             for team_group, allied_team, side in zip(teams_for_each_discord_member, list_of_final_teams, game.gamesides):
                 side_players = []
                 for team, lineup in zip(team_group, side.lineup):
-                    lineup.team = team
-                    lineup.save()
+                    lineup.player.team = team
+                    lineup.player.save()
                     side_players.append(lineup.player)
 
                 if len(side_players) > 1:
