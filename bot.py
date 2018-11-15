@@ -80,7 +80,7 @@ if __name__ == '__main__':
     @bot.check
     async def restrict_banned_users(ctx):
         if ctx.author.id in settings.ban_list or discord.utils.get(ctx.author.roles, name='ELO Banned'):
-            await ctx.send('You are banned from using this bot. :wink:')
+            await ctx.send('You are banned from using this bot. :kissing_heart:')
             return False
         return True
 

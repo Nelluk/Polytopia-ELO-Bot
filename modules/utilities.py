@@ -11,7 +11,7 @@ logger = logging.getLogger('polybot.' + __name__)
 def is_valid_poly_gamename(input: str):
     key_words = ["War", "Spirit", "Faith", "Glory", "Blood",
                  "Empires", "Songs", "Dawn", "Prophecy", "Prophesy", "Gold",
-                 "Fire", "Swords", "Queens", "Kings", "Tribes", "Tales",
+                 "Fire", "Swords", "Queens", "Kings", "Tribes", "Tribe", "Tales",
                  "Hills", "Fields", "Lands", "Forest", "Ocean", "Fruit", "Mountain", "Lake",
                  "Test", "Unknown"]
     return any(word.upper() in input.upper() for word in key_words)

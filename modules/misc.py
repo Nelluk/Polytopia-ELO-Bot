@@ -114,10 +114,13 @@ class misc:
         `[p]ping 100 I won't be able to take my turn today` - Send a message to everyone in game 100
         """
         if not game:
+            ctx.command.reset_cooldown(ctx)
             return await ctx.send(f'Game ID was not included. Example usage: `{ctx.prefix}ping 100 Here\'s a nice note`')
         if not game.player(discord_id=ctx.author.id) and not settings.is_staff(ctx):
+            ctx.command.reset_cooldown(ctx)
             return await ctx.send(f'You are not a player in game {game.id}')
         if not message:
+            ctx.command.reset_cooldown(ctx)
             return await ctx.send(f'Message was not included. Example usage: `{ctx.prefix}ping 100 Here\'s a nice note`')
 
         player_mentions = [f'<@{l.player.discord_member.discord_id}>' for l in game.lineup]

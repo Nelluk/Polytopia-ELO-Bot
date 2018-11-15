@@ -4,7 +4,7 @@ import modules.utilities as utilities
 import settings
 import modules.exceptions as exceptions
 import peewee
-from modules.models import Game, db, Player, Team, DiscordMember, Squad, GameSide, TribeFlair, Lineup, Player
+from modules.models import Game, db, Player, Team, DiscordMember, Squad, GameSide, TribeFlair, Lineup
 import logging
 from itertools import groupby
 
@@ -77,9 +77,11 @@ class elo_games():
         # Staff would then take action and create games. Also use this to notify staff of winners or name changes
         channel = ctx.guild.get_channel(settings.guild_setting(ctx.guild.id, 'game_request_channel'))
         if not channel:
+            ctx.command.reset_cooldown(ctx)
             return await ctx.send(f'This server has not been configured for `{ctx.prefix}staffhelp` requests. You will need to ping a staff member.')
 
         if not message:
+            ctx.command.reset_cooldown(ctx)
             return await ctx.send(f'You must supply a help request, ie: `{ctx.prefix}staffhelp Game 51, restarted with name "Sweet New Game Name"`')
 
         await channel.send(f'{ctx.message.author} submitted: {ctx.message.clean_content}')
@@ -93,6 +95,7 @@ class elo_games():
         Teams should use this to notify staff of important events with their League games: names of started games, restarts, substitutions, winners.
         """
         if not message:
+            ctx.command.reset_cooldown(ctx)
             return await ctx.send(f'You must supply a help request, ie: `{ctx.prefix}seasongame Week 2 game Ronin vs Jets started "Fields of Fire"`')
 
         # Ping AnarchoRex and send output to #season-drafts when team leaders send in game info
