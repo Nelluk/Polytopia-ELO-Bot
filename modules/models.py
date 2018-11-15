@@ -604,19 +604,18 @@ class Game(BaseModel):
             picks.append({'position': picking_team['side'].position,
                           'sidename': picking_team['side'].sidename,
                           'player': picking_team['lineups'].pop(0),
-                          'pick_score': picking_team['pick_score']})
+                          'picking_team': picking_team})
 
         changed = 1
         while changed > 0:
             changed = 0
             for i in range(num2 - 1, 1, -1):
-                if picks[i - 1]['pick_score'] - picks[i]['pick_score'] > 1:
-                    picks[i - 1]['pick_score'] -= 1
-                    picks[i]['pick_score'] += 1
+                if picks[i - 1]['picking_team']['pick_score'] - picks[i]['picking_team']['pick_score'] > 1:
+                    picks[i - 1]['picking_team']['pick_score'] -= 1
+                    picks[i]['picking_team']['pick_score'] += 1
                     (picks[i - 1], picks[i]) = (picks[i], picks[i - 1])
                     changed = 1
 
-        print(picks)
         return picks
 
     def embed(self, ctx):

@@ -277,6 +277,6 @@ def in_bot_channel_strict():
             else:
                 # primary_bot_channel = chan_list[0]
                 channel_tags = [f'<#{chan_id}>' for chan_id in chan_list]
-                await ctx.send(f'This command can only be used in a designated ELO bot channel. Try: {" ".join(channel_tags)}')
+                await ctx.send(f'This command can only be used in a designated bot spam channel. Try: {" ".join(channel_tags)}')
             return False
     return commands.check(predicate)

@@ -42,6 +42,7 @@ class matchmaking():
     def __init__(self, bot):
         self.bot = bot
         self.bg_task = bot.loop.create_task(self.task_print_matchlist())
+        self.bg_task2 = bot.loop.create_task(self.task_dm_game_creators())
 
     @settings.in_bot_channel()
     @commands.command(aliases=['openmatch'], usage='size expiration rules')
@@ -472,6 +473,31 @@ class matchmaking():
 
         logger.info(f'Game {game.id} closed and being tracked for ELO')
         await post_newgame_messaging(ctx, game=game)
+
+    async def task_dm_game_creators(self):
+        await self.bot.wait_until_ready()
+        while not self.bot.is_closed():
+            await asyncio.sleep(60 * 60 * 10)
+            full_games = models.Game.search_pending(status_filter=1)
+            for game in full_games:
+                guild = discord.utils.get(self.bot.guilds, id=game.guild_id)
+                creating_player = game.creating_player()
+
+                creating_guild_member = guild.get_member(creating_player.discord_member.discord_id)
+                bot_channel = settings.guild_setting(guild.id, 'bot_channels_strict')[0]
+                prefix = settings.guild_setting(guild.id, 'command_prefix')
+
+                message = (f'__You have an open game on **{guild.name}** that is waiting to be created.__'
+                           f'\nPlease visit the server\'s bot channel at this link: <https://discordapp.com/channels/{guild.id}/{bot_channel}/>'
+                           f'\nType the command __`{prefix}game {game.id}`__ for more details. Remember. you must manually **create the game within Polytopia** using the supplied '
+                           f'friend codes, come back to the channel, and use the command __`{prefix}game {game.id} Name of Game`__ to mark the game as started.'
+                           f'\n\nYou can use the command __`{prefix}code PLAYERNAME`__ to get each player\'s friend code in an easy-to-copy format.')
+
+                try:
+                    await creating_guild_member.send(message)
+                    await creating_guild_member.send('I do not respond to DMed commands. You must issue commands in the channel linked above.')
+                except (discord.DiscordException, discord.errors.DiscordException) as e:
+                    logger.warn(f'Error DMing creator of waiting game: {e}')
 
     async def task_print_matchlist(self):
 
