@@ -578,14 +578,12 @@ class Game(BaseModel):
 
         picks = []
         side_objs = [{'side': s, 'pick_score': 0, 'size': s.size, 'lineups': s.ordered_player_list()} for s in sides]
-        num_tribes = sum([s.size for s in sides])
+        num_tribes, max_tribes = sum([s.size for s in sides]), max([s.size for s in sides])
+        num2 = num_tribes
 
-        # # adjust for imbalanced team sizes
-        # num2 = num_tribes
-        # max_tribes = max([t['size'] for t in teams])
-        # for team in teams:
-        #   team['pick_score'] -= max_tribes - team['size']
-        #   print(team)
+        # adjust for imbalanced team sizes
+        for side in side_objs:
+            side['pick_score'] -= max_tribes - side['size']
 
         for pick in range(num_tribes):
             picking_team = None
@@ -600,10 +598,25 @@ class Game(BaseModel):
             picking_team['pick_score'] = picking_team['pick_score'] + num_tribes
             picking_team['size'] = picking_team['size'] - 1
             num_tribes = num_tribes - 1
-            picks.append(
-                (picking_team['side'].position, picking_team['side'].sidename, picking_team['lineups'].pop(0))
-            )
+            # picks.append(
+            #     (picking_team['side'].position, picking_team['side'].sidename, picking_team['lineups'].pop(0))
+            # )
+            picks.append({'position': picking_team['side'].position,
+                          'sidename': picking_team['side'].sidename,
+                          'player': picking_team['lineups'].pop(0),
+                          'pick_score': picking_team['pick_score']})
 
+        changed = 1
+        while changed > 0:
+            changed = 0
+            for i in range(num2 - 1, 1, -1):
+                if picks[i - 1]['pick_score'] - picks[i]['pick_score'] > 1:
+                    picks[i - 1]['pick_score'] -= 1
+                    picks[i]['pick_score'] += 1
+                    (picks[i - 1], picks[i]) = (picks[i], picks[i - 1])
+                    changed = 1
+
+        print(picks)
         return picks
 
     def embed(self, ctx):
@@ -700,7 +713,7 @@ class Game(BaseModel):
                 if self.largest_team() > 1:
                     draft_order = ['\n__**Balanced Draft Order**__']
                     for draft in self.draft_order():
-                        draft_order.append(f'__Side {draft[1] if draft[1] else draft[0]}__:  {draft[2].name}')
+                        draft_order.append(f"__Side {draft['sidename'] if draft['sidename'] else draft['position']}__:  {draft['player'].name}")
                     draft_order_str = '\n'.join(draft_order)
                 else:
                     draft_order_str = ''

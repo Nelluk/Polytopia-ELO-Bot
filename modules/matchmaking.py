@@ -123,6 +123,9 @@ class matchmaking():
                 await ctx.send('Moderator over-riding server size limits')
             elif settings.guild_setting(ctx.guild.id, 'allow_uneven_teams') and min(team_sizes) <= server_size_max:
                 await ctx.send('Warning: Team sizes are uneven.')
+            elif not is_ranked and max(team_sizes) <= server_size_max + 1:
+                # Arbitrary rule, unranked games can go +1 from server_size_max
+                logger.info('Opening unranked game that exceeds server_size_max')
             else:
                 return await ctx.send(f'Maximum team size on this server is {server_size_max}.\n'
                     'For full functionality with support for up to 6-person teams and team channels check out PolyChampions - <https://tinyurl.com/polychampions>')
