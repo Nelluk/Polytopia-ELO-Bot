@@ -58,7 +58,7 @@ class matchmaking():
         `[p]opengame 1v1 48h`  (Expires in 48 hours)
         `[p]opengame 1v1 unranked`  (Add word *unranked* to have game not count for ELO)
         `[p]opengame 2v2 Large map, no bardur`  (Adds a note to the game)
-        `[p]opengame 1v1 Large map, 1200 elo min` (Adds an ELO requirement for joining. *max* works also.)
+        `[p]opengame 1v1 Large map 1200 elo min` (Adds an ELO requirement for joining. *max* works also.)
         """
 
         team_size, is_ranked = False, True
