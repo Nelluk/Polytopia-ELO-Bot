@@ -45,6 +45,50 @@ class administration:
         await post_win_messaging(ctx, winning_game)
 
     @commands.command(usage='game_id')
+    async def rankset(self, ctx, game: PolyGame = None):
+        """ *Staff*: Marks an incomplete game as ranked
+        Turns an incomplete unranked game into a ranked game
+         **Examples**
+        `[p]rankset 50`
+        """
+        if game is None:
+            return await ctx.send(f'No matching game was found.')
+
+        if game.is_completed or game.is_confirmed:
+            return await ctx.send(f'This can only be used on a pending game. You can use `{ctx.prefix}unwin` to turn a completed game into a pending game.')
+
+        if game.is_ranked:
+            return await ctx.send(f'Game {game.id} is already marked as ranked.')
+
+        game.is_ranked = True
+        game.save()
+
+        logger.info(f'Game {game.id} is now marked as ranked.')
+        return await ctx.send(f'Game {game.id} is now marked as ranked.')
+
+    @commands.command(usage='game_id')
+    async def rankunset(self, ctx, game: PolyGame = None):
+        """ *Staff*: Marks an incomplete game as unranked
+        Turns an incomplete ranked game into an unranked game
+         **Examples**
+        `[p]rankunset 50`
+        """
+        if game is None:
+            return await ctx.send(f'No matching game was found.')
+
+        if game.is_completed or game.is_confirmed:
+            return await ctx.send(f'This can only be used on a pending game. You can use `{ctx.prefix}unwin` to turn a completed game into a pending game.')
+
+        if not game.is_ranked:
+            return await ctx.send(f'Game {game.id} is already marked as unranked.')
+
+        game.is_ranked = False
+        game.save()
+
+        logger.info(f'Game {game.id} is now marked as unranked.')
+        return await ctx.send(f'Game {game.id} is now marked as unranked.')
+
+    @commands.command(usage='game_id')
     async def unstart(self, ctx, game: PolyGame = None):
         """ *Staff*: Resets an in progress game to a pending matchmaking sesson
 
