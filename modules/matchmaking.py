@@ -58,6 +58,7 @@ class matchmaking():
         `[p]opengame 1v1 48h`  (Expires in 48 hours)
         `[p]opengame 1v1 unranked`  (Add word *unranked* to have game not count for ELO)
         `[p]opengame 2v2 Large map, no bardur`  (Adds a note to the game)
+        `[p]opengame 1v1 Large map, 1200 elo min` (Adds an ELO requirement for joining. *max* works also.)
         """
 
         team_size, is_ranked = False, True
@@ -251,9 +252,9 @@ class matchmaking():
         print(min_elo, max_elo)
 
         if player.elo < min_elo or player.elo > max_elo:
-            if not game.is_hosted_by(ctx.author.id)[0] and not settings.is_staff(ctx):
+            if not game.is_hosted_by(ctx.author.id)[0] and not settings.is_mod(ctx):
                 return await ctx.send(f'This game has an ELO restriction of {min_elo} - {max_elo} and **{player.name}** has an ELO of **{player.elo}**. Cannot join! :cry:')
-            logger.info('Host or staff bypassing ELO requirements')
+            await ctx.send(f'This game has an ELO restriction of {min_elo} - {max_elo}. Bypassing because you are game host or a mod.')
 
         logger.info(f'Checks passed. Joining player {player.discord_member.discord_id} to side {side.position} of game {game.id}')
         models.Lineup.create(player=player, game=game, gameside=side)
