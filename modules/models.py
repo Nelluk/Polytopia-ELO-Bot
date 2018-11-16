@@ -1064,17 +1064,18 @@ class Game(BaseModel):
                 try:
                     p_id = int(name.strip('<>!@'))
                 except ValueError:
-                    # Compare to single gamesides player's name
-                    if name.lower() in gameside.lineup[0].player.name.lower():
-                        matches.append(
-                            (gameside.lineup[0].player, gameside)
-                        )
+                    pass
                 else:
-                    # name is a <@PlayerMention>
+                    # name is a <@PlayerMention> or raw player_id
                     # compare to single squad player's discord ID
                     if p_id == gameside.lineup[0].player.discord_member.discord_id:
-                        print('found by d.id')
                         return (gameside.lineup[0].player, gameside)
+
+                # Compare to single gamesides player's name
+                if name.lower() in gameside.lineup[0].player.name.lower():
+                    matches.append(
+                        (gameside.lineup[0].player, gameside)
+                    )
             else:
                 # Compare to gamesidess team's name
                 assert bool(gameside.team), 'GameSide obj has no team'

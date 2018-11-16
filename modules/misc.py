@@ -20,9 +20,19 @@ class misc:
 
     @commands.command(hidden=True, aliases=['ts'])
     @commands.is_owner()
-    async def test(self, ctx, *, arg: str = None):
+    async def test(self, ctx, *arg):
 
-        print(self.bot.guilds)
+        print(f'in test {arg}')
+        await self.bot.get_command('test2').invoke(ctx)
+        # await ctx.author.send(f'blah')
+        # for b in range(1, 20):
+        #     await ctx.author.send(f'blah {b}')
+
+    @commands.command(hidden=True)
+    @commands.is_owner()
+    async def test2(self, ctx, *arg):
+
+        print(f'in test2 {arg}')
         # await ctx.author.send(f'blah')
         # for b in range(1, 20):
         #     await ctx.author.send(f'blah {b}')
