@@ -567,7 +567,7 @@ class elo_games():
         embed, content = game.embed(ctx)
         return await ctx.send(embed=embed, content=content)
 
-    @settings.in_bot_channel()
+    @settings.in_bot_channel_strict()
     @commands.command(usage='player1 player2 ... ')
     async def games(self, ctx, *args):
 
