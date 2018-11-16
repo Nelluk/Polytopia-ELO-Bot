@@ -553,36 +553,34 @@ class elo_games():
         player_target.discord_member.save()
         await ctx.send(f'Player {player_target.name} updated in system with Polytopia name {new_name}.')
 
-    @settings.in_bot_channel()
-    @commands.command(aliases=['games', 'match'], usage='game_id')
-    async def game(self, ctx, *args):
+    @commands.command(aliases=['match'], usage='game_id')
+    async def game(self, ctx, game: PolyGame = None):
 
-        """See a game's details, or list all games for various player/team combinations
+        """See details on a specific game ID
         **Examples**:
         `[p]game 51` - See details on game # 51.
-        `[p]games Jets`
-        `[p]games Jets Ronin`
+        """
+
+        if not game:
+            return await ctx.send(f'Game ID number must be supplied, example: __`{ctx.prefix}game 1250`__')
+
+        embed, content = game.embed(ctx)
+        return await ctx.send(embed=embed, content=content)
+
+    @settings.in_bot_channel()
+    @commands.command(usage='player1 player2 ... ')
+    async def games(self, ctx, *args):
+
+        """Search for games by participants or game name
+        **Examples**:
         `[p]games Nelluk`
         `[p]games Nelluk oceans` - See games that included player Nelluk and the word *oceans* in the game name
+        `[p]games Jets` - See games between those two teams
+        `[p]games Jets Ronin`
         `[p]games Nelluk rickdaheals frodakcin Jets Ronin` - See games in which three players and two teams were all involved
         """
 
         # TODO: remove 'and/&' to remove confusion over game names like Ocean & Prophesy
-
-        arg_list = [arg.upper() for arg in args]
-
-        try:
-            game_id = int(''.join(arg_list))
-            game = Game.load_full_game(game_id=game_id)     # Argument is an int, so show game by ID
-        except ValueError:
-            pass
-        except peewee.DoesNotExist:
-            return await ctx.send(f'Game with ID {game_id} cannot be found.')
-        else:
-            if game.guild_id != ctx.guild.id:
-                return await ctx.send(f'Game with ID {game_id} cannot be found on this server.')
-            embed, content = game.embed(ctx)
-            return await ctx.send(embed=embed, content=content)
 
         target_list = list(args)
 
