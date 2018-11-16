@@ -51,7 +51,7 @@ class matchmaking():
         """
         Opens a game that others can join
         Expiration can be between 1H - 96H
-        Size examples: 1v1, 2v2, 1v1v1v1v1, 3v3v3
+        Size examples: 1v1, 2v2, 1v1v1v1v1, 3v3v3, 1v3
 
         **Examples:**
         `[p]opengame 1v1`
@@ -147,8 +147,8 @@ class matchmaking():
             f'Other players can join this game with `{ctx.prefix}join {opengame.id}`.')
 
     @settings.in_bot_channel()
-    @commands.command(aliases=['matchside'], usage='match_id side_number Side Name', hidden=True)
-    async def gameside(self, ctx, game: PolyMatch, side_lookup: str, *, args):
+    @commands.command(aliases=['matchside', 'sidename'], usage='match_id side_number Side Name', hidden=True)
+    async def gameside(self, ctx, game: PolyMatch, side_lookup: str, *, args=None):
         """
         Give a name to a side in an open game that you host
         **Example:**

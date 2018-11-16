@@ -41,7 +41,7 @@ class misc:
     @settings.in_bot_channel_strict()
     async def guide(self, ctx):
         """
-        Show an oveview of what the bot is for
+        Show an overview of what the bot is for
 
         Type `[p]guide` for an overview of what this bot is for and how to use it.
         """
