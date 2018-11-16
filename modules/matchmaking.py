@@ -239,6 +239,22 @@ class matchmaking():
             return await ctx.send('It looks like you are the host trying to rejoin this game. The host is required to be on side 1. Clear out space in side 1 and use:'
                                  f'\n`{ctx.prefix}join {game.id} 1`')
 
+        min_elo, max_elo = 0, 3000
+        notes = game.notes if game.notes else ''
+        m = re.search(r'(\d+) elo max', notes, re.I)
+        if m:
+            max_elo = int(m[1])
+        m = re.search(r'(\d+) elo min', notes, re.I)
+        if m:
+            min_elo = int(m[1])
+
+        print(min_elo, max_elo)
+
+        if player.elo < min_elo or player.elo > max_elo:
+            if not game.is_hosted_by(ctx.author.id)[0] and not settings.is_staff(ctx):
+                return await ctx.send(f'This game has an ELO restriction of {min_elo} - {max_elo} and **{player.name}** has an ELO of **{player.elo}**. Cannot join! :cry:')
+            logger.info('Host or staff bypassing ELO requirements')
+
         logger.info(f'Checks passed. Joining player {player.discord_member.discord_id} to side {side.position} of game {game.id}')
         models.Lineup.create(player=player, game=game, gameside=side)
         await ctx.send(f'Joining <@{player.discord_member.discord_id}> to side {side.position} of game {game.id}')
