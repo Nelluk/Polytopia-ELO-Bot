@@ -11,7 +11,7 @@ from logging.handlers import RotatingFileHandler
 
 
 # Logger config is a bit of a mess and probably could be simplified a lot, but works. debug and above sent to file / error above sent to stderr
-handler = RotatingFileHandler(filename='discord.log', encoding='utf-8', maxBytes=500 * 1024, backupCount=1)
+handler = RotatingFileHandler(filename='logs/discord.log', encoding='utf-8', maxBytes=500 * 1024, backupCount=10)
 handler.setFormatter(logging.Formatter('%(asctime)s:%(levelname)s:%(name)s: %(message)s'))
 
 my_logger = logging.getLogger('polybot')

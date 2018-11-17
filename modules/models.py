@@ -1093,6 +1093,10 @@ class Game(BaseModel):
         else:
             raise exceptions.TooManyMatches(f'{len(matches)} matches found for "{name}" in game {self.id}.')
 
+    def waiting_for_creator(creator_discord_id: int):
+        subq = Game.select()
+        # should be able to get the creator of each game with group_by and min(lineup.id)
+
     def search_pending(status_filter: int = 0, ranked_filter: int = 2, guild_id: int = None, host_discord_id: int = None):
         # status_filter
         # 0 = all open games

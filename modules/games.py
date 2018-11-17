@@ -376,7 +376,7 @@ class elo_games():
             recent_games_str = f'Most recent games ({games_list.count()} total, {recent_games_count} recently):'
         embed.add_field(value='\u200b', name=recent_games_str, inline=False)
 
-        game_list = utilities.summarize_game_list(games_list[:7])
+        game_list = utilities.summarize_game_list(games_list[:5])
         for game, result in game_list:
             embed.add_field(name=game, value=result, inline=False)
 
