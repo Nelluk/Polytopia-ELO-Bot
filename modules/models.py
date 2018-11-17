@@ -1094,8 +1094,18 @@ class Game(BaseModel):
             raise exceptions.TooManyMatches(f'{len(matches)} matches found for "{name}" in game {self.id}.')
 
     def waiting_for_creator(creator_discord_id: int):
-        subq = Game.select()
-        # should be able to get the creator of each game with group_by and min(lineup.id)
+        # Games for which creator_discord_id is in the 'creating player' slot (first player in GameSide.position == 1) and Game is full/waiting to start
+
+        # subq = List of all lineup IDs for creating player for full pending games
+        subq = GameSide.select(fn.MIN(Lineup.id).alias('game_creator')).join(Lineup).join_from(GameSide, Game).where(
+            (GameSide.position == 1) & (Game.is_pending == 1) & (Game.id.not_in(Game.subq_open_games_with_capacity()))
+        ).group_by(GameSide.game)
+
+        q = Lineup.select(Lineup.game).join(Player).join(DiscordMember).where(
+            (Lineup.player.discord_member.discord_id == creator_discord_id) & (Lineup.id.in_(subq))
+        )
+
+        return q
 
     def search_pending(status_filter: int = 0, ranked_filter: int = 2, guild_id: int = None, host_discord_id: int = None):
         # status_filter

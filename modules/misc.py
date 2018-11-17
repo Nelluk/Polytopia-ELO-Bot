@@ -32,10 +32,9 @@ class misc:
     @commands.is_owner()
     async def test2(self, ctx, *arg):
 
-        print(f'in test2 {arg}')
-        # await ctx.author.send(f'blah')
-        # for b in range(1, 20):
-        #     await ctx.author.send(f'blah {b}')
+        g = models.Game.waiting_for_creator(creator_discord_id=ctx.author.id)
+        for game in g.dicts():
+            print(game)
 
     @commands.command(usage=None)
     @settings.in_bot_channel_strict()

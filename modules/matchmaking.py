@@ -237,8 +237,7 @@ class matchmaking():
             return await ctx.send(f'**{player.name}** is already in game {game.id}. If you are trying to change sides, use `{ctx.prefix}leave {game.id}` first.')
 
         if game.is_hosted_by(player.discord_member.discord_id)[0] and side.position != 1:
-            return await ctx.send('It looks like you are the host trying to rejoin this game. The host is required to be on side 1. Clear out space in side 1 and use:'
-                                 f'\n`{ctx.prefix}join {game.id} 1`')
+            await ctx.send('Warning: Since you are not joining side 1 you will not be the game creator.')
 
         min_elo, max_elo = 0, 3000
         notes = game.notes if game.notes else ''
@@ -410,16 +409,20 @@ class matchmaking():
         self.bot.loop.create_task(utilities.paginate(self.bot, ctx, title=title_str_full, message_list=gamelist_fields, page_start=0, page_end=15, page_size=15))
         # paginator done as a task because otherwise it will not let the waitlist message send until after pagination is complete (20+ seconds)
 
-        waitlist = [f'{g.id}' for g in models.Game.search_pending(status_filter=1, guild_id=ctx.guild.id, host_discord_id=ctx.author.id)]
-
         if ctx.guild.id != settings.server_ids['polychampions']:
             await asyncio.sleep(1)
             await ctx.send('Powered by PolyChampions. League server with a focus on team play:\n'
                 '<https://tinyurl.com/polychampions>')
+
+        # Alert user if a game they are hosting OR should be creating is waiting to be created
+        waitlist_hosting = [f'{g.id}' for g in models.Game.search_pending(status_filter=1, guild_id=ctx.guild.id, host_discord_id=ctx.author.id)]
+        waitlist_creating = [f'{g.game}' for g in models.Game.waiting_for_creator(creator_discord_id=ctx.author.id)]
+        waitlist = set(waitlist_hosting + waitlist_creating)
+
         if waitlist:
             await asyncio.sleep(1)
             await ctx.send(f'You have full games waiting to start: **{", ".join(waitlist)}**\n'
-                f'Type `{ctx.prefix}game #` for more details.')
+                f'Type __`{ctx.prefix}game #`__ for more details.')
 
     @settings.in_bot_channel()
     @commands.command(aliases=['startmatch', 'start'], usage='game_id Name of Poly Game')
