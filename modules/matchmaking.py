@@ -361,36 +361,39 @@ class matchmaking():
         Full games will still be listed until the host starts or deletes them with `[p]startgame` / `[p]deletegame`
 
         **Example:**
-        `[p]opengames` - List all unexpired games that haven't started yet
-        `[p]opengames open` - List all open games that still have openings
+        `[p]opengames` - List all open games that are not yet full
         `[p]opengames waiting` - Lists open games that are full but not yet started
+        `[p]opengames all` - List all pending open games, including full
         You can also add keywords **ranked** or **unranked** to filter by those types of games.
         """
         syntax = (f'`{ctx.prefix}opengames` - List all unexpired games that haven\'t started yet\n'
-                  f'`{ctx.prefix}opengames open` - List all open games that still have openings\n'
-                  f'`{ctx.prefix}opengames waiting` - Lists open games that are full but not yet started')
+                  f'`{ctx.prefix}opengames waiting` - Lists open games that are full but not yet started\n'
+                  f'`{ctx.prefix}opengames all` - List all open games that still have openings')
         models.Game.purge_expired_games()
 
-        if settings.guild_setting(ctx.guild.id, 'unranked_game_channel') and ctx.channel.id == settings.guild_setting(ctx.guild.id, 'unranked_game_channel'):
+        ranked_filter, ranked_str = 2, ''
+        ranked_chan = settings.guild_setting(ctx.guild.id, 'ranked_game_channel')
+        unranked_chan = settings.guild_setting(ctx.guild.id, 'unranked_game_channel')
+
+        if ctx.channel.id == unranked_chan or any(arg.upper() == 'UNRANKED' for arg in args):
             ranked_filter = 0
             ranked_str = ' **unranked**'
-        elif settings.guild_setting(ctx.guild.id, 'ranked_game_channel') and ctx.channel.id == settings.guild_setting(ctx.guild.id, 'ranked_game_channel'):
+        elif ctx.channel.id == ranked_chan or any(arg.upper() == 'RANKED' for arg in args):
             ranked_filter = 1
             ranked_str = ' **ranked**'
-        else:
-            ranked_filter = 2  # Show all ranked/unranked games
-            ranked_str = ''
 
-        if len(args) > 0 and args[0].upper() == 'OPEN':
+        if len(args) > 0 and args[0].upper() == 'ALL':
+            title_str = f'All{ranked_str} open games'
+            game_list = models.Game.search_pending(status_filter=0, guild_id=ctx.guild.id, ranked_filter=ranked_filter)
+
+        elif len(args) > 0 and args[0].upper() == 'WAITING':
+            title_str = f'Open{ranked_str} games waiting to start'
+            game_list = models.Game.search_pending(status_filter=1, guild_id=ctx.guild.id, ranked_filter=ranked_filter)
+
+        elif len(args) == 0:
             title_str = f'Current{ranked_str} open games with available spots'
             game_list = models.Game.search_pending(status_filter=2, guild_id=ctx.guild.id, ranked_filter=ranked_filter)
 
-        elif len(args) > 0 and args[0].upper() == 'WAITING':
-            title_str = f'Full{ranked_str} games waiting to start'
-            game_list = models.Game.search_pending(status_filter=1, guild_id=ctx.guild.id, ranked_filter=ranked_filter)
-        elif len(args) == 0:
-            title_str = f'Current{ranked_str} open games'
-            game_list = models.Game.search_pending(status_filter=0, guild_id=ctx.guild.id, ranked_filter=ranked_filter)
         else:
             return await ctx.send(f'Syntax error. Example usage:\n{syntax}')
 
