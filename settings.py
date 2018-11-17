@@ -36,6 +36,7 @@ config = {'default':
                       'bot_channels_private': [],  # channels here will pass any bot channel check, and not linked in bot messages
                       'bot_channels_strict': [],  # channels where the most limited commands work, like leaderboards
                       'bot_channels': [],  # channels were more common commands work, like matchmaking
+                      'newbie_message_channels': [],  # channels on which to broadcast a basic help message on repeat
                       'ranked_game_channel': None,
                       'unranked_game_channel': None,
                       'game_request_channel': None,
@@ -50,6 +51,7 @@ config = {'default':
                       'allow_uneven_teams': True,
                       'max_team_size': 6,
                       'command_prefix': '/',
+                      'newbie_message_channels': [478571893272870913],
                       'bot_channels_strict': [479292913080336397],
                       'bot_channels': [479292913080336397, 481558031281160212, 480078679930830849],  # 397 Bot Spam,  849 Admin Spam
                       'match_challenge_channel': 481558031281160212,  # 212 Testroom1
@@ -90,6 +92,7 @@ config = {'default':
                       'bot_channels_private': [418175357137453058],  # 058 testchamber
                       'bot_channels_strict': [403724174532673536],  # 536 BotCommands
                       'bot_channels': [403724174532673536, 511316081160355852, 511906353476927498],  # 498 unranked-games, 852 ranked-games
+                      'newbie_message_channels': [413721247260868618, 418326008526143508, 418326044077064192],  # friend codes NA/euro/asia
                       'ranked_game_channel': 511316081160355852,
                       'unranked_game_channel': 511906353476927498,
                       'match_challenge_channel': None,

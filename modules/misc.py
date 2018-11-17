@@ -4,7 +4,7 @@ import modules.models as models
 # import modules.utilities as utilities
 import settings
 import logging
-import peewee
+import asyncio
 # import modules.exceptions as exceptions
 import re
 import datetime
@@ -17,6 +17,7 @@ logger = logging.getLogger('polybot.' + __name__)
 class misc:
     def __init__(self, bot):
         self.bot = bot
+        self.bg_task = bot.loop.create_task(self.task_broadcast_newbie_message())
 
     @commands.command(hidden=True, aliases=['ts'])
     @commands.is_owner()
@@ -200,6 +201,38 @@ class misc:
             team_away.append(new_away)
 
         await ctx.send(f'Home Team: {" / ".join(team_home)}\nAway Team: {" / ".join(team_away)}')
+
+    async def task_broadcast_newbie_message(self):
+        await self.bot.wait_until_ready()
+        while not self.bot.is_closed():
+            await asyncio.sleep(60 * 60 * 2)
+
+            for guild in self.bot.guilds:
+                broadcast_channels = [guild.get_channel(chan) for chan in settings.guild_setting(guild.id, 'newbie_message_channels')]
+                if not broadcast_channels:
+                    continue
+
+                prefix = settings.guild_setting(guild.id, 'command_prefix')
+                ranked_chan = settings.guild_setting(guild.id, 'ranked_game_channel')
+                unranked_chan = settings.guild_setting(guild.id, 'unranked_game_channel')
+                bot_spam_chan = settings.guild_setting(guild.id, 'bot_channels_strict')[0]
+
+                broadcast_message = ('I am here to help improve Polytopia multiplayer with matchmaking and leaderboards!\n'
+                    f'To **register your code** with me, type __`{prefix}setcode YOURCODEHERE`__')
+
+                if ranked_chan:
+                    broadcast_message += (f'\n\nTo find **ranked** games that count for the leaderboard, join <#{ranked_chan}>. '
+                        f'Type __`{prefix}opengames`__ to see what games are available to join. '
+                        f'To host your own game, try __`{prefix}opengame 1v1`__ to host a 1v1 duel. '
+                        'I will alert you once someone else has joined, and then you will add your opponent\'s friend code and create the game in Polytopia.')
+
+                if unranked_chan:
+                    broadcast_message += f'\n\nYou can also find unranked games - use the same commands as above in <#{unranked_chan}>.'
+
+                broadcast_message += f'\n\nFor full information go to <#{bot_spam_chan}> and type __`$guide`__ or __`$help`__'
+
+                for broadcast_channel in broadcast_channels:
+                    await broadcast_channel.send(broadcast_message)
 
 
 def setup(bot):
