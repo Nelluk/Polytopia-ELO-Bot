@@ -205,7 +205,7 @@ class misc:
     async def task_broadcast_newbie_message(self):
         await self.bot.wait_until_ready()
         while not self.bot.is_closed():
-            await asyncio.sleep(60 * 60 * 2)
+            await asyncio.sleep(60 * 60 * 6)
 
             for guild in self.bot.guilds:
                 broadcast_channels = [guild.get_channel(chan) for chan in settings.guild_setting(guild.id, 'newbie_message_channels')]
@@ -227,7 +227,8 @@ class misc:
                         'I will alert you once someone else has joined, and then you will add your opponent\'s friend code and create the game in Polytopia.')
 
                 if unranked_chan:
-                    broadcast_message += f'\n\nYou can also find unranked games - use the same commands as above in <#{unranked_chan}>.'
+                    broadcast_message += (f'\n\nYou can also find unranked games - use the same commands as above in <#{unranked_chan}>. '
+                        'Start here if you are new to Polytopia multiplayer.')
 
                 broadcast_message += f'\n\nFor full information go to <#{bot_spam_chan}> and type __`$guide`__ or __`$help`__'
 
