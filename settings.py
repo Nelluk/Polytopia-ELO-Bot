@@ -92,7 +92,7 @@ config = {'default':
                       'bot_channels_private': [418175357137453058],  # 058 testchamber
                       'bot_channels_strict': [403724174532673536],  # 536 BotCommands
                       'bot_channels': [403724174532673536, 511316081160355852, 511906353476927498],  # 498 unranked-games, 852 ranked-games
-                      'newbie_message_channels': [413721247260868618, 418326008526143508, 418326044077064192],  # friend codes NA/euro/asia
+                      'newbie_message_channels': [396069729657421824, 413721247260868618, 418326008526143508, 418326044077064192],  # multi-discussion, friend codes NA/euro/asia
                       'ranked_game_channel': 511316081160355852,
                       'unranked_game_channel': 511906353476927498,
                       'match_challenge_channel': None,
