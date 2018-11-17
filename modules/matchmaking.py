@@ -132,7 +132,7 @@ class matchmaking():
                 return await ctx.send(f'Maximum team size on this server is {server_size_max}.\n'
                     'For full functionality with support for up to 6-person teams and team channels check out PolyChampions - <https://tinyurl.com/polychampions>')
 
-        game_notes = ' '.join(note_args)[:100]
+        game_notes = ' '.join(note_args)[:150]
         notes_str = game_notes if game_notes else "\u200b"
         expiration_timestamp = (datetime.datetime.now() + datetime.timedelta(hours=expiration_hours)).strftime("%Y-%m-%d %H:%M:%S")
 
@@ -316,11 +316,11 @@ class matchmaking():
 
         old_notes = game.notes
         if game.is_pending:
-            game.notes = notes[:100] if notes else None
+            game.notes = notes[:150] if notes else None
         else:
             # Preserve original notes and indicate they've been edited, if game is in progress
             old_notes_redacted = f'{"~~" + old_notes.replace("~", "") + "~~"} ' if old_notes else ''
-            game.notes = f'{old_notes_redacted}{notes[:100]}' if notes else old_notes_redacted
+            game.notes = f'{old_notes_redacted}{notes[:150]}' if notes else old_notes_redacted
         game.save()
 
         await ctx.send(f'Updated notes for game {game.id} to: {game.notes}\nPrevious notes were: {old_notes}')
