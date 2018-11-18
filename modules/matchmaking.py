@@ -514,44 +514,65 @@ class matchmaking():
                 try:
                     await creating_guild_member.send(message)
                     await creating_guild_member.send('I do not respond to DMed commands. You must issue commands in the channel linked above.')
-                except (discord.DiscordException, discord.errors.DiscordException) as e:
+                except discord.DiscordException as e:
                     logger.warn(f'Error DMing creator of waiting game: {e}')
 
     async def task_print_matchlist(self):
-
         await self.bot.wait_until_ready()
-        challenge_channels = [g.get_channel(settings.guild_setting(g.id, 'match_challenge_channel')) for g in self.bot.guilds]
         while not self.bot.is_closed():
-            await asyncio.sleep(60 * 60 * 2)  # delay before and after loop so bot wont spam if its being restarted several times
-            for chan in challenge_channels:
-                if not chan:
+            sleep_cycle = (60 * 60 * 1)
+            await asyncio.sleep(5)
+
+            models.Game.purge_expired_games()
+            for guild in self.bot.guilds:
+                broadcast_channels = [guild.get_channel(chan) for chan in settings.guild_setting(guild.id, 'match_challenge_channels')]
+                if not broadcast_channels:
                     continue
 
-                models.Game.purge_expired_games()
-                game_list = models.Game.search_pending(status_filter=2, guild_id=chan.guild.id)[:12]
-                if not game_list:
-                    continue
+                ranked_chan = settings.guild_setting(guild.id, 'ranked_game_channel')
+                unranked_chan = settings.guild_setting(guild.id, 'unranked_game_channel')
 
-                pfx = settings.guild_setting(chan.guild.id, 'command_prefix')
-                embed = discord.Embed(title='Recent open games\n'
-                    f'Use `{pfx}join #` to join one or `{pfx}game #` for more details.')
-                embed.add_field(name=f'`{"ID":<8}{"Host":<40} {"Type":<7} {"Capacity":<7} {"Exp":>4} `', value='\u200b', inline=False)
-                for game in game_list:
+                for chan in broadcast_channels:
+                    if not chan:
+                        continue
+                    if chan.id == ranked_chan:
+                        game_list = models.Game.search_pending(status_filter=2, ranked_filter=1, guild_id=chan.guild.id)[:12]
+                        list_title = 'Current ranked open games'
+                    elif chan.id == unranked_chan:
+                        game_list = models.Game.search_pending(status_filter=2, ranked_filter=0, guild_id=chan.guild.id)[:12]
+                        list_title = 'Current unranked open games'
+                    else:
+                        game_list = models.Game.search_pending(status_filter=2, ranked_filter=2, guild_id=chan.guild.id)[:12]
+                        list_title = 'Current open games'
+                    if not game_list:
+                        continue
 
-                    notes_str = game.notes if game.notes else "\u200b"
-                    players, capacity = game.capacity()
-                    capacity_str = f' {players}/{capacity}'
-                    expiration = int((game.expiration - datetime.datetime.now()).total_seconds() / 3600.0)
-                    expiration = 'Exp' if expiration < 0 else f'{expiration}H'
-                    ranked = ' ' if game.is_ranked else 'U'
-                    creating_player = game.creating_player()
-                    host_name = creating_player.name if creating_player else '<Vacant>'
+                    pfx = settings.guild_setting(guild.id, 'command_prefix')
 
-                    embed.add_field(name=f'`{game.id:<8}{host_name:<40} {game.size_string():<7} {capacity_str:<7} {expiration:>5} {ranked}`', value=notes_str)
+                    embed = discord.Embed(title=f'{list_title}\n'
+                        f'Use `{pfx}join #` to join one or `{pfx}game #` for more details.')
+                    embed.add_field(name=f'`{"ID":<8}{"Host":<40} {"Type":<7} {"Capacity":<7} {"Exp":>4} `', value='\u200b', inline=False)
+                    for game in game_list:
 
-                await chan.send(embed=embed)
+                        notes_str = game.notes if game.notes else "\u200b"
+                        players, capacity = game.capacity()
+                        capacity_str = f' {players}/{capacity}'
+                        expiration = int((game.expiration - datetime.datetime.now()).total_seconds() / 3600.0)
+                        expiration = 'Exp' if expiration < 0 else f'{expiration}H'
+                        ranked = ' ' if game.is_ranked else 'U'
+                        creating_player = game.creating_player()
+                        host_name = creating_player.name if creating_player else '<Vacant>'
 
-            await asyncio.sleep(60 * 60 * 2)
+                        embed.add_field(name=f'`{game.id:<8}{host_name:<40} {game.size_string():<7} {capacity_str:<7} {expiration:>5} {ranked}`', value=notes_str)
+
+                    try:
+                        message = await chan.send(embed=embed, delete_after=sleep_cycle)
+                    except discord.DiscordException as e:
+                        logger.warn(f'Error broadcasting game list: {e}')
+                    else:
+                        logger.info(f'Broadcast game list to channel {chan.id} in message {message.id}')
+
+            await asyncio.sleep(sleep_cycle)
 
 
 def setup(bot):

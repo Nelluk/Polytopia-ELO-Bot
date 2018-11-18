@@ -117,7 +117,7 @@ async def delete_squad_channel(ctx, channel_id: int):
     try:
         logger.warn(f'Deleting channel {chan.name}')
         await chan.delete(reason='Game concluded')
-    except (discord.DiscordException, discord.errors.DiscordException) as e:
+    except discord.DiscordException as e:
         logger.error(f'Could not delete channel: {e}')
 
 
@@ -130,7 +130,7 @@ async def update_squad_channel_name(ctx, channel_id: int, game_id: int, game_nam
     try:
         await chan.edit(name=chan_name, reason='Game renamed')
         logger.info(f'Renamed channel for game {game_id} to {chan_name}')
-    except (discord.DiscordException, discord.errors.DiscordException) as e:
+    except discord.DiscordException as e:
         logger.error(f'Could not delete channel: {e}')
 
     await chan.send(f'This game has been renamed to *{game_name}*.')

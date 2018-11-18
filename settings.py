@@ -37,6 +37,7 @@ config = {'default':
                       'bot_channels_strict': [],  # channels where the most limited commands work, like leaderboards
                       'bot_channels': [],  # channels were more common commands work, like matchmaking
                       'newbie_message_channels': [],  # channels on which to broadcast a basic help message on repeat
+                      'match_challenge_channels': [],  # opengames list broadcast on repeat
                       'ranked_game_channel': None,
                       'unranked_game_channel': None,
                       'game_request_channel': None,
@@ -53,7 +54,7 @@ config = {'default':
                       'command_prefix': '/',
                       'bot_channels_strict': [479292913080336397],
                       'bot_channels': [479292913080336397, 481558031281160212, 480078679930830849],  # 397 Bot Spam,  849 Admin Spam
-                      'match_challenge_channel': 481558031281160212,  # 212 Testroom1
+                      'match_challenge_channels': [481558031281160212, 478571893272870913],  # 212 Testroom1
                       'ranked_game_channel': 479292913080336397,
                       'unranked_game_channel': 481558031281160212,
                       'game_request_channel': 480078679930830849,
@@ -74,7 +75,7 @@ config = {'default':
                       'bot_channels': [487303307224940545, 448317497473630229, 452639822616723457, 469027618289614850],  # 457 elo-chalenges, 850 dont-timeout
                       'ranked_game_channel': None,
                       'unranked_game_channel': None,
-                      'match_challenge_channel': 452639822616723457,  # elo-challenges
+                      'match_challenge_channels': [452639822616723457],  # elo-challenges
                       'game_request_channel': 487304043786665986,  # $staffhelp output
                       'game_announce_channel': 487302138704429087,  # elo-drafts
                       'game_channel_category': 488421911529914368},  # ELO CHALLENGES
@@ -94,7 +95,7 @@ config = {'default':
                       'newbie_message_channels': [396069729657421824, 413721247260868618, 418326008526143508, 418326044077064192],  # multi-discussion, friend codes NA/euro/asia
                       'ranked_game_channel': 511316081160355852,
                       'unranked_game_channel': 511906353476927498,
-                      'match_challenge_channel': None,
+                      'match_challenge_channels': [511316081160355852, 511906353476927498],
                       'game_request_channel': None,
                       'game_announce_channel': 505523961812090900,
                       'game_channel_category': None}
