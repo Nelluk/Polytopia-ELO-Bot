@@ -178,13 +178,15 @@ class matchmaking():
         """
         Join an open game
         **Example:**
-        `[p]joingame 25` - Join open game 25 to the first side with room
-        `[p]joingame 5 ronin` - Join open game 5 to the side named 'ronin'
-        `[p]joingame 5 2` - Join open game 5 to side number 2
-        `[p]joingame 5 rickdaheals 2` - Add a person to a game you are hosting. Side must be specified.
+        `[p]join 1025` - Join open game 1025 to the first side with room
+        `[p]join 1025 2` - Join open game 1025 to side number 2
+        `[p]join 1025 rickdaheals 2` - Add a person to a game you are hosting. Side must be specified.
         """
+        syntax = (f'**Example usage**:\n__`{ctx.prefix}join 1025`__ - Join game 1025\n__`{ctx.prefix}join 1025 2`__ - Join game 1025, side 2\n'
+            f'__`{ctx.prefix}join 1025 Nelluk 2`__ - Add a third party to side 2 of your open game. Side must be specified and not all users can do this.')
+
         if not game:
-            return await ctx.send(f'No game ID provided. Use `{ctx.prefix}opengames` to list open games you can join.')
+            return await ctx.send(f'No game ID provided. Use `{ctx.prefix}opengames` to list open games you can join.\n{syntax}')
         if not game.is_pending:
             return await ctx.send(f'The game has already started and can no longer be joined.')
 
@@ -200,7 +202,7 @@ class matchmaking():
             target = f'<@{ctx.author.id}>'
             side, side_open = game.get_side(lookup=args[0])
             if not side:
-                return await ctx.send(f'Could not find side with "{args[0]}" in game {game.id}. You can use a side number or name if available.')
+                return await ctx.send(f'Could not find side with "{args[0]}" in game {game.id}. You can use a side number or name if available.\n{syntax}')
 
         elif len(args) == 2:
             # author is putting a third party into this match
@@ -210,10 +212,9 @@ class matchmaking():
             target = args[0]
             side, side_open = game.get_side(lookup=args[1])
             if not side:
-                return await ctx.send(f'Could not find side with "{args[1]}" in game {game.id}. You can use a side number or name if available.\n'
-                    f'Syntax: `{ctx.prefix}join {game.id} <player> <side>`')
+                return await ctx.send(f'Could not find side with "{args[1]}" in game {game.id}. You can use a side number or name if available.\n{syntax}')
         else:
-            return await ctx.send(f'Invalid command. See `{ctx.prefix}help joingame` for usage examples.')
+            return await ctx.send(f'Invalid usage.\n{syntax}')
 
         if not side_open:
             return await ctx.send(f'That side of game {game.id} is already full. See `{ctx.prefix}game {game.id}` for details.')
