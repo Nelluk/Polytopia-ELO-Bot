@@ -1126,8 +1126,9 @@ class Game(BaseModel):
 
         if player_discord_id:
             player_filter = Lineup.select(Game.id).join(Game).join_from(Lineup, Player).join(DiscordMember).where(
-                (Lineup.player.discord_member.discord_id == player_discord_id)
+                (Lineup.player.discord_member.discord_id == player_discord_id) & (Game.is_pending == 1)
             )
+
         else:
             player_filter = Game.select(Game.id)
 

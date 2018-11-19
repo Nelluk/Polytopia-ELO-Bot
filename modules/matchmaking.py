@@ -378,22 +378,21 @@ class matchmaking():
             ranked_filter = 1
             ranked_str = ' **ranked**'
 
-        if any(arg.upper() == 'ME' for arg in args):
-            game_player_filter = ctx.author.id
-        else:
-            game_player_filter = None
-
         if len(args) > 0 and args[0].upper() == 'ALL':
             title_str = f'All{ranked_str} open games'
-            game_list = models.Game.search_pending(status_filter=0, guild_id=ctx.guild.id, ranked_filter=ranked_filter, player_discord_id=game_player_filter)
+            game_list = models.Game.search_pending(status_filter=0, guild_id=ctx.guild.id, ranked_filter=ranked_filter)
 
         elif len(args) > 0 and args[0].upper() == 'WAITING':
             title_str = f'Open{ranked_str} games waiting to start'
-            game_list = models.Game.search_pending(status_filter=1, guild_id=ctx.guild.id, ranked_filter=ranked_filter, player_discord_id=game_player_filter)
+            game_list = models.Game.search_pending(status_filter=1, guild_id=ctx.guild.id, ranked_filter=ranked_filter)
+
+        elif len(args) > 0 and args[0].upper() == 'ME':
+            title_str = f'Open games joined by **{ctx.author.name}**'
+            game_list = models.Game.search_pending(guild_id=ctx.guild.id, player_discord_id=ctx.author.id)
 
         else:
             title_str = f'Current{ranked_str} open games with available spots'
-            game_list = models.Game.search_pending(status_filter=2, guild_id=ctx.guild.id, ranked_filter=ranked_filter, player_discord_id=game_player_filter)
+            game_list = models.Game.search_pending(status_filter=2, guild_id=ctx.guild.id, ranked_filter=ranked_filter)
 
         title_str_full = title_str + f'\nUse `{ctx.prefix}join #` to join one or `{ctx.prefix}game #` for more details.'
         gamelist_fields = [(f'`{"ID":<8}{"Host":<40} {"Type":<7} {"Capacity":<7} {"Exp":>4}` ', '\u200b')]
