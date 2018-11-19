@@ -80,11 +80,11 @@ async def create_squad_channel(ctx, game, team_name, player_list):
         new_chan = await ctx.guild.create_text_channel(name=chan_name, overwrites=chan_permissions, category=chan_cat, reason='ELO Game chan')
     except (discord.errors.Forbidden, discord.errors.HTTPException) as e:
         logger.error(f'Exception in create_game_channels:\n{e} - Status {e.status}, Code {e.code}: {e.text}')
-        await ctx.send(f'Could not create game channel for this game. Error has been logged.')
+        await ctx.send(f'Could not create game channel for this game. Error has been logged.\n{e}')
         return None,
     except discord.errors.InvalidArgument as e:
         logger.error(f'Exception in create_game_channels:\n{e}')
-        await ctx.send(f'Could not create game channel for this game. Error has been logged.')
+        await ctx.send(f'Could not create game channel for this game. Error has been logged.\n{e}')
         return None
     logger.debug(f'Created channel {new_chan.name}')
 
