@@ -505,6 +505,10 @@ class matchmaking():
                 creating_player = game.creating_player()
 
                 creating_guild_member = guild.get_member(creating_player.discord_member.discord_id)
+                if not creating_guild_member:
+                    logger.warn(f'Couldnt load creator for game {game.id}. Maybe they left the guild?')
+                    continue
+
                 bot_channel = settings.guild_setting(guild.id, 'bot_channels_strict')[0]
                 prefix = settings.guild_setting(guild.id, 'command_prefix')
 

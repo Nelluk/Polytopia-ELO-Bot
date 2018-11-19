@@ -954,11 +954,21 @@ class elo_games():
         winning_game.declare_winner(winning_side=winning_side, confirm=confirm_win)
 
         if confirm_win:
+
+            if winning_game.is_ranked and (winning_game.gamesides[0].lineup[0].elo_change_player == 0 or winning_game.gamesides[1].lineup[0].elo_change_player == 0):
+                # try to catch a phantom bug where rarely a completed game will not save the ELO changes correctly to the DB.
+                # not reproducible at all so simply re-running the calc if it happens and logging
+                Game.recalculate_elo_since(timestamp=winning_game.completed_ts)
+                logger.critical(f'Possible ELO bug in result from {winning_game.id}')
+                owner = ctx.guild.get_member(settings.owner_id)
+                if owner:
+                    try:
+                        await owner.send(f'Possible ELO bug in result from {winning_game.id}')
+                    except discord.DiscordException as e:
+                        logger.warn(f'Error DMing bot owner: {e}')
+
             # Cleanup game channels and announce winners
             await post_win_messaging(ctx, winning_game)
-            if winning_game.is_ranked and (winning_game.gamesides[0].lineup[0].elo_change_player == 0 or winning_game.gamesides[1].lineup[0].elo_change_player == 0):
-                logger.critical(f'Possible ELO bug in result from {winning_game.id}')
-                await ctx.send(f'Alert for <@{settings.owner_id}>, result of last completed game may be incorrect')
 
     @settings.in_bot_channel()
     @commands.command(usage='game_id', aliases=['delete_game', 'delgame', 'delmatch', 'delete'])
