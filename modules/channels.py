@@ -81,7 +81,7 @@ async def create_squad_channel(ctx, game, team_name, player_list):
     except (discord.errors.Forbidden, discord.errors.HTTPException) as e:
         logger.error(f'Exception in create_game_channels:\n{e} - Status {e.status}, Code {e.code}: {e.text}')
         await ctx.send(f'Could not create game channel for this game. Error has been logged.\n{e}')
-        return None,
+        return None
     except discord.errors.InvalidArgument as e:
         logger.error(f'Exception in create_game_channels:\n{e}')
         await ctx.send(f'Could not create game channel for this game. Error has been logged.\n{e}')
