@@ -1107,7 +1107,7 @@ class Game(BaseModel):
 
         return q
 
-    def search_pending(status_filter: int = 0, ranked_filter: int = 2, guild_id: int = None, host_discord_id: int = None):
+    def search_pending(status_filter: int = 0, ranked_filter: int = 2, guild_id: int = None, player_discord_id: int = None, host_discord_id: int = None):
         # status_filter
         # 0 = all open games
         # 1 = full games / waiting to start
@@ -1124,26 +1124,41 @@ class Game(BaseModel):
         else:
             guild_filter = Game.select(Game.id)
 
+        if player_discord_id:
+            player_filter = Lineup.select(Game.id).join(Game).join_from(Lineup, Player).join(DiscordMember).where(
+                (Lineup.player.discord_member.discord_id == player_discord_id)
+            )
+        else:
+            player_filter = Game.select(Game.id)
+
+        if host_discord_id:
+            host_filter = Game.select(Game.id).join(Player).join(DiscordMember).where(
+                (Lineup.player.discord_member.discord_id == host_discord_id)
+            )
+        else:
+            host_filter = Game.select(Game.id)
+
         if status_filter == 1:
             # full games / waiting to start
-            if host_discord_id:
-                q = Game.select().join(Player).join(DiscordMember).where(
-                    (Game.id.not_in(Game.subq_open_games_with_capacity())) &
-                    (Game.host.discord_member.discord_id == host_discord_id) &
-                    (Game.is_pending == 1) &
-                    (Game.id.in_(guild_filter)) &
-                    (Game.is_ranked.in_(ranked_filter))
-                )
-            else:
-                q = Game.select().where(
-                    (Game.id.not_in(Game.subq_open_games_with_capacity())) & (Game.is_pending == 1) & (Game.id.in_(guild_filter)) & (Game.is_ranked.in_(ranked_filter))
-                )
+            q = Game.select().where(
+                (Game.id.not_in(Game.subq_open_games_with_capacity())) &
+                (Game.is_pending == 1) &
+                (Game.id.in_(guild_filter)) &
+                (Game.id.in_(player_filter)) &
+                (Game.id.in_(host_filter)) &
+                (Game.is_ranked.in_(ranked_filter))
+            )
             return q.prefetch(GameSide, Lineup, Player)
 
         elif status_filter == 2:
             # games with open capacity
             return Game.select().where(
-                (Game.id.in_(Game.subq_open_games_with_capacity())) & (Game.is_pending == 1) & (Game.id.in_(guild_filter)) & (Game.is_ranked.in_(ranked_filter))
+                (Game.id.in_(Game.subq_open_games_with_capacity())) &
+                (Game.is_pending == 1) &
+                (Game.id.in_(guild_filter)) &
+                (Game.id.in_(player_filter)) &
+                (Game.id.in_(host_filter)) &
+                (Game.is_ranked.in_(ranked_filter))
             ).order_by(-Game.id).prefetch(GameSide, Lineup, Player)
 
         else:
@@ -1154,6 +1169,8 @@ class Game(BaseModel):
             ).join(GameSide, on=(GameSide.game == Game.id)).join(Lineup, JOIN.LEFT_OUTER).where(
                 (Game.is_pending == 1) &
                 (Game.id.in_(guild_filter)) &
+                (Game.id.in_(player_filter)) &
+                (Game.id.in_(host_filter)) &
                 (Game.is_ranked.in_(ranked_filter))
             ).group_by(Game.id).order_by(
                 -(fn.SUM(GameSide.size) - fn.COUNT(Lineup.id))

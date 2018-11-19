@@ -249,8 +249,6 @@ class matchmaking():
         if m:
             min_elo = int(m[1])
 
-        print(min_elo, max_elo)
-
         if player.elo < min_elo or player.elo > max_elo:
             if not game.is_hosted_by(ctx.author.id)[0] and not settings.is_mod(ctx):
                 return await ctx.send(f'This game has an ELO restriction of {min_elo} - {max_elo} and **{player.name}** has an ELO of **{player.elo}**. Cannot join! :cry:')
@@ -364,6 +362,7 @@ class matchmaking():
         `[p]opengames` - List all open games that are not yet full
         `[p]opengames waiting` - Lists open games that are full but not yet started
         `[p]opengames all` - List all pending open games, including full
+        `[p]opengames me` - List unstarted opengames that you have joined
         You can also add keywords **ranked** or **unranked** to filter by those types of games.
         """
         models.Game.purge_expired_games()
@@ -379,17 +378,22 @@ class matchmaking():
             ranked_filter = 1
             ranked_str = ' **ranked**'
 
+        if any(arg.upper() == 'ME' for arg in args):
+            game_player_filter = ctx.author.id
+        else:
+            game_player_filter = None
+
         if len(args) > 0 and args[0].upper() == 'ALL':
             title_str = f'All{ranked_str} open games'
-            game_list = models.Game.search_pending(status_filter=0, guild_id=ctx.guild.id, ranked_filter=ranked_filter)
+            game_list = models.Game.search_pending(status_filter=0, guild_id=ctx.guild.id, ranked_filter=ranked_filter, player_discord_id=game_player_filter)
 
         elif len(args) > 0 and args[0].upper() == 'WAITING':
             title_str = f'Open{ranked_str} games waiting to start'
-            game_list = models.Game.search_pending(status_filter=1, guild_id=ctx.guild.id, ranked_filter=ranked_filter)
+            game_list = models.Game.search_pending(status_filter=1, guild_id=ctx.guild.id, ranked_filter=ranked_filter, player_discord_id=game_player_filter)
 
         else:
             title_str = f'Current{ranked_str} open games with available spots'
-            game_list = models.Game.search_pending(status_filter=2, guild_id=ctx.guild.id, ranked_filter=ranked_filter)
+            game_list = models.Game.search_pending(status_filter=2, guild_id=ctx.guild.id, ranked_filter=ranked_filter, player_discord_id=game_player_filter)
 
         title_str_full = title_str + f'\nUse `{ctx.prefix}join #` to join one or `{ctx.prefix}game #` for more details.'
         gamelist_fields = [(f'`{"ID":<8}{"Host":<40} {"Type":<7} {"Capacity":<7} {"Exp":>4}` ', '\u200b')]
