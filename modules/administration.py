@@ -141,6 +141,13 @@ class administration:
                     models.Game.recalculate_elo_since(timestamp=timestamp)
             return await ctx.send(f'Game {game.id} has been marked as *Incomplete*. ELO changes have been reverted and ELO from all subsequent games recalculated.')
 
+        elif game.is_completed:
+            # Unconfirmed win
+            game.completed_ts = None
+            game.is_completed = False
+            game.winner = None
+            return await ctx.send(f'Unconfirmed Game {game.id} has been marked as *Incomplete*.')
+
         else:
             return await ctx.send(f'Game {game.id} does not have a confirmed winner.')
 
