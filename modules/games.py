@@ -915,7 +915,7 @@ class elo_games():
         if winning_game.is_pending:
             return await ctx.send(f'This game has not started yet.')
 
-        if settings.is_staff(ctx):
+        if settings.is_staff(ctx) and False:
             confirm_win = True
         else:
             has_player, author_side = winning_game.has_player(discord_id=ctx.author.id)
@@ -926,8 +926,13 @@ class elo_games():
             if len(winning_game.gamesides) == 2:
                 if winning_side == author_side:
                     # Author declaring their side won
+                    for side in winning_game.gamesides:
+                        if side != winning_side:
+                            losing_player = side.lineup[0].player.discord_member.discord_id
+                            break
+
                     await ctx.send(f'Game {winning_game.id} concluded pending confirmation of winner **{winning_obj.name}**\n'
-                        f'To confirm, have a losing opponent use the same `{ctx.prefix}wingame` command, or ask server staff to confirm your win.')
+                        f'To confirm, have losing opponent <@{losing_player}> use the command __`{ctx.prefix}win {winning_game.id} {winning_side_name}`__ or ask server staff to confirm your win with screenshot evidence.')
                     confirm_win = False
                 else:
                     # Author declaring their side lost
@@ -935,7 +940,7 @@ class elo_games():
                     confirm_win = True
             else:
                 # Game with more than two teams - staff confirmation required. Possibly improve later so that every team can unanimously confirm
-                await ctx.send(f'Since this is a {len(winning_game.gamesides)}-team game, staff confirmation is required.')
+                await ctx.send(f'Since this is a {len(winning_game.gamesides)}-team game, staff confirmation is required. Ping ')
                 confirm_win = False
 
                 # Automatically inform staff of needed confirmation if game_request_channel is enabled
