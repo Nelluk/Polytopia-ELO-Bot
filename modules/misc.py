@@ -24,6 +24,7 @@ class misc:
     async def test(self, ctx, *arg):
 
         print(f'in test {arg}')
+        print(self.bot.foo)
         await self.bot.get_command('test2').invoke(ctx)
         # await ctx.author.send(f'blah')
         # for b in range(1, 20):

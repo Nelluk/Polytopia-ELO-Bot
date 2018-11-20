@@ -7,6 +7,7 @@ from modules import initialize_data
 import settings
 import logging
 import sys
+import json
 from logging.handlers import RotatingFileHandler
 
 
@@ -142,5 +143,26 @@ if __name__ == '__main__':
 
         print(f'\n\nv2 Logged in as: {bot.user.name} - {bot.user.id}\nVersion: {discord.__version__}\n')
         print(f'Successfully logged in and booted...!')
+
+        # try:
+        #     with open('temporary_messages.json', 'r') as read_file:
+        #         bot.temporary_messages = json.load(read_file)
+        # except FileNotFoundError:
+        #     bot.temporary_messages = {}
+
+        # # Delete all temporary messages at bot start. These are recurring announcement messages that when bot is constantly runnimg
+        # # will self-delete,
+        # for guild in bot.guilds:
+        #     for channel in bot.temporary_messages.get(str(guild.id)):
+        #         chan = guild.get_channel(channel['chan_id'])
+        #         if chan:
+        #             for message_id in channel['messages']:
+        #                 message = await chan.get_message(message_id)
+        #                 if message:
+        #                     try:
+        #                         await message.delete()
+        #                         logger.info(f'Deleting temporary message id {message_id}')
+        #                     except discord.DiscordException as e:
+        #                         pass  # Probably message no longer exists because it deleted itself with normal delete_after operation
 
     bot.run(settings.discord_key, bot=True, reconnect=True)

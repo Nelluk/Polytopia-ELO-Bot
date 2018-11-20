@@ -915,7 +915,7 @@ class elo_games():
         if winning_game.is_pending:
             return await ctx.send(f'This game has not started yet.')
 
-        if settings.is_staff(ctx) and False:
+        if settings.is_staff(ctx):
             confirm_win = True
         else:
             has_player, author_side = winning_game.has_player(discord_id=ctx.author.id)
