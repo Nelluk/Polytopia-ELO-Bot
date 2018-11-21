@@ -430,7 +430,7 @@ class matchmaking():
 
     @settings.in_bot_channel()
     @commands.command(aliases=['startmatch', 'start'], usage='game_id Name of Poly Game')
-    async def startgame(self, ctx, game: PolyMatch, *, name: str = None):
+    async def startgame(self, ctx, game: PolyMatch = None, *, name: str = None):
         """
         Start a full game and track it for ELO
         Use this command after you have created the game in Polytopia.
@@ -438,11 +438,16 @@ class matchmaking():
         `[p]startgame 100 Fields of Fire`
         """
 
+        syntax = (f'**Example usage**:\n__`{ctx.prefix}start 1025 Name of Game`__')
+
+        if not game:
+            return await ctx.send(f'No game ID provided. Use `{ctx.prefix}opengames me` to list open games you have waiting to start.\n{syntax}')
+
         if not game.is_hosted_by(ctx.author.id)[0] and not settings.is_staff(ctx) and not game.is_created_by(ctx.author.id):
             return await ctx.send(f'Only the match host or server staff can do this.')
 
         if not name:
-            return await ctx.send(f'Game name is required. Example: `{ctx.prefix}startgame {game.id} Name of Game`')
+            return await ctx.send(f'Game name is required. The game must be created **in Polytopia** first to get the correct name.\n{syntax}')
 
         if not utilities.is_valid_poly_gamename(input=name):
             return await ctx.send('That name looks made up. :thinking: You need to manually create the game __in Polytopia__, come back and input the name of the new game you made.\n'
