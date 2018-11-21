@@ -130,7 +130,7 @@ class matchmaking():
                 logger.info('Opening unranked game that exceeds server_size_max')
             else:
                 return await ctx.send(f'Maximum team size on this server is {server_size_max}.\n'
-                    'For full functionality with support for up to 6-person teams and team channels check out PolyChampions - <https://discord.gg/cX7Ptnv>')
+                    'For full functionality with support for up to 6-person teams and team channels check out PolyChampions - <https://tinyurl.com/polychampions>')
 
         game_notes = ' '.join(note_args)[:150]
         notes_str = game_notes if game_notes else "\u200b"
@@ -416,7 +416,7 @@ class matchmaking():
         if ctx.guild.id != settings.server_ids['polychampions']:
             await asyncio.sleep(1)
             await ctx.send('Powered by PolyChampions. League server with a focus on team play:\n'
-                '<https://discord.gg/cX7Ptnv>')
+                '<https://tinyurl.com/polychampions>')
 
         # Alert user if a game they are hosting OR should be creating is waiting to be created
         waitlist_hosting = [f'{g.id}' for g in models.Game.search_pending(status_filter=1, guild_id=ctx.guild.id, host_discord_id=ctx.author.id)]

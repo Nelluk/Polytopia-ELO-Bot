@@ -121,7 +121,7 @@ class elo_games():
 
         if ctx.guild.id != settings.server_ids['polychampions']:
             await ctx.send('Powered by PolyChampions. League server with a team focus and competitive players.\n'
-                'Supporting up to 6-player team ELO games and automatic team channels. - <https://discord.gg/cX7Ptnv>')
+                'Supporting up to 6-player team ELO games and automatic team channels. - <https://tinyurl.com/polychampions>')
             # link put behind url shortener to not show big invite embed
         await utilities.paginate(self.bot, ctx, title=f'**Individual Leaderboards**\n{leaderboard_query.count()} ranked players', message_list=leaderboard, page_start=0, page_end=10, page_size=10)
 
@@ -148,7 +148,7 @@ class elo_games():
 
         if ctx.guild.id != settings.server_ids['polychampions']:
             await ctx.send('Powered by PolyChampions. League server with a team focus and competitive players.\n'
-                'Supporting up to 6-player team ELO games and automatic team channels. - <https://discord.gg/cX7Ptnv>')
+                'Supporting up to 6-player team ELO games and automatic team channels. - <https://tinyurl.com/polychampions>')
             # link put behind url shortener to not show big invite embed
         await utilities.paginate(self.bot, ctx, title=f'**Most Active Recent Players**\n{query.count()} players in past 30 days', message_list=leaderboard, page_start=0, page_end=10, page_size=10)
 
@@ -168,7 +168,7 @@ class elo_games():
 
         if ctx.guild.id != settings.server_ids['polychampions']:
             await ctx.send('Powered by PolyChampions. League server with a team focus and competitive players.\n'
-                'Supporting up to 6-player team ELO games and automatic team channels. - <https://discord.gg/cX7Ptnv>')
+                'Supporting up to 6-player team ELO games and automatic team channels. - <https://tinyurl.com/polychampions>')
             # link put behind url shortener to not show big invite embed
         await utilities.paginate(self.bot, ctx, title=f'**Global Leaderboards**\n{leaderboard_query.count()} ranked players', message_list=leaderboard, page_start=0, page_end=10, page_size=10)
 
