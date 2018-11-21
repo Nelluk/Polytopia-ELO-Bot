@@ -928,11 +928,14 @@ class elo_games():
                     # Author declaring their side won
                     for side in winning_game.gamesides:
                         if side != winning_side:
-                            losing_player = side.lineup[0].player.discord_member.discord_id
+                            if len(side.lineup) == 1:
+                                confirm_str = f'losing opponent <@{side.lineup[0].player.discord_member.discord_id}>'
+                            else:
+                                confirm_str = f'a member of losing side **{side.name()}**'
                             break
 
                     await ctx.send(f'Game {winning_game.id} concluded pending confirmation of winner **{winning_obj.name}**\n'
-                        f'To confirm, have losing opponent <@{losing_player}> use the command __`{ctx.prefix}win {winning_game.id} {winning_side_name}`__ or ask server staff to confirm your win with screenshot evidence.')
+                        f'To confirm, have {confirm_str} use the command __`{ctx.prefix}win {winning_game.id} {winning_side_name}`__ or ask an **@ELO Helper** to confirm your win with screenshot evidence.')
                     confirm_win = False
                 else:
                     # Author declaring their side lost
