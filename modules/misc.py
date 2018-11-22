@@ -21,11 +21,11 @@ class misc:
 
     @commands.command(hidden=True, aliases=['ts'])
     @commands.is_owner()
-    async def test(self, ctx, *arg):
+    async def test(self, ctx, *, arg):
 
         print(f'in test {arg}')
-        print(self.bot.foo)
-        await self.bot.get_command('test2').invoke(ctx)
+        # await self.bot.get_command('test2').invoke(ctx)
+        await ctx.invoke(self.bot.get_command("test2"), tuple(arg.split()))
         # await ctx.author.send(f'blah')
         # for b in range(1, 20):
         #     await ctx.author.send(f'blah {b}')
@@ -34,9 +34,7 @@ class misc:
     @commands.is_owner()
     async def test2(self, ctx, *arg):
 
-        g = models.Game.waiting_for_creator(creator_discord_id=ctx.author.id)
-        for game in g.dicts():
-            print(game)
+        print(f'test2 arg:{arg}')
 
     @commands.command(usage=None)
     @settings.in_bot_channel_strict()

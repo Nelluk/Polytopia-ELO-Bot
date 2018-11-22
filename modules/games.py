@@ -554,22 +554,31 @@ class elo_games():
         await ctx.send(f'Player {player_target.name} updated in system with Polytopia name {new_name}.')
 
     @commands.command(aliases=['match'], usage='game_id')
-    async def game(self, ctx, game: PolyGame = None):
+    async def game(self, ctx, game_search: str = None):
+        # async def game(self, ctx, game: PolyGame = None):
 
         """See details on a specific game ID
         **Examples**:
         `[p]game 51` - See details on game # 51.
         """
-
-        if not game:
+        if not game_search:
             return await ctx.send(f'Game ID number must be supplied, example: __`{ctx.prefix}game 1250`__')
+        try:
+            int(game_search)
+        except ValueError:
+            # User passed in non-numeric, probably searching by game title
+            return await ctx.invoke(self.bot.get_command('games'), args=game_search)
+
+        # Converting manually here to handle case of user passing a game name so info can be redirected to games() command
+        game_converter = PolyGame()
+        game = await game_converter.convert(ctx, game_search)
 
         embed, content = game.embed(ctx)
         return await ctx.send(embed=embed, content=content)
 
     @settings.in_bot_channel_strict()
     @commands.command(usage='player1 player2 ... ')
-    async def games(self, ctx, *args):
+    async def games(self, ctx, *, args):
 
         """Search for games by participants or game name
         **Examples**:
@@ -582,9 +591,9 @@ class elo_games():
 
         # TODO: remove 'and/&' to remove confusion over game names like Ocean & Prophesy
 
-        target_list = list(args)
+        target_list = args.split()
 
-        if len(args) == 1 and args[0].upper() == 'ALL':
+        if len(target_list) == 1 and target_list[0].upper() == 'ALL':
             query = Game.search(status_filter=0, guild_id=ctx.guild.id)
             list_name = f'All games ({len(query)})'
             game_list = utilities.summarize_game_list(query[:500])
@@ -782,7 +791,7 @@ class elo_games():
     @commands.command(usage='"Name of Game" player1 player2 vs player3 player4')
     @settings.is_user_check()
     async def newgame(self, ctx, game_name: str = None, *args):
-        """Adds a new game to the bot for tracking
+        """Adds an existing game to the bot for tracking
 
         **Examples:**
         `[p]newgame "Name of Game" nelluk vs koric` - Sets up a 1v1 game
