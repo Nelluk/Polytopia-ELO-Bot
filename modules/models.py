@@ -549,6 +549,8 @@ class Game(BaseModel):
 
     def is_hosted_by(self, discord_id: int):
 
+        if not self.host:
+            return False, None
         return self.host.discord_member.discord_id == discord_id, self.host
 
     def is_created_by(self, discord_id: int):

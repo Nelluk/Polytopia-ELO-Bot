@@ -43,6 +43,7 @@ class matchmaking():
         self.bot = bot
         self.bg_task = bot.loop.create_task(self.task_print_matchlist())
         self.bg_task2 = bot.loop.create_task(self.task_dm_game_creators())
+        self.bg_task3 = bot.loop.create_task(self.task_create_empty_matchmaking_lobbies())
 
     @settings.in_bot_channel()
     @commands.command(aliases=['openmatch'], usage='size expiration rules')
@@ -530,6 +531,36 @@ class matchmaking():
                     await creating_guild_member.send('I do not respond to DMed commands. You must issue commands in the channel linked above.')
                 except discord.DiscordException as e:
                     logger.warn(f'Error DMing creator of waiting game: {e}')
+
+    async def task_create_empty_matchmaking_lobbies(self):
+        lobbies = [{'guild': 283436219780825088, 'size_str': '1v1', 'size': [1, 1], 'ranked': True, 'notes': 'Newbie game - 1025 elo max'},
+                   {'guild': 283436219780825088, 'size_str': 'FFA', 'size': [1, 1, 1], 'ranked': True, 'notes': ''},
+                   {'guild': 283436219780825088, 'size_str': '1v1', 'size': [1, 1], 'ranked': False, 'notes': ''},
+                   {'guild': 283436219780825088, 'size_str': 'FFA', 'size': [1, 1, 1], 'ranked': False, 'notes': ''},
+                   {'guild': 447883341463814144, 'size_str': '2v2', 'size': [2, 2], 'ranked': False, 'exp': 95, 'notes': 'Open to all'},
+                   {'guild': 447883341463814144, 'size_str': '3v3', 'size': [3, 3], 'ranked': False, 'exp': 95, 'notes': 'Open to all'}]
+
+        await self.bot.wait_until_ready()
+        while not self.bot.is_closed():
+            await asyncio.sleep(60)
+            unhosted_game_list = models.Game.search_pending(status_filter=2, host_discord_id=0)
+            for lobby in lobbies:
+                matching_lobby = False
+                for g in unhosted_game_list:
+                    if (g.guild_id == lobby['guild'] and g.size_string() == lobby['size_str'] and
+                            g.is_ranked == lobby['ranked'] and g.notes == lobby['notes']):
+                        if g.capacity()[0] == 0:
+                            matching_lobby = True
+                if not matching_lobby:
+                    logger.info(f'creating new lobby {lobby}')
+                    expiration_hours = lobby.get('exp', 30)
+                    expiration_timestamp = (datetime.datetime.now() + datetime.timedelta(hours=expiration_hours)).strftime("%Y-%m-%d %H:%M:%S")
+                    with models.db.atomic():
+                        opengame = models.Game.create(host=None, notes=lobby['notes'],
+                                                      guild_id=lobby['guild'], is_pending=True,
+                                                      is_ranked=lobby['ranked'], expiration=expiration_timestamp)
+                        for count, size in enumerate(lobby['size']):
+                            models.GameSide.create(game=opengame, size=size, position=count + 1)
 
     async def task_print_matchlist(self):
         await self.bot.wait_until_ready()
