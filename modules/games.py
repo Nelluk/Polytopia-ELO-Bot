@@ -551,7 +551,7 @@ class elo_games():
 
         player_target.discord_member.polytopia_name = new_name
         player_target.discord_member.save()
-        await ctx.send(f'Player {player_target.name} updated in system with Polytopia name {new_name}.')
+        await ctx.send(f'Player **{player_target.name}** updated in system with Polytopia name **{new_name}**.')
 
     @commands.command(aliases=['match'], usage='game_id')
     async def game(self, ctx, game_search: str = None):

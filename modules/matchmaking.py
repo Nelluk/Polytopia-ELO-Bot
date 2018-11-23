@@ -182,8 +182,10 @@ class matchmaking():
         `[p]join 1025 2` - Join open game 1025 to side number 2
         `[p]join 1025 rickdaheals 2` - Add a person to a game you are hosting. Side must be specified.
         """
-        syntax = (f'**Example usage**:\n__`{ctx.prefix}join 1025`__ - Join game 1025\n__`{ctx.prefix}join 1025 2`__ - Join game 1025, side 2\n'
-            f'__`{ctx.prefix}join 1025 Nelluk 2`__ - Add a third party to side 2 of your open game. Side must be specified and not all users can do this.')
+        syntax = f'**Example usage**:\n__`{ctx.prefix}join 1025`__ - Join game 1025\n__`{ctx.prefix}join 1025 2`__ - Join game 1025, side 2'
+
+        if settings.is_matchmaking_power_user(ctx):
+            syntax += f'\n__`{ctx.prefix}join 1025 Nelluk 2`__ - Add a third party to side 2 of your open game. Side must be specified.'
 
         if not game:
             return await ctx.send(f'No game ID provided. Use `{ctx.prefix}opengames` to list open games you can join.\n{syntax}')
@@ -263,7 +265,7 @@ class matchmaking():
             creating_player = game.creating_player()
             await ctx.send(f'Game {game.id} is now full and <@{creating_player.discord_member.discord_id}> should create the game in Polytopia.')
 
-            if game.host != creating_player:
+            if game.host and game.host != creating_player:
                 await ctx.send(f'Matchmaking host <@{game.host.discord_member.discord_id}> is not in the game lineup.')
 
         embed, content = game.embed(ctx)

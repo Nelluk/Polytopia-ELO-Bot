@@ -694,7 +694,11 @@ class Game(BaseModel):
 
     def embed_pending_game(self, ctx):
         ranked_str = 'Unranked ' if not self.is_ranked else ''
-        embed = discord.Embed(title=f'**{ranked_str}Open Game {self.id}**\n{self.size_string()} *hosted by* {self.host.name}')
+        title_str = f'**{ranked_str}Open Game {self.id}**\n{self.size_string()}'
+        if self.host:
+            title_str += f' *hosted by* {self.host.name}'
+
+        embed = discord.Embed(title=title_str)
         notes_str = self.notes if self.notes else "\u200b"
         content_str = None
 
@@ -1132,11 +1136,17 @@ class Game(BaseModel):
         else:
             player_filter = Game.select(Game.id)
 
-        if host_discord_id:
+        if host_discord_id == 0:
+            # Special case, pass 0 to find games where Game.host == None
+            host_filter = Game.select(Game.id).where(
+                (Game.host.is_null(True))
+            )
+        elif host_discord_id:
             host_filter = Game.select(Game.id).join(Player).join(DiscordMember).where(
                 (Lineup.player.discord_member.discord_id == host_discord_id)
             )
         else:
+            # Pass None to not filter by Game.host
             host_filter = Game.select(Game.id)
 
         if status_filter == 1:
