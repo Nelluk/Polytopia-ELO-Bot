@@ -1041,9 +1041,9 @@ class elo_games():
             return await ctx.send(f'This game has not started yet.')
 
         is_hosted_by, host = game.is_hosted_by(ctx.author.id)
-        if not is_hosted_by and not settings.is_staff(ctx):
-            host_name = f' **{host.name}**' if host else ''
-            return await ctx.send(f'Only the game host{host_name} or server staff can do this.')
+        if not is_hosted_by and not settings.is_staff(ctx) and not game.is_created_by(discord_id=ctx.author.id):
+            # host_name = f' **{host.name}**' if host else ''
+            return await ctx.send(f'Only the game creator **{game.creating_player().name}** or server staff can do this.')
 
         new_game_name = ' '.join(args)
         old_game_name = game.name
