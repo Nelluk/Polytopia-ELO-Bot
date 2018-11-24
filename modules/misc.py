@@ -27,6 +27,7 @@ class misc:
         for g in games:
             if g.capacity()[0] == 0:
                 print(f'deleting {g.id}')
+                g.delete_game()
 
     @commands.command(hidden=True)
     @commands.is_owner()
