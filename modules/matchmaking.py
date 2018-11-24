@@ -544,12 +544,16 @@ class matchmaking():
                 for g in unhosted_game_list:
                     if (g.guild_id == lobby['guild'] and g.size_string() == lobby['size_str'] and
                             g.is_ranked == lobby['ranked'] and g.notes == lobby['notes']):
-                        if g.capacity()[0] == 0:
-                            matching_lobby = True
-                        # if lobby['remake_partial'] and g.capacity()[0] == 0:
-                        #     # if remake_partial == True, lobby will be regenerated if anybody is in it.
-                        #     # if remake_partial == False, lobby will only be regenerated once it is full
-                        #     matching_lobby = True
+
+                        players_in_lobby = g.capacity()[0]
+                        # if remake_partial == True, lobby will be regenerated if anybody is in it.
+                        # if remake_partial == False, lobby will only be regenerated once it is full
+
+                        if lobby['remake_partial'] and players_in_lobby > 0:
+                            pass  # Leave matching_lobby as current value. So it will be remade if no other open games change it
+                        else:
+                            matching_lobby = True  # Lobby meets desired criteria, so nothing new will be created
+
                 if not matching_lobby:
                     logger.info(f'creating new lobby {lobby}')
                     expiration_hours = lobby.get('exp', 30)

@@ -23,11 +23,12 @@ class misc:
     @commands.is_owner()
     async def test(self, ctx, *, arg):
 
-        games = models.Game.search_pending(status_filter=2, host_discord_id=0, guild_id=447883341463814144)
-        for g in games:
-            if g.capacity()[0] == 0:
-                print(f'deleting {g.id}')
-                g.delete_game()
+        pass
+        # games = models.Game.search_pending(status_filter=2, host_discord_id=0, guild_id=447883341463814144)
+        # for g in games:
+        #     if g.capacity()[0] == 0:
+        #         print(f'deleting {g.id}')
+        #         g.delete_game()
 
     @commands.command(hidden=True)
     @commands.is_owner()
