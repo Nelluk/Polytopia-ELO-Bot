@@ -912,7 +912,7 @@ class Game(BaseModel):
         # resets any relevant ELO changes to players and teams, deletes related lineup records, and deletes the game entry itself
 
         with db.atomic():
-            if self.winner:
+            if self.winner and self.is_confirmed:
                 self.winner = None
                 recalculate = True
                 since = self.completed_ts
@@ -970,13 +970,17 @@ class Game(BaseModel):
         if winning_side.game != self:
             raise exceptions.CheckFailedError(f'GameSide id {winning_side.id} did not play in this game')
 
+        smallest_side = min(len(gameside.lineup) for gameside in self.gamesides)
+
+        if smallest_side <= 0:
+            return logger.error(f'Cannot declare_winner for game {self.id}: Side with 0 players detected.')
+
         if confirm is True:
             self.is_confirmed = True
             if self.is_ranked:
                 # run elo calculations for player, discordmember, team, squad
 
                 largest_side = self.largest_team()
-                smallest_side = min(len(gameside.lineup) for gameside in self.gamesides)
 
                 side_elos = [s.average_elo() for s in self.gamesides]
                 side_elos_discord = [s.average_elo(by_discord_member=True) for s in self.gamesides]
@@ -1015,7 +1019,8 @@ class Game(BaseModel):
 
         self.winner = winning_side
         self.is_completed = True
-        self.completed_ts = datetime.datetime.now()
+        if not self.completed_ts:
+            self.completed_ts = datetime.datetime.now()  # will be preserved if ELO is re-calculated after initial win.
         self.save()
 
     def has_player(self, player: Player = None, discord_id: int = None):
