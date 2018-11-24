@@ -23,12 +23,10 @@ class misc:
     @commands.is_owner()
     async def test(self, ctx, *, arg):
 
-        print(f'in test {arg}')
-        # await self.bot.get_command('test2').invoke(ctx)
-        await ctx.invoke(self.bot.get_command("test2"), tuple(arg.split()))
-        # await ctx.author.send(f'blah')
-        # for b in range(1, 20):
-        #     await ctx.author.send(f'blah {b}')
+        games = models.Game.search_pending(status_filter=2, host_discord_id=0, guild_id=447883341463814144)
+        for g in games:
+            if g.capacity()[0] == 0:
+                print(f'deleting {g.id}')
 
     @commands.command(hidden=True)
     @commands.is_owner()
