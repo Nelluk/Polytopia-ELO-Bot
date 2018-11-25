@@ -578,7 +578,7 @@ class elo_games():
 
     @settings.in_bot_channel_strict()
     @commands.command(usage='player1 player2 ... ')
-    async def games(self, ctx, *, args):
+    async def games(self, ctx, *, args=None):
 
         """Search for games by participants or game name
         **Examples**:
@@ -591,7 +591,7 @@ class elo_games():
 
         # TODO: remove 'and/&' to remove confusion over game names like Ocean & Prophesy
 
-        target_list = args.split()
+        target_list = args.split() if args else []
 
         if len(target_list) == 1 and target_list[0].upper() == 'ALL':
             query = Game.search(status_filter=0, guild_id=ctx.guild.id)

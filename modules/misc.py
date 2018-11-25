@@ -144,6 +144,44 @@ class misc:
         player_mentions = [f'<@{l.player.discord_member.discord_id}>' for l in game.lineup]
         await ctx.send(f'Message from {ctx.author.mention} regarding game {game.id} **{game.name}**:\n*{message}*\n{" ".join(player_mentions)}')
 
+    @commands.command(aliases=['gex', 'gameexport'])
+    @settings.is_mod_check()
+    @commands.cooldown(2, 300, commands.BucketType.guild)
+    async def game_export(self, ctx):
+        """Mod: Export list of completed games to CSV file
+        Will be a CSV file that can be opened as a spreadsheet. Might be useful to somebody who wants to do their own tracking.
+        """
+        import csv
+
+        with open('games_export.csv', mode='w') as export_file:
+            game_writer = csv.writer(export_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+
+            header = ['ID', 'Winner', 'Home', 'Away', 'Date', 'Home1', 'Home2', 'Home3', 'Home4', 'Home5', 'Away1', 'Away2', 'Away3', 'Away4', 'Away5']
+            game_writer.writerow(header)
+
+            query = models.Game.select().where(models.Game.is_confirmed == 1)
+            for q in query:
+                row = [q.id, q.winner.name, q.home_team.name, q.away_team.name, str(q.date)]
+
+                pquery = models.Lineup.select().where(models.Lineup.game == q.id)
+                home_players = []
+                away_players = []
+                for lineup in pquery:
+                    if lineup.team == q.home_team:
+                        home_players.append(lineup.player.discord_name)
+                    else:
+                        away_players.append(lineup.player.discord_name)
+
+                home_players.extend([''] * (5 - len(home_players)))  # Pad list of players with extra blank entries so total length is 5
+                away_players.extend([''] * (5 - len(away_players)))
+                row += home_players + away_players
+                game_writer.writerow(row)
+
+        # pb = Pastebin(pastebin_api)
+        # pb_url = pb.create_paste_from_file(filepath='games_export.csv', api_paste_private=0, api_paste_expire_date='1D', api_paste_name='Polytopia Game Data')
+        # await ctx.send(f'Game data has been exported to the following URL: {pb_url}')
+
+
     @commands.command(aliases=['random_tribes', 'rtribe'], usage='game_size [-banned_tribe ...]')
     @settings.in_bot_channel()
     async def rtribes(self, ctx, size='1v1', *args):
