@@ -46,7 +46,7 @@ class matchmaking():
         self.bg_task3 = bot.loop.create_task(self.task_create_empty_matchmaking_lobbies())
 
     @settings.in_bot_channel()
-    @commands.command(aliases=['openmatch'], usage='size expiration rules')
+    @commands.command(aliases=['openmatch', 'open'], usage='size expiration rules')
     async def opengame(self, ctx, *, args=None):
 
         """
