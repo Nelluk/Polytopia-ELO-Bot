@@ -9,6 +9,7 @@ import asyncio
 import re
 import datetime
 import random
+import csv
 from modules.games import PolyGame
 
 logger = logging.getLogger('polybot.' + __name__)
@@ -151,36 +152,35 @@ class misc:
         """Mod: Export list of completed games to CSV file
         Will be a CSV file that can be opened as a spreadsheet. Might be useful to somebody who wants to do their own tracking.
         """
-        import csv
+        await ctx.send('Writing game data to file. This will take a few moments...')
 
-        with open('games_export.csv', mode='w') as export_file:
-            game_writer = csv.writer(export_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+        filename = 'games_export.csv'
+        async with ctx.typing():
+            with open(filename, mode='w') as export_file:
+                game_writer = csv.writer(export_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
 
-            header = ['ID', 'Winner', 'Home', 'Away', 'Date', 'Home1', 'Home2', 'Home3', 'Home4', 'Home5', 'Away1', 'Away2', 'Away3', 'Away4', 'Away5']
-            game_writer.writerow(header)
+                header = ['game_id', 'game_name', 'game_type', 'game_date', 'completed_timestamp', 'side_id', 'side_name', 'player_name', 'winner', 'player_elo', 'player_elo_change', 'squad_elo', 'squad_elo_change', 'tribe']
+                game_writer.writerow(header)
 
-            query = models.Game.select().where(models.Game.is_confirmed == 1)
-            for q in query:
-                row = [q.id, q.winner.name, q.home_team.name, q.away_team.name, str(q.date)]
+                query = models.Lineup.select().join(models.Game).where(
+                    (models.Game.is_confirmed == 1) & (models.Game.guild_id == ctx.guild.id)
+                ).order_by(models.Lineup.game_id).order_by(models.Lineup.gameside_id)
 
-                pquery = models.Lineup.select().where(models.Lineup.game == q.id)
-                home_players = []
-                away_players = []
-                for lineup in pquery:
-                    if lineup.team == q.home_team:
-                        home_players.append(lineup.player.discord_name)
-                    else:
-                        away_players.append(lineup.player.discord_name)
+                for q in query:
+                    is_winner = True if q.game.winner == q.gameside_id else False
+                    row = [q.game_id, q.game.name, q.game.size_string(),
+                           str(q.game.date), str(q.game.completed_ts), q.gameside_id,
+                           q.gameside.name(), q.player.name, is_winner, q.player.elo,
+                           q.elo_change_player, q.gameside.squad_id if q.gameside.squad else '', q.gameside.squad.elo if q.gameside.squad else '',
+                           q.tribe.tribe.name if q.tribe else '']
 
-                home_players.extend([''] * (5 - len(home_players)))  # Pad list of players with extra blank entries so total length is 5
-                away_players.extend([''] * (5 - len(away_players)))
-                row += home_players + away_players
-                game_writer.writerow(row)
+                    game_writer.writerow(row)
+
+        await ctx.send(f'Game data written to file **{filename}** in bot.py directory')
 
         # pb = Pastebin(pastebin_api)
         # pb_url = pb.create_paste_from_file(filepath='games_export.csv', api_paste_private=0, api_paste_expire_date='1D', api_paste_name='Polytopia Game Data')
         # await ctx.send(f'Game data has been exported to the following URL: {pb_url}')
-
 
     @commands.command(aliases=['random_tribes', 'rtribe'], usage='game_size [-banned_tribe ...]')
     @settings.in_bot_channel()
