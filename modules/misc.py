@@ -93,22 +93,31 @@ class misc:
 
         embed = discord.Embed(title='PolyELO Statistics')
         last_month = (datetime.datetime.now() + datetime.timedelta(days=-30))
+        last_week = (datetime.datetime.now() + datetime.timedelta(days=-7))
 
         games_played = models.Game.select().where(models.Game.is_completed == 1)
         games_played_30d = models.Game.select().where((models.Game.is_pending == 0) & (models.Game.date > last_month))
+        games_played_7d = models.Game.select().where((models.Game.is_pending == 0) & (models.Game.date > last_week))
+
         incomplete_games = models.Game.select().where((models.Game.is_pending == 0) & (models.Game.is_completed == 0))
         participants_30d = models.Lineup.select(models.Lineup.player).join(models.Game).where(
             (models.Lineup.game.date > last_month)
         ).group_by(models.Lineup.player).distinct()
 
+        participants_7d = models.Lineup.select(models.Lineup.player).join(models.Game).where(
+            (models.Lineup.game.date > last_week)
+        ).group_by(models.Lineup.player).distinct()
+
         embed.add_field(value='\u200b', name=f'`{"----------------------------------":<35}` Global (Local)', inline=False)
         game_stats = (f'`{"Total games completed:":<35}\u200b` {games_played.count()} ({games_played.where(models.Game.guild_id == ctx.guild.id).count()})\n'
                       f'`{"Games created in last 30 days:":<35}\u200b`\u200b {games_played_30d.count()} ({games_played_30d.where(models.Game.guild_id == ctx.guild.id).count()})\n'
+                      f'`{"Games created in last 7 days:":<35}\u200b`\u200b {games_played_7d.count()} ({games_played_7d.where(models.Game.guild_id == ctx.guild.id).count()})\n'
                       f'`{"Incomplete games:":<35}\u200b` {incomplete_games.count()} ({incomplete_games.where(models.Game.guild_id == ctx.guild.id).count()})\n'
                       )
         embed.add_field(value='\u200b', name=game_stats)
 
-        stats_2 = (f'`{"Participants in last 30 days:":<35}\u200b` {participants_30d.count()} ({participants_30d.where(models.Game.guild_id == ctx.guild.id).count()})\n')
+        stats_2 = (f'`{"Participants in last 30 days:":<35}\u200b` {participants_30d.count()} ({participants_30d.where(models.Game.guild_id == ctx.guild.id).count()})\n'
+                   f'`{"Participants in last 7 days:":<35}\u200b` {participants_7d.count()} ({participants_7d.where(models.Game.guild_id == ctx.guild.id).count()})\n')
         embed.add_field(value='\u200b', name=stats_2)
 
         await ctx.send(embed=embed)
