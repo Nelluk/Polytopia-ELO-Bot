@@ -17,6 +17,7 @@ logger = logging.getLogger('polybot.' + __name__)
 class PolyMatch(commands.Converter):
     async def convert(self, ctx, match_id: int):
 
+        match_id = match_id.strip('#')
         with models.db:
             try:
                 match = models.Game.get(id=match_id)
