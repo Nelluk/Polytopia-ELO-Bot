@@ -530,7 +530,7 @@ class elo_games():
         """
 
         if not game:
-            await ctx.send(f'Game ID not provided. Usage: __`{ctx.prefix}getcodes GAME_ID`__')
+            return await ctx.send(f'Game ID not provided. Usage: __`{ctx.prefix}getcodes GAME_ID`__')
 
         try:
             ordered_player_list = game.draft_order()
