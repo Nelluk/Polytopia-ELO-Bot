@@ -1101,7 +1101,8 @@ class Game(BaseModel):
         if len(matches) == 1:
             return matches[0]
         if len(matches) == 0:
-            raise exceptions.NoMatches(f'No matches found for "{name}" in game {self.id}.')
+            names = [s.name() for s in self.gamesides]
+            raise exceptions.NoMatches(f'No matches found for **{name}** in game {self.id}. Options are: *{", ".join(names)}*')
         else:
             raise exceptions.TooManyMatches(f'{len(matches)} matches found for "{name}" in game {self.id}.')
 
