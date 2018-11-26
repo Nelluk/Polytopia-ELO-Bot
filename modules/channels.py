@@ -61,6 +61,12 @@ async def create_squad_channel(ctx, game, team_name, player_list):
         logger.error(f'in create_squad_channel - cannot proceed due to None category')
         return None
 
+    if game.name.upper()[:3] == 'WWN' and ctx.guild.id == settings.server_ids['polychampions']:
+        # TODO: Remove when World War Newt event is over Q2 2019
+        wwn_category = discord.utils.get(ctx.guild.categories, id=510403013391679498)
+        if wwn_category:
+            chan_cat, team_cat_flag = wwn_category, False
+
     chan_name = generate_channel_name(game_id=game.id, game_name=game.name, team_name=team_name)
     chan_members = [ctx.guild.get_member(p.discord_member.discord_id) for p in player_list]
 
