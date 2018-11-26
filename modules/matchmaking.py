@@ -408,11 +408,12 @@ class matchmaking():
             capacity_str = f' {players}/{capacity}'
             expiration = int((game.expiration - datetime.datetime.now()).total_seconds() / 3600.0)
             expiration = 'Exp' if expiration < 0 else f'{expiration}H'
-            ranked = ' ' if game.is_ranked else 'U'
+            ranked_str = '*Unranked*' if not game.is_ranked else ''
+            ranked_str = ranked_str + ' - ' if game.notes and ranked_str else ranked_str
             creating_player = game.creating_player()
-            host_name = creating_player.name if creating_player else '<Vacant>'
-            gamelist_fields.append((f'`{f"{game.id}":<8}{host_name:<40} {game.size_string():<7} {capacity_str:<7} {expiration:>5} {ranked}`',
-                f'{notes_str}\n \u200b'))
+            host_name = creating_player.name[:35] if creating_player else '<Vacant>'
+            gamelist_fields.append((f'`{f"{game.id}":<8}{host_name:<40} {game.size_string():<7} {capacity_str:<7} {expiration:>5}`',
+                f'{ranked_str}{notes_str}\n \u200b'))
 
         self.bot.loop.create_task(utilities.paginate(self.bot, ctx, title=title_str_full, message_list=gamelist_fields, page_start=0, page_end=15, page_size=15))
         # paginator done as a task because otherwise it will not let the waitlist message send until after pagination is complete (20+ seconds)
@@ -608,11 +609,12 @@ class matchmaking():
                         capacity_str = f' {players}/{capacity}'
                         expiration = int((game.expiration - datetime.datetime.now()).total_seconds() / 3600.0)
                         expiration = 'Exp' if expiration < 0 else f'{expiration}H'
-                        ranked = ' ' if game.is_ranked else 'U'
                         creating_player = game.creating_player()
-                        host_name = creating_player.name if creating_player else '<Vacant>'
+                        host_name = creating_player.name[:35] if creating_player else '<Vacant>'
+                        ranked_str = '*Unranked*' if not game.is_ranked else ''
+                        ranked_str = ranked_str + ' - ' if game.notes and ranked_str else ranked_str
 
-                        embed.add_field(name=f'`{game.id:<8}{host_name:<40} {game.size_string():<7} {capacity_str:<7} {expiration:>5} {ranked}`', value=f'{notes_str}\n \u200b')
+                        embed.add_field(name=f'`{game.id:<8}{host_name:<40} {game.size_string():<7} {capacity_str:<7} {expiration:>5}`', value=f'{ranked_str}{notes_str}\n \u200b')
 
                     try:
                         message = await chan.send(embed=embed, delete_after=sleep_cycle)
