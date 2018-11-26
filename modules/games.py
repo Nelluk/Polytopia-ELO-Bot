@@ -521,6 +521,27 @@ class elo_games():
             return await ctx.send(f'Member **{target_discord_member.name}** has no code on file.\n'
                 f'Register your own code with `{ctx.prefix}setcode YOURCODEHERE`')
 
+    @commands.command(aliases=['codes'], usage='game_id')
+    async def getcodes(self, ctx, *, game: PolyGame = None):
+        """Print all player codes associated with a game ID
+        The codes will be printed on separate line for ease of copying, and in the order that players should be added to the game.
+        **Examples:**
+        `[p]getcodes 1250` - Get all player codes for players in game 1250
+        """
+
+        if not game:
+            await ctx.send(f'Game ID not provided. Usage: __`{ctx.prefix}getcodes GAME_ID`__')
+
+        try:
+            ordered_player_list = game.draft_order()
+        except exceptions.MyBaseException as e:
+            return await ctx.send(f'**Error:** {e}')
+
+        p_names = [p['player'].name for p in ordered_player_list]
+        await ctx.send(f'Polytopia codes for **game {game.id}**, in draft order: *{", ".join(p_names)}*')
+        for p in ordered_player_list:
+            await ctx.invoke(self.bot.get_command('getcode'), player_string=str(p['player'].discord_member.discord_id))
+
     @commands.command(brief='Set in-game name', usage='new_name')
     async def setname(self, ctx, *args):
         """Sets your own in-game name, or lets staff set a player's in-game name
