@@ -993,15 +993,17 @@ class elo_games():
 
         if confirm_win:
 
-            if winning_game.is_ranked and (winning_game.gamesides[0].lineup[0].elo_change_player == 0 or winning_game.gamesides[1].lineup[0].elo_change_player == 0):
+            if winning_game.is_ranked and any(l.elo_change_player == 0 for l in winning_game.lineup):
                 # try to catch a phantom bug where rarely a completed game will not save the ELO changes correctly to the DB.
                 # not reproducible at all so simply re-running the calc if it happens and logging
-                Game.recalculate_elo_since(timestamp=winning_game.completed_ts)
-                logger.critical(f'Possible ELO bug in result from {winning_game.id}')
+
+                lineup_details = [f'\nLineup ID: {l.id}, player: {l.player.name}, elo: {l.player.elo}, elo_change_player: {l.elo_change_player}' for l in winning_game.lineup]
+                # Game.recalculate_elo_since(timestamp=winning_game.completed_ts)  # Temporarily removing since ELO totals after this runs arent right, winner getting double ELO for example
+                logger.critical(f'Possible ELO bug in result from {winning_game.id}\n{" ".join(lineup_details)}')
                 owner = ctx.guild.get_member(settings.owner_id)
                 if owner:
                     try:
-                        await owner.send(f'Possible ELO bug in result from {winning_game.id}')
+                        await owner.send(f'Possible ELO bug in result from {winning_game.id} - Check debug logs for more info on ELO calcs\n{" ".join(lineup_details)}')
                     except discord.DiscordException as e:
                         logger.warn(f'Error DMing bot owner: {e}')
 
