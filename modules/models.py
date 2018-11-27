@@ -1689,7 +1689,7 @@ class Lineup(BaseModel):
         elo_bonus = int(abs(elo_delta) * elo_boost)
         elo_delta += elo_bonus
 
-        logger.debug(f'Player {self.player.id} chance of winning: {chance_of_winning} opponent elo:{opponent_elo} my_side_elo: {my_side_elo},'
+        logger.debug(f'Player {self.player.id} chance of winning: {chance_of_winning},'
             f'elo_delta {elo_delta}, current_player_elo {self.player.elo}, new_player_elo {int(self.player.elo + elo_delta)}')
 
         if by_discord_member is True:
