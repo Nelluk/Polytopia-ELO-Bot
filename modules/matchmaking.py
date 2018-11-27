@@ -354,6 +354,12 @@ class matchmaking():
         await ctx.send(f'Removing **{lineup.player.name}** from the game.')
         lineup.delete_instance()
 
+        if game.expiration < (datetime.datetime.now() + datetime.timedelta(hours=2)):
+            # This catches the case of kicking someone from a full game, so that the game wont immediately get purged due to not being full
+            game.expiration = (datetime.datetime.now() + datetime.timedelta(hours=24))
+            game.save()
+            await ctx.send(f'Game {game.id} expiration has been reset to 24 hours from now')
+
     @settings.in_bot_channel()
     @commands.command(aliases=['listmatches', 'matchlist', 'openmatches', 'listmatch', 'matches'])
     async def opengames(self, ctx, *args):
