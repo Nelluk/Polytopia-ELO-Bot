@@ -148,7 +148,7 @@ class DiscordMember(BaseModel):
 
     def leaderboard(date_cutoff):
         query = DiscordMember.select().join(Player).join(Lineup).join(Game).where(
-            (Game.is_completed == 1) & (Game.date > date_cutoff)
+            (Game.is_completed == 1) & (Game.date > date_cutoff) & (Game.is_ranked == 1)
         ).distinct().order_by(-DiscordMember.elo)
 
         if query.count() < 10:
@@ -400,7 +400,7 @@ class Player(BaseModel):
 
     def leaderboard(date_cutoff, guild_id: int):
         query = Player.select().join(Lineup).join(Game).where(
-            (Player.guild_id == guild_id) & (Game.is_completed == 1) & (Game.date > date_cutoff)
+            (Player.guild_id == guild_id) & (Game.is_completed == 1) & (Game.is_ranked == 1) & (Game.date > date_cutoff)
         ).distinct().order_by(-Player.elo)
 
         if query.count() < 10:
