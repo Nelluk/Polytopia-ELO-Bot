@@ -156,7 +156,10 @@ class elo_games():
     @commands.command(aliases=['leaderboardglobal', 'lbg', 'globallb'])
     @commands.cooldown(2, 30, commands.BucketType.channel)
     async def lbglobal(self, ctx):
-        """ Display global individual leaderboard"""
+        """ Display global individual leaderboard
+        This leaderboard takes into account games played regardless of what server they were logged on.
+        A player's global ELO is independent of their local server ELO.
+        """
 
         leaderboard = []
         leaderboard_query = DiscordMember.leaderboard(date_cutoff=settings.date_cutoff)

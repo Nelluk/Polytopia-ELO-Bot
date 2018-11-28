@@ -272,9 +272,11 @@ class Player(BaseModel):
             pass
         else:
             # lookup either on <@####> mention string or raw ID #
-            return Player.select(Player, DiscordMember).join(DiscordMember).where(
+            query_by_id = Player.select(Player, DiscordMember).join(DiscordMember).where(
                 (DiscordMember.discord_id == p_id) & (Player.guild_id == guild_id)
             )
+            if query_by_id.count() > 0:
+                return query_by_id
 
         if len(player_string.split('#', 1)[0]) > 2:
             discord_str = player_string.split('#', 1)[0]
