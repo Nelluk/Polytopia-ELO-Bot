@@ -978,53 +978,54 @@ class Game(BaseModel):
         if smallest_side <= 0:
             return logger.error(f'Cannot declare_winner for game {self.id}: Side with 0 players detected.')
 
-        if confirm is True:
-            self.is_confirmed = True
-            if self.is_ranked:
-                # run elo calculations for player, discordmember, team, squad
+        with db.atomic():
+            if confirm is True:
+                self.is_confirmed = True
+                if self.is_ranked:
+                    # run elo calculations for player, discordmember, team, squad
 
-                largest_side = self.largest_team()
+                    largest_side = self.largest_team()
 
-                side_elos = [s.average_elo() for s in self.gamesides]
-                side_elos_discord = [s.average_elo(by_discord_member=True) for s in self.gamesides]
-                team_elos = [s.team.elo if s.team else None for s in self.gamesides]
-                squad_elos = [s.squad.elo if s.squad else None for s in self.gamesides]
+                    side_elos = [s.average_elo() for s in self.gamesides]
+                    side_elos_discord = [s.average_elo(by_discord_member=True) for s in self.gamesides]
+                    team_elos = [s.team.elo if s.team else None for s in self.gamesides]
+                    squad_elos = [s.squad.elo if s.squad else None for s in self.gamesides]
 
-                side_win_chances = Game.get_side_win_chances(largest_side, self.gamesides, side_elos)
-                side_win_chances_discord = Game.get_side_win_chances(largest_side, self.gamesides, side_elos_discord)
+                    side_win_chances = Game.get_side_win_chances(largest_side, self.gamesides, side_elos)
+                    side_win_chances_discord = Game.get_side_win_chances(largest_side, self.gamesides, side_elos_discord)
 
-                if smallest_side > 1:
-                    if None not in team_elos:
-                        team_win_chances = Game.get_side_win_chances(largest_side, self.gamesides, team_elos)
+                    if smallest_side > 1:
+                        if None not in team_elos:
+                            team_win_chances = Game.get_side_win_chances(largest_side, self.gamesides, team_elos)
+                        else:
+                            team_win_chances = None
+
+                        if None not in squad_elos:
+                            squad_win_chances = Game.get_side_win_chances(largest_side, self.gamesides, squad_elos)
+                        else:
+                            squad_win_chances = None
                     else:
-                        team_win_chances = None
+                        team_win_chances, squad_win_chances = None, None
 
-                    if None not in squad_elos:
-                        squad_win_chances = Game.get_side_win_chances(largest_side, self.gamesides, squad_elos)
-                    else:
-                        squad_win_chances = None
-                else:
-                    team_win_chances, squad_win_chances = None, None
+                    for i in range(len(self.gamesides)):
+                        side = self.gamesides[i]
+                        is_winner = True if side == winning_side else False
+                        for p in side.lineup:
+                            p.change_elo_after_game(side_win_chances[i], is_winner)
+                            p.change_elo_after_game(side_win_chances_discord[i], is_winner, by_discord_member=True)
 
-                for i in range(len(self.gamesides)):
-                    side = self.gamesides[i]
-                    is_winner = True if side == winning_side else False
-                    for p in side.lineup:
-                        p.change_elo_after_game(side_win_chances[i], is_winner)
-                        p.change_elo_after_game(side_win_chances_discord[i], is_winner, by_discord_member=True)
+                        if team_win_chances:
+                            side.elo_change_team = side.team.change_elo_after_game(team_win_chances[i], is_winner)
+                        if squad_win_chances:
+                            side.elo_change_squad = side.squad.change_elo_after_game(squad_win_chances[i], is_winner)
 
-                    if team_win_chances:
-                        side.elo_change_team = side.team.change_elo_after_game(team_win_chances[i], is_winner)
-                    if squad_win_chances:
-                        side.elo_change_squad = side.squad.change_elo_after_game(squad_win_chances[i], is_winner)
+                        side.save()
 
-                    side.save()
-
-        self.winner = winning_side
-        self.is_completed = True
-        if not self.completed_ts:
-            self.completed_ts = datetime.datetime.now()  # will be preserved if ELO is re-calculated after initial win.
-        self.save()
+            self.winner = winning_side
+            self.is_completed = True
+            if not self.completed_ts:
+                self.completed_ts = datetime.datetime.now()  # will be preserved if ELO is re-calculated after initial win.
+            self.save()
 
     def has_player(self, player: Player = None, discord_id: int = None):
         # if player (or discord_id) was a participant in this game: return True, GameSide
@@ -1694,16 +1695,17 @@ class Lineup(BaseModel):
         logger.debug(f'Player {self.player.id} chance of winning: {chance_of_winning},'
             f'elo_delta {elo_delta}, current_player_elo {self.player.elo}, new_player_elo {int(self.player.elo + elo_delta)}')
 
-        if by_discord_member is True:
-            self.player.discord_member.elo = int(elo + elo_delta)
-            self.elo_change_discordmember = elo_delta
-            self.player.discord_member.save()
-            self.save()
-        else:
-            self.player.elo = int(elo + elo_delta)
-            self.elo_change_player = elo_delta
-            self.player.save()
-            self.save()
+        with db.atomic():
+            if by_discord_member is True:
+                self.player.discord_member.elo = int(elo + elo_delta)
+                self.elo_change_discordmember = elo_delta
+                self.player.discord_member.save()
+                self.save()
+            else:
+                self.player.elo = int(elo + elo_delta)
+                self.elo_change_player = elo_delta
+                self.player.save()
+                self.save()
 
         logger.debug(f'elo after save: {self.player.elo}')
 
