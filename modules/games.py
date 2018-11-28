@@ -107,22 +107,42 @@ class elo_games():
     @settings.in_bot_channel_strict()
     @commands.command(aliases=['leaderboard', 'leaderboards'])
     @commands.cooldown(2, 30, commands.BucketType.channel)
-    async def lb(self, ctx, *, max: str = None):
-        """ Display individual leaderboard"""
+    async def lb(self, ctx, *, filters: str = None):
+        """ Display individual leaderboard
+
+        Filters available:
+        **global**
+        Takes into account games played regardless of what server they were logged on.
+        A player's global ELO is independent of their local server ELO.
+        **max**
+        Ranks leaderboard by a player's maximum ELO ever achieved
+
+        Examples:
+        `[p]lb` - Default local leaderboard
+        `[p]lb global` - Global leaderboard
+        `[p]lb max` - Local leaderboard for maximum historic ELO
+        `[p]lb global max` - Leaderboard of maximum historic *global* ELO
+        """
 
         leaderboard = []
-        if max and max.upper()[:3] == 'MAX':
-            max_flag = True  # leaderboard ranked by player.max_elo
-            lb_title = 'Individual Leaderboard - Maximum ELO Achieved'
-        else:
-            max_flag = False  # standard leaderboard ranked by current elo
-            lb_title = 'Individual Leaderboard'
+        max_flag, global_flag = False, False
+        target_model = Player
+        lb_title = 'Individual Leaderboard'
 
-        leaderboard_query = Player.leaderboard(date_cutoff=settings.date_cutoff, guild_id=ctx.guild.id, max_flag=max_flag)
+        if filters and 'GLOBAL' in filters.upper():
+            global_flag = True
+            lb_title = 'Global Leaderboard'
+            target_model = DiscordMember
+
+        if filters and 'MAX' in filters.upper():
+            max_flag = True  # leaderboard ranked by player.max_elo
+            lb_title += ' - Maximum ELO Achieved'
+
+        leaderboard_query = target_model.leaderboard(date_cutoff=settings.date_cutoff, guild_id=ctx.guild.id, max_flag=max_flag)
 
         for counter, player in enumerate(leaderboard_query[:500]):
             wins, losses = player.get_record()
-            emoji_str = player.team.emoji if player.team else ''
+            emoji_str = player.team.emoji if not global_flag and player.team else ''
             leaderboard.append(
                 (f'{(counter + 1):>3}. {emoji_str}{player.name}', f'`ELO {player.elo_max if max_flag else player.elo}\u00A0\u00A0\u00A0\u00A0W {wins} / L {losses}`')
             )
@@ -159,29 +179,6 @@ class elo_games():
                 'Supporting up to 6-player team ELO games and automatic team channels. - <https://tinyurl.com/polychampions>')
             # link put behind url shortener to not show big invite embed
         await utilities.paginate(self.bot, ctx, title=f'**Most Active Recent Players**\n{query.count()} players in past 30 days', message_list=leaderboard, page_start=0, page_end=10, page_size=10)
-
-    @settings.in_bot_channel_strict()
-    @commands.command(aliases=['leaderboardglobal', 'lbg', 'globallb'])
-    @commands.cooldown(2, 30, commands.BucketType.channel)
-    async def lbglobal(self, ctx):
-        """ Display global individual leaderboard
-        This leaderboard takes into account games played regardless of what server they were logged on.
-        A player's global ELO is independent of their local server ELO.
-        """
-
-        leaderboard = []
-        leaderboard_query = DiscordMember.leaderboard(date_cutoff=settings.date_cutoff)
-        for counter, d_player in enumerate(leaderboard_query[:500]):
-            wins, losses = d_player.get_record()
-            leaderboard.append(
-                (f'{(counter + 1):>3}. {d_player.name}', f'`ELO {d_player.elo}\u00A0\u00A0\u00A0\u00A0W {wins} / L {losses}`')
-            )
-
-        if ctx.guild.id != settings.server_ids['polychampions']:
-            await ctx.send('Powered by PolyChampions. League server with a team focus and competitive players.\n'
-                'Supporting up to 6-player team ELO games and automatic team channels. - <https://tinyurl.com/polychampions>')
-            # link put behind url shortener to not show big invite embed
-        await utilities.paginate(self.bot, ctx, title=f'**Global Leaderboards**\n{leaderboard_query.count()} ranked players', message_list=leaderboard, page_start=0, page_end=10, page_size=10)
 
     @settings.in_bot_channel_strict()
     @settings.teams_allowed()

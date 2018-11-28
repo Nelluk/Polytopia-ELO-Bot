@@ -147,14 +147,21 @@ class DiscordMember(BaseModel):
         rank = counter + 1 if is_found else None
         return (rank, query.count())
 
-    def leaderboard(date_cutoff):
+    def leaderboard(date_cutoff, guild_id: int = None, max_flag: bool = False):
+        # guild_id is a dummy parameter so DiscordMember.leaderboard and Player.leaderboard can be called in identical ways
+
+        if max_flag:
+            elo_field = DiscordMember.elo_max
+        else:
+            elo_field = DiscordMember.elo
+
         query = DiscordMember.select().join(Player).join(Lineup).join(Game).where(
             (Game.is_completed == 1) & (Game.date > date_cutoff) & (Game.is_ranked == 1)
-        ).distinct().order_by(-DiscordMember.elo)
+        ).distinct().order_by(-elo_field)
 
         if query.count() < 10:
             # Include all registered players on leaderboard if not many games played
-            query = DiscordMember.select().order_by(-DiscordMember.elo)
+            query = DiscordMember.select().order_by(-elo_field)
 
         return query
 
