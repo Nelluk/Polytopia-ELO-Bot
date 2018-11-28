@@ -25,10 +25,12 @@ logger = logging.getLogger('polybot.' + __name__)
 db = PostgresqlDatabase(settings.psql_db, user=settings.psql_user)
 migrator = PostgresqlMigrator(db)
 
-is_ranked = BooleanField(default=True)
+# is_ranked = BooleanField(default=True)
+elo_max = SmallIntegerField(default=1000)
 
 migrate(
-    migrator.add_column('game', 'is_ranked', is_ranked),
+    migrator.add_column('discordmember', 'elo_max', elo_max),
+    migrator.add_column('player', 'elo_max', elo_max),
 
 
 )

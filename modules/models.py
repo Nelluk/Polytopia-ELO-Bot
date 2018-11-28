@@ -93,6 +93,7 @@ class DiscordMember(BaseModel):
     discord_id = BitField(unique=True, null=False)
     name = TextField(unique=False)
     elo = SmallIntegerField(default=1000)
+    elo_max = SmallIntegerField(default=1000)
     polytopia_id = TextField(null=True)
     polytopia_name = TextField(null=True)
 
@@ -177,6 +178,7 @@ class Player(BaseModel):
     name = TextField(unique=False, null=True)
     team = ForeignKeyField(Team, null=True, backref='player', on_delete='SET NULL')
     elo = SmallIntegerField(default=1000)
+    elo_max = SmallIntegerField(default=1000)
     trophies = ArrayField(CharField, null=True)
     # Add discord name here too so searches can hit just one table?
 
@@ -400,14 +402,19 @@ class Player(BaseModel):
         rank = counter + 1 if player_found else None
         return (rank, query.count())
 
-    def leaderboard(date_cutoff, guild_id: int):
+    def leaderboard(date_cutoff, guild_id: int, max_flag: bool = False):
+        if max_flag:
+            elo_field = Player.elo_max
+        else:
+            elo_field = Player.elo
+
         query = Player.select().join(Lineup).join(Game).where(
             (Player.guild_id == guild_id) & (Game.is_completed == 1) & (Game.is_ranked == 1) & (Game.date > date_cutoff)
-        ).distinct().order_by(-Player.elo)
+        ).distinct().order_by(-elo_field)
 
         if query.count() < 10:
             # Include all registered players on leaderboard if not many games played
-            query = Player.select().where(Player.guild_id == guild_id).order_by(-Player.elo)
+            query = Player.select().where(Player.guild_id == guild_id).order_by(-elo_field)
 
         return query
 
@@ -985,30 +992,31 @@ class Game(BaseModel):
                     # run elo calculations for player, discordmember, team, squad
 
                     largest_side = self.largest_team()
+                    gamesides = list(self.gamesides)
 
-                    side_elos = [s.average_elo() for s in self.gamesides]
-                    side_elos_discord = [s.average_elo(by_discord_member=True) for s in self.gamesides]
-                    team_elos = [s.team.elo if s.team else None for s in self.gamesides]
-                    squad_elos = [s.squad.elo if s.squad else None for s in self.gamesides]
+                    side_elos = [s.average_elo() for s in gamesides]
+                    side_elos_discord = [s.average_elo(by_discord_member=True) for s in gamesides]
+                    team_elos = [s.team.elo if s.team else None for s in gamesides]
+                    squad_elos = [s.squad.elo if s.squad else None for s in gamesides]
 
-                    side_win_chances = Game.get_side_win_chances(largest_side, self.gamesides, side_elos)
-                    side_win_chances_discord = Game.get_side_win_chances(largest_side, self.gamesides, side_elos_discord)
+                    side_win_chances = Game.get_side_win_chances(largest_side, gamesides, side_elos)
+                    side_win_chances_discord = Game.get_side_win_chances(largest_side, gamesides, side_elos_discord)
 
                     if smallest_side > 1:
                         if None not in team_elos:
-                            team_win_chances = Game.get_side_win_chances(largest_side, self.gamesides, team_elos)
+                            team_win_chances = Game.get_side_win_chances(largest_side, gamesides, team_elos)
                         else:
                             team_win_chances = None
 
                         if None not in squad_elos:
-                            squad_win_chances = Game.get_side_win_chances(largest_side, self.gamesides, squad_elos)
+                            squad_win_chances = Game.get_side_win_chances(largest_side, gamesides, squad_elos)
                         else:
                             squad_win_chances = None
                     else:
                         team_win_chances, squad_win_chances = None, None
 
-                    for i in range(len(self.gamesides)):
-                        side = self.gamesides[i]
+                    for i in range(len(gamesides)):
+                        side = gamesides[i]
                         is_winner = True if side == winning_side else False
                         for p in side.lineup:
                             p.change_elo_after_game(side_win_chances[i], is_winner)
@@ -1692,17 +1700,21 @@ class Lineup(BaseModel):
         elo_bonus = int(abs(elo_delta) * elo_boost)
         elo_delta += elo_bonus
 
-        logger.debug(f'Player {self.player.id} chance of winning: {chance_of_winning},'
+        logger.debug(f'Player {self.player.id} chance of winning: {chance_of_winning} game {self.game.id},'
             f'elo_delta {elo_delta}, current_player_elo {self.player.elo}, new_player_elo {int(self.player.elo + elo_delta)}')
 
         with db.atomic():
             if by_discord_member is True:
                 self.player.discord_member.elo = int(elo + elo_delta)
+                if self.player.discord_member.elo > self.player.discord_member.elo_max:
+                    self.player.discord_member.elo_max = self.player.discord_member.elo
                 self.elo_change_discordmember = elo_delta
                 self.player.discord_member.save()
                 self.save()
             else:
                 self.player.elo = int(elo + elo_delta)
+                if self.player.elo > self.player.elo_max:
+                    self.player.elo_max = self.player.elo
                 self.elo_change_player = elo_delta
                 self.player.save()
                 self.save()
