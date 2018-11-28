@@ -575,7 +575,7 @@ class elo_games():
         await ctx.send(f'Player **{player_target.name}** updated in system with Polytopia name **{new_name}**.')
 
     @commands.command(aliases=['match'], usage='game_id')
-    async def game(self, ctx, game_search: str = None):
+    async def game(self, ctx, *, game_search: str = None):
         # async def game(self, ctx, game: PolyGame = None):
 
         """See details on a specific game ID
