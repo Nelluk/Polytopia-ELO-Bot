@@ -105,9 +105,9 @@ class elo_games():
         await ctx.send('Request has been logged')
 
     @settings.in_bot_channel_strict()
-    @commands.command(aliases=['leaderboard', 'leaderboards'])
+    @commands.command(aliases=['leaderboard', 'leaderboards', 'lbglobal', 'lbg'])
     @commands.cooldown(2, 30, commands.BucketType.channel)
-    async def lb(self, ctx, *, filters: str = None):
+    async def lb(self, ctx, *, filters: str = ''):
         """ Display individual leaderboard
 
         Filters available:
@@ -129,12 +129,15 @@ class elo_games():
         target_model = Player
         lb_title = 'Individual Leaderboard'
 
-        if filters and 'GLOBAL' in filters.upper():
+        if ctx.invoked_with == 'lbglobal' or ctx.invoked_with == 'lbg':
+            filters = filters + 'GLOBAL'
+
+        if 'GLOBAL' in filters.upper():
             global_flag = True
             lb_title = 'Global Leaderboard'
             target_model = DiscordMember
 
-        if filters and 'MAX' in filters.upper():
+        if 'MAX' in filters.upper():
             max_flag = True  # leaderboard ranked by player.max_elo
             lb_title += ' - Maximum ELO Achieved'
 
