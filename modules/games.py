@@ -548,9 +548,11 @@ class elo_games():
         except exceptions.MyBaseException as e:
             return await ctx.send(f'**Error:** {e}')
 
-        p_names = [p['player'].name for p in ordered_player_list]
-        await ctx.send(f'Polytopia codes for **game {game.id}**, in draft order: *{", ".join(p_names)}*')
+        # p_names = [p['player'].name for p in ordered_player_list]
+        await ctx.send(f'Polytopia codes for **game {game.id}**, in draft order:')
+
         for p in ordered_player_list:
+            await ctx.send(p["player"].name)
             await ctx.invoke(self.bot.get_command('getcode'), player_string=str(p['player'].discord_member.discord_id))
 
     @commands.command(brief='Set in-game name', usage='new_name')
@@ -880,9 +882,9 @@ class elo_games():
             for p in group:
                 guild_matches = await utilities.get_guild_member(ctx, p)
                 if len(guild_matches) == 0:
-                    return await ctx.send(f'Could not match "{p}" to a server member. Try using an @Mention.')
+                    return await ctx.send(f'Could not match "**{p}**"" to a server member. Try using an @Mention.')
                 if len(guild_matches) > 1:
-                    return await ctx.send(f'More than one server matches found for "{p}". Try being more specific or using an @Mention.')
+                    return await ctx.send(f'More than one server matches found for "**{p}**". Try being more specific or using an @Mention.')
 
                 if guild_matches[0] in discord_players_flat:
                     return await ctx.send('Duplicate players detected. Game not created.')
@@ -920,7 +922,7 @@ class elo_games():
 
             await post_newgame_messaging(ctx, game=newgame)
 
-    @settings.in_bot_channel()
+    # @settings.in_bot_channel()
     @commands.command(aliases=['endgame', 'wingame', 'winner'], usage='game_id winner_name')
     async def win(self, ctx, winning_game: PolyGame = None, winning_side_name: str = None):
         """

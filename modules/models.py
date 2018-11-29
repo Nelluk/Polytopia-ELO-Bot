@@ -740,7 +740,7 @@ class Game(BaseModel):
                     draft_order_str = '\n'.join(draft_order)
                 else:
                     draft_order_str = ''
-                content_str = (f'This match is now full and **{creating_player.name}** should create the game in Polytopia and start it with `{ctx.prefix}startgame {self.id} Name of Game`'
+                content_str = (f'This match is now full and **{creating_player.name}** should create the game in Polytopia and mark it as started using `{ctx.prefix}startgame {self.id} Name of Game`'
                         f'\nFriend codes can be copied easily with the command __`{ctx.prefix}getcodes {self.id}`__'
                         f'{draft_order_str}')
                 status_str = 'Full - Waiting to start'
@@ -1691,12 +1691,12 @@ class Lineup(BaseModel):
             num_games = self.player.completed_game_count()
             elo = self.player.elo
 
+        max_elo_delta = 32
+
         if num_games < 6:
             max_elo_delta = 75
         elif num_games < 11:
             max_elo_delta = 50
-        else:
-            max_elo_delta = 32
 
         if is_winner is True:
             elo_delta = int(round((max_elo_delta * (1 - chance_of_winning)), 0))
@@ -1704,6 +1704,9 @@ class Lineup(BaseModel):
             elo_delta = int(round((max_elo_delta * (0 - chance_of_winning)), 0))
 
         elo_boost = .60 * ((1200 - max(min(elo, 1200), 900)) / 300)  # 60% boost to delta at elo 900, gradually shifts to 0% boost at 1200 ELO
+        # elo_boost = 1.0 * ((1200 - min(elo, 1200)) / 200)  # 100% boost to delta at elo 1000, gradually shifts to 0% boost at 1200 ELO
+        # elo_boost = 0.95 * ((1200 - min(elo, 1200)) / 200)
+
         elo_bonus = int(abs(elo_delta) * elo_boost)
         elo_delta += elo_bonus
 

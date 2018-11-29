@@ -112,6 +112,7 @@ lobbies = [{'guild': 283436219780825088, 'size_str': '1v1', 'size': [1, 1], 'ran
 ban_list = [
     436330481341169675,  # Mr Bucky
     481581027685564416,  # Shadow Knight
+    396699990577119244,  # Skrealder
 ]
 
 generic_teams_short = [('Home', ':stadium:'), ('Away', ':airplane:')]  # For two-team games

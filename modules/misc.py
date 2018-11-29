@@ -63,11 +63,9 @@ class misc:
                 f'\nSee __`{ctx.prefix}help`__ for all commands.')
 
         embed.add_field(name='Finishing tracked games',
-            value='When an ELO game is concluded the best way to have the points count is by having the loser confirm the status.\n'
-            f'For example once Nelluk defeats Scott in a 1v1 game, # **400**, Scott would use the command __`{ctx.prefix}win 400 nelluk`__.\n'
-            f'If it is a team game (2v2 or larger), a member of the losing team would use __`{ctx.prefix}win 400 Home`__ for example.'
-            'Use the player name for a 1v1, otherwise use a team name.'
-            f'If the loser will not confirm the winner can use the same __`{ctx.prefix}win`__ command, and ask a server staff member to confirm it. Please have a game screenshot ready.')
+            value=f'Use the __`{ctx.prefix}win`__ command to tell the bot that a game has concluded.\n'
+            f'For example if Nelluk wins game 400, he would type __`{ctx.prefix}win 400 nelluk`__. The losing player must confirm using the same command. '
+            f'It is a good idea to take screenshots showing your victories in case the loser will not confirm a game, so server staff can confirm it for you.')
 
         embed.set_thumbnail(url=self.bot.user.avatar_url_as(size=512))
         embed.set_footer(text='Developer: Nelluk')
@@ -91,6 +89,7 @@ class misc:
     @commands.command()
     @settings.in_bot_channel_strict()
     async def stats(self, ctx):
+        """ Display statistics on games logged with this bot """
 
         embed = discord.Embed(title='PolyELO Statistics')
         last_month = (datetime.datetime.now() + datetime.timedelta(days=-30))

@@ -303,6 +303,7 @@ class administration:
             await ctx.send('Recalculating ELO for all games in database.')
             await self.bot.loop.run_in_executor(None, models.Game.recalculate_all_elo)
             # Allows bot to remain responsive while this large operation is running.
+        await ctx.send('Recalculation complete!')
 
     @commands.command(aliases=['dbb'])
     @commands.is_owner()
