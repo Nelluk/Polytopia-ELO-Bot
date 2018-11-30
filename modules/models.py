@@ -893,7 +893,7 @@ class Game(BaseModel):
                 else:
                     squad = None
 
-                gameside = GameSide.create(game=newgame, squad=squad, team=allied_team, position=side_position)
+                gameside = GameSide.create(game=newgame, squad=squad, size=len(player_group), team=allied_team, position=side_position)
                 side_position = side_position + 1
 
                 # Create Lineup records
@@ -1222,7 +1222,7 @@ class Game(BaseModel):
         # 3 = wins, 4 = losses (only for first player in player_list or, if empty, first team in team list)
         # 5 = unconfirmed wins
 
-        confirmed_filter, completed_filter = [0, 1], [0, 1]
+        confirmed_filter, completed_filter, pending_filter = [0, 1], [0, 1], [0, 1]
 
         if status_filter == 1:
             # completed games
@@ -1232,7 +1232,7 @@ class Game(BaseModel):
             completed_filter = [0]
         elif status_filter == 5:
             # Unconfirmed completed games
-            completed_filter, confirmed_filter = [1], [0]
+            completed_filter, confirmed_filter, pending_filter = [1], [0], [0]
 
         if guild_id:
             guild_filter = Game.select(Game.id).where(Game.guild_id == guild_id)
@@ -1307,7 +1307,7 @@ class Game(BaseModel):
             ) & (
                 Game.id.in_(guild_filter)
             ) & (
-                Game.is_pending == 0)
+                Game.is_pending.in_(pending_filter))
         ).order_by(-Game.date).prefetch(GameSide, Team, Lineup, Player)
 
         return game
@@ -1629,7 +1629,10 @@ class GameSide(BaseModel):
         return int(round((own_elo * size + missing_player_elo * missing_players) / (size + missing_players)))
 
     def name(self):
-        if len(self.lineup) == 1:
+
+        if len(self.lineup) == 0:
+            return '_____\u200b________\u200b_____'
+        elif len(self.lineup) == 1:
             # 1-player side
             if len(self.game.lineup) > 10:
                 return self.lineup[0].player.discord_member.name[:10]

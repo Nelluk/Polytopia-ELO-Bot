@@ -62,7 +62,10 @@ def summarize_game_list(games_query):
     for game in games_query:
         if isinstance(game, models.GameSide):
             game = game.game  # In case a list of GameSide is passed instead of a list of Games
-        if game.is_completed is False:
+
+        if game.is_pending:
+            status_str = 'Not Started'
+        elif game.is_completed is False:
             status_str = 'Incomplete'
         else:
             if game.is_confirmed is False:

@@ -337,8 +337,10 @@ class matchmaking():
         **Example:**
         `[p]kick 25 koric`
         """
-        if not game.is_hosted_by(ctx.author.id)[0] and not settings.is_staff(ctx):
-            return await ctx.send(f'Only the game host or server staff can do this.')
+        is_hosted_by, host = game.is_hosted_by(ctx.author.id)
+        if not is_hosted_by and not settings.is_staff(ctx):
+            host_name = f' **{host.name}**' if host else ''
+            return await ctx.send(f'Only the game host{host_name} or server staff can do this.')
 
         if not game.is_pending:
             return await ctx.send(f'Game {game.id} has already started.')
@@ -454,8 +456,20 @@ class matchmaking():
         if not game:
             return await ctx.send(f'No game ID provided. Use `{ctx.prefix}opengames me` to list open games you have waiting to start.\n{syntax}')
 
-        if not game.is_hosted_by(ctx.author.id)[0] and not settings.is_staff(ctx) and not game.is_created_by(ctx.author.id):
-            return await ctx.send(f'Only the match host or server staff can do this.')
+        is_hosted_by, host = game.is_hosted_by(ctx.author.id)
+        if not is_hosted_by and not settings.is_staff(ctx) and not game.is_created_by(ctx.author.id):
+            creating_player = game.creating_player()
+            if creating_player and host:
+                if host != creating_player:
+                    return await ctx.send(f'Only the game host **{host.name}**, creating player **{creating_player.name}**, or server staff can do this.')
+                else:
+                    return await ctx.send(f'Only the game host **{host.name}** or server staff can do this.')
+            elif creating_player:
+                return await ctx.send(f'Only the creating player **{creating_player.name}**, or server staff can do this.')
+            elif host:
+                return await ctx.send(f'Only the game host **{host.name}** or server staff can do this.')
+            else:
+                return await ctx.send(f'Only the game host or server staff can do this.')
 
         if not name:
             return await ctx.send(f'Game name is required. The game must be created **in Polytopia** first to get the correct name.\n{syntax}')

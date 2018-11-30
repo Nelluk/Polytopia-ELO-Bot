@@ -549,10 +549,11 @@ class elo_games():
             return await ctx.send(f'**Error:** {e}')
 
         # p_names = [p['player'].name for p in ordered_player_list]
-        await ctx.send(f'Polytopia codes for **game {game.id}**, in draft order:')
+        warn_str = '\n*(List may take a few seconds to print due to discord anti-spam measures.)*' if len(ordered_player_list) > 2 else ''
+        await ctx.send(f'Polytopia codes for **game {game.id}**, in draft order:{warn_str}')
 
         for p in ordered_player_list:
-            await ctx.send(p["player"].name)
+            await ctx.send(f'**{p["player"].name}**')
             await ctx.invoke(self.bot.get_command('getcode'), player_string=str(p['player'].discord_member.discord_id))
 
     @commands.command(brief='Set in-game name', usage='new_name')
