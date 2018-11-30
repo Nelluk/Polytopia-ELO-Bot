@@ -708,6 +708,7 @@ class Game(BaseModel):
 
         embed.set_footer(text=f'Status: {status_str}  -  Creation Date {str(self.date)}')
 
+        print(embed.title)
         return embed, embed_content
 
     def embed_pending_game(self, ctx):
@@ -768,6 +769,7 @@ class Game(BaseModel):
         # Game 481   :fried_shrimp: The Crawfish vs :fried_shrimp: TestAccount1 vs :spy: TestBoye1\n*Name of Game*
         gameside_strings = []
         for gameside in self.gamesides:
+            logger.info(f'{self.id} gameside:', gameside)
             emoji = ''
             if gameside.team:
                 if len(gameside.lineup) > 1 or not gameside.team.is_hidden:

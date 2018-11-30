@@ -406,7 +406,7 @@ class matchmaking():
             title_str = f'Current{ranked_str} open games with available spots'
             game_list = models.Game.search_pending(status_filter=2, guild_id=ctx.guild.id, ranked_filter=ranked_filter)
 
-        title_str_full = title_str + f'\nUse `{ctx.prefix}join #` to join one or `{ctx.prefix}game #` for more details.'
+        title_str_full = title_str + f'\nUse __`{ctx.prefix}join ID`__ to join one or __`{ctx.prefix}game ID`__ for more details.'
         gamelist_fields = [(f'`{"ID":<8}{"Host":<40} {"Type":<7} {"Capacity":<7} {"Exp":>4}` ', '\u200b')]
 
         for game in game_list:
@@ -620,7 +620,7 @@ class matchmaking():
                     pfx = settings.guild_setting(guild.id, 'command_prefix')
 
                     embed = discord.Embed(title=f'{list_title}\n'
-                        f'Use `{pfx}join #` to join one or `{pfx}game #` for more details.')
+                        f'Use __`{pfx}join ID`__ to join one or __`{pfx}game ID`__ for more details.')
                     embed.add_field(name=f'`{"ID":<8}{"Host":<40} {"Type":<7} {"Capacity":<7} {"Exp":>4} `', value='\u200b', inline=False)
                     for game in game_list:
 

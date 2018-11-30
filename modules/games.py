@@ -548,13 +548,20 @@ class elo_games():
         except exceptions.MyBaseException as e:
             return await ctx.send(f'**Error:** {e}')
 
-        # p_names = [p['player'].name for p in ordered_player_list]
         warn_str = '\n*(List may take a few seconds to print due to discord anti-spam measures.)*' if len(ordered_player_list) > 2 else ''
-        await ctx.send(f'Polytopia codes for **game {game.id}**, in draft order:{warn_str}')
+        header_str = f'Polytopia codes for **game {game.id}**, in draft order:{warn_str}'
 
+        first_loop = True
         for p in ordered_player_list:
-            await ctx.send(f'**{p["player"].name}**')
-            await ctx.invoke(self.bot.get_command('getcode'), player_string=str(p['player'].discord_member.discord_id))
+            async with ctx.typing():
+                if first_loop:
+                    # header_str combined with first player's name in order to reduce number of ctx.send() that are done.
+                    # More than 3-4 and they will drip out due to API rate limits
+                    await ctx.send(f'{header_str}\n**{p["player"].name}**')
+                    first_loop = False
+                else:
+                    await ctx.send(f'**{p["player"].name}**')
+                await ctx.invoke(self.bot.get_command('getcode'), player_string=str(p['player'].discord_member.discord_id))
 
     @commands.command(brief='Set in-game name', usage='new_name')
     async def setname(self, ctx, *args):
