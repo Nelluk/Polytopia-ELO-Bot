@@ -1631,6 +1631,7 @@ class GameSide(BaseModel):
         return int(round((own_elo * size + missing_player_elo * missing_players) / (size + missing_players)))
 
     def name(self):
+        print(self.id, self.game_id, self.team, len(self.lineup))
 
         if len(self.lineup) == 0:
             return '_____\u200b________\u200b_____'
