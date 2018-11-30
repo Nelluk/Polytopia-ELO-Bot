@@ -645,7 +645,9 @@ class Game(BaseModel):
         embed = discord.Embed(title=f'{self.get_headline()} — {ranked_str}*{self.size_string()}*'[:255])
 
         if self.is_completed == 1:
-            embed.title += f'\n\nWINNER: {self.winner.name()}'
+            if len(embed.title) > 240:
+                embed.title = embed.title.replace('**', '')  # Strip bold markdown to regain space in extra-long game titles
+            embed.title = (embed.title + f'\n\nWINNER: {self.winner.name()}')[:255]
 
             # Set embed image (profile picture or team logo)
             if len(self.winner.lineup) == 1:
@@ -708,7 +710,6 @@ class Game(BaseModel):
 
         embed.set_footer(text=f'Status: {status_str}  -  Creation Date {str(self.date)}')
 
-        print(embed.title)
         return embed, embed_content
 
     def embed_pending_game(self, ctx):
@@ -1228,7 +1229,7 @@ class Game(BaseModel):
 
         if status_filter == 1:
             # completed games
-            completed_filter = [1]
+            completed_filter, pending_filter = [1], [0]
         elif status_filter == 2:
             # incomplete games
             completed_filter = [0]
@@ -1631,12 +1632,13 @@ class GameSide(BaseModel):
         return int(round((own_elo * size + missing_player_elo * missing_players) / (size + missing_players)))
 
     def name(self):
-        print(self.id, self.game_id, self.team, len(self.lineup))
 
-        if len(self.lineup) == 0:
+        side_players = len(self.lineup)
+        if side_players == 0 and self.size == 1:
+            # Display ________ for an empty 1-player side
             return '_____\u200b________\u200b_____'
-        elif len(self.lineup) == 1:
-            # 1-player side
+        elif side_players == 1 and self.size == 1:
+            # 1-player side, show player name
             if len(self.game.lineup) > 10:
                 return self.lineup[0].player.discord_member.name[:10]
             elif len(self.game.lineup) > 6:
@@ -1645,7 +1647,7 @@ class GameSide(BaseModel):
                 return self.lineup[0].player.name[:30]
         else:
             # Team game
-            return self.team.name
+            return self.team.name if self.team else 'Unknown Team'
 
     def roster(self):
         # Returns list of tuples [(player, elo string (1000 +50), :tribe_emoji:)]
