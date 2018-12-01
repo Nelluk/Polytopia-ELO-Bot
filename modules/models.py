@@ -200,6 +200,7 @@ class Player(BaseModel):
 
         if self:
             self.name = display_name
+            self.nick = player_nick
             self.save()
         return display_name
 
