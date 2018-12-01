@@ -25,12 +25,14 @@ class misc:
     async def test(self, ctx, *, arg=None):
 
         game = models.Game.get(id=2213)
-        # game = models.Game.get(id=2215)
-        player_lists = []
-        for side in game.gamesides:
-            player_lists.append([lineup.player for lineup in side.lineup])
+        print(game.series_record())
+        game = models.Game.get(id=2215)
+        print(game.series_record())
+        # player_lists = []
+        # for side in game.gamesides:
+        #     player_lists.append([lineup.player for lineup in side.lineup])
 
-        models.Game.by_opponents(player_lists)
+        # models.Game.by_opponents(player_lists)
 
     @commands.command(usage=None)
     @settings.in_bot_channel_strict()

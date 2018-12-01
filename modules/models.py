@@ -692,15 +692,31 @@ class Game(BaseModel):
                     embed.add_field(name=f'__**{player.name}**__ {tribe_emoji}', value=f'ELO: {player_elo_str}', inline=True)
             use_separator = True
 
-        if self.host or self.notes:
-            embed_content = f'Game hosted by **{self.host.name}**\n' if self.host else ''
-            embed_content = embed_content + f'**Notes:** {self.notes}' if self.notes else embed_content
+        if len(self.gamesides) == 2:
+            series_record = self.series_record()
+            if series_record[0][1] == 0:
+                series_record_str = ''
+            elif series_record[0][1] == series_record[1][1]:
+                series_record_str = f'*The series record for these two opponents is tied at **{series_record[0][1]} - {series_record[0][1]}***'
+            else:
+                series_record_str = f'***{series_record[0][0].name()}** leads this series **{series_record[0][1]} - {series_record[1][1]}***'
+        else:
+            series_record_str = ''
+
+        if self.notes or series_record_str:
+            embed_content = f'**Notes:** {self.notes}\n' if self.notes else ''
+            embed_content = embed_content + f'{series_record_str}' if series_record_str else embed_content
         else:
             embed_content = None
 
         if ctx.guild.id != settings.server_ids['polychampions']:
             embed.add_field(value='Powered by **PolyChampions** - https://discord.gg/cX7Ptnv', name='\u200b', inline=False)
             embed.set_author(name='PolyChampions', url='https://discord.gg/cX7Ptnv', icon_url='https://cdn.discordapp.com/emojis/488510815893323787.png?v=1')
+
+        if self.host:
+            host_str = f' - Hosted by {self.host.name[:20]}'
+        else:
+            host_str = ''
 
         if not self.is_completed:
             status_str = 'Incomplete'
@@ -709,7 +725,7 @@ class Game(BaseModel):
         else:
             status_str = 'Unconfirmed'
 
-        embed.set_footer(text=f'Status: {status_str}  -  Creation Date {str(self.date)}')
+        embed.set_footer(text=f'Status: {status_str}  -  Creation Date {str(self.date)}{host_str}')
 
         return embed, embed_content
 
@@ -1318,25 +1334,61 @@ class Game(BaseModel):
 
         return game
 
+    def series_record(self):
+
+        gamesides = tuple(self.gamesides)
+        if len(gamesides) != 2:
+            raise exceptions.CheckFailedError('This can only be used for games with exactly two sides.')
+
+        player_lists = []
+        for side in gamesides:
+            player_lists.append([lineup.player for lineup in side.lineup])
+
+        games_with_same_teams = Game.by_opponents(player_lists)
+
+        s1_wins, s2_wins = 0, 0
+        for game in games_with_same_teams:
+            if game.is_confirmed:
+                if game.winner.has_same_players_as(gamesides[0]):
+                    print(f'{game.id} s1 winner')
+                    s1_wins += 1
+                else:
+                    print(f'{game.id} s2 winner')
+                    s2_wins += 1
+            else:
+                print(f'{game.id} neither is a winner')
+
+        print(((gamesides[1], s2_wins), (gamesides[0], s1_wins)))
+        if s2_wins > s1_wins:
+            return ((gamesides[1], s2_wins), (gamesides[0], s1_wins))
+        return ((gamesides[0], s1_wins), (gamesides[1], s2_wins))
+
     def by_opponents(player_lists):
+        # Given lists of player objects representing game sides, ie:
+        # [[p1, p2], [p3, [p4], [p5, p6]] for a 2v2v2 game
+        # return all games that have that same exact format and sides. ie return all Nelluk vs Rickdaheals games
 
         if len(player_lists) < 2:
             raise exceptions.CheckFailedError('At least two sides must be queried, ie: [[p1, p2], [p3, p4]]')
 
+        side_games = []
         for player_list in player_lists:
-            print(player_list, len(player_list))
-            query = GameSide.select(GameSide.game).join(Lineup).group_by(GameSide.game).having(
+            # for this given player_list, find all games that had this exact list on one side
+
+            query = GameSide.select(GameSide.game).join(Lineup).group_by(GameSide.game, GameSide.id).having(
                 (fn.SUM(Lineup.player.in_(player_list).cast('integer')) == len(player_list)) & (fn.SUM(Lineup.player.not_in(player_list).cast('integer')) == 0)
             )
-            # query = GameSide.select(GameSide.game).join(Lineup).group_by(GameSide.game).having(
-            #     (fn.SUM(Lineup.player.in_(player_list).cast('integer')) == len(player_list)) & (fn.COUNT('*') == len(player_list))
-            # )
+            side_games.append(set((res[0] for res in query.tuples())))
+            # side_games will be a list of sets, each set being game_ids for other games with this specific gamesides
 
-            # query = Lineup.select(Lineup.gameside, fn.COUNT('*').alias('count')).join(GameSide).group_by(Lineup.gameside).having(
-            #     (fn.SUM(Lineup.player.in_(player_list).cast('integer')) == len(player_list))
-            # )
-            for g in query.dicts():
-                print(g)
+        intersection_of_games = set.intersection(*side_games)
+        # this becomes a set of game IDs where -all- the game sides participated
+
+        query = Game.select().where(
+            (Game.id.in_(intersection_of_games)) & (Game.is_pending == 0)
+        )
+
+        return query
 
     def recalculate_elo_since(timestamp):
         games = Game.select().where(
@@ -1603,6 +1655,18 @@ class GameSide(BaseModel):
     sidename = TextField(null=True)  # for pending open games/matchmaking
     size = SmallIntegerField(null=False, default=1)
     position = SmallIntegerField(null=False, unique=False, default=1)
+
+    def has_same_players_as(self, gameside):
+        # Given side1.has_same_players_as(side2)
+        # Return True if both players have exactly the same players in their lineup
+
+        s1_players = [l.player for l in self.lineup]
+        s2_players = [l.player for l in gameside.lineup]
+
+        if len(s1_players) != len(s2_players):
+            return False
+
+        return all(p in s2_players for p in s1_players)
 
     def calc_win_chance(my_side_elo: int, opponent_elo: int):
         chance_of_winning = round(1 / (1 + (10 ** ((opponent_elo - my_side_elo) / 400.0))), 3)
