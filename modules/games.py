@@ -552,8 +552,8 @@ class elo_games():
         header_str = f'Polytopia codes for **game {game.id}**, in draft order:{warn_str}'
 
         first_loop = True
-        for p in ordered_player_list:
-            async with ctx.typing():
+        async with ctx.typing():
+            for p in ordered_player_list:
                 if first_loop:
                     # header_str combined with first player's name in order to reduce number of ctx.send() that are done.
                     # More than 3-4 and they will drip out due to API rate limits
@@ -561,7 +561,8 @@ class elo_games():
                     first_loop = False
                 else:
                     await ctx.send(f'**{p["player"].name}**')
-                await ctx.invoke(self.bot.get_command('getcode'), player_string=str(p['player'].discord_member.discord_id))
+                poly_id = p['player'].discord_member.polytopia_id
+                await ctx.send(poly_id if poly_id else '*No code registered*')
 
     @commands.command(brief='Set in-game name', usage='new_name')
     async def setname(self, ctx, *args):
