@@ -931,16 +931,18 @@ class Game(BaseModel):
     def delete_game(self):
         # resets any relevant ELO changes to players and teams, deletes related lineup records, and deletes the game entry itself
 
+        recalculate = False
         with db.atomic():
-            if self.winner and self.is_confirmed:
+            if self.winner:
                 self.winner = None
-                recalculate = True
-                since = self.completed_ts
 
-                self.reverse_elo_changes()
+                if self.is_confirmed:
+                    recalculate = True
+                    since = self.completed_ts
+
+                    self.reverse_elo_changes()
+
                 self.save()
-            else:
-                recalculate = False
 
             for lineup in self.lineup:
                 lineup.delete_instance()
@@ -1314,6 +1316,26 @@ class Game(BaseModel):
         ).order_by(-Game.date).prefetch(GameSide, Team, Lineup, Player)
 
         return game
+
+    def by_opponents(player_lists):
+
+        if len(player_lists) < 2:
+            raise exceptions.CheckFailedError('At least two sides must be queried, ie: [[p1, p2], [p3, p4]]')
+
+        for player_list in player_lists:
+            print(player_list, len(player_list))
+            query = GameSide.select(GameSide.game).join(Lineup).group_by(GameSide.game).having(
+                (fn.SUM(Lineup.player.in_(player_list).cast('integer')) == len(player_list)) & (fn.SUM(Lineup.player.not_in(player_list).cast('integer')) == 0)
+            )
+            # query = GameSide.select(GameSide.game).join(Lineup).group_by(GameSide.game).having(
+            #     (fn.SUM(Lineup.player.in_(player_list).cast('integer')) == len(player_list)) & (fn.COUNT('*') == len(player_list))
+            # )
+
+            # query = Lineup.select(Lineup.gameside, fn.COUNT('*').alias('count')).join(GameSide).group_by(Lineup.gameside).having(
+            #     (fn.SUM(Lineup.player.in_(player_list).cast('integer')) == len(player_list))
+            # )
+            for g in query.dicts():
+                print(g)
 
     def recalculate_elo_since(timestamp):
         games = Game.select().where(

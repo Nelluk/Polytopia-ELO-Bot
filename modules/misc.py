@@ -22,20 +22,15 @@ class misc:
 
     @commands.command(hidden=True, aliases=['ts'])
     @commands.is_owner()
-    async def test(self, ctx, *, arg):
+    async def test(self, ctx, *, arg=None):
 
-        pass
-        # games = models.Game.search_pending(status_filter=2, host_discord_id=0, guild_id=447883341463814144)
-        # for g in games:
-        #     if g.capacity()[0] == 0:
-        #         print(f'deleting {g.id}')
-        #         g.delete_game()
+        game = models.Game.get(id=2213)
+        # game = models.Game.get(id=2215)
+        player_lists = []
+        for side in game.gamesides:
+            player_lists.append([lineup.player for lineup in side.lineup])
 
-    @commands.command(hidden=True)
-    @commands.is_owner()
-    async def test2(self, ctx, *arg):
-
-        print(f'test2 arg:{arg}')
+        models.Game.by_opponents(player_lists)
 
     @commands.command(usage=None)
     @settings.in_bot_channel_strict()

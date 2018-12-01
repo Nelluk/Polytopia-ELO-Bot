@@ -557,7 +557,7 @@ class elo_games():
                 if first_loop:
                     # header_str combined with first player's name in order to reduce number of ctx.send() that are done.
                     # More than 3-4 and they will drip out due to API rate limits
-                    await ctx.send(f'{header_str}\n**{p["player"].name}**')
+                    await ctx.send(f'{header_str}\n**{p["player"].name}** -- *Creates the game and invites everyone else*')
                     first_loop = False
                 else:
                     await ctx.send(f'**{p["player"].name}**')
