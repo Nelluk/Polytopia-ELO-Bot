@@ -229,6 +229,12 @@ class matchmaking():
         if len(guild_matches) == 0:
             return await ctx.send(f'Could not find \"{target}\" on this server.')
 
+        if guild_matches[0].id in settings.ban_list or discord.utils.get(guild_matches[0].roles, name='ELO Banned'):
+            if settings.is_mod(ctx):
+                await ctx.send(f'**{guild_matches[0].name}** has been **ELO Banned** -- *moderator over-ride* :thinking:')
+            else:
+                return await ctx.send(f'**{guild_matches[0].name}** has been **ELO Banned** and cannot join any new games. :cry:')
+
         if settings.guild_setting(ctx.guild.id, 'require_teams') and not models.Player.is_in_team(guild_id=ctx.guild.id, discord_member=guild_matches[0]):
             return await ctx.send(f'**{guild_matches[0].name}** must join a Team in order to participate in games on this server.')
 

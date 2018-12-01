@@ -891,9 +891,15 @@ class elo_games():
             for p in group:
                 guild_matches = await utilities.get_guild_member(ctx, p)
                 if len(guild_matches) == 0:
-                    return await ctx.send(f'Could not match "**{p}**"" to a server member. Try using an @Mention.')
+                    return await ctx.send(f'Could not match "**{p}**" to a server member. Try using an @Mention.')
                 if len(guild_matches) > 1:
                     return await ctx.send(f'More than one server matches found for "**{p}**". Try being more specific or using an @Mention.')
+
+                if guild_matches[0].id in settings.ban_list or discord.utils.get(guild_matches[0].roles, name='ELO Banned'):
+                    if settings.is_mod(ctx):
+                        await ctx.send(f'**{guild_matches[0].name}** has been **ELO Banned** -- *moderator over-ride* :thinking:')
+                    else:
+                        return await ctx.send(f'**{guild_matches[0].name}** has been **ELO Banned** and cannot join any new games. :cry:')
 
                 if guild_matches[0] in discord_players_flat:
                     return await ctx.send('Duplicate players detected. Game not created.')

@@ -113,6 +113,7 @@ ban_list = [
     436330481341169675,  # Mr Bucky
     481581027685564416,  # Shadow Knight
     396699990577119244,  # Skrealder
+    481525222072254484,  # testaccount1
 ]
 
 generic_teams_short = [('Home', ':stadium:'), ('Away', ':airplane:')]  # For two-team games
