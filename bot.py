@@ -12,11 +12,18 @@ from logging.handlers import RotatingFileHandler
 
 # Logger config is a bit of a mess and probably could be simplified a lot, but works. debug and above sent to file / error above sent to stderr
 handler = RotatingFileHandler(filename='logs/discord.log', encoding='utf-8', maxBytes=500 * 1024, backupCount=10)
+elo_handler = RotatingFileHandler(filename='logs/elo.log', encoding='utf-8', maxBytes=1024 * 1024 * 2, backupCount=5)
+
 handler.setFormatter(logging.Formatter('%(asctime)s:%(levelname)s:%(name)s: %(message)s'))
+elo_handler.setFormatter(logging.Formatter('%(asctime)s:%(levelname)s:%(name)s: %(message)s'))
 
 my_logger = logging.getLogger('polybot')
 my_logger.setLevel(logging.DEBUG)
 my_logger.addHandler(handler)  # root handler for app. module-specific loggers will inherit this
+
+elo_logger = logging.getLogger('polybot.elo')
+elo_logger.setLevel(logging.DEBUG)
+elo_logger.addHandler(elo_handler)
 
 err = logging.StreamHandler(sys.stderr)
 err.setLevel(logging.ERROR)

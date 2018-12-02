@@ -9,6 +9,7 @@ import settings
 import logging
 
 logger = logging.getLogger('polybot.' + __name__)
+elo_logger = logging.getLogger('polybot.elo')
 
 db = PostgresqlDatabase(settings.psql_db, user=settings.psql_user)
 
@@ -1355,15 +1356,10 @@ class Game(BaseModel):
         for game in games_with_same_teams:
             if game.is_confirmed:
                 if game.winner.has_same_players_as(gamesides[0]):
-                    print(f'{game.id} s1 winner')
                     s1_wins += 1
                 else:
-                    print(f'{game.id} s2 winner')
                     s2_wins += 1
-            else:
-                print(f'{game.id} neither is a winner')
 
-        print(((gamesides[1], s2_wins), (gamesides[0], s1_wins)))
         if s2_wins > s1_wins:
             return ((gamesides[1], s2_wins), (gamesides[0], s1_wins))
         return ((gamesides[0], s1_wins), (gamesides[1], s2_wins))
@@ -1400,6 +1396,7 @@ class Game(BaseModel):
             (Game.is_completed == 1) & (Game.completed_ts >= timestamp) & (Game.winner.is_null(False))
         ).prefetch(GameSide, Lineup)
 
+        elo_logger.debug(f'recalculate_elo_since {timestamp}')
         for g in games:
             g.reverse_elo_changes()
             g.is_completed = 0  # To have correct completed game counts for new ELO calculations
@@ -1407,8 +1404,8 @@ class Game(BaseModel):
 
         for g in games:
             full_game = Game.load_full_game(game_id=g.id)
-            print(f'Calculating ELO for game {g.id}')
             full_game.declare_winner(winning_side=full_game.winner, confirm=True)
+        elo_logger.debug(f'recalculate_elo_since complete')
 
     def recalculate_all_elo():
         # Reset all ELOs to 1000, reset completed game counts, and re-run Game.declare_winner() on all qualifying games
@@ -1418,6 +1415,7 @@ class Game(BaseModel):
         # 2) have a way to only affect games that ended after a deleted game (if thats why recalc is occuring)
 
         logger.warn('Resetting and recalculating all ELO')
+        elo_logger.debug(f'recalculate_all_elo')
 
         with db.atomic():
             Player.update(elo=1000).execute()
@@ -1435,8 +1433,9 @@ class Game(BaseModel):
 
             for game in games:
                 full_game = Game.load_full_game(game_id=game.id)
-                print(f'Calculating ELO for game {game.id}')
                 full_game.declare_winner(winning_side=full_game.winner, confirm=True)
+
+        elo_logger.debug(f'recalculate_all_elo complete')
 
     def first_open_side(self):
         sides = GameSide.select().where(
@@ -1810,8 +1809,11 @@ class Lineup(BaseModel):
         elo_bonus = int(abs(elo_delta) * elo_boost)
         elo_delta += elo_bonus
 
-        logger.debug(f'Player {self.player.id} chance of winning: {chance_of_winning} game {self.game.id},'
-            f'elo_delta {elo_delta}, current_player_elo {self.player.elo}, new_player_elo {int(self.player.elo + elo_delta)}')
+        elo_logger.debug(f'game: {self.game.id}, {"discordmember" if by_discord_member else "player"}, {self.player.name[:15]}, '
+            f'elo: {elo}, CoW: {chance_of_winning}, elo_delta: {elo_delta}, new_elo: {int(elo + elo_delta)}')
+
+        # logger.debug(f'Player {self.player.id} chance of winning: {chance_of_winning} game {self.game.id},'
+        #     f'elo_delta {elo_delta}, current_player_elo {self.player.elo}, new_player_elo {int(self.player.elo + elo_delta)}')
 
         with db.atomic():
             if by_discord_member is True:

@@ -9,6 +9,7 @@ import datetime
 from modules.games import PolyGame, post_win_messaging
 
 logger = logging.getLogger('polybot.' + __name__)
+elo_logger = logging.getLogger('polybot.elo')
 
 
 class administration:
@@ -128,6 +129,7 @@ class administration:
             return await ctx.send(f'No matching game was found.')
 
         if game.is_completed and game.is_confirmed:
+            elo_logger.debug(f'unwin game {game.id}')
             async with ctx.typing():
                 with models.db.atomic():
                     timestamp = game.completed_ts
@@ -139,6 +141,7 @@ class administration:
                     game.save()
 
                     models.Game.recalculate_elo_since(timestamp=timestamp)
+            elo_logger.debug(f'unwin game {game.id} completed')
             return await ctx.send(f'Game {game.id} has been marked as *Incomplete*. ELO changes have been reverted and ELO from all subsequent games recalculated.')
 
         elif game.is_completed:
