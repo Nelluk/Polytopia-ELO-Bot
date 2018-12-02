@@ -190,9 +190,6 @@ class Player(BaseModel):
     trophies = ArrayField(CharField, null=True)
     is_banned = BooleanField(default=False)
 
-    # def is_banned(self):
-    #     return self.discord_member.discord_id in settings.ban_list or self.has_banned_role
-
     def generate_display_name(self=None, player_name=None, player_nick=None):
         if player_nick:
             if player_name in player_nick:
