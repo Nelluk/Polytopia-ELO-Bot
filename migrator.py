@@ -26,11 +26,13 @@ db = PostgresqlDatabase(settings.psql_db, user=settings.psql_user)
 migrator = PostgresqlMigrator(db)
 
 # is_ranked = BooleanField(default=True)
-elo_max = SmallIntegerField(default=1000)
+# elo_max = SmallIntegerField(default=1000)
+is_banned = BooleanField(default=False)
 
 migrate(
-    migrator.add_column('discordmember', 'elo_max', elo_max),
-    migrator.add_column('player', 'elo_max', elo_max),
+    # migrator.add_column('discordmember', 'elo_max', elo_max),
+    # migrator.add_column('player', 'is_banned', is_banned),
+    migrator.add_column('discordmember', 'is_banned', is_banned),
 
 
 )

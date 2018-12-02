@@ -229,12 +229,6 @@ class matchmaking():
         if len(guild_matches) == 0:
             return await ctx.send(f'Could not find \"{target}\" on this server.')
 
-        if guild_matches[0].id in settings.ban_list or discord.utils.get(guild_matches[0].roles, name='ELO Banned'):
-            if settings.is_mod(ctx):
-                await ctx.send(f'**{guild_matches[0].name}** has been **ELO Banned** -- *moderator over-ride* :thinking:')
-            else:
-                return await ctx.send(f'**{guild_matches[0].name}** has been **ELO Banned** and cannot join any new games. :cry:')
-
         if settings.guild_setting(ctx.guild.id, 'require_teams') and not models.Player.is_in_team(guild_id=ctx.guild.id, discord_member=guild_matches[0]):
             return await ctx.send(f'**{guild_matches[0].name}** must join a Team in order to participate in games on this server.')
 
@@ -243,6 +237,12 @@ class matchmaking():
             # Matching guild member but no Player or DiscordMember
             return await ctx.send(f'*{guild_matches[0].name}* was found in the server but is not registered with me. '
                 f'Players can be register themselves with `{ctx.prefix}setcode POLYTOPIA_CODE`.')
+
+        if player.is_banned():
+            if settings.is_mod(ctx):
+                await ctx.send(f'**{player.name}** has been **ELO Banned** -- *moderator over-ride* :thinking:')
+            else:
+                return await ctx.send(f'**{player.name}** has been **ELO Banned** and cannot join any new games. :cry:')
 
         if game.has_player(player)[0]:
             return await ctx.send(f'**{player.name}** is already in game {game.id}. If you are trying to change sides, use `{ctx.prefix}leave {game.id}` first.')

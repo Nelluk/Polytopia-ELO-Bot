@@ -37,6 +37,29 @@ class elo_games():
         self.bot = bot
 
     async def on_member_update(self, before, after):
+        player_query = Player.select().join(DiscordMember).where(
+            (DiscordMember.discord_id == after.id) & (Player.guild_id == after.guild.id)
+        )
+
+        banned_role = discord.utils.get(before.guild.roles, name='ELO Banned')
+        if banned_role not in before.roles and banned_role in after.roles:
+            try:
+                player = player_query.get()
+            except peewee.DoesNotExist:
+                return
+            player.is_banned = True
+            player.save()
+            logger.info(f'ELO Ban added for player {player.id} {player.name}')
+
+        if banned_role in before.roles and banned_role not in after.roles:
+            try:
+                player = player_query.get()
+            except peewee.DoesNotExist:
+                return
+            player.is_banned = False
+            player.save()
+            logger.info(f'ELO Ban removed for player {player.id} {player.name}')
+
         # Updates display name in DB if user changes their discord name or guild nick
         if before.nick == after.nick and before.name == after.name:
             return
@@ -44,9 +67,7 @@ class elo_games():
         if before.nick != after.nick:
             # update nick in guild's Player record
             try:
-                player = Player.select(Player, DiscordMember).join(DiscordMember).where(
-                    (DiscordMember.discord_id == after.id) & (Player.guild_id == after.guild.id)
-                ).get()
+                player = player_query.get()
             except peewee.DoesNotExist:
                 return
             player.generate_display_name(player_name=after.name, player_nick=after.nick)

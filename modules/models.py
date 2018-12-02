@@ -96,6 +96,7 @@ class DiscordMember(BaseModel):
     elo_max = SmallIntegerField(default=1000)
     polytopia_id = TextField(null=True)
     polytopia_name = TextField(null=True)
+    is_banned = BooleanField(default=False)
 
     def update_name(self, new_name: str):
         self.name = new_name
@@ -156,7 +157,7 @@ class DiscordMember(BaseModel):
             elo_field = DiscordMember.elo
 
         query = DiscordMember.select().join(Player).join(Lineup).join(Game).where(
-            (Game.is_completed == 1) & (Game.date > date_cutoff) & (Game.is_ranked == 1)
+            (Game.is_completed == 1) & (Game.date > date_cutoff) & (Game.is_ranked == 1) & (DiscordMember.is_banned == 0)
         ).distinct().order_by(-elo_field)
 
         if query.count() < 10:
@@ -187,7 +188,10 @@ class Player(BaseModel):
     elo = SmallIntegerField(default=1000)
     elo_max = SmallIntegerField(default=1000)
     trophies = ArrayField(CharField, null=True)
-    # Add discord name here too so searches can hit just one table?
+    is_banned = BooleanField(default=False)
+
+    # def is_banned(self):
+    #     return self.discord_member.discord_id in settings.ban_list or self.has_banned_role
 
     def generate_display_name(self=None, player_name=None, player_nick=None):
         if player_nick:
@@ -416,8 +420,12 @@ class Player(BaseModel):
         else:
             elo_field = Player.elo
 
-        query = Player.select().join(Lineup).join(Game).where(
-            (Player.guild_id == guild_id) & (Game.is_completed == 1) & (Game.is_ranked == 1) & (Game.date > date_cutoff)
+        query = Player.select().join(Lineup).join(Game).join_from(Player, DiscordMember).where(
+            (Player.guild_id == guild_id) &
+            (Game.is_completed == 1) &
+            (Game.is_ranked == 1) &
+            (Game.date > date_cutoff) &
+            (Player.is_banned == 0) & (DiscordMember.is_banned == 0)
         ).distinct().order_by(-elo_field)
 
         if query.count() < 10:
