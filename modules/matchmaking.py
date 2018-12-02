@@ -595,8 +595,9 @@ class matchmaking():
 
     async def task_print_matchlist(self):
         await self.bot.wait_until_ready()
+        sleep_cycle = (60 * 60 * 1)
+
         while not self.bot.is_closed():
-            sleep_cycle = (60 * 60 * 1)
             await asyncio.sleep(5)
 
             models.Game.purge_expired_games()

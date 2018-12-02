@@ -117,14 +117,25 @@ async def greet_squad_channel(ctx, chan, player_list, roster_names, game):
         logger.error(f'Could not send to created channel:\n{e} - Status {e.status}, Code {e.code}: {e.text}')
 
 
-async def delete_squad_channel(ctx, channel_id: int):
+async def delete_squad_channel(guild, channel_id: int):
 
-    chan = ctx.guild.get_channel(channel_id)
+    chan = guild.get_channel(channel_id)
     if chan is None:
         return logger.warn(f'Channel ID {channel_id} provided for deletion but it could not be loaded from guild')
     try:
         logger.warn(f'Deleting channel {chan.name}')
         await chan.delete(reason='Game concluded')
+    except discord.DiscordException as e:
+        logger.error(f'Could not delete channel: {e}')
+
+
+async def send_message_to_channel(ctx, channel_id: int, message: str):
+    chan = ctx.guild.get_channel(channel_id)
+    if chan is None:
+        return logger.warn(f'Channel ID {channel_id} provided for message but it could not be loaded from guild')
+
+    try:
+        await chan.send(message)
     except discord.DiscordException as e:
         logger.error(f'Could not delete channel: {e}')
 
@@ -135,6 +146,10 @@ async def update_squad_channel_name(ctx, channel_id: int, game_id: int, game_nam
         return logger.warn(f'Channel ID {channel_id} provided for update but it could not be loaded from guild')
 
     chan_name = generate_channel_name(game_id=game_id, game_name=game_name, team_name=team_name)
+
+    if chan_name.lower() == chan.name.lower():
+        return logger.debug(f'Newly-generated channel name for channel {channel_id} game {game_id} is the same - no change to channel.')
+
     try:
         await chan.edit(name=chan_name, reason='Game renamed')
         logger.info(f'Renamed channel for game {game_id} to {chan_name}')

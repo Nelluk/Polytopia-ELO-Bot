@@ -6,6 +6,8 @@ import modules.exceptions as exceptions
 import peewee
 from modules.models import Game, db, Player, Team, DiscordMember, Squad, GameSide, TribeFlair, Lineup
 import logging
+import datetime
+import asyncio
 from itertools import groupby
 
 logger = logging.getLogger('polybot.' + __name__)
@@ -35,6 +37,7 @@ class elo_games():
 
     def __init__(self, bot):
         self.bot = bot
+        self.bg_task = bot.loop.create_task(self.task_purge_game_channels())
 
     async def on_member_update(self, before, after):
         player_query = Player.select().join(DiscordMember).where(
@@ -182,7 +185,6 @@ class elo_games():
     @commands.cooldown(2, 30, commands.BucketType.channel)
     async def lbrecent(self, ctx):
         """ Display most active recent players"""
-        import datetime
         last_month = (datetime.datetime.now() + datetime.timedelta(days=-30))
 
         leaderboard = []
@@ -1088,7 +1090,7 @@ class elo_games():
             game.name = f'~~{game.name}~~ GAME DELETED'
             await game.update_announcement(ctx)
 
-        await game.delete_squad_channels(ctx)
+        await game.delete_squad_channels(ctx.guild)
 
         async with ctx.typing():
             gid = game.id
@@ -1128,10 +1130,31 @@ class elo_games():
 
         await ctx.send(f'Game ID {game.id} has been renamed to "**{game.name}**" from "**{old_game_name}**"')
 
+    async def task_purge_game_channels(self):
+        await self.bot.wait_until_ready()
+        while not self.bot.is_closed():
+            # purge game channels from games that were concluded at least 24 hours ago
+
+            await asyncio.sleep(60)
+            yesterday = (datetime.datetime.now() + datetime.timedelta(hours=-24))
+
+            old_games = Game.select().join(GameSide).where(
+                (Game.is_confirmed == 1) & (Game.completed_ts < yesterday) & (GameSide.team_chan.is_null(False))
+            )
+
+            logger.info(f'running task_purge_game_channels on {len(old_games)} games')
+            for game in old_games:
+                guild = discord.utils.get(self.bot.guilds, id=game.guild_id)
+                if guild:
+                    await game.delete_squad_channels(guild=guild)
+
+            await asyncio.sleep(60 * 60 * 2)
+
 
 async def post_win_messaging(ctx, winning_game):
 
-    await winning_game.delete_squad_channels(ctx=ctx)
+    # await winning_game.delete_squad_channels(guild=ctx.guild)
+    await winning_game.update_squad_channels(ctx=ctx, message=f'The game is over with **{winning_game.winner.name()}** victorious. *This channel will be purged in ~24 hours.*')
     player_mentions = [f'<@{l.player.discord_member.discord_id}>' for l in winning_game.lineup]
     embed, content = winning_game.embed(ctx)
 

@@ -533,22 +533,24 @@ class Game(BaseModel):
 
                 await channels.greet_squad_channel(ctx, chan=chan, player_list=player_list, roster_names=roster_names, game=self)
 
-    async def delete_squad_channels(self, ctx):
+    async def delete_squad_channels(self, guild):
 
         if self.name and (self.name.lower()[:2] == 's3' or self.name.lower()[:2] == 's4' or self.name.lower()[:2] == 's5' or self.name.lower()[:3] == 'wwn'):
             return logger.warn(f'Skipping team channel deletion for game {self.id} {self.name} since it is a Season game')
 
         for gameside in self.gamesides:
             if gameside.team_chan:
-                await channels.delete_squad_channel(ctx, channel_id=gameside.team_chan)
+                await channels.delete_squad_channel(guild, channel_id=gameside.team_chan)
                 gameside.team_chan = None
                 gameside.save()
 
-    async def update_squad_channels(self, ctx):
+    async def update_squad_channels(self, ctx, message: str = None):
 
         for gameside in self.gamesides:
             if gameside.team_chan:
                 await channels.update_squad_channel_name(ctx, channel_id=gameside.team_chan, game_id=self.id, game_name=self.name, team_name=gameside.team.name)
+            if message:
+                await channels.send_message_to_channel(ctx, channel_id=gameside.team_chan, message=message)
 
     async def update_announcement(self, ctx):
         # Updates contents of new game announcement with updated game_embed card
