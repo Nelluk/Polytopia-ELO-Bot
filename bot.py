@@ -7,7 +7,6 @@ from modules import initialize_data
 import settings
 import logging
 import sys
-import peewee
 from logging.handlers import RotatingFileHandler
 
 
@@ -53,15 +52,11 @@ def main():
         initialize_data.initialize_data()
         exit(0)
 
-    # Update discord_id ban list in database
+    logger.info('Resetting Discord ID ban list')
     models.DiscordMember.update(is_banned=False).execute()
-    for ban in settings.ban_list:
-        try:
-            discord_member = models.DiscordMember.select().where(models.DiscordMember.discord_id == ban).get()
-        except peewee.DoesNotExist:
-            return
-        discord_member.is_banned = True
-        discord_member.save()
+    if settings.ban_list:
+        query = models.DiscordMember.update(is_banned=True).where(models.DiscordMember.discord_id.in_(settings.ban_list))
+        logger.info(f'{query.execute()} discord IDs are banned')
 
 
 def get_prefix(bot, message):
