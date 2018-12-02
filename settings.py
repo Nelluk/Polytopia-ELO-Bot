@@ -67,7 +67,7 @@ config = {'default':
                       'require_teams': True,
                       'allow_teams': True,
                       'allow_uneven_teams': True,
-                      'max_team_size': 5,
+                      'max_team_size': 6,
                       'command_prefix': '$',
                       'include_in_global_lb': True,
                       'bot_channels_private': [487304043786665986],  # 986 elo-staff-talk
