@@ -45,14 +45,23 @@ def get_channel_category(ctx, team_name):
             return cat, True
 
     # No team category found - using default category. ie. intermingled home/away games
-    game_channel_category = settings.guild_setting(ctx.guild.id, 'game_channel_category')
-    if game_channel_category is None:
-        return None, None
-    chan_category = discord.utils.get(ctx.guild.categories, id=int(game_channel_category))
-    if chan_category is None:
-        logger.error(f'chans_category_id {game_channel_category} was supplied but cannot be loaded')
-        return None, None
-    return chan_category, False
+
+    for game_channel_category in settings.guild_setting(ctx.guild.id, 'game_channel_categories'):
+
+        chan_category = discord.utils.get(ctx.guild.categories, id=int(game_channel_category))
+        if chan_category is None:
+            logger.warn(f'chans_category_id {game_channel_category} was supplied but cannot be loaded')
+            continue
+
+        if len(chan_category.channels) >= 50:
+            logger.warn(f'chans_category_id {game_channel_category} was supplied but is full')
+            continue
+
+        logger.debug(f'using {chan_category.id} - {chan_category.name} for channel category')
+        return chan_category, False  # Successfully use this chan_category
+
+    logger.error('could not successfully load a channel category')
+    return None, None
 
 
 async def create_squad_channel(ctx, game, team_name, player_list):

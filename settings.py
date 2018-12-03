@@ -42,7 +42,7 @@ config = {'default':
                       'unranked_game_channel': None,
                       'game_request_channel': None,
                       'game_announce_channel': None,
-                      'game_channel_category': None},
+                      'game_channel_categories': []},
           478571892832206869:                           # Nelluk Test Server (discord server ID)
                      {'helper_roles': ['testers'],
                       'mod_roles': ['role1'],
@@ -59,7 +59,7 @@ config = {'default':
                       'unranked_game_channel': 481558031281160212,
                       'game_request_channel': 480078679930830849,
                       'game_announce_channel': 481558031281160212,
-                      'game_channel_category': 493149162238640161},
+                      'game_channel_categories': [493149162238640161, 493149183155503105]},
           447883341463814144:                           # Polychampions
                      {'helper_roles': ['Helper', 'ELO Helper', 'Team Leader'],
                       'mod_roles': ['Mod'],
@@ -78,7 +78,7 @@ config = {'default':
                       'match_challenge_channels': [452639822616723457],  # elo-challenges
                       'game_request_channel': 487304043786665986,  # $staffhelp output
                       'game_announce_channel': 487302138704429087,  # elo-drafts
-                      'game_channel_category': 519131761733795841},  # ELO CHALLENGES
+                      'game_channel_categories': [488421911529914368, 514141474229846018, 519131761733795841]},  # elo-games-i, ii, iii
           283436219780825088:                           # Main Server
                      {'helper_roles': ['Bot Master', 'Director', 'ELO Helper'],
                       'mod_roles': ['MOD', 'Manager'],
@@ -98,7 +98,7 @@ config = {'default':
                       'match_challenge_channels': [511316081160355852, 511906353476927498],
                       'game_request_channel': None,
                       'game_announce_channel': 505523961812090900,
-                      'game_channel_category': None}
+                      'game_channel_categories': []}
 
           }
 
