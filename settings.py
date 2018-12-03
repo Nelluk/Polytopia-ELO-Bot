@@ -78,7 +78,7 @@ config = {'default':
                       'match_challenge_channels': [452639822616723457],  # elo-challenges
                       'game_request_channel': 487304043786665986,  # $staffhelp output
                       'game_announce_channel': 487302138704429087,  # elo-drafts
-                      'game_channel_category': 514141474229846018},  # ELO CHALLENGES
+                      'game_channel_category': 519131761733795841},  # ELO CHALLENGES
           283436219780825088:                           # Main Server
                      {'helper_roles': ['Bot Master', 'Director', 'ELO Helper'],
                       'mod_roles': ['MOD', 'Manager'],
