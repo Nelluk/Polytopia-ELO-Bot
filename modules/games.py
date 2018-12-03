@@ -1188,7 +1188,7 @@ async def post_newgame_messaging(ctx, game):
         await ctx.send(f'New game ID {game.id} started! Roster: {" ".join(mentions_list)}')
         await ctx.send(embed=embed, content=content)
 
-    if settings.guild_setting(ctx.guild.id, 'game_channel_category') is not None:
+    if settings.guild_setting(ctx.guild.id, 'game_channel_categories'):
         await game.create_squad_channels(ctx)
 
 
