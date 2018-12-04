@@ -149,6 +149,7 @@ class administration:
             game.completed_ts = None
             game.is_completed = False
             game.winner = None
+            game.save()
             return await ctx.send(f'Unconfirmed Game {game.id} has been marked as *Incomplete*.')
 
         else:
