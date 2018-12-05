@@ -372,7 +372,7 @@ class Player(BaseModel):
             date_cutoff = datetime.date.min  # 'forever' ?
 
         return Lineup.select(Lineup.game).join(Game).where(
-            (Lineup.game.date > date_cutoff) & (Lineup.player == self) & (Lineup.game.is_pending == 0)
+            (Lineup.game.date > date_cutoff) & (Lineup.player == self)
         ).order_by(-Game.date)
 
     def wins(self):
