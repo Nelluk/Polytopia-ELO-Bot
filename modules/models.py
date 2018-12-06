@@ -591,7 +591,7 @@ class Game(BaseModel):
         ).order_by(GameSide.position).limit(1).get()
         side_players = first_side.ordered_player_list()
         if side_players:
-            return first_side.ordered_player_list()[0]
+            return first_side.ordered_player_list()[0].player
         return None
 
     def draft_order(self):
@@ -633,7 +633,7 @@ class Game(BaseModel):
             # )
             picks.append({'position': picking_team['side'].position,
                           'sidename': picking_team['side'].sidename,
-                          'player': picking_team['lineups'].pop(0),
+                          'player': picking_team['lineups'].pop(0).player,
                           'picking_team': picking_team})
 
         changed = 1
@@ -783,9 +783,12 @@ class Game(BaseModel):
             side_capacity = side.capacity()
             capacity += side_capacity[1]
             player_list = []
-            for player in side.ordered_player_list():
+            for player_lineup in side.ordered_player_list():
+                player = player_lineup.player
                 players += 1
-                player_list.append(f'**{player.name}** ({player.elo})\n{player.discord_member.polytopia_id}')
+                tribe_str = player_lineup.tribe.emoji if player_lineup.tribe else ''
+                team_str = player.team.emoji if player.team else ''
+                player_list.append(f'**{player.name}** ({player.elo}) {tribe_str} {team_str}\n{player.discord_member.polytopia_id}')
             player_str = '\u200b' if not player_list else '\n'.join(player_list)
             embed.add_field(name=f'__Side {side.position}__{side_name} *({side_capacity[0]}/{side_capacity[1]})*', value=player_str, inline=False)
 
@@ -1764,7 +1767,8 @@ class GameSide(BaseModel):
         player_list = []
         q = Lineup.select(Lineup, Player).join(Player).where(Lineup.gameside == self).order_by(Lineup.id)
         for l in q:
-            player_list.append(l.player)
+            # player_list.append(l.player)
+            player_list.append(l)
 
         return player_list
 
