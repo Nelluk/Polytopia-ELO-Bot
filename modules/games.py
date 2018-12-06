@@ -28,7 +28,7 @@ class PolyGame(commands.Converter):
             logger.debug(f'Game with ID {game_id} found.')
             if game.guild_id != ctx.guild.id:
                 logger.warn('Game does not belong to same guild')
-                await ctx.send(f'Game with ID {game_id} cannot be found on this Discord server.')
+                await ctx.send(f'Game with ID {game_id} is associated with a different Discord server.')
                 raise commands.UserInputError()
             return game
 
