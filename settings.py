@@ -47,7 +47,7 @@ config = {'default':
                      {'helper_roles': ['testers'],
                       'mod_roles': ['role1'],
                       'display_name': 'Development Server',
-                      'require_teams': True,
+                      'require_teams': False,
                       'allow_teams': True,
                       'allow_uneven_teams': True,
                       'max_team_size': 6,
