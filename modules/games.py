@@ -1138,7 +1138,7 @@ class elo_games():
             await asyncio.sleep(60)
             yesterday = (datetime.datetime.now() + datetime.timedelta(hours=-24))
 
-            old_games = Game.select().join(GameSide).where(
+            old_games = Game.select().join(GameSide, on=(GameSide.game == Game.id)).where(
                 (Game.is_confirmed == 1) & (Game.completed_ts < yesterday) & (GameSide.team_chan.is_null(False))
             )
 
