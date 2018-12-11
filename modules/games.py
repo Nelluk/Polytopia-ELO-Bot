@@ -865,7 +865,7 @@ class elo_games():
         `[p]newgame "Name of Game" nelluk frodakcin vs bakalol ben` - Sets up a 2v2 game
         """
         example_usage = (f'Example usage:\n`{ctx.prefix}newgame "Name of Game" player1 player2 VS player3 player4` - Start a 2v2 game\n'
-                         f'`{ctx.prefix}newgame "Name of Game" player2` - Start a 1v1 with yourself and player2')
+                         f'`{ctx.prefix}newgame "Name of Game" player1 VS player2` - Start a 1v1 game')
 
         if not game_name:
             return await ctx.send(f'Invalid format. {example_usage}')

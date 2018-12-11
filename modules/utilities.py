@@ -9,7 +9,7 @@ logger = logging.getLogger('polybot.' + __name__)
 
 
 def is_valid_poly_gamename(input: str):
-    key_words = ["War", "Spirit", "Faith", "Glory", "Blood", "Paradise"
+    key_words = ["War", "Spirit", "Faith", "Glory", "Blood", "Paradise",
                  "Empires", "Songs", "Dawn", "Prophecy", "Prophesy", "Gold",
                  "Fire", "Swords", "Queens", "Kings", "Tribes", "Tribe", "Tales",
                  "Hills", "Fields", "Lands", "Forest", "Ocean", "Fruit", "Mountain", "Lake",
