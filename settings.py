@@ -80,7 +80,7 @@ config = {'default':
                       'game_announce_channel': 487302138704429087,  # elo-drafts
                       'game_channel_categories': [488421911529914368, 514141474229846018, 519131761733795841]},  # elo-games-i, ii, iii
           283436219780825088:                           # Main Server
-                     {'helper_roles': ['Bot Master', 'Director', 'ELO Helper'],
+                     {'helper_roles': ['ELO Helper', 'Bot Master', 'Director'],
                       'mod_roles': ['MOD', 'Manager'],
                       'display_name': 'Polytopia',
                       'allow_uneven_teams': True,

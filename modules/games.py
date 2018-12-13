@@ -962,7 +962,7 @@ class elo_games():
 
     # @settings.in_bot_channel()
     @commands.command(aliases=['endgame', 'wingame', 'winner'], usage='game_id winner_name')
-    async def win(self, ctx, winning_game: PolyGame = None, winning_side_name: str = None):
+    async def win(self, ctx, winning_game: PolyGame = None, *, winning_side_name: str = None):
         """
         Declare winner of an existing game
 
@@ -974,7 +974,6 @@ class elo_games():
         `[p]win 5 Ronin` - Declare Ronin winner of game 5
         `[p]win 5 Nelluk` - Declare Nelluk winner of game 5
         """
-
         usage = ('Include both game ID and the name of the winning side. Example usage:\n'
                 f'`{ctx.prefix}win 422 Nelluk`\n`{ctx.prefix}win 425 Owls` *For a team game*')
         if not winning_game or not winning_side_name:
@@ -1000,6 +999,7 @@ class elo_games():
             confirm_win = True
         else:
             has_player, author_side = winning_game.has_player(discord_id=ctx.author.id)
+            helper_role = settings.guild_setting(ctx.guild.id, 'helper_roles')[0]
 
             if not has_player:
                 return await ctx.send(f'You were not a participant in this game.')
@@ -1016,7 +1016,7 @@ class elo_games():
                             break
 
                     await ctx.send(f'Game {winning_game.id} concluded pending confirmation of winner **{winning_obj.name}**\n'
-                        f'To confirm, have {confirm_str} use the command __`{ctx.prefix}win {winning_game.id} {winning_side_name}`__ or ask an **@ELO Helper** to confirm your win with screenshot evidence.')
+                        f'To confirm, have {confirm_str} use the command __`{ctx.prefix}win {winning_game.id} {winning_side_name}`__ or ask an **@{helper_role}** to confirm your win with screenshot evidence.')
                     confirm_win = False
                 else:
                     # Author declaring their side lost
@@ -1024,7 +1024,7 @@ class elo_games():
                     confirm_win = True
             else:
                 # Game with more than two teams - staff confirmation required. Possibly improve later so that every team can unanimously confirm
-                await ctx.send(f'Since this is a {len(winning_game.gamesides)}-team game, staff confirmation is required. Ping **@ELO Helper** with a screenshot of your victory. ')
+                await ctx.send(f'Since this is a {len(winning_game.gamesides)}-team game, staff confirmation is required. Ping **@{helper_role}** with a screenshot of your victory. ')
                 confirm_win = False
 
                 # # Automatically inform staff of needed confirmation if game_request_channel is enabled
@@ -1178,9 +1178,9 @@ async def post_newgame_messaging(ctx, game):
     if settings.guild_setting(ctx.guild.id, 'game_announce_channel') is not None:
         channel = ctx.guild.get_channel(settings.guild_setting(ctx.guild.id, 'game_announce_channel'))
         if channel is not None:
-            await channel.send(f'New game ID {game.id} started! Roster: {" ".join(mentions_list)}')
+            await channel.send(f'New game ID **{game.id}** started! Roster: {" ".join(mentions_list)}')
             announcement = await channel.send(embed=embed, content=content)
-            await ctx.send(f'New game ID {game.id} started! See {channel.mention} for full details.')
+            await ctx.send(f'New game ID **{game.id}** started! See {channel.mention} for full details.')
             game.announcement_message = announcement.id
             game.announcement_channel = announcement.channel.id
             game.save()
