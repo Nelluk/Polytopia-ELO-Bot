@@ -995,7 +995,7 @@ class elo_games():
         if winning_game.is_pending:
             return await ctx.send(f'This game has not started yet.')
 
-        if settings.is_staff(ctx):
+        if settings.is_staff(ctx) and False:
             confirm_win = True
         else:
             has_player, author_side = winning_game.has_player(discord_id=ctx.author.id)
@@ -1015,8 +1015,11 @@ class elo_games():
                                 confirm_str = f'a member of losing side **{side.name()}**'
                             break
 
+                    printed_side_name = winning_side.name() if '@' in winning_side_name else winning_side_name
+                    # @Mentions would display like <@123456> below if used directly
+
                     await ctx.send(f'Game {winning_game.id} concluded pending confirmation of winner **{winning_obj.name}**\n'
-                        f'To confirm, have {confirm_str} use the command __`{ctx.prefix}win {winning_game.id} {winning_side_name}`__ or ask an **@{helper_role}** to confirm your win with screenshot evidence.')
+                        f'To confirm, have {confirm_str} use the command __`{ctx.prefix}win {winning_game.id} {printed_side_name}`__ or ask an **@{helper_role}** to confirm your win with screenshot evidence.')
                     confirm_win = False
                 else:
                     # Author declaring their side lost
