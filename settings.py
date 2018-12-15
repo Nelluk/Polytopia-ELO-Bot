@@ -148,64 +148,69 @@ def get_matching_roles(discord_member, list_of_role_names):
         return set(member_roles).intersection(list_of_role_names)
 
 
-def is_power_user(ctx):
+def is_power_user(ctx, user=None):
+    user = ctx.author if not user else user
     if is_staff(ctx):
         return True
 
     if ctx.guild.id == server_ids['main']:
         minimum_role = discord.utils.get(ctx.guild.roles, name='Amphibian')
-        if ctx.author.top_role < minimum_role:
+        if user.top_role < minimum_role:
             # await ctx.send('You must attain "Amphibian" role to do this.')
             return False
     if ctx.guild.id == server_ids['test']:
         minimum_role = discord.utils.get(ctx.guild.roles, name='testers')
-        return ctx.author.top_role >= minimum_role
+        return user.top_role >= minimum_role
 
     return True
 
 
-def is_matchmaking_power_user(ctx):
+def is_matchmaking_power_user(ctx, user=None):
+    user = ctx.author if not user else user
     if is_staff(ctx):
         return True
 
     if ctx.guild.id == server_ids['main']:
         minimum_role = discord.utils.get(ctx.guild.roles, name='Archer')
-        if ctx.author.top_role < minimum_role:
+        if user.top_role < minimum_role:
             # await ctx.send('You must attain "Amphibian" role to do this.')
             return False
     if ctx.guild.id == server_ids['polychampions']:
         minimum_role = discord.utils.get(ctx.guild.roles, name='Team Co-Leader')
-        return ctx.author.top_role >= minimum_role
+        return user.top_role >= minimum_role
 
     return True
 
 
-def is_staff(ctx):
+def is_staff(ctx, user=None):
+    user = ctx.author if not user else user
 
-    if ctx.author.id == owner_id:
+    if user.id == owner_id:
         return True
     helper_roles = guild_setting(ctx.guild.id, 'helper_roles')
     mod_roles = guild_setting(ctx.guild.id, 'mod_roles')
 
-    target_match = get_matching_roles(ctx.author, helper_roles + mod_roles)
+    target_match = get_matching_roles(user, helper_roles + mod_roles)
     return len(target_match) > 0
 
 
-def is_mod(ctx):
+def is_mod(ctx, user=None):
+    user = ctx.author if not user else user
 
     if ctx.author.id == owner_id:
         return True
     mod_roles = guild_setting(ctx.guild.id, 'mod_roles')
 
-    target_match = get_matching_roles(ctx.author, mod_roles)
+    target_match = get_matching_roles(user, mod_roles)
     return len(target_match) > 0
 
 
-async def is_user(ctx):
+async def is_user(ctx, user=None):
+    user = ctx.author if not user else user
 
     if ctx.guild.id == server_ids['main']:
         minimum_role = discord.utils.get(ctx.guild.roles, name='Rider')
-        if ctx.author.top_role < minimum_role:
+        if user.top_role < minimum_role:
             if ctx.invoked_with != 'help':
                 await ctx.send('You must attain *"Rider"* role to use this command. Please participate in the server more.')
             return False

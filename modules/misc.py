@@ -24,6 +24,10 @@ class misc:
     @commands.is_owner()
     async def test(self, ctx, *, arg=None):
 
+        b = settings.is_matchmaking_power_user(ctx=ctx)
+        print(b)
+        return
+
         game = models.Game.get(id=2213)
         print(game.series_record())
         game = models.Game.get(id=2215)
