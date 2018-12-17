@@ -102,7 +102,7 @@ class DiscordMember(BaseModel):
     def update_name(self, new_name: str):
         self.name = new_name
         self.save()
-        for guildmember in self.guildmember:
+        for guildmember in self.guildmembers:
             guildmember.generate_display_name(player_name=new_name, player_nick=guildmember.nick)
 
     def wins(self):
@@ -181,7 +181,7 @@ class DiscordMember(BaseModel):
 
 
 class Player(BaseModel):
-    discord_member = ForeignKeyField(DiscordMember, unique=False, null=False, backref='guildmember', on_delete='CASCADE')
+    discord_member = ForeignKeyField(DiscordMember, unique=False, null=False, backref='guildmembers', on_delete='CASCADE')
     guild_id = BitField(unique=False, null=False)
     nick = TextField(unique=False, null=True)
     name = TextField(unique=False, null=True)

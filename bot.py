@@ -83,6 +83,8 @@ if __name__ == '__main__':
     main()
 
     bot = commands.Bot(command_prefix=get_prefix, owner_id=settings.owner_id)
+    settings.bot = bot
+
     cooldown = commands.CooldownMapping.from_cooldown(6, 30.0, commands.BucketType.user)
 
     @bot.check
