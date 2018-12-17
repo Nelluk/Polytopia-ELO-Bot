@@ -10,6 +10,7 @@ logger = logging.getLogger('polybot.' + __name__)
 
 
 async def set_experience_role(discord_member):
+    logger.debug(f'processing experience role for member {discord_member.name}')
     completed_games = discord_member.completed_game_count()
 
     for guildmember in discord_member.guildmembers:
