@@ -3,6 +3,7 @@ from discord.ext import commands
 import modules.utilities as utilities
 import settings
 import modules.exceptions as exceptions
+import modules.achievements as achievements
 import peewee
 from modules.models import Game, db, Player, Team, DiscordMember, Squad, GameSide, TribeFlair, Lineup
 import logging
@@ -1063,6 +1064,11 @@ class elo_games():
 
             # Cleanup game channels and announce winners
             await post_win_messaging(ctx, winning_game)
+
+            for l in winning_game.lineup:
+                await achievements.set_experience_role(l.player.discord_member)
+
+            # (await achievements.set_experience_role(l.player.discord_member) for l in winning_game.lineup)
 
     @settings.in_bot_channel()
     @commands.command(usage='game_id', aliases=['delete_game', 'delgame', 'delmatch', 'delete'])

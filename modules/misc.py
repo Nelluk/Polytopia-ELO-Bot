@@ -24,19 +24,11 @@ class misc:
     @commands.is_owner()
     async def test(self, ctx, *, arg=None):
 
-        b = settings.is_matchmaking_power_user(ctx=ctx)
-        print(b)
-        return
-
-        game = models.Game.get(id=2213)
-        print(game.series_record())
-        game = models.Game.get(id=2215)
-        print(game.series_record())
-        # player_lists = []
-        # for side in game.gamesides:
-        #     player_lists.append([lineup.player for lineup in side.lineup])
-
-        # models.Game.by_opponents(player_lists)
+        import modules.achievements as achievements
+        members = models.DiscordMember.select()
+        for member in members:
+            print(f'processing member {member.name}')
+            await achievements.set_experience_role(member)
 
     @commands.command(usage=None)
     @settings.in_bot_channel_strict()
