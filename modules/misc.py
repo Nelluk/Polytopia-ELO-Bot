@@ -27,6 +27,7 @@ class misc:
         import modules.achievements as achievements
         members = models.DiscordMember.select()
         for member in members:
+            models.db.connect(reuse_if_open=True)
             logger.debug(f'processing member {member.name}')
             await achievements.set_experience_role(member)
 
