@@ -26,8 +26,9 @@ bot = None
 config = {'default':
                      {'helper_roles': ['Helper'],
                       'mod_roles': ['Mod'],
-                      'user_roles_level_3': [],  # power user/team leader
-                      'user_roles_level_2': ['everyone'],  # normal user
+                      'user_roles_level_4': [],  # power user/can do some fancy matchmaking things
+                      'user_roles_level_3': ['everyone'],  # full user, host/join anything
+                      'user_roles_level_2': ['everyone'],  # normal user, can't host all match sizes
                       'user_roles_level_1': ['everyone'],  # restricted user/newbie
                       'require_teams': False,
                       'allow_teams': False,
@@ -67,7 +68,8 @@ config = {'default':
           447883341463814144:                           # Polychampions
                      {'helper_roles': ['Helper', 'ELO Helper', 'Team Leader'],
                       'mod_roles': ['Mod'],
-                      'user_roles_level_3': ['Team Co-Leader'],  # power user
+                      'user_roles_level_4': ['Team Co-Leader'],  # power user
+                      'user_roles_level_3': ['ELO-Veteran'],  # power user
                       'user_roles_level_2': ['everyone'],  # normal user
                       'user_roles_level_1': ['everyone'],  # restricted user/newbie
                       'display_name': 'PolyChampions',
@@ -89,8 +91,9 @@ config = {'default':
           283436219780825088:                           # Main Server
                      {'helper_roles': ['ELO Helper', 'Bot Master', 'Director'],
                       'mod_roles': ['MOD', 'Manager'],
-                      'user_roles_level_3': ['Amphibian', 'Archer', 'Defender', 'Ship', 'Catapult', 'Knight', 'Swordsman', 'Tridention', 'Battleship', 'Mind Bender', 'Giant', 'Crab', 'Dragon'],  # power user
-                      'user_roles_level_2': ['Rider', 'Boat'],  # normal user
+                      'user_roles_level_4': ['Archer', 'Defender', 'Ship', 'Catapult', 'Knight', 'Swordsman', 'Tridention', 'Battleship', 'Mind Bender', 'Giant', 'Crab', 'Dragon'],
+                      'user_roles_level_3': ['ELO-Veteran'],  # full user
+                      'user_roles_level_2': ['Rider', 'Boat', 'ELO-Player'],  # normal user
                       'user_roles_level_1': ['Member', 'Warrior'],  # restricted user/newbie
                       'display_name': 'Polytopia',
                       'allow_uneven_teams': True,
@@ -112,9 +115,6 @@ config = {'default':
         274660262873661442:                           # Beta Server
                      {'helper_roles': ['ELO Helper', 'Bot Master', 'iOS', 'Android'],
                       'mod_roles': ['MOD', 'Manager'],
-                      # 'user_roles_level_3': ['Amphibian', 'Archer', 'Defender', 'Ship', 'Catapult', 'Knight', 'Swordsman', 'Tridention', 'Battleship', 'Mind Bender', 'Giant', 'Crab', 'Dragon'],  # power user
-                      # 'user_roles_level_2': ['Rider', 'Boat'],  # normal user
-                      # 'user_roles_level_1': ['Member', 'Warrior'],  # restricted user/newbie
                       'display_name': 'Polytopia Beta',
                       'allow_uneven_teams': True,
                       'require_teams': False,
@@ -184,22 +184,21 @@ def get_matching_roles(discord_member, list_of_role_names):
 def get_user_level(ctx, user=None):
     user = ctx.author if not user else user
 
-    if ctx.guild.id == server_ids['main']:
-        pass
-
-    # level 1: join up to 12p unranked or 4p ranked, host up to 4p unranked, 2p ranked
-    # member, warrior  /  any
-    # level 2: join any game, host up to 12p unranked or 6p ranked
-    # rider, boat  /  any
-    # level 3: any type of game join/host
-    # amphibian / ELO Player -- need to set up auto-role adding for people who have completed at least X games
-    # level 4: can add others to match or leave their own match.
-    # archer / co-leader
-    # level 5: helper
-    #
-    # level 6: mod
-    #
-    # level 7: bot owner/nelluk
+    if user.id == owner_id:
+        return 7
+    if is_mod(ctx, user=user):
+        return 6
+    if is_staff(ctx, user=user):
+        return 5
+    if get_matching_roles(user, guild_setting(ctx.guild.id, 'user_roles_level_4')):
+        return 4
+    if get_matching_roles(user, guild_setting(ctx.guild.id, 'user_roles_level_3')):
+        return 3
+    if get_matching_roles(user, guild_setting(ctx.guild.id, 'user_roles_level_2')):
+        return 2
+    if get_matching_roles(user, guild_setting(ctx.guild.id, 'user_roles_level_1')):
+        return 1
+    return 0
 
 
 def is_power_user(ctx, user=None):
