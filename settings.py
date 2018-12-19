@@ -66,7 +66,7 @@ config = {'default':
                       'game_announce_channel': 481558031281160212,
                       'game_channel_categories': [493149162238640161, 493149183155503105]},
           447883341463814144:                           # Polychampions
-                     {'helper_roles': ['Helper', 'ELO Helper', 'Team Leader'],
+                     {'helper_roles': ['Helper', 'ELO-Helper', 'Team Leader'],
                       'mod_roles': ['Mod'],
                       'user_roles_level_4': ['Team Co-Leader'],  # power user
                       'user_roles_level_3': ['ELO-Veteran'],  # power user
@@ -89,7 +89,7 @@ config = {'default':
                       'game_announce_channel': 487302138704429087,  # elo-drafts
                       'game_channel_categories': [488421911529914368, 514141474229846018, 519131761733795841]},  # elo-games-i, ii, iii
           283436219780825088:                           # Main Server
-                     {'helper_roles': ['ELO Helper', 'Bot Master', 'Director'],
+                     {'helper_roles': ['ELO-Helper', 'Bot Master', 'Director'],
                       'mod_roles': ['MOD', 'Manager'],
                       'user_roles_level_4': ['Archer', 'Defender', 'Ship', 'Catapult', 'Knight', 'Swordsman', 'Tridention', 'Battleship', 'Mind Bender', 'Giant', 'Crab', 'Dragon'],
                       'user_roles_level_3': ['ELO-Veteran'],  # full user
