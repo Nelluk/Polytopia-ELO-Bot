@@ -856,7 +856,7 @@ class elo_games():
 
     @settings.in_bot_channel()
     @commands.command(usage='"Name of Game" player1 player2 vs player3 player4')
-    @settings.is_user_check()
+    # @settings.is_user_check()
     async def newgame(self, ctx, game_name: str = None, *args):
         """Adds an existing game to the bot for tracking
 
@@ -868,6 +868,8 @@ class elo_games():
         example_usage = (f'Example usage:\n`{ctx.prefix}newgame "Name of Game" player1 VS player2` - Start a 1v1 game\n'
                          f'`{ctx.prefix}newgame "Name of Game" player1 player2 VS player3 player4` - Start a 2v2 game')
 
+        if settings.get_user_level(ctx) <= 1:
+            return await ctx.send(f'You cannot use this command until you have completed more games. Use matchmaking to join and host games.\n`{ctx.prefix}help matchmaking`')
         if not game_name:
             return await ctx.send(f'Invalid format. {example_usage}')
         if not args:
@@ -894,7 +896,7 @@ class elo_games():
 
         if len(player_groups) < 2:
             return await ctx.send(f'Invalid format. {example_usage}')
-        if total_players > 4 and (not settings.is_power_user(ctx)) and ctx.guild.id != settings.server_ids['polychampions']:
+        if total_players > 4 and settings.get_user_level(ctx) <= 2:
             return await ctx.send('You only have permissions to create games of up to 4 players. More active server members can create larger games.')
 
         if total_players > 12:

@@ -27,9 +27,9 @@ config = {'default':
                      {'helper_roles': ['Helper'],
                       'mod_roles': ['Mod'],
                       'user_roles_level_4': [],  # power user/can do some fancy matchmaking things
-                      'user_roles_level_3': ['everyone'],  # full user, host/join anything
-                      'user_roles_level_2': ['everyone'],  # normal user, can't host all match sizes
-                      'user_roles_level_1': ['everyone'],  # restricted user/newbie
+                      'user_roles_level_3': ['@everyone'],  # full user, host/join anything
+                      'user_roles_level_2': ['@everyone'],  # normal user, can't host all match sizes
+                      'user_roles_level_1': ['@everyone'],  # restricted user/newbie
                       'require_teams': False,
                       'allow_teams': False,
                       'allow_uneven_teams': False,
@@ -70,8 +70,8 @@ config = {'default':
                       'mod_roles': ['Mod'],
                       'user_roles_level_4': ['Team Co-Leader'],  # power user
                       'user_roles_level_3': ['ELO-Veteran'],  # power user
-                      'user_roles_level_2': ['everyone'],  # normal user
-                      'user_roles_level_1': ['everyone'],  # restricted user/newbie
+                      'user_roles_level_2': ['@everyone'],  # normal user
+                      'user_roles_level_1': ['@everyone'],  # restricted user/newbie
                       'display_name': 'PolyChampions',
                       'require_teams': True,
                       'allow_teams': True,
@@ -140,7 +140,8 @@ lobbies = [{'guild': 283436219780825088, 'size_str': '1v1', 'size': [1, 1], 'ran
            {'guild': 283436219780825088, 'size_str': '1v1', 'size': [1, 1], 'ranked': False, 'remake_partial': True, 'notes': ''},
            {'guild': 283436219780825088, 'size_str': 'FFA', 'size': [1, 1, 1], 'ranked': False, 'remake_partial': False, 'notes': ''},
            {'guild': 447883341463814144, 'size_str': '2v2', 'size': [2, 2], 'ranked': True, 'exp': 95, 'remake_partial': False, 'notes': 'Open to all'},
-           {'guild': 447883341463814144, 'size_str': '3v3', 'size': [3, 3], 'ranked': True, 'exp': 95, 'remake_partial': False, 'notes': 'Open to all'}]
+           {'guild': 447883341463814144, 'size_str': '3v3', 'size': [3, 3], 'ranked': True, 'exp': 95, 'remake_partial': False, 'notes': 'Open to all'},
+           {'guild': 478571892832206869, 'size_str': 'FFA', 'size': [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], 'ranked': True, 'exp': 95, 'remake_partial': True, 'notes': 'Open to all'}]
 
 ban_list = [
     436330481341169675,  # Mr Bucky
@@ -191,48 +192,48 @@ def get_user_level(ctx, user=None):
     if is_staff(ctx, user=user):
         return 5
     if get_matching_roles(user, guild_setting(ctx.guild.id, 'user_roles_level_4')):
-        return 4
+        return 4  # advanced matchmaking abilities (leave own match, join others to match)
     if get_matching_roles(user, guild_setting(ctx.guild.id, 'user_roles_level_3')):
-        return 3
+        return 3  # host/join any
     if get_matching_roles(user, guild_setting(ctx.guild.id, 'user_roles_level_2')):
-        return 2
+        return 2  # join ranked games up to 6p, unranked up to 12p
     if get_matching_roles(user, guild_setting(ctx.guild.id, 'user_roles_level_1')):
-        return 1
+        return 1  # join ranked games up to 3p, unranked up to 6p. no hosting
     return 0
 
 
-def is_power_user(ctx, user=None):
-    user = ctx.author if not user else user
-    if is_staff(ctx, user=user):
-        return True
+# def is_power_user(ctx, user=None):
+#     user = ctx.author if not user else user
+#     if is_staff(ctx, user=user):
+#         return True
 
-    if ctx.guild.id == server_ids['main']:
-        minimum_role = discord.utils.get(ctx.guild.roles, name='Amphibian')
-        if user.top_role < minimum_role:
-            # await ctx.send('You must attain "Amphibian" role to do this.')
-            return False
-    if ctx.guild.id == server_ids['test']:
-        minimum_role = discord.utils.get(ctx.guild.roles, name='testers')
-        return user.top_role >= minimum_role
+#     if ctx.guild.id == server_ids['main']:
+#         minimum_role = discord.utils.get(ctx.guild.roles, name='Amphibian')
+#         if user.top_role < minimum_role:
+#             # await ctx.send('You must attain "Amphibian" role to do this.')
+#             return False
+#     if ctx.guild.id == server_ids['test']:
+#         minimum_role = discord.utils.get(ctx.guild.roles, name='testers')
+#         return user.top_role >= minimum_role
 
-    return True
+#     return True
 
 
-def is_matchmaking_power_user(ctx, user=None):
-    user = ctx.author if not user else user
-    if is_staff(ctx, user=user):
-        return True
+# def is_matchmaking_power_user(ctx, user=None):
+#     user = ctx.author if not user else user
+#     if is_staff(ctx, user=user):
+#         return True
 
-    if ctx.guild.id == server_ids['main']:
-        minimum_role = discord.utils.get(ctx.guild.roles, name='Archer')
-        if user.top_role < minimum_role:
-            # await ctx.send('You must attain "Amphibian" role to do this.')
-            return False
-    if ctx.guild.id == server_ids['polychampions']:
-        minimum_role = discord.utils.get(ctx.guild.roles, name='Team Co-Leader')
-        return user.top_role >= minimum_role
+#     if ctx.guild.id == server_ids['main']:
+#         minimum_role = discord.utils.get(ctx.guild.roles, name='Archer')
+#         if user.top_role < minimum_role:
+#             # await ctx.send('You must attain "Amphibian" role to do this.')
+#             return False
+#     if ctx.guild.id == server_ids['polychampions']:
+#         minimum_role = discord.utils.get(ctx.guild.roles, name='Team Co-Leader')
+#         return user.top_role >= minimum_role
 
-    return True
+#     return True
 
 
 def is_staff(ctx, user=None):
@@ -258,24 +259,24 @@ def is_mod(ctx, user=None):
     return len(target_match) > 0
 
 
-async def is_user(ctx, user=None):
-    user = ctx.author if not user else user
+# async def is_user(ctx, user=None):
+#     user = ctx.author if not user else user
 
-    if ctx.guild.id == server_ids['main']:
-        minimum_role = discord.utils.get(ctx.guild.roles, name='Rider')
-        if user.top_role < minimum_role:
-            if ctx.invoked_with != 'help':
-                await ctx.send('You must attain *"Rider"* role to use this command. Please participate in the server more.')
-            return False
-    return True
+#     if ctx.guild.id == server_ids['main']:
+#         minimum_role = discord.utils.get(ctx.guild.roles, name='Rider')
+#         if user.top_role < minimum_role:
+#             if ctx.invoked_with != 'help':
+#                 await ctx.send('You must attain *"Rider"* role to use this command. Please participate in the server more.')
+#             return False
+#     return True
 
 
-def is_user_check():
-    # restrict commands to is_staff with syntax like @settings.is_staff_check()
+# def is_user_check():
+#     # restrict commands to is_staff with syntax like @settings.is_staff_check()
 
-    def predicate(ctx):
-        return is_user(ctx)
-    return commands.check(predicate)
+#     def predicate(ctx):
+#         return is_user(ctx)
+#     return commands.check(predicate)
 
 
 def is_staff_check():

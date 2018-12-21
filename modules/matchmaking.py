@@ -68,7 +68,7 @@ class matchmaking():
         note_args = []
 
         if not args:
-            return await ctx.send('Game size is required. Include argument like *2v2* to specify size.'
+            return await ctx.send('Game size is required. Include argument like *1v1v1* to specify size.'
                 f'\nExample: `{ctx.prefix}opengame 1v1 large map`')
 
         host, _ = models.Player.get_by_discord_id(discord_id=ctx.author.id, discord_name=ctx.author.name, discord_nick=ctx.author.nick, guild_id=ctx.guild.id)
@@ -112,11 +112,11 @@ class matchmaking():
         if not team_size:
             return await ctx.send(f'Game size is required. Include argument like *1v1* to specify size')
 
-        # if is_ranked and not await settings.is_user(ctx):
-        #     return await ctx.send('You can only create *unranked* games until you participate in the server more. Added *unranked* to the end of your command.')
+        if settings.get_user_level(ctx) <= 1:
+            return await ctx.send(f'You can only join existing games used the system more. Try `{ctx.prefix}opengames`')
 
-        # if sum(team_sizes) > 2 and (not settings.is_power_user(ctx)) and ctx.guild.id != settings.server_ids['polychampions']:
-        #     return await ctx.send('You only have permissions to create 1v1 games. More active server members can create larger games.')
+        if sum(team_sizes) > 4 and settings.get_user_level(ctx) <= 2:
+            return await ctx.send(f'You can only host games of up to 4 players. More active players have permissons to host large games.')
 
         if not settings.guild_setting(ctx.guild.id, 'allow_uneven_teams') and not all(x == team_sizes[0] for x in team_sizes):
             return await ctx.send('Uneven team games are not allowed on this server.')
@@ -186,7 +186,7 @@ class matchmaking():
         """
         syntax = f'**Example usage**:\n__`{ctx.prefix}join 1025`__ - Join game 1025\n__`{ctx.prefix}join 1025 2`__ - Join game 1025, side 2'
 
-        if settings.is_matchmaking_power_user(ctx):
+        if settings.get_user_level(ctx) >= 4:
             syntax += f'\n__`{ctx.prefix}join 1025 Nelluk 2`__ - Add a third party to side 2 of your open game. Side must be specified.'
 
         if not game:
@@ -210,7 +210,7 @@ class matchmaking():
 
         elif len(args) == 2:
             # author is putting a third party into this match
-            if not settings.is_matchmaking_power_user(ctx):
+            if settings.get_user_level(ctx) < 4:
                 return await ctx.send('You do not have permissions to add another person to a game. Tell them to use the command:\n'
                     f'`{ctx.prefix}join {game.id} {args[1]}` to join themselves.')
             target = args[0]
@@ -249,6 +249,14 @@ class matchmaking():
 
         if game.is_hosted_by(player.discord_member.discord_id)[0] and side.position != 1:
             await ctx.send('Warning: Since you are not joining side 1 you will not be the game creator.')
+
+        _, game_size = game.capacity()
+        if settings.get_user_level(ctx) <= 1:
+            if (game.is_ranked and game_size) > 3 or (not game.is_ranked and game_size > 6):
+                return await ctx.send('You are a restricted user - you can only join ranked games of up to 3 players and unranked games up to 6 players.')
+        elif settings.get_user_level(ctx) <= 2:
+            if (game.is_ranked and game_size) > 6 or (not game.is_ranked and game_size > 12):
+                return await ctx.send('You are a restricted user - you can only join ranked games of up to 6 players and unranked games up to 12 players.')
 
         min_elo, max_elo = 0, 3000
         notes = game.notes if game.notes else ''
@@ -293,7 +301,7 @@ class matchmaking():
 
         if game.is_hosted_by(ctx.author.id)[0]:
 
-            if not settings.is_matchmaking_power_user(ctx):
+            if settings.get_user_level(ctx) < 4:
                 return await ctx.send('You do not have permissions to leave your own match.\n'
                     f'If you want to delete use `{ctx.prefix}deletegame {game.id}`')
 

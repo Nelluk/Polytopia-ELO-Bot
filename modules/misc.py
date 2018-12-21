@@ -24,12 +24,7 @@ class misc:
     @commands.is_owner()
     async def test(self, ctx, *, arg=None):
 
-        import modules.achievements as achievements
-        members = models.DiscordMember.select()
-        for member in members:
-            models.db.connect(reuse_if_open=True)
-            logger.debug(f'processing member {member.name}')
-            await achievements.set_experience_role(member)
+        print(f'level {settings.get_user_level(ctx)}')
 
     @commands.command(usage=None)
     @settings.in_bot_channel_strict()
