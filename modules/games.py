@@ -969,13 +969,16 @@ class elo_games():
         """
         Declare winner of an existing game
 
-        The win must be confirmed by a member of the losing side (or staff) if the game has two sides.
-        If the game has more than two sides, staff will need to confirm the win.
-        Use player name for 1v1 games, otherwise use team names *(Home/Away/Owls/Sharks/etc)*
+        The win must be confirmed by a losing player or server staff.
 
-        **Example:**
-        `[p]win 5 Ronin` - Declare Ronin winner of game 5
-        `[p]win 5 Nelluk` - Declare Nelluk winner of game 5
+        __Best Practice__:
+        1. Declare that you've won a game - `[p]win 2050 myname`
+        2. Post a screenshot showing that you are the only human player left
+        3. Wait for either a losing player to confirm, or for staff to check for unconfirmed games with screenshot evidence.
+
+        **Examples:**
+        `[p]win 2050 Home` - Declare *Home* team winner of game 2050
+        `[p]win 2050 Nelluk` - Declare *Nelluk* winner of game 2050
         """
         usage = ('Include both game ID and the name of the winning side. Example usage:\n'
                 f'`{ctx.prefix}win 422 Nelluk`\n`{ctx.prefix}win 425 Owls` *For a team game*')
