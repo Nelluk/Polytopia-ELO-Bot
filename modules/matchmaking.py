@@ -113,7 +113,7 @@ class matchmaking():
             return await ctx.send(f'Game size is required. Include argument like *1v1* to specify size')
 
         if settings.get_user_level(ctx) <= 1:
-            return await ctx.send(f'You can only join existing games used the system more. Try `{ctx.prefix}opengames`')
+            return await ctx.send(f'You can only join existing games. Try `{ctx.prefix}opengames` until you have completed a few games.')
 
         if sum(team_sizes) > 4 and settings.get_user_level(ctx) <= 2:
             return await ctx.send(f'You can only host games of up to 4 players. More active players have permissons to host large games.')
