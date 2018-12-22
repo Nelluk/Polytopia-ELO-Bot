@@ -69,7 +69,7 @@ config = {'default':
                      {'helper_roles': ['Helper', 'ELO-Helper', 'Team Leader'],
                       'mod_roles': ['Mod'],
                       'user_roles_level_4': ['Team Co-Leader'],  # power user
-                      'user_roles_level_3': ['ELO-Veteran'],  # power user
+                      'user_roles_level_3': ['@everyone'],  # power user
                       'user_roles_level_2': ['@everyone'],  # normal user
                       'user_roles_level_1': ['@everyone'],  # restricted user/newbie
                       'display_name': 'PolyChampions',
