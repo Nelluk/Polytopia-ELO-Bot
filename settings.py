@@ -192,7 +192,7 @@ def get_user_level(ctx, user=None):
     if is_staff(ctx, user=user):
         return 5
     if get_matching_roles(user, guild_setting(ctx.guild.id, 'user_roles_level_4')):
-        return 4  # advanced matchmaking abilities (leave own match, join others to match)
+        return 4  # advanced matchmaking abilities (leave own match, join others to match). can use settribes in bulk
     if get_matching_roles(user, guild_setting(ctx.guild.id, 'user_roles_level_3')):
         return 3  # host/join any
     if get_matching_roles(user, guild_setting(ctx.guild.id, 'user_roles_level_2')):

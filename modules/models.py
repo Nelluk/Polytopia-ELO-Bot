@@ -1095,7 +1095,7 @@ class Game(BaseModel):
 
         if name:
             try:
-                discord_id = int(name.strip('<>!@'))
+                discord_id = int(str(name).strip('<>!@'))
             except ValueError:
                 pass
 

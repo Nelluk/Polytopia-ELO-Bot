@@ -1144,6 +1144,61 @@ class elo_games():
 
         await ctx.send(f'Game ID {game.id} has been renamed to "**{game.name}**" from "**{old_game_name}**"')
 
+    @commands.command(aliases=['settribes'], usage='game_id player_name tribe_name [player2 tribe2 ... ]')
+    async def settribe(self, ctx, game: PolyGame, *args):
+        """Set tribe of players for a game
+
+        **Examples**
+        `[p]settribe 2055 ai-mo` - Sets your own tribe for a game you are in
+
+        **Staff usage:**
+        `[p]settribe 2055 nelluk bardur` - Sets Nelluk to Bardur for game 2050
+        `[p]settribe 2050 nelluk bardur rick lux anarcho none` - Sets several tribes at once. Use *none* to unset a tribe.
+        """
+
+        if settings.get_user_level(ctx) < 4 or len(args) == 1:
+            # if non-priviledged user, force the command to be about the ctx.author
+            args = (ctx.author.id, args[0])
+
+        if len(args) % 2 != 0:
+            return await ctx.send(f'Wrong number of arguments. See `{ctx.prefix}help settribe` for usage examples.')
+
+        for i in range(0, len(args), 2):
+            # iterate over args two at a time
+            player_name = args[i]
+            tribe_name = args[i + 1]
+
+            if tribe_name.upper() == 'NONE':
+                tribeflair = None
+
+            else:
+                tribeflair = TribeFlair.get_by_name(name=tribe_name, guild_id=ctx.guild.id)
+                if not tribeflair:
+                    await ctx.send(f'Matching Tribe not found matching "{tribe_name}". Check spelling or be more specific.')
+                    continue
+
+                existing_lineup = None
+                for l in game.lineup:
+                    if l.tribe == tribeflair:
+                        existing_lineup = l
+                        break
+                if existing_lineup:
+                    await ctx.send(f'*{tribeflair.tribe.name}* has already been assigned to player **{l.player.name}** in this game.')
+                    continue
+
+            lineup_match = game.player(name=player_name)
+
+            if not lineup_match:
+                await ctx.send(f'Matching player not found in game {game.id} matching "{player_name}". Check spelling or be more specific.')
+                continue
+
+            lineup_match.tribe = tribeflair
+            lineup_match.save()
+            await ctx.send(f'Player **{lineup_match.player.name}** assigned to tribe *{tribeflair.tribe.name if tribeflair else "None"}* in game {game.id} {tribeflair.emoji if tribeflair else ""}')
+
+        game = game.load_full_game()
+        await game.update_announcement(ctx)
+
     async def task_purge_game_channels(self):
         await self.bot.wait_until_ready()
         while not self.bot.is_closed():
