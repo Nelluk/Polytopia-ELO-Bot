@@ -135,7 +135,7 @@ config = {'default':
 
           }
 
-lobbies = [{'guild': 283436219780825088, 'size_str': '1v1', 'size': [1, 1], 'ranked': True, 'remake_partial': True, 'notes': '**Newbie game** - 1050 elo max'},
+lobbies = [{'guild': 283436219780825088, 'size_str': '1v1', 'size': [1, 1], 'ranked': True, 'remake_partial': True, 'notes': '**Newbie game** - 1075 elo max'},
            {'guild': 283436219780825088, 'size_str': 'FFA', 'size': [1, 1, 1], 'ranked': True, 'remake_partial': False, 'notes': ''},
            {'guild': 283436219780825088, 'size_str': '1v1', 'size': [1, 1], 'ranked': False, 'remake_partial': True, 'notes': ''},
            {'guild': 283436219780825088, 'size_str': 'FFA', 'size': [1, 1, 1], 'ranked': False, 'remake_partial': False, 'notes': ''},
@@ -183,7 +183,7 @@ def get_matching_roles(discord_member, list_of_role_names):
 
 
 levels_info = ('***Level 1*** - *Join ranked games up to 3 players, unranked games up to 6 players.*\n'
-               '***Level 2*** - *Join ranked games up to 6 players, unranked games up to 12 players. Host games up to 4 players.* (__Complete 3 games to attain__)\n'
+               '***Level 2*** - *Join ranked games up to 6 players, unranked games up to 12 players. Host games up to 4 players.* (__Complete 2 games to attain__)\n'
                '***Level 3*** - *No restrictions on games* (__Complete 15 games to attain__)\n')
 
 

@@ -23,10 +23,10 @@ async def set_experience_role(discord_member):
         role_list = []
 
         role = None
-        if completed_games > 2:
+        if completed_games >= 2:
             role = discord.utils.get(guild.roles, name='ELO-Player')
             role_list.append(role) if role is not None else None
-        if completed_games > 14:
+        if completed_games >= 15:
             role = discord.utils.get(guild.roles, name='ELO-Veteran')
             role_list.append(role) if role is not None else None
 
