@@ -303,10 +303,10 @@ class matchmaking():
 
             if settings.get_user_level(ctx) < 4:
                 return await ctx.send('You do not have permissions to leave your own match.\n'
-                    f'If you want to delete use `{ctx.prefix}deletegame {game.id}`')
+                    f'If you want to delete use `{ctx.prefix}delete {game.id}`')
 
             await ctx.send(f'**Warning:** You are leaving your own game. You will still be the host. '
-                f'If you want to delete use `{ctx.prefix}deletegame {game.id}`')
+                f'If you want to delete use `{ctx.prefix}delete {game.id}`')
 
         if not game.is_pending:
             return await ctx.send(f'Game {game.id} has already started and cannot be left.')
@@ -490,7 +490,7 @@ class matchmaking():
 
         if not utilities.is_valid_poly_gamename(input=name):
             return await ctx.send('That name looks made up. :thinking: You need to manually create the game __in Polytopia__, come back and input the name of the new game you made.\n'
-                f'You can use `{ctx.prefix}code NAME` to get the code of each player in this game.')
+                f'You can use `{ctx.prefix}codes {game.id}` to get the code of each player in this game in an easy-to-copy format.')
 
         if not game.is_pending:
             return await ctx.send(f'Game {game.id} has already started with name **{game.name}**')
@@ -543,7 +543,7 @@ class matchmaking():
         await self.bot.wait_until_ready()
         while not self.bot.is_closed():
             await asyncio.sleep(60 * 60 * 10)
-            full_games = models.Game.search_pending(status_filter=1)
+            full_games = models.Game.search_pending(status_filter=1, ranked_filter=1)
             for game in full_games:
                 guild = discord.utils.get(self.bot.guilds, id=game.guild_id)
                 creating_player = game.creating_player()
@@ -556,11 +556,11 @@ class matchmaking():
                 bot_channel = settings.guild_setting(guild.id, 'bot_channels_strict')[0]
                 prefix = settings.guild_setting(guild.id, 'command_prefix')
 
-                message = (f'__You have an open game on **{guild.name}** that is waiting to be created.__'
+                message = (f'__You have a ranked game on **{guild.name}** that is waiting to be created.__'
                            f'\nPlease visit the server\'s bot channel at this link: <https://discordapp.com/channels/{guild.id}/{bot_channel}/>'
                            f'\nType the command __`{prefix}game {game.id}`__ for more details. Remember. you must manually **create the game within Polytopia** using the supplied '
                            f'friend codes, come back to the channel, and use the command __`{prefix}game {game.id} Name of Game`__ to mark the game as started.'
-                           f'\n\nYou can use the command __`{prefix}code PLAYERNAME`__ to get each player\'s friend code in an easy-to-copy format.')
+                           f'\n\nYou can use the command __`{prefix}codes {game.id}`__ to get each player\'s friend code in an easy-to-copy format.')
 
                 try:
                     await creating_guild_member.send(message)
