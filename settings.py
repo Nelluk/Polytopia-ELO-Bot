@@ -182,6 +182,11 @@ def get_matching_roles(discord_member, list_of_role_names):
         return set(member_roles).intersection(list_of_role_names)
 
 
+levels_info = ('***Level 1*** - *Join ranked games up to 6 players, unranked games up to 12 players.*\n'
+                       '***Level 2*** - *Join ranked games up to 3 players, unranked games up to 6 players. Host games up to 4 players.* (__Complete 3 games to attain__)\n'
+                       '***Level 3*** - *No restrictions on games* (__Complete 15 games to attain__)\n')
+
+
 def get_user_level(ctx, user=None):
     user = ctx.author if not user else user
 

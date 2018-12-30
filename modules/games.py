@@ -869,7 +869,7 @@ class elo_games():
                          f'`{ctx.prefix}newgame "Name of Game" player1 player2 VS player3 player4` - Start a 2v2 game')
 
         if settings.get_user_level(ctx) <= 1:
-            return await ctx.send(f'You cannot use this command until you have completed more games. Use matchmaking to join and host games.\n`{ctx.prefix}help matchmaking`')
+            return await ctx.send(f'You cannot use this command until level 2 - complete a few more ELO games to have more permissions.\n{settings.levels_info}')
         if not game_name:
             return await ctx.send(f'Invalid format. {example_usage}')
         if not args:
@@ -897,7 +897,7 @@ class elo_games():
         if len(player_groups) < 2:
             return await ctx.send(f'Invalid format. {example_usage}')
         if total_players > 4 and settings.get_user_level(ctx) <= 2:
-            return await ctx.send('You only have permissions to create games of up to 4 players. More active server members can create larger games.')
+            return await ctx.send(f'You only have permissions to create games of up to 4 players. More active server members can create larger games.\n{settings.levels_info}')
 
         if total_players > 12:
             return await ctx.send(f'You cannot have more than twelve players.')

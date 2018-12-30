@@ -113,10 +113,10 @@ class matchmaking():
             return await ctx.send(f'Game size is required. Include argument like *1v1* to specify size')
 
         if settings.get_user_level(ctx) <= 1:
-            return await ctx.send(f'You can only join existing games. Try `{ctx.prefix}opengames` until you have completed a few games.')
+            return await ctx.send(f'You can only join existing games. Try `{ctx.prefix}opengames` until you have completed a few games.\n{settings.levels_info}')
 
         if sum(team_sizes) > 4 and settings.get_user_level(ctx) <= 2:
-            return await ctx.send(f'You can only host games of up to 4 players. More active players have permissons to host large games.')
+            return await ctx.send(f'You can only host games of up to 4 players. More active players have permissons to host large games.\n{settings.levels_info}')
 
         if not settings.guild_setting(ctx.guild.id, 'allow_uneven_teams') and not all(x == team_sizes[0] for x in team_sizes):
             return await ctx.send('Uneven team games are not allowed on this server.')
@@ -253,10 +253,10 @@ class matchmaking():
         _, game_size = game.capacity()
         if settings.get_user_level(ctx) <= 1:
             if (game.is_ranked and game_size) > 3 or (not game.is_ranked and game_size > 6):
-                return await ctx.send('You are a restricted user - you can only join ranked games of up to 3 players and unranked games up to 6 players.')
+                return await ctx.send(f'You are a restricted user (*level 1*) - complete a few more ELO games to have more permissions.\n{settings.levels_info}')
         elif settings.get_user_level(ctx) <= 2:
             if (game.is_ranked and game_size) > 6 or (not game.is_ranked and game_size > 12):
-                return await ctx.send('You are a restricted user - you can only join ranked games of up to 6 players and unranked games up to 12 players.')
+                return await ctx.send(f'You are a restricted user (*level 2*) - complete a few more ELO games to have more permissions.\n{settings.levels_info}')
 
         min_elo, max_elo = 0, 3000
         notes = game.notes if game.notes else ''
