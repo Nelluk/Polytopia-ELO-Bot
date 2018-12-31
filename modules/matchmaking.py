@@ -57,10 +57,18 @@ class matchmaking():
 
         **Examples:**
         `[p]opengame 1v1`
+
         `[p]opengame 1v1 48h`  (Expires in 48 hours)
+
         `[p]opengame 1v1 unranked`  (Add word *unranked* to have game not count for ELO)
+
         `[p]opengame 2v2 Large map, no bardur`  (Adds a note to the game)
-        `[p]opengame 1v1 Large map 1200 elo min` (Adds an ELO requirement for joining. *max* works also.)
+
+        `[p]opengame 1v1 Large map 1200 elo min`
+        (Adds an ELO requirement for joining. *max* works also.)
+
+        `[p]opengame 1v1 For @Nelluk only`
+        (Include one or more @Mentions in notes and only those people will be permitted to join.)
         """
 
         team_size, is_ranked = False, True
@@ -112,11 +120,14 @@ class matchmaking():
         if not team_size:
             return await ctx.send(f'Game size is required. Include argument like *1v1* to specify size')
 
-        if settings.get_user_level(ctx) <= 1:
-            return await ctx.send(f'You can only join existing games. Try `{ctx.prefix}opengames` until you have completed a few games.\n{settings.levels_info}')
+        if settings.get_user_level(ctx) <= 1 and (is_ranked or sum(team_sizes) > 3):
+            return await ctx.send(f'You can only host unranked games with a maximum of 3 players.\n{settings.levels_info}')
 
-        if sum(team_sizes) > 4 and settings.get_user_level(ctx) <= 2:
-            return await ctx.send(f'You can only host games of up to 4 players. More active players have permissons to host large games.\n{settings.levels_info}')
+        if settings.get_user_level(ctx) <= 2 or True:
+            if sum(team_sizes) > 4 and is_ranked:
+                return await ctx.send(f'You can only host ranked games of up to 4 players. More active players have permissons to host large games.\n{settings.levels_info}')
+            if sum(team_sizes) > 6:
+                return await ctx.send(f'You can only host unranked games of up to 6 players. More active players have permissons to host large games.\n{settings.levels_info}')
 
         if not settings.guild_setting(ctx.guild.id, 'allow_uneven_teams') and not all(x == team_sizes[0] for x in team_sizes):
             return await ctx.send('Uneven team games are not allowed on this server.')
@@ -260,6 +271,7 @@ class matchmaking():
 
         min_elo, max_elo = 0, 3000
         notes = game.notes if game.notes else ''
+
         m = re.search(r'(\d+) elo max', notes, re.I)
         if m:
             max_elo = int(m[1])
@@ -271,6 +283,12 @@ class matchmaking():
             if not game.is_hosted_by(ctx.author.id)[0] and not settings.is_mod(ctx):
                 return await ctx.send(f'This game has an ELO restriction of {min_elo} - {max_elo} and **{player.name}** has an ELO of **{player.elo}**. Cannot join! :cry:')
             await ctx.send(f'This game has an ELO restriction of {min_elo} - {max_elo}. Bypassing because you are game host or a mod.')
+
+        # list of ID strings that are allowed to join game, ie ['272510639124250625', '481527584107003904']
+        player_restricted_list = re.findall(r'<@!?(\d+)>', notes)
+
+        if player_restricted_list and str(player.discord_member.discord_id) not in player_restricted_list:
+            return await ctx.send(f'This game is limited to specific players. You are not allowed to join. See game notes for details: `{ctx.prefix}game {game.id}`')
 
         logger.info(f'Checks passed. Joining player {player.discord_member.discord_id} to side {side.position} of game {game.id}')
         models.Lineup.create(player=player, game=game, gameside=side)
