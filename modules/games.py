@@ -659,6 +659,7 @@ class elo_games():
         # TODO: remove 'and/&' to remove confusion over game names like Ocean & Prophesy
 
         target_list = args.split() if args else []
+        target_list = [arg.replace('"', '') for arg in target_list]  # should enable it to handle "multi word" args
 
         if len(target_list) == 1 and target_list[0].upper() == 'ALL':
             query = Game.search(status_filter=0, guild_id=ctx.guild.id)
