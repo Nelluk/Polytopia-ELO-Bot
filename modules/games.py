@@ -700,7 +700,7 @@ class elo_games():
     async def complete(self, ctx, *args):
         """List complete games for you or other players
         **Example:**
-        `[p]complete` - Lists complete games you are playing in
+        `[p]complete` - Lists games that you have completed
         `[p]complete all` - Lists all complete games
         `[p]complete Nelluk` - Lists all complete games for player Nelluk
         `[p]complete Nelluk anarchoRex` - Lists all complete games with both players
