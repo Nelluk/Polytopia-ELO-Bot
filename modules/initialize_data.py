@@ -17,6 +17,7 @@ def initialize_data():
                         ('The Bombers', ':bomb:', 'https://media.discordapp.net/attachments/471128500338819072/471941345842298881/newblue.png'),
                         ('The Plague', ':nauseated_face:', 'https://media.discordapp.net/attachments/471128500338819072/471941955933306900/theplague.png'),
                         ('The Crawfish', ':fried_shrimp:', 'https://media.discordapp.net/attachments/471128500338819072/481290788261855232/red-crawfish.png'),
+                        ('The Novas', ':novas:', 'https://media.discordapp.net/attachments/447883341463814146/530558873895960586/eclipse.png'),
                         ('Home', ':stadium:', None),
                         ('Away', ':airplane:', None)]
 
