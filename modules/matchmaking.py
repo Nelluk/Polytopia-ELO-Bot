@@ -470,7 +470,7 @@ class matchmaking():
 
         if waitlist:
             await asyncio.sleep(1)
-            await ctx.send(f'You have full games waiting to start: **{", ".join(waitlist)}**\n'
+            await ctx.send(f'{ctx.author.mention}, you have full games waiting to start: **{", ".join(waitlist)}**\n'
                 f'Type __`{ctx.prefix}game #`__ for more details.')
 
     @settings.in_bot_channel()
