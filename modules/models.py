@@ -1424,9 +1424,9 @@ class Game(BaseModel):
         elo_logger.debug(f'recalculate_all_elo')
 
         with db.atomic():
-            Player.update(elo=1000).execute()
+            Player.update(elo=1000, elo_max=1000).execute()
             Team.update(elo=1000).execute()
-            DiscordMember.update(elo=1000).execute()
+            DiscordMember.update(elo=1000, elo_max=1000).execute()
             Squad.update(elo=1000).execute()
 
             Game.update(is_completed=0).where(
