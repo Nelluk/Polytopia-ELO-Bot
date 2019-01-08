@@ -965,7 +965,7 @@ class elo_games():
             await post_newgame_messaging(ctx, game=newgame)
 
     # @settings.in_bot_channel()
-    @commands.command(aliases=['endgame', 'wingame', 'winner'], usage='game_id winner_name')
+    @commands.command(usage='game_id winner_name')
     async def win(self, ctx, winning_game: PolyGame = None, *, winning_side_name: str = None):
         """
         Declare winner of an existing game
