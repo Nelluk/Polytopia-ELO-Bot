@@ -250,7 +250,7 @@ class misc:
         await self.bot.wait_until_ready()
         while not self.bot.is_closed():
             sleep_cycle = (60 * 60 * 2)
-            await asyncio.sleep(sleep_cycle)
+            await asyncio.sleep(10)
 
             for guild in self.bot.guilds:
                 broadcast_channels = [guild.get_channel(chan) for chan in settings.guild_setting(guild.id, 'newbie_message_channels')]
@@ -278,7 +278,11 @@ class misc:
                 broadcast_message += f'\n\nFor full information go to <#{bot_spam_chan}> and type __`$guide`__ or __`$help`__'
 
                 for broadcast_channel in broadcast_channels:
-                    await broadcast_channel.send(broadcast_message, delete_after=(sleep_cycle - 5))
+                    if broadcast_channel:
+                        print(broadcast_message)
+                        await broadcast_channel.send(broadcast_message, delete_after=(sleep_cycle - 5))
+
+            await asyncio.sleep(sleep_cycle)
 
 
 def setup(bot):

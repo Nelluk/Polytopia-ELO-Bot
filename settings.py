@@ -60,6 +60,7 @@ config = {'default':
                       'bot_channels_strict': [479292913080336397],
                       'bot_channels': [479292913080336397, 481558031281160212, 480078679930830849],  # 397 Bot Spam,  849 Admin Spam
                       # 'match_challenge_channels': [481558031281160212, 478571893272870913],  # 212 Testroom1
+                      # 'newbie_message_channels': [481558031281160212, 396069729657421824, 413721247260868618],
                       'ranked_game_channel': 479292913080336397,
                       'unranked_game_channel': 481558031281160212,
                       'game_request_channel': 480078679930830849,
@@ -105,7 +106,7 @@ config = {'default':
                       'bot_channels_private': [418175357137453058],  # 058 testchamber
                       'bot_channels_strict': [403724174532673536],  # 536 BotCommands
                       'bot_channels': [403724174532673536, 511316081160355852, 511906353476927498],  # 498 unranked-games, 852 ranked-games
-                      'newbie_message_channels': [396069729657421824, 413721247260868618, 418326008526143508, 418326044077064192],  # multi-discussion, friend codes NA/euro/asia
+                      'newbie_message_channels': [396069729657421824, 413721247260868618],  # multi-discussion, #friend-codes
                       'ranked_game_channel': 511316081160355852,
                       'unranked_game_channel': 511906353476927498,
                       'match_challenge_channels': [511316081160355852, 511906353476927498],
