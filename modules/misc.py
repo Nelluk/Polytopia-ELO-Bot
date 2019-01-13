@@ -5,7 +5,7 @@ import modules.models as models
 import settings
 import logging
 import asyncio
-# import modules.exceptions as exceptions
+import modules.exceptions as exceptions
 import re
 import datetime
 import random
@@ -24,7 +24,31 @@ class misc:
     @commands.is_owner()
     async def test(self, ctx, *, arg=None):
 
-        print(f'level {settings.get_user_level(ctx)}')
+        for b in ctx.message.role_mentions + ctx.message.mentions:
+            # print(ctx.message.role_mentions, ctx.message.mentions)
+            print(b.mention, '\n')
+
+    @commands.command(hidden=True, aliases=['bge'])
+    async def bulk_global_elo(self, ctx, *, args=None):
+        # hidden command for koric to use to feed a list of players and get a sorted list of their global elo and games played
+        player_stats = []
+        for arg in args.split(' '):
+            try:
+                player_match = models.Player.get_or_except(player_string=arg, guild_id=ctx.guild.id)
+            except exceptions.NoSingleMatch:
+                await ctx.send(f'Could not match *{arg}* to a player. Specify user with @Mention or user ID.')
+                continue
+
+            player_stats.append((player_match.discord_member.elo, player_match))
+
+        player_stats.sort(key=lambda tup: tup[0], reverse=True)     # sort the list descending by ELO
+        print(player_stats)
+
+        message = '__Player name - Global ELO - Local games played__\n'
+        for player in player_stats:
+            message += f'{player[1].name} - {player[0]} - {player[1].games_played().count()}\n'
+
+        return await ctx.send(message)
 
     @commands.command(usage=None)
     @settings.in_bot_channel_strict()

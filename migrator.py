@@ -27,12 +27,14 @@ migrator = PostgresqlMigrator(db)
 
 # is_ranked = BooleanField(default=True)
 # elo_max = SmallIntegerField(default=1000)
-is_banned = BooleanField(default=False)
+# is_banned = BooleanField(default=False)
+required_role_id = BitField(default=None, null=True)
 
 migrate(
     # migrator.add_column('discordmember', 'elo_max', elo_max),
     # migrator.add_column('player', 'is_banned', is_banned),
-    migrator.add_column('discordmember', 'is_banned', is_banned),
+    # migrator.add_column('discordmember', 'is_banned', is_banned),
+    migrator.add_column('gameside', 'required_role_id', required_role_id)
 
 
 )

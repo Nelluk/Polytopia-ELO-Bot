@@ -271,8 +271,8 @@ class Player(BaseModel):
     def is_in_team(guild_id, discord_member):
         _, list_of_teams = Player.get_teams_of_players(guild_id=guild_id, list_of_players=[discord_member])
         if not list_of_teams or None in list_of_teams:
-            return False
-        return True
+            return (False, None)
+        return (True, list_of_teams[0])
 
     def string_matches(player_string: str, guild_id: int, include_poly_info: bool = True):
         # Returns QuerySet containing players in current guild matching string. Searches against discord mention ID first, then exact discord name match,
@@ -1659,6 +1659,7 @@ class GameSide(BaseModel):
     game = ForeignKeyField(Game, null=False, backref='gamesides', on_delete='CASCADE')
     squad = ForeignKeyField(Squad, null=True, backref='gamesides', on_delete='CASCADE')
     team = ForeignKeyField(Team, null=True, backref='gamesides', on_delete='RESTRICT')
+    required_role_id = BitField(default=None, null=True)
     elo_change_squad = SmallIntegerField(default=0)
     elo_change_team = SmallIntegerField(default=0)
     team_chan = BitField(default=None, null=True)

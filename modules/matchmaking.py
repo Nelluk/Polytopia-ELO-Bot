@@ -31,7 +31,10 @@ class PolyMatch(commands.Converter):
                 await ctx.send(f'Game with ID {match_id} cannot be found. Use {ctx.prefix}opengames to see available matches.')
                 raise commands.UserInputError()
             except ValueError:
-                await ctx.send(f'Invalid Game ID "{match_id}".')
+                if match_id.upper() == 'ID':
+                    await ctx.send(f'Invalid Game ID "**{match_id}**". Use the numeric game ID *only*.')
+                else:
+                    await ctx.send(f'Invalid Game ID "**{match_id}**".')
                 raise commands.UserInputError()
 
 
@@ -84,7 +87,7 @@ class matchmaking():
             # Matching guild member but no Player or DiscordMember
             return await ctx.send(f'You must be a registered player before hosting a match. Try `{ctx.prefix}setcode POLYCODE`')
 
-        if settings.guild_setting(ctx.guild.id, 'require_teams') and not models.Player.is_in_team(guild_id=ctx.guild.id, discord_member=ctx.author):
+        if settings.guild_setting(ctx.guild.id, 'require_teams') and not models.Player.is_in_team(guild_id=ctx.guild.id, discord_member=ctx.author)[0]:
             return await ctx.send(f'You must join a Team in order to participate in games on this server.')
 
         if models.Game.select().where((models.Game.host == host) & (models.Game.is_pending == 1)).count() > 5:
@@ -240,7 +243,7 @@ class matchmaking():
         if len(guild_matches) == 0:
             return await ctx.send(f'Could not find \"{target}\" on this server.')
 
-        if settings.guild_setting(ctx.guild.id, 'require_teams') and not models.Player.is_in_team(guild_id=ctx.guild.id, discord_member=guild_matches[0]):
+        if settings.guild_setting(ctx.guild.id, 'require_teams') and not models.Player.is_in_team(guild_id=ctx.guild.id, discord_member=guild_matches[0])[0]:
             return await ctx.send(f'**{guild_matches[0].name}** must join a Team in order to participate in games on this server.')
 
         player, _ = models.Player.get_by_discord_id(discord_id=guild_matches[0].id, discord_name=guild_matches[0].name, discord_nick=guild_matches[0].nick, guild_id=ctx.guild.id)
