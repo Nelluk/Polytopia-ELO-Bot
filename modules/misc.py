@@ -308,7 +308,6 @@ class misc:
 
                 for broadcast_channel in broadcast_channels:
                     if broadcast_channel:
-                        print(broadcast_message)
                         await broadcast_channel.send(broadcast_message, delete_after=(sleep_cycle - 5))
 
             await asyncio.sleep(sleep_cycle)

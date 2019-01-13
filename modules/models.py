@@ -1443,9 +1443,20 @@ class Game(BaseModel):
 
         elo_logger.debug(f'recalculate_all_elo complete')
 
-    def first_open_side(self):
+    def first_open_side(self, roles):
+
+        # first check to see if there are any sides with a role ID that the user has (ie Team Ronin role ID)
+        role_locked_sides = GameSide.select().where(
+            (GameSide.game == self) & (GameSide.required_role_id.in_(roles))
+        ).order_by(GameSide.position).prefetch(Lineup)
+
+        for side in role_locked_sides:
+            if len(side.lineup) < side.size:
+                return side
+
+        # else just use the first side with no role requirement
         sides = GameSide.select().where(
-            (GameSide.game == self)
+            (GameSide.game == self) & (GameSide.required_role_id.is_null(True))
         ).order_by(GameSide.position).prefetch(Lineup)
 
         for side in sides:

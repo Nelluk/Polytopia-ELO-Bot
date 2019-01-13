@@ -91,7 +91,7 @@ class matchmaking():
             return await ctx.send(f'You must join a Team in order to participate in games on this server.')
 
         if models.Game.select().where((models.Game.host == host) & (models.Game.is_pending == 1)).count() > 5:
-            return await ctx.send(f'You have too many open games already. Try using `{ctx.prefix}delgame` on an existing one.')
+            return await ctx.send(f'You have too many open games already. Try using `{ctx.prefix}delete` on an existing one.')
 
         if settings.guild_setting(ctx.guild.id, 'unranked_game_channel') and ctx.channel.id == settings.guild_setting(ctx.guild.id, 'unranked_game_channel'):
             is_ranked = False
@@ -145,7 +145,7 @@ class matchmaking():
             if settings.is_mod(ctx):
                 await ctx.send('Moderator over-riding server size limits')
             elif settings.guild_setting(ctx.guild.id, 'allow_uneven_teams') and min(team_sizes) <= server_size_max:
-                await ctx.send('Warning: Team sizes are uneven.')
+                await ctx.send('**Warning:** Team sizes are uneven.')
             elif not is_ranked and max(team_sizes) <= server_size_max + 1:
                 # Arbitrary rule, unranked games can go +1 from server_size_max
                 logger.info('Opening unranked game that exceeds server_size_max')
@@ -153,22 +153,39 @@ class matchmaking():
                 return await ctx.send(f'Maximum team size on this server is {server_size_max}.\n'
                     'For full functionality with support for up to 6-person teams and team channels check out PolyChampions - <https://tinyurl.com/polychampions>')
 
-        if len(ctx.message.role_mentions) == len(team_sizes):
-            required_roles = [role.id for role in ctx.message.role_mentions]
-        else:
-            required_roles = [None] * len(team_sizes)  # [None, None, None] for a 3-sided game
+        required_roles = [None] * len(team_sizes)  # [None, None, None] for a 3-sided game
+        required_role_names = [None] * len(team_sizes)
+        required_role_message = ''
+
+        for count, role in enumerate(ctx.message.role_mentions):
+            if count >= len(team_sizes):
+                break
+            required_roles[count] = role.id
+            required_role_names[count] = role.name
+            required_role_message += f'**Side {count + 1}** will be locked to players with role *{role.name}*\n'
+
+        if required_role_message:
+            await ctx.send(required_role_message)
 
         game_notes = ' '.join(note_args)[:150]
         notes_str = game_notes if game_notes else "\u200b"
         expiration_timestamp = (datetime.datetime.now() + datetime.timedelta(hours=expiration_hours)).strftime("%Y-%m-%d %H:%M:%S")
 
-        with models.db.atomic():
+        with models.db.atomic() as transaction:
             opengame = models.Game.create(host=host, expiration=expiration_timestamp, notes=game_notes, guild_id=ctx.guild.id, is_pending=True, is_ranked=is_ranked)
             for count, size in enumerate(team_sizes):
-                models.GameSide.create(game=opengame, size=size, position=count + 1, required_role_id=required_roles[count])
+                models.GameSide.create(game=opengame, size=size, position=count + 1, required_role_id=required_roles[count], sidename=required_role_names[count])
 
-            first_side = opengame.first_open_side()
-            models.Lineup.create(player=host, game=opengame, gameside=first_side)
+            first_side = opengame.first_open_side(roles=[role.id for role in ctx.author.roles])
+            if not first_side:
+                if settings.get_user_level(ctx) >= 4:
+                    await ctx.send(f'**Warning:** All sides in this game are locked to a specific @Role - and you don\'t have any of those roles. You are not a player in this game.')
+                else:
+                    transaction.rollback()
+                    return await ctx.send(f'**Warning:** All sides in this game are locked to a specific @Role - and you don\'t have any of those roles. Game not created.')
+            else:
+                # first_side = opengame.first_open_side()
+                models.Lineup.create(player=host, game=opengame, gameside=first_side)
         await ctx.send(f'Starting new {"unranked " if not is_ranked else ""}open game ID {opengame.id}. Size: {team_size_str}. Expiration: {expiration_hours} hours.\nNotes: *{notes_str}*\n'
             f'Other players can join this game with `{ctx.prefix}join {opengame.id}`.')
 
@@ -221,7 +238,7 @@ class matchmaking():
         if len(args) == 0:
             # ctx.author is joining a game, no side given
             target = f'<@{ctx.author.id}>'
-            side, side_open = game.first_open_side(), True
+            side, side_open = game.first_open_side(roles=[role.id for role in ctx.author.roles]), True
             if not side:
                 return await ctx.send(f'Game {game.id} is completely full!')
 
@@ -272,7 +289,7 @@ class matchmaking():
             return await ctx.send(f'**{player.name}** is already in game {game.id}. If you are trying to change sides, use `{ctx.prefix}leave {game.id}` first.')
 
         if game.is_hosted_by(player.discord_member.discord_id)[0] and side.position != 1:
-            await ctx.send('Warning: Since you are not joining side 1 you will not be the game creator.')
+            await ctx.send('**Warning:** Since you are not joining side 1 you will not be the game creator.')
 
         _, game_size = game.capacity()
         if settings.get_user_level(ctx) <= 1:
@@ -623,14 +640,30 @@ class matchmaking():
 
                 if not matching_lobby:
                     logger.info(f'creating new lobby {lobby}')
+                    guild = discord.utils.get(self.bot.guilds, id=lobby['guild'])
+                    if not guild:
+                        logger.warn(f'Bot not a member of guild {lobby["guild"]}')
+                        continue
                     expiration_hours = lobby.get('exp', 30)
                     expiration_timestamp = (datetime.datetime.now() + datetime.timedelta(hours=expiration_hours)).strftime("%Y-%m-%d %H:%M:%S")
+                    role_locks = lobby.get('role_locks', [None] * len(lobby['size']))
                     with models.db.atomic():
                         opengame = models.Game.create(host=None, notes=lobby['notes'],
                                                       guild_id=lobby['guild'], is_pending=True,
                                                       is_ranked=lobby['ranked'], expiration=expiration_timestamp)
                         for count, size in enumerate(lobby['size']):
-                            models.GameSide.create(game=opengame, size=size, position=count + 1)
+                            role_lock_id = role_locks[count]
+                            role_lock_name = None
+                            if role_lock_id:
+                                role_lock = discord.utils.get(guild.roles, id=role_lock_id)
+                                if not role_lock:
+                                    logger.warn(f'Lock to role {role_lock_id} was specified, but that role is not found in guild {guild.id} {guild.name}')
+                                    role_lock_id = None
+                                else:
+                                    # successfully found role - using its ID to lock a side and its name for the role side
+                                    role_lock_name = role_lock.name
+
+                            models.GameSide.create(game=opengame, size=size, position=count + 1, required_role_id=role_lock_id, sidename=role_lock_name)
 
     async def task_print_matchlist(self):
         await self.bot.wait_until_ready()
