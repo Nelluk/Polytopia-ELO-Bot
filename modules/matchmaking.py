@@ -118,6 +118,11 @@ class matchmaking():
             if arg.lower() == 'unranked':
                 is_ranked = False
                 continue
+            m = re.match(r"<@&(\d+)>", arg)
+            if m:
+                # replace raw role tag <@&....> with name of role, so people dont get mentioned every time note is printed
+                note_args.append('**' + discord.utils.get(ctx.guild.roles, id=int(m[1])).name + '**')
+                continue
             note_args.append(arg)
 
         if not team_size:
@@ -148,6 +153,11 @@ class matchmaking():
                 return await ctx.send(f'Maximum team size on this server is {server_size_max}.\n'
                     'For full functionality with support for up to 6-person teams and team channels check out PolyChampions - <https://tinyurl.com/polychampions>')
 
+        if len(ctx.message.role_mentions) == len(team_sizes):
+            required_roles = [role.id for role in ctx.message.role_mentions]
+        else:
+            required_roles = [None] * len(team_sizes)  # [None, None, None] for a 3-sided game
+
         game_notes = ' '.join(note_args)[:150]
         notes_str = game_notes if game_notes else "\u200b"
         expiration_timestamp = (datetime.datetime.now() + datetime.timedelta(hours=expiration_hours)).strftime("%Y-%m-%d %H:%M:%S")
@@ -155,7 +165,7 @@ class matchmaking():
         with models.db.atomic():
             opengame = models.Game.create(host=host, expiration=expiration_timestamp, notes=game_notes, guild_id=ctx.guild.id, is_pending=True, is_ranked=is_ranked)
             for count, size in enumerate(team_sizes):
-                models.GameSide.create(game=opengame, size=size, position=count + 1)
+                models.GameSide.create(game=opengame, size=size, position=count + 1, required_role_id=required_roles[count])
 
             first_side = opengame.first_open_side()
             models.Lineup.create(player=host, game=opengame, gameside=first_side)

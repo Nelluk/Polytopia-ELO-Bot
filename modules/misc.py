@@ -24,13 +24,18 @@ class misc:
     @commands.is_owner()
     async def test(self, ctx, *, arg=None):
 
+        print(ctx.message)
         for b in ctx.message.role_mentions + ctx.message.mentions:
             # print(ctx.message.role_mentions, ctx.message.mentions)
             print(b.mention, '\n')
 
     @commands.command(hidden=True, aliases=['bge'])
     async def bulk_global_elo(self, ctx, *, args=None):
-        # hidden command for koric to use to feed a list of players and get a sorted list of their global elo and games played
+        """
+        Given a list of players, return that list sorted by player's global ELO. Implemented for koric to aide in tournament seeding.
+
+        `[p]bulk_global elo nelluk koric rickdaheals`
+        """
         player_stats = []
         for arg in args.split(' '):
             try:
