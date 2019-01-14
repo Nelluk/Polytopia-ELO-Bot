@@ -342,7 +342,10 @@ class matchmaking():
         # list of ID strings that are allowed to join game, ie ['272510639124250625', '481527584107003904']
         player_restricted_list = re.findall(r'<@!?(\d+)>', notes)
 
-        if player_restricted_list and str(player.discord_member.discord_id) not in player_restricted_list:
+        if player_restricted_list and str(player.discord_member.discord_id) not in player_restricted_list and (len(player_restricted_list) >= game_size - 1):
+            # checking length of player_restricted_list compared to game capacity.. only using restriction if capacity is at least game_size - 1
+            # if its game_size - 1, assuming that the host is the 'other' person
+            # this isnt really ideal.. could have some games where the restriction should be honored but people are allowed to join.. but better than making the lock too restrictive
             return await ctx.send(f'Game {game.id} is limited to specific players. You are not allowed to join. See game notes for details: `{ctx.prefix}game {game.id}`')
 
         logger.info(f'Checks passed. Joining player {player.discord_member.discord_id} to side {side.position} of game {game.id}')
