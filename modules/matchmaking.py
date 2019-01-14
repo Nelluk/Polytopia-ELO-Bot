@@ -79,7 +79,7 @@ class matchmaking():
 
         team_size, is_ranked = False, True
         required_role_args = []
-        expiration_hours = 24
+        expiration_hours_override = None
         note_args = []
 
         if not args:
@@ -117,7 +117,7 @@ class matchmaking():
                 # arg looks like '12h'
                 if not 0 < int(m[1]) < 97:
                     return await ctx.send(f'Invalid expiration {arg}. Must be between 1H and 96H (One hour through four days).')
-                expiration_hours = int(m[1])
+                expiration_hours_override = int(m[1])
                 continue
             if arg.lower() == 'unranked':
                 is_ranked = False
@@ -174,6 +174,15 @@ class matchmaking():
 
         game_notes = ' '.join(note_args)[:150]
         notes_str = game_notes if game_notes else "\u200b"
+        if expiration_hours_override:
+            expiration_hours = expiration_hours_override
+        else:
+            if sum(team_sizes) < 4:
+                expiration_hours = 24
+            elif sum(team_sizes) < 8:
+                expiration_hours = 48
+            else:
+                expiration_hours = 96
         expiration_timestamp = (datetime.datetime.now() + datetime.timedelta(hours=expiration_hours)).strftime("%Y-%m-%d %H:%M:%S")
 
         with models.db.atomic() as transaction:
