@@ -1098,7 +1098,7 @@ class elo_games():
         if not settings.is_mod(ctx):
             return await ctx.send('Only server mods can delete completed or in-progress games.')
 
-        if game.winner and game.is_confirmed:
+        if game.winner and game.is_confirmed and game.is_ranked:
             await ctx.send(f'Deleting game with ID {game.id} and re-calculating ELO for all subsequent games. This will take a few seconds.')
 
         if game.announcement_message:

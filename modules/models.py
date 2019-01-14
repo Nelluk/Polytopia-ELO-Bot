@@ -965,7 +965,7 @@ class Game(BaseModel):
             if self.winner:
                 self.winner = None
 
-                if self.is_confirmed:
+                if self.is_confirmed and self.is_ranked:
                     recalculate = True
                     since = self.completed_ts
 
