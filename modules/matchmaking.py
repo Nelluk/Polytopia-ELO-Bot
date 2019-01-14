@@ -72,9 +72,13 @@ class matchmaking():
 
         `[p]opengame 1v1 For @Nelluk only`
         (Include one or more @Mentions in notes and only those people will be permitted to join.)
+
+        `[p]opengame 2v2 for @The Ronin vs @The Jets`
+        (Include one or more @Roles and the games sides will be locked to that specific role. For use with PolyChampions teams.)
         """
 
         team_size, is_ranked = False, True
+        required_role_args = []
         expiration_hours = 24
         note_args = []
 
@@ -121,7 +125,8 @@ class matchmaking():
             m = re.match(r"<@&(\d+)>", arg)
             if m:
                 # replace raw role tag <@&....> with name of role, so people dont get mentioned every time note is printed
-                note_args.append('**' + discord.utils.get(ctx.guild.roles, id=int(m[1])).name + '**')
+                note_args.append('**@' + discord.utils.get(ctx.guild.roles, id=int(m[1])).name + '**')
+                required_role_args.append(discord.utils.get(ctx.guild.roles, id=int(m[1])))
                 continue
             note_args.append(arg)
 
@@ -157,7 +162,7 @@ class matchmaking():
         required_role_names = [None] * len(team_sizes)
         required_role_message = ''
 
-        for count, role in enumerate(ctx.message.role_mentions):
+        for count, role in enumerate(required_role_args):
             if count >= len(team_sizes):
                 break
             required_roles[count] = role.id
@@ -240,6 +245,9 @@ class matchmaking():
             target = f'<@{ctx.author.id}>'
             side, side_open = game.first_open_side(roles=[role.id for role in ctx.author.roles]), True
             if not side:
+                players, capacity = game.capacity()
+                if players < capacity:
+                    return await ctx.send(f'Game {game.id} is limited to specific roles. You are not allowed to join. See game notes for details: `{ctx.prefix}game {game.id}`')
                 return await ctx.send(f'Game {game.id} is completely full!')
 
         elif len(args) == 1:
@@ -272,6 +280,12 @@ class matchmaking():
 
         if settings.guild_setting(ctx.guild.id, 'require_teams') and not models.Player.is_in_team(guild_id=ctx.guild.id, discord_member=guild_matches[0])[0]:
             return await ctx.send(f'**{guild_matches[0].name}** must join a Team in order to participate in games on this server.')
+
+        if side.required_role_id and not discord.utils.get(guild_matches[0].roles, id=side.required_role_id):
+            if settings.get_user_level(ctx) >= 5:
+                await ctx.send(f'Side {side.position} of game {game.id} is limited to players with the **@{side.sidename}** role. *Overriding restriction due to staff privileges.*')
+            else:
+                return await ctx.send(f'Side {side.position} of game {game.id} is limited to players with the **@{side.sidename}** role. You are not allowed to join.')
 
         player, _ = models.Player.get_by_discord_id(discord_id=guild_matches[0].id, discord_name=guild_matches[0].name, discord_nick=guild_matches[0].nick, guild_id=ctx.guild.id)
         if not player:
@@ -318,7 +332,7 @@ class matchmaking():
         player_restricted_list = re.findall(r'<@!?(\d+)>', notes)
 
         if player_restricted_list and str(player.discord_member.discord_id) not in player_restricted_list:
-            return await ctx.send(f'This game is limited to specific players. You are not allowed to join. See game notes for details: `{ctx.prefix}game {game.id}`')
+            return await ctx.send(f'Game {game.id} is limited to specific players. You are not allowed to join. See game notes for details: `{ctx.prefix}game {game.id}`')
 
         logger.info(f'Checks passed. Joining player {player.discord_member.discord_id} to side {side.position} of game {game.id}')
         models.Lineup.create(player=player, game=game, gameside=side)
