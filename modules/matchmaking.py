@@ -191,6 +191,8 @@ class matchmaking():
             else:
                 # first_side = opengame.first_open_side()
                 models.Lineup.create(player=host, game=opengame, gameside=first_side)
+                if first_side.position > 1:
+                    await ctx.send('**Warning:** You are not joined to side 1, due to the ordering of the role restrictions. Therefore you will not be the game host.')
         await ctx.send(f'Starting new {"unranked " if not is_ranked else ""}open game ID {opengame.id}. Size: {team_size_str}. Expiration: {expiration_hours} hours.\nNotes: *{notes_str}*\n'
             f'Other players can join this game with `{ctx.prefix}join {opengame.id}`.')
 
