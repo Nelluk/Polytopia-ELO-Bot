@@ -1400,7 +1400,7 @@ class Game(BaseModel):
     def recalculate_elo_since(timestamp):
         games = Game.select().where(
             (Game.is_completed == 1) & (Game.completed_ts >= timestamp) & (Game.winner.is_null(False))
-        ).prefetch(GameSide, Lineup)
+        ).order_by(Game.completed_ts).prefetch(GameSide, Lineup)
 
         elo_logger.debug(f'recalculate_elo_since {timestamp}')
         for g in games:
