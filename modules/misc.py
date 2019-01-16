@@ -36,6 +36,8 @@ class misc:
 
         `[p]bulk_global elo nelluk koric rickdaheals`
         """
+        if not args:
+            return await ctx.send(f'Include list of players, example: `{ctx.prefix}bge nelluk koric` - @mentions and raw user IDs are supported')
         player_stats = []
         for arg in args.split(' '):
             try:
