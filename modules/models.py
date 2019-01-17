@@ -941,6 +941,7 @@ class Game(BaseModel):
             lineup.elo_change_player = 0
             if lineup.elo_change_discordmember:
                 lineup.player.discord_member.elo += lineup.elo_change_discordmember * -1
+                lineup.player.discord_member.save()
                 lineup.elo_change_discordmember = 0
             lineup.save()
 
