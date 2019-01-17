@@ -61,11 +61,17 @@ def main():
 
     logger.info('Resetting Discord ID ban list')
     models.DiscordMember.update(is_banned=False).execute()
-    if settings.ban_list:
+    if settings.discord_id_ban_list:
         query = models.DiscordMember.update(is_banned=True).where(
-            (models.DiscordMember.discord_id.in_(settings.ban_list)) | (models.DiscordMember.polytopia_id.in_(settings.ban_list))
+            (models.DiscordMember.discord_id.in_(settings.discord_id_ban_list))
         )
         logger.info(f'{query.execute()} discord IDs are banned')
+
+    if settings.poly_id_ban_list:
+        query = models.DiscordMember.update(is_banned=True).where(
+            (models.DiscordMember.polytopia_id.in_(settings.poly_id_ban_list))
+        )
+        logger.info(f'{query.execute()} polytopia IDs are banned')
 
 
 def get_prefix(bot, message):
@@ -96,7 +102,7 @@ if __name__ == '__main__':
 
     @bot.check
     async def restrict_banned_users(ctx):
-        if ctx.author.id in settings.ban_list or discord.utils.get(ctx.author.roles, name='ELO Banned'):
+        if ctx.author.id in settings.discord_id_ban_list or discord.utils.get(ctx.author.roles, name='ELO Banned'):
             await ctx.send('You are banned from using this bot. :kissing_heart:')
             return False
         return True

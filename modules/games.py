@@ -922,7 +922,7 @@ class elo_games():
                 if len(guild_matches) > 1:
                     return await ctx.send(f'More than one server matches found for "**{p}**". Try being more specific or using an @Mention.')
 
-                if guild_matches[0].id in settings.ban_list or discord.utils.get(guild_matches[0].roles, name='ELO Banned'):
+                if guild_matches[0].id in settings.discord_id_ban_list or discord.utils.get(guild_matches[0].roles, name='ELO Banned'):
                     if settings.is_mod(ctx):
                         await ctx.send(f'**{guild_matches[0].name}** has been **ELO Banned** -- *moderator over-ride* :thinking:')
                     else:
