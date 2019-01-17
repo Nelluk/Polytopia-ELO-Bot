@@ -154,7 +154,7 @@ ban_list = [
     396699990577119244,  # Skrealder
     481525222072254484,  # testaccount1
     342341358218117121,  # Caesar Augustas Trajan
-    'MvSRS2t5vWLUyyuu',  # Caesar Augustas Trajan
+    # 'MvSRS2t5vWLUyyuu',  # Caesar Augustas Trajan
 ]
 
 generic_teams_short = [('Home', ':stadium:'), ('Away', ':airplane:')]  # For two-team games
