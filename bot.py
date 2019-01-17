@@ -62,7 +62,9 @@ def main():
     logger.info('Resetting Discord ID ban list')
     models.DiscordMember.update(is_banned=False).execute()
     if settings.ban_list:
-        query = models.DiscordMember.update(is_banned=True).where(models.DiscordMember.discord_id.in_(settings.ban_list))
+        query = models.DiscordMember.update(is_banned=True).where(
+            (models.DiscordMember.discord_id.in_(settings.ban_list)) | (models.DiscordMember.polytopia_id.in_(settings.ban_list))
+        )
         logger.info(f'{query.execute()} discord IDs are banned')
 
 

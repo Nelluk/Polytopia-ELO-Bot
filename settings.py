@@ -144,7 +144,7 @@ lobbies = [{'guild': 283436219780825088, 'size_str': '1v1', 'size': [1, 1], 'ran
            {'guild': 447883341463814144, 'size_str': '2v2', 'size': [2, 2], 'ranked': True, 'exp': 95, 'remake_partial': False, 'notes': 'Open to all'},
            {'guild': 447883341463814144, 'size_str': '2v2', 'size': [2, 2], 'ranked': False, 'exp': 95, 'remake_partial': False, 'role_locks': [None, 531567102042308609], 'notes': 'Newbie 2v2 game, Novas welcome <:novas:531568047824306188>'},
            {'guild': 447883341463814144, 'size_str': '3v3', 'size': [3, 3], 'ranked': False, 'exp': 95, 'remake_partial': False, 'role_locks': [None, 531567102042308609], 'notes': 'Newbie 3v3 game, Novas welcome <:novas:531568047824306188>'},
-           {'guild': 447883341463814144, 'size_str': '3v3', 'size': [3, 3], 'ranked': True, 'exp': 95, 'remake_partial': False, 'notes': 'Open to all'},
+           # {'guild': 447883341463814144, 'size_str': '3v3', 'size': [3, 3], 'ranked': True, 'exp': 95, 'remake_partial': False, 'notes': 'Open to all'},
            {'guild': 478571892832206869, 'size_str': '3v3', 'size': [3, 3], 'ranked': False, 'exp': 95, 'remake_partial': False, 'role_locks': [None, 480350546172182530], 'notes': 'Test lobby for role locks'},
            {'guild': 478571892832206869, 'size_str': 'FFA', 'size': [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], 'ranked': True, 'exp': 95, 'remake_partial': True, 'notes': 'Open to all'}]
 
@@ -153,6 +153,8 @@ ban_list = [
     481581027685564416,  # Shadow Knight
     396699990577119244,  # Skrealder
     481525222072254484,  # testaccount1
+    342341358218117121,  # Caesar Augustas Trajan
+    'MvSRS2t5vWLUyyuu',  # Caesar Augustas Trajan
 ]
 
 generic_teams_short = [('Home', ':stadium:'), ('Away', ':airplane:')]  # For two-team games
