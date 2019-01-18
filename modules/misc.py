@@ -65,7 +65,7 @@ class misc:
 
         Type `[p]guide` for an overview of what this bot is for and how to use it.
         """
-        bot_desc = ('This bot is designed to improve Polytopia multiplier by filling in gaps in two areas: competitive leaderboards, and matchmaking.\n'
+        bot_desc = ('This bot is designed to improve Polytopia multiplayer by filling in gaps in two areas: competitive leaderboards, and matchmaking.\n'
                     'Its primary home is [PolyChampions](https://discord.gg/cX7Ptnv), a server focused on team play organized into a league.\n'
                     f'To register as a player with the bot use __`{ctx.prefix}setcode YOURPOLYCODEHERE`__')
 
