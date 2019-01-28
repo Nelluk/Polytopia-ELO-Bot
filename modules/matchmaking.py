@@ -502,6 +502,13 @@ class matchmaking():
         for game in game_list:
 
             notes_str = game.notes if game.notes else '\u200b'
+            _, game_size = game.capacity()
+            player_restricted_list = re.findall(r'<@!?(\d+)>', notes_str)
+
+            if player_restricted_list and str(ctx.author.id) not in player_restricted_list and (len(player_restricted_list) >= game_size - 1):
+                # skipping games that the command issuer is not invited to
+                continue
+
             players, capacity = game.capacity()
             capacity_str = f' {players}/{capacity}'
             expiration = int((game.expiration - datetime.datetime.now()).total_seconds() / 3600.0)

@@ -538,7 +538,13 @@ class elo_games():
         guild_matches = await utilities.get_guild_member(ctx, player_string)
 
         if len(guild_matches) == 0:
-            return await ctx.send(f'Could not find any server member matching *{player_string}*. Try specifying with an @Mention')
+            try:
+                game_id = int(player_string)
+            except ValueError:
+                return await ctx.send(f'Could not find any server member matching *{player_string}*. Try specifying with an @Mention')
+
+            return await ctx.send(f'Could not find any server member matching *{player_string}*. For player codes for a game, try `{ctx.prefix}getcodes {game_id}`')
+
         elif len(guild_matches) > 1:
             player_matches = Player.string_matches(player_string=player_string, guild_id=ctx.guild.id)
             if len(player_matches) == 1:
@@ -1077,8 +1083,8 @@ class elo_games():
             # (await achievements.set_experience_role(l.player.discord_member) for l in winning_game.lineup)
 
     @settings.in_bot_channel()
-    @commands.command(usage='game_id', aliases=['delete_game', 'delgame', 'delmatch', 'delete'])
-    async def deletegame(self, ctx, game: PolyGame):
+    @commands.command(usage='game_id', aliases=['delete_game', 'delgame', 'delmatch', 'deletegame'])
+    async def delete(self, ctx, game: PolyGame = None):
         """Deletes a game
 
         You can delete a game if you are the host and is has not started yet.
@@ -1086,6 +1092,9 @@ class elo_games():
         **Example:**
         `[p]deletegame 25`
         """
+
+        if not game:
+            return await ctx.send(f'Game ID not provided. Usage: __`{ctx.prefix}delete GAME_ID`__')
 
         if game.is_pending:
             is_hosted_by, host = game.is_hosted_by(ctx.author.id)
@@ -1124,8 +1133,8 @@ class elo_games():
         `[p]rename 25 Mountains of Fire`
         """
 
-        if not game:
-            return await ctx.send(f'No game ID supplied')
+        if not game and not args:
+            return await ctx.send(f'Game ID not provided. Usage: __`{ctx.prefix}rename GAME_ID New Name`__')
         if game.is_pending:
             return await ctx.send(f'This game has not started yet.')
 
@@ -1143,7 +1152,10 @@ class elo_games():
         await game.update_squad_channels(ctx)
         await game.update_announcement(ctx)
 
-        await ctx.send(f'Game ID {game.id} has been renamed to "**{game.name}**" from "**{old_game_name}**"')
+        new_game_name = game.name if game.name else 'None'
+        old_game_name = old_game_name if old_game_name else 'None'
+
+        await ctx.send(f'Game ID {game.id} has been renamed to "**{new_game_name}**" from "**{old_game_name}**"')
 
     @commands.command(aliases=['settribes'], usage='game_id player_name tribe_name [player2 tribe2 ... ]')
     async def settribe(self, ctx, game: PolyGame, *args):
