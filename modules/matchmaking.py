@@ -505,7 +505,7 @@ class matchmaking():
             _, game_size = game.capacity()
             player_restricted_list = re.findall(r'<@!?(\d+)>', notes_str)
 
-            if player_restricted_list and str(ctx.author.id) not in player_restricted_list and (len(player_restricted_list) >= game_size - 1):
+            if player_restricted_list and str(ctx.author.id) not in player_restricted_list and (len(player_restricted_list) >= game_size - 1) and not game.is_hosted_by(ctx.author.id)[0]:
                 # skipping games that the command issuer is not invited to
                 continue
 
