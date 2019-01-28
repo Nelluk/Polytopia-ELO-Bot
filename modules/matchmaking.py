@@ -502,14 +502,13 @@ class matchmaking():
         for game in game_list:
 
             notes_str = game.notes if game.notes else '\u200b'
-            _, game_size = game.capacity()
+            players, capacity = game.capacity()
             player_restricted_list = re.findall(r'<@!?(\d+)>', notes_str)
 
-            if player_restricted_list and str(ctx.author.id) not in player_restricted_list and (len(player_restricted_list) >= game_size - 1) and not game.is_hosted_by(ctx.author.id)[0]:
+            if player_restricted_list and str(ctx.author.id) not in player_restricted_list and (len(player_restricted_list) >= capacity - 1) and not game.is_hosted_by(ctx.author.id)[0]:
                 # skipping games that the command issuer is not invited to
                 continue
 
-            players, capacity = game.capacity()
             capacity_str = f' {players}/{capacity}'
             expiration = int((game.expiration - datetime.datetime.now()).total_seconds() / 3600.0)
             expiration = 'Exp' if expiration < 0 else f'{expiration}H'
@@ -738,8 +737,14 @@ class matchmaking():
                     embed.add_field(name=f'`{"ID":<8}{"Host":<40} {"Type":<7} {"Capacity":<7} {"Exp":>4} `', value='\u200b', inline=False)
                     for game in game_list:
 
-                        notes_str = game.notes if game.notes else "\u200b"
+                        notes_str = game.notes if game.notes else '\u200b'
                         players, capacity = game.capacity()
+                        player_restricted_list = re.findall(r'<@!?(\d+)>', notes_str)
+
+                        if player_restricted_list and (len(player_restricted_list) >= capacity - 1) and len(game_list) > 15:
+                            # skipping invite-only games IF the games list is large
+                            continue
+
                         capacity_str = f' {players}/{capacity}'
                         expiration = int((game.expiration - datetime.datetime.now()).total_seconds() / 3600.0)
                         expiration = 'Exp' if expiration < 0 else f'{expiration}H'
