@@ -535,7 +535,7 @@ class matchmaking():
         if waitlist:
             await asyncio.sleep(1)
             await ctx.send(f'{ctx.author.mention}, you have full games waiting to start: **{", ".join(waitlist)}**\n'
-                f'Type __`{ctx.prefix}game #`__ for more details.')
+                f'Type __`{ctx.prefix}game IDNUM`__ for more details, ie `{ctx.prefix}game {(waitlist_hosting + waitlist_creating)[0]}`')
 
     @settings.in_bot_channel()
     @commands.command(aliases=['startmatch', 'start'], usage='game_id Name of Poly Game')
