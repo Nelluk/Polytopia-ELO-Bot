@@ -172,7 +172,7 @@ class matchmaking():
         if required_role_message:
             await ctx.send(required_role_message)
 
-        game_notes = ' '.join(note_args)[:150]
+        game_notes = ' '.join(note_args)[:150].strip()
         notes_str = game_notes if game_notes else "\u200b"
         if expiration_hours_override:
             expiration_hours = expiration_hours_override

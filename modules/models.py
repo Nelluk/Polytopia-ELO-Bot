@@ -768,7 +768,7 @@ class Game(BaseModel):
                     draft_order_str = '\n'.join(draft_order)
                 else:
                     draft_order_str = ''
-                content_str = (f'This match is now full and **{creating_player.name}** should create the game in Polytopia and mark it as started using `{ctx.prefix}startgame {self.id} Name of Game`'
+                content_str = (f'This match is now full and **{creating_player.name}** should create the game in Polytopia and mark it as started using `{ctx.prefix}start {self.id} Name of Game`'
                         f'\nFriend codes can be copied easily with the command __`{ctx.prefix}codes {self.id}`__'
                         f'{draft_order_str}')
                 status_str = 'Full - Waiting to start'
