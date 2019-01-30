@@ -17,10 +17,6 @@ logger = logging.getLogger('polybot.' + __name__)
 class PolyGame(commands.Converter):
     async def convert(self, ctx, game_id):
 
-        # if str(game_id) == '#':
-        #     await ctx.send(f'Invalid game ID "{game_id}". Use the numeric game ID *only*, example: `{ctx.prefix}{ctx.invoked_with} 1234`')
-        #     raise commands.UserInputError()
-
         try:
             game = Game.get(id=int(game_id))
         except ValueError:
@@ -657,6 +653,10 @@ class elo_games():
         """
         if not game_search:
             return await ctx.send(f'Game ID number must be supplied, example: __`{ctx.prefix}game 1250`__')
+        if str(game_search).upper() == 'ID':
+            await ctx.send(f'Invalid game ID "{game_search}". Use the numeric game ID *only*, example: `{ctx.prefix}{ctx.invoked_with} 1234`')
+            raise commands.UserInputError()
+
         try:
             int(game_search)
         except ValueError:
