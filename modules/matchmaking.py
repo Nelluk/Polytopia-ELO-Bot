@@ -106,10 +106,10 @@ class matchmaking():
                 # arg looks like '3v3' or '1v1v1'
                 team_size_str = m[0]
                 team_sizes = [int(x) for x in arg.lower().split(m[1])]  # split on 'vs' or 'v'; whichever the regexp detects
-                if max(team_sizes) > 6:
-                    return await ctx.send(f'Invalid game size {team_size_str}: Teams cannot be larger than 6 players.')
+                if min(team_sizes) < 1:
+                    return await ctx.send(f'Invalid game size **{team_size_str}**: Each side must have at least 1 player.')
                 if sum(team_sizes) > 12:
-                    return await ctx.send(f'Invalid game size {team_size_str}: Games can have a maximum of 12 players.')
+                    return await ctx.send(f'Invalid game size **{team_size_str}**: Games can have a maximum of 12 players.')
                 team_size = True
                 continue
             m = re.match(r"(\d+)h", arg.lower())
