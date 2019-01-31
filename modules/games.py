@@ -667,10 +667,15 @@ class elo_games():
             tz_string = args[0]
         elif len(args) == 2:
             # User changing another user's code. Admin permissions required.
-            if settings.is_staff(ctx) is False:
+            if args[0].upper() in ('GMT', 'UTC'):
+                # catching the case of someone doing '$settime UTC +5'
+                target_string = f'<@{ctx.author.id}>'
+                tz_string = (args[0] + args[1]).replace(' ', '')
+            elif settings.is_staff(ctx) is False:
                 return await ctx.send('You do not have permission to trigger this command.')
-            target_string = args[0]
-            tz_string = args[1]
+            else:
+                target_string = args[0]
+                tz_string = args[1]
         else:
             # Unexpected input
             return await ctx.send(f'Wrong number of arguments. Use `{ctx.prefix}settime my_time_zone_offset`. Example: `{ctx.prefix}settime UTC-5:00` for Eastern Standard Time.')
