@@ -98,6 +98,7 @@ class DiscordMember(BaseModel):
     polytopia_id = TextField(null=True)
     polytopia_name = TextField(null=True)
     is_banned = BooleanField(default=False)
+    timezone_offset = SmallIntegerField(default=None, null=True)
 
     def update_name(self, new_name: str):
         self.name = new_name

@@ -24,10 +24,11 @@ class misc:
     @commands.is_owner()
     async def test(self, ctx, *, arg=None):
 
-        print(ctx.message)
-        for b in ctx.message.role_mentions + ctx.message.mentions:
-            # print(ctx.message.role_mentions, ctx.message.mentions)
-            print(b.mention, '\n')
+        # m = re.search(r'UTC|GMT(\+\d)', arg, re.I)
+        m = re.search(r'(?:GMT|UTC)([+-][0-9]{1,2}(?::[0-9]{2}\b)?)', arg, re.I)
+        if m:
+            print(m, m[0], m[1])
+            # max_elo = int(m[1])
 
     @commands.command(hidden=True, aliases=['bge'])
     async def bulk_global_elo(self, ctx, *, args=None):

@@ -9,6 +9,7 @@ from modules.models import Game, db, Player, Team, DiscordMember, Squad, GameSid
 import logging
 import datetime
 import asyncio
+import re
 from itertools import groupby
 
 logger = logging.getLogger('polybot.' + __name__)
@@ -403,6 +404,10 @@ class elo_games():
             tribes_str = ' '.join([f'{t.emoji if t.emoji else t.tribe.name}' for t in favorite_tribe_objs])
             embed.add_field(value=tribes_str, name='Most-logged Tribes', inline=True)
 
+        if player.discord_member.timezone_offset:
+            offset_str = f'UTC+{player.discord_member.timezone_offset}' if player.discord_member.timezone_offset > 0 else f'UTC{player.discord_member.timezone_offset}'
+            embed.add_field(value=offset_str, name='Timezone Offset', inline=True)
+
         games_list = Game.search(player_filter=[player])
         if not games_list:
             recent_games_str = 'No games played'
@@ -536,9 +541,11 @@ class elo_games():
         player.discord_member.save()
 
         if created:
-            await ctx.send('Player **{0.name}** added to system with Polytopia code {0.discord_member.polytopia_id} and ELO {0.elo}'.format(player))
+            await ctx.send(f'Player **{player.name}** added to system with Polytopia code {player.discord_member.polytopia_id} and ELO {player.elo}\n'
+                f'Please also set your Polytopia ingame name with `{ctx.prefix}setname YOUR_INGAME_NAME` as well as your timezone using '
+                f'`{ctx.prefix}settime YOUR_TIMEZONE_OFFSET` (eg. `UTC-5` for Eastern Standard Time)')
         else:
-            await ctx.send('Player **{0.name}** updated in system with Polytopia code {0.discord_member.polytopia_id}.'.format(player))
+            await ctx.send(f'Player **{player.name}** updated in system with Polytopia code {player.discord_member.polytopia_id}.')
 
     @commands.command(aliases=['code'], usage='player_name')
     async def getcode(self, ctx, *, player_string: str = None):
@@ -637,11 +644,58 @@ class elo_games():
         try:
             player_target = Player.get_or_except(target_string, ctx.guild.id)
         except exceptions.NoSingleMatch as ex:
-            return await ctx.send(f'{ex}\nCorrect usage: `{ctx.prefix}getcode @Player`')
+            return await ctx.send(f'{ex}\nExample usage: `{ctx.prefix}setname @Player in_game_name`')
 
         player_target.discord_member.polytopia_name = new_name
         player_target.discord_member.save()
         await ctx.send(f'Player **{player_target.name}** updated in system with Polytopia name **{new_name}**.')
+
+    @commands.command(brief='Set player time zone', usage='UTC-#')
+    async def settime(self, ctx, *args):
+        """Sets your own timezone, or lets staff set a player's timezone
+        This will be shown on your `[p]player` profile and can be used to order large games for faster player.
+        **Examples:**
+        `[p]settime UTC-5` - Set your own timezone to UTC-5  *(Eastern Standard Time)*
+        `[p]settime Nelluk UTC-5` - Lets staff set in-game name of Nelluk to UTC-5
+
+        *Accepts arguments like: UTC+05:00, GMT-5:30*
+        """
+
+        if len(args) == 1:
+            # User setting code for themselves. No special permissions required.
+            target_string = f'<@{ctx.author.id}>'
+            tz_string = args[0]
+        elif len(args) == 2:
+            # User changing another user's code. Admin permissions required.
+            if settings.is_staff(ctx) is False:
+                return await ctx.send('You do not have permission to trigger this command.')
+            target_string = args[0]
+            tz_string = args[1]
+        else:
+            # Unexpected input
+            return await ctx.send(f'Wrong number of arguments. Use `{ctx.prefix}settime my_time_zone_offset`. Example: `{ctx.prefix}settime UTC-5:00` for Eastern Standard Time.')
+
+        try:
+            player_target = Player.get_or_except(target_string, ctx.guild.id)
+        except exceptions.NoSingleMatch as ex:
+            return await ctx.send(f'{ex}\nExample usage: `{ctx.prefix}settime @Player time_zone_offset`')
+
+        m = re.search(r'(?:GMT|UTC)([+-][0-9]{1,2})(:[0-9]{2}\b)?', tz_string, re.I)
+        if m:
+            print(m, m[0], m[1])
+            offset = int(m[1])
+            if m[2] and m[2] == ':30':
+                if m[1][:1] == '+':
+                    offset = offset + .5
+                else:
+                    offset = offset - .5
+        else:
+            return await ctx.send(f'Could not interpret input. Use `{ctx.prefix}settime my_time_zone_offset`.\nExample: `{ctx.prefix}settime UTC-5:00` for Eastern Standard Time.')
+
+        player_target.discord_member.timezone_offset = offset
+        player_target.discord_member.save()
+        offset_str = 'UTC+' if offset > 0 else 'UTC'
+        await ctx.send(f'Player **{player_target.name}** updated in system with timezone offset **{offset_str}{offset}**.')
 
     @commands.command(aliases=['match'], usage='game_id')
     async def game(self, ctx, *, game_search: str = None):
