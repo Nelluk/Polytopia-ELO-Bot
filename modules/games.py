@@ -654,10 +654,11 @@ class elo_games():
         player_target.discord_member.save()
         await ctx.send(f'Player **{player_target.name}** updated in system with Polytopia name **{new_name}**.')
 
-    @commands.command(brief='Set player time zone', usage='UTC-#')
+    @commands.command(brief='Set player time zone', usage='UTC±#')
     async def settime(self, ctx, *args):
         """Sets your own timezone, or lets staff set a player's timezone
         This will be shown on your `[p]player` profile and can be used to order large games for faster player.
+
         **Examples:**
         `[p]settime UTC-5` - Set your own timezone to UTC-5  *(Eastern Standard Time)*
         `[p]settime Nelluk UTC-5` - Lets staff set in-game name of Nelluk to UTC-5
