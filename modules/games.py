@@ -233,6 +233,7 @@ class elo_games():
         await ctx.send(embed=embed)
 
     @settings.in_bot_channel_strict()
+    @settings.on_polychampions()
     @commands.command(aliases=['squadlb'])
     @commands.cooldown(2, 30, commands.BucketType.channel)
     async def lbsquad(self, ctx):
@@ -252,6 +253,7 @@ class elo_games():
         await utilities.paginate(self.bot, ctx, title='**Squad Leaderboards**', message_list=leaderboard, page_start=0, page_end=10, page_size=10)
 
     @settings.in_bot_channel()
+    @settings.on_polychampions()
     @commands.command(brief='Find squads or see details on a squad', usage='player1 [player2] [player3]', aliases=['squads'])
     async def squad(self, ctx, *args):
         """Find squads with specific players, or see details on a squad
@@ -428,12 +430,14 @@ class elo_games():
     @settings.in_bot_channel()
     @settings.teams_allowed()
     @commands.command(usage='team_name')
-    async def team(self, ctx, team_string: str):
+    async def team(self, ctx, team_string: str = None):
         """See details on a team
         **Example:**
         [p]team Ronin
         """
 
+        if not team_string:
+            return await ctx.send(f'No team name supplied. Use `{ctx.prefix}lbteam` for the team leaderboard. **Example:** `{ctx.prefix}team Ronin`')
         try:
             team = Team.get_or_except(team_string, ctx.guild.id)
         except exceptions.NoSingleMatch as ex:
