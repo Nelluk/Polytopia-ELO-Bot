@@ -1120,7 +1120,7 @@ class elo_games():
                     confirm_win = True
             else:
                 # Game with more than two teams - staff confirmation required. Possibly improve later so that every team can unanimously confirm
-                await ctx.send(f'Since this is a {len(winning_game.gamesides)}-team game, staff confirmation is required. Ping **@{helper_role}** with a screenshot of your victory. ')
+                await ctx.send(f'Since this is a {len(winning_game.gamesides)}-team game, staff confirmation is required. Ping **@{helper_role}** with a screenshot of the game status. ')
                 confirm_win = False
 
                 # # Automatically inform staff of needed confirmation if game_request_channel is enabled
