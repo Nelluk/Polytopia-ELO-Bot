@@ -15,7 +15,9 @@ async def set_champion_role():
 
     global_champion = models.DiscordMember.select().order_by(-models.DiscordMember.elo).limit(1).get()
 
+    logger.warn(settings.bot.guilds)
     for guild in settings.bot.guilds:
+        logger.warn(f'Attempting champion set for guild {guild.name}')
         role = discord.utils.get(guild.roles, name='ELO Champion')
         if not role:
             logger.warn(f'Could not load ELO Champion role in guild {guild.name}')
