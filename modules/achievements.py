@@ -4,7 +4,7 @@ import logging
 # import asyncio
 import modules.models as models
 import settings
-import peewee
+# import peewee
 logger = logging.getLogger('polybot.' + __name__)
 
 # platinum - 1500
@@ -23,7 +23,7 @@ async def set_champion_role():
             logger.warn(f'Could not load ELO Champion role in guild {guild.name}')
             continue
 
-        local_champion = models.Player.select(guild_id=guild.id).order_by(-models.Player.elo).limit(1).get()
+        local_champion = models.Player.select().where(models.Player.guild_id == guild.id).order_by(-models.Player.elo).limit(1).get()
 
         local_champion_member = guild.get_member(local_champion.discord_member.discord_id)
         global_champion_member = guild.get_member(global_champion.discord_id)
@@ -35,10 +35,14 @@ async def set_champion_role():
         if local_champion_member:
             logger.info(f'adding ELO Champion role to {local_champion_member.name}')
             await local_champion_member.add_roles(role)
+        else:
+            logger.warn(f'Couldnt find local champion {local_champion} in guild {guild.name}!')
 
         if global_champion_member:
             logger.info(f'adding ELO Champion role to {global_champion_member.name}')
             await global_champion_member.add_roles(role)
+        else:
+            logger.warn(f'Couldnt find global champion {global_champion.name} in guild {guild.name}!')
 
 
 # async def set_achievement_role(player):
