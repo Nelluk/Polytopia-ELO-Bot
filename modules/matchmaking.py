@@ -24,7 +24,7 @@ class PolyMatch(commands.Converter):
                 logger.debug(f'Game with ID {match_id} found.')
 
                 if match.guild_id != ctx.guild.id:
-                    await ctx.send(f'Game with ID {match_id} is associated with a different Discord server. Use {ctx.prefix}opengames to see available matches.')
+                    await ctx.send(f'Game with ID {match_id} is associated with a different Discord server. Use `{ctx.prefix}opengames` to see available matches.')
                     raise commands.UserInputError()
                 return match
             except peewee.DoesNotExist:

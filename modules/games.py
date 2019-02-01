@@ -40,6 +40,7 @@ class elo_games():
     def __init__(self, bot):
         self.bot = bot
         self.bg_task = bot.loop.create_task(self.task_purge_game_channels())
+        self.bg_task2 = bot.loop.create_task(self.task_set_champion_role())
 
     async def on_member_update(self, before, after):
         player_query = Player.select().join(DiscordMember).where(
@@ -1314,6 +1315,16 @@ class elo_games():
                 guild = discord.utils.get(self.bot.guilds, id=game.guild_id)
                 if guild:
                     await game.delete_squad_channels(guild=guild)
+
+            await asyncio.sleep(60 * 60 * 2)
+
+    async def task_set_champion_role(self):
+        await self.bot.wait_until_ready()
+        while not self.bot.is_closed():
+
+            await asyncio.sleep(45)
+            logger.warn('test')
+            await achievements.set_champion_role()
 
             await asyncio.sleep(60 * 60 * 2)
 

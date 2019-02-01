@@ -10,6 +10,7 @@ import re
 import datetime
 import random
 import csv
+import peewee
 from modules.games import PolyGame
 
 logger = logging.getLogger('polybot.' + __name__)
@@ -24,11 +25,8 @@ class misc:
     @commands.is_owner()
     async def test(self, ctx, *, arg=None):
 
-        # m = re.search(r'UTC|GMT(\+\d)', arg, re.I)
-        m = re.search(r'(?:GMT|UTC)([+-][0-9]{1,2}(?::[0-9]{2}\b)?)', arg, re.I)
-        if m:
-            print(m, m[0], m[1])
-            # max_elo = int(m[1])
+        global_champion = models.DiscordMember.select().order_by(-models.DiscordMember.elo).limit(1).get()
+        print(global_champion.name)
 
     @commands.command(hidden=True, aliases=['bge'])
     async def bulk_global_elo(self, ctx, *, args=None):
