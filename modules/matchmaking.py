@@ -94,8 +94,9 @@ class matchmaking():
         if settings.guild_setting(ctx.guild.id, 'require_teams') and not models.Player.is_in_team(guild_id=ctx.guild.id, discord_member=ctx.author)[0]:
             return await ctx.send(f'You must join a Team in order to participate in games on this server.')
 
-        if models.Game.select().where((models.Game.host == host) & (models.Game.is_pending == 1)).count() > 5:
-            return await ctx.send(f'You have too many open games already. Try using `{ctx.prefix}delete` on an existing one.')
+        max_open = max(1, settings.get_user_level(ctx) * 2)
+        if models.Game.select().where((models.Game.host == host) & (models.Game.is_pending == 1)).count() > max_open:
+            return await ctx.send(f'You have too many open games already (max of {max_open}). Try using `{ctx.prefix}delete` on an existing one.')
 
         if settings.guild_setting(ctx.guild.id, 'unranked_game_channel') and ctx.channel.id == settings.guild_setting(ctx.guild.id, 'unranked_game_channel'):
             is_ranked = False
