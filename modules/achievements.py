@@ -4,11 +4,16 @@ import logging
 # import asyncio
 import modules.models as models
 import settings
-# import peewee
+import peewee
 logger = logging.getLogger('polybot.' + __name__)
 
 # platinum - 1500
 # gold - 1300+
+
+# ELO Player - 2+ games
+# ELO Veteran - 10+ games
+# ELO Hero - 1350+ elo
+# ELO Champion - #1 local or global leaderboard
 
 
 async def set_champion_role():
@@ -88,10 +93,13 @@ async def set_experience_role(discord_member):
 
         role = None
         if completed_games >= 2:
-            role = discord.utils.get(guild.roles, name='ELO-Player')
+            role = discord.utils.get(guild.roles, name='ELO Player')
             role_list.append(role) if role is not None else None
         if completed_games >= 10:
-            role = discord.utils.get(guild.roles, name='ELO-Veteran')
+            role = discord.utils.get(guild.roles, name='ELO Veteran')
+            role_list.append(role) if role is not None else None
+        if discord_member.elo_max >= 1350:
+            role = discord.utils.get(guild.roles, name='ELO Hero')
             role_list.append(role) if role is not None else None
 
         if not role:
@@ -102,3 +110,10 @@ async def set_experience_role(discord_member):
             logger.info(f'removing roles from member {member}:\n:{role_list}')
             await member.add_roles(role)
             logger.info(f'adding role {role} to member {member}')
+
+        max_local_elo = models.Player.select(peewee.fn.Max(models.Player.elo)).where(models.Player.guild_id == guild.id).scalar()
+        max_global_elo = models.DiscordMember.select(peewee.fn.Max(models.DiscordMember.elo)).scalar()
+
+        if discord_member.elo >= max_global_elo or guildmember.elo >= max_local_elo:
+            # This player has #1 spot in either local OR global leaderboard. Apply ELO Champion role on any server where the player is:
+            await set_champion_role()

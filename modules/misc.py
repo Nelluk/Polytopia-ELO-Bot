@@ -12,6 +12,7 @@ import random
 import csv
 import peewee
 from modules.games import PolyGame
+import modules.achievements as achievements
 
 logger = logging.getLogger('polybot.' + __name__)
 
@@ -25,8 +26,10 @@ class misc:
     @commands.is_owner()
     async def test(self, ctx, *, arg=None):
 
-        global_champion = models.DiscordMember.select().order_by(-models.DiscordMember.elo).limit(1).get()
-        print(global_champion.name)
+        p_list = models.DiscordMember.select().where(models.DiscordMember.elo_max > 1350)
+        for p in p_list:
+            print(p.name)
+            await achievements.set_experience_role(p)
 
     @commands.command(hidden=True, aliases=['bge'])
     async def bulk_global_elo(self, ctx, *, args=None):

@@ -69,7 +69,7 @@ config = {'default':
           447883341463814144:                           # Polychampions
                      {'helper_roles': ['Helper', 'ELO-Helper', 'Team Leader'],
                       'mod_roles': ['Mod'],
-                      'user_roles_level_4': ['Team Co-Leader'],  # power user
+                      'user_roles_level_4': ['Team Co-Leader', 'ELO Hero'],  # power user
                       'user_roles_level_3': ['@everyone'],  # power user
                       'user_roles_level_2': ['@everyone'],  # normal user
                       'user_roles_level_1': ['@everyone'],  # restricted user/newbie
@@ -92,9 +92,9 @@ config = {'default':
           283436219780825088:                           # Main Server
                      {'helper_roles': ['ELO-Helper', 'Bot Master', 'Director'],
                       'mod_roles': ['MOD', 'Manager'],
-                      'user_roles_level_4': ['Archer', 'Defender', 'Ship', 'Catapult', 'Knight', 'Swordsman', 'Tridention', 'Battleship', 'Mind Bender', 'Giant', 'Crab', 'Dragon'],
-                      'user_roles_level_3': ['ELO-Veteran'],  # full user
-                      'user_roles_level_2': ['Rider', 'Boat', 'ELO-Player'],  # normal user
+                      'user_roles_level_4': ['Archer', 'Defender', 'Ship', 'Catapult', 'Knight', 'Swordsman', 'Tridention', 'Battleship', 'Mind Bender', 'Giant', 'Crab', 'Dragon', 'ELO Hero'],
+                      'user_roles_level_3': ['ELO Veteran'],  # full user
+                      'user_roles_level_2': ['Rider', 'Boat', 'ELO Player'],  # normal user
                       'user_roles_level_1': ['Member', 'Warrior'],  # restricted user/newbie
                       'display_name': 'Polytopia',
                       'allow_uneven_teams': True,
