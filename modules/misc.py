@@ -29,6 +29,7 @@ class misc:
         p_list = models.DiscordMember.select().where(models.DiscordMember.elo_max > 1350)
         for p in p_list:
             print(p.name)
+            await asyncio.sleep(2)
             await achievements.set_experience_role(p)
 
     @commands.command(hidden=True, aliases=['bge'])
