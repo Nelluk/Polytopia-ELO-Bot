@@ -10,7 +10,7 @@ import re
 import datetime
 import random
 import csv
-import peewee
+# import peewee
 from modules.games import PolyGame
 import modules.achievements as achievements
 
@@ -29,6 +29,7 @@ class misc:
         p_list = models.DiscordMember.select().where(models.DiscordMember.elo_max > 1350)
         for p in p_list:
             print(p.name)
+            await ctx.send(f'{len(p_list)} {p.name}')
             await asyncio.sleep(2)
             await achievements.set_experience_role(p)
 
