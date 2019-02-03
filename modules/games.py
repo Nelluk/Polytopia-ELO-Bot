@@ -547,10 +547,15 @@ class elo_games():
 
         if created:
             await ctx.send(f'Player **{player.name}** added to system with Polytopia code {player.discord_member.polytopia_id} and ELO {player.elo}\n'
-                f'Please also set your Polytopia ingame name with `{ctx.prefix}setname YOUR_INGAME_NAME` as well as your timezone using '
+                f'Optionally also set your Polytopia ingame name with `{ctx.prefix}setname YOUR_INGAME_NAME` as well as your timezone using '
                 f'`{ctx.prefix}settime YOUR_TIMEZONE_OFFSET` (eg. `UTC-5` for Eastern Standard Time)')
         else:
             await ctx.send(f'Player **{player.name}** updated in system with Polytopia code {player.discord_member.polytopia_id}.')
+
+        players_with_id = DiscordMember.select().where(DiscordMember.polytopia_id == new_id)
+        if players_with_id.count() > 1:
+            p_names = [p.name for p in players_with_id]
+            await ctx.send(f'**Warning:** This polytopia code is already entered in the database. Duplicated players: {", ".join(p_names)}')
 
     @commands.command(aliases=['code'], usage='player_name')
     async def getcode(self, ctx, *, player_string: str = None):
