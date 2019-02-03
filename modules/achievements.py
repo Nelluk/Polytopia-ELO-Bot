@@ -81,39 +81,38 @@ async def set_experience_role(discord_member):
     logger.debug(f'processing experience role for member {discord_member.name}')
     completed_games = discord_member.completed_game_count()
 
-    with models.db:
-        for guildmember in discord_member.guildmembers:
-            guild = discord.utils.get(settings.bot.guilds, id=guildmember.guild_id)
-            member = guild.get_member(discord_member.discord_id) if guild else None
+    for guildmember in discord_member.guildmembers:
+        guild = discord.utils.get(settings.bot.guilds, id=guildmember.guild_id)
+        member = guild.get_member(discord_member.discord_id) if guild else None
 
-            if not member:
-                continue
+        if not member:
+            continue
 
-            role_list = []
+        role_list = []
 
-            role = None
-            if completed_games >= 2:
-                role = discord.utils.get(guild.roles, name='ELO Player')
-                role_list.append(role) if role is not None else None
-            if completed_games >= 10:
-                role = discord.utils.get(guild.roles, name='ELO Veteran')
-                role_list.append(role) if role is not None else None
-            if discord_member.elo_max >= 1350:
-                role = discord.utils.get(guild.roles, name='ELO Hero')
-                role_list.append(role) if role is not None else None
+        role = None
+        if completed_games >= 2:
+            role = discord.utils.get(guild.roles, name='ELO Player')
+            role_list.append(role) if role is not None else None
+        if completed_games >= 10:
+            role = discord.utils.get(guild.roles, name='ELO Veteran')
+            role_list.append(role) if role is not None else None
+        if discord_member.elo_max >= 1350:
+            role = discord.utils.get(guild.roles, name='ELO Hero')
+            role_list.append(role) if role is not None else None
 
-            if not role:
-                continue
+        if not role:
+            continue
 
-            if role not in member.roles:
-                await member.remove_roles(*role_list)
-                logger.info(f'removing roles from member {member}:\n:{role_list}')
-                await member.add_roles(role)
-                logger.info(f'adding role {role} to member {member}')
+        if role not in member.roles:
+            await member.remove_roles(*role_list)
+            logger.info(f'removing roles from member {member}:\n:{role_list}')
+            await member.add_roles(role)
+            logger.info(f'adding role {role} to member {member}')
 
-            max_local_elo = models.Player.select(peewee.fn.Max(models.Player.elo)).where(models.Player.guild_id == guild.id).scalar()
-            max_global_elo = models.DiscordMember.select(peewee.fn.Max(models.DiscordMember.elo)).scalar()
+        max_local_elo = models.Player.select(peewee.fn.Max(models.Player.elo)).where(models.Player.guild_id == guild.id).scalar()
+        max_global_elo = models.DiscordMember.select(peewee.fn.Max(models.DiscordMember.elo)).scalar()
 
-            if discord_member.elo >= max_global_elo or guildmember.elo >= max_local_elo:
-                # This player has #1 spot in either local OR global leaderboard. Apply ELO Champion role on any server where the player is:
-                await set_champion_role()
+        if discord_member.elo >= max_global_elo or guildmember.elo >= max_local_elo:
+            # This player has #1 spot in either local OR global leaderboard. Apply ELO Champion role on any server where the player is:
+            await set_champion_role()
