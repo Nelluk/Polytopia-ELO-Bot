@@ -1168,8 +1168,8 @@ class elo_games():
             # Cleanup game channels and announce winners
             await post_win_messaging(ctx, winning_game)
 
-            for l in winning_game.lineup:
-                await achievements.set_experience_role(l.player.discord_member)
+            # for l in winning_game.lineup:
+            #     await achievements.set_experience_role(l.player.discord_member)
 
             # (await achievements.set_experience_role(l.player.discord_member) for l in winning_game.lineup)
 
@@ -1339,6 +1339,9 @@ async def post_win_messaging(ctx, winning_game):
     await winning_game.update_squad_channels(ctx=ctx, message=f'The game is over with **{winning_game.winner.name()}** victorious. *This channel will be purged in ~24 hours.*')
     player_mentions = [f'<@{l.player.discord_member.discord_id}>' for l in winning_game.lineup]
     embed, content = winning_game.embed(ctx)
+
+    for l in winning_game.lineup:
+                await achievements.set_experience_role(l.player.discord_member)
 
     if settings.guild_setting(ctx.guild.id, 'game_announce_channel') is not None:
         channel = ctx.guild.get_channel(settings.guild_setting(ctx.guild.id, 'game_announce_channel'))
