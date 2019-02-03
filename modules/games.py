@@ -624,7 +624,11 @@ class elo_games():
                     first_loop = False
                 else:
                     in_game_name_str = '' if not dm_obj.polytopia_name else f' (In-game name: **{dm_obj.polytopia_name}**)'
-                    await ctx.send(f'**{p["player"].name}**{in_game_name_str}')
+                    if dm_obj.timezone_offset:
+                        tz_str = f'`UTC+{dm_obj.timezone_offset}`' if dm_obj.timezone_offset > 0 else f'`UTC{dm_obj.timezone_offset}`'
+                    else:
+                        tz_str = ''
+                    await ctx.send(f'**{p["player"].name}**{in_game_name_str} {tz_str}')
                 poly_id = dm_obj.polytopia_id
                 await ctx.send(poly_id if poly_id else '*No code registered*')
 
