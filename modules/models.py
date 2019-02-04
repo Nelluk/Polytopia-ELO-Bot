@@ -57,6 +57,7 @@ class Team(BaseModel):
         return num_games
 
     def change_elo_after_game(self, chance_of_winning: float, is_winner: bool):
+
         if self.completed_game_count() < 11:
             max_elo_delta = 50
         else:
@@ -1057,6 +1058,11 @@ class Game(BaseModel):
                             squad_win_chances = None
                     else:
                         team_win_chances, squad_win_chances = None, None
+
+                    team_elo_reset_date = datetime.datetime.strptime('1/1/2019', "%m/%d/%Y").date()
+                    if self.date < team_elo_reset_date:
+                        team_win_chances = None
+                        logger.info(f'Game date {game.date} is before reset date of {team_elo_reset_date}. Will not count towards team ELO.')
 
                     for i in range(len(gamesides)):
                         side = gamesides[i]
