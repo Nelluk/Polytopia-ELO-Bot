@@ -1062,7 +1062,7 @@ class Game(BaseModel):
                     team_elo_reset_date = datetime.datetime.strptime('1/1/2019', "%m/%d/%Y").date()
                     if self.date < team_elo_reset_date:
                         team_win_chances = None
-                        logger.info(f'Game date {game.date} is before reset date of {team_elo_reset_date}. Will not count towards team ELO.')
+                        logger.info(f'Game date {self.date} is before reset date of {team_elo_reset_date}. Will not count towards team ELO.')
 
                     for i in range(len(gamesides)):
                         side = gamesides[i]
