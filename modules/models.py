@@ -1423,7 +1423,7 @@ class Game(BaseModel):
         # 2) have a way to only affect games that ended after a deleted game (if thats why recalc is occuring)
 
         logger.warn('Resetting and recalculating all ELO')
-        elo_logger.debug(f'recalculate_all_elo')
+        elo_logger.info(f'recalculate_all_elo')
 
         with db.atomic():
             Player.update(elo=1000, elo_max=1000).execute()
@@ -1443,7 +1443,7 @@ class Game(BaseModel):
                 full_game = Game.load_full_game(game_id=game.id)
                 full_game.declare_winner(winning_side=full_game.winner, confirm=True)
 
-        elo_logger.debug(f'recalculate_all_elo complete')
+        elo_logger.info(f'recalculate_all_elo complete')
 
     def first_open_side(self, roles):
 

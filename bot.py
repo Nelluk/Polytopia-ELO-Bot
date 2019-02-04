@@ -54,9 +54,15 @@ def main():
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--add_default_data', action='store_true')
+    parser.add_argument('--recalc_elo', action='store_true')
     args = parser.parse_args()
     if args.add_default_data:
         initialize_data.initialize_data()
+        exit(0)
+    if args.recalc_elo:
+        print('Recalculating all ELO')
+        models.Game.recalculate_all_elo()
+        print('Recalculation complete')
         exit(0)
 
     logger.info('Resetting Discord ID ban list')
