@@ -26,6 +26,7 @@ class BaseModel(Model):
 class Team(BaseModel):
     name = TextField(unique=False, null=False)
     elo = SmallIntegerField(default=1000)
+    # elo_alltime = SmallIntegerField(default=1000)
     emoji = TextField(null=False, default='')
     image_url = TextField(null=True)
     guild_id = BitField(unique=False, null=False)
@@ -1433,6 +1434,7 @@ class Game(BaseModel):
 
         with db.atomic():
             Player.update(elo=1000, elo_max=1000).execute()
+            # Team.update(elo=1000, elo_alltime=1000).execute()
             Team.update(elo=1000).execute()
             DiscordMember.update(elo=1000, elo_max=1000).execute()
             Squad.update(elo=1000).execute()
@@ -1770,7 +1772,8 @@ class GameSide(BaseModel):
         # Returns list of tuples [(player, elo string (1000 +50), :tribe_emoji:)]
         players = []
 
-        for l in self.lineup:
+        # for l in self.lineup:
+        for l in Lineup.select(Lineup, Player).join(Player).where(Lineup.gameside == self).order_by(Lineup.id):
             elo_str = str(l.elo_change_player) if l.elo_change_player != 0 else ''
             if l.elo_change_player > 0:
                 elo_str = '+' + elo_str
