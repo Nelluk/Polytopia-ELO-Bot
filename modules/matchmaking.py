@@ -91,7 +91,8 @@ class matchmaking():
             # Matching guild member but no Player or DiscordMember
             return await ctx.send(f'You must be a registered player before hosting a match. Try `{ctx.prefix}setcode POLYCODE`')
 
-        if settings.guild_setting(ctx.guild.id, 'require_teams') and not models.Player.is_in_team(guild_id=ctx.guild.id, discord_member=ctx.author)[0]:
+        on_team, player_team = models.Player.is_in_team(guild_id=ctx.guild.id, discord_member=ctx.author)
+        if settings.guild_setting(ctx.guild.id, 'require_teams') and not on_team:
             return await ctx.send(f'You must join a Team in order to participate in games on this server.')
 
         max_open = max(1, settings.get_user_level(ctx) * 2)
@@ -187,6 +188,10 @@ class matchmaking():
         expiration_timestamp = (datetime.datetime.now() + datetime.timedelta(hours=expiration_hours)).strftime("%Y-%m-%d %H:%M:%S")
 
         with models.db.atomic() as transaction:
+
+            host.team = player_team
+            host.save()
+
             opengame = models.Game.create(host=host, expiration=expiration_timestamp, notes=game_notes, guild_id=ctx.guild.id, is_pending=True, is_ranked=is_ranked)
             for count, size in enumerate(team_sizes):
                 models.GameSide.create(game=opengame, size=size, position=count + 1, required_role_id=required_roles[count], sidename=required_role_names[count])
@@ -290,7 +295,8 @@ class matchmaking():
         if len(guild_matches) == 0:
             return await ctx.send(f'Could not find \"{target}\" on this server.')
 
-        if settings.guild_setting(ctx.guild.id, 'require_teams') and not models.Player.is_in_team(guild_id=ctx.guild.id, discord_member=guild_matches[0])[0]:
+        on_team, player_team = models.Player.is_in_team(guild_id=ctx.guild.id, discord_member=guild_matches[0])
+        if settings.guild_setting(ctx.guild.id, 'require_teams') and not on_team:
             return await ctx.send(f'**{guild_matches[0].name}** must join a Team in order to participate in games on this server.')
 
         if side.required_role_id and not discord.utils.get(guild_matches[0].roles, id=side.required_role_id):
@@ -351,6 +357,8 @@ class matchmaking():
 
         logger.info(f'Checks passed. Joining player {player.discord_member.discord_id} to side {side.position} of game {game.id}')
         models.Lineup.create(player=player, game=game, gameside=side)
+        player.team = player_team  # update player record with detected team in case its changed since last game.
+        player.save()
         await ctx.send(f'Joining <@{player.discord_member.discord_id}> to side {side.position} of game {game.id}')
 
         players, capacity = game.capacity()
