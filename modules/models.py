@@ -964,6 +964,7 @@ class Game(BaseModel):
     def delete_game(self):
         # resets any relevant ELO changes to players and teams, deletes related lineup records, and deletes the game entry itself
 
+        logger.info(f'Deleting game {self.id}')
         recalculate = False
         with db.atomic():
             if self.winner:

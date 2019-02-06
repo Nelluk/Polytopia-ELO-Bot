@@ -113,21 +113,26 @@ async def paginate(bot, ctx, title, message_list, page_start=0, page_end=10, pag
                 logger.warn('Unable to clear message reaction due to insufficient permissions. Giving bot \'Manage Messages\' permission will improve usability.')
             await sent_message.edit(embed=embed)
 
-        if page_start > 0:
-            await sent_message.add_reaction('⏪')
-        if page_end < len(message_list):
-            await sent_message.add_reaction('⏩')
+        await sent_message.add_reaction('⏪')
+        await sent_message.add_reaction('⬅')
+        await sent_message.add_reaction('➡')
+        await sent_message.add_reaction('⏩')
+        # if page_start > 0:
+        #     await sent_message.add_reaction('⏪')
+        # if page_end < len(message_list):
+        #     await sent_message.add_reaction('⏩')
 
         def check(reaction, user):
             e = str(reaction.emoji)
-            if page_start > 0 and page_end < len(message_list):
-                compare = e.startswith(('⏪', '⏩'))
-            elif page_end >= len(message_list):
-                compare = e.startswith('⏪')
-            elif page_start <= 0:
-                compare = e.startswith('⏩')
-            else:
-                compare = False
+            # if page_start > 0 and page_end < len(message_list):
+            #     compare = e.startswith(('⏪', '⏩', '➡', '⬅'))
+            # elif page_end >= len(message_list):
+            #     compare = e.startswith('⏪')
+            # elif page_start <= 0:
+            #     compare = e.startswith('⏩')
+            # else:
+            #     compare = False
+            compare = e.startswith(('⏪', '⏩', '➡', '⬅'))
             return ((user == ctx.message.author) and (reaction.message.id == sent_message.id) and compare)
 
         try:
@@ -136,18 +141,46 @@ async def paginate(bot, ctx, title, message_list, page_start=0, page_end=10, pag
             try:
                 await sent_message.clear_reactions()
             except (discord.ext.commands.errors.CommandInvokeError, discord.errors.Forbidden):
-                logger.debug('Unable to clear message reaction due to insufficient permissions. Giving bot \'Manage Messages\' permission will improve usability.')
+                logger.warn('Unable to clear message reaction due to insufficient permissions. Giving bot \'Manage Messages\' permission will improve usability.')
             finally:
                 break
         else:
+            # if '⏪' in str(reaction.emoji):
+
+            #     page_start = 0 if (page_start - page_size < 0) else (page_start - page_size)
+            #     page_end = page_start + page_size if (page_start + page_size <= len(message_list)) else len(message_list)
+
+            # elif '⏩' in str(reaction.emoji):
+
+            #     page_end = len(message_list) if (page_end + page_size > len(message_list)) else (page_end + page_size)
+            #     page_start = page_end - page_size if (page_end - page_size) >= 0 else 0
+
             if '⏪' in str(reaction.emoji):
+                # all the way to beginning
+                page_start = 0
+                page_end = page_start + page_size
 
-                page_start = 0 if (page_start - page_size < 0) else (page_start - page_size)
-                page_end = page_start + page_size if (page_start + page_size <= len(message_list)) else len(message_list)
+            if '⏩' in str(reaction.emoji):
+                # last page
+                page_end = len(message_list)
+                page_start = page_end - page_size
 
-            elif '⏩' in str(reaction.emoji):
+            if '➡' in str(reaction.emoji):
+                # next page
+                page_start = page_start + page_size
+                page_end = page_start + page_size
 
-                page_end = len(message_list) if (page_end + page_size > len(message_list)) else (page_end + page_size)
+            if '⬅' in str(reaction.emoji):
+                # previous page
+                page_start = page_start - page_size
+                page_end = page_start + page_size
+
+            if page_start < 0:
+                page_start = 0
+                page_end = page_start + page_size
+
+            if page_end > len(message_list):
+                page_end = len(message_list)
                 page_start = page_end - page_size if (page_end - page_size) >= 0 else 0
 
             first_loop = False

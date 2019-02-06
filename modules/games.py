@@ -170,7 +170,7 @@ class elo_games():
 
         leaderboard_query = target_model.leaderboard(date_cutoff=settings.date_cutoff, guild_id=ctx.guild.id, max_flag=max_flag)
 
-        for counter, player in enumerate(leaderboard_query[:500]):
+        for counter, player in enumerate(leaderboard_query[:2000]):
             wins, losses = player.get_record()
             emoji_str = player.team.emoji if not global_flag and player.team else ''
             leaderboard.append(
@@ -1211,12 +1211,17 @@ class elo_games():
 
         await game.delete_squad_channels(ctx.guild)
 
-        async with ctx.typing():
+        try:
+            async with ctx.typing():
+                gid = game.id
+                await self.bot.loop.run_in_executor(None, game.delete_game)
+                # Allows bot to remain responsive while this large operation is running.
+                # Can result in funky behavior especially if another operation tries to close DB connection, but seems to still get this operation done reliably
+                await ctx.send(f'Game with ID {gid} has been deleted and team/player ELO changes have been reverted, if applicable.')
+        except discord.errors.NotFound:
+            logger.warn('Game deleted while in game-related channel')
             gid = game.id
             await self.bot.loop.run_in_executor(None, game.delete_game)
-            # Allows bot to remain responsive while this large operation is running.
-            # Can result in funky behavior especially if another operation tries to close DB connection, but seems to still get this operation done reliably
-            await ctx.send(f'Game with ID {gid} has been deleted and team/player ELO changes have been reverted, if applicable.')
 
     @settings.in_bot_channel()
     @commands.command(aliases=['namegame', 'gamename'], usage='game_id "New Name"')
