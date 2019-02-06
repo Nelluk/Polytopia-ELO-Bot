@@ -113,14 +113,18 @@ async def paginate(bot, ctx, title, message_list, page_start=0, page_end=10, pag
                 logger.warn('Unable to clear message reaction due to insufficient permissions. Giving bot \'Manage Messages\' permission will improve usability.')
             await sent_message.edit(embed=embed)
 
-        await sent_message.add_reaction('⏪')
-        await sent_message.add_reaction('⬅')
-        await sent_message.add_reaction('➡')
-        await sent_message.add_reaction('⏩')
-        # if page_start > 0:
-        #     await sent_message.add_reaction('⏪')
-        # if page_end < len(message_list):
-        #     await sent_message.add_reaction('⏩')
+        # await sent_message.add_reaction('⬅')
+        # await sent_message.add_reaction('➡')
+
+        # await sent_message.add_reaction('⏪')
+        # await sent_message.add_reaction('⏩')
+
+        if page_start > 0:
+            await sent_message.add_reaction('⏪')
+            await sent_message.add_reaction('⬅')
+        if page_end < len(message_list):
+            await sent_message.add_reaction('➡')
+            await sent_message.add_reaction('⏩')
 
         def check(reaction, user):
             e = str(reaction.emoji)
