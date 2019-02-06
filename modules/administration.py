@@ -44,6 +44,7 @@ class administration:
         winning_game.declare_winner(winning_side=winning_game.winner, confirm=True)
 
         await post_win_messaging(ctx, winning_game)
+        await ctx.send(f'Confirmation of game {winning_game.id} concluded.')  # Added here to try to fix InterfaceError Cursor Closed - seems to fix if there is output at the end
 
     @commands.command(usage='game_id')
     async def rankset(self, ctx, game: PolyGame = None):
