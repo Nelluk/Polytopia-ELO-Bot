@@ -181,7 +181,7 @@ class matchmaking():
         else:
             if sum(team_sizes) < 4:
                 expiration_hours = 24
-            elif sum(team_sizes) < 8:
+            elif sum(team_sizes) < 6:
                 expiration_hours = 48
             else:
                 expiration_hours = 96
