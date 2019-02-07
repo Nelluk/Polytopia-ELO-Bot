@@ -502,7 +502,8 @@ class Game(BaseModel):
     announcement_message = BitField(default=None, null=True)
     announcement_channel = BitField(default=None, null=True)
     date = DateField(default=datetime.datetime.today)
-    completed_ts = DateTimeField(null=True, default=None)  # Gets reset whenever ELO is recalculated so calculated_ts would be a more accurate name
+    completed_ts = DateTimeField(null=True, default=None)  # set when game is confirmed and ELO is calculated
+    win_claimed_ts = DateTimeField(null=True, default=None)  # set when win is claimed, used to check old unconfirmed wins
     name = TextField(null=True)
     winner = DeferredForeignKey('GameSide', null=True, on_delete='RESTRICT')
     guild_id = BitField(unique=False, null=False)
@@ -1530,6 +1531,25 @@ class Game(BaseModel):
         logger.info(f'purge_expired_games #1: Purged {delete_query.execute()}  games.')
         logger.info(f'purge_expired_games #2: Purged {delete_query2.execute()}  games.')
 
+    def confirmations_reset(self):
+        for side in self.gamesides:
+            side.win_confirmed = False
+            side.save()
+        self.win_claimed_ts = None
+        self.save()
+
+    def confirmations_count(self):
+        fully_confirmed = True
+        confirmed_count, side_count = 0, 0
+        for side in self.gamesides:
+            side_count = side_count + 1
+            if side.win_confirmed:
+                confirmed_count = confirmed_count + 1
+            else:
+                fully_confirmed = False
+
+        return (confirmed_count, side_count, fully_confirmed)
+
 
 class Squad(BaseModel):
     elo = SmallIntegerField(default=1000)
@@ -1688,6 +1708,7 @@ class GameSide(BaseModel):
     sidename = TextField(null=True)  # for pending open games/matchmaking
     size = SmallIntegerField(null=False, default=1)
     position = SmallIntegerField(null=False, unique=False, default=1)
+    win_confirmed = BooleanField(default=False)
 
     def has_same_players_as(self, gameside):
         # Given side1.has_same_players_as(side2)

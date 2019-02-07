@@ -1098,7 +1098,10 @@ class elo_games():
             if winning_game.is_confirmed is True:
                 return await ctx.send(f'Game with ID {winning_game.id} is already marked as completed with winner **{winning_game.winner.name()}**')
             elif winning_game.winner != winning_side:
-                await ctx.send(f'Warning: Unconfirmed game with ID {winning_game.id} had previously been marked with winner **{winning_game.winner.name()}**')
+                (confirmed_count, side_count, _) = winning_game.confirmations_count()
+                await ctx.send(f'Warning: Unconfirmed game with ID {winning_game.id} had previously been marked with winner **{winning_game.winner.name()}**.\n'
+                    f'{confirmed_count} of {side_count} sides had confirmed.')
+                winning_game.confirmations_reset()
 
         if winning_game.is_pending:
             return await ctx.send(f'This game has not started yet.')
@@ -1112,44 +1115,35 @@ class elo_games():
             if not has_player:
                 return await ctx.send(f'You were not a participant in this game.')
 
-            if len(winning_game.gamesides) == 2:
-                if winning_side == author_side:
-                    # Author declaring their side won
-                    for side in winning_game.gamesides:
-                        if side != winning_side:
-                            if len(side.lineup) == 1:
-                                confirm_str = f'losing opponent <@{side.lineup[0].player.discord_member.discord_id}>'
-                            else:
-                                confirm_str = f'a member of losing side **{side.name()}**'
-                            break
+            new_confirmation = not author_side.win_confirmed  # To track if author had previously confirmed or not
+            winning_side.win_confirmed = True
+            author_side.win_confirmed = True
+            winning_side.save()
+            author_side.save()
 
-                    printed_side_name = winning_side.name() if '@' in winning_side_name else winning_side_name
-                    # @Mentions would display like <@123456> below if used directly
+            (confirmed_count, side_count, fully_confirmed) = winning_game.confirmations_count()
 
-                    await ctx.send(f'Game {winning_game.id} concluded pending confirmation of winner **{winning_obj.name}**\n'
-                        f'To confirm, have {confirm_str} use the command __`{ctx.prefix}win {winning_game.id} {printed_side_name}`__ or ask an **@{helper_role}** to confirm your win with screenshot evidence if the opponent does not confirm.')
-                    confirm_win = False
-                else:
-                    # Author declaring their side lost
-                    await ctx.send(f'Detected confirmation from losing side. Good game!')
-                    confirm_win = True
+            if fully_confirmed:
+                await ctx.send(f'All sides have confirmed this victory. Good game!')
+                confirm_win = True
             else:
-                # Game with more than two teams - staff confirmation required. Possibly improve later so that every team can unanimously confirm
-                await ctx.send(f'Since this is a {len(winning_game.gamesides)}-team game, staff confirmation is required. Ping **@{helper_role}** with a screenshot of the game status. ')
                 confirm_win = False
+                printed_side_name = winning_side.name() if '@' in winning_side_name else winning_side_name
 
-                # # Automatically inform staff of needed confirmation if game_request_channel is enabled
-                # if settings.guild_setting(ctx.guild.id, 'game_request_channel'):
-                #     channel = ctx.guild.get_channel(settings.guild_setting(ctx.guild.id, 'game_request_channel'))
-                #     try:
-                #         await channel.send(f'{ctx.message.author} submitted game winner: Game {winning_game.id} - Winner: **{winning_obj.name}**'
-                #             f'\nUse `{ctx.prefix}confirm {winning_game.id}` to confirm win.'
-                #             f'\nUse `{ctx.prefix}confirm` to list all games awaiting confirmation.')
-                #     except discord.errors.DiscordException:
-                #         logger.warn(f'Could not send message to game_request_channel: {settings.guild_setting(ctx.guild.id, "game_request_channel")}')
-                #         await ctx.send(f'Use `{ctx.prefix}staffhelp` to request staff confirm the win.')
-                #     else:
-                #         await ctx.send(f'Staff has automatically been informed of this win and confirmation is pending.')
+                if winning_game.win_claimed_ts:
+                    # this win had previously been claimed, dont ping lineup
+                    conf_str = 'Your confirmation has been logged. ' if new_confirmation else ''
+                    await ctx.send(f'{conf_str}This win is pending confirmation: {confirmed_count} of {side_count} sides have confirmed.\n'
+                        f'Participants in the game should use the command __`{ctx.prefix}win {winning_game.id} {printed_side_name}`__ to confirm the victory.\n'
+                        f'If opponents will not confirm please send screenshot evidence of your victory to a **@{helper_role}**.')
+                else:
+                    winning_game.win_claimed_ts = datetime.datetime.now()
+                    winning_game.save()
+                    # first time this win has been claimed - ping lineup instructions
+                    player_mentions = [f'<@{l.player.discord_member.discord_id}>' for l in winning_game.lineup]
+                    await ctx.send(f'**Game {winning_game.id}** *{winning_game.name}* concluded pending confirmation of winner **{winning_obj.name}**\n'
+                        f'To confirm, have opponents use the command __`{ctx.prefix}win {winning_game.id} {printed_side_name}`__\n'
+                        f'*Game lineup*: {" ".join(player_mentions)}')
 
         winning_game.declare_winner(winning_side=winning_side, confirm=confirm_win)
 

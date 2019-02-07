@@ -29,14 +29,18 @@ migrator = PostgresqlMigrator(db)
 # elo_max = SmallIntegerField(default=1000)
 # is_banned = BooleanField(default=False)
 # required_role_id = BitField(default=None, null=True)
-timezone_offset = SmallIntegerField(default=None, null=True)
+# timezone_offset = SmallIntegerField(default=None, null=True)
+win_claimed_ts = DateTimeField(null=True, default=None)
+win_confirmed = BooleanField(default=False)
 
 migrate(
     # migrator.add_column('discordmember', 'elo_max', elo_max),
     # migrator.add_column('player', 'is_banned', is_banned),
     # migrator.add_column('discordmember', 'is_banned', is_banned),
     # migrator.add_column('gameside', 'required_role_id', required_role_id)
-    migrator.add_column('discordmember', 'timezone_offset', timezone_offset),
+    # migrator.add_column('discordmember', 'timezone_offset', timezone_offset),
+    migrator.add_column('game', 'win_claimed_ts', win_claimed_ts),
+    migrator.add_column('gameside', 'win_confirmed', win_confirmed)
 
 
 )

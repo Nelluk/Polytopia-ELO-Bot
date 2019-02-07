@@ -29,7 +29,7 @@ class administration:
 
         if winning_game is None:
             # display list of unconfirmed games
-            game_query = models.Game.search(status_filter=5, guild_id=ctx.guild.id)
+            game_query = models.Game.search(status_filter=5, guild_id=ctx.guild.id).order_by(-models.Game.win_claimed_ts)
             game_list = utilities.summarize_game_list(game_query)
             if len(game_list) == 0:
                 return await ctx.send(f'No unconfirmed games found.')
@@ -128,6 +128,8 @@ class administration:
 
         if game is None:
             return await ctx.send(f'No matching game was found.')
+
+        game.confirmations_reset()
 
         if game.is_completed and game.is_confirmed:
             elo_logger.debug(f'unwin game {game.id}')
