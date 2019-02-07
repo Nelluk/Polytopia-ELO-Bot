@@ -103,6 +103,8 @@ async def paginate(bot, ctx, title, message_list, page_start=0, page_end=10, pag
         embed = discord.Embed(title=title)
         for entry in range(page_start, page_end):
             embed.add_field(name=message_list[entry][0], value=message_list[entry][1], inline=False)
+        if page_size < len(message_list):
+            embed.set_footer(text=f'{page_start + 1} - {page_end} of {len(message_list)}')
 
         if first_loop is True:
             sent_message = await ctx.send(embed=embed)
@@ -113,12 +115,6 @@ async def paginate(bot, ctx, title, message_list, page_start=0, page_end=10, pag
                 logger.warn('Unable to clear message reaction due to insufficient permissions. Giving bot \'Manage Messages\' permission will improve usability.')
             await sent_message.edit(embed=embed)
 
-        # await sent_message.add_reaction('⬅')
-        # await sent_message.add_reaction('➡')
-
-        # await sent_message.add_reaction('⏪')
-        # await sent_message.add_reaction('⏩')
-
         if page_start > 0:
             await sent_message.add_reaction('⏪')
             await sent_message.add_reaction('⬅')
@@ -128,15 +124,11 @@ async def paginate(bot, ctx, title, message_list, page_start=0, page_end=10, pag
 
         def check(reaction, user):
             e = str(reaction.emoji)
-            # if page_start > 0 and page_end < len(message_list):
-            #     compare = e.startswith(('⏪', '⏩', '➡', '⬅'))
-            # elif page_end >= len(message_list):
-            #     compare = e.startswith('⏪')
-            # elif page_start <= 0:
-            #     compare = e.startswith('⏩')
-            # else:
-            #     compare = False
-            compare = e.startswith(('⏪', '⏩', '➡', '⬅'))
+
+            if page_size < len(message_list):
+                compare = e.startswith(('⏪', '⏩', '➡', '⬅'))
+            else:
+                compare = False
             return ((user == ctx.message.author) and (reaction.message.id == sent_message.id) and compare)
 
         try:
@@ -149,15 +141,6 @@ async def paginate(bot, ctx, title, message_list, page_start=0, page_end=10, pag
             finally:
                 break
         else:
-            # if '⏪' in str(reaction.emoji):
-
-            #     page_start = 0 if (page_start - page_size < 0) else (page_start - page_size)
-            #     page_end = page_start + page_size if (page_start + page_size <= len(message_list)) else len(message_list)
-
-            # elif '⏩' in str(reaction.emoji):
-
-            #     page_end = len(message_list) if (page_end + page_size > len(message_list)) else (page_end + page_size)
-            #     page_start = page_end - page_size if (page_end - page_size) >= 0 else 0
 
             if '⏪' in str(reaction.emoji):
                 # all the way to beginning
