@@ -112,7 +112,6 @@ class elo_games():
             return await ctx.send(f'You must supply a help request, ie: `{ctx.prefix}staffhelp Game 51, restarted with name "Sweet New Game Name"`')
 
         await channel.send(f'{ctx.message.author} submitted: {ctx.message.clean_content}')
-        await ctx.send(f'Request has been logged\n**Reminder** Wins are now claimed using the `{ctx.prefix}win` command. See `{ctx.prefix}help win`')
 
     @commands.command(brief='Sends staff details on a League game', usage='Week 2 game vs Mallards started called "Oceans of Fire"')
     @settings.on_polychampions()

@@ -20,21 +20,50 @@ class administration:
         return settings.is_staff(ctx)
 
     @commands.command(aliases=['confirmgame'], usage='game_id')
-    async def confirm(self, ctx, winning_game: PolyGame = None):
+    # async def confirm(self, ctx, winning_game: PolyGame = None):
+    async def confirm(self, ctx, *, arg: str = None):
         """ *Staff*: List unconfirmed games, or let staff confirm winners
          **Examples**
         `[p]confirm` - List unconfirmed games
         `[p]confirm 5` - Confirms the winner of game 5 and performs ELO changes
         """
 
-        if winning_game is None:
+        if arg is None:
             # display list of unconfirmed games
-            game_query = models.Game.search(status_filter=5, guild_id=ctx.guild.id).order_by(-models.Game.win_claimed_ts)
+            game_query = models.Game.search(status_filter=5, guild_id=ctx.guild.id).order_by(models.Game.win_claimed_ts)
             game_list = utilities.summarize_game_list(game_query)
             if len(game_list) == 0:
                 return await ctx.send(f'No unconfirmed games found.')
             await utilities.paginate(self.bot, ctx, title=f'{len(game_list)} unconfirmed games', message_list=game_list, page_start=0, page_end=15, page_size=15)
             return
+
+        if arg.lower() == 'auto':
+            game_query = models.Game.search(status_filter=5, guild_id=ctx.guild.id).order_by(models.Game.win_claimed_ts)
+            old_24h = (datetime.datetime.now() + datetime.timedelta(hours=-24))
+            old_6h = (datetime.datetime.now() + datetime.timedelta(hours=-6))
+            for game in game_query:
+                (confirmed_count, side_count, _) = game.confirmations_count()
+                if game.is_ranked and game.win_claimed_ts < old_24h:
+                    game.declare_winner(winning_side=game.winner, confirm=True)
+                    await post_win_messaging(ctx, game)
+                    await ctx.send(f'Game {game.id} auto-confirmed. Ranked win claimed more than 24 hours ago. {confirmed_count} of {side_count} sides had confirmed.')
+                if not game.is_ranked and game.win_claimed_ts < old_6h:
+                    game.declare_winner(winning_side=game.winner, confirm=True)
+                    await post_win_messaging(ctx, game)
+                    await ctx.send(f'Game {game.id} auto-confirmed. Unranked win claimed more than 6 hours ago. {confirmed_count} of {side_count} sides had confirmed.')
+                if side_count < 5 and confirmed_count > 1:
+                    game.declare_winner(winning_side=game.winner, confirm=True)
+                    await post_win_messaging(ctx, game)
+                    await ctx.send(f'Game {game.id} auto-confirmed due to partial confirmations. {confirmed_count} of {side_count} sides had confirmed.')
+                if side_count >= 5 and confirmed_count > 2:
+                    game.declare_winner(winning_side=game.winner, confirm=True)
+                    await post_win_messaging(ctx, game)
+                    await ctx.send(f'Game {game.id} auto-confirmed due to partial confirmations. {confirmed_count} of {side_count} sides had confirmed.')
+            return await ctx.send('Autoconfirm process complete. Any game confirmations would be printed above.')
+
+        # else confirming a specific game ie. $confirm 1234
+        game_converter = PolyGame()
+        winning_game = await game_converter.convert(ctx, arg)
 
         if not winning_game.is_completed:
             return await ctx.send(f'Game {winning_game.id} has no declared winner yet.')

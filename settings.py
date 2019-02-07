@@ -110,7 +110,7 @@ config = {'default':
                       'ranked_game_channel': 511316081160355852,
                       'unranked_game_channel': 511906353476927498,
                       'match_challenge_channels': [511316081160355852, 511906353476927498],
-                      'game_request_channel': None,
+                      'game_request_channel': 418175357137453058,
                       'game_announce_channel': 505523961812090900,
                       'game_channel_categories': []},
         274660262873661442:                           # Beta Server

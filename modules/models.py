@@ -1034,6 +1034,9 @@ class Game(BaseModel):
 
         with db.atomic():
             if confirm is True:
+                if not self.completed_ts:
+                    self.completed_ts = datetime.datetime.now()  # will be preserved if ELO is re-calculated after initial win.
+
                 self.is_confirmed = True
                 if self.is_ranked:
                     # run elo calculations for player, discordmember, team, squad
@@ -1083,8 +1086,6 @@ class Game(BaseModel):
 
             self.winner = winning_side
             self.is_completed = True
-            if not self.completed_ts:
-                self.completed_ts = datetime.datetime.now()  # will be preserved if ELO is re-calculated after initial win.
             self.save()
 
     def has_player(self, player: Player = None, discord_id: int = None):
