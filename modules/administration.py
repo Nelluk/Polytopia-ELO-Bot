@@ -328,7 +328,7 @@ class administration:
             process = subprocess.run(['/home/nelluk/backup_db.sh'], stdout=PIPE, stderr=PIPE)
             if process.returncode == 0:
                 logger.info('Backup script executed')
-                return await ctx.send(f'Execution successfull: {str(process.stdout)}')
+                return await ctx.send(f'Execution successful: {str(process.stdout)}')
             else:
                 logger.error('Error during execution')
                 return await ctx.send(f'Error during execution: {str(process.stderr)}')

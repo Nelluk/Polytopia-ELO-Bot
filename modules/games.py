@@ -916,7 +916,7 @@ class elo_games():
         await utilities.paginate(self.bot, ctx, title=list_name, message_list=game_list, page_start=0, page_end=10, page_size=10)
 
     @settings.in_bot_channel_strict()
-    @commands.command(aliases=['loss', 'lose'])
+    @commands.command(aliases=['loss'])
     async def losses(self, ctx, *args):
         """List games that you have lost, or others
         If any players names are listed, the first played is who the loss is checked against. If no players listed, then the first team listed is checked for the loss.
@@ -1065,7 +1065,7 @@ class elo_games():
             await post_newgame_messaging(ctx, game=newgame)
 
     # @settings.in_bot_channel()
-    @commands.command(usage='game_id winner_name')
+    @commands.command(usage='game_id winner_name', aliases=['lose'])
     async def win(self, ctx, winning_game: PolyGame = None, *, winning_side_name: str = None):
         """
         Declare winner of an existing game
@@ -1082,7 +1082,9 @@ class elo_games():
         `[p]win 2050 Nelluk` - Declare *Nelluk* winner of game 2050
         """
         usage = ('Include both game ID and the name of the winning side. Example usage:\n'
-                f'`{ctx.prefix}win 422 Nelluk`\n`{ctx.prefix}win 425 Owls` *For a team game*')
+                f'`{ctx.prefix}win 422 Nelluk`\n`{ctx.prefix}win 425 Home` *For a team game*')
+        if ctx.invoked_with.lower() == 'lose':
+            return await ctx.send(f'Games are always concluded using the `{ctx.prefix}win` command.\n{usage}')
         if not winning_game or not winning_side_name:
             return await ctx.send(usage)
 
