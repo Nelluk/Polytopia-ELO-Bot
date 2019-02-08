@@ -1411,7 +1411,15 @@ class Game(BaseModel):
             (Game.id.in_(intersection_of_games)) & (Game.is_pending == 0)
         )
 
-        return query
+        games_with_same_number_of_sides = []
+        for game in query:
+            # ugly fix - without this block games without the same number of sides will be mixed together.
+            # if game 1 is p1 vs p2, and game 2 is p1 vs p2 vs p3, they would be compared
+            # could fix this with better SQL querying but this was a quick fix
+            if len(game.gamesides) == len(player_lists):
+                games_with_same_number_of_sides.append(game)
+
+        return games_with_same_number_of_sides
 
     def recalculate_elo_since(timestamp):
         games = Game.select().where(

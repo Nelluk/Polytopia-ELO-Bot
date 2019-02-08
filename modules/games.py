@@ -477,7 +477,7 @@ class elo_games():
             # replacing '.' with "\u200b " (alternated zero width space with a normal space) so discord wont strip spaces
 
             members_str = "\n".join(members_sorted) if len(members_sorted) > 0 else '\u200b'
-            embed.description = f'**Members({len(member_stats)})**\n__Player - ELO - Ranking - Recent Games__\n{members_str}'
+            embed.description = f'**Members({len(member_stats)})**\n__Player - ELO - Ranking - Recent Games__\n{members_str}'[:2048]
         else:
             await ctx.send(f'Warning: No matching discord role "{team.name}" could be found. Player membership cannot be detected.')
 
