@@ -1375,9 +1375,12 @@ class Game(BaseModel):
             if game.is_confirmed:
                 if game.winner.has_same_players_as(gamesides[0]):
                     s1_wins += 1
+                    logger.debug(f'series_record(): s1_wins incremented for game {game.id}')
                 else:
                     s2_wins += 1
+                    logger.debug(f'series_record(): s2_wins incremented for game {game.id}')
 
+        logger.debug(f'series_record(): game {self.id}, side 0, id {gamesides[0].id}, wins {s1_wins}. side 1, id {gamesides[1].id}, wins {s2_wins}')
         if s2_wins > s1_wins:
             return ((gamesides[1], s2_wins), (gamesides[0], s1_wins))
         return ((gamesides[0], s1_wins), (gamesides[1], s2_wins))
@@ -1390,6 +1393,7 @@ class Game(BaseModel):
         if len(player_lists) < 2:
             raise exceptions.CheckFailedError('At least two sides must be queried, ie: [[p1, p2], [p3, p4]]')
 
+        logger.debug(f'by_opponents() with player_lists = {player_lists}')
         side_games = []
         for player_list in player_lists:
             # for this given player_list, find all games that had this exact list on one side
