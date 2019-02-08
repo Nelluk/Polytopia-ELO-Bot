@@ -1795,13 +1795,19 @@ class GameSide(BaseModel):
         # Returns list of tuples [(player, elo string (1000 +50), :tribe_emoji:)]
         players = []
 
+        is_confirmed = self.game.is_confirmed
         # for l in self.lineup:
         for l in Lineup.select(Lineup, Player).join(Player).where(Lineup.gameside == self).order_by(Lineup.id):
-            elo_str = str(l.elo_change_player) if l.elo_change_player != 0 else ''
-            if l.elo_change_player > 0:
-                elo_str = '+' + elo_str
+
+            if is_confirmed and l.elo_after_game:
+                # build elo string showing change in elo from this game
+                elo_change_str = f'+{l.elo_change_player}' if l.elo_change_player >= 0 else str(l.elo_change_player)
+                elo_str = f'{l.elo_after_game} {elo_change_str}'
+            else:
+                # build elo string showing current elo only
+                elo_str = f'{l.player.elo}'
             players.append(
-                (l.player, f'{l.player.elo} {elo_str}', l.emoji_str())
+                (l.player, f'{elo_str}', l.emoji_str())
             )
 
         return players
@@ -1826,6 +1832,7 @@ class Lineup(BaseModel):
     player = ForeignKeyField(Player, null=False, backref='lineup', on_delete='CASCADE')
     elo_change_player = SmallIntegerField(default=0)
     elo_change_discordmember = SmallIntegerField(default=0)
+    elo_after_game = SmallIntegerField(default=None, null=True)  # snapshot of what elo was after game concluded
 
     def change_elo_after_game(self, chance_of_winning: float, is_winner: bool, by_discord_member: bool = False):
         # Average(Away Side Elo) is compared to Average(Home_Side_Elo) for calculation - ie all members on a side will have the same elo_delta
@@ -1878,6 +1885,7 @@ class Lineup(BaseModel):
                 self.save()
             else:
                 self.player.elo = int(elo + elo_delta)
+                self.elo_after_game = int(elo + elo_delta)
                 if self.player.elo > self.player.elo_max:
                     self.player.elo_max = self.player.elo
                 self.elo_change_player = elo_delta
