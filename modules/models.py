@@ -498,7 +498,7 @@ class TribeFlair(BaseModel):
 class Game(BaseModel):
     name = TextField(null=True)
     is_completed = BooleanField(default=False)
-    is_confirmed = BooleanField(default=False)  # Use to confirm losses and filter searches?
+    is_confirmed = BooleanField(default=False)
     announcement_message = BitField(default=None, null=True)
     announcement_channel = BitField(default=None, null=True)
     date = DateField(default=datetime.datetime.today)
@@ -1411,7 +1411,7 @@ class Game(BaseModel):
 
     def recalculate_elo_since(timestamp):
         games = Game.select().where(
-            (Game.is_completed == 1) & (Game.completed_ts >= timestamp) & (Game.winner.is_null(False))
+            (Game.is_completed == 1) & (Game.is_confirmed == 1) & (Game.completed_ts >= timestamp) & (Game.winner.is_null(False))
         ).order_by(Game.completed_ts).prefetch(GameSide, Lineup)
 
         elo_logger.debug(f'recalculate_elo_since {timestamp}')
@@ -1884,7 +1884,7 @@ class Lineup(BaseModel):
                 self.player.save()
                 self.save()
 
-        logger.debug(f'elo after save: {self.player.elo}')
+        # logger.debug(f'elo after save: {self.player.elo}')
 
     def emoji_str(self):
 
