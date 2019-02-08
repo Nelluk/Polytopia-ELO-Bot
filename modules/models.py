@@ -1407,19 +1407,24 @@ class Game(BaseModel):
         intersection_of_games = set.intersection(*side_games)
         # this becomes a set of game IDs where -all- the game sides participated
 
+        subq_games_with_same_number_of_sides = GameSide.select(GameSide.game).group_by(GameSide.game).having(fn.COUNT('*') == len(player_lists))
+
         query = Game.select().where(
-            (Game.id.in_(intersection_of_games)) & (Game.is_pending == 0)
+            (Game.id.in_(intersection_of_games)) & (Game.id.in_(subq_games_with_same_number_of_sides)) & (Game.is_pending == 0)
         )
 
-        games_with_same_number_of_sides = []
-        for game in query:
-            # ugly fix - without this block games without the same number of sides will be mixed together.
-            # if game 1 is p1 vs p2, and game 2 is p1 vs p2 vs p3, they would be compared
-            # could fix this with better SQL querying but this was a quick fix
-            if len(game.gamesides) == len(player_lists):
-                games_with_same_number_of_sides.append(game)
+        return query
 
-        return games_with_same_number_of_sides
+        # Commented out block negated by subq_games_with_same_number_of_sides - which needs to be more thoroughly vetted
+        # games_with_same_number_of_sides = []
+        # for game in query:
+        #     # ugly fix - without this block games without the same number of sides will be mixed together.
+        #     # if game 1 is p1 vs p2, and game 2 is p1 vs p2 vs p3, they would be compared
+        #     # could fix this with better SQL querying but this was a quick fix
+        #     if len(game.gamesides) == len(player_lists):
+        #         games_with_same_number_of_sides.append(game)
+
+        # return games_with_same_number_of_sides
 
     def recalculate_elo_since(timestamp):
         games = Game.select().where(
