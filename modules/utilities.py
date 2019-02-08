@@ -81,7 +81,10 @@ def summarize_game_list(games_query):
         else:
             if game.is_confirmed is False:
                 (confirmed_count, side_count, _) = game.confirmations_count()
-                status_str = status_str = f'**WINNER** (Unconfirmed {confirmed_count} of {side_count}): {game.winner.name()}'
+                if side_count > 2:
+                    status_str = f'**WINNER** (Unconfirmed by {side_count - confirmed_count} of {side_count}): {game.winner.name()}'
+                else:
+                    status_str = f'**WINNER** (Unconfirmed): {game.winner.name()}'
             else:
                 status_str = f'**WINNER:** {game.winner.name()}'
 
