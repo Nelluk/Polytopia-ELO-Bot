@@ -216,7 +216,7 @@ class elo_games():
         """display team leaderboard
 
         Examples:
-        `[p]lbteam` - Default team leaderboard, which resets occasonally
+        `[p]lbteam` - Default team leaderboard, which resets occasionally
         `[p]lbteam all` - All-time team leaderboard including all game history
         """
 
