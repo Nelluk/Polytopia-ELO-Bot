@@ -212,23 +212,38 @@ class elo_games():
     @settings.teams_allowed()
     @commands.command(aliases=['teamlb'])
     @commands.cooldown(2, 30, commands.BucketType.channel)
-    async def lbteam(self, ctx):
-        """display team leaderboard"""
-        # TODO: Only show number of members who have an ELO ranking?
-        embed = discord.Embed(title='**Team Leaderboard**')
+    async def lbteam(self, ctx, *, arg: str = None):
+        """display team leaderboard
+
+        Examples:
+        `[p]lbteam` - Default team leaderboard, which resets occasonally
+        `[p]lbteam all` - All-time team leaderboard including all game history
+        """
+
+        if arg and arg.lower()[:3] == 'all':
+            # date_cutoff = datetime.date.min
+            embed = discord.Embed(title='**Alltime Team Leaderboard**')
+            alltime = True
+            sort_field = Team.elo_alltime
+        else:
+            # date_cutoff = datetime.datetime.strptime(settings.team_elo_reset_date, "%m/%d/%Y").date()
+            embed = discord.Embed(title=f'**Team Leaderboard since {settings.team_elo_reset_date}**')
+            alltime = False
+            sort_field = Team.elo
 
         query = Team.select().where(
             (Team.is_hidden == 0) & (Team.guild_id == ctx.guild.id)
-        ).order_by(-Team.elo)
+        ).order_by(-sort_field)
         for counter, team in enumerate(query):
             team_role = discord.utils.get(ctx.guild.roles, name=team.name)
             if not team_role:
                 logger.error(f'Could not find matching role for team {team.name}')
                 continue
             team_name_str = f'**{team.name}**   ({len(team_role.members)})'  # Show team name with number of members
-            wins, losses = team.get_record()
+            wins, losses = team.get_record(alltime=alltime)
 
-            embed.add_field(name=f'{team.emoji} {(counter + 1):>3}. {team_name_str}\n`ELO: {team.elo:<5} W {wins} / L {losses}`', value='\u200b', inline=False)
+            elo = team.elo_alltime if alltime else team.elo
+            embed.add_field(name=f'{team.emoji} {(counter + 1):>3}. {team_name_str}\n`ELO: {elo:<5} W {wins} / L {losses}`', value='\u200b', inline=False)
 
         await ctx.send(embed=embed)
 

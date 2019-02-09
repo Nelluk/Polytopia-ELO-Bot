@@ -26,7 +26,7 @@ class BaseModel(Model):
 class Team(BaseModel):
     name = TextField(unique=False, null=False)
     elo = SmallIntegerField(default=1000)
-    # elo_alltime = SmallIntegerField(default=1000)
+    elo_alltime = SmallIntegerField(default=1000)
     emoji = TextField(null=False, default='')
     image_url = TextField(null=True)
     guild_id = BitField(unique=False, null=False)
@@ -59,18 +59,19 @@ class Team(BaseModel):
 
     def change_elo_after_game(self, chance_of_winning: float, is_winner: bool):
 
-        if self.completed_game_count() < 11:
-            max_elo_delta = 50
-        else:
-            max_elo_delta = 32
+        # if self.completed_game_count() < 11:
+        #     max_elo_delta = 50
+        # else:
+        #     max_elo_delta = 32
+        max_elo_delta = 32
 
         if is_winner is True:
             elo_delta = int(round((max_elo_delta * (1 - chance_of_winning)), 0))
         else:
             elo_delta = int(round((max_elo_delta * (0 - chance_of_winning)), 0))
 
-        self.elo = int(self.elo + elo_delta)
-        self.save()
+        # self.elo = int(self.elo + elo_delta)
+        # self.save()
 
         return elo_delta
 
@@ -79,14 +80,23 @@ class Team(BaseModel):
         q = Lineup.select(Lineup.game).join(Game).group_by(Lineup.game).having(fn.COUNT('*') > 2)
         return q
 
-    def get_record(self):
+    def get_record(self, alltime=True):
+
+        if alltime:
+            date_cutoff = datetime.date.min
+        else:
+            date_cutoff = datetime.datetime.strptime(settings.team_elo_reset_date, "%m/%d/%Y").date()
 
         wins = GameSide.select().join(Game).where(
-            (Game.id.in_(Team.team_games_subq())) & (Game.is_completed == 1) & (Game.is_ranked == 1) & (GameSide.team == self) & (GameSide.id == Game.winner)
+            (Game.id.in_(Team.team_games_subq())) & (Game.is_completed == 1) &
+            (Game.is_ranked == 1) & (GameSide.team == self) &
+            (GameSide.id == Game.winner) & (Game.date > date_cutoff)
         ).count()
 
         losses = GameSide.select().join(Game).where(
-            (Game.id.in_(Team.team_games_subq())) & (Game.is_completed == 1) & (Game.is_ranked == 1) & (GameSide.team == self) & (GameSide.id != Game.winner)
+            (Game.id.in_(Team.team_games_subq())) & (Game.is_completed == 1) &
+            (Game.is_ranked == 1) & (GameSide.team == self) &
+            (GameSide.id != Game.winner) & (Game.date > date_cutoff)
         ).count()
 
         return (wins, losses)
@@ -960,6 +970,11 @@ class Game(BaseModel):
                 gameside.team.save()
                 gameside.elo_change_team = 0
 
+            if gameside.elo_change_team_alltime and gameside.team:
+                gameside.team.elo_alltime += (gameside.elo_change_team_alltime * -1)
+                gameside.team.save()
+                gameside.elo_change_team_alltime = 0
+
             gameside.save()
 
     def delete_game(self):
@@ -1047,6 +1062,7 @@ class Game(BaseModel):
                     side_elos = [s.average_elo() for s in gamesides]
                     side_elos_discord = [s.average_elo(by_discord_member=True) for s in gamesides]
                     team_elos = [s.team.elo if s.team else None for s in gamesides]
+                    team_elos_alltime = [s.team.elo_alltime if s.team else None for s in gamesides]
                     squad_elos = [s.squad.elo if s.squad else None for s in gamesides]
 
                     side_win_chances = Game.get_side_win_chances(largest_side, gamesides, side_elos)
@@ -1055,17 +1071,18 @@ class Game(BaseModel):
                     if smallest_side > 1:
                         if None not in team_elos:
                             team_win_chances = Game.get_side_win_chances(largest_side, gamesides, team_elos)
+                            team_win_chances_alltime = Game.get_side_win_chances(largest_side, gamesides, team_elos_alltime)
                         else:
-                            team_win_chances = None
+                            team_win_chances, team_win_chances_alltime = None, None
 
                         if None not in squad_elos:
                             squad_win_chances = Game.get_side_win_chances(largest_side, gamesides, squad_elos)
                         else:
                             squad_win_chances = None
                     else:
-                        team_win_chances, squad_win_chances = None, None
+                        team_win_chances, team_win_chances_alltime, squad_win_chances = None, None, None
 
-                    team_elo_reset_date = datetime.datetime.strptime('1/1/2019', "%m/%d/%Y").date()
+                    team_elo_reset_date = datetime.datetime.strptime(settings.team_elo_reset_date, "%m/%d/%Y").date()
                     if self.date < team_elo_reset_date:
                         team_win_chances = None
                         logger.info(f'Game date {self.date} is before reset date of {team_elo_reset_date}. Will not count towards team ELO.')
@@ -1078,7 +1095,15 @@ class Game(BaseModel):
                             p.change_elo_after_game(side_win_chances_discord[i], is_winner, by_discord_member=True)
 
                         if team_win_chances:
-                            side.elo_change_team = side.team.change_elo_after_game(team_win_chances[i], is_winner)
+                            team_elo_delta = side.team.change_elo_after_game(team_win_chances[i], is_winner)
+                            side.elo_change_team = team_elo_delta
+                            side.team.elo = int(side.team.elo + team_elo_delta)
+                            side.team.save()
+                        if team_win_chances_alltime:
+                            team_elo_delta = side.team.change_elo_after_game(team_win_chances_alltime[i], is_winner)
+                            side.elo_change_team_alltime = team_elo_delta
+                            side.team.elo_alltime = int(side.team.elo_alltime + team_elo_delta)
+                            side.team.save()
                         if squad_win_chances:
                             side.elo_change_squad = side.squad.change_elo_after_game(squad_win_chances[i], is_winner)
 
@@ -1454,8 +1479,8 @@ class Game(BaseModel):
 
         with db.atomic():
             Player.update(elo=1000, elo_max=1000).execute()
-            # Team.update(elo=1000, elo_alltime=1000).execute()
-            Team.update(elo=1000).execute()
+            Team.update(elo=1000, elo_alltime=1000).execute()
+            # Team.update(elo=1000).execute()
             DiscordMember.update(elo=1000, elo_max=1000).execute()
             Squad.update(elo=1000).execute()
 
@@ -1722,6 +1747,7 @@ class GameSide(BaseModel):
     required_role_id = BitField(default=None, null=True)
     elo_change_squad = SmallIntegerField(default=0)
     elo_change_team = SmallIntegerField(default=0)
+    elo_change_team_alltime = SmallIntegerField(default=0)
     team_chan = BitField(default=None, null=True)
     sidename = TextField(null=True)  # for pending open games/matchmaking
     size = SmallIntegerField(null=False, default=1)
