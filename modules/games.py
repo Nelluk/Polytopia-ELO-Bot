@@ -647,7 +647,7 @@ class elo_games():
         elif len(args) == 2:
             # User changing another user's code. Admin permissions required.
             if settings.is_staff(ctx) is False:
-                return await ctx.send('You do not have permission to trigger this command.')
+                return await ctx.send(f'You do not have permission to trigger this command. Set your own in-game name with `{ctx.prefix}setname "My In-Game Name"`')
             target_string = args[0]
             new_name = args[1]
         else:
