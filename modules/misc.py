@@ -295,7 +295,8 @@ class misc:
                 prefix = settings.guild_setting(guild.id, 'command_prefix')
                 ranked_chan = settings.guild_setting(guild.id, 'ranked_game_channel')
                 unranked_chan = settings.guild_setting(guild.id, 'unranked_game_channel')
-                bot_spam_chan = settings.guild_setting(guild.id, 'bot_channels_strict')[0]
+                # bot_spam_chan = settings.guild_setting(guild.id, 'bot_channels_strict')[0]
+                elo_guide_channel = 533391050014720040
 
                 broadcast_message = ('I am here to help improve Polytopia multiplayer with matchmaking and leaderboards!\n'
                     f'To **register your code** with me, type __`{prefix}setcode YOURCODEHERE`__')
@@ -310,7 +311,7 @@ class misc:
                     broadcast_message += (f'\n\nYou can also find unranked games - use the same commands as above in <#{unranked_chan}>. '
                         'Start here if you are new to Polytopia multiplayer.')
 
-                broadcast_message += f'\n\nFor full information go to <#{bot_spam_chan}> and type __`$guide`__ or __`$help`__'
+                broadcast_message += f'\n\nFor full information go read <#{elo_guide_channel}>.'
 
                 for broadcast_channel in broadcast_channels:
                     if broadcast_channel:

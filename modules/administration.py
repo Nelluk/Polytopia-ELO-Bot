@@ -66,7 +66,7 @@ class administration:
                     games_confirmed += 1
                     await ctx.send(f'Game {game.id} auto-confirmed due to partial confirmations. {confirmed_count} of {side_count} sides had confirmed.')
 
-            return await ctx.send(f'Autoconfirm process complete. {games_confirmed} games auto-confirmed.')
+            return await ctx.send(f'Autoconfirm process complete. {games_confirmed} games auto-confirmed. {len(game_query) - games_confirmed} games left unconfirmed.')
 
         # else confirming a specific game ie. $confirm 1234
         game_converter = PolyGame()
