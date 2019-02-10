@@ -1162,7 +1162,9 @@ class Game(BaseModel):
             raise exceptions.CheckFailedError('Name given is not enough characters. Be more specific')
 
         matches = []
-        for gameside in self.gamesides:
+        gamesides = list(self.gamesides)
+
+        for gameside in gamesides:
             if len(gameside.lineup) == 1:
                 try:
                     p_id = int(name.strip('<>!@'))
@@ -1190,8 +1192,15 @@ class Game(BaseModel):
         if len(matches) == 1:
             return matches[0]
         if len(matches) == 0:
-            names = [s.name() for s in self.gamesides]
-            raise exceptions.NoMatches(f'No matches found for **{name}** in game {self.id}. Sides in this game are: *{", ".join(names)}*')
+            sidenames = []
+            for counter, s in enumerate(gamesides):
+                if len(s.lineup) > 1:
+                    playernames = [l.player.name for l in s.lineup]
+                    sidenames.append(f'Side {counter + 1} **{s.name()}**: {", ".join(playernames)}')
+                else:
+                    sidenames.append(f'Side {counter + 1}: **{s.name()}**')
+            names_str = '\n'.join(sidenames)
+            raise exceptions.NoMatches(f'No sides found with name **{name}** in game {self.id}. Sides in this game are:\n{names_str}')
         else:
             raise exceptions.TooManyMatches(f'{len(matches)} matches found for "{name}" in game {self.id}.')
 
