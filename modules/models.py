@@ -530,11 +530,12 @@ class Game(BaseModel):
 
     async def create_squad_channels(self, ctx):
         game_roster = []
-        for gameside in self.gamesides:
-            game_roster.append([r[0].name for r in gameside.roster()])
 
-        roster_names = ' -vs- '.join([' '.join(side) for side in game_roster])
-        # yields a string like 'Player1 Player2 -vs- Player3 Player4'
+        for s in self.gamesides:
+            playernames = [l.player.name for l in s.lineup]
+            game_roster.append(f'Side **{s.name()}**: {", ".join(playernames)}')
+
+        roster_names = '\n'.join(game_roster)  # "Side **Home**: Nelluk, player2\n Side **Away**: Player 3, Player 4"
 
         for gameside in self.gamesides:
             player_list = [r[0] for r in gameside.roster()]
@@ -1406,6 +1407,8 @@ class Game(BaseModel):
 
         s1_wins, s2_wins = 0, 0
         for game in games_with_same_teams:
+            if not game.is_ranked:
+                continue
             if game.is_confirmed:
                 if game.winner.has_same_players_as(gamesides[0]):
                     s1_wins += 1

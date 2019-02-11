@@ -119,7 +119,7 @@ async def greet_squad_channel(ctx, chan, player_list, roster_names, game):
     try:
         await chan.send(f'This is the team channel for game **{game.name}**, ID {game.id}.\n'
             f'Your teammates are {" / ".join(chan_mentions)}\n'
-            f'The teams for this game are: {roster_names}\n\n'
+            f'The teams for this game are:\n{roster_names}\n\n'
             f'{match_content}'
             '*This channel will self-destruct 24 hours after the game is marked as concluded.*')
     except (discord.errors.Forbidden, discord.errors.HTTPException) as e:
