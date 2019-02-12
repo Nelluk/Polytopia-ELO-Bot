@@ -21,7 +21,7 @@ async def set_champion_role():
     global_champion = models.DiscordMember.select().order_by(-models.DiscordMember.elo).limit(1).get()
 
     for guild in settings.bot.guilds:
-        logger.warn(f'Attempting champion set for guild {guild.name}')
+        logger.info(f'Attempting champion set for guild {guild.name}')
         role = discord.utils.get(guild.roles, name='ELO Champion')
         if not role:
             logger.warn(f'Could not load ELO Champion role in guild {guild.name}')
@@ -47,34 +47,6 @@ async def set_champion_role():
             await global_champion_member.add_roles(role)
         else:
             logger.warn(f'Couldnt find global champion {global_champion.name} in guild {guild.name}!')
-
-
-# async def set_achievement_role(player):
-#     logger.debug(f'processing experience role for member {player.discord_member.name}')
-#     max_local_elo = models.Player.select(peewee.fn.Max(models.Player.elo)).scalar()
-#     max_global_elo = models.DiscordMember.select(peewee.fn.Max(models.DiscordMember.elo)).scalar()
-
-#     flag_qualifies, flag_champion, flag_platinum, flag_gold = False, False, False, False
-
-#     if player.discord_member.elo >= max_global_elo or player.elo >= max_local_elo:
-#         flag_qualifies, flag_champion = True, True
-#         # This player has #1 spot in either local OR global leaderboard. Apply ELO Champion role on any server where the player is
-
-#     if player.discord_member.elo_max >= 1500:
-#         flag_qualifies, flag_platinum = True, True
-#     elif player.discord_member.elo_max >= 1300:
-#         flag_qualifies, flag_gold = True, True
-
-#     if flag_qualifies:
-#         # member qualifies to have at least one achievement role assigned
-#         for guildmember in player.discord_member.guildmembers:
-#             guild = discord.utils.get(settings.bot.guilds, id=guildmember.guild_id)
-#             member = guild.get_member(player.discord_member.discord_id) if guild else None
-
-#             if not member:
-#                 continue
-#             if flag_champion:
-#                 role = discord.utils.get(guild.roles, name='ELO Champion')
 
 
 async def set_experience_role(discord_member):
