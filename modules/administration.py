@@ -131,7 +131,7 @@ class administration:
         """ *Staff*: Resets an in progress game to a pending matchmaking sesson
 
          **Examples**
-        `[p]unstart 50`
+        `[p]unstart 1234`
         """
 
         if game is None:
@@ -193,6 +193,28 @@ class administration:
 
         else:
             return await ctx.send(f'Game {game.id} does not have a confirmed winner.')
+
+    @commands.command(usage='game_id')
+    async def extend(self, ctx, game: PolyGame = None):
+        """ *Staff*: Extends the timer of an open game by 24 hours
+
+         **Examples**
+        `[p]extend 1234`
+        """
+
+        if not game.is_pending:
+            return await ctx.send(f'Game {game.id} is no longer an open game so cannot be extended.')
+
+        old_expiration = game.expiration
+
+        if game.expiration < datetime.datetime.now():
+            new_expiration = datetime.datetime.now() + datetime.timedelta(hours=24)
+        else:
+            new_expiration = game.expiration + datetime.timedelta(hours=24)
+
+        game.expiration = new_expiration
+        game.save()
+        return await ctx.send(f'Game {game.id}\'s deadline has been extended to **{game.expiration}**. Previous expiration was **{old_expiration}**.')
 
     @commands.command(usage='tribe_name new_emoji')
     @settings.is_mod_check()
