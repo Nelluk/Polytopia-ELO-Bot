@@ -748,7 +748,7 @@ class elo_games():
             int(game_search)
         except ValueError:
             # User passed in non-numeric, probably searching by game title
-            return await ctx.invoke(self.bot.get_command('games'), args=game_search)
+            return await ctx.invoke(self.bot.get_command('allgames'), args=game_search)
 
         # Converting manually here to handle case of user passing a game name so info can be redirected to games() command
         game_converter = PolyGame()
@@ -759,18 +759,21 @@ class elo_games():
 
     @settings.in_bot_channel_strict()
     @commands.command(usage='player1 player2 ... ')
-    async def games(self, ctx, *, args=None):
+    async def allgames(self, ctx, *, args=None):
 
         """Search for games by participants or game name
+
         **Examples**:
-        `[p]games Nelluk`
-        `[p]games Nelluk oceans` - See games that included player Nelluk and the word *oceans* in the game name
-        `[p]games Jets` - See games between those two teams
-        `[p]games Jets Ronin`
-        `[p]games Nelluk rickdaheals frodakcin Jets Ronin` - See games in which three players and two teams were all involved
+        `[p]allgames Nelluk`
+        `[p]allgames Nelluk oceans` - See games that included player Nelluk and the word *oceans* in the game name
+        `[p]allgames Jets` - See games between those two teams
+        `[p]allgames Jets Ronin`
+        `[p]allgames Nelluk rickdaheals frodakcin Jets Ronin` - See games in which three players and two teams were all involved
+
+        You can also filter with separate commands: `[p]wins`, `[p]losses`, `[p]completed`, `[p]incomplete` - See `[p]help wins`, etc. for more detail.
         """
 
-        # TODO: remove 'and/&' to remove confusion over game names like Ocean & Prophesy
+        # TODO: make all caps argument like OCEANS force it to a title search?
 
         target_list = args.split() if args else []
         target_list = [arg.replace('"', '') for arg in target_list]  # should enable it to handle "multi word" args
@@ -810,7 +813,7 @@ class elo_games():
         await utilities.paginate(self.bot, ctx, title=list_name, message_list=game_list, page_start=0, page_end=15, page_size=15)
 
     @settings.in_bot_channel_strict()
-    @commands.command(aliases=['completed'])
+    @commands.command(aliases=['completed'], hidden=True)
     async def complete(self, ctx, *args):
         """List complete games for you or other players
         **Example:**
@@ -890,7 +893,7 @@ class elo_games():
         await utilities.paginate(self.bot, ctx, title=list_name, message_list=game_list, page_start=0, page_end=10, page_size=10)
 
     @settings.in_bot_channel_strict()
-    @commands.command()
+    @commands.command(hidden=True)
     async def wins(self, ctx, *args):
         """List games that you or others have won
         If any players names are listed, the first played is who the win is checked against. If no players listed, then the first team listed is checked for the win.
@@ -930,7 +933,7 @@ class elo_games():
         await utilities.paginate(self.bot, ctx, title=list_name, message_list=game_list, page_start=0, page_end=10, page_size=10)
 
     @settings.in_bot_channel_strict()
-    @commands.command(aliases=['loss'])
+    @commands.command(aliases=['loss'], hidden=True)
     async def losses(self, ctx, *args):
         """List games that you have lost, or others
         If any players names are listed, the first played is who the loss is checked against. If no players listed, then the first team listed is checked for the loss.

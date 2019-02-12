@@ -462,7 +462,7 @@ class matchmaking():
             await ctx.send(f'Game {game.id} expiration has been reset to 24 hours from now')
 
     @settings.in_bot_channel()
-    @commands.command(aliases=['listmatches', 'matchlist', 'openmatches', 'listmatch', 'matches'])
+    @commands.command(aliases=['games', 'listmatches', 'matchlist', 'openmatches', 'listmatch', 'matches'])
     async def opengames(self, ctx, *args):
         """
         List current open games
