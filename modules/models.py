@@ -918,6 +918,7 @@ class Game(BaseModel):
         # discord_groups = list of lists [[d1, d2, d3], [d4, d5, d6]]. each item being a discord.Member object
 
         teams_for_each_discord_member, list_of_final_teams = Game.pregame_check(discord_groups, guild_id, require_teams)
+        logger.debug(f'teams_for_each_discord_member: {teams_for_each_discord_member}\nlist_of_final_teams: {list_of_final_teams}')
 
         with db.atomic():
             newgame = Game.create(name=name,
@@ -925,6 +926,7 @@ class Game(BaseModel):
 
             side_position = 1
             for team_group, allied_team, discord_group in zip(teams_for_each_discord_member, list_of_final_teams, discord_groups):
+                logger.debug(f'Making side {side_position} for new game {newgame.id}: {team_group} - {allied_team} - {discord_group}')
                 # team_group is each team that the individual discord.Member is associated with on the server, often None
                 # allied_team is the team that this entire group is playing for in this game. Either a Server Team or Generic. Never None.
 
@@ -934,10 +936,12 @@ class Game(BaseModel):
                     player_group.append(
                         Player.upsert(discord_id=discord_member.id, discord_name=discord_member.name, discord_nick=discord_member.nick, guild_id=guild_id, team=team)[0]
                     )
+                    logger.debug(f'Player {player_group[-1].id} {player_group[-1].name} added to side')
 
                 # Create Squad records if 2+ players are allied
                 if len(player_group) > 1:
                     squad = Squad.upsert(player_list=player_group, guild_id=guild_id)
+                    logger.debug(f'Using squad {squad.id}')
                 else:
                     squad = None
 
