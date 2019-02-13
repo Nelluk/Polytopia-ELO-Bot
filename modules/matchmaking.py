@@ -591,14 +591,15 @@ class matchmaking():
             return await ctx.send(f'Game {game.id} is not full.\nCapacity {players}/{capacity}.')
 
         sides, mentions = [], []
+        ordered_gamesides_list = models.GameSide.select().where((models.GameSide.game == game)).order_by(models.GameSide.position)
 
-        for side in game.gamesides:
-            # TODO: This won't necessarily respect side ordering
+        for side in ordered_gamesides_list:
             current_side = []
-            for gameplayer in side.lineup:
-                guild_member = ctx.guild.get_member(gameplayer.player.discord_member.discord_id)
+            # for gameplayer in side.lineup:
+            for gameplayer, _, _ in side.roster():
+                guild_member = ctx.guild.get_member(gameplayer.discord_member.discord_id)
                 if not guild_member:
-                    return await ctx.send(f'Player *{gameplayer.player.name}* not found on this server. (Maybe they left?)')
+                    return await ctx.send(f'Player *{gameplayer.name}* not found on this server. (Maybe they left?)')
                 current_side.append(guild_member)
                 mentions.append(guild_member.mention)
             sides.append(current_side)
@@ -609,9 +610,10 @@ class matchmaking():
 
         with models.db.atomic():
             # Convert game from pending matchmaking session to in-progress game
-            for team_group, allied_team, side in zip(teams_for_each_discord_member, list_of_final_teams, game.gamesides):
+            for team_group, allied_team, side in zip(teams_for_each_discord_member, list_of_final_teams, ordered_gamesides_list):
                 side_players = []
                 for team, lineup in zip(team_group, side.lineup):
+                    # side.lineup ordering might not be respected but shouldnt matter here
                     lineup.player.team = team
                     lineup.player.save()
                     side_players.append(lineup.player)
