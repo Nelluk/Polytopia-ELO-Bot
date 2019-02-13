@@ -530,15 +530,17 @@ class Game(BaseModel):
 
     async def create_squad_channels(self, ctx):
         game_roster = []
+        ordered_side_list = self.ordered_side_list()
 
-        for s in self.gamesides:
-            playernames = [l.player.name for l in s.lineup]
+        for s in ordered_side_list:
+            playernames = [l.player.name for l in s.ordered_player_list()]
             game_roster.append(f'Side **{s.name()}**: {", ".join(playernames)}')
 
         roster_names = '\n'.join(game_roster)  # "Side **Home**: Nelluk, player2\n Side **Away**: Player 3, Player 4"
 
-        for gameside in self.gamesides:
-            player_list = [r[0] for r in gameside.roster()]
+        for gameside in ordered_side_list:
+            # player_list = [r[0] for r in gameside.roster()]
+            player_list = [l.player for l in gameside.ordered_player_list()]
             if len(player_list) < 2:
                 continue
             chan = await channels.create_squad_channel(ctx, game=self, team_name=gameside.team.name, player_list=player_list)
