@@ -311,6 +311,9 @@ class matchmaking():
             return await ctx.send(f'*{guild_matches[0].name}* was found in the server but is not registered with me. '
                 f'Players can be register themselves with `{ctx.prefix}setcode POLYTOPIA_CODE`.')
 
+        if not player.discord_member.polytopia_id:
+            return await ctx.send(f'**{player.name}** does not have a Polytopia game code on file. Use `{ctx.prefix}setcode` to set one.')
+
         if player.is_banned or player.discord_member.is_banned:
             if settings.is_mod(ctx):
                 await ctx.send(f'**{player.name}** has been **ELO Banned** -- *moderator over-ride* :thinking:')
