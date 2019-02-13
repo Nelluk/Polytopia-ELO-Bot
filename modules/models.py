@@ -909,6 +909,7 @@ class Game(BaseModel):
             for count in range(len(discord_groups)):
                 team_obj, created = Team.get_or_create(name=generic_teams[count][0], guild_id=guild_id,
                                                        defaults={'emoji': generic_teams[count][1], 'is_hidden': True})
+                logger.debug(f'Fetching team object {team_obj.id} {team_obj.name}')
                 list_of_final_teams.append(team_obj)
 
         return (teams_for_each_discord_member, list_of_final_teams)
