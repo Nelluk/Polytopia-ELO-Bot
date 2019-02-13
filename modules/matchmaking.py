@@ -349,7 +349,7 @@ class matchmaking():
                 return await ctx.send(f'This game has an ELO restriction of {min_elo} - {max_elo} and **{player.name}** has an ELO of **{player.elo}**. Cannot join! :cry:')
             await ctx.send(f'This game has an ELO restriction of {min_elo} - {max_elo}. Bypassing because you are game host or a mod.')
 
-        # list of ID strings that are allowed to join game, ie ['272510639124250625', '481527584107003904']
+        # list of ID strings that are allowed to join game, e.g. ['272510639124250625', '481527584107003904']
         player_restricted_list = re.findall(r'<@!?(\d+)>', notes)
 
         if player_restricted_list and str(player.discord_member.discord_id) not in player_restricted_list and (len(player_restricted_list) >= game_size - 1):
