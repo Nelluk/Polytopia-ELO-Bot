@@ -601,9 +601,7 @@ class Game(BaseModel):
     def creating_player(self):
         # return Player who is in 'first position' for this game, ie. the game creator in Polytopia
         # will not always be Game.host if it was a staff member who removed themselves from lineup
-        first_side = GameSide.select().where(
-            (GameSide.game == self)
-        ).order_by(GameSide.position).limit(1).get()
+        first_side = self.ordered_side_list().limit(1).get()
         side_players = first_side.ordered_player_list()
         if side_players:
             return first_side.ordered_player_list()[0].player
@@ -617,9 +615,7 @@ class Game(BaseModel):
         if players < capacity:
             raise exceptions.CheckFailedError('This match is not full')
 
-        sides = GameSide.select().where(
-            (GameSide.game == self)
-        ).order_by(GameSide.position)
+        sides = self.ordered_side_list()
 
         picks = []
         side_objs = [{'side': s, 'pick_score': 0, 'size': s.size, 'lineups': s.ordered_player_list()} for s in sides]
@@ -663,6 +659,9 @@ class Game(BaseModel):
 
         return picks
 
+    def ordered_side_list(self):
+        return GameSide.select().where(GameSide.game == self).order_by(GameSide.position)
+
     def embed(self, ctx):
         if self.is_pending:
             return self.embed_pending_game(ctx)
@@ -685,7 +684,7 @@ class Game(BaseModel):
                 embed.set_thumbnail(url=self.winner.team.image_url)
 
         game_data = []
-        for gameside in self.gamesides:
+        for gameside in self.ordered_side_list():
             team_elo_str, squad_elo_str = gameside.elo_strings()
 
             if not gameside.team or gameside.team.is_hidden:
@@ -793,7 +792,7 @@ class Game(BaseModel):
         embed.add_field(name='Notes', value=notes_str, inline=False)
         embed.add_field(name='\u200b', value='\u200b', inline=False)
 
-        for side in GameSide.select().where(GameSide.game == self).order_by(GameSide.position):
+        for side in self.ordered_side_list():
             side_name = ': **' + side.sidename + '**' if side.sidename else ''
             side_capacity = side.capacity()
             capacity += side_capacity[1]
