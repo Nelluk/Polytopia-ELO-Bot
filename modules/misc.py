@@ -10,9 +10,9 @@ import re
 import datetime
 import random
 import csv
-# import peewee
+import peewee
 from modules.games import PolyGame
-import modules.achievements as achievements
+# import modules.achievements as achievements
 
 logger = logging.getLogger('polybot.' + __name__)
 
@@ -26,12 +26,20 @@ class misc:
     @commands.is_owner()
     async def test(self, ctx, *, arg=None):
 
-        p_list = models.DiscordMember.select().where(models.DiscordMember.elo_max > 1350)
-        for p in p_list:
-            print(p.name)
-            await ctx.send(f'{len(p_list)} {p.name}')
-            await asyncio.sleep(2)
-            await achievements.set_experience_role(p)
+        role = discord.utils.get(ctx.guild.roles, name='The Ronin')
+        for member in role.members:
+            try:
+                models.DiscordMember.get(discord_id=member.id)
+            except peewee.DoesNotExist:
+                logger.info(f'Player {member.name} not registered.')
+                last_week = (datetime.datetime.now() + datetime.timedelta(days=-7))
+                if member.joined_at < last_week:
+                    logger.info(f'Joined more than a week ago. Purging role...')
+                    await member.remove_roles(role)
+                continue
+            else:
+                logger.info(f'Player {member.name} is registered.')
+        await ctx.send(f'Purging all members with **The Novas** role who have not registered a poly code and joined more than a week ago.')
 
     @commands.command(hidden=True, aliases=['bge'])
     async def bulk_global_elo(self, ctx, *, args=None):
