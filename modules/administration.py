@@ -42,6 +42,8 @@ class administration:
             old_24h = (datetime.datetime.now() + datetime.timedelta(hours=-24))
             old_6h = (datetime.datetime.now() + datetime.timedelta(hours=-6))
             games_confirmed = 0
+            unconfirmed_count = len(game_query)
+
             for game in game_query:
                 (confirmed_count, side_count, _) = game.confirmations_count()
 
@@ -66,7 +68,7 @@ class administration:
                     games_confirmed += 1
                     await ctx.send(f'Game {game.id} auto-confirmed due to partial confirmations. {confirmed_count} of {side_count} sides had confirmed.')
 
-            return await ctx.send(f'Autoconfirm process complete. {games_confirmed} games auto-confirmed. {len(game_query) - games_confirmed} games left unconfirmed.')
+            return await ctx.send(f'Autoconfirm process complete. {games_confirmed} games auto-confirmed. {unconfirmed_count - games_confirmed} games left unconfirmed.')
 
         # else confirming a specific game ie. $confirm 1234
         game_converter = PolyGame()
@@ -78,9 +80,9 @@ class administration:
             return await ctx.send(f'Game with ID {winning_game.id} is already confirmed as completed with winner **{winning_game.winner.name()}**')
 
         winning_game.declare_winner(winning_side=winning_game.winner, confirm=True)
-
+        winner_name = winning_game.winner.name()  # storing here trying to solve cursor closed error
         await post_win_messaging(ctx, winning_game)
-        await ctx.send(f'**Game {winning_game.id}** winner has been confirmed as **{winning_game.winner.name()}**')  # Added here to try to fix InterfaceError Cursor Closed - seems to fix if there is output at the end
+        await ctx.send(f'**Game {winning_game.id}** winner has been confirmed as **{winner_name}**')  # Added here to try to fix InterfaceError Cursor Closed - seems to fix if there is output at the end
 
     @commands.command(usage='game_id')
     async def rankset(self, ctx, game: PolyGame = None):
