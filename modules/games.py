@@ -673,8 +673,10 @@ class elo_games():
 
         try:
             player_target = Player.get_or_except(target_string, ctx.guild.id)
-        except exceptions.NoSingleMatch as ex:
-            return await ctx.send(f'{ex}\nExample usage: `{ctx.prefix}setname @Player in_game_name`')
+        except exceptions.NoMatches:
+            return await ctx.send(f'Could not find a registered player matching **{target_string}**. A Polytopia friend code must be registered first with `{ctx.prefix}setcode`\nExample usage: `{ctx.prefix}setname @Player in_game_name`')
+        except exceptions.TooManyMatches:
+            return await ctx.send(f'Found more than one matches for a player with **{target_string}**. Be more specific or use an @Mention.\nExample usage: `{ctx.prefix}setname @Player in_game_name`')
 
         player_target.discord_member.polytopia_name = new_name
         player_target.discord_member.save()
