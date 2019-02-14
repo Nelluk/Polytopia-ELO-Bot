@@ -26,7 +26,7 @@ class misc:
     @commands.is_owner()
     async def test(self, ctx, *, arg=None):
 
-        role = discord.utils.get(ctx.guild.roles, name='The Ronin')
+        role = discord.utils.get(ctx.guild.roles, name='The Novas')
         for member in role.members:
             try:
                 models.DiscordMember.get(discord_id=member.id)
