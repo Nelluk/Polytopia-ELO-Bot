@@ -770,7 +770,7 @@ class elo_games():
 
         **Examples**:
         `[p]allgames Nelluk`
-        `[p]allgames Nelluk oceans` - See games that included player Nelluk and the word *oceans* in the game name
+        `[p]allgames Nelluk oceans` - See games that included player Nelluk and the word *oceans* in the game name. Game notes are also searched.
         `[p]allgames Jets` - See games between those two teams
         `[p]allgames Jets Ronin`
         `[p]allgames Nelluk rickdaheals frodakcin Jets Ronin` - See games in which three players and two teams were all involved

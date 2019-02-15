@@ -1346,7 +1346,9 @@ class Game(BaseModel):
             player_subq = Game.select(Game.id)
 
         if title_filter:
-            title_subq = Game.select(Game.id).where(Game.name.contains('%'.join(title_filter)))
+            title_subq = Game.select(Game.id).where(
+                (Game.name.contains('%'.join(title_filter))) | (Game.notes.contains('%'.join(title_filter)))
+            )
         else:
             title_subq = Game.select(Game.id)
 
