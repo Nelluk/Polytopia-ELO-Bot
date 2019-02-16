@@ -148,7 +148,7 @@ class administration:
             game.name = f'~~{game.name}~~ GAME CANCELLED'
             await game.update_announcement(ctx)
 
-        await game.delete_squad_channels(ctx.guild)
+        await game.delete_game_channels(ctx.guild)
 
         game.is_pending = True
         tomorrow = (datetime.datetime.now() + datetime.timedelta(hours=24))

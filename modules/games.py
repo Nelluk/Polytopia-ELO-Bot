@@ -1086,7 +1086,7 @@ class elo_games():
 
             await post_newgame_messaging(ctx, game=newgame)
 
-    # @settings.in_bot_channel()
+    @settings.in_bot_channel()
     @commands.command(usage='game_id winner_name', aliases=['lose'])
     async def win(self, ctx, winning_game: PolyGame = None, *, winning_side_name: str = None):
         """
@@ -1226,7 +1226,7 @@ class elo_games():
             game.name = f'~~{game.name}~~ GAME DELETED'
             await game.update_announcement(ctx)
 
-        await game.delete_squad_channels(ctx.guild)
+        await game.delete_game_channels(ctx.guild)
 
         try:
             async with ctx.typing():
@@ -1345,7 +1345,7 @@ class elo_games():
             for game in old_games:
                 guild = discord.utils.get(self.bot.guilds, id=game.guild_id)
                 if guild:
-                    await game.delete_squad_channels(guild=guild)
+                    await game.delete_game_channels(guild=guild)
 
             await asyncio.sleep(60 * 60 * 2)
 
@@ -1361,7 +1361,7 @@ class elo_games():
 
 async def post_win_messaging(ctx, winning_game):
 
-    # await winning_game.delete_squad_channels(guild=ctx.guild)
+    # await winning_game.delete_game_channels(guild=ctx.guild)
     await winning_game.update_squad_channels(ctx=ctx, message=f'The game is over with **{winning_game.winner.name()}** victorious. *This channel will be purged in ~24 hours.*')
     player_mentions = [f'<@{l.player.discord_member.discord_id}>' for l in winning_game.lineup]
     embed, content = winning_game.embed(ctx)
@@ -1400,7 +1400,7 @@ async def post_newgame_messaging(ctx, game):
         await ctx.send(embed=embed, content=content)
 
     if settings.guild_setting(ctx.guild.id, 'game_channel_categories'):
-        await game.create_squad_channels(ctx)
+        await game.create_game_channels(ctx)
 
 
 def parse_players_and_teams(input_list, guild_id: int):

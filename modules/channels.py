@@ -9,17 +9,17 @@ import logging
 logger = logging.getLogger('polybot.' + __name__)
 
 
-def generate_channel_name(game_id, game_name, team_name):
+def generate_channel_name(game_id, game_name: str, team_name: str = None):
     # Turns game named 'The Mountain of Fire' to something like #e41-mountain-of-fire_ronin
 
     if not game_name:
         game_name = 'No Name'
         logger.warn(f'No game name passed to generate_channel_name for game {game_id}')
     if not team_name:
-        logger.warn(f'No team name passed to generate_channel_name for game {game_id}')
-        team_name = 'No Team'
+        logger.info(f'No team name passed to generate_channel_name for game {game_id}')
+        team_name = ''
 
-    game_team = f'{game_name.replace("the ","").replace("The ","")}_{team_name.replace("the ","").replace("The ","")}'
+    game_team = f'{game_name.replace("the ","").replace("The ","")}_{team_name.replace("the ","").replace("The ","")}'.strip('_')
 
     if game_name.lower()[:2] == 's5' or game_name.lower()[:2] == 's4':
         # hack to have special naming for season 3 or season 4 games, named eg 'S3W1 Mountains of Fire'. Makes channel easier to see
@@ -31,20 +31,22 @@ def generate_channel_name(game_id, game_name, team_name):
     return chan_name
 
 
-def get_channel_category(ctx, team_name):
+def get_channel_category(ctx, team_name: str = None):
     # Returns (DiscordCategory, Bool_IsTeamCategory?) or None
     # Bool_IsTeamCategory? == True if its using a team-specific category, False if using a central games category
 
     if ctx.guild.me.guild_permissions.manage_channels is not True:
         logger.error('manage_channels permission is false.')
         return None, None
-    team_name = team_name.lower().replace('the', '').strip()  # The Ronin > ronin
-    for cat in ctx.guild.categories:
-        if team_name in cat.name.lower():
-            logger.debug(f'Using {cat.id} - {cat.name} as a team channel category')
-            return cat, True
 
-    # No team category found - using default category. ie. intermingled home/away games
+    if team_name:
+        team_name = team_name.lower().replace('the', '').strip()  # The Ronin > ronin
+        for cat in ctx.guild.categories:
+            if team_name in cat.name.lower():
+                logger.debug(f'Using {cat.id} - {cat.name} as a team channel category')
+                return cat, True
+
+    # No team category found - using default category. ie. intermingled home/away games or channel for entire game
 
     for game_channel_category in settings.guild_setting(ctx.guild.id, 'game_channel_categories'):
 
@@ -64,7 +66,7 @@ def get_channel_category(ctx, team_name):
     return None, None
 
 
-async def create_squad_channel(ctx, game, team_name, player_list):
+async def create_game_channel(ctx, game, player_list, team_name: str = None):
     chan_cat, team_cat_flag = get_channel_category(ctx, team_name)
     if chan_cat is None:
         logger.error(f'in create_squad_channel - cannot proceed due to None category')
@@ -108,8 +110,15 @@ async def create_squad_channel(ctx, game, team_name, player_list):
     return new_chan
 
 
-async def greet_squad_channel(ctx, chan, player_list, roster_names, game):
+async def greet_game_channel(ctx, chan, roster_names, game, player_list, full_game: bool = False):
+
     chan_mentions = [ctx.guild.get_member(p.discord_member.discord_id).mention for p in player_list]
+    if full_game:
+        allies_str = f'Participants in this game are {" / ".join(chan_mentions)}\n'
+        chan_type_str = '**full game channel**'
+    else:
+        allies_str = f'Your teammates are {" / ".join(chan_mentions)}\n'
+        chan_type_str = '**allied team channel**'
 
     if game.host or game.notes:
         match_content = f'Game hosted by **{game.host.name}**\n' if game.host else ''
@@ -117,8 +126,7 @@ async def greet_squad_channel(ctx, chan, player_list, roster_names, game):
     else:
         match_content = ''
     try:
-        await chan.send(f'This is the team channel for game **{game.name}**, ID {game.id}.\n'
-            f'Your teammates are {" / ".join(chan_mentions)}\n'
+        await chan.send(f'This is the {chan_type_str} for game **{game.name}**, ID {game.id}.\n{allies_str}'
             f'The teams for this game are:\n{roster_names}\n\n'
             f'{match_content}'
             '*This channel will self-destruct 24 hours after the game is marked as concluded.*')
@@ -126,7 +134,7 @@ async def greet_squad_channel(ctx, chan, player_list, roster_names, game):
         logger.error(f'Could not send to created channel:\n{e} - Status {e.status}, Code {e.code}: {e.text}')
 
 
-async def delete_squad_channel(guild, channel_id: int):
+async def delete_game_channel(guild, channel_id: int):
 
     chan = guild.get_channel(channel_id)
     if chan is None:
@@ -149,7 +157,7 @@ async def send_message_to_channel(ctx, channel_id: int, message: str):
         logger.error(f'Could not delete channel: {e}')
 
 
-async def update_squad_channel_name(ctx, channel_id: int, game_id: int, game_name: str, team_name: str):
+async def update_game_channel_name(ctx, channel_id: int, game_id: int, game_name: str, team_name: str = None):
     chan = ctx.guild.get_channel(channel_id)
     if chan is None:
         return logger.warn(f'Channel ID {channel_id} provided for update but it could not be loaded from guild')

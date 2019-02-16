@@ -153,8 +153,9 @@ discord_id_ban_list = [
     436330481341169675,  # Mr Bucky
     481581027685564416,  # Shadow Knight
     396699990577119244,  # Skrealder
-    481525222072254484,  # testaccount1
+    # 481525222072254484,  # testaccount1
     342341358218117121,  # Caesar Augustas Trajan
+    327433644589187072,  # Spacebar/Robit
 ]
 
 poly_id_ban_list = [

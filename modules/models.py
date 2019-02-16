@@ -522,13 +522,14 @@ class Game(BaseModel):
     notes = TextField(null=True)
     is_pending = BooleanField(default=False)
     is_ranked = BooleanField(default=True)
+    game_chan = BitField(default=None, null=True)
 
     def __setattr__(self, name, value):
         if name == 'name':
             value = value.strip('\"').strip('\'').strip('”').strip('“').title()[:35] if value else value
         return super().__setattr__(name, value)
 
-    async def create_squad_channels(self, ctx):
+    async def create_game_channels(self, ctx):
         game_roster = []
         ordered_side_list = self.ordered_side_list()
 
@@ -543,32 +544,52 @@ class Game(BaseModel):
             player_list = [l.player for l in gameside.ordered_player_list()]
             if len(player_list) < 2:
                 continue
-            chan = await channels.create_squad_channel(ctx, game=self, team_name=gameside.team.name, player_list=player_list)
+            chan = await channels.create_game_channel(ctx, game=self, team_name=gameside.team.name, player_list=player_list)
             if chan:
                 gameside.team_chan = chan.id
                 gameside.save()
 
-                await channels.greet_squad_channel(ctx, chan=chan, player_list=player_list, roster_names=roster_names, game=self)
+                await channels.greet_game_channel(ctx, chan=chan, player_list=player_list, roster_names=roster_names, game=self, full_game=False)
 
-    async def delete_squad_channels(self, guild):
+        if self.smallest_team() == 1 and len(self.lineup) > 3:
+            # create game channel for larger FFA games
+            player_list = [l.player for l in self.lineup]
+            chan = await channels.create_game_channel(ctx, game=self, team_name=None, player_list=player_list)
+            if chan:
+                self.game_chan = chan.id
+                self.save()
+                await channels.greet_game_channel(ctx, chan=chan, player_list=player_list, roster_names=roster_names, game=self, full_game=True)
+
+    async def delete_game_channels(self, guild):
 
         if self.name and (self.name.lower()[:2] == 's3' or self.name.lower()[:2] == 's4' or self.name.lower()[:2] == 's5' or self.name.lower()[:3] == 'wwn'):
             return logger.warn(f'Skipping team channel deletion for game {self.id} {self.name} since it is a Season game')
 
         for gameside in self.gamesides:
             if gameside.team_chan:
-                await channels.delete_squad_channel(guild, channel_id=gameside.team_chan)
+                await channels.delete_game_channel(guild, channel_id=gameside.team_chan)
                 gameside.team_chan = None
                 gameside.save()
+
+        if self.game_chan:
+            await channels.delete_game_channel(guild, channel_id=self.game_chan)
+            self.game_chan = None
+            self.save()
 
     async def update_squad_channels(self, ctx, message: str = None):
 
         for gameside in self.gamesides:
             if gameside.team_chan:
-                await channels.update_squad_channel_name(ctx, channel_id=gameside.team_chan, game_id=self.id, game_name=self.name, team_name=gameside.team.name)
+                await channels.update_game_channel_name(ctx, channel_id=gameside.team_chan, game_id=self.id, game_name=self.name, team_name=gameside.team.name)
 
                 if message:
                     await channels.send_message_to_channel(ctx, channel_id=gameside.team_chan, message=message)
+
+        if self.game_chan:
+            await channels.update_game_channel_name(ctx, channel_id=self.game_chan, game_id=self.id, game_name=self.name, team_name=None)
+
+            if message:
+                await channels.send_message_to_channel(ctx, channel_id=self.game_chan, message=message)
 
     async def update_announcement(self, ctx):
         # Updates contents of new game announcement with updated game_embed card
@@ -831,6 +852,9 @@ class Game(BaseModel):
     def largest_team(self):
         return max(len(gameside.lineup) for gameside in self.gamesides)
 
+    def smallest_team(self):
+        return min(len(gameside.lineup) for gameside in self.gamesides)
+
     def size_string(self):
 
         if self.is_pending:
@@ -1050,7 +1074,7 @@ class Game(BaseModel):
         if winning_side.game != self:
             raise exceptions.CheckFailedError(f'GameSide id {winning_side.id} did not play in this game')
 
-        smallest_side = min(len(gameside.lineup) for gameside in self.gamesides)
+        smallest_side = self.smallest_team()
 
         if smallest_side <= 0:
             return logger.error(f'Cannot declare_winner for game {self.id}: Side with 0 players detected.')
