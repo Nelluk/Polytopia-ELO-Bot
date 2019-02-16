@@ -549,7 +549,7 @@ class elo_games():
             new_id = None
         elif len(new_id) != 16 or new_id.isalnum() is False:
             # Very basic polytopia code sanity checking. Making sure it is 16-character alphanumeric.
-            return await ctx.send(f'Polytopia code "{new_id}" does not appear to be a valid code.')
+            return await ctx.send(f'Polytopia code `{new_id}` does not appear to be a valid code. Copy your unique code from the **Profile** tab of the **Polytopia app**.')
 
         _, team_list = Player.get_teams_of_players(guild_id=ctx.guild.id, list_of_players=[target_discord_member])
 
