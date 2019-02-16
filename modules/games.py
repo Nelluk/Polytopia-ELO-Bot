@@ -814,7 +814,7 @@ class elo_games():
             list_name = f'{len(query)} game{"s" if len(query) != 1 else ""}\n{results_str}'
 
         if len(game_list) == 0:
-            return await ctx.send(f'No results. See `{ctx.prefix}help games` for usage examples. Searched for:\n{results_str}')
+            return await ctx.send(f'No results. See `{ctx.prefix}help allgames` for usage examples. Searched for:\n{results_str}')
         await utilities.paginate(self.bot, ctx, title=list_name, message_list=game_list, page_start=0, page_end=15, page_size=15)
 
     @settings.in_bot_channel_strict()
