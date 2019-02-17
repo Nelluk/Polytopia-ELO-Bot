@@ -1056,8 +1056,18 @@ class Game(BaseModel):
         # e.g. 2v2v2. It changes nothing when there are only 2 teams
         win_chance_unnorm = []
         normalization_factor = 0
+        max_elo = max(adjusted_side_elo)
+        second_elo = sorted(adjusted_side_elo)[-2]
+        # for own_elo, side in zip(adjusted_side_elo, gameside_list):
+        #     win_chance = GameSide.calc_win_chance(own_elo, (sum_elo - own_elo) / (n - 1))
+        #     win_chance_unnorm.append(win_chance)
+        #     normalization_factor += win_chance
+
         for own_elo, side in zip(adjusted_side_elo, gameside_list):
-            win_chance = GameSide.calc_win_chance(own_elo, (sum_elo - own_elo) / (n - 1))
+            target_elo = max_elo
+            if (target_elo == own_elo):
+                target_elo = second_elo
+            win_chance = GameSide.calc_win_chance(own_elo, target_elo)
             win_chance_unnorm.append(win_chance)
             normalization_factor += win_chance
 
@@ -1853,7 +1863,7 @@ class GameSide(BaseModel):
         # function of the team's elos involved, e.g.
         # 1v2  [1400] vs [1100, 1100] adjusts to represent 50% win
         # (compared to 58.8% for 1v1v1 for the 1400 player)
-        handicap = 300  # the elo difference for a 50% 1v2 chance
+        handicap = 200  # the elo difference for a 50% 1v2 chance
         handicap_elo = handicap * 2 + max(own_elo - opponent_elos - handicap, 0)
         size = len(self.lineup)
 
