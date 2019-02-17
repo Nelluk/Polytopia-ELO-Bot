@@ -1877,7 +1877,7 @@ class GameSide(BaseModel):
         else:
             # Team game
             if self.team:
-                return self.team
+                return self.team.name
             elif self.sidename:
                 return self.sidename
             else:
