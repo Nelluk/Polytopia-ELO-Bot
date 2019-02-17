@@ -1043,14 +1043,12 @@ class Game(BaseModel):
         # Adjust team elos when the amount of players on each team
         # is imbalanced, e.g. 1v2. It changes nothing when sizes are equal
         adjusted_side_elo, win_chance_list = [], []
-        sum_elo = 0
         sum_raw_elo = sum(gameside_elo_list)
         for s, elo in zip(gameside_list, gameside_elo_list):
             missing_players = largest_team - len(s.lineup)
             avg_opponent_elos = int(round((sum_raw_elo - elo) / (n - 1)))
             adj_side_elo = s.adjusted_elo(missing_players, elo, avg_opponent_elos)
             adjusted_side_elo.append(adj_side_elo)
-            sum_elo += adj_side_elo
 
         # Compute proper win chances when there are more than 2 teams,
         # e.g. 2v2v2. It changes nothing when there are only 2 teams
@@ -1058,10 +1056,6 @@ class Game(BaseModel):
         normalization_factor = 0
         max_elo = max(adjusted_side_elo)
         second_elo = sorted(adjusted_side_elo)[-2]
-        # for own_elo, side in zip(adjusted_side_elo, gameside_list):
-        #     win_chance = GameSide.calc_win_chance(own_elo, (sum_elo - own_elo) / (n - 1))
-        #     win_chance_unnorm.append(win_chance)
-        #     normalization_factor += win_chance
 
         for own_elo, side in zip(adjusted_side_elo, gameside_list):
             target_elo = max_elo
