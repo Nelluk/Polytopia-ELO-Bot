@@ -235,13 +235,16 @@ class Player(BaseModel):
             with db.atomic():
                 player = Player.create(discord_member=discord_member, guild_id=guild_id, nick=discord_nick, name=display_name, team=team)
             created = True
+            logger.debug(f'Inserting new player id {player.id} {display_name} on team {team}')
         except IntegrityError:
             created = False
             player = Player.get(discord_member=discord_member, guild_id=guild_id)
+            logger.debug(f'Updating existing player id {player.id} {player.name}')
             if display_name:
                 player.name = display_name
             if team:
                 player.team = team
+                logger.debug(f'Setting player team to {team.id} {team.name}')
             if discord_nick:
                 player.nick = discord_nick
             player.save()
