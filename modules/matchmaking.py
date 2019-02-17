@@ -361,6 +361,7 @@ class matchmaking():
         logger.info(f'Checks passed. Joining player {player.discord_member.discord_id} to side {side.position} of game {game.id}')
         models.Lineup.create(player=player, game=game, gameside=side)
         player.team = player_team  # update player record with detected team in case its changed since last game.
+        logger.debug(f'Associating team {player_team} with player {player.id} {player.name}')
         player.save()
         await ctx.send(f'Joining <@{player.discord_member.discord_id}> to side {side.position} of game {game.id}')
 
