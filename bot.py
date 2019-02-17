@@ -8,6 +8,7 @@ import settings
 import logging
 import sys
 from logging.handlers import RotatingFileHandler
+from timeit import default_timer as timer
 
 
 # Logger config is a bit of a mess and probably could be simplified a lot, but works. debug and above sent to file / error above sent to stderr
@@ -65,8 +66,10 @@ def main():
         exit(0)
     if args.recalc_elo:
         print('Recalculating all ELO')
+        start = timer()
         models.Game.recalculate_all_elo()
-        print('Recalculation complete')
+        end = timer()
+        print(f'Recalculation complete - took {end - start} seconds.')
         exit(0)
 
     logger.info('Resetting Discord ID ban list')

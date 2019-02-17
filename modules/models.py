@@ -52,7 +52,7 @@ class Team(BaseModel):
     def completed_game_count(self):
 
         num_games = GameSide.select().join(Game).where(
-            (GameSide.team == self) & (GameSide.game.is_completed == 1)
+            (GameSide.team == self) & (GameSide.game.is_completed == 1) & (GameSide.game.is_ranked == 1)
         ).count()
 
         return num_games
@@ -1502,7 +1502,7 @@ class Game(BaseModel):
 
     def recalculate_elo_since(timestamp):
         games = Game.select().where(
-            (Game.is_completed == 1) & (Game.is_confirmed == 1) & (Game.completed_ts >= timestamp) & (Game.winner.is_null(False))
+            (Game.is_completed == 1) & (Game.is_confirmed == 1) & (Game.completed_ts >= timestamp) & (Game.winner.is_null(False)) & (Game.is_ranked == 1)
         ).order_by(Game.completed_ts).prefetch(GameSide, Lineup)
 
         elo_logger.debug(f'recalculate_elo_since {timestamp}')
@@ -1519,26 +1519,21 @@ class Game(BaseModel):
     def recalculate_all_elo():
         # Reset all ELOs to 1000, reset completed game counts, and re-run Game.declare_winner() on all qualifying games
 
-        # This could be made less-DB intensive by:
-        # 1) limiting reset to one guild ID
-        # 2) have a way to only affect games that ended after a deleted game (if thats why recalc is occuring)
-
         logger.warn('Resetting and recalculating all ELO')
         elo_logger.info(f'recalculate_all_elo')
 
         with db.atomic():
             Player.update(elo=1000, elo_max=1000).execute()
             Team.update(elo=1000, elo_alltime=1000).execute()
-            # Team.update(elo=1000).execute()
             DiscordMember.update(elo=1000, elo_max=1000).execute()
             Squad.update(elo=1000).execute()
 
             Game.update(is_completed=0).where(
-                (Game.is_confirmed == 1) & (Game.winner.is_null(False))
+                (Game.is_confirmed == 1) & (Game.winner.is_null(False)) & (Game.is_ranked == 1)
             ).execute()  # Resets completed game counts for players/squads/team ELO bonuses
 
             games = Game.select().where(
-                (Game.is_completed == 0) & (Game.is_confirmed == 1) & (Game.winner.is_null(False))
+                (Game.is_completed == 0) & (Game.is_confirmed == 1) & (Game.winner.is_null(False)) & (Game.is_ranked == 1)
             ).order_by(Game.completed_ts)
 
             for game in games:
@@ -1663,7 +1658,7 @@ class Squad(BaseModel):
     def completed_game_count(self):
 
         num_games = GameSide.select().join(Game).where(
-            (Game.is_completed == 1) & (GameSide.squad == self)
+            (Game.is_completed == 1) & (GameSide.squad == self) & (Game.is_ranked == 1)
         ).count()
 
         return num_games
@@ -1881,7 +1876,13 @@ class GameSide(BaseModel):
                 return self.lineup[0].player.name[:30]
         else:
             # Team game
-            return self.team.name if self.team else 'Unknown Team'
+            if self.team:
+                return self.team
+            elif self.sidename:
+                return self.sidename
+            else:
+                return 'Unknown Team'
+            # return self.team.name if self.team else 'Unknown Team'
 
     def roster(self):
         # Returns list of tuples [(player, elo string (1000 +50), :tribe_emoji:)]
