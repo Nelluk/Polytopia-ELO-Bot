@@ -287,7 +287,9 @@ class Player(BaseModel):
     def is_in_team(guild_id, discord_member):
         _, list_of_teams = Player.get_teams_of_players(guild_id=guild_id, list_of_players=[discord_member])
         if not list_of_teams or None in list_of_teams:
+            logger.debug(f'is_in_team: False / None')
             return (False, None)
+        logger.debug(f'is_in_team: True / {list_of_teams[0].id} {list_of_teams[0].name}')
         return (True, list_of_teams[0])
 
     def string_matches(player_string: str, guild_id: int, include_poly_info: bool = True):
