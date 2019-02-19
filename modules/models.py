@@ -75,11 +75,6 @@ class Team(BaseModel):
 
         return elo_delta
 
-    def team_games_subq():
-
-        q = Lineup.select(Lineup.game).join(Game).group_by(Lineup.game).having(fn.COUNT('*') > 2)
-        return q
-
     def get_record(self, alltime=True):
 
         if alltime:
@@ -88,13 +83,13 @@ class Team(BaseModel):
             date_cutoff = datetime.datetime.strptime(settings.team_elo_reset_date, "%m/%d/%Y").date()
 
         wins = GameSide.select().join(Game).where(
-            (Game.id.in_(Team.team_games_subq())) & (Game.is_completed == 1) &
+            (GameSide.size > 1) & (Game.is_completed == 1) &
             (Game.is_ranked == 1) & (GameSide.team == self) &
             (GameSide.id == Game.winner) & (Game.date > date_cutoff)
         ).count()
 
         losses = GameSide.select().join(Game).where(
-            (Game.id.in_(Team.team_games_subq())) & (Game.is_completed == 1) &
+            (GameSide.size > 1) & (Game.is_completed == 1) &
             (Game.is_ranked == 1) & (GameSide.team == self) &
             (GameSide.id != Game.winner) & (Game.date > date_cutoff)
         ).count()
@@ -1369,9 +1364,9 @@ class Game(BaseModel):
 
         if team_filter:
             team_subq = GameSide.select(GameSide.game).join(Game).where(
-                (GameSide.team.in_(team_filter)) & (GameSide.game.in_(Team.team_games_subq()))
+                (GameSide.team.in_(team_filter)) & (GameSide.size > 1)
             ).group_by(GameSide.game).having(
-                fn.COUNT(GameSide.team) == len(team_filter)
+                (fn.COUNT(GameSide.team) == len(team_filter))
             )
         else:
             team_subq = Game.select(Game.id)
