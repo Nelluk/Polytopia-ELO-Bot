@@ -994,7 +994,7 @@ class elo_games():
                 if winning_game.win_claimed_ts:
                     # this win had previously been claimed, dont ping lineup
                     conf_str = 'Your confirmation has been logged. ' if new_confirmation else ''
-                    await ctx.send(f'{conf_str}This win is pending confirmation: {confirmed_count} of {side_count} sides have confirmed.\n'
+                    await ctx.send(f'{conf_str}**Game {winning_game.id}** *{winning_game.name}* is pending confirmation: {confirmed_count} of {side_count} sides have confirmed.\n'
                         f'Participants in the game should use the command __`{ctx.prefix}win {winning_game.id} {printed_side_name}`__ to confirm the victory.\n'
                         f'If opponents will not confirm please send screenshot evidence of your victory to a **@{helper_role}**.')
                 else:
