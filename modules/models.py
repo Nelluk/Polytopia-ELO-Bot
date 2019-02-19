@@ -536,7 +536,7 @@ class Game(BaseModel):
 
     async def create_game_channels(self, ctx):
         game_roster = []
-        ordered_side_list = self.ordered_side_list()
+        ordered_side_list = list(self.ordered_side_list())
 
         for s in ordered_side_list:
             playernames = [l.player.name for l in s.ordered_player_list()]
@@ -556,8 +556,8 @@ class Game(BaseModel):
 
                 await channels.greet_game_channel(ctx, chan=chan, player_list=player_list, roster_names=roster_names, game=self, full_game=False)
 
-        if self.smallest_team() == 1 and len(self.lineup) > 3:
-            # create game channel for larger FFA games
+        if (len(ordered_side_list) > 2 and len(self.lineup) > 5) or len(ordered_side_list) > 3:
+            # create game channel for larger games - 4+ sides, or 3+ sides with 6+ players
             player_list = [l.player for l in self.lineup]
             chan = await channels.create_game_channel(ctx, game=self, team_name=None, player_list=player_list)
             if chan:
@@ -1355,6 +1355,9 @@ class Game(BaseModel):
         elif status_filter == 2:
             # incomplete games
             completed_filter = [0]
+        elif status_filter == 3 or status_filter == 4:
+            # wins/losses
+            completed_filter, confirmed_filter, pending_filter = [1], [1], [0]
         elif status_filter == 5:
             # Unconfirmed completed games
             completed_filter, confirmed_filter, pending_filter = [1], [0], [0]
