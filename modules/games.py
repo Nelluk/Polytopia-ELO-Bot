@@ -478,7 +478,6 @@ class elo_games():
                 p = Player.string_matches(player_string=str(member.id), guild_id=ctx.guild.id)
                 if len(p) == 0:
                     member_stats.append((member.name, 0, f'`{member.name[:23]:.<25}{"-":.<8}{"-":.<6}{"-":.<4}`'))
-                    print(f'{member.name}')
                 else:
                     wins, losses = p[0].get_record()
                     lb_rank = p[0].leaderboard_rank(date_cutoff=settings.date_cutoff)[0]
@@ -720,7 +719,6 @@ class elo_games():
 
         m = re.search(r'(?:GMT|UTC)([+-][0-9]{1,2})(:[0-9]{2}\b)?', tz_string, re.I)
         if m:
-            print(m, m[0], m[1])
             offset = int(m[1])
             if m[2] and m[2] == ':30':
                 if m[1][:1] == '+':
@@ -765,7 +763,6 @@ class elo_games():
     @settings.in_bot_channel_strict()
     @commands.command(usage='player1 player2 ... ')
     async def allgames(self, ctx, *, args=None):
-
         """Search for games by participants or game name
 
         **Examples**:
@@ -779,88 +776,13 @@ class elo_games():
         """
 
         # TODO: make all caps argument like OCEANS force it to a title search?
-
         target_list = args.split() if args else []
-        target_list = [arg.replace('"', '') for arg in target_list]  # should enable it to handle "multi word" args
-
-        if len(target_list) == 1 and target_list[0].upper() == 'ALL':
-            query = Game.search(status_filter=0, guild_id=ctx.guild.id)
-            list_name = f'All games ({len(query)})'
-            game_list = utilities.summarize_game_list(query[:500])
-            results_str = 'All games'
-        else:
-            if not target_list:
-                # Target is person issuing command
-                target_list.append(str(ctx.author.id))
-
-            results_title = []
-
-            player_matches, team_matches, remaining_args = parse_players_and_teams(target_list, ctx.guild.id)
-            p_names, t_names = [p.name for p in player_matches], [t.name for t in team_matches]
-
-            if p_names:
-                results_title.append(f'Including players: *{"* & *".join(p_names)}*')
-            if t_names:
-                results_title.append(f'Including teams: *{"* & *".join(t_names)}*')
-            if remaining_args:
-                results_title.append(f'Included in name: *{"* *".join(remaining_args)}*')
-
-            results_str = '\n'.join(results_title)
-            if not results_title:
-                results_str = 'No filters applied'
-
-            query = Game.search(player_filter=player_matches, team_filter=team_matches, title_filter=remaining_args, guild_id=ctx.guild.id)
-            game_list = utilities.summarize_game_list(query[:500])
-            list_name = f'{len(query)} game{"s" if len(query) != 1 else ""}\n{results_str}'
-
-        if len(game_list) == 0:
-            return await ctx.send(f'No results. See `{ctx.prefix}help allgames` for usage examples. Searched for:\n{results_str}')
-        await utilities.paginate(self.bot, ctx, title=list_name, message_list=game_list, page_start=0, page_end=15, page_size=15)
+        await self.game_search(ctx=ctx, mode='ALLGAMES', arg_list=target_list)
 
     @settings.in_bot_channel_strict()
-    @commands.command(aliases=['completed'], hidden=True)
-    async def complete(self, ctx, *args):
-        """List complete games for you or other players
-        **Example:**
-        `[p]complete` - Lists games that you have completed
-        `[p]complete all` - Lists all complete games
-        `[p]complete Nelluk` - Lists all complete games for player Nelluk
-        `[p]complete Nelluk anarchoRex` - Lists all complete games with both players
-        `[p]complete Nelluk Jets` - Lists all complete games for Nelluk that include team Jets
-        `[p]complete Ronin Jets` - Lists all complete games that include teams Ronin and Jets
-        """
-        target_list = list(args)
-
-        if len(args) == 1 and args[0].upper() == 'ALL':
-            query = Game.search(status_filter=1, guild_id=ctx.guild.id)
-            list_name = f'All completed games ({len(query)})'
-        else:
-            if not target_list:
-                # Target is person issuing command
-                target_list.append(str(ctx.author.id))
-
-            player_matches, team_matches, _ = parse_players_and_teams(target_list, ctx.guild.id)
-            p_names, t_names = [p.name for p in player_matches], [t.name for t in team_matches]
-
-            query = Game.search(status_filter=1, player_filter=player_matches, team_filter=team_matches, guild_id=ctx.guild.id)
-
-            list_name = f'{len(query)} completed game{"s" if len(query) != 1 else ""} '
-            if len(p_names) > 0:
-                list_name += f'that include *{"* & *".join(p_names)}*'
-                if len(t_names) > 0:
-                    list_name += f'\nIncluding teams: *{"* & *".join(t_names)}*'
-            elif len(t_names) > 0:
-                list_name += f'that include Team *{"* & *".join(t_names)}*'
-
-        game_list = utilities.summarize_game_list(query[:500])
-        if len(game_list) == 0:
-            return await ctx.send(f'No results. See `{ctx.prefix}help complete` for usage examples.')
-        await utilities.paginate(self.bot, ctx, title=list_name, message_list=game_list, page_start=0, page_end=10, page_size=10)
-
-    @settings.in_bot_channel_strict()
-    @commands.command()
-    async def incomplete(self, ctx, *args):
-        """List incomplete games for you or other players
+    @commands.command(aliases=['complete', 'completed'], hidden=False)
+    async def incomplete(self, ctx, *, args=None):
+        """List incomplete games for you or other players - also [p]`complete`
         **Example:**
         `[p]incomplete` - Lists incomplete games you are playing in
         `[p]incomplete all` - Lists all incomplete games
@@ -869,38 +791,16 @@ class elo_games():
         `[p]incomplete Nelluk Jets` - Lists all incomplete games for Nelluk that include team Jets
         `[p]incomplete Ronin Jets` - Lists all incomplete games that include teams Ronin and Jets
         """
-        target_list = list(args)
-
-        if len(args) == 1 and args[0].upper() == 'ALL':
-            query = Game.search(status_filter=2, guild_id=ctx.guild.id).order_by(Game.date)
-            list_name = f'All incomplete games ({len(query)})'
+        target_list = args.split() if args else []
+        if ctx.invoked_with.upper() in ['COMPLETED', 'COMPLETE']:
+            await self.game_search(ctx=ctx, mode='COMPLETE', arg_list=target_list)
         else:
-            if not target_list:
-                # Target is person issuing command
-                target_list.append(str(ctx.author.id))
-
-            player_matches, team_matches, _ = parse_players_and_teams(target_list, ctx.guild.id)
-            p_names, t_names = [p.name for p in player_matches], [t.name for t in team_matches]
-
-            query = Game.search(status_filter=2, player_filter=player_matches, team_filter=team_matches, guild_id=ctx.guild.id)
-
-            list_name = f'{len(query)} incomplete game{"s" if len(query) != 1 else ""} '
-            if len(p_names) > 0:
-                list_name += f'that include *{"* & *".join(p_names)}*'
-                if len(t_names) > 0:
-                    list_name += f'\nIncluding teams: *{"* & *".join(t_names)}*'
-            elif len(t_names) > 0:
-                list_name += f'that include Team *{"* & *".join(t_names)}*'
-
-        game_list = utilities.summarize_game_list(query[:500])
-        if len(game_list) == 0:
-            return await ctx.send(f'No results. See `{ctx.prefix}help incomplete` for usage examples.')
-        await utilities.paginate(self.bot, ctx, title=list_name, message_list=game_list, page_start=0, page_end=10, page_size=10)
+            await self.game_search(ctx=ctx, mode='INCOMPLETE', arg_list=target_list)
 
     @settings.in_bot_channel_strict()
-    @commands.command(hidden=True)
-    async def wins(self, ctx, *args):
-        """List games that you or others have won
+    @commands.command(aliases=['losses', 'loss'], hidden=False)
+    async def wins(self, ctx, *, args=None):
+        """List games that you or others have won - also [p]`losses`
         If any players names are listed, the first played is who the win is checked against. If no players listed, then the first team listed is checked for the win.
         **Example:**
         `[p]wins` - Lists all games you have won
@@ -909,73 +809,11 @@ class elo_games():
         `[p]wins Nelluk frodakcin Jets` - Lists all wins for Nelluk in which player frodakcin and team Jets participated
         `[p]wins Ronin Jets` - Lists all wins for team Ronin in which team Jets participated
         """
-        target_list = list(args)
-
-        if not target_list:
-            # Target is person issuing command
-            target_list.append(str(ctx.author.id))
-
-        player_matches, team_matches, _ = parse_players_and_teams(target_list, ctx.guild.id)
-        p_names, t_names = [p.name for p in player_matches], [t.name for t in team_matches]
-
-        query = Game.search(status_filter=3, player_filter=player_matches, team_filter=team_matches, guild_id=ctx.guild.id)
-
-        list_name = f'{len(query)} winning game{"s" if len(query) != 1 else ""} '
-        if len(p_names) > 0:
-            list_name += f'for **{p_names[0]}** '
-            if len(p_names) > 1:
-                list_name += f'that include *{"* & *".join(p_names[1:])}*'
-            if len(t_names) > 0:
-                list_name += f'\nIncluding teams: *{"* & *".join(t_names)}*'
-        elif len(t_names) > 0:
-            list_name += f'for Team **{t_names[0]}** '
-            if len(t_names) > 1:
-                list_name += f'that include Team *{"* & *".join(t_names[1:])}*'
-
-        game_list = utilities.summarize_game_list(query[:500])
-        if len(game_list) == 0:
-            return await ctx.send(f'No results. See `{ctx.prefix}help wins` for usage examples.')
-        await utilities.paginate(self.bot, ctx, title=list_name, message_list=game_list, page_start=0, page_end=10, page_size=10)
-
-    @settings.in_bot_channel_strict()
-    @commands.command(aliases=['loss'], hidden=True)
-    async def losses(self, ctx, *args):
-        """List games that you have lost, or others
-        If any players names are listed, the first played is who the loss is checked against. If no players listed, then the first team listed is checked for the loss.
-        **Examples:**
-        `[p]losses` - Lists all games you have lost
-        `[p]losses anarchoRex` - Lists all losses for player anarchoRex
-        `[p]losses anarchoRex Nelluk` - Lists all games for both players, in which the first player is the loser
-        `[p]losses rickdaheals Nelluk Ronin` - Lists all losses for rickdaheals in which player Nelluk and team Ronin participated
-        `[p]losses Jets Ronin` - Lists all losses for team Jets in which team Ronin participated
-        """
-        target_list = list(args)
-
-        if not target_list:
-            # Target is person issuing command
-            target_list.append(str(ctx.author.id))
-
-        player_matches, team_matches, _ = parse_players_and_teams(target_list, ctx.guild.id)
-        p_names, t_names = [p.name for p in player_matches], [t.name for t in team_matches]
-
-        query = Game.search(status_filter=4, player_filter=player_matches, team_filter=team_matches, guild_id=ctx.guild.id)
-
-        list_name = f'{len(query)} losing game{"s" if len(query) != 1 else ""} '
-        if len(p_names) > 0:
-            list_name += f'for **{p_names[0]}** '
-            if len(p_names) > 1:
-                list_name += f'that include *{"* & *".join(p_names[1:])}*'
-            if len(t_names) > 0:
-                list_name += f'\nIncluding teams: *{"* & *".join(t_names)}*'
-        elif len(t_names) > 0:
-            list_name += f'for Team **{t_names[0]}** '
-            if len(t_names) > 1:
-                list_name += f'that include Team *{"* & *".join(t_names[1:])}*'
-
-        game_list = utilities.summarize_game_list(query[:500])
-        if len(game_list) == 0:
-            return await ctx.send(f'No results. See `{ctx.prefix}help losses` for usage examples.')
-        await utilities.paginate(self.bot, ctx, title=list_name, message_list=game_list, page_start=0, page_end=10, page_size=10)
+        target_list = args.split() if args else []
+        if ctx.invoked_with.upper() in ['LOSS', 'LOSSES']:
+            await self.game_search(ctx=ctx, mode='LOSSES', arg_list=target_list)
+        else:
+            await self.game_search(ctx=ctx, mode='WINS', arg_list=target_list)
 
     @settings.in_bot_channel()
     @commands.command(usage='"Name of Game" player1 player2 vs player3 player4')
@@ -1328,6 +1166,58 @@ class elo_games():
 
         game = game.load_full_game()
         await game.update_announcement(ctx)
+
+    async def game_search(self, ctx, mode: str, arg_list):
+
+        target_list = [arg.replace('"', '') for arg in arg_list]  # should enable it to handle "multi word" args
+
+        if mode.upper() == 'ALLGAMES':
+            status_filter, status_str = 0, 'game'
+        elif mode.upper() == 'COMPLETE':
+            status_filter, status_str = 1, 'completed game'
+        elif mode.upper() == 'INCOMPLETE':
+            status_filter, status_str = 2, 'incomplete game'
+        elif mode.upper() == 'WINS':
+            status_filter, status_str = 3, 'winning game'
+        elif mode.upper() == 'LOSSES':
+            status_filter, status_str = 4, 'losing game'
+        else:
+            logger.error(f'Invalid mode passed to game_search: {mode}. Using default of allgames/0')
+            status_filter, status_str = 0, 'game'
+
+        if len(target_list) == 1 and target_list[0].upper() == 'ALL':
+            query = Game.search(status_filter=status_filter, guild_id=ctx.guild.id)
+            list_name = f'All {status_str}s ({len(query)})'
+            game_list = utilities.summarize_game_list(query[:500])
+            results_str = f'All {status_str}s'
+        else:
+            if not target_list:
+                # Target is person issuing command
+                target_list.append(str(ctx.author.id))
+
+            results_title = []
+
+            player_matches, team_matches, remaining_args = parse_players_and_teams(target_list, ctx.guild.id)
+            p_names, t_names = [p.name for p in player_matches], [t.name for t in team_matches]
+
+            if p_names:
+                results_title.append(f'Including players: *{"* & *".join(p_names)}*')
+            if t_names:
+                results_title.append(f'Including teams: *{"* & *".join(t_names)}*')
+            if remaining_args:
+                results_title.append(f'Included in name: *{"* *".join(remaining_args)}*')
+
+            results_str = '\n'.join(results_title)
+            if not results_title:
+                results_str = 'No filters applied'
+
+            query = Game.search(status_filter=status_filter, player_filter=player_matches, team_filter=team_matches, title_filter=remaining_args, guild_id=ctx.guild.id)
+            game_list = utilities.summarize_game_list(query[:500])
+            list_name = f'{len(query)} {status_str}{"s" if len(query) != 1 else ""}\n{results_str}'
+
+        if len(game_list) == 0:
+            return await ctx.send(f'No results. See `{ctx.prefix}help {ctx.invoked_with}` for usage examples. Searched for:\n{results_str}')
+        await utilities.paginate(self.bot, ctx, title=list_name, message_list=game_list, page_start=0, page_end=15, page_size=15)
 
     async def task_purge_game_channels(self):
         await self.bot.wait_until_ready()

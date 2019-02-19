@@ -830,6 +830,7 @@ class Game(BaseModel):
                 players += 1
                 tribe_str = player_lineup.tribe.emoji if player_lineup.tribe else ''
                 team_str = player.team.emoji if player.team else ''
+                logger.debug(f'Building embed for game {self.id} - player {player.id} {player.name} is associated with team {player.team} - team_str: {team_str}')
                 player_list.append(f'**{player.name}** ({player.elo}) {tribe_str} {team_str}\n`{player.discord_member.polytopia_id}`')
             player_str = '\u200b' if not player_list else '\n'.join(player_list)
             embed.add_field(name=f'__Side {side.position}__{side_name} *({side_capacity[0]}/{side_capacity[1]})*', value=player_str, inline=False)
