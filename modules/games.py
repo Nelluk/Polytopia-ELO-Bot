@@ -782,7 +782,7 @@ class elo_games():
     @settings.in_bot_channel_strict()
     @commands.command(aliases=['complete', 'completed'], hidden=False)
     async def incomplete(self, ctx, *, args=None):
-        """List incomplete games for you or other players - also [p]`complete`
+        """List incomplete games for you or other players - also `[p]complete`
         **Example:**
         `[p]incomplete` - Lists incomplete games you are playing in
         `[p]incomplete all` - Lists all incomplete games
@@ -800,7 +800,7 @@ class elo_games():
     @settings.in_bot_channel_strict()
     @commands.command(aliases=['losses', 'loss'], hidden=False)
     async def wins(self, ctx, *, args=None):
-        """List games that you or others have won - also [p]`losses`
+        """List games that you or others have won - also `[p]losses`
         If any players names are listed, the first played is who the win is checked against. If no players listed, then the first team listed is checked for the win.
         **Example:**
         `[p]wins` - Lists all games you have won
