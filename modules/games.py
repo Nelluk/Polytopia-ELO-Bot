@@ -315,7 +315,7 @@ class elo_games():
             if len(squad_list) > 1:
                 # more than one match, so display a paginating list
                 squadlist = []
-                for squadside in squad_list[:10]:
+                for squadside in squad_list[:50]:
                     squad = squadside.squad
                     wins, losses = squad.get_record()
                     squadlist.append(
@@ -335,9 +335,9 @@ class elo_games():
         else:
             rank_str = f'{rank} of {lb_length}'
 
-        names_with_emoji = [f'{p.team.emoji} {p.name}' if p.team is not None else f'{p.name}' for p in squad.get_members()]
+        names_with_emoji = [f'{p.team.emoji} **{p.name}**' if p.team is not None else f'**{p.name}**' for p in squad.get_members()]
 
-        embed = discord.Embed(title=f'Squad card for Squad {squad.id}\n{"  /  ".join(names_with_emoji)}', value='\u200b')
+        embed = discord.Embed(title=f'Squad card for Squad {squad.id}', description=f'{"  /  ".join(names_with_emoji)}'[:256])
         embed.add_field(name='Results', value=f'ELO: {squad.elo},  W {wins} / L {losses}', inline=True)
         embed.add_field(name='Ranking', value=rank_str, inline=True)
         recent_games = GameSide.select(Game).join(Game).where(
