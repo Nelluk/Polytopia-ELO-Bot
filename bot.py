@@ -9,6 +9,7 @@ import logging
 import sys
 from logging.handlers import RotatingFileHandler
 from timeit import default_timer as timer
+import peewee
 
 
 # Logger config is a bit of a mess and probably could be simplified a lot, but works. debug and above sent to file / error above sent to stderr
@@ -162,7 +163,11 @@ if __name__ == '__main__':
 
     @bot.after_invoke
     async def post_invoke_cleanup(ctx):
-        models.db.close()
+        try:
+            models.db.close()
+        except peewee.OperationalError as e:
+            logger.warn(f'Error during post_invoke_cleanup db.close(): {e}')
+            pass
 
     initial_extensions = ['modules.games', 'modules.help', 'modules.matchmaking', 'modules.administration', 'modules.misc']
     for extension in initial_extensions:
