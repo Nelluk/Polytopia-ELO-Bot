@@ -429,7 +429,7 @@ class elo_games():
             recent_games_str = 'No games played'
         else:
             recent_games_count = player.games_played(in_days=30).count()
-            recent_games_str = f'Most recent games ({games_list.count()} total, {recent_games_count} recently):'
+            recent_games_str = f'Most recent games ({len(games_list)} total, {recent_games_count} recently):'
         embed.add_field(value='\u200b', name=recent_games_str, inline=False)
 
         game_list = utilities.summarize_game_list(games_list[:5])
