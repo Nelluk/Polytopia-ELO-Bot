@@ -158,7 +158,7 @@ if __name__ == '__main__':
 
     @bot.before_invoke
     async def pre_invoke_setup(ctx):
-        models.db.connect(reuse_if_open=True)
+        # models.db.connect(reuse_if_open=True)
         logger.debug(f'Command invoked: {ctx.message.clean_content}. By {ctx.message.author.name} in {ctx.channel.id} {ctx.channel.name} on {ctx.guild.name}')
 
     # @bot.after_invoke
