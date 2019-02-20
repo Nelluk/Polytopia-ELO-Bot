@@ -1349,7 +1349,7 @@ class Game(BaseModel):
             completed_filter, pending_filter = [1], [0]
         elif status_filter == 2:
             # incomplete games
-            completed_filter = [0]
+            confirmed_filter = [0]
         elif status_filter == 3 or status_filter == 4:
             # wins/losses
             completed_filter, confirmed_filter, pending_filter = [1], [1], [0]
