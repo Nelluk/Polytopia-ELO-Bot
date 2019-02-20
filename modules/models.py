@@ -1433,7 +1433,7 @@ class Game(BaseModel):
                 Game.id.in_(guild_filter)
             ) & (
                 Game.is_pending.in_(pending_filter))
-        ).order_by(-Game.date).prefetch(GameSide, Team, Lineup, Player)
+        ).order_by(-Game.date)
 
         return game
 

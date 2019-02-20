@@ -26,6 +26,15 @@ class misc:
     @commands.is_owner()
     async def test(self, ctx, *, arg=None):
 
+        player, _ = models.Player.get_by_discord_id(discord_id=ctx.author.id, discord_name=ctx.author.name, discord_nick=ctx.author.nick, guild_id=ctx.guild.id)
+        games_list = models.Game.search(player_filter=[player])
+        print(games_list)
+        print(games_list.count())
+
+    @commands.command(hidden=True)
+    @commands.is_owner()
+    async def purge_novas(self, ctx, *, arg=None):
+
         role = discord.utils.get(ctx.guild.roles, name='The Novas')
         for member in role.members:
             try:
