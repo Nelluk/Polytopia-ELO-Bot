@@ -1756,7 +1756,14 @@ class Squad(BaseModel):
         # Takes [List, of, Player, Records] (not names)
         # Returns all squads containing players in player list. Used to look up a squad by partial or complete membership
 
-        # Limited to squads with at least 2 members and at least 1 completed game
+        # Limited to squads with at least 2 members and at least min_games completed game
+        num_squads = Squad.select().where(Squad.guild_id == guild_id).count()
+        if num_squads < 15:
+            min_games = 0
+        elif num_squads < 25:
+            min_games = 1
+        else:
+            min_games = 2
 
         squad_with_matching_members = Squad.select().join(SquadMember).group_by(Squad.id).having(
             (fn.SUM(SquadMember.player.in_(player_list).cast('integer')) == len(player_list))
@@ -1764,7 +1771,7 @@ class Squad(BaseModel):
 
         query = GameSide.select(GameSide.squad, fn.COUNT('*').alias('games_played')).where(
             (GameSide.squad.in_(Squad.subq_squads_by_size(min_size=2))) &
-            (GameSide.squad.in_(Squad.subq_squads_with_completed_games(min_games=1))) &
+            (GameSide.squad.in_(Squad.subq_squads_with_completed_games(min_games=min_games))) &
             (GameSide.squad.in_(squad_with_matching_members))
         ).group_by(GameSide.squad).order_by(-SQL('games_played'))
 
