@@ -309,7 +309,7 @@ class elo_games():
                 except exceptions.NoSingleMatch as e:
                     return await ctx.send(e)
 
-            squad_list = Squad.get_all_matching_squads(squad_players)
+            squad_list = Squad.get_all_matching_squads(squad_players, guild_id=ctx.guild.id)
             if len(squad_list) == 0:
                 return await ctx.send(f'Found no squads containing players: {" / ".join([p.name for p in squad_players])}')
             if len(squad_list) > 1:

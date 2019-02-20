@@ -1752,7 +1752,7 @@ class Squad(BaseModel):
 
         return query
 
-    def get_all_matching_squads(player_list):
+    def get_all_matching_squads(player_list, guild_id: int):
         # Takes [List, of, Player, Records] (not names)
         # Returns all squads containing players in player list. Used to look up a squad by partial or complete membership
 
