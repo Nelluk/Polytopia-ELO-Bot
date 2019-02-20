@@ -86,6 +86,17 @@ class elo_games():
                 return
             discord_member.update_name(new_name=after.name)
 
+    @commands.command(hidden=True, aliases=['ts2'])
+    @commands.is_owner()
+    async def test2(self, ctx, *, arg=None):
+
+        query = GameSide.select(GameSide.squad, peewee.fn.COUNT('*').alias('games_played')).where(
+            (GameSide.squad.in_(Squad.subq_squads_by_size(min_size=2))) & (GameSide.squad.in_(Squad.subq_squads_with_completed_games(min_games=3)))
+        ).group_by(GameSide.squad).order_by(-peewee.SQL('games_played'))
+
+        for s in query.tuples():
+            print(s)
+
     @commands.command(aliases=['reqgame', 'helpstaff'])
     @commands.cooldown(2, 30, commands.BucketType.user)
     @settings.on_polychampions()
@@ -263,7 +274,7 @@ class elo_games():
             emoji_string = ' '.join(emoji_list)
             squad_names = ' / '.join(sq.get_names())
             leaderboard.append(
-                (f'`{(counter + 1):>3}.` {emoji_string}`{squad_names}`', f'`(ELO: {sq.elo:4}) W {wins} / L {losses}`')
+                (f'{(counter + 1):>3}. {emoji_string}{squad_names}', f'`#{sq.id} (ELO: {sq.elo:4}) W {wins} / L {losses}`')
             )
         await utilities.paginate(self.bot, ctx, title='**Squad Leaderboards**', message_list=leaderboard, page_start=0, page_end=10, page_size=10)
 
@@ -302,16 +313,16 @@ class elo_games():
             if len(squad_list) == 0:
                 return await ctx.send(f'Found no squads containing players: {" / ".join([p.name for p in squad_players])}')
             if len(squad_list) > 1:
-                # More than one matching name found, so display a short list
-                embed = discord.Embed(title=f'Found {len(squad_list)} matches. Try `{ctx.prefix}squad IDNUM`:')
-                for squad in squad_list[:10]:
+                # more than one match, so display a paginating list
+                squadlist = []
+                for squadside in squad_list[:10]:
+                    squad = squadside.squad
                     wins, losses = squad.get_record()
-                    embed.add_field(
-                        name=f'`ID {squad.id:>3} - {" / ".join(squad.get_names()):40}`',
-                        value=f'`(ELO: {squad.elo}) W {wins} / L {losses}`',
-                        inline=False
+                    squadlist.append(
+                        (f'`#{squad.id:>3}` - {" / ".join(squad.get_names()):40}', f'`(ELO: {squad.elo}) W {wins} / L {losses}`')
                     )
-                return await ctx.send(embed=embed)
+                await utilities.paginate(self.bot, ctx, title=f'Found {len(squad_list)} matches. Try `{ctx.prefix}squad #`:', message_list=squadlist, page_start=0, page_end=10, page_size=10)
+                return
 
             # Exact matching squad found by player name
             squad = squad_list[0]

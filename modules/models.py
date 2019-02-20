@@ -1739,7 +1739,7 @@ class Squad(BaseModel):
             (
                 Squad.id.in_(Squad.subq_squads_with_completed_games(min_games=min_games))
             ) & (Squad.guild_id == guild_id) & (Game.date > date_cutoff)
-        ).order_by(-Squad.elo).group_by(Squad).prefetch(SquadMember, Player)
+        ).order_by(-Squad.elo).group_by(Squad)
 
         return q
 
@@ -1757,11 +1757,16 @@ class Squad(BaseModel):
         # Returns all squads containing players in player list. Used to look up a squad by partial or complete membership
 
         # Limited to squads with at least 2 members and at least 1 completed game
-        query = Squad.select().join(SquadMember).where(
-            (Squad.id.in_(Squad.subq_squads_by_size(min_size=2))) & (Squad.id.in_(Squad.subq_squads_with_completed_games(min_games=1)))
-        ).group_by(Squad.id).having(
+
+        squad_with_matching_members = Squad.select().join(SquadMember).group_by(Squad.id).having(
             (fn.SUM(SquadMember.player.in_(player_list).cast('integer')) == len(player_list))
         )
+
+        query = GameSide.select(GameSide.squad, fn.COUNT('*').alias('games_played')).where(
+            (GameSide.squad.in_(Squad.subq_squads_by_size(min_size=2))) &
+            (GameSide.squad.in_(Squad.subq_squads_with_completed_games(min_games=1))) &
+            (GameSide.squad.in_(squad_with_matching_members))
+        ).group_by(GameSide.squad).order_by(-SQL('games_played'))
 
         return query
 
