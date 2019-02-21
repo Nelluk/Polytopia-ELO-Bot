@@ -288,6 +288,8 @@ class elo_games():
         `[p]squad Nelluk` - squads containing Nelluk
         `[p]squad Nelluk frodakcin` - squad containing both players
         """
+        if not args:
+            return await ctx.send(f'Use `{ctx.prefix}{ctx.invoked_with} player [player2]` to search for squads by membership, or `{ctx.prefix}lbsquad` for the squad leaderboard.')
         try:
             # Argument is an int, so show squad by ID
             squad_id = int(''.join(args))
