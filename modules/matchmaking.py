@@ -373,7 +373,7 @@ class matchmaking():
                 await ctx.send(f'Game {game.id} is now full and <@{creating_player.discord_member.discord_id}> should create the game in Polytopia.')
 
                 if game.host and game.host != creating_player:
-                    await ctx.send(f'Matchmaking host <@{game.host.discord_member.discord_id}> is not in the game lineup.')
+                    await ctx.send(f'Matchmaking host <@{game.host.discord_member.discord_id}> is not the game creator.')
 
             embed, content = game.embed(ctx)
             await ctx.send(embed=embed, content=content)
