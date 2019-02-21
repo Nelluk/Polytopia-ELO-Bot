@@ -88,7 +88,7 @@ async def create_game_channel(ctx, game, player_list, team_name: str = None):
         # Both chans going into a central ELO Games category. Give them special permissions so only game players can see chan
 
         chan_permissions = {}
-        perm = discord.PermissionOverwrite(read_messages=True, add_reactions=True, send_messages=True, attach_files=True)
+        perm = discord.PermissionOverwrite(read_messages=True, add_reactions=True, send_messages=True, attach_files=True, manage_messages=True)
 
         for m in chan_members + [ctx.guild.me]:
             chan_permissions[m] = perm
