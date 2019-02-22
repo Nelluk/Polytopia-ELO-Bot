@@ -18,7 +18,7 @@ logger = logging.getLogger('polybot.' + __name__)
 class PolyGame(commands.Converter):
     async def convert(self, ctx, game_id):
 
-        with db:
+        with db.atomic():
             try:
                 game = Game.get(id=int(game_id))
             except ValueError:
@@ -91,12 +91,17 @@ class elo_games():
     @commands.is_owner()
     async def test2(self, ctx, *, arg=None):
 
-        query = GameSide.select(GameSide.squad, peewee.fn.COUNT('*').alias('games_played')).where(
-            (GameSide.squad.in_(Squad.subq_squads_by_size(min_size=2))) & (GameSide.squad.in_(Squad.subq_squads_with_completed_games(min_games=3)))
-        ).group_by(GameSide.squad).order_by(-peewee.SQL('games_played'))
+        with db:
+            await ctx.send(f'test1')
+            with db.atomic():
 
-        for s in query.tuples():
-            print(s)
+                query = GameSide.select(GameSide.squad, peewee.fn.COUNT('*').alias('games_played')).where(
+                    (GameSide.squad.in_(Squad.subq_squads_by_size(min_size=2))) & (GameSide.squad.in_(Squad.subq_squads_with_completed_games(min_games=3)))
+                ).group_by(GameSide.squad).order_by(-peewee.SQL('games_played'))
+
+                for s in query.tuples():
+                    print(s)
+                await ctx.send(f'test1')
 
     @commands.command(aliases=['reqgame', 'helpstaff'])
     @commands.cooldown(2, 30, commands.BucketType.user)

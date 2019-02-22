@@ -18,7 +18,7 @@ class PolyMatch(commands.Converter):
     async def convert(self, ctx, match_id: int):
 
         match_id = match_id.strip('#')
-        with models.db:
+        with models.db.atomic():
             try:
                 match = models.Game.get(id=match_id)
                 logger.debug(f'Game with ID {match_id} found.')
