@@ -128,8 +128,13 @@ class matchmaking():
                 m = re.match(r"<@&(\d+)>", arg)
                 if m:
                     # replace raw role tag <@&....> with name of role, so people dont get mentioned every time note is printed
-                    note_args.append('**@' + discord.utils.get(ctx.guild.roles, id=int(m[1])).name + '**')
-                    required_role_args.append(discord.utils.get(ctx.guild.roles, id=int(m[1])))
+                    # also extracting roles from raw args instead of iterating over ctx.message.roles since that ordering is not reliable
+                    extracted_role = discord.utils.get(ctx.guild.roles, id=int(m[1]))
+                    if extracted_role:
+                        note_args.append('**@' + extracted_role.name + '**')
+                        required_role_args.append(extracted_role)
+                    else:
+                        logger.warn(f'Detected role-like string {m[0]} in arguments but cannot match to an actual role. Skipping.')
                     continue
                 note_args.append(arg)
 
