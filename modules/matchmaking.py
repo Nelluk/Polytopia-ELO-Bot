@@ -18,24 +18,24 @@ class PolyMatch(commands.Converter):
     async def convert(self, ctx, match_id: int):
 
         match_id = match_id.strip('#')
-        with models.db.atomic():
-            try:
-                match = models.Game.get(id=match_id)
-                logger.debug(f'Game with ID {match_id} found.')
 
-                if match.guild_id != ctx.guild.id:
-                    await ctx.send(f'Game with ID {match_id} is associated with a different Discord server. Use `{ctx.prefix}opengames` to see available matches.')
-                    raise commands.UserInputError()
-                return match
-            except peewee.DoesNotExist:
-                await ctx.send(f'Game with ID {match_id} cannot be found. Use `{ctx.prefix}opengames` to see available matches.')
+        try:
+            match = models.Game.get(id=match_id)
+            logger.debug(f'Game with ID {match_id} found.')
+
+            if match.guild_id != ctx.guild.id:
+                await ctx.send(f'Game with ID {match_id} is associated with a different Discord server. Use `{ctx.prefix}opengames` to see available matches.')
                 raise commands.UserInputError()
-            except ValueError:
-                if match_id.upper() == 'ID':
-                    await ctx.send(f'Invalid Game ID "**{match_id}**". Use the numeric game ID *only*.')
-                else:
-                    await ctx.send(f'Invalid Game ID "**{match_id}**".')
-                raise commands.UserInputError()
+            return match
+        except peewee.DoesNotExist:
+            await ctx.send(f'Game with ID {match_id} cannot be found. Use `{ctx.prefix}opengames` to see available matches.')
+            raise commands.UserInputError()
+        except ValueError:
+            if match_id.upper() == 'ID':
+                await ctx.send(f'Invalid Game ID "**{match_id}**". Use the numeric game ID *only*.')
+            else:
+                await ctx.send(f'Invalid Game ID "**{match_id}**".')
+            raise commands.UserInputError()
 
 
 class matchmaking():
