@@ -89,19 +89,19 @@ class elo_games():
 
     @commands.command(hidden=True, aliases=['ts2'])
     @commands.is_owner()
-    async def test2(self, ctx, *, arg=None):
+    async def test2(self, ctx, winning_game: PolyGame = None):
 
-        with db:
+        with db.connection_context():
             await ctx.send(f'test1')
             with db.atomic():
-
-                query = GameSide.select(GameSide.squad, peewee.fn.COUNT('*').alias('games_played')).where(
-                    (GameSide.squad.in_(Squad.subq_squads_by_size(min_size=2))) & (GameSide.squad.in_(Squad.subq_squads_with_completed_games(min_games=3)))
-                ).group_by(GameSide.squad).order_by(-peewee.SQL('games_played'))
-
+                print('in transaction')
+                await ctx.send(f'test2')
+                query = Game.select()
                 for s in query.tuples():
-                    print(s)
-                await ctx.send(f'test1')
+                    logger.debug(s)
+
+            await ctx.send(f'test2')
+            await ctx.send(f'{winning_game.name}')
 
     @commands.command(aliases=['reqgame', 'helpstaff'])
     @commands.cooldown(2, 30, commands.BucketType.user)
