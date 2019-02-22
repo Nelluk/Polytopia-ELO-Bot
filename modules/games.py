@@ -183,20 +183,24 @@ class elo_games():
             max_flag = True  # leaderboard ranked by player.max_elo
             lb_title += ' - Maximum ELO Achieved'
 
-        leaderboard_query = target_model.leaderboard(date_cutoff=settings.date_cutoff, guild_id=ctx.guild.id, max_flag=max_flag)
+        def process_leaderboard():
+            leaderboard_query = target_model.leaderboard(date_cutoff=settings.date_cutoff, guild_id=ctx.guild.id, max_flag=max_flag)
 
-        for counter, player in enumerate(leaderboard_query[:2000]):
-            wins, losses = player.get_record()
-            emoji_str = player.team.emoji if not global_flag and player.team else ''
-            leaderboard.append(
-                (f'{(counter + 1):>3}. {emoji_str}{player.name}', f'`ELO {player.elo_max if max_flag else player.elo}\u00A0\u00A0\u00A0\u00A0W {wins} / L {losses}`')
-            )
+            for counter, player in enumerate(leaderboard_query[:2000]):
+                wins, losses = player.get_record()
+                emoji_str = player.team.emoji if not global_flag and player.team else ''
+                leaderboard.append(
+                    (f'{(counter + 1):>3}. {emoji_str}{player.name}', f'`ELO {player.elo_max if max_flag else player.elo}\u00A0\u00A0\u00A0\u00A0W {wins} / L {losses}`')
+                )
+            return leaderboard, leaderboard_query.count()
+
+        leaderboard, leaderboard_size = await self.bot.loop.run_in_executor(None, process_leaderboard)
 
         if ctx.guild.id != settings.server_ids['polychampions']:
             await ctx.send('Powered by PolyChampions. League server with a team focus and competitive players.\n'
                 'Supporting up to 6-player team ELO games and automatic team channels. - <https://tinyurl.com/polychampions>')
             # link put behind url shortener to not show big invite embed
-        await utilities.paginate(self.bot, ctx, title=f'**{lb_title}**\n{leaderboard_query.count()} ranked players', message_list=leaderboard, page_start=0, page_end=10, page_size=10)
+        await utilities.paginate(self.bot, ctx, title=f'**{lb_title}**\n{leaderboard_size} ranked players', message_list=leaderboard, page_start=0, page_end=10, page_size=10)
 
     @settings.in_bot_channel_strict()
     @commands.command(aliases=['recent', 'active'])
