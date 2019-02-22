@@ -964,11 +964,14 @@ class elo_games():
                 f'`{ctx.prefix}win 422 Nelluk`\n`{ctx.prefix}win 425 Home` *For a team game*')
         if ctx.invoked_with.lower() == 'lose':
             return await ctx.send(f'Games are always concluded using the `{ctx.prefix}win` command.\n{usage}')
-        if not winning_game or not winning_side_name:
+        if not winning_game:
             return await ctx.send(usage)
+        if not winning_side_name:
+            game_side_str = '\n'.join(winning_game.list_gameside_membership())
+            return await ctx.send(f'{usage}\n__Sides in this game are:__\n{game_side_str}')
 
         try:
-            winning_obj, winning_side = winning_game.gameside_by_name(ctx, name=winning_side_name)
+            winning_obj, winning_side = winning_game.gameside_by_name(name=winning_side_name)
             # winning_obj will be a Team or a Player depending on squad size
             # winning_side will be their GameSide
         except exceptions.MyBaseException as ex:

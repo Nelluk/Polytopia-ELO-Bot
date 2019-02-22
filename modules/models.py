@@ -1194,7 +1194,18 @@ class Game(BaseModel):
     def capacity(self):
         return (len(self.lineup), sum(s.size for s in self.gamesides))
 
-    def gameside_by_name(self, ctx, name: str):
+    def list_gameside_membership(self):
+        sidenames = []
+        gamesides = list(self.gamesides)
+        for counter, s in enumerate(gamesides):
+            if len(s.lineup) > 1:
+                playernames = [l.player.name for l in s.lineup]
+                sidenames.append(f'Side {counter + 1} **{s.name()}**: {", ".join(playernames)}')
+            else:
+                sidenames.append(f'Side {counter + 1}: **{s.name()}**')
+        return sidenames
+
+    def gameside_by_name(self, name: str):
         # Given a string representing a game side's name (team name for 2+ players, player name for 1 player)
         # Return a tuple of the participant and their gameside, ie Player, GameSide or Team, gameside
 
@@ -1232,14 +1243,7 @@ class Game(BaseModel):
         if len(matches) == 1:
             return matches[0]
         if len(matches) == 0:
-            sidenames = []
-            for counter, s in enumerate(gamesides):
-                if len(s.lineup) > 1:
-                    playernames = [l.player.name for l in s.lineup]
-                    sidenames.append(f'Side {counter + 1} **{s.name()}**: {", ".join(playernames)}')
-                else:
-                    sidenames.append(f'Side {counter + 1}: **{s.name()}**')
-            names_str = '\n'.join(sidenames)
+            names_str = '\n'.join(self.list_gameside_membership())
             raise exceptions.NoMatches(f'No sides found with name **{name}** in game {self.id}. Sides in this game are:\n{names_str}')
         else:
             raise exceptions.TooManyMatches(f'{len(matches)} matches found for "{name}" in game {self.id}.')
