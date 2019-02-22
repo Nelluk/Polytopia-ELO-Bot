@@ -932,14 +932,19 @@ class elo_games():
         logger.info(f'All input checks passed. Creating new game records with args: {args}')
 
         with db.atomic():
-            newgame = Game.create_game(discord_groups, name=game_name, guild_id=ctx.guild.id, require_teams=settings.guild_setting(ctx.guild.id, 'require_teams'))
-            host_player, _ = Player.get_by_discord_id(discord_id=ctx.author.id, guild_id=ctx.guild.id)
-            if host_player:
-                newgame.host = host_player
-                newgame.save()
-            else:
-                logger.error('Could not add host for newgame')
+            try:
+                newgame = Game.create_game(discord_groups, name=game_name, guild_id=ctx.guild.id, require_teams=settings.guild_setting(ctx.guild.id, 'require_teams'))
+                host_player, _ = Player.get_by_discord_id(discord_id=ctx.author.id, guild_id=ctx.guild.id)
+                if host_player:
+                    newgame.host = host_player
+                    newgame.save()
+                else:
+                    logger.error('Could not add host for newgame')
+            except peewee.PeeweeException as e:
+                logger.error(f'Error creating new game: {e}')
+                newgame = None
 
+        if newgame:
             await post_newgame_messaging(ctx, game=newgame)
 
     @settings.in_bot_channel()

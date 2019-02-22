@@ -189,12 +189,11 @@ class misc:
             ctx.command.reset_cooldown(ctx)
             return await ctx.send(f'Message was not included. Example usage: `{ctx.prefix}ping 100 Here\'s a nice note`')
 
-        with models.db:
-            player_mentions = [f'<@{l.player.discord_member.discord_id}>' for l in game.lineup]
-            full_message = f'Message from {ctx.author.mention} regarding game {game.id} **{game.name}**:\n*{message}*'
+        player_mentions = [f'<@{l.player.discord_member.discord_id}>' for l in game.lineup]
+        full_message = f'Message from {ctx.author.mention} regarding game {game.id} **{game.name}**:\n*{message}*'
 
-            await ctx.send(f'{full_message}\n{" ".join(player_mentions)}')
-            await game.update_squad_channels(ctx, message=full_message)
+        await ctx.send(f'{full_message}\n{" ".join(player_mentions)}')
+        await game.update_squad_channels(ctx, message=full_message)
 
     @commands.command(aliases=['gex', 'gameexport'])
     @settings.is_mod_check()
