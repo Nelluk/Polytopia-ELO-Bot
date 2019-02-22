@@ -71,19 +71,19 @@ class administration:
 
                 return await ctx.send(f'Autoconfirm process complete. {games_confirmed} games auto-confirmed. {unconfirmed_count - games_confirmed} games left unconfirmed.')
 
-        # else confirming a specific game ie. $confirm 1234
-        game_converter = PolyGame()
-        winning_game = await game_converter.convert(ctx, arg)
+            # else confirming a specific game ie. $confirm 1234
+            game_converter = PolyGame()
+            winning_game = await game_converter.convert(ctx, arg)
 
-        if not winning_game.is_completed:
-            return await ctx.send(f'Game {winning_game.id} has no declared winner yet.')
-        if winning_game.is_confirmed:
-            return await ctx.send(f'Game with ID {winning_game.id} is already confirmed as completed with winner **{winning_game.winner.name()}**')
+            if not winning_game.is_completed:
+                return await ctx.send(f'Game {winning_game.id} has no declared winner yet.')
+            if winning_game.is_confirmed:
+                return await ctx.send(f'Game with ID {winning_game.id} is already confirmed as completed with winner **{winning_game.winner.name()}**')
 
-        winning_game.declare_winner(winning_side=winning_game.winner, confirm=True)
-        winner_name = winning_game.winner.name()  # storing here trying to solve cursor closed error
-        await post_win_messaging(ctx, winning_game)
-        await ctx.send(f'**Game {winning_game.id}** winner has been confirmed as **{winner_name}**')  # Added here to try to fix InterfaceError Cursor Closed - seems to fix if there is output at the end
+            winning_game.declare_winner(winning_side=winning_game.winner, confirm=True)
+            winner_name = winning_game.winner.name()  # storing here trying to solve cursor closed error
+            await post_win_messaging(ctx, winning_game)
+            await ctx.send(f'**Game {winning_game.id}** winner has been confirmed as **{winner_name}**')  # Added here to try to fix InterfaceError Cursor Closed - seems to fix if there is output at the end
 
     @commands.command(usage='game_id')
     async def rankset(self, ctx, game: PolyGame = None):

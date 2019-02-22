@@ -18,21 +18,22 @@ logger = logging.getLogger('polybot.' + __name__)
 class PolyGame(commands.Converter):
     async def convert(self, ctx, game_id):
 
-        try:
-            game = Game.get(id=int(game_id))
-        except ValueError:
-            await ctx.send(f'Invalid game ID "{game_id}".')
-            raise commands.UserInputError()
-        except peewee.DoesNotExist:
-            await ctx.send(f'Game with ID {game_id} cannot be found.')
-            raise commands.UserInputError()
-        else:
-            logger.debug(f'Game with ID {game_id} found.')
-            if game.guild_id != ctx.guild.id:
-                logger.warn('Game does not belong to same guild')
-                await ctx.send(f'Game with ID {game_id} is associated with a different Discord server.')
+        with db:
+            try:
+                game = Game.get(id=int(game_id))
+            except ValueError:
+                await ctx.send(f'Invalid game ID "{game_id}".')
                 raise commands.UserInputError()
-            return game
+            except peewee.DoesNotExist:
+                await ctx.send(f'Game with ID {game_id} cannot be found.')
+                raise commands.UserInputError()
+            else:
+                logger.debug(f'Game with ID {game_id} found.')
+                if game.guild_id != ctx.guild.id:
+                    logger.warn('Game does not belong to same guild')
+                    await ctx.send(f'Game with ID {game_id} is associated with a different Discord server.')
+                    raise commands.UserInputError()
+                return game
 
 
 class elo_games():
