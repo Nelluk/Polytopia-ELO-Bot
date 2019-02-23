@@ -771,7 +771,12 @@ class Game(BaseModel):
         else:
             status_str = 'Unconfirmed'
 
-        embed.set_footer(text=f'Status: {status_str}  -  Creation Date {str(self.date)}{host_str}')
+        if self.completed_ts:
+            completed_str = f' - Completed {self.completed_ts.strftime("%Y-%m-%d %H:%M:%S")}'
+        else:
+            completed_str = ''
+
+        embed.set_footer(text=f'{status_str} - Created {str(self.date)}{completed_str}{host_str}')
 
         return embed, embed_content
 
@@ -1437,7 +1442,7 @@ class Game(BaseModel):
                 Game.id.in_(guild_filter)
             ) & (
                 Game.is_pending.in_(pending_filter))
-        ).order_by(-Game.date)
+        ).order_by(-Game.completed_ts, -Game.date)
 
         return game
 

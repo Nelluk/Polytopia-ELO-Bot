@@ -1241,9 +1241,13 @@ class elo_games():
             if not results_title:
                 results_str = 'No filters applied'
 
-            query = Game.search(status_filter=status_filter, player_filter=player_matches, team_filter=team_matches, title_filter=remaining_args, guild_id=ctx.guild.id)
-            game_list = utilities.summarize_game_list(query[:500])
-            list_name = f'{len(query)} {status_str}{"s" if len(query) != 1 else ""}\n{results_str}'
+            def async_game_search():
+                query = Game.search(status_filter=status_filter, player_filter=player_matches, team_filter=team_matches, title_filter=remaining_args, guild_id=ctx.guild.id)
+                game_list = utilities.summarize_game_list(query[:500])
+                list_name = f'{len(query)} {status_str}{"s" if len(query) != 1 else ""}\n{results_str}'
+                return game_list, list_name
+
+            game_list, list_name = await self.bot.loop.run_in_executor(None, async_game_search)
 
         if len(game_list) == 0:
             return await ctx.send(f'No results. See `{ctx.prefix}help {ctx.invoked_with}` for usage examples. Searched for:\n{results_str}')
