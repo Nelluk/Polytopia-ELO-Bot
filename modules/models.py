@@ -859,9 +859,8 @@ class Game(BaseModel):
         for gameside in self.gamesides:
             # logger.info(f'{self.id} gameside:', gameside)
             emoji = ''
-            if gameside.team:
-                if len(gameside.lineup) > 1 or not gameside.team.is_hidden:
-                    emoji = gameside.team.emoji
+            if gameside.team and len(gameside.lineup) > 1:
+                emoji = gameside.team.emoji
 
             gameside_strings.append(f'{emoji} **{gameside.name()}**')
         full_squad_string = ' *vs* '.join(gameside_strings)[:225]
