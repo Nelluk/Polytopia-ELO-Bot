@@ -1339,11 +1339,13 @@ def parse_players_and_teams(input_list, guild_id: int):
         teams = Team.get_by_name(arg, guild_id)
         if len(teams) == 1:
             team_matches.append(teams[0])
+            logger.debug(f'parse_players_and_teams - Matched string {arg} to team {teams[0].id} {teams[0].name}')
             input_list.remove(arg)
         else:
             players = Player.string_matches(player_string=arg, guild_id=guild_id, include_poly_info=False)
             if len(players) > 0:
                 player_matches.append(players[0])
+                logger.debug(f'parse_players_and_teams - Matched string {arg} to player {players[0].id} {players[0].name} on team {players[0].team}')
                 input_list.remove(arg)
 
     return player_matches, team_matches, input_list

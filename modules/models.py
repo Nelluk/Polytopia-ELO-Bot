@@ -343,6 +343,7 @@ class Player(BaseModel):
         if len(results) > 1:
             raise exceptions.TooManyMatches(f'More than one matching player was found for "{player_string}"')
 
+        logger.debug(f'get_or_except matched string {player_string} to player {results[0].id} {results[0].name} - team {results[0].team}')
         return results[0]
 
     def get_by_discord_id(discord_id: int, guild_id: int, discord_nick: str = None, discord_name: str = None):
@@ -353,20 +354,23 @@ class Player(BaseModel):
         try:
             player = Player.select().join(DiscordMember).where(
                 (DiscordMember.discord_id == discord_id) & (Player.guild_id == guild_id)).get()
+            logger.debug(f'get_by_discord_id loaded player {player.id} {player.name} - team {player.team}')
             return player, False
         except DoesNotExist:
             pass
 
         # no current player. check to see if DiscordMember exists
+        logger.debug(f'get_by_discord_id No matching player for guild {guild_id} and discord_id {discord_id} - discord_name passed {discord_name}')
         try:
             _ = DiscordMember.get(discord_id=discord_id)
         except DoesNotExist:
             # No matching player or discordmember
+            logger.debug(f'get_by_discord_id No matching discord_member with discord_id {discord_id} - discord_name passed {discord_name}')
             return None, False
         else:
             # DiscordMember found, upserting new player
             player, _ = Player.upsert(discord_id=discord_id, discord_name=discord_name, discord_nick=discord_nick, guild_id=guild_id)
-            logger.info(f'Upserting new player for discord ID {discord_id}')
+            logger.debug(f'get_by_discord_id Upserting new guild player for discord ID {discord_id}')
             return player, True
 
     def completed_game_count(self):
@@ -457,6 +461,14 @@ class Player(BaseModel):
 
     class Meta:
         indexes = ((('discord_member', 'guild_id'), True),)   # Trailing comma is required
+        only_save_dirty = True  # trying to track down issue where player.team is changing mysteriously
+
+    def __setattr__(self, name, value):
+        if name == 'team':
+            # logger.debug(f'__setattr__ on team')
+            if getattr(self, name) is not value:
+                logger.debug(f'value {name} changing to {value} from {getattr(self, name)} on self {self} {self.name if self and self.name else ""}')
+        return super().__setattr__(name, value)
 
 
 class Tribe(BaseModel):
