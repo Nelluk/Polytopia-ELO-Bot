@@ -789,7 +789,8 @@ class elo_games():
 
         **Examples**:
         `[p]allgames Nelluk`
-        `[p]allgames Nelluk oceans` - See games that included player Nelluk and the word *oceans* in the game name. Game notes are also searched.
+        `[p]allgames OCEANS OF FIRE` - Search by title - words in all caps are used to search title/notes.
+        `[p]allgames Nelluk OCEANS` - See games that included player Nelluk and the word *OCEANS* in the game name or game notes.
         `[p]allgames Jets` - See games between those two teams
         `[p]allgames Jets Ronin`
         `[p]allgames Nelluk rickdaheals frodakcin Jets Ronin` - See games in which three players and two teams were all involved
@@ -1200,6 +1201,7 @@ class elo_games():
     async def game_search(self, ctx, mode: str, arg_list):
 
         target_list = [arg.replace('"', '') for arg in arg_list]  # should enable it to handle "multi word" args
+        target_list = [i for i in target_list if len(i) > 2]  # strip 1-2 character arguments that match too easily to random players
 
         if mode.upper() == 'ALLGAMES':
             status_filter, status_str = 0, 'game'
@@ -1336,6 +1338,8 @@ def parse_players_and_teams(input_list, guild_id: int):
         if arg.upper() in ['THE', 'OF', 'AND', '&']:
             input_list.remove(arg)
             continue
+        if arg.isupper():
+            continue  # UPPER CASE alphabetical are ignored for player/team comparison and assumed to be title searches
         teams = Team.get_by_name(arg, guild_id)
         if len(teams) == 1:
             team_matches.append(teams[0])
