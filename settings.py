@@ -316,7 +316,7 @@ def is_mod_check():
 def on_polychampions():
 
     def predicate(ctx):
-        return ctx.guild.id == server_ids['polychampions']
+        return ctx.guild.id == server_ids['polychampions'] or ctx.guild.id == server_ids['test']
     return commands.check(predicate)
 
 

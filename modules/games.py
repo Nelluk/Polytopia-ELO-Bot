@@ -336,7 +336,7 @@ class elo_games():
                 return
 
             # Exact matching squad found by player name
-            squad = squad_list[0]
+            squad = squad_list[0].squad
 
         wins, losses = squad.get_record()
         rank, lb_length = squad.leaderboard_rank(settings.date_cutoff)
