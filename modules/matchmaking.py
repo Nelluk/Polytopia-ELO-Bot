@@ -629,8 +629,8 @@ class matchmaking():
             # Convert game from pending matchmaking session to in-progress game
             for team_group, allied_team, side in zip(teams_for_each_discord_member, list_of_final_teams, game.ordered_side_list()):
                 side_players = []
-                for team, lineup in zip(team_group, side.lineup):
-                    # side.lineup ordering might not be respected but shouldnt matter here
+                for team, lineup in zip(team_group, side.ordered_player_list()):
+                    logger.debug(f'setting player {lineup.player.id} {lineup.player.name} to team {team}')
                     lineup.player.team = team
                     lineup.player.save()
                     side_players.append(lineup.player)

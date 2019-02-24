@@ -916,6 +916,7 @@ class Game(BaseModel):
         # ie discord_groups input = [[nelluk, bakalol], [rickdaheals, jonathan]]
         # returns ([[Ronin, Ronin], [Jets, Jets]], [Ronin, Jets])
 
+        logger.debug('entering pregame_check')
         list_of_detected_teams, list_of_final_teams, teams_for_each_discord_member = [], [], []
         intermingled_flag = False
         # False if all players on each side belong to the same server team, Ronin/Jets.True if players are mixed or on a server without teams
@@ -923,20 +924,24 @@ class Game(BaseModel):
         for discord_group in discord_groups:
             same_team, list_of_teams = Player.get_teams_of_players(guild_id=guild_id, list_of_players=discord_group)
             teams_for_each_discord_member.append(list_of_teams)  # [[Team, Team][Team, Team]] for each team that a discord member is associated with, for Player.upsert()
+            logger.debug(f'in pregame_check: discord_group {discord_group} matched to teams: {list_of_teams}')
             if None in list_of_teams:
                 if require_teams is True:
                     raise exceptions.CheckFailedError('One or more players listed cannot be matched to a Team (based on Discord Roles). Make sure player has exactly one matching Team role.')
                 else:
                     # Player(s) can't be matched to team, but server setting allows that.
                     intermingled_flag = True
+                    logger.debug(f'setting intermingled_flag due to None in list_of_teams')
             if not same_team:
                 # Mixed players within same side
                 intermingled_flag = True
+                logger.debug(f'setting intermingled_flag due to mixed teams in discord group')
 
             if not intermingled_flag:
                 if list_of_teams[0] in list_of_detected_teams:
                     # Detected team already present (ie. Ronin players vs Ronin players)
                     intermingled_flag = True
+                    logger.debug(f'setting intermingled_flag due to same team being present multiple times')
                 else:
                     list_of_detected_teams.append(list_of_teams[0])
 
@@ -954,9 +959,10 @@ class Game(BaseModel):
             for count in range(len(discord_groups)):
                 team_obj, created = Team.get_or_create(name=generic_teams[count][0], guild_id=guild_id,
                                                        defaults={'emoji': generic_teams[count][1], 'is_hidden': True})
-                logger.debug(f'Fetching team object {team_obj.id} {team_obj.name}')
+                logger.debug(f'Fetching team object {team_obj.id} {team_obj.name}. Created? {created}')
                 list_of_final_teams.append(team_obj)
 
+        logger.debug(f'pregame_check returning {teams_for_each_discord_member} // {list_of_final_teams}')
         return (teams_for_each_discord_member, list_of_final_teams)
 
     def create_game(discord_groups, guild_id, name: str = None, require_teams: bool = False):
