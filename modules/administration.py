@@ -17,7 +17,15 @@ class administration:
         self.bot = bot
 
     async def __local_check(self, ctx):
-        return settings.is_staff(ctx)
+
+        if settings.is_staff(ctx):
+            return True
+        else:
+            if ctx.invoked_with == 'help' and ctx.command.name != 'help':
+                return False
+            else:
+                await ctx.send('You do not have permission to use this command.')
+                return False
 
     @commands.command(aliases=['confirmgame'], usage='game_id')
     # async def confirm(self, ctx, winning_game: PolyGame = None):
