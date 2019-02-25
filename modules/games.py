@@ -486,7 +486,7 @@ class elo_games():
         member_stats = []
         leaders_list, coleaders_list = [], []
 
-        wins, losses = team.get_record()
+        wins, losses = team.get_record(alltime=False)
         embed.add_field(name='Results', value=f'ELO: {team.elo}   Wins {wins} / Losses {losses}', inline=False)
 
         if team_role:
