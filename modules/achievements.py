@@ -51,7 +51,7 @@ async def set_champion_role():
 
 async def set_experience_role(discord_member):
     logger.debug(f'processing experience role for member {discord_member.name}')
-    completed_games = discord_member.completed_game_count()
+    completed_games = discord_member.completed_game_count(only_ranked=False)
 
     for guildmember in discord_member.guildmembers:
         guild = discord.utils.get(settings.bot.guilds, id=guildmember.guild_id)

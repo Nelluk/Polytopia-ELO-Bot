@@ -132,11 +132,18 @@ class DiscordMember(BaseModel):
 
         return (self.wins().count(), self.losses().count())
 
-    def completed_game_count(self):
+    def completed_game_count(self, only_ranked=True):
 
-        num_games = Lineup.select().join(Player).join_from(Lineup, Game).where(
-            (Lineup.game.is_completed == 1) & (Lineup.game.is_ranked == 1) & (Lineup.player.discord_member == self)
-        ).count()
+        if only_ranked:
+            # default behavior, used for elo max_delta
+            num_games = Lineup.select().join(Player).join_from(Lineup, Game).where(
+                (Lineup.game.is_completed == 1) & (Lineup.game.is_ranked == 1) & (Lineup.player.discord_member == self)
+            ).count()
+        else:
+            # full count of all games played - used for achievements role setting
+            num_games = Lineup.select().join(Player).join_from(Lineup, Game).where(
+                (Lineup.game.is_completed == 1) & (Lineup.player.discord_member == self)
+            ).count()
 
         return num_games
 
