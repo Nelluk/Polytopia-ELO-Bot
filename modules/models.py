@@ -325,13 +325,14 @@ class Player(BaseModel):
             # String matches DiscordUser.name exactly
             return name_exact_match
 
-        # If no exact match, return any substring matches
-        name_substring_match = Player.select(Player, DiscordMember).join(DiscordMember).where(
+        # If no exact match, return any substring matches - prioritized by number of games played
+
+        name_substring_match = Lineup.select(Lineup.player, fn.COUNT('*').alias('games_played')).join(Player).join(DiscordMember).where(
             ((Player.nick.contains(player_string)) | (DiscordMember.name.contains(discord_str))) & (Player.guild_id == guild_id)
-        )
+        ).group_by(Lineup.player).order_by(-SQL('games_played'))
 
         if name_substring_match.count() > 0:
-            return name_substring_match
+            return [l.player for l in name_substring_match]
 
         if include_poly_info:
             # If no substring name matches, return anything with matching polytopia name or code

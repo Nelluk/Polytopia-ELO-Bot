@@ -169,9 +169,16 @@ class matchmaking():
         required_role_names = [None] * len(team_sizes)
         required_role_message = ''
 
+        if required_role_args and len(required_role_args) < len(team_sizes) and required_role_args[0] not in ctx.author.roles:
+            # used for a case like: $opengame 1v1 me vs @The Novas   -- puts that role on side 2 if you dont have it
+            logger.debug(f'Offsetting required_role_args')
+            required_role_args.insert(0, None)
+
         for count, role in enumerate(required_role_args):
             if count >= len(team_sizes):
                 break
+            if not role:
+                continue
             required_roles[count] = role.id
             required_role_names[count] = role.name
             required_role_message += f'**Side {count + 1}** will be locked to players with role *{role.name}*\n'
