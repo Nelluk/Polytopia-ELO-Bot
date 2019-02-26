@@ -171,8 +171,8 @@ class misc:
         await ctx.send(embed=embed)
 
     @commands.command(usage='game_id')
-    @settings.in_bot_channel()
-    @commands.cooldown(1, 60, commands.BucketType.user)
+    # @settings.in_bot_channel()
+    @commands.cooldown(1, 30, commands.BucketType.user)
     async def ping(self, ctx, game: PolyGame = None, *, message: str = None):
         """ Ping everyone in one of your games with a message
 
@@ -185,6 +185,22 @@ class misc:
         if not game.player(discord_id=ctx.author.id) and not settings.is_staff(ctx):
             ctx.command.reset_cooldown(ctx)
             return await ctx.send(f'You are not a player in game {game.id}')
+
+        permitted_channels = settings.guild_setting(ctx.guild.id, 'bot_channels') + settings.guild_setting(ctx.guild.id, 'bot_channels_private')
+        permitted_channels_private = []
+        if settings.guild_setting(ctx.guild.id, 'game_channel_categories'):
+            if game.game_chan:
+                permitted_channels.append(game.game_chan)
+            if game.smallest_team() > 1:
+                permitted_channels_private = [gs.team_chan for gs in game.gamesides]
+                permitted_channels = permitted_channels + permitted_channels_private
+                # allows ping command to be used in private team channels - only if there is no solo squad in the game which would mean they cant see the message
+                # this also adjusts where the @Mention is placed (sent to all team channels instead of simply in the ctx.channel)
+
+        if ctx.channel.id not in permitted_channels:
+            channel_tags = [f'<#{chan_id}>' for chan_id in permitted_channels]
+            return await ctx.send(f'This command can not be used in this channel. Permitted channels: {" ".join(channel_tags)}')
+
         if not message:
             ctx.command.reset_cooldown(ctx)
             return await ctx.send(f'Message was not included. Example usage: `{ctx.prefix}ping 100 Here\'s a nice note`')
@@ -192,8 +208,11 @@ class misc:
         player_mentions = [f'<@{l.player.discord_member.discord_id}>' for l in game.lineup]
         full_message = f'Message from {ctx.author.mention} regarding game {game.id} **{game.name}**:\n*{message}*'
 
-        await ctx.send(f'{full_message}\n{" ".join(player_mentions)}')
-        await game.update_squad_channels(ctx, message=full_message)
+        if ctx.channel.id in permitted_channels_private:
+            await game.update_squad_channels(ctx, message=f'{full_message}\n{" ".join(player_mentions)}')
+        else:
+            await ctx.send(f'{full_message}\n{" ".join(player_mentions)}')
+            await game.update_squad_channels(ctx, message=full_message)
 
     @commands.command(aliases=['gex', 'gameexport'])
     @settings.is_mod_check()
