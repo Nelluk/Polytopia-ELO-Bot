@@ -68,7 +68,7 @@ class matchmaking():
         `[p]opengame 2v2 Large map, no bardur`  (Adds a note to the game)
 
         `[p]opengame 1v1 Large map 1200 elo min`
-        (Adds an ELO requirement for joining. *max* works also.)
+        (Add an ELO requirement for joining with `max` or `min`. Also `1200 global elo max` to check global elo.)
 
         `[p]opengame 1v1 For @Nelluk only`
         (Include one or more @Mentions in notes and only those people will be permitted to join.)
@@ -355,6 +355,7 @@ class matchmaking():
                 return await ctx.send(f'You are a restricted user (*level 2*) - complete a few more ELO games to have more permissions.\n{settings.levels_info}')
 
         min_elo, max_elo = 0, 3000
+        min_elo_g, max_elo_g = 0, 3000
         notes = game.notes if game.notes else ''
 
         m = re.search(r'(\d+) elo max', notes, re.I)
@@ -364,10 +365,22 @@ class matchmaking():
         if m:
             min_elo = int(m[1])
 
+        m = re.search(r'(\d+) global elo max', notes, re.I)
+        if m:
+            max_elo_g = int(m[1])
+        m = re.search(r'(\d+) global elo min', notes, re.I)
+        if m:
+            min_elo_g = int(m[1])
+
         if player.elo < min_elo or player.elo > max_elo:
             if not game.is_hosted_by(ctx.author.id)[0] and not settings.is_mod(ctx):
                 return await ctx.send(f'This game has an ELO restriction of {min_elo} - {max_elo} and **{player.name}** has an ELO of **{player.elo}**. Cannot join! :cry:')
             await ctx.send(f'This game has an ELO restriction of {min_elo} - {max_elo}. Bypassing because you are game host or a mod.')
+
+        if player.discord_member.elo < min_elo_g or player.discord_member.elo > max_elo_g:
+            if not game.is_hosted_by(ctx.author.id)[0] and not settings.is_mod(ctx):
+                return await ctx.send(f'This game has a global ELO restriction of {min_elo_g} - {max_elo_g} and **{player.name}** has a global ELO of **{player.discord_member.elo}**. Cannot join! :cry:')
+            await ctx.send(f'This game has an ELO restriction of {min_elo_g} - {max_elo_g}. Bypassing because you are game host or a mod.')
 
         # list of ID strings that are allowed to join game, e.g. ['272510639124250625', '481527584107003904']
         player_restricted_list = re.findall(r'<@!?(\d+)>', notes)
