@@ -186,19 +186,25 @@ class misc:
             ctx.command.reset_cooldown(ctx)
             return await ctx.send(f'You are not a player in game {game.id}')
 
-        permitted_channels = settings.guild_setting(ctx.guild.id, 'bot_channels') + settings.guild_setting(ctx.guild.id, 'bot_channels_private')
+        permitted_channels = settings.guild_setting(ctx.guild.id, 'bot_channels')
         permitted_channels_private = []
         if settings.guild_setting(ctx.guild.id, 'game_channel_categories'):
             if game.game_chan:
-                permitted_channels.append(game.game_chan)
+                permitted_channels = [game.game_chan] + permitted_channels
             if game.smallest_team() > 1:
                 permitted_channels_private = [gs.team_chan for gs in game.gamesides]
-                permitted_channels = permitted_channels + permitted_channels_private
+                permitted_channels = permitted_channels_private + permitted_channels
                 # allows ping command to be used in private team channels - only if there is no solo squad in the game which would mean they cant see the message
                 # this also adjusts where the @Mention is placed (sent to all team channels instead of simply in the ctx.channel)
+            elif ctx.channel.id in [gs.team_chan for gs in game.gamesides]:
+                channel_tags = [f'<#{chan_id}>' for chan_id in permitted_channels]
+                ctx.command.reset_cooldown(ctx)
+                return await ctx.send(f'This command cannot be used in this channel because there is at least one solo player without access to a team channel.\n'
+                    f'Permitted channels: {" ".join(channel_tags)}')
 
-        if ctx.channel.id not in permitted_channels:
+        if ctx.channel.id not in permitted_channels and ctx.channel.id not in settings.guild_setting(ctx.guild.id, 'bot_channels_private'):
             channel_tags = [f'<#{chan_id}>' for chan_id in permitted_channels]
+            ctx.command.reset_cooldown(ctx)
             return await ctx.send(f'This command can not be used in this channel. Permitted channels: {" ".join(channel_tags)}')
 
         if not message:

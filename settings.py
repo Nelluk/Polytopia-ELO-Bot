@@ -124,7 +124,7 @@ config = {'default':
                       'max_team_size': 4,
                       'command_prefix': '$',
                       'include_in_global_lb': False,
-                      # 'bot_channels_private': [418175357137453058],  # 058 testchamber
+                      'bot_channels_private': [],
                       'bot_channels_strict': [514473680529784853],
                       'bot_channels': [313387761405263873],
                       # 'newbie_message_channels': [396069729657421824, 413721247260868618, 418326008526143508, 418326044077064192],  # multi-discussion, friend codes NA/euro/asia
