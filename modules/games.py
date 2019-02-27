@@ -747,12 +747,15 @@ class elo_games():
                     offset = offset + .5
                 else:
                     offset = offset - .5
+        elif tz_string.upper() in ['UTC', 'GMT']:
+            offset = 0
+            # case of "$settime UTC"
         else:
             return await ctx.send(f'Could not interpret input. Use `{ctx.prefix}settime my_time_zone_offset`.\nExample: `{ctx.prefix}settime UTC-5:00` for Eastern Standard Time.')
 
         player_target.discord_member.timezone_offset = offset
         player_target.discord_member.save()
-        offset_str = 'UTC+' if offset > 0 else 'UTC'
+        offset_str = 'UTC+' if offset >= 0 else 'UTC'
         await ctx.send(f'Player **{player_target.name}** updated in system with timezone offset **{offset_str}{offset}**.')
 
     @commands.command(aliases=['match'], usage='game_id')
