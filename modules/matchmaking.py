@@ -237,7 +237,9 @@ class matchmaking():
         """
         Give a name to a side in an open game that you host
         **Example:**
-        `[p]gameside m25 2 Ronin` - Names side 2 of Match M25 as 'The Ronin'
+        `[p]gameside 1025 2 Cool Team` - Names side 2 of Match 1025 as '*Cool Team*'
+        `[p]gameside 1025 2 @The Ronin` - Locks side 2 to people with role `@The Ronin` and names side correspondingly
+        `[p]gameside 1025 2 none` - Resets side to have no name or role locks
         """
 
         if not game.is_pending:
@@ -252,10 +254,22 @@ class matchmaking():
         gameside, _ = game.get_side(lookup=side_lookup)
         if not gameside:
             return await ctx.send(f'Can\'t find that side for game {game.id}.')
-        gameside.sidename = args
+
+        if args and args.lower() == 'none':
+            args = None
+
+        if len(ctx.message.role_mentions) == 1:
+            # using a role to lock side
+            gameside.required_role_id = ctx.message.role_mentions[0].id
+            gameside.sidename = ctx.message.role_mentions[0].name
+            msg = f'Side {gameside.position} for game {game.id} has been locked to role **@{gameside.sidename}** and named **{gameside.sidename}**'
+        else:
+            gameside.sidename = args
+            gameside.required_role_id = None
+            msg = f'Side {gameside.position} for game {game.id} has been named **{args}**'
         gameside.save()
 
-        return await ctx.send(f'Side {gameside.position} for game {game.id} has been named "{args}"')
+        return await ctx.send(msg)
 
     @settings.in_bot_channel()
     @commands.command(usage='game_id', aliases=['joingame', 'joinmatch'])
