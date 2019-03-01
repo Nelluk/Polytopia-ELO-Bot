@@ -600,16 +600,16 @@ class Game(BaseModel):
 
         for gameside in self.gamesides:
             if gameside.team_chan:
-                await channels.update_game_channel_name(ctx, channel_id=gameside.team_chan, game_id=self.id, game_name=self.name, team_name=gameside.team.name)
-
                 if message:
                     await channels.send_message_to_channel(ctx, channel_id=gameside.team_chan, message=message)
+                else:
+                    await channels.update_game_channel_name(ctx, channel_id=gameside.team_chan, game_id=self.id, game_name=self.name, team_name=gameside.team.name)
 
         if self.game_chan:
-            await channels.update_game_channel_name(ctx, channel_id=self.game_chan, game_id=self.id, game_name=self.name, team_name=None)
-
             if message:
                 await channels.send_message_to_channel(ctx, channel_id=self.game_chan, message=message)
+            else:
+                await channels.update_game_channel_name(ctx, channel_id=self.game_chan, game_id=self.id, game_name=self.name, team_name=None)
 
     async def update_announcement(self, ctx):
         # Updates contents of new game announcement with updated game_embed card
