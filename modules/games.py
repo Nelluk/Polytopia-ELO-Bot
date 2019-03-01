@@ -1043,28 +1043,15 @@ class elo_games():
         winning_game.declare_winner(winning_side=winning_side, confirm=confirm_win)
 
         if confirm_win:
-
-            if winning_game.is_ranked and any(l.elo_change_player == 0 for l in winning_game.lineup):
-                # try to catch a phantom bug where rarely a completed game will not save the ELO changes correctly to the DB.
-                # not reproducible at all so simply re-running the calc if it happens and logging
-
-                lineup_details = [f'\nLineup ID: {l.id}, player: {l.player.name}, elo: {l.player.elo}, elo_change_player: {l.elo_change_player}' for l in winning_game.lineup]
-                # Game.recalculate_elo_since(timestamp=winning_game.completed_ts)  # Temporarily removing since ELO totals after this runs arent right, winner getting double ELO for example
-                logger.critical(f'Possible ELO bug in result from {winning_game.id}\n{" ".join(lineup_details)}')
-                owner = ctx.guild.get_member(settings.owner_id)
-                if owner:
-                    try:
-                        await owner.send(f'Possible ELO bug in result from {winning_game.id} - Check debug logs for more info on ELO calcs\n{" ".join(lineup_details)}')
-                    except discord.DiscordException as e:
-                        logger.warn(f'Error DMing bot owner: {e}')
-
             # Cleanup game channels and announce winners
-            await post_win_messaging(ctx, winning_game)
+            # try/except block is attempt at a bandaid where sometimes an InterfaceError/Cursor Closed exception would hit here, probably due to issues with async code
 
-            # for l in winning_game.lineup:
-            #     await achievements.set_experience_role(l.player.discord_member)
-
-            # (await achievements.set_experience_role(l.player.discord_member) for l in winning_game.lineup)
+            try:
+                await post_win_messaging(ctx, winning_game)
+            except peewee.PeeweeException as e:
+                logger.error(f'Error during win command triggering post_win_messaging - trying to reopen and run again: {e}')
+                db.connect(reuse_if_open=True)
+                await post_win_messaging(ctx, winning_game)
 
     @settings.in_bot_channel()
     @commands.command(usage='game_id', aliases=['delete_game', 'delgame', 'delmatch', 'deletegame'])
@@ -1160,7 +1147,7 @@ class elo_games():
 
         if settings.get_user_level(ctx) < 4 or len(args) == 1:
             # if non-priviledged user, force the command to be about the ctx.author
-            args = (ctx.author.id, args[0])
+            args = (f'<@{ctx.author.id}>', args[0])
 
         if len(args) % 2 != 0:
             return await ctx.send(f'Wrong number of arguments. See `{ctx.prefix}help settribe` for usage examples.')
