@@ -335,7 +335,12 @@ class administration:
     @commands.command()
     @commands.is_owner()
     async def purge_incomplete(self, ctx):
+        """*Owner*: Purge old incomplete games
+        Purges up to 20 games at a time. Only incomplete 2-player games that started more than 60 days ago, or 3-player games that started more than 90 days ago.
+        """
+
         old_60d = (datetime.date.today() + datetime.timedelta(days=-60))
+        old_90d = (datetime.date.today() + datetime.timedelta(days=-90))
 
         def async_game_search():
             query = models.Game.search(status_filter=2, guild_id=ctx.guild.id)
@@ -347,8 +352,15 @@ class administration:
 
         delete_result = []
         for game in game_list[:20]:
+            rank_str = ' - *Unranked*' if not game.is_ranked else ''
             if len(game.lineup) == 2 and game.date < old_60d and not game.is_completed:
-                delete_result.append(f'Deleting incomplete 1v1 game older than 60 days. - {game.get_headline()}')
+                delete_result.append(f'Deleting incomplete 1v1 game older than 60 days. - {game.get_headline()} - {game.date}{rank_str}')
+                await self.bot.loop.run_in_executor(None, game.delete_game)
+
+            if len(game.lineup) == 3 and game.date < old_90d and not game.is_completed:
+                delete_result.append(f'Deleting incomplete 3-player game older than 90 days. - {game.get_headline()} - {game.date}{rank_str}')
+                await game.delete_game_channels(ctx.guild)
+                await self.bot.loop.run_in_executor(None, game.delete_game)
 
         delete_str = '\n'.join(delete_result)
         await ctx.send(f'{delete_str}\nFinished - purged {len(delete_result)} games')
