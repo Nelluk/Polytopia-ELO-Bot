@@ -334,6 +334,27 @@ class administration:
 
     @commands.command()
     @commands.is_owner()
+    async def purge_incomplete(self, ctx):
+        old_60d = (datetime.date.today() + datetime.timedelta(days=-60))
+
+        def async_game_search():
+            query = models.Game.search(status_filter=2, guild_id=ctx.guild.id)
+            query = list(query)  # reversing 'Incomplete' queries so oldest is at top
+            query.reverse()
+            return query
+
+        game_list = await self.bot.loop.run_in_executor(None, async_game_search)
+
+        delete_result = []
+        for game in game_list[:20]:
+            if len(game.lineup) == 2 and game.date < old_60d and not game.is_completed:
+                delete_result.append(f'Deleting incomplete 1v1 game older than 60 days. - {game.get_headline()}')
+
+        delete_str = '\n'.join(delete_result)
+        await ctx.send(f'{delete_str}\nFinished - purged {len(delete_result)} games')
+
+    @commands.command()
+    @commands.is_owner()
     async def recalc_elo(self, ctx):
         """*Owner*: Recalculate ELO for all games
         Intended to be used when a change to the ELO math is made to apply to all games retroactively

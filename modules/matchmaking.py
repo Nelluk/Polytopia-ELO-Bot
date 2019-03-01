@@ -677,6 +677,7 @@ class matchmaking():
                 side.save()
 
             game.name = name
+            game.date = datetime.datetime.today()
             game.is_pending = False
             game.save()
 
