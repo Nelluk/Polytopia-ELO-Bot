@@ -102,7 +102,7 @@ class elo_games():
             await ctx.send(f'test2')
             await ctx.send(f'{winning_game.name}')
 
-    @commands.command(aliases=['reqgame', 'helpstaff'])
+    @commands.command(aliases=['reqgame', 'helpstaff'], hidden=True)
     @commands.cooldown(2, 30, commands.BucketType.user)
     @settings.on_polychampions()
     async def staffhelp(self, ctx, *, message: str = None):
@@ -129,7 +129,7 @@ class elo_games():
 
         await channel.send(f'{ctx.message.author} submitted: {ctx.message.clean_content}')
 
-    @commands.command(brief='Sends staff details on a League game', usage='Week 2 game vs Mallards started called "Oceans of Fire"')
+    @commands.command(hidden=True, brief='Sends staff details on a League game', usage='Week 2 game vs Mallards started called "Oceans of Fire"')
     @settings.on_polychampions()
     @commands.cooldown(2, 30, commands.BucketType.user)
     async def seasongame(self, ctx, *, message: str = None):
