@@ -1211,10 +1211,18 @@ class elo_games():
             status_filter, status_str = 0, 'game'
 
         if len(target_list) == 1 and target_list[0].upper() == 'ALL':
-            query = Game.search(status_filter=status_filter, guild_id=ctx.guild.id)
-            list_name = f'All {status_str}s ({len(query)})'
-            game_list = utilities.summarize_game_list(query[:500])
             results_str = f'All {status_str}s'
+
+            def async_game_search():
+                query = Game.search(status_filter=status_filter, guild_id=ctx.guild.id)
+                if status_filter == 2:
+                    query = list(query)  # reversing 'Incomplete' queries so oldest is at top
+                    query.reverse()
+                list_name = f'All {status_str}s ({len(query)})'
+                game_list = utilities.summarize_game_list(query[:500])
+                return game_list, list_name
+
+            game_list, list_name = await self.bot.loop.run_in_executor(None, async_game_search)
         else:
             if not target_list:
                 # Target is person issuing command
