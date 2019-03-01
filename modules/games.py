@@ -1265,7 +1265,8 @@ class elo_games():
             yesterday = (datetime.datetime.now() + datetime.timedelta(hours=-24))
 
             old_games = Game.select().join(GameSide, on=(GameSide.game == Game.id)).where(
-                (Game.is_confirmed == 1) & (Game.completed_ts < yesterday) & (GameSide.team_chan.is_null(False))
+                (Game.is_confirmed == 1) & (Game.completed_ts < yesterday) &
+                ((GameSide.team_chan.is_null(False)) | (Game.game_chan.is_null(False)))
             )
 
             logger.info(f'running task_purge_game_channels on {len(old_games)} games')
