@@ -351,7 +351,7 @@ class administration:
         game_list = await self.bot.loop.run_in_executor(None, async_game_search)
 
         delete_result = []
-        for game in game_list[:10]:
+        for game in game_list[:50]:
             rank_str = ' - *Unranked*' if not game.is_ranked else ''
             if len(game.lineup) == 2 and game.date < old_60d and not game.is_completed:
                 delete_result.append(f'Deleting incomplete 1v1 game older than 60 days. - {game.get_headline()} - {game.date}{rank_str}')
@@ -361,6 +361,9 @@ class administration:
                 delete_result.append(f'Deleting incomplete 3-player game older than 90 days. - {game.get_headline()} - {game.date}{rank_str}')
                 await game.delete_game_channels(ctx.guild)
                 await self.bot.loop.run_in_executor(None, game.delete_game)
+
+            if len(delete_result) >= 10:
+                break  # more than ten games and the output will be truncated
 
         delete_str = '\n'.join(delete_result)[:1900]  # max send length is 2000 chars.
         await ctx.send(f'{delete_str}\nFinished - purged {len(delete_result)} games')
