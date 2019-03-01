@@ -1134,7 +1134,7 @@ class elo_games():
         await ctx.send(f'Game ID {game.id} has been renamed to "**{new_game_name}**" from "**{old_game_name}**"')
 
     @commands.command(aliases=['settribes'], usage='game_id player_name tribe_name [player2 tribe2 ... ]')
-    async def settribe(self, ctx, game: PolyGame, *args):
+    async def settribe(self, ctx, game: PolyGame = None, *args):
         """Set tribe of players for a game
 
         **Examples**
@@ -1144,6 +1144,9 @@ class elo_games():
         `[p]settribe 2055 nelluk bardur` - Sets Nelluk to Bardur for game 2050
         `[p]settribe 2050 nelluk bardur rick lux anarcho none` - Sets several tribes at once. Use *none* to unset a tribe.
         """
+
+        if not game:
+            return await ctx.send(f'Game ID not provided. **Example usage:** `{ctx.prefix}{ctx.invoked_with} 1234 bardur`')
 
         if settings.get_user_level(ctx) < 4 or len(args) == 1:
             # if non-priviledged user, force the command to be about the ctx.author
