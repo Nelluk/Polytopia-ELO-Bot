@@ -1148,6 +1148,11 @@ class elo_games():
         if not game:
             return await ctx.send(f'Game ID not provided. **Example usage:** `{ctx.prefix}{ctx.invoked_with} 1234 bardur`')
 
+        if settings.get_user_level(ctx) < 4:
+            perm_str = 'You only have permissions to set your own tribe.'
+        else:
+            perm_str = ''
+
         if settings.get_user_level(ctx) < 4 or len(args) == 1:
             # if non-priviledged user, force the command to be about the ctx.author
             args = (f'<@{ctx.author.id}>', args[0])
@@ -1166,7 +1171,7 @@ class elo_games():
             else:
                 tribeflair = TribeFlair.get_by_name(name=tribe_name, guild_id=ctx.guild.id)
                 if not tribeflair:
-                    await ctx.send(f'Matching Tribe not found matching "{tribe_name}". Check spelling or be more specific.')
+                    await ctx.send(f'Matching Tribe not found matching "{tribe_name}". Check spelling or be more specific. {perm_str}')
                     continue
 
                 existing_lineup = None
@@ -1181,7 +1186,7 @@ class elo_games():
             lineup_match = game.player(name=player_name)
 
             if not lineup_match:
-                await ctx.send(f'Matching player not found in game {game.id} matching "{player_name}". Check spelling or be more specific.')
+                await ctx.send(f'Matching player not found in game {game.id} matching "{player_name}". Check spelling or be more specific. {perm_str}')
                 continue
 
             lineup_match.tribe = tribeflair
