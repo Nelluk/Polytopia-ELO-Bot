@@ -364,7 +364,7 @@ class elo_games():
         await ctx.send(embed=embed)
 
     @settings.in_bot_channel()
-    @commands.command(brief='See details on a player', usage='player_name', aliases=['elo'])
+    @commands.command(brief='See details on a player', usage='player_name', aliases=['elo', 'rank'])
     async def player(self, ctx, *args):
         """See your own player card or the card of another player
         This also will find results based on a game-code or in-game name, if set.
