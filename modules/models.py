@@ -1240,7 +1240,7 @@ class Game(BaseModel):
         # Return a tuple of the participant and their gameside, ie Player, GameSide or Team, gameside
 
         if len(name) < 3:
-            raise exceptions.CheckFailedError('Name given is not enough characters. Be more specific')
+            raise exceptions.CheckFailedError('Name given is not enough characters. Be more specific or use a @Mention.')
 
         matches = []
         gamesides = list(self.gamesides)
