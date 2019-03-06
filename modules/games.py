@@ -425,7 +425,7 @@ class elo_games():
             embed.add_field(value=offset_str, name='Timezone Offset', inline=True)
 
         misc_stats = []
-        (winning_streak, losing_streak, v2_count, v3_count, dual_wins, dual_losses) = player.discord_member.advanced_stats()
+        (winning_streak, losing_streak, v2_count, v3_count, duel_wins, duel_losses) = player.discord_member.advanced_stats()
         if winning_streak > 0:
             misc_stats.append(('Longest winning streak', winning_streak))
         if losing_streak > 0:
@@ -434,12 +434,13 @@ class elo_games():
             misc_stats.append(('1v2 games won', v2_count))
         if v3_count > 0:
             misc_stats.append(('1v3 games won', v3_count))
-        if dual_wins or dual_losses:
-            misc_stats.append(('1v1 dual record', f'W {dual_wins} / L {dual_losses}'))
+        if duel_wins or duel_losses:
+            misc_stats.append(('1v1 duel record', f'W {duel_wins} / L {duel_losses}'))
 
-        # TODO: add 1v1 win/loss record. maybe "adjusted ELO" for how big game is?
+        # TODO: maybe "adjusted ELO" for how big game is?
 
-        misc_stats.append(('Max global ELO achieved', player.discord_member.elo_max))
+        if player.discord_member.elo_max > 1000:
+            misc_stats.append(('Max global ELO achieved', player.discord_member.elo_max))
 
         favorite_tribes = player.discord_member.favorite_tribes(limit=3)
         if favorite_tribes:
@@ -450,7 +451,8 @@ class elo_games():
         misc_stats = [f'`{stat[0]:.<25}` {stat[1]}' for stat in misc_stats]
         misc_stats = [stat.replace(".", "\u200b ") for stat in misc_stats]
 
-        embed.add_field(name='Miscellaneous Global Stats', value='\n'.join(misc_stats), inline=False)
+        if misc_stats:
+            embed.add_field(name='Miscellaneous Global Stats', value='\n'.join(misc_stats), inline=False)
 
         games_list = Game.search(player_filter=[player])
         if not games_list:

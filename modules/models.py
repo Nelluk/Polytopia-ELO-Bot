@@ -115,7 +115,7 @@ class DiscordMember(BaseModel):
 
         winning_streak, losing_streak, longest_winning_streak, longest_losing_streak = 0, 0, 0, 0
         v2_count, v3_count = 0, 0  # wins of 1v2 or 1v3 games
-        dual_wins, dual_losses = 0, 0  # 1v1 matchup stats
+        duel_wins, duel_losses = 0, 0  # 1v1 matchup stats
         last_win, last_loss = False, False
 
         for game in ranked_games_played:
@@ -144,7 +144,7 @@ class DiscordMember(BaseModel):
                     size_of_opponent = game.largest_team()
 
                     if size_of_opponent == 1:
-                        dual_wins += 1
+                        duel_wins += 1
                     elif size_of_opponent == 2:
                         v2_count += 1
                     elif size_of_opponent == 3:
@@ -160,9 +160,9 @@ class DiscordMember(BaseModel):
                     last_win, last_loss = False, True
 
                 if len(game.gamesides) == 2 and game.largest_team() == 1 and game.smallest_team() == 1:
-                    dual_losses += 1
+                    duel_losses += 1
 
-        return (longest_winning_streak, longest_losing_streak, v2_count, v3_count, dual_wins, dual_losses)
+        return (longest_winning_streak, longest_losing_streak, v2_count, v3_count, duel_wins, duel_losses)
 
     def update_name(self, new_name: str):
         self.name = new_name
