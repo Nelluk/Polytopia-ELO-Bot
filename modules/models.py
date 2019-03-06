@@ -107,6 +107,56 @@ class DiscordMember(BaseModel):
     is_banned = BooleanField(default=False)
     timezone_offset = SmallIntegerField(default=None, null=True)
 
+    def advanced_stats(self):
+
+        ranked_games_played = Game.select().join(Lineup).join(Player).where(
+            (Player.discord_member == self) & (Game.is_completed == 1) & (Game.is_ranked == 1)
+        ).order_by(Game.completed_ts).prefetch(GameSide, Lineup, Player)
+
+        winning_streak, losing_streak, v2_count, v3_count = 0, 0, 0, 0
+        longest_winning_streak, longest_losing_streak = 0, 0
+        last_win, last_loss = False, False
+        print(f'{len(ranked_games_played)} games')
+        for game in ranked_games_played:
+
+            is_winner = False
+            for gs in game.gamesides:
+                # going through in this way uses the results already in memory rather than a bunch of new DB queries
+                if gs.id == game.winner_id:
+                    winner = gs
+                    for l in gs.lineup:
+                        if l.player.discord_member_id == self.id:
+                            is_winner = True
+                    break
+
+            if is_winner:
+                if last_win:
+                    # winning streak is extended
+                    winning_streak += 1
+                    longest_winning_streak = winning_streak if (winning_streak > longest_winning_streak) else longest_winning_streak
+                else:
+                    # winning streak is broken
+                    winning_streak = 1
+                    last_win, last_loss = True, False
+                if len(winner.lineup) == 1 and len(game.gamesides) == 2:
+                    size_of_opponent = game.largest_team()
+
+                    if size_of_opponent == 2:
+                        v2_count += 1
+                    if size_of_opponent == 3:
+                        v3_count += 1
+            else:
+                if last_loss:
+                    # losing streak is extended
+                    losing_streak += 1
+                    longest_losing_streak = losing_streak if losing_streak > longest_losing_streak else longest_losing_streak
+                else:
+                    # winning streak is broken
+                    losing_streak = 1
+                    last_win, last_loss = False, True
+
+        return (winning_streak, losing_streak, v2_count, v3_count)
+
     def update_name(self, new_name: str):
         self.name = new_name
         self.save()
@@ -469,14 +519,6 @@ class Player(BaseModel):
 
     class Meta:
         indexes = ((('discord_member', 'guild_id'), True),)   # Trailing comma is required
-        only_save_dirty = True  # trying to track down issue where player.team is changing mysteriously
-
-    def __setattr__(self, name, value):
-        if name == 'team':
-            # logger.debug(f'__setattr__ on team')
-            if getattr(self, name) is not value:
-                logger.debug(f'value {name} changing to {value} from {getattr(self, name)} on self {self} {self.name if self and self.name else ""}')
-        return super().__setattr__(name, value)
 
 
 class Tribe(BaseModel):

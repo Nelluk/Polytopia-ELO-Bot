@@ -86,22 +86,6 @@ class elo_games():
                 return
             discord_member.update_name(new_name=after.name)
 
-    @commands.command(hidden=True, aliases=['ts2'])
-    @commands.is_owner()
-    async def test2(self, ctx, winning_game: PolyGame = None):
-
-        with db.connection_context():
-            await ctx.send(f'test1')
-            with db.atomic():
-                print('in transaction')
-                await ctx.send(f'test2')
-                query = Game.select()
-                for s in query.tuples():
-                    logger.debug(s)
-
-            await ctx.send(f'test2')
-            await ctx.send(f'{winning_game.name}')
-
     @commands.command(aliases=['reqgame', 'helpstaff'], hidden=True)
     @commands.cooldown(2, 30, commands.BucketType.user)
     @settings.on_polychampions()
@@ -436,15 +420,33 @@ class elo_games():
         else:
             content_str = ''
 
+        if player.discord_member.timezone_offset:
+            offset_str = f'UTC+{player.discord_member.timezone_offset}' if player.discord_member.timezone_offset > 0 else f'UTC{player.discord_member.timezone_offset}'
+            embed.add_field(value=offset_str, name='Timezone Offset', inline=True)
+
+        misc_stats = []
+        (winning_streak, losing_streak, v2_count, v3_count) = player.discord_member.advanced_stats()
+        if winning_streak > 0:
+            misc_stats.append(('Longest winning streak', winning_streak))
+        if losing_streak > 0:
+            misc_stats.append(('Longest losing streak', losing_streak))
+        if v2_count > 0:
+            misc_stats.append(('1v2 games won', v2_count))
+        if v3_count > 0:
+            misc_stats.append(('1v3 games won', v3_count))
+
+        misc_stats.append(('Max global ELO achieved', player.discord_member.elo_max))
+
         favorite_tribes = player.discord_member.favorite_tribes(limit=3)
         if favorite_tribes:
             favorite_tribe_objs = [TribeFlair.get_by_name(name=t['name'], guild_id=ctx.guild.id) for t in favorite_tribes]
             tribes_str = ' '.join([f'{t.emoji if t.emoji else t.tribe.name}' for t in favorite_tribe_objs])
-            embed.add_field(value=tribes_str, name='Most-logged Tribes', inline=True)
+            misc_stats.append(('Most-logged tribes', tribes_str))
 
-        if player.discord_member.timezone_offset:
-            offset_str = f'UTC+{player.discord_member.timezone_offset}' if player.discord_member.timezone_offset > 0 else f'UTC{player.discord_member.timezone_offset}'
-            embed.add_field(value=offset_str, name='Timezone Offset', inline=True)
+        misc_stats = [f'`{stat[0]:.<25}` {stat[1]}' for stat in misc_stats]
+        misc_stats = [stat.replace(".", "\u200b ") for stat in misc_stats]
+
+        embed.add_field(name='Miscellaneous Global Stats', value='\n'.join(misc_stats))
 
         games_list = Game.search(player_filter=[player])
         if not games_list:
