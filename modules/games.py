@@ -383,92 +383,96 @@ class elo_games():
                 return await ctx.send(f'*{player_mention}* was found in the server but is not registered with me. '
                     f'Players can be register themselves with  `{ctx.prefix}setcode YOUR_POLYCODE`.')
 
-        wins, losses = player.get_record()
-        rank, lb_length = player.leaderboard_rank(settings.date_cutoff)
+        def async_create_player_embed():
+            wins, losses = player.get_record()
+            rank, lb_length = player.leaderboard_rank(settings.date_cutoff)
 
-        wins_g, losses_g = player.discord_member.get_record()
-        rank_g, lb_length_g = player.discord_member.leaderboard_rank(settings.date_cutoff)
+            wins_g, losses_g = player.discord_member.get_record()
+            rank_g, lb_length_g = player.discord_member.leaderboard_rank(settings.date_cutoff)
 
-        if rank is None:
-            rank_str = 'Unranked'
-        else:
-            rank_str = f'{rank} of {lb_length}'
+            if rank is None:
+                rank_str = 'Unranked'
+            else:
+                rank_str = f'{rank} of {lb_length}'
 
-        results_str = f'ELO: {player.elo}\u00A0\u00A0\u00A0\u00A0W {wins} / L {losses}'
+            results_str = f'ELO: {player.elo}\u00A0\u00A0\u00A0\u00A0W {wins} / L {losses}'
 
-        if rank_g:
-            rank_str = f'{rank_str}\n{rank_g} of {lb_length_g} *Global*'
-            results_str = f'{results_str}\n**Global**\nELO: {player.discord_member.elo}\u00A0\u00A0\u00A0\u00A0W {wins_g} / L {losses_g}'
+            if rank_g:
+                rank_str = f'{rank_str}\n{rank_g} of {lb_length_g} *Global*'
+                results_str = f'{results_str}\n**Global**\nELO: {player.discord_member.elo}\u00A0\u00A0\u00A0\u00A0W {wins_g} / L {losses_g}'
 
-        embed = discord.Embed(title=f'Player card for __{player.name}__')
-        embed.add_field(name='Results', value=results_str)
-        embed.add_field(name='Ranking', value=rank_str)
+            embed = discord.Embed(title=f'Player card for __{player.name}__')
+            embed.add_field(name='Results', value=results_str)
+            embed.add_field(name='Ranking', value=rank_str)
 
-        guild_member = ctx.guild.get_member(player.discord_member.discord_id)
-        if guild_member:
-            embed.set_thumbnail(url=guild_member.avatar_url_as(size=512))
+            guild_member = ctx.guild.get_member(player.discord_member.discord_id)
+            if guild_member:
+                embed.set_thumbnail(url=guild_member.avatar_url_as(size=512))
 
-        if player.team:
-            team_str = f'{player.team.name} {player.team.emoji}' if player.team.emoji else player.team.name
-            embed.add_field(name='Last-known Team', value=team_str)
-        if player.discord_member.polytopia_name:
-            embed.add_field(name='Polytopia Game Name', value=player.discord_member.polytopia_name)
-        if player.discord_member.polytopia_id:
-            embed.add_field(name='Polytopia ID', value=player.discord_member.polytopia_id)
-            content_str = player.discord_member.polytopia_id
-            # Used as a single message before player card so users can easily copy/paste Poly ID
-        else:
-            content_str = ''
+            if player.team:
+                team_str = f'{player.team.name} {player.team.emoji}' if player.team.emoji else player.team.name
+                embed.add_field(name='Last-known Team', value=team_str)
+            if player.discord_member.polytopia_name:
+                embed.add_field(name='Polytopia Game Name', value=player.discord_member.polytopia_name)
+            if player.discord_member.polytopia_id:
+                embed.add_field(name='Polytopia ID', value=player.discord_member.polytopia_id)
+                content_str = player.discord_member.polytopia_id
+                # Used as a single message before player card so users can easily copy/paste Poly ID
+            else:
+                content_str = ''
 
-        if player.discord_member.timezone_offset:
-            offset_str = f'UTC+{player.discord_member.timezone_offset}' if player.discord_member.timezone_offset > 0 else f'UTC{player.discord_member.timezone_offset}'
-            embed.add_field(value=offset_str, name='Timezone Offset', inline=True)
+            if player.discord_member.timezone_offset:
+                offset_str = f'UTC+{player.discord_member.timezone_offset}' if player.discord_member.timezone_offset > 0 else f'UTC{player.discord_member.timezone_offset}'
+                embed.add_field(value=offset_str, name='Timezone Offset', inline=True)
 
-        misc_stats = []
-        (winning_streak, losing_streak, v2_count, v3_count, duel_wins, duel_losses) = player.discord_member.advanced_stats()
-        if winning_streak > 0:
-            misc_stats.append(('Longest winning streak', winning_streak))
-        if losing_streak > 0:
-            misc_stats.append(('Longest losing streak', losing_streak))
-        if v2_count > 0:
-            misc_stats.append(('1v2 games won', v2_count))
-        if v3_count > 0:
-            misc_stats.append(('1v3 games won', v3_count))
-        if duel_wins or duel_losses:
-            misc_stats.append(('1v1 games', f'W {duel_wins} / L {duel_losses}'))
+            misc_stats = []
+            (winning_streak, losing_streak, v2_count, v3_count, duel_wins, duel_losses) = player.discord_member.advanced_stats()
+            if winning_streak > 0:
+                misc_stats.append(('Longest winning streak', winning_streak))
+            if losing_streak > 0:
+                misc_stats.append(('Longest losing streak', losing_streak))
+            if v2_count > 0:
+                misc_stats.append(('1v2 games won', v2_count))
+            if v3_count > 0:
+                misc_stats.append(('1v3 games won', v3_count))
+            if duel_wins or duel_losses:
+                misc_stats.append(('1v1 games', f'W {duel_wins} / L {duel_losses}'))
 
-        # TODO: maybe "adjusted ELO" for how big game is?
+            # TODO: maybe "adjusted ELO" for how big game is?
 
-        if player.discord_member.elo_max > 1000:
-            misc_stats.append(('Max global ELO achieved', player.discord_member.elo_max))
+            if player.discord_member.elo_max > 1000:
+                misc_stats.append(('Max global ELO achieved', player.discord_member.elo_max))
 
-        favorite_tribes = player.discord_member.favorite_tribes(limit=3)
-        if favorite_tribes:
-            favorite_tribe_objs = [TribeFlair.get_by_name(name=t['name'], guild_id=ctx.guild.id) for t in favorite_tribes]
-            tribes_str = ' '.join([f'{t.emoji if t.emoji else t.tribe.name}' for t in favorite_tribe_objs])
-            misc_stats.append(('Most-logged tribes', tribes_str))
+            favorite_tribes = player.discord_member.favorite_tribes(limit=3)
+            if favorite_tribes:
+                favorite_tribe_objs = [TribeFlair.get_by_name(name=t['name'], guild_id=ctx.guild.id) for t in favorite_tribes]
+                tribes_str = ' '.join([f'{t.emoji if t.emoji else t.tribe.name}' for t in favorite_tribe_objs])
+                misc_stats.append(('Most-logged tribes', tribes_str))
 
-        misc_stats = [f'`{stat[0]:.<25}` {stat[1]}' for stat in misc_stats]
-        misc_stats = [stat.replace(".", "\u200b ") for stat in misc_stats]
+            misc_stats = [f'`{stat[0]:.<25}` {stat[1]}' for stat in misc_stats]
+            misc_stats = [stat.replace(".", "\u200b ") for stat in misc_stats]
 
-        if misc_stats:
-            embed.add_field(name='Miscellaneous Global Stats', value='\n'.join(misc_stats), inline=False)
+            if misc_stats:
+                embed.add_field(name='Miscellaneous Global Stats', value='\n'.join(misc_stats), inline=False)
 
-        games_list = Game.search(player_filter=[player])
-        if not games_list:
-            recent_games_str = 'No games played'
-        else:
-            recent_games_count = player.games_played(in_days=30).count()
-            recent_games_str = f'Most recent games ({len(games_list)} total, {recent_games_count} recently):'
-        embed.add_field(value='\u200b', name=recent_games_str, inline=False)
+            games_list = Game.search(player_filter=[player])
+            if not games_list:
+                recent_games_str = 'No games played'
+            else:
+                recent_games_count = player.games_played(in_days=30).count()
+                recent_games_str = f'Most recent games ({len(games_list)} total, {recent_games_count} recently):'
+            embed.add_field(value='\u200b', name=recent_games_str, inline=False)
 
-        game_list = utilities.summarize_game_list(games_list[:5])
-        for game, result in game_list:
-            embed.add_field(name=game, value=result, inline=False)
+            game_list = utilities.summarize_game_list(games_list[:5])
+            for game, result in game_list:
+                embed.add_field(name=game, value=result, inline=False)
 
-        if ctx.guild.id != settings.server_ids['polychampions']:
-            embed.add_field(value='Powered by **PolyChampions** - https://discord.gg/cX7Ptnv', name='\u200b', inline=False)
+            if ctx.guild.id != settings.server_ids['polychampions']:
+                embed.add_field(value='Powered by **PolyChampions** - https://discord.gg/cX7Ptnv', name='\u200b', inline=False)
 
+            return content_str, embed
+
+        content_str, embed = await self.bot.loop.run_in_executor(None, async_create_player_embed)
         await ctx.send(content=content_str, embed=embed)
 
     @settings.in_bot_channel()
