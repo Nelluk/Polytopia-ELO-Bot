@@ -435,7 +435,7 @@ class elo_games():
         if v3_count > 0:
             misc_stats.append(('1v3 games won', v3_count))
         if duel_wins or duel_losses:
-            misc_stats.append(('1v1 duel record', f'W {duel_wins} / L {duel_losses}'))
+            misc_stats.append(('1v1 games', f'W {duel_wins} / L {duel_losses}'))
 
         # TODO: maybe "adjusted ELO" for how big game is?
 
