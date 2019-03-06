@@ -113,8 +113,9 @@ class DiscordMember(BaseModel):
             (Player.discord_member == self) & (Game.is_completed == 1) & (Game.is_ranked == 1)
         ).order_by(Game.completed_ts).prefetch(GameSide, Lineup, Player)
 
-        winning_streak, losing_streak, v2_count, v3_count = 0, 0, 0, 0
-        longest_winning_streak, longest_losing_streak = 0, 0
+        winning_streak, losing_streak, longest_winning_streak, longest_losing_streak = 0, 0, 0, 0
+        v2_count, v3_count = 0, 0  # wins of 1v2 or 1v3 games
+        dual_wins, dual_losses = 0, 0  # 1v1 matchup stats
         last_win, last_loss = False, False
 
         for game in ranked_games_played:
@@ -129,6 +130,7 @@ class DiscordMember(BaseModel):
                             is_winner = True
                     break
 
+            # logger.debug(f'Game {game.id} completed_ts {game.completed_ts} is a {"win" if is_winner else "loss"} WS: {winning_streak} LS: {losing_streak} last_win: {last_win} last_loss: {last_loss}')
             if is_winner:
                 if last_win:
                     # winning streak is extended
@@ -141,9 +143,11 @@ class DiscordMember(BaseModel):
                 if len(winner.lineup) == 1 and len(game.gamesides) == 2:
                     size_of_opponent = game.largest_team()
 
-                    if size_of_opponent == 2:
+                    if size_of_opponent == 1:
+                        dual_wins += 1
+                    elif size_of_opponent == 2:
                         v2_count += 1
-                    if size_of_opponent == 3:
+                    elif size_of_opponent == 3:
                         v3_count += 1
             else:
                 if last_loss:
@@ -155,7 +159,10 @@ class DiscordMember(BaseModel):
                     losing_streak = 1
                     last_win, last_loss = False, True
 
-        return (winning_streak, losing_streak, v2_count, v3_count)
+                if len(game.gamesides) == 2 and game.largest_team() == 1 and game.smallest_team() == 1:
+                    dual_losses += 1
+
+        return (longest_winning_streak, longest_losing_streak, v2_count, v3_count, dual_wins, dual_losses)
 
     def update_name(self, new_name: str):
         self.name = new_name

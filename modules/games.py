@@ -425,7 +425,7 @@ class elo_games():
             embed.add_field(value=offset_str, name='Timezone Offset', inline=True)
 
         misc_stats = []
-        (winning_streak, losing_streak, v2_count, v3_count) = player.discord_member.advanced_stats()
+        (winning_streak, losing_streak, v2_count, v3_count, dual_wins, dual_losses) = player.discord_member.advanced_stats()
         if winning_streak > 0:
             misc_stats.append(('Longest winning streak', winning_streak))
         if losing_streak > 0:
@@ -434,6 +434,10 @@ class elo_games():
             misc_stats.append(('1v2 games won', v2_count))
         if v3_count > 0:
             misc_stats.append(('1v3 games won', v3_count))
+        if dual_wins or dual_losses:
+            misc_stats.append(('1v1 dual record', f'W {dual_wins} / L {dual_losses}'))
+
+        # TODO: add 1v1 win/loss record. maybe "adjusted ELO" for how big game is?
 
         misc_stats.append(('Max global ELO achieved', player.discord_member.elo_max))
 
