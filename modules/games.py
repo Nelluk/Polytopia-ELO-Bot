@@ -427,13 +427,11 @@ class elo_games():
 
             misc_stats = []
             (winning_streak, losing_streak, v2_count, v3_count, duel_wins, duel_losses) = player.discord_member.advanced_stats()
-            if winning_streak > 0:
-                misc_stats.append(('Longest winning streak', winning_streak))
-            if losing_streak > 0:
-                misc_stats.append(('Longest losing streak', losing_streak))
-            if v2_count > 0:
+            if winning_streak or losing_streak:
+                misc_stats.append(('Longest streaks', f'{winning_streak} wins, {losing_streak} losses'))
+            if v2_count:
                 misc_stats.append(('1v2 games won', v2_count))
-            if v3_count > 0:
+            if v3_count:
                 misc_stats.append(('1v3 games won', v3_count))
             if duel_wins or duel_losses:
                 misc_stats.append(('1v1 games', f'W {duel_wins} / L {duel_losses}'))
