@@ -446,7 +446,7 @@ class elo_games():
         misc_stats = [f'`{stat[0]:.<25}` {stat[1]}' for stat in misc_stats]
         misc_stats = [stat.replace(".", "\u200b ") for stat in misc_stats]
 
-        embed.add_field(name='Miscellaneous Global Stats', value='\n'.join(misc_stats))
+        embed.add_field(name='Miscellaneous Global Stats', value='\n'.join(misc_stats), inline=False)
 
         games_list = Game.search(player_filter=[player])
         if not games_list:

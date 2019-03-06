@@ -116,7 +116,7 @@ class DiscordMember(BaseModel):
         winning_streak, losing_streak, v2_count, v3_count = 0, 0, 0, 0
         longest_winning_streak, longest_losing_streak = 0, 0
         last_win, last_loss = False, False
-        print(f'{len(ranked_games_played)} games')
+
         for game in ranked_games_played:
 
             is_winner = False
