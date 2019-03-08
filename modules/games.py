@@ -634,7 +634,10 @@ class elo_games():
         discord_member = DiscordMember.get_or_none(discord_id=target_discord_member.id)
 
         if discord_member and discord_member.polytopia_id:
-            in_game_name_str = '' if not discord_member.polytopia_name else f' (In-game name: **{discord_member.polytopia_name}**)'
+            if discord_member.polytopia_name and discord_member.polytopia_name.lower() != discord_member.name.lower():
+                in_game_name_str = f' (In-game name: **{discord_member.polytopia_name}**)'
+            else:
+                in_game_name_str = ''
             await ctx.send(f'Code for **{discord_member.name}**{in_game_name_str}:')
             return await ctx.send(discord_member.polytopia_id)
         else:
@@ -664,13 +667,17 @@ class elo_games():
         async with ctx.typing():
             for p in ordered_player_list:
                 dm_obj = p['player'].discord_member
+                if dm_obj.polytopia_name and dm_obj.polytopia_name.lower() != p['player'].name.lower():
+                    in_game_name_str = f' (In-game name: **{dm_obj.polytopia_name}**)'
+                else:
+                    in_game_name_str = ''
+
                 if first_loop:
                     # header_str combined with first player's name in order to reduce number of ctx.send() that are done.
                     # More than 3-4 and they will drip out due to API rate limits
-                    await ctx.send(f'{header_str}\n**{p["player"].name}** -- *Creates the game and invites everyone else*')
+                    await ctx.send(f'{header_str}\n**{p["player"].name}**{in_game_name_str} -- *Creates the game and invites everyone else*')
                     first_loop = False
                 else:
-                    in_game_name_str = '' if not dm_obj.polytopia_name else f' (In-game name: **{dm_obj.polytopia_name}**)'
                     if dm_obj.timezone_offset:
                         tz_str = f'`UTC+{dm_obj.timezone_offset}`' if dm_obj.timezone_offset > 0 else f'`UTC{dm_obj.timezone_offset}`'
                     else:
