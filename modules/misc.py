@@ -121,7 +121,7 @@ class misc:
         """
         Display development credits
         """
-        embed = discord.Embed(title=f'PolyELO Bot Credits', url='https://discord.gg/cX7Ptnv')
+        embed = discord.Embed(title=f'PolyELO Bot Donation Link', url='https://cash.me/$Nelluk/2')
 
         embed.add_field(name='Developer', value='Nelluk')
 
