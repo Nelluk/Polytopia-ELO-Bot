@@ -689,13 +689,18 @@ class matchmaking():
         while not self.bot.is_closed():
             await asyncio.sleep(60 * 60 * 10)
             full_games = models.Game.search_pending(status_filter=1, ranked_filter=1)
+            logger.debug(f'Starting task_dm_game_creators on {len(full_games)} games')
             for game in full_games:
                 guild = discord.utils.get(self.bot.guilds, id=game.guild_id)
                 creating_player = game.creating_player()
 
+                if not guild:
+                    logger.error(f'Couldnt load guild ID {game.guild_id}')
+                    continue
+
                 creating_guild_member = guild.get_member(creating_player.discord_member.discord_id)
                 if not creating_guild_member:
-                    logger.warn(f'Couldnt load creator for game {game.id}. Maybe they left the guild?')
+                    logger.warn(f'Couldnt load creator for game {game.id} in server {guild.name}. Maybe they left the server?')
                     continue
 
                 bot_channel = settings.guild_setting(guild.id, 'bot_channels_strict')[0]
@@ -710,6 +715,7 @@ class matchmaking():
                 try:
                     await creating_guild_member.send(message)
                     await creating_guild_member.send('I do not respond to DMed commands. You must issue commands in the channel linked above.')
+                    logger.info(f'Sending reminder DM to {creating_guild_member.name} {creating_guild_member.id} to start game {game.id}')
                 except discord.DiscordException as e:
                     logger.warn(f'Error DMing creator of waiting game: {e}')
 
