@@ -152,9 +152,13 @@ if __name__ == '__main__':
             logger.warn(f'Exception on ignored list raised in {ctx.command}. {exc}')
             return
 
-        exception_str = ''.join(traceback.format_exception(etype=type(exc), value=exc, tb=exc.__traceback__))
-        logger.critical(f'Ignoring exception in command {ctx.command}: {exc} {exception_str}', exc_info=True)
-        await ctx.send(f'Unhandled error: {exc}')
+        if isinstance(exc, commands.CommandOnCooldown):
+            logger.info(f'Cooldown triggered: {exc}')
+            await ctx.send(f'This command is on a cooldown period. Try again in {exc.retry_after:.0f} seconds.')
+        else:
+            exception_str = ''.join(traceback.format_exception(etype=type(exc), value=exc, tb=exc.__traceback__))
+            logger.critical(f'Ignoring exception in command {ctx.command}: {exc} {exception_str}', exc_info=True)
+            await ctx.send(f'Unhandled error: {exc}')
 
     @bot.before_invoke
     async def pre_invoke_setup(ctx):
