@@ -154,10 +154,10 @@ class matchmaking():
 
         server_size_max = settings.guild_setting(ctx.guild.id, 'max_team_size')
         if max(team_sizes) > server_size_max:
-            if settings.is_mod(ctx):
-                await ctx.send('Moderator over-riding server size limits')
-            elif settings.guild_setting(ctx.guild.id, 'allow_uneven_teams') and min(team_sizes) <= server_size_max:
+            if settings.guild_setting(ctx.guild.id, 'allow_uneven_teams') and min(team_sizes) <= server_size_max:
                 await ctx.send('**Warning:** Team sizes are uneven.')
+            elif settings.is_mod(ctx):
+                await ctx.send('Moderator over-riding server size limits')
             elif not is_ranked and max(team_sizes) <= server_size_max + 1:
                 # Arbitrary rule, unranked games can go +1 from server_size_max
                 logger.info('Opening unranked game that exceeds server_size_max')
