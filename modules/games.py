@@ -1142,7 +1142,7 @@ class elo_games():
 
         game.save()
 
-        await game.update_squad_channels(ctx)
+        await game.update_squad_channels(ctx.guild)
         await game.update_announcement(ctx)
 
         new_game_name = game.name if game.name else 'None'
@@ -1312,7 +1312,7 @@ class elo_games():
 async def post_win_messaging(ctx, winning_game):
 
     # await winning_game.delete_game_channels(guild=ctx.guild)
-    await winning_game.update_squad_channels(ctx=ctx, message=f'The game is over with **{winning_game.winner.name()}** victorious. *This channel will be purged in ~24 hours.*')
+    await winning_game.update_squad_channels(guild=ctx.guild, message=f'The game is over with **{winning_game.winner.name()}** victorious. *This channel will be purged in ~24 hours.*')
     player_mentions = [f'<@{l.player.discord_member.discord_id}>' for l in winning_game.lineup]
     embed, content = winning_game.embed(ctx)
 
@@ -1350,7 +1350,7 @@ async def post_newgame_messaging(ctx, game):
         await ctx.send(embed=embed, content=content)
 
     if settings.guild_setting(ctx.guild.id, 'game_channel_categories'):
-        await game.create_game_channels(ctx)
+        await game.create_game_channels(ctx.guild)
 
 
 def parse_players_and_teams(input_list, guild_id: int):

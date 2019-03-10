@@ -31,26 +31,26 @@ def generate_channel_name(game_id, game_name: str, team_name: str = None):
     return chan_name
 
 
-def get_channel_category(ctx, team_name: str = None):
+def get_channel_category(guild, team_name: str = None):
     # Returns (DiscordCategory, Bool_IsTeamCategory?) or None
     # Bool_IsTeamCategory? == True if its using a team-specific category, False if using a central games category
 
-    if ctx.guild.me.guild_permissions.manage_channels is not True:
+    if guild.me.guild_permissions.manage_channels is not True:
         logger.error('manage_channels permission is false.')
         return None, None
 
     if team_name:
         team_name = team_name.lower().replace('the', '').strip()  # The Ronin > ronin
-        for cat in ctx.guild.categories:
+        for cat in guild.categories:
             if team_name in cat.name.lower():
                 logger.debug(f'Using {cat.id} - {cat.name} as a team channel category')
                 return cat, True
 
     # No team category found - using default category. ie. intermingled home/away games or channel for entire game
 
-    for game_channel_category in settings.guild_setting(ctx.guild.id, 'game_channel_categories'):
+    for game_channel_category in settings.guild_setting(guild.id, 'game_channel_categories'):
 
-        chan_category = discord.utils.get(ctx.guild.categories, id=int(game_channel_category))
+        chan_category = discord.utils.get(guild.categories, id=int(game_channel_category))
         if chan_category is None:
             logger.warn(f'chans_category_id {game_channel_category} was supplied but cannot be loaded')
             continue
@@ -66,20 +66,20 @@ def get_channel_category(ctx, team_name: str = None):
     return None, None
 
 
-async def create_game_channel(ctx, game, player_list, team_name: str = None):
-    chan_cat, team_cat_flag = get_channel_category(ctx, team_name)
+async def create_game_channel(guild, game, player_list, team_name: str = None):
+    chan_cat, team_cat_flag = get_channel_category(guild, team_name)
     if chan_cat is None:
         logger.error(f'in create_squad_channel - cannot proceed due to None category')
         return None
 
-    if game.name.upper()[:3] == 'WWN' and ctx.guild.id == settings.server_ids['polychampions']:
+    if game.name.upper()[:3] == 'WWN' and guild.id == settings.server_ids['polychampions']:
         # TODO: Remove when World War Newt event is over Q2 2019
-        wwn_category = discord.utils.get(ctx.guild.categories, id=510403013391679498)
+        wwn_category = discord.utils.get(guild.categories, id=510403013391679498)
         if wwn_category:
             chan_cat, team_cat_flag = wwn_category, False
 
     chan_name = generate_channel_name(game_id=game.id, game_name=game.name, team_name=team_name)
-    chan_members = [ctx.guild.get_member(p.discord_member.discord_id) for p in player_list]
+    chan_members = [guild.get_member(p.discord_member.discord_id) for p in player_list]
 
     if team_cat_flag:
         # Channel is going into team-specific category, so let its permissions sync
@@ -90,29 +90,27 @@ async def create_game_channel(ctx, game, player_list, team_name: str = None):
         chan_permissions = {}
         perm = discord.PermissionOverwrite(read_messages=True, add_reactions=True, send_messages=True, attach_files=True, manage_messages=True)
 
-        for m in chan_members + [ctx.guild.me]:
+        for m in chan_members + [guild.me]:
             chan_permissions[m] = perm
 
-        chan_permissions[ctx.guild.default_role] = discord.PermissionOverwrite(read_messages=False)
+        chan_permissions[guild.default_role] = discord.PermissionOverwrite(read_messages=False)
 
     try:
-        new_chan = await ctx.guild.create_text_channel(name=chan_name, overwrites=chan_permissions, category=chan_cat, reason='ELO Game chan')
+        new_chan = await guild.create_text_channel(name=chan_name, overwrites=chan_permissions, category=chan_cat, reason='ELO Game chan')
     except (discord.errors.Forbidden, discord.errors.HTTPException) as e:
         logger.error(f'Exception in create_game_channels:\n{e} - Status {e.status}, Code {e.code}: {e.text}')
-        await ctx.send(f'Could not create game channel for this game. Error has been logged.\n{e}')
         return None
     except discord.errors.InvalidArgument as e:
         logger.error(f'Exception in create_game_channels:\n{e}')
-        await ctx.send(f'Could not create game channel for this game. Error has been logged.\n{e}')
         return None
     logger.debug(f'Created channel {new_chan.name}')
 
     return new_chan
 
 
-async def greet_game_channel(ctx, chan, roster_names, game, player_list, full_game: bool = False):
+async def greet_game_channel(guild, chan, roster_names, game, player_list, full_game: bool = False):
 
-    chan_mentions = [ctx.guild.get_member(p.discord_member.discord_id).mention for p in player_list]
+    chan_mentions = [guild.get_member(p.discord_member.discord_id).mention for p in player_list]
     if full_game:
         allies_str = f'Participants in this game are {" / ".join(chan_mentions)}\n'
         chan_type_str = '**full game channel**'
@@ -146,8 +144,8 @@ async def delete_game_channel(guild, channel_id: int):
         logger.error(f'Could not delete channel: {e}')
 
 
-async def send_message_to_channel(ctx, channel_id: int, message: str):
-    chan = ctx.guild.get_channel(channel_id)
+async def send_message_to_channel(guild, channel_id: int, message: str):
+    chan = guild.get_channel(channel_id)
     if chan is None:
         return logger.warn(f'Channel ID {channel_id} provided for message but it could not be loaded from guild')
 
@@ -157,8 +155,8 @@ async def send_message_to_channel(ctx, channel_id: int, message: str):
         logger.error(f'Could not delete channel: {e}')
 
 
-async def update_game_channel_name(ctx, channel_id: int, game_id: int, game_name: str, team_name: str = None):
-    chan = ctx.guild.get_channel(channel_id)
+async def update_game_channel_name(guild, channel_id: int, game_id: int, game_name: str, team_name: str = None):
+    chan = guild.get_channel(channel_id)
     if chan is None:
         return logger.warn(f'Channel ID {channel_id} provided for update but it could not be loaded from guild')
 

@@ -218,10 +218,10 @@ class misc:
         full_message = f'Message from {ctx.author.mention} regarding game {game.id} **{game.name}**:\n*{message}*'
 
         if ctx.channel.id in permitted_channels_private:
-            await game.update_squad_channels(ctx, message=f'{full_message}\n{" ".join(player_mentions)}')
+            await game.update_squad_channels(ctx.guild, message=f'{full_message}\n{" ".join(player_mentions)}')
         else:
             await ctx.send(f'{full_message}\n{" ".join(player_mentions)}')
-            await game.update_squad_channels(ctx, message=full_message)
+            await game.update_squad_channels(ctx.guild, message=full_message)
 
     @commands.command(aliases=['gex', 'gameexport'])
     @settings.is_mod_check()
