@@ -660,12 +660,12 @@ class Game(BaseModel):
             else:
                 await channels.update_game_channel_name(guild, channel_id=self.game_chan, game_id=self.id, game_name=self.name, team_name=None)
 
-    async def update_announcement(self, ctx):
+    async def update_announcement(self, guild, prefix):
         # Updates contents of new game announcement with updated game_embed card
 
         if self.announcement_channel is None or self.announcement_message is None:
             return
-        channel = ctx.guild.get_channel(self.announcement_channel)
+        channel = guild.get_channel(self.announcement_channel)
         if channel is None:
             return logger.warn('Couldn\'t get channel in update_announacement')
 
@@ -675,7 +675,7 @@ class Game(BaseModel):
             return logger.warn('Couldn\'t get message in update_announacement')
 
         try:
-            embed, content = self.embed(ctx)
+            embed, content = self.embed(guild=guild, prefix=prefix)
             await message.edit(embed=embed, content=content)
         except discord.errors.HTTPException:
             return logger.warn('Couldn\'t update message in update_announacement')
@@ -754,9 +754,9 @@ class Game(BaseModel):
     def ordered_side_list(self):
         return GameSide.select().where(GameSide.game == self).order_by(GameSide.position)
 
-    def embed(self, ctx):
+    def embed(self, guild, prefix):
         if self.is_pending:
-            return self.embed_pending_game(ctx)
+            return self.embed_pending_game(prefix)
         ranked_str = '' if self.is_ranked else 'Unranked — '
         embed = discord.Embed(title=f'{self.get_headline()} — {ranked_str}*{self.size_string()}*'[:255])
 
@@ -768,7 +768,7 @@ class Game(BaseModel):
             # Set embed image (profile picture or team logo)
             if len(self.winner.lineup) == 1:
                 # Winner is individual player
-                winning_discord_member = ctx.guild.get_member(self.winner.lineup[0].player.discord_member.discord_id)
+                winning_discord_member = guild.get_member(self.winner.lineup[0].player.discord_member.discord_id)
                 if winning_discord_member is not None:
                     embed.set_thumbnail(url=winning_discord_member.avatar_url_as(size=512))
             elif self.winner.team and self.winner.team.image_url:
@@ -824,7 +824,7 @@ class Game(BaseModel):
         else:
             embed_content = None
 
-        if ctx.guild.id != settings.server_ids['polychampions']:
+        if guild.id != settings.server_ids['polychampions']:
             embed.add_field(value='Powered by **PolyChampions** - https://discord.gg/cX7Ptnv', name='\u200b', inline=False)
             embed.set_author(name='PolyChampions', url='https://discord.gg/cX7Ptnv', icon_url='https://cdn.discordapp.com/emojis/488510815893323787.png?v=1')
 
@@ -849,7 +849,7 @@ class Game(BaseModel):
 
         return embed, embed_content
 
-    def embed_pending_game(self, ctx):
+    def embed_pending_game(self, prefix):
         ranked_str = 'Unranked ' if not self.is_ranked else ''
         title_str = f'**{ranked_str}Open Game {self.id}**\n{self.size_string()}'
         if self.host:
@@ -864,7 +864,7 @@ class Game(BaseModel):
             status_str = 'Expired'
         else:
             expiration_str = f'{int((self.expiration - datetime.datetime.now()).total_seconds() / 3600.0)} hours'
-            status_str = f'Open - `{ctx.prefix}join {self.id}`'
+            status_str = f'Open - `{prefix}join {self.id}`'
 
         players, capacity = self.capacity()
         if players >= capacity:
@@ -879,8 +879,8 @@ class Game(BaseModel):
                     draft_order_str = '\n'.join(draft_order)
                 else:
                     draft_order_str = ''
-                content_str = (f'This match is now full and **{creating_player.name}** should create the game in Polytopia and mark it as started using `{ctx.prefix}start {self.id} Name of Game`'
-                        f'\nFriend codes can be copied easily with the command __`{ctx.prefix}codes {self.id}`__'
+                content_str = (f'This match is now full and **{creating_player.name}** should create the game in Polytopia and mark it as started using `{prefix}start {self.id} Name of Game`'
+                        f'\nFriend codes can be copied easily with the command __`{prefix}codes {self.id}`__'
                         f'{draft_order_str}')
                 status_str = 'Full - Waiting to start'
 

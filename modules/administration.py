@@ -153,7 +153,7 @@ class administration:
 
         if game.announcement_message:
             game.name = f'~~{game.name}~~ GAME CANCELLED'
-            await game.update_announcement(ctx)
+            await game.update_announcement(guild=ctx.guild, prefix=ctx.prefix)
 
         await game.delete_game_channels(ctx.guild)
 

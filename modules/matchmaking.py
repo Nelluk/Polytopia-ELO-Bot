@@ -422,7 +422,7 @@ class matchmaking():
             if game.host and game.host != creating_player:
                 await ctx.send(f'Matchmaking host <@{game.host.discord_member.discord_id}> is not the game creator.')
 
-        embed, content = game.embed(ctx)
+        embed, content = game.embed(guild=ctx.guild, prefix=ctx.prefix)
         await ctx.send(embed=embed, content=content)
 
     @settings.in_bot_channel()
@@ -478,7 +478,7 @@ class matchmaking():
         game.save()
 
         await ctx.send(f'Updated notes for game {game.id} to: {game.notes}\nPrevious notes were: {old_notes}')
-        embed, content = game.embed(ctx)
+        embed, content = game.embed(guild=ctx.guild, prefix=ctx.prefix)
         await ctx.send(embed=embed, content=content)
 
     @settings.in_bot_channel()

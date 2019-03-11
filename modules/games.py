@@ -799,7 +799,7 @@ class elo_games():
         game_converter = PolyGame()
         game = await game_converter.convert(ctx, game_search)
 
-        embed, content = game.embed(ctx)
+        embed, content = game.embed(guild=ctx.guild, prefix=ctx.prefix)
         return await ctx.send(embed=embed, content=content)
 
     @settings.in_bot_channel_strict()
@@ -1100,7 +1100,7 @@ class elo_games():
 
         if game.announcement_message:
             game.name = f'~~{game.name}~~ GAME DELETED'
-            await game.update_announcement(ctx)
+            await game.update_announcement(guild=ctx.guild, prefix=ctx.prefix)
 
         await game.delete_game_channels(ctx.guild)
 
@@ -1143,7 +1143,7 @@ class elo_games():
         game.save()
 
         await game.update_squad_channels(ctx.guild)
-        await game.update_announcement(ctx)
+        await game.update_announcement(guild=ctx.guild, prefix=ctx.prefix)
 
         new_game_name = game.name if game.name else 'None'
         old_game_name = old_game_name if old_game_name else 'None'
@@ -1211,7 +1211,7 @@ class elo_games():
             await ctx.send(f'Player **{lineup_match.player.name}** assigned to tribe *{tribeflair.tribe.name if tribeflair else "None"}* in game {game.id} {tribeflair.emoji if tribeflair else ""}')
 
         game = game.load_full_game()
-        await game.update_announcement(ctx)
+        await game.update_announcement(guild=ctx.guild, prefix=ctx.prefix)
 
     async def game_search(self, ctx, mode: str, arg_list):
 
@@ -1314,7 +1314,7 @@ async def post_win_messaging(ctx, winning_game):
     # await winning_game.delete_game_channels(guild=ctx.guild)
     await winning_game.update_squad_channels(guild=ctx.guild, message=f'The game is over with **{winning_game.winner.name()}** victorious. *This channel will be purged in ~24 hours.*')
     player_mentions = [f'<@{l.player.discord_member.discord_id}>' for l in winning_game.lineup]
-    embed, content = winning_game.embed(ctx)
+    embed, content = winning_game.embed(guild=ctx.guild, prefix=ctx.prefix)
 
     for l in winning_game.lineup:
                 await achievements.set_experience_role(l.player.discord_member)
@@ -1334,7 +1334,7 @@ async def post_newgame_messaging(ctx, game):
 
     mentions_list = [f'<@{l.player.discord_member.discord_id}>' for l in game.lineup]
 
-    embed, content = game.embed(ctx)
+    embed, content = game.embed(guild=ctx.guild, prefix=ctx.prefix)
 
     if settings.guild_setting(ctx.guild.id, 'game_announce_channel') is not None:
         channel = ctx.guild.get_channel(settings.guild_setting(ctx.guild.id, 'game_announce_channel'))
