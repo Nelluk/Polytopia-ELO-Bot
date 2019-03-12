@@ -1064,11 +1064,11 @@ class elo_games():
             # try/except block is attempt at a bandaid where sometimes an InterfaceError/Cursor Closed exception would hit here, probably due to issues with async code
 
             try:
-                await post_win_messaging(ctx, winning_game)
+                await post_win_messaging(ctx.guild, ctx.prefix, ctx.channel, winning_game)
             except peewee.PeeweeException as e:
                 logger.error(f'Error during win command triggering post_win_messaging - trying to reopen and run again: {e}')
                 db.connect(reuse_if_open=True)
-                await post_win_messaging(ctx, winning_game)
+                await post_win_messaging(ctx.guild, ctx.prefix, ctx.channel, winning_game)
 
     @settings.in_bot_channel()
     @commands.command(usage='game_id', aliases=['delete_game', 'delgame', 'delmatch', 'deletegame'])
@@ -1309,25 +1309,25 @@ class elo_games():
             await asyncio.sleep(60 * 60 * 2)
 
 
-async def post_win_messaging(ctx, winning_game):
+async def post_win_messaging(guild, prefix, current_chan, winning_game):
 
     # await winning_game.delete_game_channels(guild=ctx.guild)
-    await winning_game.update_squad_channels(guild=ctx.guild, message=f'The game is over with **{winning_game.winner.name()}** victorious. *This channel will be purged in ~24 hours.*')
+    await winning_game.update_squad_channels(guild=guild, message=f'The game is over with **{winning_game.winner.name()}** victorious. *This channel will be purged in ~24 hours.*')
     player_mentions = [f'<@{l.player.discord_member.discord_id}>' for l in winning_game.lineup]
-    embed, content = winning_game.embed(guild=ctx.guild, prefix=ctx.prefix)
+    embed, content = winning_game.embed(guild=guild, prefix=prefix)
 
     for l in winning_game.lineup:
                 await achievements.set_experience_role(l.player.discord_member)
 
-    if settings.guild_setting(ctx.guild.id, 'game_announce_channel') is not None:
-        channel = ctx.guild.get_channel(settings.guild_setting(ctx.guild.id, 'game_announce_channel'))
+    if settings.guild_setting(guild.id, 'game_announce_channel') is not None:
+        channel = guild.get_channel(settings.guild_setting(guild.id, 'game_announce_channel'))
         if channel is not None:
             await channel.send(f'Game concluded! Congrats **{winning_game.winner.name()}**. Roster: {" ".join(player_mentions)}')
             await channel.send(embed=embed)
-            return await ctx.send(f'Game concluded! See {channel.mention} for full details.')
+            return await current_chan.send(f'Game concluded! See {channel.mention} for full details.')
 
-    await ctx.send(f'Game concluded! Congrats **{winning_game.winner.name()}**. Roster: {" ".join(player_mentions)}')
-    await ctx.send(embed=embed, content=content)
+    await current_chan.send(f'Game concluded! Congrats **{winning_game.winner.name()}**. Roster: {" ".join(player_mentions)}')
+    await current_chan.send(embed=embed, content=content)
 
 
 async def post_newgame_messaging(ctx, game):

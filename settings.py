@@ -133,7 +133,30 @@ config = {'default':
                       # 'match_challenge_channels': [511316081160355852, 511906353476927498],
                       'game_request_channel': None,
                       # 'game_announce_channel': 505523961812090900,
-                      'game_channel_categories': []}
+                      'game_channel_categories': []},
+        507848578048196614:                           # Jets Server
+                     {'helper_roles': ['Co-Leader'],
+                      'mod_roles': ['Admin', 'Bot Admin'],
+                      'user_roles_level_4': ['', 'Jets'],  # power user
+                      'user_roles_level_3': ['@everyone'],  # power user
+                      'user_roles_level_2': ['@everyone'],  # normal user
+                      'user_roles_level_1': ['@everyone'],  # restricted user/newbie
+                      'display_name': 'Jets',
+                      'require_teams': False,
+                      'allow_teams': True,
+                      'allow_uneven_teams': True,
+                      'max_team_size': 6,
+                      'command_prefix': '$',
+                      'include_in_global_lb': False,
+                      'bot_channels_private': [],
+                      'bot_channels_strict': [520307432166260746],
+                      'bot_channels': [520307432166260746],
+                      'ranked_game_channel': None,
+                      'unranked_game_channel': None,
+                      'match_challenge_channels': [],
+                      'game_request_channel': None,  # $staffhelp output
+                      'game_announce_channel': None,  # elo-drafts
+                      'game_channel_categories': [507946542024359938]},  # Jets vs Jets
 
           }
 
@@ -152,7 +175,7 @@ lobbies = [{'guild': 283436219780825088, 'size_str': '1v1', 'size': [1, 1], 'ran
 discord_id_ban_list = [
     436330481341169675,  # Mr Bucky
     481581027685564416,  # Shadow Knight
-    396699990577119244,  # Skrealder
+    # 396699990577119244,  # Skrealder
     # 481525222072254484,  # testaccount1
     342341358218117121,  # Caesar Augustas Trajan
     327433644589187072,  # Spacebar/Robit

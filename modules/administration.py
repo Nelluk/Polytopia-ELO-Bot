@@ -55,24 +55,28 @@ class administration:
             for game in game_query:
                 (confirmed_count, side_count, _) = game.confirmations_count()
 
+                if not game.win_claimed_ts:
+                    logger.error(f'Game {game.id} does not have a value for win_claimed_ts - cannot auto confirm.')
+                    continue
+
                 if game.is_ranked and game.win_claimed_ts < old_24h:
                     game.declare_winner(winning_side=game.winner, confirm=True)
-                    await post_win_messaging(ctx, game)
+                    await post_win_messaging(ctx.guild, ctx.prefix, ctx.channel, game)
                     games_confirmed += 1
                     await ctx.send(f'Game {game.id} auto-confirmed. Ranked win claimed more than 24 hours ago. {confirmed_count} of {side_count} sides had confirmed.')
                 elif not game.is_ranked and game.win_claimed_ts < old_6h:
                     game.declare_winner(winning_side=game.winner, confirm=True)
-                    await post_win_messaging(ctx, game)
+                    await post_win_messaging(ctx.guild, ctx.prefix, ctx.channel, game)
                     games_confirmed += 1
                     await ctx.send(f'Game {game.id} auto-confirmed. Unranked win claimed more than 6 hours ago. {confirmed_count} of {side_count} sides had confirmed.')
                 elif side_count < 5 and confirmed_count > 1:
                     game.declare_winner(winning_side=game.winner, confirm=True)
-                    await post_win_messaging(ctx, game)
+                    await post_win_messaging(ctx.guild, ctx.prefix, ctx.channel, game)
                     games_confirmed += 1
                     await ctx.send(f'Game {game.id} auto-confirmed due to partial confirmations. {confirmed_count} of {side_count} sides had confirmed.')
                 elif side_count >= 5 and confirmed_count > 2:
                     game.declare_winner(winning_side=game.winner, confirm=True)
-                    await post_win_messaging(ctx, game)
+                    await post_win_messaging(ctx.guild, ctx.prefix, ctx.channel, game)
                     games_confirmed += 1
                     await ctx.send(f'Game {game.id} auto-confirmed due to partial confirmations. {confirmed_count} of {side_count} sides had confirmed.')
 
@@ -89,7 +93,7 @@ class administration:
 
         winning_game.declare_winner(winning_side=winning_game.winner, confirm=True)
         winner_name = winning_game.winner.name()  # storing here trying to solve cursor closed error
-        await post_win_messaging(ctx, winning_game)
+        await post_win_messaging(ctx.guild, ctx.prefix, ctx.channel, winning_game)
         await ctx.send(f'**Game {winning_game.id}** winner has been confirmed as **{winner_name}**')  # Added here to try to fix InterfaceError Cursor Closed - seems to fix if there is output at the end
 
     @commands.command(usage='game_id')

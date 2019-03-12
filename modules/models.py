@@ -2024,7 +2024,7 @@ class Lineup(BaseModel):
     tribe = ForeignKeyField(TribeFlair, null=True, on_delete='SET NULL')
     game = ForeignKeyField(Game, null=False, backref='lineup', on_delete='CASCADE')
     gameside = ForeignKeyField(GameSide, null=False, backref='lineup', on_delete='CASCADE')
-    player = ForeignKeyField(Player, null=False, backref='lineup', on_delete='CASCADE')
+    player = ForeignKeyField(Player, null=False, backref='lineup', on_delete='RESTRICT')
     elo_change_player = SmallIntegerField(default=0)
     elo_change_discordmember = SmallIntegerField(default=0)
     elo_after_game = SmallIntegerField(default=None, null=True)  # snapshot of what elo was after game concluded
