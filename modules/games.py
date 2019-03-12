@@ -1284,6 +1284,7 @@ class elo_games():
             # purge game channels from games that were concluded at least 24 hours ago
 
             await asyncio.sleep(60)
+            logger.debug('Task running: task_purge_game_channels')
             yesterday = (datetime.datetime.now() + datetime.timedelta(hours=-24))
 
             old_games = Game.select().join(GameSide, on=(GameSide.game == Game.id)).where(
@@ -1304,6 +1305,7 @@ class elo_games():
         while not self.bot.is_closed():
 
             await asyncio.sleep(7)
+            logger.debug('Task running: task_set_champion_role')
             await achievements.set_champion_role()
 
             await asyncio.sleep(60 * 60 * 2)

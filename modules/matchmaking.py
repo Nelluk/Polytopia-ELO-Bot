@@ -688,6 +688,7 @@ class matchmaking():
         await self.bot.wait_until_ready()
         while not self.bot.is_closed():
             await asyncio.sleep(60 * 60 * 10)
+            logger.debug('Task running: task_dm_game_creators')
             full_games = models.Game.search_pending(status_filter=1, ranked_filter=1)
             logger.debug(f'Starting task_dm_game_creators on {len(full_games)} games')
             for game in full_games:
@@ -725,6 +726,7 @@ class matchmaking():
         await self.bot.wait_until_ready()
         while not self.bot.is_closed():
             await asyncio.sleep(60)
+            logger.debug('Task running: task_create_empty_matchmaking_lobbies')
             unhosted_game_list = models.Game.search_pending(status_filter=2, host_discord_id=0)
             for lobby in settings.lobbies:
                 matching_lobby = False
@@ -774,7 +776,7 @@ class matchmaking():
 
         while not self.bot.is_closed():
             await asyncio.sleep(5)
-
+            logger.debug('Task running: task_print_matchlist')
             models.Game.purge_expired_games()
             for guild in self.bot.guilds:
                 broadcast_channels = [guild.get_channel(chan) for chan in settings.guild_setting(guild.id, 'match_challenge_channels')]

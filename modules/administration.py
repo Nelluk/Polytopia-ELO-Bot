@@ -6,6 +6,7 @@ import logging
 import peewee
 import modules.exceptions as exceptions
 import datetime
+import asyncio
 from modules.games import PolyGame, post_win_messaging
 
 logger = logging.getLogger('polybot.' + __name__)
@@ -15,6 +16,7 @@ elo_logger = logging.getLogger('polybot.elo')
 class administration:
     def __init__(self, bot):
         self.bot = bot
+        self.bg_task = bot.loop.create_task(self.task_confirm_auto())
 
     async def __local_check(self, ctx):
 
@@ -46,6 +48,10 @@ class administration:
             return
 
         if arg.lower() == 'auto':
+            (unconfirmed_count, games_confirmed) = await self.confirm_auto(ctx.guild, ctx.prefix, ctx.channel)
+            return await ctx.send(f'Autoconfirm process complete. {games_confirmed} games auto-confirmed. {unconfirmed_count - games_confirmed} games left unconfirmed.')
+
+        if arg.lower() == 'auto' and False:
             game_query = models.Game.search(status_filter=5, guild_id=ctx.guild.id).order_by(models.Game.win_claimed_ts)
             old_24h = (datetime.datetime.now() + datetime.timedelta(hours=-24))
             old_6h = (datetime.datetime.now() + datetime.timedelta(hours=-6))
@@ -95,6 +101,67 @@ class administration:
         winner_name = winning_game.winner.name()  # storing here trying to solve cursor closed error
         await post_win_messaging(ctx.guild, ctx.prefix, ctx.channel, winning_game)
         await ctx.send(f'**Game {winning_game.id}** winner has been confirmed as **{winner_name}**')  # Added here to try to fix InterfaceError Cursor Closed - seems to fix if there is output at the end
+
+    async def confirm_auto(self, guild, prefix, current_channel):
+        logger.debug('in confirm_auto')
+        game_query = models.Game.search(status_filter=5, guild_id=guild.id).order_by(models.Game.win_claimed_ts)
+        old_24h = (datetime.datetime.now() + datetime.timedelta(hours=-24))
+        old_6h = (datetime.datetime.now() + datetime.timedelta(hours=-6))
+        games_confirmed = 0
+        unconfirmed_count = len(game_query)
+
+        for game in game_query:
+            (confirmed_count, side_count, _) = game.confirmations_count()
+
+            if not game.win_claimed_ts:
+                logger.error(f'Game {game.id} does not have a value for win_claimed_ts - cannot auto confirm.')
+                continue
+
+            if game.is_ranked and game.win_claimed_ts < old_24h:
+                game.declare_winner(winning_side=game.winner, confirm=True)
+                await post_win_messaging(guild, prefix, current_channel, game)
+                games_confirmed += 1
+                await current_channel.send(f'Game {game.id} auto-confirmed. Ranked win claimed more than 24 hours ago. {confirmed_count} of {side_count} sides had confirmed.')
+            elif not game.is_ranked and game.win_claimed_ts < old_6h:
+                game.declare_winner(winning_side=game.winner, confirm=True)
+                await post_win_messaging(guild, prefix, current_channel, game)
+                games_confirmed += 1
+                await current_channel.send(f'Game {game.id} auto-confirmed. Unranked win claimed more than 6 hours ago. {confirmed_count} of {side_count} sides had confirmed.')
+            elif side_count < 5 and confirmed_count > 1:
+                game.declare_winner(winning_side=game.winner, confirm=True)
+                await post_win_messaging(guild, prefix, current_channel, game)
+                games_confirmed += 1
+                await current_channel.send(f'Game {game.id} auto-confirmed due to partial confirmations. {confirmed_count} of {side_count} sides had confirmed.')
+            elif side_count >= 5 and confirmed_count > 2:
+                game.declare_winner(winning_side=game.winner, confirm=True)
+                await post_win_messaging(guild, prefix, current_channel, game)
+                games_confirmed += 1
+                await current_channel.send(f'Game {game.id} auto-confirmed due to partial confirmations. {confirmed_count} of {side_count} sides had confirmed.')
+
+        logger.debug(f'confirm_auto processed {unconfirmed_count} and confirmed {games_confirmed} games.')
+        return (unconfirmed_count, games_confirmed)
+
+    async def task_confirm_auto(self):
+        await self.bot.wait_until_ready()
+        sleep_cycle = (60 * 60 * 0.5)  # half hour cycle
+
+        while not self.bot.is_closed():
+            await asyncio.sleep(8)
+            logger.debug('Task running: task_confirm_auto')
+
+            with models.db:
+                for guild in self.bot.guilds:
+                    staff_output_channel = guild.get_channel(settings.guild_setting(guild.id, 'game_request_channel'))
+                    if not staff_output_channel:
+                        logger.debug(f'Could not load game_request_channel for server {guild.id} - skipping')
+                        continue
+
+                    prefix = settings.guild_setting(guild.id, 'command_prefix')
+                    (unconfirmed_count, games_confirmed) = await self.confirm_auto(guild, prefix, staff_output_channel)
+                    if games_confirmed:
+                        await staff_output_channel.send(f'Autoconfirm process complete. {games_confirmed} games auto-confirmed. {unconfirmed_count - games_confirmed} games left unconfirmed.')
+
+            await asyncio.sleep(sleep_cycle)
 
     @commands.command(usage='game_id')
     async def rankset(self, ctx, game: PolyGame = None):
