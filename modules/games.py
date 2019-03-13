@@ -252,7 +252,7 @@ class elo_games():
         await ctx.send(embed=embed)
 
     @settings.in_bot_channel_strict()
-    @settings.on_polychampions()
+    @settings.teams_allowed()
     @commands.command(aliases=['squadlb'])
     @commands.cooldown(2, 30, commands.BucketType.channel)
     async def lbsquad(self, ctx):
@@ -272,7 +272,7 @@ class elo_games():
         await utilities.paginate(self.bot, ctx, title='**Squad Leaderboards**', message_list=leaderboard, page_start=0, page_end=10, page_size=10)
 
     @settings.in_bot_channel()
-    @settings.on_polychampions()
+    @settings.teams_allowed()
     @commands.command(brief='Find squads or see details on a squad', usage='player1 [player2] [player3]', aliases=['squads'])
     async def squad(self, ctx, *args):
         """Find squads with specific players, or see details on a squad

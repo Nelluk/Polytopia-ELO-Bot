@@ -694,7 +694,7 @@ class matchmaking():
             for game in full_games:
                 guild = discord.utils.get(self.bot.guilds, id=game.guild_id)
                 creating_player = game.creating_player()
-
+                # TOOD: only trigger if game is <23hours til expiration
                 if not guild:
                     logger.error(f'Couldnt load guild ID {game.guild_id}')
                     continue
@@ -710,7 +710,7 @@ class matchmaking():
                 message = (f'__You have a ranked game on **{guild.name}** that is waiting to be created.__'
                            f'\nPlease visit the server\'s bot channel at this link: <https://discordapp.com/channels/{guild.id}/{bot_channel}/>'
                            f'\nType the command __`{prefix}game {game.id}`__ for more details. Remember. you must manually **create the game within Polytopia** using the supplied '
-                           f'friend codes, come back to the channel, and use the command __`{prefix}game {game.id} Name of Game`__ to mark the game as started.'
+                           f'friend codes, come back to the channel, and use the command __`{prefix}start {game.id} Name of Game`__ to mark the game as started.'
                            f'\n\nYou can use the command __`{prefix}codes {game.id}`__ to get each player\'s friend code in an easy-to-copy format.')
 
                 try:
