@@ -595,7 +595,7 @@ class Game(BaseModel):
 
     def __setattr__(self, name, value):
         if name == 'name':
-            value = value.strip('\"').strip('\'').strip('”').strip('“').title()[:35] if value else value
+            value = value.strip('\"').strip('\'').strip('”').strip('“').title()[:35].strip() if value else value
         return super().__setattr__(name, value)
 
     async def create_game_channels(self, guild):
