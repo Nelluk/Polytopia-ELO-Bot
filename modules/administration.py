@@ -422,7 +422,7 @@ class administration:
         game_list = await self.bot.loop.run_in_executor(None, async_game_search)
 
         delete_result = []
-        for game in game_list[:200]:
+        for game in game_list[:500]:
             rank_str = ' - *Unranked*' if not game.is_ranked else ''
             if len(game.lineup) == 2 and game.date < old_60d and not game.is_completed:
                 delete_result.append(f'Deleting incomplete 1v1 game older than 60 days. - {game.get_headline()} - {game.date}{rank_str}')
