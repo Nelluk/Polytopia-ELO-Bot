@@ -208,7 +208,7 @@ class elo_games():
             for counter, discord_member in enumerate(query[:500]):
                 wins, losses = discord_member.get_record()
                 leaderboard.append(
-                    (f'{(counter + 1):>3}. {discord_member.name}', f'`ELO {discord_member.elo}\u00A0\u00A0\u00A0\u00A0Recent Games {discord_member.count}`')
+                    (f'{(counter + 1):>3}. {discord_member.name}', f'`ELO {discord_member.elo}\u00A0\u00A0\u00A0\u00A0Games Played {discord_member.count}`')
                 )
             title = '**Most active players of all time**'
         else:
