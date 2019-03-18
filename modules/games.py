@@ -1069,6 +1069,7 @@ class elo_games():
                     player_mentions = [f'<@{l.player.discord_member.discord_id}>' for l in winning_game.lineup]
                     await ctx.send(f'**Game {winning_game.id}** *{winning_game.name}* concluded pending confirmation of winner **{winning_obj.name}**\n'
                         f'To confirm, have opponents use the command __`{ctx.prefix}win {winning_game.id} {printed_side_name}`__\n'
+                        f'If opponents do not dispute the win then the game will be confirmed automatically after a period of time.\n'
                         f'*Game lineup*: {" ".join(player_mentions)}')
 
         winning_game.declare_winner(winning_side=winning_side, confirm=confirm_win)
