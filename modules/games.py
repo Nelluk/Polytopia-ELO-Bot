@@ -187,7 +187,7 @@ class elo_games():
         await utilities.paginate(self.bot, ctx, title=f'**{lb_title}**\n{leaderboard_size} ranked players', message_list=leaderboard, page_start=0, page_end=10, page_size=10)
 
     @settings.in_bot_channel_strict()
-    @commands.command(aliases=['recent', 'active'])
+    @commands.command(aliases=['recent', 'active', 'lbactivealltime'])
     @commands.cooldown(2, 30, commands.BucketType.channel)
     async def lbrecent(self, ctx):
         """ Display most active recent players"""
@@ -199,18 +199,32 @@ class elo_games():
             (Lineup.player == Player.id) & (Game.is_pending == 0) & (Game.date > last_month) & (Game.guild_id == ctx.guild.id)
         ).group_by(Player.id).order_by(-peewee.SQL('count'))
 
-        for counter, player in enumerate(query[:500]):
-            wins, losses = player.get_record()
-            emoji_str = player.team.emoji if player.team else ''
-            leaderboard.append(
-                (f'{(counter + 1):>3}. {emoji_str}{player.name}', f'`ELO {player.elo}\u00A0\u00A0\u00A0\u00A0Recent Games {player.count}`')
-            )
+        if ctx.invoked_with == 'lbactivealltime':
+            # special command to see all time active list by discord member
+            query = DiscordMember.select(DiscordMember, peewee.fn.COUNT(Lineup.id).alias('count')).join(Player).join(Lineup).join(Game).where(
+                (Lineup.player.discord_member == DiscordMember.id) & (Game.is_pending == 0)
+            ).group_by(DiscordMember.id).order_by(-peewee.SQL('count'))
+
+            for counter, discord_member in enumerate(query[:500]):
+                wins, losses = discord_member.get_record()
+                leaderboard.append(
+                    (f'{(counter + 1):>3}. {discord_member.name}', f'`ELO {discord_member.elo}\u00A0\u00A0\u00A0\u00A0Recent Games {discord_member.count}`')
+                )
+            title = '**Most active players of all time'
+        else:
+            for counter, player in enumerate(query[:500]):
+                wins, losses = player.get_record()
+                emoji_str = player.team.emoji if player.team else ''
+                leaderboard.append(
+                    (f'{(counter + 1):>3}. {emoji_str}{player.name}', f'`ELO {player.elo}\u00A0\u00A0\u00A0\u00A0Recent Games {player.count}`')
+                )
+            title = f'**Most Active Recent Players**\n{query.count()} players in past 30 days'
 
         if ctx.guild.id != settings.server_ids['polychampions']:
             await ctx.send('Powered by PolyChampions. League server with a team focus and competitive players.\n'
                 'Supporting up to 6-player team ELO games and automatic team channels. - <https://tinyurl.com/polychampions>')
             # link put behind url shortener to not show big invite embed
-        await utilities.paginate(self.bot, ctx, title=f'**Most Active Recent Players**\n{query.count()} players in past 30 days', message_list=leaderboard, page_start=0, page_end=10, page_size=10)
+        await utilities.paginate(self.bot, ctx, title=title, message_list=leaderboard, page_start=0, page_end=10, page_size=10)
 
     @settings.in_bot_channel_strict()
     @settings.teams_allowed()
