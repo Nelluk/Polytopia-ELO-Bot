@@ -505,6 +505,7 @@ class elo_games():
 
         embed = discord.Embed(title=f'Team card for **{team.name}** {team.emoji}')
         team_role = discord.utils.get(ctx.guild.roles, name=team.name)
+        mia_role = discord.utils.get(ctx.guild.roles, name='MIA')
         leader_role = discord.utils.get(ctx.guild.roles, name='Team Leader')
         coleader_role = discord.utils.get(ctx.guild.roles, name='Team Co-Leader')
         member_stats = []
@@ -515,6 +516,9 @@ class elo_games():
 
         if team_role:
             for member in team_role.members:
+                if mia_role and mia_role in member.roles:
+                    continue
+                    # skip members tagged @MIA
                 if leader_role and leader_role in member.roles:
                     leaders_list.append(member.name)
                 if coleader_role and coleader_role in member.roles:
