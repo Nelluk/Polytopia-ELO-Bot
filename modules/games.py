@@ -507,7 +507,7 @@ class elo_games():
         try:
             team = Team.get_or_except(team_string, ctx.guild.id)
         except exceptions.NoSingleMatch as ex:
-            return await ctx.send('More than one matching team found. Be more specific or trying using a quoted \"Team Name\"')
+            return await ctx.send(f'Couldn\'t find a team name matching *{team_string}*. Check spelling or be more specific. **Example:** `{ctx.prefix}team Ronin`')
 
         embed = discord.Embed(title=f'Team card for **{team.name}** {team.emoji}')
         team_role = discord.utils.get(ctx.guild.roles, name=team.name)
