@@ -257,13 +257,13 @@ class elo_games():
             if not team_role:
                 logger.error(f'Could not find matching role for team {team.name}')
                 continue
-            counter = 0
+            member_count = 0
             mia_role = discord.utils.get(ctx.guild.roles, name='MIA')
             for team_member in team_role.members:
                 if mia_role and mia_role in team_member.roles:
                     continue
-                counter += 1
-            team_name_str = f'**{team.name}**   ({counter})'  # Show team name with number of members without MIA role
+                member_count += 1
+            team_name_str = f'**{team.name}**   ({member_count})'  # Show team name with number of members without MIA role
             wins, losses = team.get_record(alltime=alltime)
 
             elo = team.elo_alltime if alltime else team.elo
