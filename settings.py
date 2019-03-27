@@ -180,6 +180,7 @@ discord_id_ban_list = [
     342341358218117121,  # Caesar Augustas Trajan
     327433644589187072,  # Spacebar/Robit
     359831073737146369,  # Epi
+    427018182310756352,  # Freeze
 ]
 
 poly_id_ban_list = [
