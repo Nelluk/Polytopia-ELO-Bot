@@ -162,7 +162,7 @@ class matchmaking():
                 # Arbitrary rule, unranked games can go +1 from server_size_max
                 logger.info('Opening unranked game that exceeds server_size_max')
             else:
-                return await ctx.send(f'Maximum team size on this server is {server_size_max}.\n'
+                return await ctx.send(f'Maximum ranked team size on this server is {server_size_max}.\n'
                     'For full functionality with support for up to 6-person teams and team channels check out PolyChampions - <https://tinyurl.com/polychampions>')
 
         required_roles = [None] * len(team_sizes)  # [None, None, None] for a 3-sided game
