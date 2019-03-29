@@ -185,6 +185,7 @@ discord_id_ban_list = [
 
 poly_id_ban_list = [
     'MvSRS2t5vWLUyyuu',  # Caesar Augustas Trajan
+    'AfMDTSO3yareZN2E',  # Freeze
 ]
 
 generic_teams_short = [('Home', ':stadium:'), ('Away', ':airplane:')]  # For two-team games
