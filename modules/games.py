@@ -644,7 +644,7 @@ class elo_games():
             except ValueError:
                 return await ctx.send(f'Could not find any server member matching *{player_string}*. Try specifying with an @Mention')
 
-            return await ctx.send(f'Could not find any server member matching *{player_string}*. For player codes for a game, try `{ctx.prefix}getcodes {game_id}`')
+            return await ctx.send(f'Could not find any server member matching *{player_string}*. For player codes for a game, try `{ctx.prefix}codes {game_id}`')
 
         elif len(guild_matches) > 1:
             player_matches = Player.string_matches(player_string=player_string, guild_id=ctx.guild.id)
@@ -677,7 +677,7 @@ class elo_games():
         """
 
         if not game:
-            return await ctx.send(f'Game ID not provided. Usage: __`{ctx.prefix}getcodes GAME_ID`__')
+            return await ctx.send(f'Game ID not provided. Usage: __`{ctx.prefix}{ctx.invoked_with} GAME_ID`__')
 
         try:
             ordered_player_list = game.draft_order()
