@@ -1377,7 +1377,10 @@ async def post_newgame_messaging(ctx, game):
         await ctx.send(embed=embed, content=content)
 
     if settings.guild_setting(ctx.guild.id, 'game_channel_categories'):
-        await game.create_game_channels(ctx.guild)
+        try:
+            await game.create_game_channels(ctx.guild)
+        except exceptions.MyBaseException as e:
+            await ctx.send(f'Error during channel creation: {e}')
 
 
 def parse_players_and_teams(input_list, guild_id: int):
