@@ -1339,7 +1339,7 @@ class elo_games():
 async def post_win_messaging(guild, prefix, current_chan, winning_game):
 
     # await winning_game.delete_game_channels(guild=ctx.guild)
-    await winning_game.update_squad_channels(guild=guild, message=f'The game is over with **{winning_game.winner.name()}** victorious. *This channel will be purged in ~24 hours.*')
+    await winning_game.update_squad_channels(guild=guild, message=f'The game is over with **{winning_game.winner.name()}** victorious. *This channel will be purged soon.*')
     player_mentions = [f'<@{l.player.discord_member.discord_id}>' for l in winning_game.lineup]
     embed, content = winning_game.embed(guild=guild, prefix=prefix)
 
