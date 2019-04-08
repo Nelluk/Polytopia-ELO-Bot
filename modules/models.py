@@ -83,13 +83,13 @@ class Team(BaseModel):
             date_cutoff = datetime.datetime.strptime(settings.team_elo_reset_date, "%m/%d/%Y").date()
 
         wins = GameSide.select().join(Game).where(
-            (GameSide.size > 1) & (Game.is_completed == 1) &
+            (GameSide.size > 1) & (Game.is_completed == 1) & (Game.is_confirmed == 1) &
             (Game.is_ranked == 1) & (GameSide.team == self) &
             (GameSide.id == Game.winner) & (Game.date > date_cutoff)
         ).count()
 
         losses = GameSide.select().join(Game).where(
-            (GameSide.size > 1) & (Game.is_completed == 1) &
+            (GameSide.size > 1) & (Game.is_completed == 1) & (Game.is_confirmed == 1) &
             (Game.is_ranked == 1) & (GameSide.team == self) &
             (GameSide.id != Game.winner) & (Game.date > date_cutoff)
         ).count()
@@ -1867,11 +1867,11 @@ class Squad(BaseModel):
     def get_record(self):
 
         wins = GameSide.select(GameSide.id).join(Game).where(
-            (Game.is_completed == 1) & (Game.is_ranked == 1) & (GameSide.squad == self) & (GameSide.id == Game.winner)
+            (Game.is_completed == 1) & (Game.is_confirmed == 1) & (Game.is_ranked == 1) & (GameSide.squad == self) & (GameSide.id == Game.winner)
         ).count()
 
         losses = GameSide.select(GameSide.id).join(Game).where(
-            (Game.is_completed == 1) & (Game.is_ranked == 1) & (GameSide.squad == self) & (GameSide.id != Game.winner)
+            (Game.is_completed == 1) & (Game.is_confirmed == 1) & (Game.is_ranked == 1) & (GameSide.squad == self) & (GameSide.id != Game.winner)
         ).count()
 
         return (wins, losses)
