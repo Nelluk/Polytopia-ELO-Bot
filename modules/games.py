@@ -726,7 +726,7 @@ class elo_games():
         elif len(args) == 2:
             # User changing another user's code. Admin permissions required.
             if settings.is_staff(ctx) is False:
-                return await ctx.send(f'You do not have permission to trigger this command. Set your own in-game name with `{ctx.prefix}setname "My In-Game Name"`')
+                return await ctx.send(f'You do not have permission to trigger this command. Set your own in-game name with `{ctx.prefix}setname "My In-Game Name"`  *(Quotes required if more than one word)*')
             target_string = args[0]
             new_name = args[1]
         else:
@@ -736,7 +736,11 @@ class elo_games():
         try:
             player_target = Player.get_or_except(target_string, ctx.guild.id)
         except exceptions.NoMatches:
-            return await ctx.send(f'Could not find a registered player matching **{target_string}**. A Polytopia friend code must be registered first with `{ctx.prefix}setcode`\nExample usage: `{ctx.prefix}setname @Player in_game_name`')
+            if len(args) == 1:
+                error_msg = f'You have no Polytopia friend code on file. A Polytopia friend code must be registered first with `{ctx.prefix}setcode YOUR_POLYCODE`'
+            else:
+                error_msg = f'Could not find a registered player matching **{target_string}**. A Polytopia friend code must be registered first with `{ctx.prefix}setcode`\nExample usage: `{ctx.prefix}setname @Player in_game_name`'
+            return await ctx.send(error_msg)
         except exceptions.TooManyMatches:
             return await ctx.send(f'Found more than one matches for a player with **{target_string}**. Be more specific or use an @Mention.\nExample usage: `{ctx.prefix}setname @Player in_game_name`')
 
