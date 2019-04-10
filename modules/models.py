@@ -189,6 +189,17 @@ class DiscordMember(BaseModel):
 
         return (self.wins().count(), self.losses().count())
 
+    def games_played(self, in_days: int = None):
+
+        if in_days:
+            date_cutoff = (datetime.datetime.now() + datetime.timedelta(days=-in_days))
+        else:
+            date_cutoff = datetime.date.min  # 'forever' ?
+
+        return Lineup.select(Lineup.game).join(Game).join_from(Lineup, Player).where(
+            (Lineup.game.date > date_cutoff) & (Lineup.player.discord_member == self)
+        ).order_by(-Game.date)
+
     def completed_game_count(self, only_ranked=True):
 
         if only_ranked:

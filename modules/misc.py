@@ -34,28 +34,6 @@ class misc:
         print(games_list)
         print(f'Took {timer() - start} seconds.')
 
-    @commands.command(hidden=True)
-    @commands.is_owner()
-    async def purge_novas(self, ctx, *, arg=None):
-
-        role = discord.utils.get(ctx.guild.roles, name='The Novas')
-        count = 0
-
-        for member in role.members:
-            try:
-                models.DiscordMember.get(discord_id=member.id)
-            except peewee.DoesNotExist:
-                logger.info(f'Player {member.name} not registered.')
-                last_week = (datetime.datetime.now() + datetime.timedelta(days=-7))
-                if member.joined_at < last_week:
-                    logger.info(f'Joined more than a week ago. Purging role...')
-                    await member.remove_roles(role)
-                    count += 1
-                continue
-            else:
-                logger.info(f'Player {member.name} is registered.')
-        await ctx.send(f'Purging  **The Novas** role from {count} who have not registered a poly code and joined more than a week ago.')
-
     @commands.command(hidden=True, aliases=['bge'])
     async def bulk_global_elo(self, ctx, *, args=None):
         """

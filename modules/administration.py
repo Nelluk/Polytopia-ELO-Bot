@@ -7,6 +7,7 @@ import peewee
 import modules.exceptions as exceptions
 import datetime
 import asyncio
+import discord
 from modules.games import PolyGame, post_win_messaging
 
 logger = logging.getLogger('polybot.' + __name__)
@@ -402,6 +403,37 @@ class administration:
         team.save()
 
         await ctx.send('Team **{}** has been renamed to **{}**.'.format(old_team_name, new_team_name))
+
+    @commands.command()
+    @settings.is_mod_check()
+    @settings.on_polychampions()
+    async def purge_novas(self, ctx, *, arg=None):
+        """*Owner*: Purge inactive Novas
+        Purges the 'Novas' role from any player who either:
+        A) Joined more than a week ago and has no registered poly code, or
+        B) Join more than 6 weeks ago and has no games registered with the bot in the last 6 weeks.
+        """
+
+        role = discord.utils.get(ctx.guild.roles, name='The Novas')
+        count = 0
+
+        for member in role.members:
+            try:
+                dm = models.DiscordMember.get(discord_id=member.id)
+            except peewee.DoesNotExist:
+                logger.info(f'Player {member.name} not registered.')
+                last_week = (datetime.datetime.now() + datetime.timedelta(days=-7))
+                if member.joined_at < last_week:
+                    logger.info(f'Joined more than a week ago. Purging role...')
+                    await member.remove_roles(role)
+                    count += 1
+                continue
+            else:
+                logger.info(f'Player {member.name} is registered.')
+                six_weeks = (datetime.datetime.now() + datetime.timedelta(days=-42))
+                if member.joined_at < six_weeks and dm.games_played(in_days=42) == 0:
+                    logger.info(f'Purging {member.name} from Novas - joined more than 6 weeks ago and has played 0 games in that period.')
+        await ctx.send(f'Purging  **The Novas** role from {count} who have not registered a poly code and joined more than a week ago.')
 
     @commands.command()
     @commands.is_owner()
