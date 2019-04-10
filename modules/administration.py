@@ -408,7 +408,7 @@ class administration:
     @settings.is_mod_check()
     @settings.on_polychampions()
     async def purge_novas(self, ctx, *, arg=None):
-        """*Owner*: Purge inactive Novas
+        """*Mods*: Purge inactive Novas
         Purges the 'Novas' role from any player who either:
         A) Joined more than a week ago and has no registered poly code, or
         B) Join more than 6 weeks ago and has no games registered with the bot in the last 6 weeks.
@@ -431,9 +431,11 @@ class administration:
             else:
                 logger.info(f'Player {member.name} is registered.')
                 six_weeks = (datetime.datetime.now() + datetime.timedelta(days=-42))
-                if member.joined_at < six_weeks and dm.games_played(in_days=42) == 0:
-                    logger.info(f'Purging {member.name} from Novas - joined more than 6 weeks ago and has played 0 games in that period.')
-        await ctx.send(f'Purging  **The Novas** role from {count} who have not registered a poly code and joined more than a week ago.')
+                if member.joined_at < six_weeks:
+                    if not dm.games_played(in_days=42):
+                        count += 1
+                        logger.info(f'Purging {member.name} from Novas - joined more than 6 weeks ago and has played 0 games in that period.')
+        await ctx.send(f'Purging  **The Novas** role from {count} members who have not registered a poly code in the last week OR played a game in the last six weeks.')
 
     @commands.command()
     @commands.is_owner()
