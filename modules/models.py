@@ -110,7 +110,7 @@ class DiscordMember(BaseModel):
     def advanced_stats(self):
 
         ranked_games_played = Game.select().join(Lineup).join(Player).where(
-            (Player.discord_member == self) & (Game.is_completed == 1) & (Game.is_ranked == 1)
+            (Player.discord_member == self) & (Game.is_completed == 1) & (Game.is_ranked == 1) & (Game.is_confirmed == 1)
         ).order_by(Game.completed_ts).prefetch(GameSide, Lineup, Player)
 
         winning_streak, losing_streak, longest_winning_streak, longest_losing_streak = 0, 0, 0, 0
