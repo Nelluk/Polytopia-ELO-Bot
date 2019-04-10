@@ -130,7 +130,7 @@ class DiscordMember(BaseModel):
                             is_winner = True
                     break
 
-            # logger.debug(f'Game {game.id} completed_ts {game.completed_ts} is a {"win" if is_winner else "loss"} WS: {winning_streak} LS: {losing_streak} last_win: {last_win} last_loss: {last_loss}')
+            logger.debug(f'Game {game.id} completed_ts {game.completed_ts} is a {"win" if is_winner else "loss"} WS: {winning_streak} LS: {losing_streak} last_win: {last_win} last_loss: {last_loss}')
             if is_winner:
                 if last_win:
                     # winning streak is extended
