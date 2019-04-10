@@ -411,7 +411,7 @@ class administration:
         """*Mods*: Purge inactive Novas
         Purges the 'Novas' role from any player who either:
         A) Joined more than a week ago and has no registered poly code, or
-        B) Join more than 6 weeks ago and has no games registered with the bot in the last 6 weeks.
+        B) Join more than 6 weeks ago and has no games registered with the bot in the last 8 weeks.
         """
 
         role = discord.utils.get(ctx.guild.roles, name='The Novas')
@@ -424,18 +424,19 @@ class administration:
                 logger.info(f'Player {member.name} not registered.')
                 last_week = (datetime.datetime.now() + datetime.timedelta(days=-7))
                 if member.joined_at < last_week:
-                    logger.info(f'Joined more than a week ago. Purging role...')
+                    logger.info(f'Joined more than a week ago with no code on file. Purging role...')
                     await member.remove_roles(role)
                     count += 1
                 continue
             else:
-                logger.info(f'Player {member.name} is registered.')
-                six_weeks = (datetime.datetime.now() + datetime.timedelta(days=-42))
-                if member.joined_at < six_weeks:
-                    if not dm.games_played(in_days=42):
+                # logger.info(f'Player {member.name} is registered.')
+                eight_weeks = (datetime.datetime.now() + datetime.timedelta(days=-56))
+                if member.joined_at < eight_weeks:
+                    if not dm.games_played(in_days=56):
                         count += 1
-                        logger.info(f'Purging {member.name} from Novas - joined more than 6 weeks ago and has played 0 games in that period.')
-        await ctx.send(f'Purging  **The Novas** role from {count} members who have not registered a poly code in the last week OR played a game in the last six weeks.')
+                        await member.remove_roles(role)
+                        logger.info(f'Purging {member.name} from Novas - joined more than 8 weeks ago and has played 0 games in that period.')
+        await ctx.send(f'Purging  **The Novas** role from {count} members who have not registered a poly code in the last week OR played a game in the last 8 weeks.')
 
     @commands.command()
     @commands.is_owner()
