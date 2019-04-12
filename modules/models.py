@@ -554,10 +554,10 @@ class TribeFlair(BaseModel):
 
     def get_by_name(name: str, guild_id: int):
         tribe_flair_match = TribeFlair.select(TribeFlair, Tribe).join(Tribe).where(
-            (Tribe.name.contains(name)) & (TribeFlair.guild_id == guild_id)
+            (Tribe.name.startswith(name)) & (TribeFlair.guild_id == guild_id)
         )
 
-        tribe_name_match = Tribe.select().where(Tribe.name.contains(name))
+        tribe_name_match = Tribe.select().where(Tribe.name.startswith(name))
 
         if tribe_flair_match.count() == 0:
             if tribe_name_match.count() == 0:
@@ -573,7 +573,7 @@ class TribeFlair(BaseModel):
 
     def upsert(name: str, guild_id: int, emoji: str):
         try:
-            tribe = Tribe.get(Tribe.name.contains(name))
+            tribe = Tribe.get(Tribe.name.startswith(name))
         except DoesNotExist:
             raise exceptions.CheckFailedError(f'Could not find any tribe name containing "{name}"')
 
