@@ -839,8 +839,8 @@ class elo_games():
         `[p]allgames Nelluk`
         `[p]allgames OCEANS OF FIRE` - Search by title - words in all caps are used to search title/notes.
         `[p]allgames Nelluk OCEANS` - See games that included player Nelluk and the word *OCEANS* in the game name or game notes.
-        `[p]allgames Jets` - See games between those two teams
-        `[p]allgames Jets Ronin`
+        `[p]allgames Jets`
+        `[p]allgames Jets Ronin` - See games between those two teams
         `[p]allgames Nelluk rickdaheals frodakcin Jets Ronin` - See games in which three players and two teams were all involved
 
         You can also filter with separate commands: `[p]wins`, `[p]losses`, `[p]completed`, `[p]incomplete` - See `[p]help wins`, etc. for more detail.
