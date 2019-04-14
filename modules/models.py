@@ -1,5 +1,7 @@
 import datetime
 import discord
+# import psycopg2
+from psycopg2.errors import DuplicateObject
 from peewee import *
 from playhouse.postgres_ext import *
 import modules.exceptions as exceptions
@@ -2118,6 +2120,6 @@ with db:
     try:
         # Creates deferred FK http://docs.peewee-orm.com/en/latest/peewee/models.html#circular-foreign-key-dependencies
         Game._schema.create_foreign_key(Game.winner)
-    except ProgrammingError:
+    except (ProgrammingError, DuplicateObject):
         pass
-        # Will throw this exception if the foreign key has already been created
+        # Will throw one of above exceptions if foreign key already exists - exception depends on which version of psycopg2 is running
