@@ -1018,11 +1018,11 @@ class elo_games():
         `[p]win 2050 Nelluk` - Declare *Nelluk* winner of game 2050
         """
         usage = ('Include both game ID and the name of the winning side. Example usage:\n'
-                f'`{ctx.prefix}win 422 Nelluk`\n`{ctx.prefix}win 425 Home` *For a team game*')
+                f'`{ctx.prefix}win 422 Nelluk`\n`{ctx.prefix}win 425 Home` *For a team game*\n')
         if ctx.invoked_with.lower() == 'lose':
             return await ctx.send(f'Games are always concluded using the `{ctx.prefix}win` command.\n{usage}')
         if not winning_game:
-            return await ctx.send(usage)
+            return await ctx.send(f'{usage}\nYou can use the command `{ctx.prefix}incomplete` to view your unfinished games.')
         if not winning_side_name:
             game_side_str = '\n'.join(winning_game.list_gameside_membership())
             return await ctx.send(f'{usage}\n__Sides in this game are:__\n{game_side_str}')
