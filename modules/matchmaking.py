@@ -462,22 +462,28 @@ class matchmaking():
         """
         Edit notes for an open game you host
         **Example:**
-        `[p]gamenotes 100 Large map, no bans`
+        `[p]gamenotes 1234 Large map, no bans` - Update notes for game 1234
+        `[p]gamenotes 1234 none` - Delete notes for game 1234
         """
+
+        if not notes:
+            return await ctx.send(f'Include new note or *none* to delete existing note. Usage: `{ctx.prefix}{ctx.invoked_with} {game.id} These are my new notes`')
 
         if not game.is_hosted_by(ctx.author.id)[0] and not settings.is_staff(ctx):
             return await ctx.send(f'Only the game host or server staff can do this.')
 
-        old_notes = game.notes
-        if game.is_pending:
-            game.notes = notes[:150] if notes else None
-        else:
-            # Preserve original notes and indicate they've been edited, if game is in progress
-            old_notes_redacted = f'{"~~" + old_notes.replace("~", "") + "~~"} ' if old_notes else ''
-            game.notes = f'{old_notes_redacted}{notes[:150]}' if notes else old_notes_redacted
+        if notes.lower() == 'none':
+            notes = None
+
+        if game.is_completed:
+            return await ctx.send('This game is completed and notes cannot be edited.')
+        elif not game.is_pending and not settings.is_staff(ctx):
+            return await ctx.send(f'Only server staff can edit notes of an in-progress game.')
+
+        game.notes = notes[:150] if notes else None
         game.save()
 
-        await ctx.send(f'Updated notes for game {game.id} to: {game.notes}\nPrevious notes were: {old_notes}')
+        await ctx.send(f'Updated notes for game {game.id} to: {game.notes}')
         embed, content = game.embed(guild=ctx.guild, prefix=ctx.prefix)
         await ctx.send(embed=embed, content=content)
 
