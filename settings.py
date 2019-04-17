@@ -89,7 +89,7 @@ config = {'default':
                       'match_challenge_channels': [452639822616723457],  # elo-challenges
                       'game_request_channel': 487304043786665986,  # $staffhelp output
                       'game_announce_channel': 487302138704429087,  # elo-drafts
-                      'game_channel_categories': [488421911529914368, 514141474229846018, 519131761733795841, 550414365044637712, 563717211362164736]},  # elo-games-i, ii, iii, iv, v
+                      'game_channel_categories': [488421911529914368, 514141474229846018, 519131761733795841, 550414365044637712, 563717211362164736, 568093671912636420]},  # elo-games-i, ii, iii, iv, v, vi
           283436219780825088:                           # Main Server
                      {'helper_roles': ['ELO-Helper', 'Bot Master', 'Director'],
                       'mod_roles': ['MOD', 'Manager'],
