@@ -1023,6 +1023,8 @@ class elo_games():
             return await ctx.send(f'Games are always concluded using the `{ctx.prefix}win` command.\n{usage}')
         if not winning_game:
             return await ctx.send(f'{usage}\nYou can use the command `{ctx.prefix}incomplete` to view your unfinished games.')
+        if winning_game.is_pending:
+            return await ctx.send(f'Game {winning_game.id} is still a pending open game. It must be started using the `{ctx.prefix}start` command before it can be concluded.')
         if not winning_side_name:
             game_side_str = '\n'.join(winning_game.list_gameside_membership())
             return await ctx.send(f'{usage}\n__Sides in this game are:__\n{game_side_str}')
