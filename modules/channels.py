@@ -130,7 +130,7 @@ async def greet_game_channel(guild, chan, roster_names, game, player_list, full_
         await chan.send(f'This is the {chan_type_str} for game **{game.name}**, ID {game.id}.\n{allies_str}'
             f'The teams for this game are:\n{roster_names}\n\n'
             f'{match_content}'
-            '*This channel will self-destruct 24 hours after the game is marked as concluded.*')
+            '*This channel will self-destruct soon after the game is marked as concluded.*')
     except (discord.errors.Forbidden, discord.errors.HTTPException) as e:
         logger.error(f'Could not send to created channel:\n{e} - Status {e.status}, Code {e.code}: {e.text}')
 

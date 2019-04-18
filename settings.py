@@ -24,6 +24,8 @@ owner_id = 272510639124250625  # Nelluk
 bot = None
 team_elo_reset_date = '1/1/2019'
 
+# bot invite URL https://discordapp.com/oauth2/authorize?client_id=484067640302764042&scope=bot
+
 config = {'default':
                      {'helper_roles': ['Helper'],
                       'mod_roles': ['Mod'],
