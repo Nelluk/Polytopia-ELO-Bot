@@ -496,14 +496,22 @@ class elo_games():
     @settings.in_bot_channel()
     @settings.teams_allowed()
     @commands.command(usage='team_name')
-    async def team(self, ctx, team_string: str = None):
+    async def team(self, ctx, *, team_string: str = None):
         """See details on a team
         **Example:**
-        [p]team Ronin
+        `[p]team Ronin`
+        `[p]team Ronin completed` - Show count of all completed ranked games for each member of team, rather than default recent game count.
         """
 
         if not team_string:
             return await ctx.send(f'No team name supplied. Use `{ctx.prefix}lbteam` for the team leaderboard. **Example:** `{ctx.prefix}team Ronin`')
+
+        if 'completed' in team_string:
+            team_string = team_string.replace('completed', '').strip()
+            completed_flag = True
+        else:
+            completed_flag = False
+
         try:
             team = Team.get_or_except(team_string, ctx.guild.id)
         except exceptions.NoSingleMatch as ex:
@@ -537,8 +545,13 @@ class elo_games():
                 else:
                     wins, losses = p[0].get_record()
                     lb_rank = p[0].leaderboard_rank(date_cutoff=settings.date_cutoff)[0]
-                    games_played = p[0].games_played(in_days=30).count()
                     rank_str = f'#{lb_rank}' if lb_rank else '-'
+                    if completed_flag:
+                        games_played = p[0].completed_game_count()
+                        header_str = '__Player - ELO - Ranking - Completed Games__'
+                    else:
+                        games_played = p[0].games_played(in_days=30).count()
+                        header_str = '__Player - ELO - Ranking - Recent Games__'
                     member_stats.append(({p[0].discord_member.name}, games_played, f'`{p[0].discord_member.name[:23]:.<25}{p[0].elo:.<8}{rank_str:.<6}{games_played:.<4}`'))
 
             member_stats.sort(key=lambda tup: tup[1], reverse=True)     # sort the list descending by recent games played
@@ -546,7 +559,7 @@ class elo_games():
             # replacing '.' with "\u200b " (alternated zero width space with a normal space) so discord wont strip spaces
 
             members_str = "\n".join(members_sorted) if len(members_sorted) > 0 else '\u200b'
-            embed.description = f'**Members({len(member_stats)})**\n__Player - ELO - Ranking - Recent Games__\n{members_str}'[:2048]
+            embed.description = f'**Members({len(member_stats)})**\n{header_str}\n{members_str}'[:2048]
         else:
             await ctx.send(f'Warning: No matching discord role "{team.name}" could be found. Player membership cannot be detected.')
 
