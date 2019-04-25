@@ -316,23 +316,37 @@ class administration:
 
         await ctx.send('Tribe {0.tribe.name} updated with new emoji: {0.emoji}'.format(tribeflair))
 
-    @commands.command(aliases=['addteam'], usage='new_team_name')
+    @commands.command(aliases=['team_add_junior'], usage='new_team_name')
     @settings.is_mod_check()
     @settings.teams_allowed()
-    async def team_add(self, ctx, *args):
+    # async def team_add(self, ctx, *args):
+    async def team_add(self, ctx, *, team_name: str):
         """*Mod*: Create new server Team
         The team should have a Role with an identical name.
         **Example:**
         `[p]team_add The Amazeballs`
+        `[p]team_add The Amazeballs hidden` - Team will be excluded from leaderboards
+        `[p]team_add_junior The Little Amazeballs` - Team added in "junior" league
         """
+        if ' hidden' in team_name:
+            hidden_flag = True
+            team_name = team_name.replace('hidden', '').strip()
+        else:
+            hidden_flag = False
 
-        name = ' '.join(args)
+        if ctx.invoked_with == 'team_add_junior':
+            pro_league = False
+            pro_str = 'Junior '
+        else:
+            pro_league = True
+            pro_str = ''
+
         try:
-            team = models.Team.create(name=name, guild_id=ctx.guild.id)
+            team = models.Team.create(name=team_name, guild_id=ctx.guild.id, is_hidden=hidden_flag, pro_league=pro_league)
         except peewee.IntegrityError:
             return await ctx.send('That team already exists!')
 
-        await ctx.send(f'Team {name} created! Starting ELO: {team.elo}. Players with a Discord Role exactly matching \"{name}\" will be considered team members. '
+        await ctx.send(f'{pro_str}Team {team_name} created! Starting ELO: {team.elo}. Players with a Discord Role exactly matching \"{team_name}\" will be considered team members. '
                 f'You can now set the team flair with `{ctx.prefix}`team_emoji and `{ctx.prefix}team_image`.')
 
     @commands.command(usage='team_name new_emoji')

@@ -250,7 +250,7 @@ class elo_games():
             sort_field = Team.elo
 
         query = Team.select().where(
-            (Team.is_hidden == 0) & (Team.guild_id == ctx.guild.id)
+            (Team.is_hidden == 0) & (Team.guild_id == ctx.guild.id) & (Team.pro_league == 1)
         ).order_by(-sort_field)
         for counter, team in enumerate(query):
             team_role = discord.utils.get(ctx.guild.roles, name=team.name)

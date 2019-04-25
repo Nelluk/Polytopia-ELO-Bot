@@ -33,6 +33,7 @@ class Team(BaseModel):
     image_url = TextField(null=True)
     guild_id = BitField(unique=False, null=False)
     is_hidden = BooleanField(default=False)             # True = generic team ie Home/Away, False = server team like Ronin
+    pro_league = BooleanField(default=True)
 
     class Meta:
         indexes = ((('name', 'guild_id'), True),)   # Trailing comma is required
