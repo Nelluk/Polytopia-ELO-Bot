@@ -408,15 +408,15 @@ class administration:
         """
 
         try:
-            matching_teams = models.Team.get_or_except(old_team_name, ctx.guild.id)
+            team = models.Team.get_or_except(old_team_name, ctx.guild.id)
         except exceptions.NoSingleMatch as ex:
             return await ctx.send(f'{ex}\nExample: `{ctx.prefix}team_name \"Current name\" \"New Team Name\"`')
 
-        team = matching_teams[0]
+        old_name = team.name
         team.name = new_team_name
         team.save()
 
-        await ctx.send('Team **{}** has been renamed to **{}**.'.format(old_team_name, new_team_name))
+        await ctx.send(f'Team **{old_name}** has been renamed to **{team.name}**.')
 
     @commands.command()
     @settings.is_mod_check()
