@@ -529,6 +529,10 @@ class elo_games():
         embed.add_field(name='Results', value=f'ELO: {team.elo}   Wins {wins} / Losses {losses}', inline=False)
 
         if team_role:
+            if completed_flag:
+                header_str = '__Player - ELO - Ranking - Completed Games__'
+            else:
+                header_str = '__Player - ELO - Ranking - Recent Games__'
             for member in team_role.members:
                 if mia_role and mia_role in member.roles:
                     continue
@@ -548,10 +552,8 @@ class elo_games():
                     rank_str = f'#{lb_rank}' if lb_rank else '-'
                     if completed_flag:
                         games_played = p[0].completed_game_count()
-                        header_str = '__Player - ELO - Ranking - Completed Games__'
                     else:
                         games_played = p[0].games_played(in_days=30).count()
-                        header_str = '__Player - ELO - Ranking - Recent Games__'
                     member_stats.append(({p[0].discord_member.name}, games_played, f'`{p[0].discord_member.name[:23]:.<25}{p[0].elo:.<8}{rank_str:.<6}{games_played:.<4}`'))
 
             member_stats.sort(key=lambda tup: tup[1], reverse=True)     # sort the list descending by recent games played
