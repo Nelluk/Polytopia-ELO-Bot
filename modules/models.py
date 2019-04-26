@@ -267,11 +267,14 @@ class DiscordMember(BaseModel):
         return q.dicts()
 
     def members_not_on_polychamps():
-        # settings.server_ids['polychampions']
+        # two_weeks = (datetime.datetime.now() + datetime.timedelta(days=-14))
+
         subq_members_in_polychamps = Player.select(Player.discord_member).where(Player.guild_id == settings.server_ids['polychampions'])
 
         query = DiscordMember.select().where(
-            (DiscordMember.id.not_in(subq_members_in_polychamps)) & (DiscordMember.elo_max > 1075) & (DiscordMember.is_banned == 0)
+            (DiscordMember.id.not_in(subq_members_in_polychamps)) & (DiscordMember.elo_max > 1075) & (DiscordMember.is_banned == 0) &
+            # ((DiscordMember.date_polychamps_invite_sent < two_weeks) | (DiscordMember.date_polychamps_invite_sent.is_null(True)))
+            (DiscordMember.date_polychamps_invite_sent.is_null(True))
         )
 
         return query

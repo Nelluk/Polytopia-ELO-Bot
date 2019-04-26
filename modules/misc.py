@@ -21,6 +21,7 @@ class misc:
     def __init__(self, bot):
         self.bot = bot
         self.bg_task = bot.loop.create_task(self.task_broadcast_newbie_message())
+        self.bg_task = bot.loop.create_task(self.task_send_polychamps_invite())
 
     @commands.command(hidden=True, aliases=['ts'])
     @commands.is_owner()
@@ -313,6 +314,43 @@ class misc:
             team_away.append(new_away)
 
         await ctx.send(f'Home Team: {" / ".join(team_home)}\nAway Team: {" / ".join(team_away)}')
+
+    async def task_send_polychamps_invite(self):
+        await self.bot.wait_until_ready()
+
+        message = ('You have met the qualifications to be invited to the **PolyChampions** discord server! '
+                   'PolyChampions is a competitive Polytopia server organized into a league, with a focus on team (2v2 and 3v3) games.'
+                   '\n To join use this invite link: https://discord.gg/cX7Ptnv')
+        while not self.bot.is_closed():
+            sleep_cycle = (60 * 60 * 6)
+            await asyncio.sleep(30)
+            logger.info('Running task task_send_polychamps_invite')
+            guild = discord.utils.get(self.bot.guilds, id=settings.server_ids['main'])
+            if not guild:
+                logger.warn('Could not load guild via server_id')
+                break
+            dms = models.DiscordMember.members_not_on_polychamps()
+            logger.info(f'{len(dms)} discordmember results')
+            for dm in dms:
+                if dm.wins().count() < 5:
+                    logger.debug(f'Skipping {dm.name} - insufficient winning games')
+                    continue
+                    if dm.games_played(in_days=15).count() < 1:
+                        logger.debug(f'Skipping {dm.name} - insufficient recent games')
+                        continue
+                logger.debug(f'Sending invite to {dm.name}')
+                guild_member = guild.get_member(dm.discord_id)
+                if not guild_member:
+                    logger.debug(f'Could not load {dm.name} from guild {guild.id}')
+                    continue
+                try:
+                    await guild_member.send(message)
+                except discord.DiscordException as e:
+                    logger.warn(f'Error DMing member: {e}')
+                else:
+                    dm.date_polychamps_invite_sent = datetime.datetime.today()
+                    dm.save()
+            await asyncio.sleep(sleep_cycle)
 
     async def task_broadcast_newbie_message(self):
         await self.bot.wait_until_ready()
