@@ -35,10 +35,10 @@ class misc:
             if dm.wins().count() < 5:
                 logger.debug(f'Skipping {dm.name} - insufficient winning games')
                 continue
-                if dm.games_played(in_days=90).count() < 1:
+                if dm.games_played(in_days=15).count() < 1:
                     logger.debug(f'Skipping {dm.name} - insufficient recent games')
                     continue
-            print(f'VALID {dm.name}')
+            logger.debug(f'VALID {dm.name}')
         print(f'Took {timer() - start} seconds.')
 
     @commands.command(hidden=True, aliases=['bge'])
