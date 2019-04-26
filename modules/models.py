@@ -109,6 +109,7 @@ class DiscordMember(BaseModel):
     polytopia_name = TextField(null=True)
     is_banned = BooleanField(default=False)
     timezone_offset = SmallIntegerField(default=None, null=True)
+    date_polychamps_invite_sent = DateField(default=None, null=True)
 
     def advanced_stats(self):
 
@@ -264,6 +265,16 @@ class DiscordMember(BaseModel):
         ).group_by(Lineup.tribe, Tribe.name).order_by(-SQL('tribe_count')).limit(limit)
 
         return q.dicts()
+
+    def members_not_on_polychamps():
+        # settings.server_ids['polychampions']
+        subq_members_in_polychamps = Player.select(Player.discord_member).where(Player.guild_id == settings.server_ids['polychampions'])
+
+        query = DiscordMember.select().where(
+            (DiscordMember.id.not_in(subq_members_in_polychamps)) & (DiscordMember.elo_max > 1075) & (DiscordMember.is_banned == 0)
+        )
+
+        return query
 
 
 class Player(BaseModel):
@@ -843,7 +854,7 @@ class Game(BaseModel):
             embed_content = None
 
         if guild.id != settings.server_ids['polychampions']:
-            embed.add_field(value='Powered by **PolyChampions** - https://discord.gg/cX7Ptnv', name='\u200b', inline=False)
+            # embed.add_field(value='Powered by **PolyChampions** - https://discord.gg/cX7Ptnv', name='\u200b', inline=False)
             embed.set_author(name='PolyChampions', url='https://discord.gg/cX7Ptnv', icon_url='https://cdn.discordapp.com/emojis/488510815893323787.png?v=1')
 
         if self.host:

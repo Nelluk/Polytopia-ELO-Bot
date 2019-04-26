@@ -590,10 +590,10 @@ class matchmaking():
         self.bot.loop.create_task(utilities.paginate(self.bot, ctx, title=title_str_full, message_list=gamelist_fields, page_start=0, page_end=15, page_size=15))
         # paginator done as a task because otherwise it will not let the waitlist message send until after pagination is complete (20+ seconds)
 
-        if ctx.guild.id != settings.server_ids['polychampions']:
-            await asyncio.sleep(1)
-            await ctx.send('Powered by PolyChampions. League server with a focus on team play:\n'
-                '<https://tinyurl.com/polychampions>')
+        # if ctx.guild.id != settings.server_ids['polychampions']:
+        #     await asyncio.sleep(1)
+        #     await ctx.send('Powered by PolyChampions. League server with a focus on team play:\n'
+        #         '<https://tinyurl.com/polychampions>')
 
         # Alert user if a game they are hosting OR should be creating is waiting to be created
         waitlist_hosting = [f'{g.id}' for g in models.Game.search_pending(status_filter=1, guild_id=ctx.guild.id, host_discord_id=ctx.author.id)]

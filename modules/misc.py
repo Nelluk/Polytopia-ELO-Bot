@@ -29,9 +29,15 @@ class misc:
         from timeit import default_timer as timer
         start = timer()
 
-        player, _ = models.Player.get_by_discord_id(discord_id=ctx.author.id, discord_name=ctx.author.name, discord_nick=ctx.author.nick, guild_id=ctx.guild.id)
-        games_list = player.discord_member.advanced_stats()
-        print(games_list)
+        dms = models.DiscordMember.members_not_on_polychamps()
+        for dm in dms:
+            if dm.wins().count() < 5:
+                print(f'Skipping {dm.name} - insufficient winning games')
+                continue
+                if dm.games_played(in_days=90).count() < 1:
+                    print(f'Skipping {dm.name} - insufficient recent games')
+                    continue
+            print(f'VALID {dm.name}')
         print(f'Took {timer() - start} seconds.')
 
     @commands.command(hidden=True, aliases=['bge'])

@@ -36,7 +36,8 @@ migrator = PostgresqlMigrator(db)
 # elo_change_team_alltime = SmallIntegerField(default=0)
 # elo_alltime = SmallIntegerField(default=1000)
 # game_chan = BitField(default=None, null=True)
-pro_league = BooleanField(default=True)
+# pro_league = BooleanField(default=True)
+date_polychamps_invite_sent = DateField(default=None, null=True)
 
 migrate(
     # migrator.add_column('discordmember', 'elo_max', elo_max),
@@ -48,7 +49,7 @@ migrate(
     # migrator.add_column('gameside', 'win_confirmed', win_confirmed)
     # migrator.add_column('gameside', 'elo_change_team_alltime', elo_change_team_alltime),
     # migrator.add_column('team', 'elo_alltime', elo_alltime)
-    migrator.add_column('team', 'pro_league', pro_league)
+    migrator.add_column('discordmember', 'date_polychamps_invite_sent', date_polychamps_invite_sent)
 
 
 )
