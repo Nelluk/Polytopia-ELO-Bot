@@ -385,11 +385,10 @@ class administration:
             # This is a very dumb check to make sure user is passing a URL and not a random string. Assumes mod can figure it out from there.
 
         try:
-            matching_teams = models.Team.get_or_except(team_name, ctx.guild.id)
+            team = models.Team.get_or_except(team_name, ctx.guild.id)
         except exceptions.NoSingleMatch as ex:
             return await ctx.send(f'{ex}\nExample: `{ctx.prefix}team_emoji name :my_custom_emoji:`')
 
-        team = matching_teams[0]
         team.image_url = image_url
         team.save()
 
