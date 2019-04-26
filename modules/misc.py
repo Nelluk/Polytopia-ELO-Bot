@@ -30,12 +30,13 @@ class misc:
         start = timer()
 
         dms = models.DiscordMember.members_not_on_polychamps()
+        logger.debug(f'{len(dms)} discordmember results')
         for dm in dms:
             if dm.wins().count() < 5:
-                print(f'Skipping {dm.name} - insufficient winning games')
+                logger.debug(f'Skipping {dm.name} - insufficient winning games')
                 continue
                 if dm.games_played(in_days=90).count() < 1:
-                    print(f'Skipping {dm.name} - insufficient recent games')
+                    logger.debug(f'Skipping {dm.name} - insufficient recent games')
                     continue
             print(f'VALID {dm.name}')
         print(f'Took {timer() - start} seconds.')
