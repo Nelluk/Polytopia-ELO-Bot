@@ -445,14 +445,17 @@ class administration:
                 if player.games_played(in_days=7).count() == 0:
                     logger.debug(f'Player {player.name} has not played in any recent games.')
                     continue
-                team_game_count, league_teams_represented, qualifying_games = 0, [], []
+
+                team_game_count = 0
+                league_teams_represented, qualifying_games = [], []
+
                 for lineup in player.games_played():
                     game = lineup.game
                     if not game.is_ranked or game.largest_team() == 1:
                         continue
                     team_game_count += 1
                     for lineup in game.lineup:
-                        if lineup.player.team not in league_teams_represented and lineup.player.team != player.team:
+                        if lineup.player.team not in league_teams_represented and lineup.player.team != player.team and lineup.gameside.team != player.team:
                             league_teams_represented.append(lineup.player.team)
                             if str(game.id) not in qualifying_games:
                                 qualifying_games.append(str(game.id))
