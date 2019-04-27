@@ -420,6 +420,50 @@ class administration:
     @commands.command()
     @settings.is_mod_check()
     @settings.on_polychampions()
+    async def grad_novas(self, ctx, *, arg=None):
+        """*Mods*: Purge inactive Novas
+        Purges the 'Novas' role from any player who either:
+        A) Joined more than a week ago and has no registered poly code, or
+        B) Join more than 6 weeks ago and has no games registered with the bot in the last 8 weeks.
+        """
+
+        role = discord.utils.get(ctx.guild.roles, name='The Novas')
+        # role = discord.utils.get(ctx.guild.roles, name='testers')
+
+        await ctx.send(f'Testing auto-graduation')
+        async with ctx.typing():
+            for member in role.members:
+                try:
+                    dm = models.DiscordMember.get(discord_id=member.id)
+                    player = models.Player.get(discord_member=dm, guild_id=ctx.guild.id)
+                except peewee.DoesNotExist:
+                    logger.debug(f'Player {member.name} not registered.')
+                    continue
+                if player.completed_game_count() < 3:
+                    logger.debug(f'Player {member.name} has not completed enough ranked games.')
+                    continue
+                team_game_count, league_teams_represented, qualifying_games = 0, [], []
+                for lineup in player.games_played():
+                    game = lineup.game
+                    if not game.is_ranked or game.largest_team() == 1:
+                        continue
+                    team_game_count += 1
+                    for lineup in game.lineup:
+                        if lineup.player.team not in league_teams_represented and lineup.player.team != player.team:
+                            league_teams_represented.append(lineup.player.team)
+                            qualifying_games.append(str(game.id))
+                if team_game_count < 3:
+                    logger.debug(f'Player {member.name} has not completed enough team games.')
+                    continue
+                if len(league_teams_represented) < 3:
+                    logger.debug(f'Player {member.name} has not played with enough league members.')
+                    continue
+                logger.debug(f'Player {member.name} meets qualifications: {qualifying_games}')
+                await ctx.send(f'Player {member.name} qualifies for graduation on the basis of games: {" ".join(qualifying_games)}')
+
+    @commands.command()
+    @settings.is_mod_check()
+    @settings.on_polychampions()
     async def purge_novas(self, ctx, *, arg=None):
         """*Mods*: Purge inactive Novas
         Purges the 'Novas' role from any player who either:
