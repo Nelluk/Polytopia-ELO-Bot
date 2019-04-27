@@ -440,7 +440,10 @@ class administration:
                     logger.debug(f'Player {member.name} not registered.')
                     continue
                 if player.completed_game_count() < 3:
-                    logger.debug(f'Player {member.name} has not completed enough ranked games.')
+                    logger.debug(f'Player {player.name} has not completed enough ranked games.')
+                    continue
+                if player.games_played(in_days=7).count() == 0:
+                    logger.debug(f'Player {player.name} has not played in any recent games.')
                     continue
                 team_game_count, league_teams_represented, qualifying_games = 0, [], []
                 for lineup in player.games_played():
@@ -451,15 +454,16 @@ class administration:
                     for lineup in game.lineup:
                         if lineup.player.team not in league_teams_represented and lineup.player.team != player.team:
                             league_teams_represented.append(lineup.player.team)
-                            qualifying_games.append(str(game.id))
+                            if str(game.id) not in qualifying_games:
+                                qualifying_games.append(str(game.id))
                 if team_game_count < 3:
-                    logger.debug(f'Player {member.name} has not completed enough team games.')
+                    logger.debug(f'Player {player.name} has not completed enough team games.')
                     continue
                 if len(league_teams_represented) < 3:
-                    logger.debug(f'Player {member.name} has not played with enough league members.')
+                    logger.debug(f'Player {player.name} has not played with enough league members.')
                     continue
-                logger.debug(f'Player {member.name} meets qualifications: {qualifying_games}')
-                await ctx.send(f'Player {member.name} qualifies for graduation on the basis of games: {" ".join(qualifying_games)}')
+                logger.debug(f'Player {player.name} meets qualifications: {qualifying_games}')
+                await ctx.send(f'Player {player.name} qualifies for graduation on the basis of games: {" ".join(qualifying_games)}')
 
     @commands.command()
     @settings.is_mod_check()
