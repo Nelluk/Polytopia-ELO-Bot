@@ -335,9 +335,9 @@ class misc:
                 if dm.wins().count() < 5:
                     logger.debug(f'Skipping {dm.name} - insufficient winning games')
                     continue
-                    if dm.games_played(in_days=15).count() < 1:
-                        logger.debug(f'Skipping {dm.name} - insufficient recent games')
-                        continue
+                if dm.games_played(in_days=15).count() < 1:
+                    logger.debug(f'Skipping {dm.name} - insufficient recent games')
+                    continue
                 logger.debug(f'Sending invite to {dm.name}')
                 guild_member = guild.get_member(dm.discord_id)
                 if not guild_member:
