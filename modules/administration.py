@@ -427,8 +427,16 @@ class administration:
         B) Join more than 6 weeks ago and has no games registered with the bot in the last 8 weeks.
         """
 
+        grad_count = 0
         role = discord.utils.get(ctx.guild.roles, name='The Novas')
-        # role = discord.utils.get(ctx.guild.roles, name='testers')
+        grad_role = discord.utils.get(ctx.guild.roles, name='Novas Grad')
+        recruiter_role = discord.utils.get(ctx.guild.roles, name='Team Recruiter')
+        grad_chan = ctx.guild.get_channel(540332800927072267)  # Novas draft talk
+        if ctx.guild.id == settings.server_ids['test']:
+            role = discord.utils.get(ctx.guild.roles, name='testers')
+            grad_role = discord.utils.get(ctx.guild.roles, name='Team Leader')
+            recruiter_role = discord.utils.get(ctx.guild.roles, name='role1')
+            grad_chan = ctx.guild.get_channel(479292913080336397)  # bot spam
 
         await ctx.send(f'Testing auto-graduation')
         async with ctx.typing():
@@ -438,6 +446,9 @@ class administration:
                     player = models.Player.get(discord_member=dm, guild_id=ctx.guild.id)
                 except peewee.DoesNotExist:
                     logger.debug(f'Player {member.name} not registered.')
+                    continue
+                if grad_role in member.roles:
+                    logger.debug(f'Player {player.name} already has the graduate role.')
                     continue
                 if player.completed_game_count() < 3:
                     logger.debug(f'Player {player.name} has not completed enough ranked games.')
@@ -465,8 +476,14 @@ class administration:
                 if len(league_teams_represented) < 3:
                     logger.debug(f'Player {player.name} has not played with enough league members.')
                     continue
+
+                wins, losses = dm.get_record()
                 logger.debug(f'Player {player.name} meets qualifications: {qualifying_games}')
-                await ctx.send(f'Player {player.name} qualifies for graduation on the basis of games: {" ".join(qualifying_games)}')
+                grad_count += 1
+                await member.add_roles(grad_role)
+                await grad_chan.send(f'Player {member.mention} (*Global ELO: {dm.elo} \u00A0\u00A0\u00A0\u00A0W {wins} / L {losses}*) qualifies for graduation on the basis of games: `{" ".join(qualifying_games)}`')
+            if grad_count:
+                await grad_chan.send(f'{recruiter_role.mention} the above player(s) meet the qualifications for graduation. DM <@217385992837922819> to express interest.')
 
     @commands.command()
     @settings.is_mod_check()
