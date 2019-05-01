@@ -110,6 +110,23 @@ config = {'default':
                       'bot_channels_strict': [448493503702630400],
                       'bot_channels': [448493503702630400],
                       'game_channel_categories': []},
+        492753802450173987:                           # Crawfish team server
+                     {'helper_roles': ['Crawfish'],
+                      'mod_roles': ['Horse of the Sea', 'Lord of the Deep'],
+                      'user_roles_level_4': ['@everyone'],  # power user
+                      'user_roles_level_3': ['@everyone'],  # power user
+                      'user_roles_level_2': ['@everyone'],  # normal user
+                      'user_roles_level_1': ['@everyone'],  # restricted user/newbie
+                      'display_name': 'Team Sparkies',
+                      'require_teams': False,
+                      'allow_teams': True,
+                      'allow_uneven_teams': True,
+                      'max_team_size': 6,
+                      'command_prefix': '$',
+                      'include_in_global_lb': False,
+                      'bot_channels_strict': [573126655539937306],
+                      'bot_channels': [573126655539937306],
+                      'game_channel_categories': [573125716535803905]},
         447883341463814144:                           # Polychampions
                      {'helper_roles': ['Helper', 'ELO-Helper', 'Team Leader'],
                       'mod_roles': ['Mod'],
