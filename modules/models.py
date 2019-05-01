@@ -34,6 +34,7 @@ class Team(BaseModel):
     guild_id = BitField(unique=False, null=False)
     is_hidden = BooleanField(default=False)             # True = generic team ie Home/Away, False = server team like Ronin
     pro_league = BooleanField(default=True)
+    external_server = BitField(unique=False, null=True)
 
     class Meta:
         indexes = ((('name', 'guild_id'), True),)   # Trailing comma is required
@@ -309,7 +310,6 @@ class Player(BaseModel):
     def upsert(discord_id, guild_id, discord_name=None, discord_nick=None, team=None):
         # Stopped using postgres upsert on_conflict() because it only returns row ID so its annoying to use
         display_name = Player.generate_display_name(player_name=discord_name, player_nick=discord_nick)
-
         try:
             with db.atomic():
                 discord_member = DiscordMember.create(discord_id=discord_id, name=discord_name)
@@ -626,7 +626,8 @@ class Game(BaseModel):
             value = value.strip('\"').strip('\'').strip('”').strip('“').title()[:35].strip() if value else value
         return super().__setattr__(name, value)
 
-    async def create_game_channels(self, guild):
+    async def create_game_channels(self, guild_list, guild_id):
+        guild = discord.utils.get(guild_list, id=guild_id)
         game_roster = []
         ordered_side_list = list(self.ordered_side_list())
 
@@ -637,18 +638,27 @@ class Game(BaseModel):
         roster_names = '\n'.join(game_roster)  # "Side **Home**: Nelluk, player2\n Side **Away**: Player 3, Player 4"
 
         for gameside in ordered_side_list:
-            # player_list = [r[0] for r in gameside.roster()]
+            if gameside.team.external_server and discord.utils.get(guild_list, id=gameside.team.external_server):
+                side_guild = discord.utils.get(guild_list, id=gameside.team.external_server)  # use team-specific external server
+                using_team_server_flag = True
+                logger.debug('using external guild to create team channel')
+            else:
+                side_guild = guild  # use current guild (ctx.guild)
+                using_team_server_flag = False
+
             player_list = [l.player for l in gameside.ordered_player_list()]
             if len(player_list) < 2:
                 continue
             if len(guild.text_channels) > 475 and len(player_list) < 3:
                 raise exceptions.MyBaseException('Server has nearly reached the maximum number of channels: skipping channel creation for this game.')
-            chan = await channels.create_game_channel(guild, game=self, team_name=gameside.team.name, player_list=player_list)
+            chan = await channels.create_game_channel(side_guild, game=self, team_name=gameside.team.name, player_list=player_list, using_team_server_flag=using_team_server_flag)
             if chan:
                 gameside.team_chan = chan.id
+                if side_guild.id != guild_id:
+                    gameside.team_chan_external_server = side_guild.id
                 gameside.save()
 
-                await channels.greet_game_channel(guild, chan=chan, player_list=player_list, roster_names=roster_names, game=self, full_game=False)
+                await channels.greet_game_channel(side_guild, chan=chan, player_list=player_list, roster_names=roster_names, game=self, full_game=False)
 
         if (len(ordered_side_list) > 2 and len(self.lineup) > 5) or len(ordered_side_list) > 3:
             # create game channel for larger games - 4+ sides, or 3+ sides with 6+ players
@@ -659,7 +669,8 @@ class Game(BaseModel):
                 self.save()
                 await channels.greet_game_channel(guild, chan=chan, player_list=player_list, roster_names=roster_names, game=self, full_game=True)
 
-    async def delete_game_channels(self, guild):
+    async def delete_game_channels(self, guild_list, guild_id):
+        guild = discord.utils.get(guild_list, id=guild_id)
 
         if self.name and (self.name.lower()[:2] == 's4' or self.name.lower()[:2] == 's5' or self.name.lower()[:3] == 'wwn'):
             last_week = (datetime.datetime.now() + datetime.timedelta(days=-7))
@@ -668,7 +679,14 @@ class Game(BaseModel):
 
         for gameside in self.gamesides:
             if gameside.team_chan:
-                await channels.delete_game_channel(guild, channel_id=gameside.team_chan)
+                if gameside.team_chan_external_server:
+                    side_guild = discord.utils.get(guild_list, id=gameside.team_chan_external_server)
+                    if not side_guild:
+                        logger.warn(f'Could not load guild where external team channel is located, gameside ID {gameside.id} guild {gameside.team_chan_external_server}')
+                        continue
+                else:
+                    side_guild = guild
+                await channels.delete_game_channel(side_guild, channel_id=gameside.team_chan)
                 gameside.team_chan = None
                 gameside.save()
 
@@ -677,14 +695,22 @@ class Game(BaseModel):
             self.game_chan = None
             self.save()
 
-    async def update_squad_channels(self, guild, message: str = None):
+    async def update_squad_channels(self, guild_list, guild_id, message: str = None):
+        guild = discord.utils.get(guild_list, id=guild_id)
 
         for gameside in self.gamesides:
             if gameside.team_chan:
-                if message:
-                    await channels.send_message_to_channel(guild, channel_id=gameside.team_chan, message=message)
+                if gameside.team_chan_external_server:
+                    side_guild = discord.utils.get(guild_list, id=gameside.team_chan_external_server)
+                    if not side_guild:
+                        logger.warn(f'Could not load guild where external team channel is located, gameside ID {gameside.id} guild {gameside.team_chan_external_server}')
+                        continue
                 else:
-                    await channels.update_game_channel_name(guild, channel_id=gameside.team_chan, game_id=self.id, game_name=self.name, team_name=gameside.team.name)
+                    side_guild = guild
+                if message:
+                    await channels.send_message_to_channel(side_guild, channel_id=gameside.team_chan, message=message)
+                else:
+                    await channels.update_game_channel_name(side_guild, channel_id=gameside.team_chan, game_id=self.id, game_name=self.name, team_name=gameside.team.name)
 
         if self.game_chan:
             if message:
@@ -1931,6 +1957,7 @@ class GameSide(BaseModel):
     size = SmallIntegerField(null=False, default=1)
     position = SmallIntegerField(null=False, unique=False, default=1)
     win_confirmed = BooleanField(default=False)
+    team_chan_external_server = BitField(unique=False, null=True, default=None)
 
     def has_same_players_as(self, gameside):
         # Given side1.has_same_players_as(side2)

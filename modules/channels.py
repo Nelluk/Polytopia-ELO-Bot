@@ -67,7 +67,7 @@ def get_channel_category(guild, team_name: str = None):
     return None, None
 
 
-async def create_game_channel(guild, game, player_list, team_name: str = None):
+async def create_game_channel(guild, game, player_list, team_name: str = None, using_team_server_flag: bool = False):
     chan_cat, team_cat_flag = get_channel_category(guild, team_name)
     if chan_cat is None:
         logger.error(f'in create_squad_channel - cannot proceed due to None category')
@@ -82,7 +82,7 @@ async def create_game_channel(guild, game, player_list, team_name: str = None):
     chan_name = generate_channel_name(game_id=game.id, game_name=game.name, team_name=team_name)
     chan_members = [guild.get_member(p.discord_member.discord_id) for p in player_list]
 
-    if team_cat_flag:
+    if team_cat_flag or using_team_server_flag:
         # Channel is going into team-specific category, so let its permissions sync
         chan_permissions = None
     else:
@@ -113,7 +113,8 @@ async def create_game_channel(guild, game, player_list, team_name: str = None):
 
 async def greet_game_channel(guild, chan, roster_names, game, player_list, full_game: bool = False):
 
-    chan_mentions = [guild.get_member(p.discord_member.discord_id).mention for p in player_list]
+    chan_mentions = [f'<@{p.discord_member.discord_id}>' for p in player_list]
+
     if full_game:
         allies_str = f'Participants in this game are {" / ".join(chan_mentions)}\n'
         chan_type_str = '**full game channel**'

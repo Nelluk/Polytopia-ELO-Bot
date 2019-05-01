@@ -227,7 +227,7 @@ class administration:
             game.name = f'~~{game.name}~~ GAME CANCELLED'
             await game.update_announcement(guild=ctx.guild, prefix=ctx.prefix)
 
-        await game.delete_game_channels(ctx.guild)
+        await game.delete_game_channels(self.bot.guilds, ctx.guild.id)
 
         game.is_pending = True
         tomorrow = (datetime.datetime.now() + datetime.timedelta(hours=24))
@@ -548,7 +548,7 @@ class administration:
 
             if len(game.lineup) == 3 and game.date < old_90d and not game.is_completed:
                 delete_result.append(f'Deleting incomplete 3-player game older than 90 days. - {game.get_headline()} - {game.date}{rank_str}')
-                await game.delete_game_channels(ctx.guild)
+                await game.delete_game_channels(self.bot.guilds, ctx.guild.id)
                 await self.bot.loop.run_in_executor(None, game.delete_game)
 
             if len(delete_result) >= 10:

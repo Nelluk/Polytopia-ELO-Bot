@@ -1148,7 +1148,7 @@ class elo_games():
             game.name = f'~~{game.name}~~ GAME DELETED'
             await game.update_announcement(guild=ctx.guild, prefix=ctx.prefix)
 
-        await game.delete_game_channels(ctx.guild)
+        await game.delete_game_channels(self.bot.guilds, ctx.guild.id)
 
         try:
             async with ctx.typing():
@@ -1188,7 +1188,7 @@ class elo_games():
 
         game.save()
 
-        await game.update_squad_channels(ctx.guild)
+        await game.update_squad_channels(self.bot.guilds, ctx.guild.id)
         await game.update_announcement(guild=ctx.guild, prefix=ctx.prefix)
 
         new_game_name = game.name if game.name else 'None'
@@ -1342,7 +1342,7 @@ class elo_games():
             for game in old_games:
                 guild = discord.utils.get(self.bot.guilds, id=game.guild_id)
                 if guild:
-                    await game.delete_game_channels(guild=guild)
+                    await game.delete_game_channels(self.bot.guilds, game.guild_id)
 
             await asyncio.sleep(60 * 60 * 2)
 
@@ -1359,8 +1359,7 @@ class elo_games():
 
 async def post_win_messaging(guild, prefix, current_chan, winning_game):
 
-    # await winning_game.delete_game_channels(guild=ctx.guild)
-    await winning_game.update_squad_channels(guild=guild, message=f'The game is over with **{winning_game.winner.name()}** victorious. *This channel will be purged soon.*')
+    await winning_game.update_squad_channels(guild_list=settings.bot.guilds, guild_id=guild.id, message=f'The game is over with **{winning_game.winner.name()}** victorious. *This channel will be purged soon.*')
     player_mentions = [f'<@{l.player.discord_member.discord_id}>' for l in winning_game.lineup]
     embed, content = winning_game.embed(guild=guild, prefix=prefix)
 
@@ -1399,7 +1398,8 @@ async def post_newgame_messaging(ctx, game):
 
     if settings.guild_setting(ctx.guild.id, 'game_channel_categories'):
         try:
-            await game.create_game_channels(ctx.guild)
+            # await game.create_game_channels(ctx.guild)
+            await game.create_game_channels(settings.bot.guilds, ctx.guild.id)
         except exceptions.MyBaseException as e:
             await ctx.send(f'Error during channel creation: {e}')
 

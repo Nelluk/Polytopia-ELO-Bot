@@ -25,6 +25,7 @@ bot = None
 team_elo_reset_date = '1/1/2019'
 
 # bot invite URL https://discordapp.com/oauth2/authorize?client_id=484067640302764042&scope=bot
+# bot invite URL for beta bot https://discordapp.com/oauth2/authorize?client_id=479029527553638401&scope=bot
 
 config = {'default':
                      {'helper_roles': ['Helper'],
@@ -51,7 +52,7 @@ config = {'default':
                       'game_request_channel': None,
                       'game_announce_channel': None,
                       'game_channel_categories': []},
-          478571892832206869:                           # Nelluk Test Server (discord server ID)
+        478571892832206869:                           # Nelluk Test Server (discord server ID)
                      {'helper_roles': ['testers'],
                       'mod_roles': ['role1'],
                       'display_name': 'Development Server',
@@ -69,7 +70,47 @@ config = {'default':
                       'game_request_channel': 480078679930830849,
                       'game_announce_channel': 481558031281160212,
                       'game_channel_categories': [493149162238640161, 493149183155503105]},
-          447883341463814144:                           # Polychampions
+        572885616656908288:                           # Ronin team Server
+                     {'helper_roles': ['Bot-helper'],
+                      'mod_roles': ['Admin', 'Mod'],
+                      'user_roles_level_4': ['@everyone'],  # power user
+                      'user_roles_level_3': ['@everyone'],  # power user
+                      'user_roles_level_2': ['@everyone'],  # normal user
+                      'user_roles_level_1': ['@everyone'],  # restricted user/newbie
+                      'display_name': 'Team Ronin',
+                      'require_teams': False,
+                      'allow_teams': True,
+                      'allow_uneven_teams': True,
+                      'max_team_size': 6,
+                      'command_prefix': '$',
+                      'include_in_global_lb': False,
+                      # 'bot_channels_private': [],
+                      # 'bot_channels_strict': [568091652506255377],
+                      # 'bot_channels': [568091652506255377],
+                      'ranked_game_channel': None,
+                      'unranked_game_channel': None,
+                      'match_challenge_channels': [],
+                      'game_request_channel': None,  # $staffhelp output
+                      'game_announce_channel': None,  # elo-drafts
+                      'game_channel_categories': [572888210959499264]},
+        448323425971470336:                           # Sparkies team server
+                     {'helper_roles': ['Team Co-Leader'],
+                      'mod_roles': ['Team Leader'],
+                      'user_roles_level_4': ['@everyone'],  # power user
+                      'user_roles_level_3': ['@everyone'],  # power user
+                      'user_roles_level_2': ['@everyone'],  # normal user
+                      'user_roles_level_1': ['@everyone'],  # restricted user/newbie
+                      'display_name': 'Team Sparkies',
+                      'require_teams': False,
+                      'allow_teams': True,
+                      'allow_uneven_teams': True,
+                      'max_team_size': 6,
+                      'command_prefix': '$',
+                      'include_in_global_lb': False,
+                      'bot_channels_strict': [448493503702630400],
+                      'bot_channels': [448493503702630400],
+                      'game_channel_categories': []},
+        447883341463814144:                           # Polychampions
                      {'helper_roles': ['Helper', 'ELO-Helper', 'Team Leader'],
                       'mod_roles': ['Mod'],
                       'user_roles_level_4': ['Team Co-Leader', 'ELO Hero'],  # power user
