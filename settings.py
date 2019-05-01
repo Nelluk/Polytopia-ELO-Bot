@@ -127,7 +127,7 @@ config = {'default':
                       'bot_channels_strict': [573126655539937306],
                       'bot_channels': [573126655539937306],
                       'game_channel_categories': [573125716535803905]},
-        492753802450173987:                           # Bombers team server
+        465333914312114177:                           # Bombers team server
                      {'helper_roles': ['Bomber'],
                       'mod_roles': ['Leader', 'Coleader'],
                       'user_roles_level_4': ['@everyone'],  # power user
