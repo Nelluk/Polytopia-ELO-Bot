@@ -71,8 +71,8 @@ config = {'default':
                       'game_announce_channel': 481558031281160212,
                       'game_channel_categories': [493149162238640161, 493149183155503105]},
         572885616656908288:                           # Ronin team Server
-                     {'helper_roles': ['Bot-helper'],
-                      'mod_roles': ['Admin', 'Mod'],
+                     {'helper_roles': ['Team Co-Leader'],
+                      'mod_roles': ['Admin', 'Team Leader'],
                       'user_roles_level_4': ['@everyone'],  # power user
                       'user_roles_level_3': ['@everyone'],  # power user
                       'user_roles_level_2': ['@everyone'],  # normal user
@@ -85,8 +85,8 @@ config = {'default':
                       'command_prefix': '$',
                       'include_in_global_lb': False,
                       # 'bot_channels_private': [],
-                      # 'bot_channels_strict': [568091652506255377],
-                      # 'bot_channels': [568091652506255377],
+                      'bot_channels_strict': [573112316174925834],
+                      'bot_channels': [573112316174925834],
                       'ranked_game_channel': None,
                       'unranked_game_channel': None,
                       'match_challenge_channels': [],

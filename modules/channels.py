@@ -37,8 +37,8 @@ def get_channel_category(guild, team_name: str = None):
     # Bool_IsTeamCategory? == True if its using a team-specific category, False if using a central games category
 
     if guild.me.guild_permissions.manage_channels is not True:
-        logger.error('manage_channels permission is false.')
-        return None, None
+        logger.warn('manage_channels permission is false.')  # TODO: change this to see if bot has this perm in the category it selects
+        # return None, None
 
     if team_name:
         team_name = team_name.lower().replace('the', '').strip()  # The Ronin > ronin
