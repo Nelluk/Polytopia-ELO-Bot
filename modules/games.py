@@ -1211,6 +1211,9 @@ class elo_games():
         if not game:
             return await ctx.send(f'Game ID not provided. **Example usage:** `{ctx.prefix}{ctx.invoked_with} 1234 bardur`')
 
+        if not args:
+            return await ctx.send(f'Tribe name not provided. **Example usage:** `{ctx.prefix}{ctx.invoked_with} 1234 bardur`')
+
         if settings.get_user_level(ctx) < 4:
             perm_str = 'You only have permissions to set your own tribe.'
         else:
@@ -1219,6 +1222,8 @@ class elo_games():
         if settings.get_user_level(ctx) < 4 or len(args) == 1:
             # if non-priviledged user, force the command to be about the ctx.author
             args = (f'<@{ctx.author.id}>', args[0])
+
+        print(args)
 
         if len(args) % 2 != 0:
             return await ctx.send(f'Wrong number of arguments. See `{ctx.prefix}help settribe` for usage examples.')

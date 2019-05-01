@@ -177,7 +177,7 @@ config = {'default':
                       'include_in_global_lb': False,
                       'bot_channels_strict': [448608290012790794],
                       'bot_channels': [448608290012790794],
-                      'game_channel_categories': [476824275852984331]},
+                      'game_channel_categories': [573168256001769502]},
         447883341463814144:                           # Polychampions
                      {'helper_roles': ['Helper', 'ELO-Helper', 'Team Leader'],
                       'mod_roles': ['Mod'],
