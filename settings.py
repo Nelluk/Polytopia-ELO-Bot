@@ -117,7 +117,7 @@ config = {'default':
                       'user_roles_level_3': ['@everyone'],  # power user
                       'user_roles_level_2': ['@everyone'],  # normal user
                       'user_roles_level_1': ['@everyone'],  # restricted user/newbie
-                      'display_name': 'Team Sparkies',
+                      'display_name': 'Team Crawfish',
                       'require_teams': False,
                       'allow_teams': True,
                       'allow_uneven_teams': True,
@@ -127,6 +127,40 @@ config = {'default':
                       'bot_channels_strict': [573126655539937306],
                       'bot_channels': [573126655539937306],
                       'game_channel_categories': [573125716535803905]},
+        492753802450173987:                           # Bombers team server
+                     {'helper_roles': ['Bomber'],
+                      'mod_roles': ['Leader', 'Coleader'],
+                      'user_roles_level_4': ['@everyone'],  # power user
+                      'user_roles_level_3': ['@everyone'],  # power user
+                      'user_roles_level_2': ['@everyone'],  # normal user
+                      'user_roles_level_1': ['@everyone'],  # restricted user/newbie
+                      'display_name': 'Team Bombers',
+                      'require_teams': False,
+                      'allow_teams': True,
+                      'allow_uneven_teams': True,
+                      'max_team_size': 6,
+                      'command_prefix': '$',
+                      'include_in_global_lb': False,
+                      'bot_channels_strict': [573136597894168577],
+                      'bot_channels': [573136597894168577],
+                      'game_channel_categories': [573135845221990401]},
+        466331712591233035:                           # Wildfire team server
+                     {'helper_roles': ['Wildfire 🔥'],
+                      'mod_roles': ['Mood', 'Admoon', 'Inner Circle'],
+                      'user_roles_level_4': ['@everyone'],  # power user
+                      'user_roles_level_3': ['@everyone'],  # power user
+                      'user_roles_level_2': ['@everyone'],  # normal user
+                      'user_roles_level_1': ['@everyone'],  # restricted user/newbie
+                      'display_name': 'Team Wildfire',
+                      'require_teams': False,
+                      'allow_teams': True,
+                      'allow_uneven_teams': True,
+                      'max_team_size': 6,
+                      'command_prefix': '$',
+                      'include_in_global_lb': False,
+                      'bot_channels_strict': [573139313097965568],
+                      'bot_channels': [573139313097965568],
+                      'game_channel_categories': [476824275852984331]},
         447883341463814144:                           # Polychampions
                      {'helper_roles': ['Helper', 'ELO-Helper', 'Team Leader'],
                       'mod_roles': ['Mod'],
