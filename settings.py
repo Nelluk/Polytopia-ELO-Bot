@@ -161,6 +161,23 @@ config = {'default':
                       'bot_channels_strict': [573139313097965568],
                       'bot_channels': [573139313097965568],
                       'game_channel_categories': [476824275852984331]},
+        448608100199563274:                           # Lightning team server
+                     {'helper_roles': ['Lightning Team Member'],
+                      'mod_roles': ['Leader', 'Co Leader'],
+                      'user_roles_level_4': ['@everyone'],  # power user
+                      'user_roles_level_3': ['@everyone'],  # power user
+                      'user_roles_level_2': ['@everyone'],  # normal user
+                      'user_roles_level_1': ['@everyone'],  # restricted user/newbie
+                      'display_name': 'Team Lightning',
+                      'require_teams': False,
+                      'allow_teams': True,
+                      'allow_uneven_teams': True,
+                      'max_team_size': 6,
+                      'command_prefix': '$',
+                      'include_in_global_lb': False,
+                      'bot_channels_strict': [448608290012790794],
+                      'bot_channels': [448608290012790794],
+                      'game_channel_categories': [476824275852984331]},
         447883341463814144:                           # Polychampions
                      {'helper_roles': ['Helper', 'ELO-Helper', 'Team Leader'],
                       'mod_roles': ['Mod'],
@@ -271,9 +288,28 @@ config = {'default':
                       'ranked_game_channel': None,
                       'unranked_game_channel': None,
                       'match_challenge_channels': [],
-                      'game_request_channel': None,  # $staffhelp output
-                      'game_announce_channel': None,  # elo-drafts
-                      'game_channel_categories': [568404156352561163]}
+                      'game_channel_categories': [568404156352561163]},
+        419286093360529420:                           # Pooltopia, run by Bomber
+                     {'helper_roles': ['pooltopia'],
+                      'mod_roles': ['mod', 'pooltopian'],
+                      'user_roles_level_4': ['@everyone'],  # power user
+                      'user_roles_level_3': ['@everyone'],  # power user
+                      'user_roles_level_2': ['@everyone'],  # normal user
+                      'user_roles_level_1': ['@everyone'],  # restricted user/newbie
+                      'display_name': 'Pooltopia',
+                      'require_teams': False,
+                      'allow_teams': True,
+                      'allow_uneven_teams': True,
+                      'max_team_size': 3,
+                      'command_prefix': '$',
+                      'include_in_global_lb': False,
+                      'bot_channels_private': [],
+                      'bot_channels_strict': [511371377966579712],
+                      'bot_channels': [511371377966579712],
+                      'ranked_game_channel': None,
+                      'unranked_game_channel': None,
+                      'match_challenge_channels': [],
+                      'game_channel_categories': []}
 
           }
 
