@@ -178,6 +178,23 @@ config = {'default':
                       'bot_channels_strict': [448608290012790794],
                       'bot_channels': [448608290012790794],
                       'game_channel_categories': [573168256001769502]},
+        573171339620515862:                           # Mallards team server
+                     {'helper_roles': ['@everyone'],
+                      'mod_roles': ['Mod'],
+                      'user_roles_level_4': ['@everyone'],  # power user
+                      'user_roles_level_3': ['@everyone'],  # power user
+                      'user_roles_level_2': ['@everyone'],  # normal user
+                      'user_roles_level_1': ['@everyone'],  # restricted user/newbie
+                      'display_name': 'Team Mallards',
+                      'require_teams': False,
+                      'allow_teams': True,
+                      'allow_uneven_teams': True,
+                      'max_team_size': 6,
+                      'command_prefix': '$',
+                      'include_in_global_lb': False,
+                      'bot_channels_strict': [573312345699516427],
+                      'bot_channels': [573312345699516427],
+                      'game_channel_categories': [573304161911963648]},
         447883341463814144:                           # Polychampions
                      {'helper_roles': ['Helper', 'ELO-Helper', 'Team Leader'],
                       'mod_roles': ['Mod'],
