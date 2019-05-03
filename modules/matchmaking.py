@@ -576,7 +576,7 @@ class matchmaking():
                     (min_elo, max_elo, min_elo_g, max_elo_g) = game.elo_requirements()
                     if player.elo < min_elo or player.elo > max_elo or player.discord_member.elo < min_elo_g or player.discord_member.elo > max_elo_g:
                         continue
-                if game.has_player(discord_id=ctx.author.id)[0]:
+                if game.has_player(discord_id=ctx.author.id)[0] and not game.is_hosted_by(ctx.author.id)[0]:
                     # skip games player is already joined
                     continue
 
