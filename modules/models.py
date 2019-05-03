@@ -1080,7 +1080,7 @@ class Game(BaseModel):
         logger.debug(f'pregame_check returning {teams_for_each_discord_member} // {list_of_final_teams}')
         return (teams_for_each_discord_member, list_of_final_teams)
 
-    def create_game(discord_groups, guild_id, name: str = None, require_teams: bool = False):
+    def create_game(discord_groups, guild_id, name: str = None, require_teams: bool = False, is_ranked: bool = True):
         # discord_groups = list of lists [[d1, d2, d3], [d4, d5, d6]]. each item being a discord.Member object
 
         teams_for_each_discord_member, list_of_final_teams = Game.pregame_check(discord_groups, guild_id, require_teams)
@@ -1088,7 +1088,8 @@ class Game(BaseModel):
 
         with db.atomic():
             newgame = Game.create(name=name,
-                                  guild_id=guild_id)
+                                  guild_id=guild_id,
+                                  is_ranked=is_ranked)
 
             side_position = 1
             for team_group, allied_team, discord_group in zip(teams_for_each_discord_member, list_of_final_teams, discord_groups):

@@ -910,7 +910,7 @@ class elo_games():
             await self.game_search(ctx=ctx, mode='WINS', arg_list=target_list)
 
     @settings.in_bot_channel()
-    @commands.command(usage='"Name of Game" player1 player2 vs player3 player4')
+    @commands.command(usage='"Name of Game" player1 player2 vs player3 player4', aliases=['newgameunranked'])
     # @settings.is_user_check()
     async def newgame(self, ctx, game_name: str = None, *args):
         """Adds an existing game to the bot for tracking
@@ -919,7 +919,10 @@ class elo_games():
         `[p]newgame "Name of Game" nelluk vs koric` - Sets up a 1v1 game
         `[p]newgame "Name of Game" koric` - Sets up a 1v1 game versus yourself and koric (shortcut)
         `[p]newgame "Name of Game" nelluk frodakcin vs bakalol ben` - Sets up a 2v2 game
+
+        Use `[p]newgameunranked` to create the game as unranked
         """
+        ranked_flag = False if ctx.invoked_with == 'newgameunranked' else True
         example_usage = (f'Example usage:\n`{ctx.prefix}newgame "Name of Game" player1 VS player2` - Start a 1v1 game\n'
                          f'`{ctx.prefix}newgame "Name of Game" player1 player2 VS player3 player4` - Start a 2v2 game')
 
@@ -1009,7 +1012,7 @@ class elo_games():
 
         with db.atomic():
             try:
-                newgame = Game.create_game(discord_groups, name=game_name, guild_id=ctx.guild.id, require_teams=settings.guild_setting(ctx.guild.id, 'require_teams'))
+                newgame = Game.create_game(discord_groups, name=game_name, is_ranked=ranked_flag, guild_id=ctx.guild.id, require_teams=settings.guild_setting(ctx.guild.id, 'require_teams'))
                 host_player, _ = Player.get_by_discord_id(discord_id=ctx.author.id, guild_id=ctx.guild.id)
                 if host_player:
                     newgame.host = host_player
@@ -1395,18 +1398,19 @@ async def post_newgame_messaging(ctx, game):
     mentions_list = [f'<@{l.player.discord_member.discord_id}>' for l in game.lineup]
 
     embed, content = game.embed(guild=ctx.guild, prefix=ctx.prefix)
+    ranked_str = 'unranked ' if not game.is_ranked else ''
 
     if settings.guild_setting(ctx.guild.id, 'game_announce_channel') is not None:
         channel = ctx.guild.get_channel(settings.guild_setting(ctx.guild.id, 'game_announce_channel'))
         if channel is not None:
-            await channel.send(f'New game ID **{game.id}** started! Roster: {" ".join(mentions_list)}')
+            await channel.send(f'New {ranked_str}game ID **{game.id}** started! Roster: {" ".join(mentions_list)}')
             announcement = await channel.send(embed=embed, content=content)
-            await ctx.send(f'New game ID **{game.id}** started! See {channel.mention} for full details.')
+            await ctx.send(f'New {ranked_str}game ID **{game.id}** started! See {channel.mention} for full details.')
             game.announcement_message = announcement.id
             game.announcement_channel = announcement.channel.id
             game.save()
     else:
-        await ctx.send(f'New game ID {game.id} started! Roster: {" ".join(mentions_list)}')
+        await ctx.send(f'New {ranked_str}game ID {game.id} started! Roster: {" ".join(mentions_list)}')
         await ctx.send(embed=embed, content=content)
 
     if settings.guild_setting(ctx.guild.id, 'game_channel_categories'):
