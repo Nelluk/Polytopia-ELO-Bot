@@ -368,7 +368,7 @@ class matchmaking():
             if (game.is_ranked and game_size) > 6 or (not game.is_ranked and game_size > 12):
                 return await ctx.send(f'You are a restricted user (*level 2*) - complete a few more ELO games to have more permissions.\n{settings.levels_info}')
 
-        notes = self.notes if self.notes else ''
+        notes = game.notes if game.notes else ''
         (min_elo, max_elo, min_elo_g, max_elo_g) = game.elo_requirements()
 
         if player.elo < min_elo or player.elo > max_elo:
