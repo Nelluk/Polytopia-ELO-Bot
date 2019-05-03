@@ -209,8 +209,8 @@ config = {'default':
                       'max_team_size': 6,
                       'command_prefix': '$',
                       'include_in_global_lb': False,
-                      'bot_channels_strict': [573583374388691008],
-                      'bot_channels': [573583374388691008],
+                      'bot_channels_strict': [573387785306767360],
+                      'bot_channels': [573387785306767360],
                       'game_channel_categories': [573272941517602819]},
         447883341463814144:                           # Polychampions
                      {'helper_roles': ['Helper', 'ELO-Helper', 'Team Leader'],
