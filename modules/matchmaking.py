@@ -576,6 +576,10 @@ class matchmaking():
             if player_restricted_list and str(ctx.author.id) not in player_restricted_list and (len(player_restricted_list) >= capacity - 1) and not game.is_hosted_by(ctx.author.id)[0]:
                 # skipping games that the command issuer is not invited to
                 continue
+            open_side = game.first_open_side(roles=[role.id for role in ctx.author.roles])
+            if not open_side:
+                # skipping games that are role-locked that player doesn't have role for
+                continue
 
             capacity_str = f' {players}/{capacity}'
             expiration = int((game.expiration - datetime.datetime.now()).total_seconds() / 3600.0)
