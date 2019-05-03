@@ -1,5 +1,6 @@
 import datetime
 import discord
+import re
 # import psycopg2
 from psycopg2.errors import DuplicateObject
 from peewee import *
@@ -1385,6 +1386,28 @@ class Game(BaseModel):
             raise exceptions.NoMatches(f'No sides found with name **{name}** in game {self.id}. Sides in this game are:\n{names_str}')
         else:
             raise exceptions.TooManyMatches(f'{len(matches)} matches found for "{name}" in game {self.id}.')
+
+    def elo_requirements(self):
+
+        min_elo, max_elo = 0, 3000
+        min_elo_g, max_elo_g = 0, 3000
+        notes = self.notes if self.notes else ''
+
+        m = re.search(r'(\d+) elo max', notes, re.I)
+        if m:
+            max_elo = int(m[1])
+        m = re.search(r'(\d+) elo min', notes, re.I)
+        if m:
+            min_elo = int(m[1])
+
+        m = re.search(r'(\d+) global elo max', notes, re.I)
+        if m:
+            max_elo_g = int(m[1])
+        m = re.search(r'(\d+) global elo min', notes, re.I)
+        if m:
+            min_elo_g = int(m[1])
+
+        return (min_elo, max_elo, min_elo_g, max_elo_g)
 
     def waiting_for_creator(creator_discord_id: int):
         # Games for which creator_discord_id is in the 'creating player' slot (first player in GameSide.position == 1) and Game is full/waiting to start

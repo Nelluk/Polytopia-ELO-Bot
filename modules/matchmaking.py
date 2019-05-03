@@ -368,23 +368,8 @@ class matchmaking():
             if (game.is_ranked and game_size) > 6 or (not game.is_ranked and game_size > 12):
                 return await ctx.send(f'You are a restricted user (*level 2*) - complete a few more ELO games to have more permissions.\n{settings.levels_info}')
 
-        min_elo, max_elo = 0, 3000
-        min_elo_g, max_elo_g = 0, 3000
-        notes = game.notes if game.notes else ''
-
-        m = re.search(r'(\d+) elo max', notes, re.I)
-        if m:
-            max_elo = int(m[1])
-        m = re.search(r'(\d+) elo min', notes, re.I)
-        if m:
-            min_elo = int(m[1])
-
-        m = re.search(r'(\d+) global elo max', notes, re.I)
-        if m:
-            max_elo_g = int(m[1])
-        m = re.search(r'(\d+) global elo min', notes, re.I)
-        if m:
-            min_elo_g = int(m[1])
+        notes = self.notes if self.notes else ''
+        (min_elo, max_elo, min_elo_g, max_elo_g) = game.elo_requirements()
 
         if player.elo < min_elo or player.elo > max_elo:
             if not game.is_hosted_by(ctx.author.id)[0] and not settings.is_mod(ctx):
@@ -529,9 +514,9 @@ class matchmaking():
         Full games will still be listed until the host starts or deletes them with `[p]startgame` / `[p]deletegame`
 
         **Example:**
-        `[p]opengames` - List all open games that are not yet full
+        `[p]opengames` - List all open games that you are able to join
         `[p]opengames waiting` - Lists open games that are full but not yet started
-        `[p]opengames all` - List all pending open games, including full
+        `[p]opengames all` - List all open games with open space, even games you cannot join due to restrictions
         `[p]opengames me` - List unstarted opengames that you have joined
         You can also add keywords **ranked** or **unranked** to filter by those types of games.
         """
@@ -566,7 +551,7 @@ class matchmaking():
                 filter_unjoinable = False
                 filter_str = ''
             else:
-                filter_str = 'joinable '
+                filter_str = ' joinable '
                 filter_unjoinable = True
 
             title_str = f'Current{filter_str}{ranked_str} open games with available spots'
@@ -588,6 +573,15 @@ class matchmaking():
                 open_side = game.first_open_side(roles=[role.id for role in ctx.author.roles])
                 if not open_side:
                     # skipping games that are role-locked that player doesn't have role for
+                    continue
+                player, _ = models.Player.get_by_discord_id(discord_id=ctx.author.id, discord_name=ctx.author.name, discord_nick=ctx.author.nick, guild_id=ctx.guild.id)
+                if player:
+                    # skip any games for which player does not meet ELO requirements, IF player is registered
+                    (min_elo, max_elo, min_elo_g, max_elo_g) = game.elo_requirements()
+                    if player.elo < min_elo or player.elo > max_elo or player.discord_member.elo < min_elo_g or player.discord_member.elo > max_elo_g:
+                        continue
+                if game.has_player(discord_id=ctx.author.id)[0]:
+                    # skip games player is already joined
                     continue
 
             capacity_str = f' {players}/{capacity}'
