@@ -538,6 +538,7 @@ class matchmaking():
         models.Game.purge_expired_games()
 
         ranked_filter, ranked_str = 2, ''
+        filter_unjoinable = False
         ranked_chan = settings.guild_setting(ctx.guild.id, 'ranked_game_channel')
         unranked_chan = settings.guild_setting(ctx.guild.id, 'unranked_game_channel')
 
@@ -561,7 +562,14 @@ class matchmaking():
             game_list = models.Game.search_pending(guild_id=ctx.guild.id, player_discord_id=ctx.author.id)
 
         else:
-            title_str = f'Current{ranked_str} open games with available spots'
+            if len(args) > 0 and args[0].upper() == 'ALL':
+                filter_unjoinable = False
+                filter_str = ''
+            else:
+                filter_str = 'joinable '
+                filter_unjoinable = True
+
+            title_str = f'Current{filter_str}{ranked_str} open games with available spots'
             game_list = models.Game.search_pending(status_filter=2, guild_id=ctx.guild.id, ranked_filter=ranked_filter)
 
         title_str_full = title_str + f'\nUse __`{ctx.prefix}join ID`__ to join one or __`{ctx.prefix}game ID`__ for more details.'
@@ -573,13 +581,14 @@ class matchmaking():
             players, capacity = game.capacity()
             player_restricted_list = re.findall(r'<@!?(\d+)>', notes_str)
 
-            if player_restricted_list and str(ctx.author.id) not in player_restricted_list and (len(player_restricted_list) >= capacity - 1) and not game.is_hosted_by(ctx.author.id)[0]:
-                # skipping games that the command issuer is not invited to
-                continue
-            open_side = game.first_open_side(roles=[role.id for role in ctx.author.roles])
-            if not open_side:
-                # skipping games that are role-locked that player doesn't have role for
-                continue
+            if filter_unjoinable:
+                if player_restricted_list and str(ctx.author.id) not in player_restricted_list and (len(player_restricted_list) >= capacity - 1) and not game.is_hosted_by(ctx.author.id)[0]:
+                    # skipping games that the command issuer is not invited to
+                    continue
+                open_side = game.first_open_side(roles=[role.id for role in ctx.author.roles])
+                if not open_side:
+                    # skipping games that are role-locked that player doesn't have role for
+                    continue
 
             capacity_str = f' {players}/{capacity}'
             expiration = int((game.expiration - datetime.datetime.now()).total_seconds() / 3600.0)
