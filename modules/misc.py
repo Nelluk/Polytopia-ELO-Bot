@@ -229,7 +229,8 @@ class misc:
                 header = ['game_id', 'game_name', 'game_type', 'game_date', 'completed_timestamp', 'side_id', 'side_name', 'player_name', 'winner', 'player_elo', 'player_elo_change', 'squad_elo', 'squad_elo_change', 'tribe']
                 game_writer.writerow(header)
 
-                query = models.Lineup.select().join(models.Game).where(
+                query = models.Lineup.select(models.Game, models.Lineup, models.Player, models.GameSide).join(
+                    models.Game).join_from(models.Lineup, models.Player).join_from(models.Lineup, models.GameSide).where(
                     (models.Game.is_confirmed == 1) & (models.Game.guild_id == ctx.guild.id)
                 ).order_by(models.Lineup.game_id).order_by(models.Lineup.gameside_id)
 

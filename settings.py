@@ -212,6 +212,23 @@ config = {'default':
                       'bot_channels_strict': [573387785306767360],
                       'bot_channels': [573387785306767360],
                       'game_channel_categories': [573272941517602819]},
+        541012224534118431:                           # Plague team server
+                     {'helper_roles': ['The Plague'],
+                      'mod_roles': ['Leader', 'Co-Leader', 'Sleeping Giant'],
+                      'user_roles_level_4': ['@everyone'],  # power user
+                      'user_roles_level_3': ['@everyone'],  # power user
+                      'user_roles_level_2': ['@everyone'],  # normal user
+                      'user_roles_level_1': ['@everyone'],  # restricted user/newbie
+                      'display_name': 'Team Plague',
+                      'require_teams': False,
+                      'allow_teams': True,
+                      'allow_uneven_teams': True,
+                      'max_team_size': 6,
+                      'command_prefix': '$',
+                      'include_in_global_lb': False,
+                      'bot_channels_strict': [573894372173807616],
+                      'bot_channels': [573894372173807616],
+                      'game_channel_categories': [573895174309150745]},
         447883341463814144:                           # Polychampions
                      {'helper_roles': ['Helper', 'ELO-Helper', 'Team Leader'],
                       'mod_roles': ['Mod'],
