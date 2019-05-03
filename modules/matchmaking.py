@@ -534,11 +534,7 @@ class matchmaking():
             ranked_filter = 1
             ranked_str = ' **ranked**'
 
-        if len(args) > 0 and args[0].upper() == 'ALL':
-            title_str = f'All{ranked_str} open games'
-            game_list = models.Game.search_pending(status_filter=0, guild_id=ctx.guild.id, ranked_filter=ranked_filter)
-
-        elif len(args) > 0 and args[0].upper() == 'WAITING':
+        if len(args) > 0 and args[0].upper() == 'WAITING':
             title_str = f'Open{ranked_str} games waiting to start'
             game_list = models.Game.search_pending(status_filter=1, guild_id=ctx.guild.id, ranked_filter=ranked_filter)
 
