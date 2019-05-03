@@ -228,7 +228,7 @@ class elo_games():
 
     @settings.in_bot_channel_strict()
     @settings.teams_allowed()
-    @commands.command(aliases=['teamlb'])
+    @commands.command(aliases=['teamlb', 'lbteamjr'])
     @commands.cooldown(2, 30, commands.BucketType.channel)
     async def lbteam(self, ctx, *, arg: str = None):
         """display team leaderboard
@@ -236,21 +236,29 @@ class elo_games():
         Examples:
         `[p]lbteam` - Default team leaderboard, which resets occasionally
         `[p]lbteam all` - All-time team leaderboard including all game history
+        `[p]lbteamjr` - Display team leaderboard for Junior teams
         """
+
+        if ctx.invoked_with == 'lbteamjr':
+            pro_flag = 0
+            jr_string = 'Junior '
+        else:
+            pro_flag = 1
+            jr_string = ''
 
         if arg and arg.lower()[:3] == 'all':
             # date_cutoff = datetime.date.min
-            embed = discord.Embed(title='**Alltime Team Leaderboard**')
+            embed = discord.Embed(title=f'**Alltime {jr_string}Team Leaderboard**')
             alltime = True
             sort_field = Team.elo_alltime
         else:
             # date_cutoff = datetime.datetime.strptime(settings.team_elo_reset_date, "%m/%d/%Y").date()
-            embed = discord.Embed(title=f'**Team Leaderboard since {settings.team_elo_reset_date}**')
+            embed = discord.Embed(title=f'**{jr_string}Team Leaderboard since {settings.team_elo_reset_date}**')
             alltime = False
             sort_field = Team.elo
 
         query = Team.select().where(
-            (Team.is_hidden == 0) & (Team.guild_id == ctx.guild.id) & (Team.pro_league == 1)
+            (Team.is_hidden == 0) & (Team.guild_id == ctx.guild.id) & (Team.pro_league == pro_flag)
         ).order_by(-sort_field)
         for counter, team in enumerate(query):
             team_role = discord.utils.get(ctx.guild.roles, name=team.name)
