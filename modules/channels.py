@@ -44,7 +44,7 @@ def get_channel_category(guild, team_name: str = None):
         team_name = team_name.lower().replace('the', '').strip()  # The Ronin > ronin
         # first seek a channel named something like 'Polychamps Ronin Games', fallback to any category with 'Ronin' in the name.
         for cat in guild.categories:
-            if 'polychamps' in cat.name.lower() and team_name in cat.name.lower():
+            if 'polychamp' in cat.name.lower() and team_name in cat.name.lower():
                 logger.debug(f'Using {cat.id} - {cat.name} as a team channel category')
                 return cat, True
         for cat in guild.categories:
