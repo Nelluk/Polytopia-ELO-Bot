@@ -61,6 +61,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--add_default_data', action='store_true')
     parser.add_argument('--recalc_elo', action='store_true')
+    parser.add_argument('--skip_tasks', action='store_true')
     args = parser.parse_args()
     if args.add_default_data:
         initialize_data.initialize_data()
@@ -72,6 +73,8 @@ def main():
         end = timer()
         print(f'Recalculation complete - took {end - start} seconds.')
         exit(0)
+    if args.skip_tasks:
+        settings.run_tasks = False
 
     logger.info('Resetting Discord ID ban list')
     models.DiscordMember.update(is_banned=False).execute()

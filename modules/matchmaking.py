@@ -45,9 +45,10 @@ class matchmaking():
 
     def __init__(self, bot):
         self.bot = bot
-        self.bg_task = bot.loop.create_task(self.task_print_matchlist())
-        self.bg_task2 = bot.loop.create_task(self.task_dm_game_creators())
-        self.bg_task3 = bot.loop.create_task(self.task_create_empty_matchmaking_lobbies())
+        if settings.run_tasks:
+            self.bg_task = bot.loop.create_task(self.task_print_matchlist())
+            self.bg_task2 = bot.loop.create_task(self.task_dm_game_creators())
+            self.bg_task3 = bot.loop.create_task(self.task_create_empty_matchmaking_lobbies())
 
     @settings.in_bot_channel()
     @commands.command(aliases=['openmatch', 'open'], usage='size expiration rules')
@@ -576,9 +577,9 @@ class matchmaking():
                     (min_elo, max_elo, min_elo_g, max_elo_g) = game.elo_requirements()
                     if player.elo < min_elo or player.elo > max_elo or player.discord_member.elo < min_elo_g or player.discord_member.elo > max_elo_g:
                         continue
-                if game.has_player(discord_id=ctx.author.id)[0] and not game.is_hosted_by(ctx.author.id)[0]:
-                    # skip games player is already joined
-                    continue
+                # if game.has_player(discord_id=ctx.author.id)[0] and not game.is_hosted_by(ctx.author.id)[0]:
+                #     # skip games player is already joined (removing since there are probably too many cases where this would be confusing)
+                #     continue
 
             capacity_str = f' {players}/{capacity}'
             expiration = int((game.expiration - datetime.datetime.now()).total_seconds() / 3600.0)

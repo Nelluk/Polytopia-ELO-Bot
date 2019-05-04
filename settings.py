@@ -22,6 +22,7 @@ pastebin_key = config['DEFAULT'].get('pastebin_key', None)
 server_ids = {'main': 283436219780825088, 'polychampions': 447883341463814144, 'test': 478571892832206869, 'beta': 274660262873661442}
 owner_id = 272510639124250625  # Nelluk
 bot = None
+run_tasks = True  # if set as False via command line option, tasks should check this and skip
 team_elo_reset_date = '1/1/2019'
 
 # bot invite URL https://discordapp.com/oauth2/authorize?client_id=484067640302764042&scope=bot

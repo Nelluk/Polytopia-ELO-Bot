@@ -20,8 +20,9 @@ logger = logging.getLogger('polybot.' + __name__)
 class misc:
     def __init__(self, bot):
         self.bot = bot
-        self.bg_task = bot.loop.create_task(self.task_broadcast_newbie_message())
-        self.bg_task = bot.loop.create_task(self.task_send_polychamps_invite())
+        if settings.run_tasks:
+            self.bg_task = bot.loop.create_task(self.task_broadcast_newbie_message())
+            self.bg_task = bot.loop.create_task(self.task_send_polychamps_invite())
 
     @commands.command(hidden=True, aliases=['ts'])
     @commands.is_owner()
@@ -230,29 +231,77 @@ class misc:
                 game_writer.writerow(header)
 
                 query = models.Lineup.select(models.Game, models.Lineup, models.Player, models.DiscordMember, models.GameSide).join(
-                    models.Game).join_from(models.Lineup, models.Player).join(models.DiscordMember).join_from(models.Lineup, models.GameSide).join_from(models.Lineup, models.TribeFlair, peewee.JOIN.LEFT_OUTER).join(models.Tribe).where(
+                    models.Game).join_from(models.Lineup, models.Player).join(models.DiscordMember).join_from(models.Lineup, models.GameSide).join_from(models.Lineup, models.TribeFlair, peewee.JOIN.LEFT_OUTER).join(models.Tribe, peewee.JOIN.LEFT_OUTER).where(
                     (models.Game.is_confirmed == 1) & (models.Game.guild_id == ctx.guild.id)
-                ).order_by(models.Lineup.game_id).order_by(models.Lineup.gameside_id)
+                ).order_by(models.Lineup.game_id).order_by(models.Lineup.gameside_id).prefetch(models.Game, models.GameSide, models.Team)
+
+                # query = models.Lineup.select().join(models.Game).where(
+                #     (models.Game.is_confirmed == 1) & (models.Game.guild_id == ctx.guild.id)
+                # ).order_by(models.Lineup.game_id).order_by(models.Lineup.gameside_id)
 
                 for q in query:
                     is_winner = True if q.game.winner == q.gameside_id else False
-                    # row = [q.game_id, q.game.name, q.game.size_string(),
-                    #        str(q.game.date), str(q.game.completed_ts), q.gameside_id,
-                    #        q.gameside.name(), q.player.name, is_winner, q.player.elo,
-                    #        q.elo_change_player, q.gameside.squad_id if q.gameside.squad else '', q.gameside.squad.elo if q.gameside.squad else '',
-                    #        q.tribe.tribe.name if q.tribe else '']
-                    row = [q.game_id, q.game.name,
-                           str(q.game.completed_ts), q.gameside_id, q.game.size_string(), q.gameside.name(),
-                           q.player.name, is_winner, q.player.elo,
-                           q.elo_change_player, q.tribe.tribe.name if q.tribe else '']
+
+                    row = [q.game_id, q.game.name, q.game.size_string(),
+                       str(q.game.date), str(q.game.completed_ts), q.gameside_id,
+                       q.gameside.name(), q.player.name, is_winner, q.player.elo, q.elo_change_player,
+                       q.gameside.squad_id if q.gameside.squad else '', q.gameside.squad.elo if q.gameside.squad else '',
+                       q.tribe.tribe.name if q.tribe else '']
 
                     game_writer.writerow(row)
 
         await ctx.send(f'Game data written to file **{filename}** in bot.py directory')
 
-        # pb = Pastebin(pastebin_api)
-        # pb_url = pb.create_paste_from_file(filepath='games_export.csv', api_paste_private=0, api_paste_expire_date='1D', api_paste_name='Polytopia Game Data')
-        # await ctx.send(f'Game data has been exported to the following URL: {pb_url}')
+    @commands.command(aliases=['gex3'])
+    @settings.is_mod_check()
+    @commands.cooldown(2, 300, commands.BucketType.guild)
+    async def game_export3(self, ctx):
+        """Mod: Export list of completed games to CSV file
+        Will be a CSV file that can be opened as a spreadsheet. Might be useful to somebody who wants to do their own tracking.
+        """
+        await ctx.send('Writing game data to file. This will take a few moments...')
+
+        filename = 'games_export.csv'
+        async with ctx.typing():
+            with open(filename, mode='w') as export_file:
+                game_writer = csv.writer(export_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+
+                header = ['game_id', 'game_name', 'game_type', 'game_date', 'completed_timestamp', 'side_id', 'side_name', 'player_name', 'winner', 'player_elo', 'player_elo_change', 'squad_elo', 'squad_elo_change', 'tribe']
+                game_writer.writerow(header)
+
+                # query = models.Lineup.select(models.Game, models.Lineup, models.Player, models.DiscordMember, models.GameSide).join(
+                #     models.Game).join_from(models.Lineup, models.Player).join(models.DiscordMember).join_from(models.Lineup, models.GameSide).join_from(models.Lineup, models.TribeFlair, peewee.JOIN.LEFT_OUTER).join(models.Tribe, peewee.JOIN.LEFT_OUTER).where(
+                #     (models.Game.is_confirmed == 1) & (models.Game.guild_id == ctx.guild.id)
+                # ).order_by(models.Lineup.game_id).order_by(models.Lineup.gameside_id).prefetch(models.Game, models.GameSide, models.Team)
+
+                # query = models.Lineup.select().join(models.Game).where(
+                #     (models.Game.is_confirmed == 1) & (models.Game.guild_id == ctx.guild.id)
+                # ).order_by(models.Lineup.game_id).order_by(models.Lineup.gameside_id)
+
+                # Lineup2 = models.Lineup.alias()
+
+                query = (models.GameSide.select(models.GameSide, models.Game).where(
+                    (models.Game.is_confirmed == 1) & (models.Game.guild_id == ctx.guild.id)
+                ).join(models.Game, on=(models.GameSide.game == models.Game.id))
+                 # .join_from(models.Lineup, models.GameSide)
+                 # .join(models.Player)
+                 # .join(models.DiscordMember)
+                 .order_by(models.GameSide.game_id)
+                 .order_by(models.GameSide.id)
+                 .prefetch(models.Lineup, models.Player, models.DiscordMember)
+                 )
+
+                for q in query:
+                    # is_winner = True if q.game.winner == q.gameside_id else False
+
+                    row = [q.game_id, q.game.name, q.game.size_string(),
+                       str(q.game.date), str(q.game.completed_ts), q.id,
+                       q.name()]
+                    # row = [q.game_id, q.game.name]
+
+                    game_writer.writerow(row)
+
+        await ctx.send(f'Game data written to file **{filename}** in bot.py directory')
 
     @commands.command(aliases=['gex2'])
     @settings.is_mod_check()

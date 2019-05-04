@@ -17,7 +17,8 @@ elo_logger = logging.getLogger('polybot.elo')
 class administration:
     def __init__(self, bot):
         self.bot = bot
-        self.bg_task = bot.loop.create_task(self.task_confirm_auto())
+        if settings.run_tasks:
+            self.bg_task = bot.loop.create_task(self.task_confirm_auto())
 
     async def __local_check(self, ctx):
 
