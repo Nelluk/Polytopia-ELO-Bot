@@ -393,6 +393,7 @@ poly_id_ban_list = [
     'AfMDTSO3yareZN2E',  # Freeze
 ]
 
+
 generic_teams_short = [('Home', ':stadium:'), ('Away', ':airplane:')]  # For two-team games
 generic_teams_long = [('Sharks', ':shark:'), ('Owls', ':owl:'), ('Eagles', ':eagle:'), ('Tigers', ':tiger:'),
                       ('Bears', ':bear:'), ('Koalas', ':koala:'), ('Dogs', ':dog:'), ('Bats', ':bat:'),
@@ -417,6 +418,10 @@ def guild_setting(guild_id: int, setting_name: str):
         return settings_obj[setting_name]
     except KeyError:
         return config['default'][setting_name]
+
+
+def servers_included_in_global_lb():
+    return [server for server, settings in config.items() if settings.get('include_in_global_lb', False)]
 
 
 def get_matching_roles(discord_member, list_of_role_names):
@@ -448,40 +453,6 @@ def get_user_level(ctx, user=None):
     if get_matching_roles(user, guild_setting(ctx.guild.id, 'user_roles_level_1')):
         return 1  # join ranked games up to 3p, unranked up to 6p. no hosting
     return 0
-
-
-# def is_power_user(ctx, user=None):
-#     user = ctx.author if not user else user
-#     if is_staff(ctx, user=user):
-#         return True
-
-#     if ctx.guild.id == server_ids['main']:
-#         minimum_role = discord.utils.get(ctx.guild.roles, name='Amphibian')
-#         if user.top_role < minimum_role:
-#             # await ctx.send('You must attain "Amphibian" role to do this.')
-#             return False
-#     if ctx.guild.id == server_ids['test']:
-#         minimum_role = discord.utils.get(ctx.guild.roles, name='testers')
-#         return user.top_role >= minimum_role
-
-#     return True
-
-
-# def is_matchmaking_power_user(ctx, user=None):
-#     user = ctx.author if not user else user
-#     if is_staff(ctx, user=user):
-#         return True
-
-#     if ctx.guild.id == server_ids['main']:
-#         minimum_role = discord.utils.get(ctx.guild.roles, name='Archer')
-#         if user.top_role < minimum_role:
-#             # await ctx.send('You must attain "Amphibian" role to do this.')
-#             return False
-#     if ctx.guild.id == server_ids['polychampions']:
-#         minimum_role = discord.utils.get(ctx.guild.roles, name='Team Co-Leader')
-#         return user.top_role >= minimum_role
-
-#     return True
 
 
 def is_staff(ctx, user=None):

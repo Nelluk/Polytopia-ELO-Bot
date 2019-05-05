@@ -115,8 +115,14 @@ class DiscordMember(BaseModel):
 
     def advanced_stats(self):
 
+        server_list = settings.servers_included_in_global_lb()
+
         ranked_games_played = Game.select().join(Lineup).join(Player).where(
-            (Player.discord_member == self) & (Game.is_completed == 1) & (Game.is_ranked == 1) & (Game.is_confirmed == 1)
+            (Player.discord_member == self) &
+            (Game.is_completed == 1) &
+            (Game.is_ranked == 1) &
+            (Game.is_confirmed == 1) &
+            (Game.guild_id.in_(server_list))
         ).order_by(Game.completed_ts).prefetch(GameSide, Lineup, Player)
 
         winning_streak, losing_streak, longest_winning_streak, longest_losing_streak = 0, 0, 0, 0
@@ -178,15 +184,27 @@ class DiscordMember(BaseModel):
 
     def wins(self):
 
+        server_list = settings.servers_included_in_global_lb()
         q = Lineup.select().join(Game).join_from(Lineup, GameSide).join_from(Lineup, Player).where(
-            (Lineup.game.is_completed == 1) & (Lineup.game.is_confirmed == 1) & (Lineup.game.is_ranked == 1) & (Lineup.player.discord_member == self) & (Game.winner == Lineup.gameside.id)
+            (Lineup.game.is_completed == 1) &
+            (Lineup.game.is_confirmed == 1) &
+            (Lineup.game.is_ranked == 1) &
+            (Lineup.game.guild_id.in_(server_list)) &
+            (Lineup.player.discord_member == self) &
+            (Game.winner == Lineup.gameside.id)
         )
 
         return q
 
     def losses(self):
+        server_list = settings.servers_included_in_global_lb()
         q = Lineup.select().join(Game).join_from(Lineup, GameSide).join_from(Lineup, Player).where(
-            (Lineup.game.is_completed == 1) & (Lineup.game.is_confirmed == 1) & (Lineup.game.is_ranked == 1) & (Lineup.player.discord_member == self) & (Game.winner != Lineup.gameside.id)
+            (Lineup.game.is_completed == 1) &
+            (Lineup.game.is_confirmed == 1) &
+            (Lineup.game.is_ranked == 1) &
+            (Lineup.game.guild_id.in_(server_list)) &
+            (Lineup.player.discord_member == self) &
+            (Game.winner != Lineup.gameside.id)
         )
 
         return q
@@ -210,8 +228,12 @@ class DiscordMember(BaseModel):
 
         if only_ranked:
             # default behavior, used for elo max_delta
+            server_list = settings.servers_included_in_global_lb()
             num_games = Lineup.select().join(Player).join_from(Lineup, Game).where(
-                (Lineup.game.is_completed == 1) & (Lineup.game.is_ranked == 1) & (Lineup.player.discord_member == self)
+                (Lineup.game.is_completed == 1) &
+                (Lineup.game.is_ranked == 1) &
+                (Lineup.game.guild_id.in_(server_list)) &
+                (Lineup.player.discord_member == self)
             ).count()
         else:
             # full count of all games played - used for achievements role setting
