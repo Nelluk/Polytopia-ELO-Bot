@@ -418,6 +418,30 @@ class administration:
 
         await ctx.send(f'Team **{old_name}** has been renamed to **{team.name}**.')
 
+    @commands.command(aliases=['undrafted'])
+    @settings.on_polychampions()
+    async def undrafted_novas(self, ctx, *, arg=None):
+        message = ''
+        grad_role = discord.utils.get(ctx.guild.roles, name='Novas Grad')
+        # recruiter_role = discord.utils.get(ctx.guild.roles, name='Team Recruiter')
+        if ctx.guild.id == settings.server_ids['test']:
+            grad_role = discord.utils.get(ctx.guild.roles, name='Team Leader')
+
+        for member in grad_role.members:
+            try:
+                dm = models.DiscordMember.get(discord_id=member.id)
+                player = models.Player.get(discord_member=dm, guild_id=ctx.guild.id)
+            except peewee.DoesNotExist:
+                logger.debug(f'Player {member.name} not registered.')
+                continue
+
+            g_wins, g_losses = dm.get_record()
+            wins, losses = player.get_record()
+
+            message += f'**{player.name}**\n\u00A0\u00A0 \u00A0\u00A0 \u00A0\u00A0 ELO:  {dm.elo} *global* / {player.elo} *local*\n\u00A0\u00A0 \u00A0\u00A0 \u00A0\u00A0 __W {g_wins} / L {g_losses}__ *global* \u00A0\u00A0 - \u00A0\u00A0 __W {wins} / L {losses}__ *local*\n'
+
+        await ctx.send(message)
+
     @commands.command()
     @settings.is_mod_check()
     @settings.on_polychampions()

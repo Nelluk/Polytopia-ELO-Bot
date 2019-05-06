@@ -32,25 +32,32 @@ def generate_channel_name(game_id, game_name: str, team_name: str = None):
     return chan_name
 
 
-def get_channel_category(guild, team_name: str = None):
+def get_channel_category(guild, team_name: str = None, using_team_server_flag: bool = False):
     # Returns (DiscordCategory, Bool_IsTeamCategory?) or None
     # Bool_IsTeamCategory? == True if its using a team-specific category, False if using a central games category
+
+    list_of_generic_team_names = [a[0] for a in settings.generic_teams_long] + [a[0] for a in settings.generic_teams_short]
 
     if guild.me.guild_permissions.manage_channels is not True:
         logger.warn('manage_channels permission is false.')  # TODO: change this to see if bot has this perm in the category it selects
         # return None, None
 
     if team_name:
-        team_name = team_name.lower().replace('the', '').strip()  # The Ronin > ronin
+        team_name_lc = team_name.lower().replace('the', '').strip()  # The Ronin > ronin
         # first seek a channel named something like 'Polychamps Ronin Games', fallback to any category with 'Ronin' in the name.
         for cat in guild.categories:
-            if 'polychamp' in cat.name.lower() and team_name in cat.name.lower():
+            if 'polychamp' in cat.name.lower() and team_name_lc in cat.name.lower():
                 logger.debug(f'Using {cat.id} - {cat.name} as a team channel category')
                 return cat, True
         for cat in guild.categories:
-            if team_name in cat.name.lower():
+            if team_name_lc in cat.name.lower():
                 logger.debug(f'Using {cat.id} - {cat.name} as a team channel category')
                 return cat, True
+        if team_name in list_of_generic_team_names:
+            for cat in guild.categories:
+                if 'polychamp' in cat.name.lower() and 'other' in cat.name.lower():
+                    logger.debug(f'Mixed team - Using {cat.id} - {cat.name} as a team channel category')
+                    return cat, True
 
     # No team category found - using default category. ie. intermingled home/away games or channel for entire game
 
@@ -73,7 +80,7 @@ def get_channel_category(guild, team_name: str = None):
 
 
 async def create_game_channel(guild, game, player_list, team_name: str = None, using_team_server_flag: bool = False):
-    chan_cat, team_cat_flag = get_channel_category(guild, team_name)
+    chan_cat, team_cat_flag = get_channel_category(guild, team_name, using_team_server_flag)
     if chan_cat is None:
         logger.error(f'in create_squad_channel - cannot proceed due to None category')
         return None

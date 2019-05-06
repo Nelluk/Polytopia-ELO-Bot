@@ -651,18 +651,26 @@ class Game(BaseModel):
 
     async def create_game_channels(self, guild_list, guild_id):
         guild = discord.utils.get(guild_list, id=guild_id)
-        game_roster = []
+        game_roster, side_external_servers = [], []
         ordered_side_list = list(self.ordered_side_list())
 
         for s in ordered_side_list:
-            playernames = [l.player.name for l in s.ordered_player_list()]
+            lineup_list = s.ordered_player_list()
+            playernames = [l.player.name for l in lineup_list]
+            player_external_servers = [l.player.team.external_server if l.player.team else None for l in lineup_list]
+            if player_external_servers[0] and all(x == player_external_servers[0] for x in player_external_servers):
+                side_external_servers.append(player_external_servers[0])
+                #  All players on a side are on a team that uses the same external server, ie all Ronin or Ronin+Bandits
+            else:
+                #  Truly heterogenous team, ie. Ronin+Lightning players
+                side_external_servers.append(None)
             game_roster.append(f'Side **{s.name()}**: {", ".join(playernames)}')
 
         roster_names = '\n'.join(game_roster)  # "Side **Home**: Nelluk, player2\n Side **Away**: Player 3, Player 4"
 
-        for gameside in ordered_side_list:
-            if gameside.team.external_server and discord.utils.get(guild_list, id=gameside.team.external_server):
-                side_guild = discord.utils.get(guild_list, id=gameside.team.external_server)  # use team-specific external server
+        for gameside, side_external_server in zip(ordered_side_list, side_external_servers):
+            if side_external_server and discord.utils.get(guild_list, id=side_external_server):
+                side_guild = discord.utils.get(guild_list, id=side_external_server)  # use team-specific external server
                 using_team_server_flag = True
                 logger.debug('using external guild to create team channel')
             else:
