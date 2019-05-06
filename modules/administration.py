@@ -437,8 +437,12 @@ class administration:
 
             g_wins, g_losses = dm.get_record()
             wins, losses = player.get_record()
+            recent_games = dm.games_played(in_days=14)
 
-            message += f'**{player.name}**\n\u00A0\u00A0 \u00A0\u00A0 \u00A0\u00A0 ELO:  {dm.elo} *global* / {player.elo} *local*\n\u00A0\u00A0 \u00A0\u00A0 \u00A0\u00A0 __W {g_wins} / L {g_losses}__ *global* \u00A0\u00A0 - \u00A0\u00A0 __W {wins} / L {losses}__ *local*\n'
+            message += (f'**{player.name}**'
+                f'\n\u00A0\u00A0 \u00A0\u00A0 \u00A0\u00A0 {recent_games.count()} games played in last 14 days'
+                f'\n\u00A0\u00A0 \u00A0\u00A0 \u00A0\u00A0 ELO:  {dm.elo} *global* / {player.elo} *local*\n'
+                f'\u00A0\u00A0 \u00A0\u00A0 \u00A0\u00A0 __W {g_wins} / L {g_losses}__ *global* \u00A0\u00A0 - \u00A0\u00A0 __W {wins} / L {losses}__ *local*\n')
 
         await ctx.send(message)
 
