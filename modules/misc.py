@@ -166,22 +166,34 @@ class misc:
     @commands.command(usage='game_id')
     # @settings.in_bot_channel()
     @commands.cooldown(1, 20, commands.BucketType.user)
-    async def ping(self, ctx, game: PolyGame = None, *, message: str = None):
+    async def ping(self, ctx, game_id: int = None, *, message: str = None):
         """ Ping everyone in one of your games with a message
 
          **Examples**
         `[p]ping 100 I won't be able to take my turn today` - Send a message to everyone in game 100
         """
-        if not game:
+        if not game_id:
             ctx.command.reset_cooldown(ctx)
             return await ctx.send(f'Game ID was not included. Example usage: `{ctx.prefix}ping 100 Here\'s a nice note for everyone in game 100.`')
+
+        if not message:
+            ctx.command.reset_cooldown(ctx)
+            return await ctx.send(f'Message was not included. Example usage: `{ctx.prefix}ping 100 Here\'s a nice note`')
+
+        try:
+            game = models.Game.get(id=int(game_id))
+        except ValueError:
+            return await ctx.send(f'Invalid game ID "{game_id}".')
+        except peewee.DoesNotExist:
+            return await ctx.send(f'Game with ID {game_id} cannot be found.')
+
         if not game.player(discord_id=ctx.author.id) and not settings.is_staff(ctx):
             ctx.command.reset_cooldown(ctx)
             return await ctx.send(f'You are not a player in game {game.id}')
 
-        permitted_channels = settings.guild_setting(ctx.guild.id, 'bot_channels')
+        permitted_channels = settings.guild_setting(game.guild_id, 'bot_channels')
         permitted_channels_private = []
-        if settings.guild_setting(ctx.guild.id, 'game_channel_categories'):
+        if settings.guild_setting(game.guild_id, 'game_channel_categories'):
             if game.game_chan:
                 permitted_channels = [game.game_chan] + permitted_channels
             if game.smallest_team() > 1:
@@ -195,21 +207,19 @@ class misc:
                 return await ctx.send(f'This command cannot be used in this channel because there is at least one solo player without access to a team channel.\n'
                     f'Permitted channels: {" ".join(channel_tags)}')
 
-        if ctx.channel.id not in permitted_channels and ctx.channel.id not in settings.guild_setting(ctx.guild.id, 'bot_channels_private'):
+        if ctx.channel.id not in permitted_channels and ctx.channel.id not in settings.guild_setting(game.guild_id, 'bot_channels_private'):
             channel_tags = [f'<#{chan_id}>' for chan_id in permitted_channels]
             ctx.command.reset_cooldown(ctx)
             return await ctx.send(f'This command can not be used in this channel. Permitted channels: {" ".join(channel_tags)}')
 
-        if not message:
-            ctx.command.reset_cooldown(ctx)
-            return await ctx.send(f'Message was not included. Example usage: `{ctx.prefix}ping 100 Here\'s a nice note`')
-
         player_mentions = [f'<@{l.player.discord_member.discord_id}>' for l in game.lineup]
-        full_message = f'Message from {ctx.author.mention} regarding game {game.id} **{game.name}**:\n*{message}*'
+        full_message = f'Message from {ctx.author.mention} (**{ctx.author.name}**) regarding game {game.id} **{game.name}**:\n*{message}*'
 
         if ctx.channel.id in permitted_channels_private:
-            await game.update_squad_channels(self.bot.guilds, ctx.guild.id, message=f'{full_message}\n{" ".join(player_mentions)}')
+            logger.debug(f'Ping triggered in private channel {ctx.channel.id}')
+            await game.update_squad_channels(self.bot.guilds, game.guild_id, message=f'{full_message}\n{" ".join(player_mentions)}')
         else:
+            logger.debug(f'Ping triggered in non-private channel {ctx.channel.id}')
             await ctx.send(f'{full_message}\n{" ".join(player_mentions)}')
             await game.update_squad_channels(self.bot.guilds, ctx.guild.id, message=full_message)
 

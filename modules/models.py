@@ -738,9 +738,12 @@ class Game(BaseModel):
                     if not side_guild:
                         logger.warn(f'Could not load guild where external team channel is located, gameside ID {gameside.id} guild {gameside.team_chan_external_server}')
                         continue
+                    logger.debug(f'Using guild {side_guild} for side_guild')
                 else:
+                    logger.debug(f'Using default guild {guild} for side_guild')
                     side_guild = guild
                 if message:
+                    logger.debug(f'Pinging message to channel {gameside.team_chan} in guild {side_guild}')
                     await channels.send_message_to_channel(side_guild, channel_id=gameside.team_chan, message=message)
                 else:
                     await channels.update_game_channel_name(side_guild, channel_id=gameside.team_chan, game_id=self.id, game_name=self.name, team_name=gameside.team.name)
