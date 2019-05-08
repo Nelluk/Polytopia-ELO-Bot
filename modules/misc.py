@@ -11,7 +11,7 @@ import datetime
 import random
 import csv
 import peewee
-from modules.games import PolyGame
+# from modules.games import PolyGame
 # import modules.achievements as achievements
 
 logger = logging.getLogger('polybot.' + __name__)
@@ -164,7 +164,6 @@ class misc:
         await ctx.send(embed=embed)
 
     @commands.command(usage='game_id')
-    # @settings.in_bot_channel()
     @commands.cooldown(1, 20, commands.BucketType.user)
     async def ping(self, ctx, game_id: int = None, *, message: str = None):
         """ Ping everyone in one of your games with a message
