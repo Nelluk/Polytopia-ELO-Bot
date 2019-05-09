@@ -516,7 +516,7 @@ class administration:
 
     @commands.command()
     @settings.is_mod_check()
-    # @settings.on_polychampions()
+    @settings.on_polychampions()
     async def kick_inactive(self, ctx, *, arg=None):
 
         count = 0
@@ -539,15 +539,18 @@ class administration:
 
                 if member.joined_at < last_week:
                     logger.info(f'Joined more than a week ago with no code on file. Kicking from server')
-                    # await member.kick(reason='No role, no code on file')
+                    await member.kick(reason='No role, no code on file')
                     count += 1
                 continue
             else:
                 if member.joined_at < last_month:
-                    if not dm.games_played(in_days=30):
+                    if dm.games_played(in_days=30):
+                        logger.debug('Has played recent ELO game on at least one server. Skipping.')
+                    else:
                         logger.info(f'Joined more than a month ago and has played zero ELO games. Kicking from server')
-                        # await member.kick(reason='No role, no ELO games in at least 30 days.')
+                        await member.kick(reason='No role, no ELO games in at least 30 days.')
                         count += 1
+
         await ctx.send(f'Kicking {count} members without any assigned role and have insufficient ELO history.')
 
     @commands.command()
