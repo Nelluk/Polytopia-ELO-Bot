@@ -516,6 +516,42 @@ class administration:
 
     @commands.command()
     @settings.is_mod_check()
+    # @settings.on_polychampions()
+    async def kick_inactive(self, ctx, *, arg=None):
+
+        count = 0
+        last_week = (datetime.datetime.now() + datetime.timedelta(days=-7))
+        last_month = (datetime.datetime.now() + datetime.timedelta(days=-30))
+
+        for member in ctx.guild.members:
+            if len(member.roles) > 1:
+                continue  # Skip if they have any assigned roles (no-role people have one default Everyone role in member.roles)
+            last_week = (datetime.datetime.now() + datetime.timedelta(days=-7))
+            logger.debug(f'Checking role-less member {member.name} ...')
+            if member.joined_at > last_week:
+                logger.debug(f'Joined in the previous week. Skipping.')
+                continue
+
+            try:
+                dm = models.DiscordMember.get(discord_id=member.id)
+            except peewee.DoesNotExist:
+                logger.debug(f'Player {member.name} has not registered with PolyELO Bot.')
+
+                if member.joined_at < last_week:
+                    logger.info(f'Joined more than a week ago with no code on file. Kicking from server')
+                    # await member.kick(reason='No role, no code on file')
+                    count += 1
+                continue
+            else:
+                if member.joined_at < last_month:
+                    if not dm.games_played(in_days=30):
+                        logger.info(f'Joined more than a month ago and has played zero ELO games. Kicking from server')
+                        # await member.kick(reason='No role, no ELO games in at least 30 days.')
+                        count += 1
+        await ctx.send(f'Kicking {count} members without any assigned role and have insufficient ELO history.')
+
+    @commands.command()
+    @settings.is_mod_check()
     @settings.on_polychampions()
     async def purge_novas(self, ctx, *, arg=None):
         """*Mods*: Purge inactive Novas
@@ -525,6 +561,8 @@ class administration:
         """
 
         role = discord.utils.get(ctx.guild.roles, name='The Novas')
+        last_week = (datetime.datetime.now() + datetime.timedelta(days=-7))
+        eight_weeks = (datetime.datetime.now() + datetime.timedelta(days=-56))
         count = 0
 
         await ctx.send(f'Purging  **The Novas** role from inactive players. This may take a minute.')
@@ -534,7 +572,6 @@ class administration:
                     dm = models.DiscordMember.get(discord_id=member.id)
                 except peewee.DoesNotExist:
                     logger.info(f'Player {member.name} not registered.')
-                    last_week = (datetime.datetime.now() + datetime.timedelta(days=-7))
                     if member.joined_at < last_week:
                         logger.info(f'Joined more than a week ago with no code on file. Purging role...')
                         await member.remove_roles(role)
@@ -542,7 +579,6 @@ class administration:
                     continue
                 else:
                     # logger.info(f'Player {member.name} is registered.')
-                    eight_weeks = (datetime.datetime.now() + datetime.timedelta(days=-56))
                     if member.joined_at < eight_weeks:
                         if not dm.games_played(in_days=56):
                             count += 1
