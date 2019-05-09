@@ -523,33 +523,34 @@ class administration:
         last_week = (datetime.datetime.now() + datetime.timedelta(days=-7))
         last_month = (datetime.datetime.now() + datetime.timedelta(days=-30))
 
-        for member in ctx.guild.members:
-            if len(member.roles) > 1:
-                continue  # Skip if they have any assigned roles (no-role people have one default Everyone role in member.roles)
-            last_week = (datetime.datetime.now() + datetime.timedelta(days=-7))
-            logger.debug(f'Checking role-less member {member.name} ...')
-            if member.joined_at > last_week:
-                logger.debug(f'Joined in the previous week. Skipping.')
-                continue
+        async with ctx.typing():
+            for member in ctx.guild.members:
+                if len(member.roles) > 1:
+                    continue  # Skip if they have any assigned roles (no-role people have one default Everyone role in member.roles)
+                last_week = (datetime.datetime.now() + datetime.timedelta(days=-7))
+                logger.debug(f'Checking role-less member {member.name} ...')
+                if member.joined_at > last_week:
+                    logger.debug(f'Joined in the previous week. Skipping.')
+                    continue
 
-            try:
-                dm = models.DiscordMember.get(discord_id=member.id)
-            except peewee.DoesNotExist:
-                logger.debug(f'Player {member.name} has not registered with PolyELO Bot.')
+                try:
+                    dm = models.DiscordMember.get(discord_id=member.id)
+                except peewee.DoesNotExist:
+                    logger.debug(f'Player {member.name} has not registered with PolyELO Bot.')
 
-                if member.joined_at < last_week:
-                    logger.info(f'Joined more than a week ago with no code on file. Kicking from server')
-                    await member.kick(reason='No role, no code on file')
-                    count += 1
-                continue
-            else:
-                if member.joined_at < last_month:
-                    if dm.games_played(in_days=30):
-                        logger.debug('Has played recent ELO game on at least one server. Skipping.')
-                    else:
-                        logger.info(f'Joined more than a month ago and has played zero ELO games. Kicking from server')
-                        await member.kick(reason='No role, no ELO games in at least 30 days.')
+                    if member.joined_at < last_week:
+                        logger.info(f'Joined more than a week ago with no code on file. Kicking from server')
+                        await member.kick(reason='No role, no code on file')
                         count += 1
+                    continue
+                else:
+                    if member.joined_at < last_month:
+                        if dm.games_played(in_days=30):
+                            logger.debug('Has played recent ELO game on at least one server. Skipping.')
+                        else:
+                            logger.info(f'Joined more than a month ago and has played zero ELO games. Kicking from server')
+                            await member.kick(reason='No role, no ELO games in at least 30 days.')
+                            count += 1
 
         await ctx.send(f'Kicking {count} members without any assigned role and have insufficient ELO history.')
 
