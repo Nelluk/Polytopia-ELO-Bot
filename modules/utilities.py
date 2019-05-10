@@ -111,7 +111,7 @@ def export_game_data():
         ).order_by(models.Lineup.gameside_id).order_by(models.Lineup.game_id)
 
         for q in query:
-            is_winner = True if q.game.winner == q.gameside_id else False
+            is_winner = True if q.game.winner_id == q.gameside_id else False
             ranked_status = 'Ranked' if q.game.is_ranked else 'Unranked'
             row = [q.game_id, settings.guild_setting(q.game.guild_id, 'display_name'), q.game.name, q.game.size_string(),
                    ranked_status, str(q.game.date), str(q.game.completed_ts), q.gameside_id,
