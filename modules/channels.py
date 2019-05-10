@@ -53,7 +53,7 @@ def get_channel_category(guild, team_name: str = None, using_team_server_flag: b
             if team_name_lc in cat.name.lower():
                 logger.debug(f'Using {cat.id} - {cat.name} as a team channel category')
                 return cat, True
-        if team_name in list_of_generic_team_names:
+        if team_name in list_of_generic_team_names and using_team_server_flag:
             for cat in guild.categories:
                 if 'polychamp' in cat.name.lower() and 'other' in cat.name.lower():
                     logger.debug(f'Mixed team - Using {cat.id} - {cat.name} as a team channel category')
