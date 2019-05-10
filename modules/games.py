@@ -494,8 +494,8 @@ class elo_games():
             for game, result in game_list:
                 embed.add_field(name=game, value=result, inline=False)
 
-            if ctx.guild.id != settings.server_ids['polychampions']:
-                embed.add_field(value='Powered by **PolyChampions** - https://discord.gg/cX7Ptnv', name='\u200b', inline=False)
+            # if ctx.guild.id != settings.server_ids['polychampions']:
+            #     embed.add_field(value='Powered by **PolyChampions** - https://discord.gg/cX7Ptnv', name='\u200b', inline=False)
 
             return content_str, embed
 
