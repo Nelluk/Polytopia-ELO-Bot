@@ -218,8 +218,10 @@ class misc:
             await game.update_squad_channels(self.bot.guilds, game.guild_id, message=f'{full_message}\n{" ".join(player_mentions)}')
         else:
             logger.debug(f'Ping triggered in non-private channel {ctx.channel.id}')
-            await ctx.send(f'{full_message}\n{" ".join(player_mentions)}')
             await game.update_squad_channels(self.bot.guilds, ctx.guild.id, message=full_message)
+            await ctx.send(f'{full_message}\n{" ".join(player_mentions)}')
+
+        await ctx.send('Message sent')
 
     # @commands.command(aliases=['gex', 'gameexport'])
     # @settings.is_mod_check()
