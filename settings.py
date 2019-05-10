@@ -110,7 +110,7 @@ config = {'default':
                       'include_in_global_lb': False,
                       'bot_channels_strict': [448493503702630400],
                       'bot_channels': [448493503702630400],
-                      'game_channel_categories': []},
+                      'game_channel_categories': [574712176535666689]},
         492753802450173987:                           # Crawfish team server
                      {'helper_roles': ['Crawfish'],
                       'mod_roles': ['Horse of the Sea', 'Lord of the Deep'],
