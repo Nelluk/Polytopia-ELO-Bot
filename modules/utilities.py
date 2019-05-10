@@ -96,6 +96,32 @@ def summarize_game_list(games_query):
     return game_list
 
 
+def export_game_data():
+    import csv
+    filename = 'games_export.csv'
+    with open(filename, mode='w') as export_file:
+        game_writer = csv.writer(export_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+
+        header = ['game_id', 'guild', 'game_name', 'game_type', 'game_date', 'completed_timestamp', 'side_id', 'side_name', 'player_name', 'winner', 'player_elo', 'player_elo_change', 'squad_elo', 'squad_elo_change', 'tribe']
+        game_writer.writerow(header)
+
+        query = models.Lineup.select().join(models.Game).where(
+            (models.Game.is_confirmed == 1)
+        ).order_by(models.Lineup.game_id).order_by(models.Lineup.gameside_id)
+
+        for q in query:
+            is_winner = True if q.game.winner == q.gameside_id else False
+            row = [q.game_id, q.game.guild_id, q.game.name, q.game.size_string(),
+                   str(q.game.date), str(q.game.completed_ts), q.gameside_id,
+                   q.gameside.name(), q.player.name, is_winner, q.player.elo,
+                   q.elo_change_player, q.gameside.squad_id if q.gameside.squad else '', q.gameside.squad.elo if q.gameside.squad else '',
+                   q.tribe.tribe.name if q.tribe else '']
+
+            game_writer.writerow(row)
+
+    print(f'Game data written to file {filename} in bot.py directory')
+
+
 async def paginate(bot, ctx, title, message_list, page_start=0, page_end=10, page_size=10):
     # Allows user to page through a long list of messages with reactions
     # message_list should be a [(List of, two-item tuples)]. Each tuple will be split into an embed field name/value

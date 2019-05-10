@@ -418,42 +418,13 @@ class administration:
 
         await ctx.send(f'Team **{old_name}** has been renamed to **{team.name}**.')
 
-    @commands.command(aliases=['undrafted'])
-    @settings.on_polychampions()
-    async def undrafted_novas(self, ctx, *, arg=None):
-        message = ''
-        grad_role = discord.utils.get(ctx.guild.roles, name='Novas Grad')
-        # recruiter_role = discord.utils.get(ctx.guild.roles, name='Team Recruiter')
-        if ctx.guild.id == settings.server_ids['test']:
-            grad_role = discord.utils.get(ctx.guild.roles, name='Team Leader')
-
-        for member in grad_role.members:
-            try:
-                dm = models.DiscordMember.get(discord_id=member.id)
-                player = models.Player.get(discord_member=dm, guild_id=ctx.guild.id)
-            except peewee.DoesNotExist:
-                logger.debug(f'Player {member.name} not registered.')
-                continue
-
-            g_wins, g_losses = dm.get_record()
-            wins, losses = player.get_record()
-            recent_games = dm.games_played(in_days=14)
-
-            message += (f'**{player.name}**'
-                f'\n\u00A0\u00A0 \u00A0\u00A0 \u00A0\u00A0 {recent_games.count()} games played in last 14 days'
-                f'\n\u00A0\u00A0 \u00A0\u00A0 \u00A0\u00A0 ELO:  {dm.elo} *global* / {player.elo} *local*\n'
-                f'\u00A0\u00A0 \u00A0\u00A0 \u00A0\u00A0 __W {g_wins} / L {g_losses}__ *global* \u00A0\u00A0 - \u00A0\u00A0 __W {wins} / L {losses}__ *local*\n')
-
-        await ctx.send(message)
-
     @commands.command()
     @settings.is_mod_check()
     @settings.on_polychampions()
     async def grad_novas(self, ctx, *, arg=None):
-        """*Mods*: Purge inactive Novas
-        Purges the 'Novas' role from any player who either:
-        A) Joined more than a week ago and has no registered poly code, or
-        B) Join more than 6 weeks ago and has no games registered with the bot in the last 8 weeks.
+        """*Mods*: Check Novas for graduation requirements
+        Apply the 'Novas Grad' role to any Novas who meets requirements:
+        - Three ranked team games, and ranked games with members of at least three League teams
         """
 
         grad_count = 0
@@ -527,7 +498,6 @@ class administration:
             for member in ctx.guild.members:
                 if len(member.roles) > 1:
                     continue  # Skip if they have any assigned roles (no-role people have one default Everyone role in member.roles)
-                last_week = (datetime.datetime.now() + datetime.timedelta(days=-7))
                 logger.debug(f'Checking role-less member {member.name} ...')
                 if member.joined_at > last_week:
                     logger.debug(f'Joined in the previous week. Skipping.')
