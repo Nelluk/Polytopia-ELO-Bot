@@ -108,7 +108,7 @@ def export_game_data():
 
         query = models.Lineup.select().join(models.Game).where(
             (models.Game.is_confirmed == 1)
-        ).order_by(models.Lineup.gameside_id).order_by(models.Lineup.game_id).limit(100)
+        ).order_by(models.Lineup.gameside_id).order_by(models.Lineup.game_id)
 
         for q in query:
             is_winner = True if q.game.winner == q.gameside_id else False
