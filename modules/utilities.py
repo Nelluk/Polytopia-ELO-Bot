@@ -115,7 +115,7 @@ def export_game_data():
             ranked_status = 'Ranked' if q.game.is_ranked else 'Unranked'
             row = [q.game_id, settings.guild_setting(q.game.guild_id, 'display_name'), q.game.name, q.game.size_string(),
                    ranked_status, str(q.game.date), str(q.game.completed_ts), q.gameside_id,
-                   q.gameside.name(), q.player.name, is_winner, q.player.elo,
+                   q.gameside.name(), q.player.name, is_winner, q.elo_after_game,
                    q.elo_change_player, q.gameside.squad_id if q.gameside.squad else '', q.gameside.squad.elo if q.gameside.squad else '',
                    q.tribe.tribe.name if q.tribe else '']
 
