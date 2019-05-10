@@ -9,7 +9,6 @@ import modules.exceptions as exceptions
 import re
 import datetime
 import random
-import csv
 import peewee
 # from modules.games import PolyGame
 # import modules.achievements as achievements

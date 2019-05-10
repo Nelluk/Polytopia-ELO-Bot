@@ -2,6 +2,7 @@ import discord
 from discord.ext import commands
 import logging
 import asyncio
+import settings
 import modules.models as models
 # import peewee
 
@@ -102,7 +103,7 @@ def export_game_data():
     with open(filename, mode='w') as export_file:
         game_writer = csv.writer(export_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
 
-        header = ['game_id', 'guild', 'game_name', 'game_type', 'game_date', 'completed_timestamp', 'side_id', 'side_name', 'player_name', 'winner', 'player_elo', 'player_elo_change', 'squad_elo', 'squad_elo_change', 'tribe']
+        header = ['game_id', 'server', 'game_name', 'game_type', 'game_date', 'completed_timestamp', 'side_id', 'side_name', 'player_name', 'winner', 'player_elo', 'player_elo_change', 'squad_elo', 'squad_elo_change', 'tribe']
         game_writer.writerow(header)
 
         query = models.Lineup.select().join(models.Game).where(
@@ -111,7 +112,7 @@ def export_game_data():
 
         for q in query:
             is_winner = True if q.game.winner == q.gameside_id else False
-            row = [q.game_id, q.game.guild_id, q.game.name, q.game.size_string(),
+            row = [q.game_id, settings.guild_setting(q.game.guild_id, 'display_name'), q.game.name, q.game.size_string(),
                    str(q.game.date), str(q.game.completed_ts), q.gameside_id,
                    q.gameside.name(), q.player.name, is_winner, q.player.elo,
                    q.elo_change_player, q.gameside.squad_id if q.gameside.squad else '', q.gameside.squad.elo if q.gameside.squad else '',
