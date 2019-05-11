@@ -163,7 +163,7 @@ class misc:
         await ctx.send(embed=embed)
 
     @commands.command(usage='game_id')
-    @commands.cooldown(1, 20, commands.BucketType.user)
+    # @commands.cooldown(1, 20, commands.BucketType.user)
     async def ping(self, ctx, game_id: int = None, *, message: str = None):
         """ Ping everyone in one of your games with a message
 
@@ -220,41 +220,6 @@ class misc:
             logger.debug(f'Ping triggered in non-private channel {ctx.channel.id}')
             await game.update_squad_channels(self.bot.guilds, ctx.guild.id, message=full_message)
             await ctx.send(f'{full_message}\n{" ".join(player_mentions)}')
-
-        await ctx.send('Message sent')
-
-    # @commands.command(aliases=['gex', 'gameexport'])
-    # @settings.is_mod_check()
-    # @commands.cooldown(2, 300, commands.BucketType.guild)
-    # async def game_export(self, ctx):
-    #     """Mod: Export list of completed games to CSV file
-    #     Will be a CSV file that can be opened as a spreadsheet. Might be useful to somebody who wants to do their own tracking.
-    #     """
-    #     await ctx.send('Writing game data to file. This will take a few moments...')
-
-    #     filename = 'games_export.csv'
-    #     async with ctx.typing():
-    #         with open(filename, mode='w') as export_file:
-    #             game_writer = csv.writer(export_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-
-    #             header = ['game_id', 'game_name', 'game_type', 'game_date', 'completed_timestamp', 'side_id', 'side_name', 'player_name', 'winner', 'player_elo', 'player_elo_change', 'squad_elo', 'squad_elo_change', 'tribe']
-    #             game_writer.writerow(header)
-
-    #             query = models.Lineup.select().join(models.Game).where(
-    #                 (models.Game.is_confirmed == 1) & (models.Game.guild_id == ctx.guild.id)
-    #             ).order_by(models.Lineup.game_id).order_by(models.Lineup.gameside_id)
-
-    #             for q in query:
-    #                 is_winner = True if q.game.winner == q.gameside_id else False
-    #                 row = [q.game_id, q.game.name, q.game.size_string(),
-    #                        str(q.game.date), str(q.game.completed_ts), q.gameside_id,
-    #                        q.gameside.name(), q.player.name, is_winner, q.player.elo,
-    #                        q.elo_change_player, q.gameside.squad_id if q.gameside.squad else '', q.gameside.squad.elo if q.gameside.squad else '',
-    #                        q.tribe.tribe.name if q.tribe else '']
-
-    #                 game_writer.writerow(row)
-
-    #     await ctx.send(f'Game data written to file **{filename}** in bot.py directory')
 
     @commands.command(aliases=['undrafted'])
     @settings.on_polychampions()

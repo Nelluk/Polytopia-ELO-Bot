@@ -730,8 +730,9 @@ class Game(BaseModel):
 
     async def update_squad_channels(self, guild_list, guild_id, message: str = None):
         guild = discord.utils.get(guild_list, id=guild_id)
+        game_chan = self.game_chan  # loading early here trying to avoid InterfaceError
 
-        for gameside in self.gamesides:
+        for gameside in list(self.gamesides):
             if gameside.team_chan:
                 if gameside.team_chan_external_server:
                     side_guild = discord.utils.get(guild_list, id=gameside.team_chan_external_server)
@@ -748,11 +749,11 @@ class Game(BaseModel):
                 else:
                     await channels.update_game_channel_name(side_guild, channel_id=gameside.team_chan, game_id=self.id, game_name=self.name, team_name=gameside.team.name)
 
-        if self.game_chan:
+        if game_chan:
             if message:
-                await channels.send_message_to_channel(guild, channel_id=self.game_chan, message=message)
+                await channels.send_message_to_channel(guild, channel_id=game_chan, message=message)
             else:
-                await channels.update_game_channel_name(guild, channel_id=self.game_chan, game_id=self.id, game_name=self.name, team_name=None)
+                await channels.update_game_channel_name(guild, channel_id=game_chan, game_id=self.id, game_name=self.name, team_name=None)
 
     async def update_announcement(self, guild, prefix):
         # Updates contents of new game announcement with updated game_embed card
