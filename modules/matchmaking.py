@@ -85,7 +85,8 @@ class matchmaking():
 
         if not args:
             return await ctx.send('Game size is required. Include argument like *1v1v1* to specify size.'
-                f'\nExample: `{ctx.prefix}opengame 1v1 large map`')
+                f'\nExample: `{ctx.prefix}opengame 1v1 large map`'
+                f'\nUse `{ctx.prefix}opengames` to list available open games.')
 
         host, _ = models.Player.get_by_discord_id(discord_id=ctx.author.id, discord_name=ctx.author.name, discord_nick=ctx.author.nick, guild_id=ctx.guild.id)
         if not host:
