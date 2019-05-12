@@ -230,7 +230,7 @@ class misc:
     async def undrafted_novas(self, ctx, *, arg=None):
         """Prints list of Novas who meet graduation requirements but have not been drafted
         """
-        message = ''
+        grad_list = []
         grad_role = discord.utils.get(ctx.guild.roles, name='Novas Grad')
         # recruiter_role = discord.utils.get(ctx.guild.roles, name='Team Recruiter')
         if ctx.guild.id == settings.server_ids['test']:
@@ -246,14 +246,21 @@ class misc:
 
             g_wins, g_losses = dm.get_record()
             wins, losses = player.get_record()
-            recent_games = dm.games_played(in_days=14)
+            recent_games = dm.games_played(in_days=14).count()
+            all_games = dm.games_played().count()
 
-            message += (f'**{player.name}**'
-                f'\n\u00A0\u00A0 \u00A0\u00A0 \u00A0\u00A0 {recent_games.count()} games played in last 14 days'
+            message = (f'**{player.name}**'
+                f'\n\u00A0\u00A0 \u00A0\u00A0 \u00A0\u00A0 {recent_games} games played in last 14 days'
                 f'\n\u00A0\u00A0 \u00A0\u00A0 \u00A0\u00A0 ELO:  {dm.elo} *global* / {player.elo} *local*\n'
                 f'\u00A0\u00A0 \u00A0\u00A0 \u00A0\u00A0 __W {g_wins} / L {g_losses}__ *global* \u00A0\u00A0 - \u00A0\u00A0 __W {wins} / L {losses}__ *local*\n')
 
-        await ctx.send(message)
+            grad_list.append(message, all_games)
+
+        grad_list.sort(key=lambda tup: tup[1], reverse=False)     # sort the list ascending by num games played
+        for grad in grad_list:
+            await ctx.send(grad_list[0])
+
+        # await ctx.send(message)
 
     @commands.command(aliases=['random_tribes', 'rtribe'], usage='game_size [-banned_tribe ...]')
     @settings.in_bot_channel()
