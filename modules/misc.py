@@ -163,7 +163,7 @@ class misc:
         await ctx.send(embed=embed)
 
     @commands.command(usage='game_id')
-    # @commands.cooldown(1, 20, commands.BucketType.user)
+    @commands.cooldown(1, 20, commands.BucketType.user)
     async def ping(self, ctx, game_id: int = None, *, message: str = None):
         """ Ping everyone in one of your games with a message
 
@@ -226,6 +226,7 @@ class misc:
             await ctx.send(f'{full_message}\n{" ".join(player_mentions)}')
 
     @commands.command(aliases=['undrafted'])
+    @commands.cooldown(1, 30, commands.BucketType.channel)
     @settings.on_polychampions()
     async def undrafted_novas(self, ctx, *, arg=None):
         """Prints list of Novas who meet graduation requirements but have not been drafted
