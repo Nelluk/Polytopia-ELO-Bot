@@ -178,6 +178,10 @@ class misc:
             ctx.command.reset_cooldown(ctx)
             return await ctx.send(f'Message was not included. Example usage: `{ctx.prefix}ping 100 Here\'s a nice note`')
 
+        if ctx.message.attachments:
+            attachment_urls = '\n'.join([attachment.url for attachment in ctx.message.attachments])
+            message += f'\n{attachment_urls}'
+
         try:
             game = models.Game.get(id=int(game_id))
         except ValueError:
