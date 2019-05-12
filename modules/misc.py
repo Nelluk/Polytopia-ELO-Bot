@@ -254,7 +254,7 @@ class misc:
                 f'\n\u00A0\u00A0 \u00A0\u00A0 \u00A0\u00A0 ELO:  {dm.elo} *global* / {player.elo} *local*\n'
                 f'\u00A0\u00A0 \u00A0\u00A0 \u00A0\u00A0 __W {g_wins} / L {g_losses}__ *global* \u00A0\u00A0 - \u00A0\u00A0 __W {wins} / L {losses}__ *local*\n')
 
-            grad_list.append(message, all_games)
+            grad_list.append((message, all_games))
 
         grad_list.sort(key=lambda tup: tup[1], reverse=False)     # sort the list ascending by num games played
         for grad in grad_list:
