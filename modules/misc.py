@@ -226,7 +226,7 @@ class misc:
             await ctx.send(f'{full_message}\n{" ".join(player_mentions)}')
 
     @commands.command(aliases=['undrafted'])
-    # @settings.on_polychampions()
+    @settings.on_polychampions()
     async def undrafted_novas(self, ctx, *, arg=None):
         """Prints list of Novas who meet graduation requirements but have not been drafted
         """
