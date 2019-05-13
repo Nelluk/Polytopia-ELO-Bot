@@ -25,22 +25,11 @@ class misc:
 
     @commands.command(hidden=True, aliases=['ts'])
     @commands.is_owner()
-    async def test(self, ctx, *, arg=None):
+    async def test(self, ctx, *, arg: discord.ext.commands.clean_content):
 
-        from timeit import default_timer as timer
-        start = timer()
-
-        dms = models.DiscordMember.members_not_on_polychamps()
-        logger.debug(f'{len(dms)} discordmember results')
-        for dm in dms:
-            if dm.wins().count() < 5:
-                logger.debug(f'Skipping {dm.name} - insufficient winning games')
-                continue
-                if dm.games_played(in_days=15).count() < 1:
-                    logger.debug(f'Skipping {dm.name} - insufficient recent games')
-                    continue
-            logger.debug(f'VALID {dm.name}')
-        print(f'Took {timer() - start} seconds.')
+        # clean_content_converter = discord.ext.commands.clean_content()
+        # clean_content = discord.ext.commands.clean_content(arg)
+        await ctx.send(arg)
 
     @commands.command(hidden=True, aliases=['bge'])
     async def bulk_global_elo(self, ctx, *, args=None):

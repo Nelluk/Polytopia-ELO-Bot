@@ -445,9 +445,10 @@ class matchmaking():
 
     @settings.in_bot_channel()
     @commands.command(usage='game_id', aliases=['notes', 'matchnotes'])
-    async def gamenotes(self, ctx, game: PolyMatch, *, notes: str = None):
+    # clean_content converter flattens and user/role tags
+    async def gamenotes(self, ctx, game: PolyMatch, *, notes: discord.ext.commands.clean_content = None):
         """
-        Edit notes for an open game you host
+        Edit notes for an open game you host.
         **Example:**
         `[p]gamenotes 1234 Large map, no bans` - Update notes for game 1234
         `[p]gamenotes 1234 none` - Delete notes for game 1234
@@ -473,6 +474,9 @@ class matchmaking():
         await ctx.send(f'Updated notes for game {game.id} to: {game.notes}')
         embed, content = game.embed(guild=ctx.guild, prefix=ctx.prefix)
         await ctx.send(embed=embed, content=content)
+
+        if ctx.message.mentions or ctx.message.role_mentions:
+            await ctx.send('**Warning**: Updated notes included role/user mentions. This will not impact who is allowed to join the game and will only change the content of the notes.')
 
     @settings.in_bot_channel()
     @commands.command(usage='game_id player')
