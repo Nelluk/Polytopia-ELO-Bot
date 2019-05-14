@@ -515,7 +515,7 @@ class matchmaking():
     @commands.command(aliases=['games', 'listmatches', 'matchlist', 'openmatches', 'listmatch', 'matches'])
     async def opengames(self, ctx, *args):
         """
-        List current open games
+        List joinable open games
 
         Full games will still be listed until the host starts or deletes them with `[p]startgame` / `[p]deletegame`
 
