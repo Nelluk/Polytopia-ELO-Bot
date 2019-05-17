@@ -142,8 +142,9 @@ class matchmaking():
         if not team_size:
             return await ctx.send(f'Game size is required. Include argument like *1v1* to specify size')
 
-        if settings.get_user_level(ctx) <= 1 and (is_ranked or sum(team_sizes) > 3):
-            return await ctx.send(f'You can only host unranked games with a maximum of 3 players.\n{settings.levels_info}')
+        # if settings.get_user_level(ctx) <= 1 and (is_ranked or sum(team_sizes) > 3):
+        if settings.get_user_level(ctx) <= 1 and sum(team_sizes) > 3:
+            return await ctx.send(f'You can only host games with a maximum of 3 players.\n{settings.levels_info}')
 
         if settings.get_user_level(ctx) <= 2:
             if sum(team_sizes) > 4 and is_ranked:

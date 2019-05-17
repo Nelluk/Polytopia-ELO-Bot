@@ -214,6 +214,66 @@ class misc:
             await game.update_squad_channels(self.bot.guilds, ctx.guild.id, message=full_message)
             await ctx.send(f'{full_message}\n{" ".join(player_mentions)}')
 
+    @commands.command(aliases=['balance'])
+    # @settings.on_polychampions()
+    async def league_balance(self, ctx, *, arg=None):
+        league_teams = [('Ronin', ['The Ronin', 'The Bandits']),
+                        ('Jets', ['The Jets', 'The Cropdusters']),
+                        ('Bombers', ['The Bombers', 'The Dynamite']),
+                        ('Lightning', ['The Lightning', 'The Pulse']),
+                        ('Cosmonauts', ['The Cosmonauts', 'The Space Cadets']),
+                        ('Crawfish', ['The Crawfish', 'The Shrimps']),
+                        ('Sparkies', ['The Sparkies', 'The Pups']),
+                        ('Wildfire', ['The Wildfire', 'The Flames']),
+                        ('Mallards', ['The Mallards', 'The Drakes']),
+                        ('Plague', ['The Plague', 'The Rats'])]
+
+        league_balance = []
+        mia_role = discord.utils.get(ctx.guild.roles, name='MIA')
+
+        for team, team_roles in league_teams:
+
+            pro_role = discord.utils.get(ctx.guild.roles, name=team_roles[0])
+            junior_role = discord.utils.get(ctx.guild.roles, name=team_roles[1])
+
+            if not pro_role or not junior_role:
+                logger.warn(f'Could not load one team role from guild, using args: {team_roles}')
+                continue
+
+            # try:
+            #     pro_team = models.Team.get_or_except(team_roles[0], ctx.guild.id)
+            #     junior_team = models.Team.get_or_except(team_roles[1], ctx.guild.id)
+            # except exceptions.NoSingleMatch as ex:
+            #     logger.warn(f'Could not load one team from database, using args: {team_roles}')
+            #     continue
+
+            pro_members, junior_members, pro_mia, junior_mia = [], [], 0, 0
+
+            for member in pro_role.members:
+                if mia_role in member.roles:
+                    pro_mia += 1
+                else:
+                    pro_members.append(member)
+            for member in junior_role.members:
+                if mia_role in member.roles:
+                    junior_mia += 1
+                else:
+                    junior_members.append(member)
+
+            league_balance.append(
+                (team,
+                 len(pro_members),
+                 len(junior_members),
+                 pro_mia,
+                 junior_mia)
+            )
+
+        embed = discord.Embed(title='PolyChampions League Balance Summary')
+        for team in league_balance:
+            embed.add_field(name=team[0], value=f'Test', inline=True)
+
+        await ctx.send(embed=embed)
+
     @commands.command(aliases=['undrafted'])
     @commands.cooldown(1, 30, commands.BucketType.channel)
     @settings.on_polychampions()
