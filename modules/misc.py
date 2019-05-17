@@ -264,9 +264,7 @@ class misc:
                     junior_members.append(member)
                     junior_discord_ids.append(member.id)
 
-            # pro_elo = models.Player.weighted_elo_of_player_list(list_of_discord_ids=pro_discord_ids, guild_id=ctx.guild.id)
-            # junior_elo = models.Player.weighted_elo_of_player_list(list_of_discord_ids=junior_discord_ids, guild_id=ctx.guild.id)
-            combined_elo = models.Player.weighted_elo_of_player_list(list_of_discord_ids=junior_discord_ids + pro_discord_ids, guild_id=ctx.guild.id)
+            combined_elo, player_games_total = models.Player.weighted_elo_of_player_list(list_of_discord_ids=junior_discord_ids + pro_discord_ids, guild_id=ctx.guild.id)
 
             league_balance.append(
                 (team,
@@ -277,14 +275,16 @@ class misc:
                  mia_count,
                  # pro_elo,
                  # junior_elo,
-                 combined_elo)
+                 combined_elo,
+                 player_games_total)
             )
 
         league_balance.sort(key=lambda tup: tup[6], reverse=True)     # sort by combined_elo
 
         embed = discord.Embed(title='PolyChampions League Balance Summary')
         for team in league_balance:
-            embed.add_field(name=f'{team[1].emoji} {team[0]} ({team[3] + team[4]}) {team[2].emoji}\n{indent_str} \u00A0\u00A0 ActiveELO™: {team[6]}',
+            embed.add_field(name=(f'{team[1].emoji} {team[0]} ({team[3] + team[4]}) {team[2].emoji}\n{indent_str} \u00A0\u00A0 ActiveELO™: {team[6]}'
+                                  f'\n{indent_str} \u00A0\u00A0 Recent member-games: {team[7]}'),
                 value=(f'-{indent_str}__**{team[1].name}**__ ({team[3]}) **ELO: {team[1].elo}**\n'
                        f'-{indent_str}__**{team[2].name}**__ ({team[4]}) **ELO: {team[2].elo}**\n'), inline=False)
 

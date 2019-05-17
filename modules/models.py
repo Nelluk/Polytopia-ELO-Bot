@@ -585,16 +585,19 @@ class Player(BaseModel):
         )
 
         elo_list = []
+        player_games = 0
         for p in players:
             # print(p.elo, p.games_played(in_days=30).count())
-            player_elos = [p.elo] * p.games_played(in_days=30).count()
+            games_played = p.games_played(in_days=30).count()
+            player_elos = [p.elo] * games_played
             elo_list = elo_list + player_elos
+            player_games += games_played
 
         if elo_list:
             # print(elo_list)
-            return statistics.median_high(elo_list)
+            return statistics.median_high(elo_list), player_games
 
-        return 0
+        return 0, 0
 
     class Meta:
         indexes = ((('discord_member', 'guild_id'), True),)   # Trailing comma is required
