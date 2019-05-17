@@ -283,9 +283,9 @@ class misc:
 
         embed = discord.Embed(title='PolyChampions League Balance Summary')
         for team in league_balance:
-            embed.add_field(name=f'{team[0]} ({team[3] + team[4]})\nActiveELO™: {team[6]}',
-                value=(f'{team[1].emoji} __**{team[1].name}**__ ({team[3]}) **ELO: {team[1].elo}**\n'
-                       f'{team[2].emoji} __**{team[2].name}**__ ({team[4]}) **ELO: {team[2].elo}**\n'), inline=True)
+            embed.add_field(name=f'{team[1].emoji} {team[0]} ({team[3] + team[4]}) {team[2].emoji}\nActiveELO™: {team[6]}',
+                value=(f'__**{team[1].name}**__ ({team[3]}) **ELO: {team[1].elo}**\n'
+                       f'__**{team[2].name}**__ ({team[4]}) **ELO: {team[2].elo}**\n'), inline=True)
 
         embed.set_footer(text='ActiveELO™ is the median ELO of active members weighted by how many games each member has played in the last 30 days.')
 
