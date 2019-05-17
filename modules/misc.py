@@ -215,7 +215,8 @@ class misc:
             await ctx.send(f'{full_message}\n{" ".join(player_mentions)}')
 
     @commands.command(aliases=['balance'])
-    # @settings.on_polychampions()
+    @commands.cooldown(1, 30, commands.BucketType.channel)
+    @settings.on_polychampions()
     async def league_balance(self, ctx, *, arg=None):
         league_teams = [('Ronin', ['The Ronin', 'The Bandits']),
                         ('Jets', ['The Jets', 'The Cropdusters']),
