@@ -263,8 +263,8 @@ class misc:
                     junior_members.append(member)
                     junior_discord_ids.append(member.id)
 
-            pro_elo = models.Player.weighted_elo_of_player_list(list_of_discord_ids=pro_discord_ids, guild_id=ctx.guild.id)
-            junior_elo = models.Player.weighted_elo_of_player_list(list_of_discord_ids=junior_discord_ids, guild_id=ctx.guild.id)
+            # pro_elo = models.Player.weighted_elo_of_player_list(list_of_discord_ids=pro_discord_ids, guild_id=ctx.guild.id)
+            # junior_elo = models.Player.weighted_elo_of_player_list(list_of_discord_ids=junior_discord_ids, guild_id=ctx.guild.id)
             combined_elo = models.Player.weighted_elo_of_player_list(list_of_discord_ids=junior_discord_ids + pro_discord_ids, guild_id=ctx.guild.id)
 
             league_balance.append(
@@ -274,20 +274,22 @@ class misc:
                  len(pro_members),
                  len(junior_members),
                  mia_count,
-                 pro_elo,
-                 junior_elo,
+                 # pro_elo,
+                 # junior_elo,
                  combined_elo)
             )
 
+        league_balance.sort(key=lambda tup: tup[6], reverse=True)     # sort by combined_elo
+
         embed = discord.Embed(title='PolyChampions League Balance Summary')
         for team in league_balance:
-            embed.add_field(name=f'{team[0]} ({team[3] + team[4]})\nPowerScore™: {team[8]}\nMIA: {team[5]}',
+            embed.add_field(name=f'{team[0]} ({team[3] + team[4]})\nActiveELO™: {team[6]}',
                 value=(f'__{team[1].name}__ (ELO: {team[1].elo}) {team[1].emoji}\n'
-                       f'Active: {team[3]}\nPowerScore™: {team[6]}\n'
+                       f'Active: {team[3]}\n'
                        f'__{team[2].name}__ (ELO: {team[2].elo}) {team[2].emoji}\n'
-                       f'Active: {team[4]}\nPowerScore™: {team[7]}'), inline=True)
+                       f'Active: {team[4]}'), inline=True)
 
-        embed.set_footer(text='PowerScore™ is the median ELO of active members weighted by how many games each member has played in the last 30 days.')
+        embed.set_footer(text='ActiveELO™ is the median ELO of active members weighted by how many games each member has played in the last 30 days.')
 
         await ctx.send(embed=embed)
 
