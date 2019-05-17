@@ -240,37 +240,53 @@ class misc:
                 logger.warn(f'Could not load one team role from guild, using args: {team_roles}')
                 continue
 
-            # try:
-            #     pro_team = models.Team.get_or_except(team_roles[0], ctx.guild.id)
-            #     junior_team = models.Team.get_or_except(team_roles[1], ctx.guild.id)
-            # except exceptions.NoSingleMatch as ex:
-            #     logger.warn(f'Could not load one team from database, using args: {team_roles}')
-            #     continue
+            try:
+                pro_team = models.Team.get_or_except(team_roles[0], ctx.guild.id)
+                junior_team = models.Team.get_or_except(team_roles[1], ctx.guild.id)
+            except exceptions.NoSingleMatch as ex:
+                logger.warn(f'Could not load one team from database, using args: {team_roles}')
+                continue
 
-            pro_members, junior_members, pro_mia, junior_mia = [], [], 0, 0
+            pro_members, junior_members, pro_discord_ids, junior_discord_ids, mia_count = [], [], [], [], 0
 
             for member in pro_role.members:
                 if mia_role in member.roles:
-                    pro_mia += 1
+                    mia_count += 1
                 else:
                     pro_members.append(member)
+                    pro_discord_ids.append(member.id)
             for member in junior_role.members:
                 if mia_role in member.roles:
-                    junior_mia += 1
+                    mia_count += 1
                 else:
                     junior_members.append(member)
+                    junior_discord_ids.append(member.id)
+
+            pro_elo = models.Player.weighted_elo_of_player_list(list_of_discord_ids=pro_discord_ids, guild_id=ctx.guild.id)
+            junior_elo = models.Player.weighted_elo_of_player_list(list_of_discord_ids=junior_discord_ids, guild_id=ctx.guild.id)
+            combined_elo = models.Player.weighted_elo_of_player_list(list_of_discord_ids=junior_discord_ids + pro_discord_ids, guild_id=ctx.guild.id)
 
             league_balance.append(
                 (team,
+                 pro_team,
+                 junior_team,
                  len(pro_members),
                  len(junior_members),
-                 pro_mia,
-                 junior_mia)
+                 mia_count,
+                 pro_elo,
+                 junior_elo,
+                 combined_elo)
             )
 
         embed = discord.Embed(title='PolyChampions League Balance Summary')
         for team in league_balance:
-            embed.add_field(name=team[0], value=f'Test', inline=True)
+            embed.add_field(name=f'{team[0]} ({team[3] + team[4]})\nPowerScore™: {team[8]}\nMIA: {team[5]}',
+                value=(f'__{team[1].name}__ (ELO: {team[1].elo}) {team[1].emoji}\n'
+                       f'Active: {team[3]}\nPowerScore™: {team[6]}\n'
+                       f'__{team[2].name}__ (ELO: {team[2].elo}) {team[2].emoji}\n'
+                       f'Active: {team[4]}\nPowerScore™: {team[7]}'), inline=True)
+
+        embed.set_footer(text='PowerScore™ is the median ELO of active members weighted by how many games each member has played in the last 30 days.')
 
         await ctx.send(embed=embed)
 

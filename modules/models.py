@@ -8,6 +8,7 @@ from playhouse.postgres_ext import *
 import modules.exceptions as exceptions
 # from modules import utilities
 from modules import channels
+import statistics
 import settings
 import logging
 
@@ -574,6 +575,26 @@ class Player(BaseModel):
         ).group_by(Lineup.tribe, Lineup.tribe.emoji, Tribe.name).order_by(-SQL('tribe_count')).limit(limit)
 
         return q.dicts()
+
+    def weighted_elo_of_player_list(list_of_discord_ids, guild_id):
+
+        # Given a group of discord_ids (likely teammates) come up with a median ELO for that group, weighted by how active they are
+        # ie if a team has two players and the guy with 1500 elo plays a lot and the guy with 1000 elo plays not at all, 1500 will be the weighted median elo
+        players = Player.select(Player, DiscordMember).join(DiscordMember).where(
+            (DiscordMember.discord_id.in_(list_of_discord_ids)) & (Player.guild_id == guild_id)
+        )
+
+        elo_list = []
+        for p in players:
+            # print(p.elo, p.games_played(in_days=30).count())
+            player_elos = [p.elo] * p.games_played(in_days=30).count()
+            elo_list = elo_list + player_elos
+
+        if elo_list:
+            # print(elo_list)
+            return statistics.median_high(elo_list)
+
+        return 0
 
     class Meta:
         indexes = ((('discord_member', 'guild_id'), True),)   # Trailing comma is required
