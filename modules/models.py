@@ -595,7 +595,7 @@ class Player(BaseModel):
 
         if elo_list:
             # print(elo_list)
-            return int(statistics.median(elo_list)), player_games
+            return int(statistics.mean(elo_list)), player_games
 
         return 0, 0
 
