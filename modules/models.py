@@ -578,7 +578,7 @@ class Player(BaseModel):
 
     def weighted_elo_of_player_list(list_of_discord_ids, guild_id):
 
-        # Given a group of discord_ids (likely teammates) come up with a median ELO for that group, weighted by how active they are
+        # Given a group of discord_ids (likely teammates) come up with an average ELO for that group, weighted by how active they are
         # ie if a team has two players and the guy with 1500 elo plays a lot and the guy with 1000 elo plays not at all, 1500 will be the weighted median elo
         players = Player.select(Player, DiscordMember).join(DiscordMember).where(
             (DiscordMember.discord_id.in_(list_of_discord_ids)) & (Player.guild_id == guild_id)

@@ -288,7 +288,7 @@ class misc:
                 value=(f'-{indent_str}__**{team[1].name}**__ ({team[3]}) **ELO: {team[1].elo}**\n'
                        f'-{indent_str}__**{team[2].name}**__ ({team[4]}) **ELO: {team[2].elo}**\n'), inline=False)
 
-        embed.set_footer(text='ActiveELO™ is the median ELO of members weighted by how many games each member has played in the last 30 days.')
+        embed.set_footer(text='ActiveELO™ is the mean ELO of members weighted by how many games each member has played in the last 30 days.')
 
         await ctx.send(embed=embed)
 
