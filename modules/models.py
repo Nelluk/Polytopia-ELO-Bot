@@ -585,6 +585,7 @@ class Player(BaseModel):
         )
 
         elo_list = []
+        elo_list1, elo_list2, elo_list3 = [], [], []
         player_games = 0
         for p in players:
             # print(p.elo, p.games_played(in_days=30).count())
@@ -593,8 +594,14 @@ class Player(BaseModel):
             elo_list = elo_list + player_elos
             player_games += games_played
 
+            elo_list1 = elo_list1 + [p.elo] * min(games_played, 10)
+            elo_list2 = elo_list2 + [p.elo] * min(games_played, 2)
+            elo_list3 = elo_list3 + [p.elo]
+
         if elo_list:
-            # print(elo_list)
+            print(f'Min10: {int(statistics.mean(elo_list1))}')
+            print(f'Min5: {int(statistics.mean(elo_list2))}')
+            print(f'Median no weighting: {int(statistics.median(elo_list3))}')
             return int(statistics.mean(elo_list)), player_games
 
         return 0, 0
