@@ -264,6 +264,7 @@ class misc:
                     junior_members.append(member)
                     junior_discord_ids.append(member.id)
 
+            logger.info(team)
             combined_elo, player_games_total = models.Player.weighted_elo_of_player_list(list_of_discord_ids=junior_discord_ids + pro_discord_ids, guild_id=ctx.guild.id)
 
             league_balance.append(
