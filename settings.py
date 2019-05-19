@@ -320,27 +320,48 @@ config = {'default':
                       'game_request_channel': None,  # $staffhelp output
                       'game_announce_channel': None,  # elo-drafts
                       'game_channel_categories': [507946542024359938]},  # Jets vs Jets
-        568090839545413635:                           # Polympire, small server run by WhyDoYouDide
-                     {'helper_roles': ['Bot-helper'],
-                      'mod_roles': ['Admin', 'Bot-mod'],
-                      'user_roles_level_4': ['@everyone'],  # power user
+        # 568090839545413635:                           # Polympire, small server run by WhyDoYouDide
+        #              {'helper_roles': ['Bot-helper'],
+        #               'mod_roles': ['Admin', 'Bot-mod'],
+        #               'user_roles_level_4': ['@everyone'],  # power user
+        #               'user_roles_level_3': ['@everyone'],  # power user
+        #               'user_roles_level_2': ['@everyone'],  # normal user
+        #               'user_roles_level_1': ['@everyone'],  # restricted user/newbie
+        #               'display_name': 'Polympire',
+        #               'require_teams': False,
+        #               'allow_teams': True,
+        #               'allow_uneven_teams': True,
+        #               'max_team_size': 6,
+        #               'command_prefix': '$',
+        #               'include_in_global_lb': False,
+        #               'bot_channels_private': [],
+        #               'bot_channels_strict': [568091652506255377],
+        #               'bot_channels': [568091652506255377],
+        #               'ranked_game_channel': None,
+        #               'unranked_game_channel': None,
+        #               'match_challenge_channels': [],
+        #               'game_channel_categories': [568404156352561163]},
+        576962604124209180:                           # Small server run by PinkPigmyPuff#7107
+                     {'helper_roles': ['ELO-Helper'],
+                      'mod_roles': ['MOD'],
+                      'user_roles_level_4': ['PolyPlayer!'],  # power user
                       'user_roles_level_3': ['@everyone'],  # power user
                       'user_roles_level_2': ['@everyone'],  # normal user
                       'user_roles_level_1': ['@everyone'],  # restricted user/newbie
-                      'display_name': 'Polympire',
+                      'display_name': 'PinkPigmyPuff Polytopia',
                       'require_teams': False,
                       'allow_teams': True,
                       'allow_uneven_teams': True,
-                      'max_team_size': 6,
+                      'max_team_size': 2,
                       'command_prefix': '$',
                       'include_in_global_lb': False,
                       'bot_channels_private': [],
-                      'bot_channels_strict': [568091652506255377],
-                      'bot_channels': [568091652506255377],
+                      'bot_channels_strict': [579724730102448131],
+                      'bot_channels': [579724730102448131],
                       'ranked_game_channel': None,
                       'unranked_game_channel': None,
                       'match_challenge_channels': [],
-                      'game_channel_categories': [568404156352561163]},
+                      'game_channel_categories': []},
         419286093360529420:                           # Pooltopia, run by Bomber
                      {'helper_roles': ['pooltopia'],
                       'mod_roles': ['mod', 'pooltopian'],

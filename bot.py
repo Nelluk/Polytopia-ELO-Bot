@@ -201,4 +201,11 @@ if __name__ == '__main__':
         print(f'\n\nv2 Logged in as: {bot.user.name} - {bot.user.id}\nVersion: {discord.__version__}\n')
         print(f'Successfully logged in and booted...!')
 
+        for g in bot.guilds:
+            if g.id in settings.config:
+                logger.debug(f'Loaded in guild {g.id} {g.name}')
+            else:
+                logger.error(f'Unauthorized guild {g.id} {g.name} not found in settings.py configuration - Leaving...')
+                await g.leave()
+
     bot.run(settings.discord_key, bot=True, reconnect=True)

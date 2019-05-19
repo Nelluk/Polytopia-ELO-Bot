@@ -25,11 +25,14 @@ class misc:
 
     @commands.command(hidden=True, aliases=['ts'])
     @commands.is_owner()
-    async def test(self, ctx, *, arg: discord.ext.commands.clean_content):
+    async def test(self, ctx, *, arg: str = None):
 
-        # clean_content_converter = discord.ext.commands.clean_content()
-        # clean_content = discord.ext.commands.clean_content(arg)
-        await ctx.send(arg)
+        print(self.bot.guilds)
+        for g in self.bot.guilds:
+            logger.debug(g.id, g.name)
+
+        guild = self.bot.get_guild(568090839545413635)
+        await guild.leave()
 
     @commands.command(hidden=True, aliases=['bge'])
     async def bulk_global_elo(self, ctx, *, args=None):
