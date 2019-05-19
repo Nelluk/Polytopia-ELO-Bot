@@ -603,7 +603,9 @@ class Player(BaseModel):
             logger.info(f'Min10: {int(statistics.mean(elo_list1))}')
             logger.info(f'Min5: {int(statistics.mean(elo_list2))}')
             logger.info(f'Median no weighting: {int(statistics.median(elo_list3))}')
-            return int(statistics.mean(elo_list)), player_games
+
+            # return int(statistics.mean(elo_list)), player_games
+            return int(statistics.mean(elo_list1)), player_games
 
         return 0, 0
 
