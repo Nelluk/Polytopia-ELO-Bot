@@ -599,6 +599,7 @@ class Player(BaseModel):
             elo_list3 = elo_list3 + [p.elo]
 
         if elo_list:
+            logger.info(f'Full weighting: {int(statistics.mean(elo_list))}')
             logger.info(f'Min10: {int(statistics.mean(elo_list1))}')
             logger.info(f'Min5: {int(statistics.mean(elo_list2))}')
             logger.info(f'Median no weighting: {int(statistics.median(elo_list3))}')
