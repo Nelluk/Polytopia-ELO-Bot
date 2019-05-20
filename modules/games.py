@@ -396,9 +396,9 @@ class elo_games():
 
         try:
             player = Player.get_or_except(player_string=player_mention, guild_id=ctx.guild.id)
-        except exceptions.TooManyMatches:
-            return await ctx.send(f'There is more than one player found with name *{player_mention}*. Specify user with @Mention.')
-        except exceptions.NoMatches:
+        # except exceptions.TooManyMatches:
+        #     return await ctx.send(f'There is more than one player found with name *{player_mention}*. Specify user with @Mention.')
+        except exceptions.NoSingleMatch:
             # No Player matches - check for guild membership
             guild_matches = await utilities.get_guild_member(ctx, player_mention)
             if len(guild_matches) > 1:
