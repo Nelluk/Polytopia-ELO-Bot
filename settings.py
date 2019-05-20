@@ -360,6 +360,7 @@ config = {'default':
                       'bot_channels': [579779127641374720],
                       'ranked_game_channel': None,
                       'unranked_game_channel': None,
+                      'game_announce_channel': 579728109842989058,
                       'match_challenge_channels': [],
                       'game_channel_categories': []},
         419286093360529420:                           # Pooltopia, run by Bomber
