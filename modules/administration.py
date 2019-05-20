@@ -569,6 +569,7 @@ class administration:
 
         old_60d = (datetime.date.today() + datetime.timedelta(days=-60))
         old_90d = (datetime.date.today() + datetime.timedelta(days=-90))
+        old_120d = (datetime.date.today() + datetime.timedelta(days=-120))
 
         def async_game_search():
             query = models.Game.search(status_filter=2, guild_id=ctx.guild.id)
@@ -589,6 +590,14 @@ class administration:
                 delete_result.append(f'Deleting incomplete 3-player game older than 90 days. - {game.get_headline()} - {game.date}{rank_str}')
                 await game.delete_game_channels(self.bot.guilds, ctx.guild.id)
                 await self.bot.loop.run_in_executor(None, game.delete_game)
+
+            if len(game.lineup) == 4:
+                if game.date < old_90d and not game.is_completed and not game.is_ranked:
+                    delete_result.append(f'Deleting incomplete 4-player game older than 90 days. - {game.get_headline()} - {game.date}{rank_str}')
+                    await self.bot.loop.run_in_executor(None, game.delete_game)
+                if game.date < old_120d and not game.is_completed and game.is_ranked:
+                    delete_result.append(f'Deleting incomplete ranked 4-player game older than 120 days. - {game.get_headline()} - {game.date}{rank_str}')
+                    await self.bot.loop.run_in_executor(None, game.delete_game)
 
             if len(delete_result) >= 10:
                 break  # more than ten games and the output will be truncated
