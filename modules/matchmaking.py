@@ -83,6 +83,9 @@ class matchmaking():
         expiration_hours_override = None
         note_args = []
 
+        if args == 'games':
+            return await ctx.invoke(self.bot.get_command('opengames'))
+
         if not args:
             return await ctx.send('Game size is required. Include argument like *1v1v1* to specify size.'
                 f'\nExample: `{ctx.prefix}opengame 1v1 large map`'
