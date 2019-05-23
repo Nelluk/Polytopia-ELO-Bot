@@ -419,7 +419,7 @@ class administration:
         await ctx.send(f'Team **{old_name}** has been renamed to **{team.name}**.')
 
     @commands.command()
-    @settings.is_mod_check()
+    # @settings.is_mod_check()
     @settings.on_polychampions()
     async def grad_novas(self, ctx, *, arg=None):
         """*Mods*: Check Novas for graduation requirements
@@ -431,14 +431,16 @@ class administration:
         role = discord.utils.get(ctx.guild.roles, name='The Novas')
         grad_role = discord.utils.get(ctx.guild.roles, name='Novas Grad')
         recruiter_role = discord.utils.get(ctx.guild.roles, name='Team Recruiter')
+        drafter_role = discord.utils.get(ctx.guild.roles, name='Drafter')
         grad_chan = ctx.guild.get_channel(540332800927072267)  # Novas draft talk
         if ctx.guild.id == settings.server_ids['test']:
             role = discord.utils.get(ctx.guild.roles, name='testers')
             grad_role = discord.utils.get(ctx.guild.roles, name='Team Leader')
             recruiter_role = discord.utils.get(ctx.guild.roles, name='role1')
+            drafter_role = recruiter_role
             grad_chan = ctx.guild.get_channel(479292913080336397)  # bot spam
 
-        await ctx.send(f'Testing auto-graduation')
+        await ctx.send(f'Auto-graduating Novas')
         async with ctx.typing():
             for member in role.members:
                 try:
@@ -483,7 +485,7 @@ class administration:
                 await member.add_roles(grad_role)
                 await grad_chan.send(f'Player {member.mention} (*Global ELO: {dm.elo} \u00A0\u00A0\u00A0\u00A0W {wins} / L {losses}*) qualifies for graduation on the basis of games: `{" ".join(qualifying_games)}`')
             if grad_count:
-                await grad_chan.send(f'{recruiter_role.mention} the above player(s) meet the qualifications for graduation. DM <@217385992837922819> to express interest.')
+                await grad_chan.send(f'{recruiter_role.mention} the above player(s) meet the qualifications for graduation. DM {drafter_role.mention} to express interest.')
 
     @commands.command()
     @settings.is_mod_check()
