@@ -487,6 +487,8 @@ class administration:
             if grad_count:
                 await grad_chan.send(f'{recruiter_role.mention} the above player(s) meet the qualifications for graduation. DM {drafter_role.mention} to express interest.')
 
+            await ctx.send(f'Completed auto-grad: {grad_count} new graduates.')
+
     @commands.command()
     @settings.is_mod_check()
     @settings.on_polychampions()
