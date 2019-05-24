@@ -363,6 +363,7 @@ class misc:
             ('Luxidoor', 1),
             ('Imperius', 1),
             ('Elyrion', 2),
+            ('Yadakk', 2),
             ('Zebasi', 2),
             ('Hoodrick', 2),
             ('Aquarion', 2),
