@@ -21,7 +21,7 @@ def initialize_data():
                         ('Home', ':stadium:', None),
                         ('Away', ':airplane:', None)]
 
-    tribe_list = ['Bardur', 'Imperius', 'Xin-Xi', 'Oumaji', 'Kickoo', 'Hoodrick', 'Luxidoor', 'Vengir', 'Zebasi', 'Ai-Mo', 'Quetzali', 'Aquarion', 'Elyrion', 'Yadakk']
+    tribe_list = ['Bardur', 'Imperius', 'Xin-Xi', 'Oumaji', 'Kickoo', 'Hoodrick', 'Luxidoor', 'Vengir', 'Zebasi', 'Ai-Mo', 'Quetzali', 'Aquarion', 'Elyrion', 'Yadakk', 'Polaris']
 
     for guild_id in [447883341463814144]:
         # 447883341463814144 = Polychampions
