@@ -257,8 +257,8 @@ config = {'default':
                      {'helper_roles': ['ELO-Helper', 'Bot Master', 'Director'],
                       'mod_roles': ['MOD', 'Manager'],
                       'user_roles_level_4': ['Archer', 'Defender', 'Ship', 'Catapult', 'Knight', 'Swordsman', 'Tridention', 'Battleship', 'Mind Bender', 'Giant', 'Crab', 'Dragon', 'ELO Hero'],
-                      'user_roles_level_3': ['ELO Veteran'],  # full user
-                      'user_roles_level_2': ['Rider', 'Boat', 'ELO Player'],  # normal user
+                      'user_roles_level_3': ['ELO Player', 'ELO Veteran'],  # full user
+                      'user_roles_level_2': ['Rider', 'Boat', 'ELO Newbie'],  # normal user
                       'user_roles_level_1': ['Member', 'Warrior'],  # restricted user/newbie
                       'display_name': 'Polytopia',
                       'allow_uneven_teams': True,

@@ -11,7 +11,7 @@ import datetime
 import random
 import peewee
 # from modules.games import PolyGame
-# import modules.achievements as achievements
+import modules.achievements as achievements
 
 logger = logging.getLogger('polybot.' + __name__)
 
@@ -27,12 +27,13 @@ class misc:
     @commands.is_owner()
     async def test(self, ctx, *, arg: str = None):
 
-        print(self.bot.guilds)
-        for g in self.bot.guilds:
-            logger.debug(g.id, g.name)
+        players = models.DiscordMember.select().where(
+            # (models.DiscordMember.guild_id == ctx.guild.id) &
+            (models.DiscordMember.elo_max < 1350)
+        )
 
-        guild = self.bot.get_guild(568090839545413635)
-        await guild.leave()
+        for p in players:
+            await achievements.set_experience_role(p)
 
     @commands.command(hidden=True, aliases=['bge'])
     async def bulk_global_elo(self, ctx, *, args=None):
