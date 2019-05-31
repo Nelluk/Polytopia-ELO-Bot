@@ -32,8 +32,42 @@ class misc:
             (models.DiscordMember.elo_max < 1350)
         )
 
-        for p in players:
-            await achievements.set_experience_role(p)
+        for discord_member in players:
+            logger.debug(f'processing experience role for member {discord_member.name}')
+            completed_games = discord_member.completed_game_count(only_ranked=False)
+
+            for guildmember in list(discord_member.guildmembers):
+                guild = discord.utils.get(settings.bot.guilds, id=guildmember.guild_id)
+                member = guild.get_member(discord_member.discord_id) if guild else None
+
+                if not member:
+                    continue
+
+                role_list = []
+
+                role = None
+                if completed_games >= 2:
+                    role = discord.utils.get(guild.roles, name='ELO Newbie')
+                    role_list.append(role) if role is not None else None
+                if completed_games >= 10:
+                    role = discord.utils.get(guild.roles, name='ELO Player')
+                    role_list.append(role) if role is not None else None
+                if discord_member.elo_max >= 1200:
+                    role = discord.utils.get(guild.roles, name='ELO Veteran')
+                    role_list.append(role) if role is not None else None
+                if discord_member.elo_max >= 1350:
+                    role = discord.utils.get(guild.roles, name='ELO Hero')
+                    role_list.append(role) if role is not None else None
+
+                if not role:
+                    continue
+
+                if role not in member.roles:
+                    if role not in role_list or len(role_list) > 1:
+                        await member.remove_roles(*role_list)
+                        logger.info(f'removing roles from member {member}:\n:{role_list}')
+                    await member.add_roles(role)
+                    await ctx.send(f'adding role {role.name} to member {member.name}')
 
     @commands.command(hidden=True, aliases=['bge'])
     async def bulk_global_elo(self, ctx, *, args=None):
