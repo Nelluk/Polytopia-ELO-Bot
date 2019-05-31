@@ -89,7 +89,7 @@ class misc:
 
         embed.add_field(name='Finishing tracked games',
             value=f'Use the __`{ctx.prefix}win`__ command to tell the bot that a game has concluded.\n'
-            f'For example if Nelluk wins game 400, he would type __`{ctx.prefix}win 400 nelluk`__. The losing player can confirm using the same command. '
+            f'For example if Nelluk wins game 10150, he would type __`{ctx.prefix}win 10150 nelluk`__. The losing player can confirm using the same command. '
             f'Games are auto-confirmed after 24 hours, or sooner if the losing side manually confirms.')
 
         embed.set_thumbnail(url=self.bot.user.avatar_url_as(size=512))
