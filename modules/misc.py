@@ -52,7 +52,8 @@ class misc:
                 else:
                     continue
 
-                role_list = [vet_role]
+                role_list = []
+                role_list.append(vet_role)
 
                 role = None
                 if completed_games >= 2:
@@ -73,9 +74,8 @@ class misc:
                 logger.debug(role)
 
                 if role not in member.roles:
-                    if role not in role_list or len(role_list) > 1:
-                        await member.remove_roles(*role_list)
-                        logger.info(f'removing roles from member {member}:\n:{role_list}')
+                    await member.remove_roles(*role_list)
+                    logger.info(f'removing roles from member {member}:\n:{role_list}')
                     await member.add_roles(role)
                     await ctx.send(f'adding role {role.name} to member {member.name}')
 
