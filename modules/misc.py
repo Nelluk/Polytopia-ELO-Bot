@@ -42,36 +42,33 @@ class misc:
                 if not member:
                     continue
 
-                vet_role = discord.utils.get(guild.roles, name='ELO Veteran')
+                test_role = discord.utils.get(guild.roles, name='ELO Newbie')
 
-                if not vet_role:
+                if not test_role:
                     continue
 
-                if vet_role in member.roles:
+                role_list = []
+
+                role = None
+                newbie_role = discord.utils.get(guild.roles, name='ELO Newbie')
+                role_list.append(newbie_role) if role is not None else None
+
+                player_role = discord.utils.get(guild.roles, name='ELO Player')
+                role_list.append(player_role) if role is not None else None
+
+                if newbie_role in member.roles and player_role in member.roles:
                     logger.debug(f'processing experience role for member {discord_member.name}')
                 else:
                     continue
 
-                role_list = []
-                role_list.append(vet_role)
-
-                role = None
                 if completed_games >= 2:
-                    role = discord.utils.get(guild.roles, name='ELO Newbie')
-                    role_list.append(role) if role is not None else None
+                    role = newbie_role
                 if completed_games >= 10:
-                    role = discord.utils.get(guild.roles, name='ELO Player')
-                    role_list.append(role) if role is not None else None
-                if discord_member.elo_max >= 1200:
-                    role = discord.utils.get(guild.roles, name='ELO Veteran')
-                    # role_list.append(role) if role is not None else None
-                if discord_member.elo_max >= 1350:
-                    role = discord.utils.get(guild.roles, name='ELO Hero')
-                    role_list.append(role) if role is not None else None
+                    role = player_role
 
                 if not role:
+                    logger.warn(f'Cannot determine role for {member} - {completed_games}')
                     continue
-                logger.debug(role)
 
                 await member.remove_roles(*role_list)
                 logger.info(f'removing roles from member {member}:\n:{role_list}')
