@@ -43,11 +43,15 @@ class misc:
                 if not member:
                     continue
 
-                newbie_role = discord.utils.get(guild.roles, name='ELO Newbie')
-                if newbie_role in member.roles:
+                vet_role = discord.utils.get(guild.roles, name='ELO Newbie')
+
+                if not vet_role:
                     continue
 
-                role_list = []
+                if vet_role not in member.roles:
+                    continue
+
+                role_list = [vet_role]
 
                 role = None
                 if completed_games >= 2:
@@ -58,7 +62,7 @@ class misc:
                     role_list.append(role) if role is not None else None
                 if discord_member.elo_max >= 1200:
                     role = discord.utils.get(guild.roles, name='ELO Veteran')
-                    role_list.append(role) if role is not None else None
+                    # role_list.append(role) if role is not None else None
                 if discord_member.elo_max >= 1350:
                     role = discord.utils.get(guild.roles, name='ELO Hero')
                     role_list.append(role) if role is not None else None
