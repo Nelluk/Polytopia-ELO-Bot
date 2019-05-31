@@ -51,7 +51,7 @@ class misc:
 
                 role = None
                 if completed_games >= 2:
-                    role = newbie_role
+                    role = discord.utils.get(guild.roles, name='ELO Newbie')
                     role_list.append(role) if role is not None else None
                 if completed_games >= 10:
                     role = discord.utils.get(guild.roles, name='ELO Player')
