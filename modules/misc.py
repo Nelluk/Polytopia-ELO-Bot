@@ -73,11 +73,10 @@ class misc:
                     continue
                 logger.debug(role)
 
-                if role not in member.roles:
-                    await member.remove_roles(*role_list)
-                    logger.info(f'removing roles from member {member}:\n:{role_list}')
-                    await member.add_roles(role)
-                    await ctx.send(f'adding role {role.name} to member {member.name}')
+                await member.remove_roles(*role_list)
+                logger.info(f'removing roles from member {member}:\n:{role_list}')
+                await member.add_roles(role)
+                await ctx.send(f'adding role {role.name} to member {member.name}')
 
     @commands.command(hidden=True, aliases=['bge'])
     async def bulk_global_elo(self, ctx, *, args=None):
