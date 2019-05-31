@@ -51,10 +51,10 @@ class misc:
 
                 role = None
                 newbie_role = discord.utils.get(guild.roles, name='ELO Newbie')
-                role_list.append(newbie_role) if role is not None else None
+                role_list.append(newbie_role)
 
                 player_role = discord.utils.get(guild.roles, name='ELO Player')
-                role_list.append(player_role) if role is not None else None
+                role_list.append(player_role)
 
                 if newbie_role in member.roles and player_role in member.roles:
                     logger.debug(f'processing experience role for member {discord_member.name}')
