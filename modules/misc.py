@@ -43,7 +43,7 @@ class misc:
                 if not member:
                     continue
 
-                vet_role = discord.utils.get(guild.roles, name='ELO Newbie')
+                vet_role = discord.utils.get(guild.roles, name='ELO Veteran')
 
                 if not vet_role:
                     continue
