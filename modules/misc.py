@@ -43,11 +43,15 @@ class misc:
                 if not member:
                     continue
 
+                newbie_role = discord.utils.get(guild.roles, name='ELO Newbie')
+                if newbie_role in member.roles:
+                    continue
+
                 role_list = []
 
                 role = None
                 if completed_games >= 2:
-                    role = discord.utils.get(guild.roles, name='ELO Newbie')
+                    role = newbie_role
                     role_list.append(role) if role is not None else None
                 if completed_games >= 10:
                     role = discord.utils.get(guild.roles, name='ELO Player')
