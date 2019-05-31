@@ -80,8 +80,9 @@ async def set_experience_role(discord_member):
             continue
 
         if role not in member.roles:
-            await member.remove_roles(*role_list)
-            logger.info(f'removing roles from member {member}:\n:{role_list}')
+            if role not in role_list or len(role_list) > 1:
+                await member.remove_roles(*role_list)
+                logger.info(f'removing roles from member {member}:\n:{role_list}')
             await member.add_roles(role)
             logger.info(f'adding role {role} to member {member}')
 
