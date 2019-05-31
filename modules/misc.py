@@ -33,7 +33,6 @@ class misc:
         )
 
         for discord_member in players:
-            logger.debug(f'processing experience role for member {discord_member.name}')
             completed_games = discord_member.completed_game_count(only_ranked=False)
 
             for guildmember in list(discord_member.guildmembers):
@@ -48,7 +47,9 @@ class misc:
                 if not vet_role:
                     continue
 
-                if vet_role not in member.roles:
+                if vet_role in member.roles:
+                    logger.debug(f'processing experience role for member {discord_member.name}')
+                else:
                     continue
 
                 role_list = [vet_role]
@@ -69,6 +70,7 @@ class misc:
 
                 if not role:
                     continue
+                logger.debug(role)
 
                 if role not in member.roles:
                     if role not in role_list or len(role_list) > 1:
