@@ -565,7 +565,7 @@ class administration:
         await ctx.send(f'Purging  **The Novas** role from {count} members who have not registered a poly code in the last week OR played a game in the last 8 weeks.')
 
     @commands.command()
-    @commands.is_owner()
+    @commands.is_mod_check()
     async def purge_incomplete(self, ctx):
         """*Owner*: Purge old incomplete games
         Purges up to 10 games at a time. Only incomplete 2-player games that started more than 60 days ago, or 3-player games that started more than 90 days ago.
