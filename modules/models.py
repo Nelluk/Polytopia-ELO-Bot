@@ -1063,18 +1063,20 @@ class Game(BaseModel):
 
     def size_string(self):
 
+        gamesides = self.ordered_side_list()
+
         if self.is_pending:
             # use capacity for matchmaking strings
-            if max(s.size for s in self.gamesides) == 1 and len(self.gamesides) > 2:
+            if max(s.size for s in gamesides) == 1 and len(gamesides) > 2:
                 return 'FFA'
             else:
-                return 'v'.join(str(s.size) for s in self.gamesides)
+                return 'v'.join(str(s.size) for s in gamesides)
 
         # this might be superfluous, combined Match and Game functions together
         if self.largest_team() == 1 and len(self.gamesides) > 2:
             return 'FFA'
         else:
-            return 'v'.join(str(len(s.lineup)) for s in self.gamesides)
+            return 'v'.join(str(len(s.lineup)) for s in gamesides)
 
     def load_full_game(game_id: int):
         # Returns a single Game object with all related tables pre-fetched. or None
