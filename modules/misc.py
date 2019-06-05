@@ -11,7 +11,7 @@ import datetime
 import random
 import peewee
 # from modules.games import PolyGame
-import modules.achievements as achievements
+# import modules.achievements as achievements
 
 logger = logging.getLogger('polybot.' + __name__)
 
@@ -27,53 +27,26 @@ class misc:
     @commands.is_owner()
     async def test(self, ctx, *, arg: str = None):
 
-        players = models.DiscordMember.select().where(
-            # (models.DiscordMember.guild_id == ctx.guild.id) &
-            (models.DiscordMember.elo_max < 1350)
+        games_list = models.Game.select().where(
+            (models.Game.is_confirmed == 1) &
+            (models.Game.guild_id == ctx.guild.id)
         )
 
-        for discord_member in players:
-            completed_games = discord_member.completed_game_count(only_ranked=False)
-
-            for guildmember in list(discord_member.guildmembers):
-                guild = discord.utils.get(settings.bot.guilds, id=guildmember.guild_id)
-                member = guild.get_member(discord_member.discord_id) if guild else None
-
-                if not member:
-                    continue
-
-                test_role = discord.utils.get(guild.roles, name='ELO Newbie')
-
-                if not test_role:
-                    continue
-
-                role_list = []
-
-                role = None
-                newbie_role = discord.utils.get(guild.roles, name='ELO Newbie')
-                role_list.append(newbie_role)
-
-                player_role = discord.utils.get(guild.roles, name='ELO Player')
-                role_list.append(player_role)
-
-                if newbie_role in member.roles and player_role in member.roles:
-                    logger.debug(f'processing experience role for member {discord_member.name}')
+        win_count, total_count = 0, 0
+        for g in games_list:
+            g_size = g.size_string()
+            if g_size in ['1v1', '2v2', '3v3']:
+                total_count += 1
+                print('here')
+                if g.winner == g.ordered_side_list().limit(1).get():
+                    print('winner')
+                    win_count += 1
                 else:
-                    continue
+                    # print(g.ordered_side_list().limit(1).get())
+                    print('loser')
 
-                if completed_games >= 2:
-                    role = newbie_role
-                if completed_games >= 10:
-                    role = player_role
-
-                if not role:
-                    logger.warn(f'Cannot determine role for {member} - {completed_games}')
-                    continue
-
-                await member.remove_roles(*role_list)
-                logger.info(f'removing roles from member {member}:\n:{role_list}')
-                await member.add_roles(role)
-                await ctx.send(f'adding role {role.name} to member {member.name}')
+        win_perc = round(float(win_count / total_count), 3) * 100
+        await ctx.send(f'Analyzing {total_count} concluded games that are 1v1, 2v2, or 3v3. Of those, the hosting side has won {win_count} games, or {win_perc}% of the time.')
 
     @commands.command(hidden=True, aliases=['bge'])
     async def bulk_global_elo(self, ctx, *, args=None):
