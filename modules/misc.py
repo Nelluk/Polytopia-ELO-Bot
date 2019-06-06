@@ -23,30 +23,30 @@ class misc:
             self.bg_task = bot.loop.create_task(self.task_broadcast_newbie_message())
             self.bg_task = bot.loop.create_task(self.task_send_polychamps_invite())
 
-    @commands.command(hidden=True, aliases=['ts'])
-    @commands.is_owner()
-    async def test(self, ctx, *, arg: str = None):
+    # @commands.command(hidden=True, aliases=['ts'])
+    # @commands.is_owner()
+    # async def test(self, ctx, *, arg: str = None):
 
-        games_list = models.Game.select().where(
-            (models.Game.is_confirmed == 1) &
-            (models.Game.guild_id == ctx.guild.id)
-        )
+    #     games_list = models.Game.select().where(
+    #         (models.Game.is_confirmed == 1) &
+    #         (models.Game.guild_id == ctx.guild.id)
+    #     )
 
-        win_count, total_count = 0, 0
-        for g in games_list:
-            g_size = g.size_string()
-            if g_size in ['1v1', '2v2', '3v3']:
-                total_count += 1
-                print('here')
-                if g.winner == g.ordered_side_list().limit(1).get():
-                    print('winner')
-                    win_count += 1
-                else:
-                    # print(g.ordered_side_list().limit(1).get())
-                    print('loser')
+    #     win_count, total_count = 0, 0
+    #     for g in games_list:
+    #         g_size = g.size_string()
+    #         if g_size in ['1v1', '2v2', '3v3']:
+    #             total_count += 1
+    #             print('here')
+    #             if g.winner == g.ordered_side_list().limit(1).get():
+    #                 print('winner')
+    #                 win_count += 1
+    #             else:
+    #                 # print(g.ordered_side_list().limit(1).get())
+    #                 print('loser')
 
-        win_perc = round(float(win_count / total_count), 3) * 100
-        await ctx.send(f'Analyzing {total_count} concluded games that are 1v1, 2v2, or 3v3. Of those, the hosting side has won {win_count} games, or {win_perc}% of the time.')
+    #     win_perc = round(float(win_count / total_count), 3) * 100
+    #     await ctx.send(f'Analyzing {total_count} concluded games that are 1v1, 2v2, or 3v3. Of those, the hosting side has won {win_count} games, or {win_perc}% of the time.')
 
     @commands.command(hidden=True, aliases=['bge'])
     async def bulk_global_elo(self, ctx, *, args=None):

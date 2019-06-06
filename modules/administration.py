@@ -453,7 +453,7 @@ class administration:
                     logger.debug(f'Player {player.name} already has the graduate role.')
                     continue
                 if player.completed_game_count() < 3:
-                    logger.debug(f'Player {player.name} has not completed enough ranked games.')
+                    logger.debug(f'Player {player.name} has not completed enough ranked games ({player.completed_game_count()} completed).')
                     continue
                 if player.games_played(in_days=7).count() == 0:
                     logger.debug(f'Player {player.name} has not played in any recent games.')
