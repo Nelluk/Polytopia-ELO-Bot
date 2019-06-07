@@ -117,6 +117,7 @@ class DiscordMember(BaseModel):
     def advanced_stats(self):
 
         server_list = settings.servers_included_in_global_lb()
+        print(server_list)
 
         ranked_games_played = Game.select().join(Lineup).join(Player).where(
             (Player.discord_member == self) &
@@ -129,22 +130,31 @@ class DiscordMember(BaseModel):
         winning_streak, losing_streak, longest_winning_streak, longest_losing_streak = 0, 0, 0, 0
         v2_count, v3_count = 0, 0  # wins of 1v2 or 1v3 games
         duel_wins, duel_losses = 0, 0  # 1v1 matchup stats
+        wins_as_host = 0
         last_win, last_loss = False, False
 
         for game in ranked_games_played:
 
             is_winner = False
-            for gs in game.gamesides:
+            won_as_host = False
+            gamesides = game.ordered_side_list()
+            for gs in gamesides:
                 # going through in this way uses the results already in memory rather than a bunch of new DB queries
                 if gs.id == game.winner_id:
                     winner = gs
-                    for l in gs.lineup:
+                    first_loop = True
+                    for l in gs.ordered_player_list():
                         if l.player.discord_member_id == self.id:
                             is_winner = True
+                            if first_loop:
+                                won_as_host = True
+                        first_loop = False
                     break
 
             logger.debug(f'Game {game.id} completed_ts {game.completed_ts} is a {"win" if is_winner else "loss"} WS: {winning_streak} LS: {losing_streak} last_win: {last_win} last_loss: {last_loss}')
             if is_winner:
+                if won_as_host:
+                    wins_as_host += 1
                 if last_win:
                     # winning streak is extended
                     winning_streak += 1
@@ -153,7 +163,7 @@ class DiscordMember(BaseModel):
                     # winning streak is broken
                     winning_streak = 1
                     last_win, last_loss = True, False
-                if len(winner.lineup) == 1 and len(game.gamesides) == 2:
+                if len(winner.lineup) == 1 and len(gamesides) == 2:
                     size_of_opponent = game.largest_team()
 
                     if size_of_opponent == 1:
@@ -175,7 +185,7 @@ class DiscordMember(BaseModel):
                 if len(game.gamesides) == 2 and game.largest_team() == 1 and game.smallest_team() == 1:
                     duel_losses += 1
 
-        return (longest_winning_streak, longest_losing_streak, v2_count, v3_count, duel_wins, duel_losses)
+        return (longest_winning_streak, longest_losing_streak, v2_count, v3_count, duel_wins, duel_losses, wins_as_host, len(ranked_games_played))
 
     def update_name(self, new_name: str):
         self.name = new_name

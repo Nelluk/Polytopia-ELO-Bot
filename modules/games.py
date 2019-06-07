@@ -455,7 +455,7 @@ class elo_games():
                 embed.add_field(value=offset_str, name='Timezone Offset', inline=True)
 
             misc_stats = []
-            (winning_streak, losing_streak, v2_count, v3_count, duel_wins, duel_losses) = player.discord_member.advanced_stats()
+            (winning_streak, losing_streak, v2_count, v3_count, duel_wins, duel_losses, wins_as_host, ranked_games_played) = player.discord_member.advanced_stats()
             if winning_streak or losing_streak:
                 misc_stats.append(('Longest streaks', f'{winning_streak} wins, {losing_streak} losses'))
             if v2_count:
@@ -464,6 +464,7 @@ class elo_games():
                 misc_stats.append(('1v3 games won', v3_count))
             if duel_wins or duel_losses:
                 misc_stats.append(('1v1 games', f'W {duel_wins} / L {duel_losses}'))
+            misc_stats.append(('Wins as game host', f'W {wins_as_host} / L {ranked_games_played - wins_as_host} ({int((wins_as_host / ranked_games_played) * 100)}%)'))
 
             # TODO: maybe "adjusted ELO" for how big game is?
 
