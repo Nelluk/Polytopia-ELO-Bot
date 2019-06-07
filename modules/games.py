@@ -464,7 +464,7 @@ class elo_games():
                 misc_stats.append(('1v3 games won', v3_count))
             if duel_wins or duel_losses:
                 misc_stats.append(('1v1 games', f'W {duel_wins} / L {duel_losses}'))
-            misc_stats.append(('Wins as game host', f'W {wins_as_host} / L {ranked_games_played - wins_as_host} ({int((wins_as_host / ranked_games_played) * 100)}%)'))
+            # misc_stats.append(('Wins as game host', f'W {wins_as_host} / L {ranked_games_played - wins_as_host} ({int((wins_as_host / ranked_games_played) * 100)}%)'))
 
             # TODO: maybe "adjusted ELO" for how big game is?
 
