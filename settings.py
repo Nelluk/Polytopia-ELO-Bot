@@ -453,8 +453,8 @@ def get_matching_roles(discord_member, list_of_role_names):
 
 
 levels_info = ('***Level 1*** - *Join ranked games up to 3 players, unranked games up to 6 players. Host games up to 3 players.*\n\n'
-               '***Level 2*** - *Join ranked games up to 6 players, unranked games up to 12 players. Host ranked games up to 4 players, unranked games up to 6 players.* (__Complete 2 games to attain__)\n\n'
-               '***Level 3*** - *No restrictions on games* (__Complete 10 games to attain__)\n')
+               '***Level 2*** - *Join ranked games up to 6 players, unranked games up to 12 players. Host ranked games up to 4 players, unranked games up to 6 players.* (__Complete 2 games to attain, ranked or unranked__)\n\n'
+               '***Level 3*** - *No restrictions on games* (__Complete 10 games to attain, ranked or unranked__)\n')
 
 
 def get_user_level(ctx, user=None):
