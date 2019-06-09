@@ -117,7 +117,6 @@ class DiscordMember(BaseModel):
     def advanced_stats(self):
 
         server_list = settings.servers_included_in_global_lb()
-        print(server_list)
 
         ranked_games_played = Game.select().join(Lineup).join(Player).where(
             (Player.discord_member == self) &
@@ -1052,7 +1051,7 @@ class Game(BaseModel):
         # yields string like:
         # Game 481   :fried_shrimp: The Crawfish vs :fried_shrimp: TestAccount1 vs :spy: TestBoye1\n*Name of Game*
         gameside_strings = []
-        for gameside in self.gamesides:
+        for gameside in self.ordered_side_list():
             # logger.info(f'{self.id} gameside:', gameside)
             emoji = ''
             if gameside.team and len(gameside.lineup) > 1:

@@ -585,10 +585,11 @@ class matchmaking():
                     continue
                 player, _ = models.Player.get_by_discord_id(discord_id=ctx.author.id, discord_name=ctx.author.name, discord_nick=ctx.author.nick, guild_id=ctx.guild.id)
                 if player:
-                    # skip any games for which player does not meet ELO requirements, IF player is registered
+                    # skip any games for which player does not meet ELO requirements, IF player is registered (unless ctx.author is the host)
                     (min_elo, max_elo, min_elo_g, max_elo_g) = game.elo_requirements()
                     if player.elo < min_elo or player.elo > max_elo or player.discord_member.elo < min_elo_g or player.discord_member.elo > max_elo_g:
-                        continue
+                        if not game.is_hosted_by(ctx.author.id)[0]:
+                            continue
                 # if game.has_player(discord_id=ctx.author.id)[0] and not game.is_hosted_by(ctx.author.id)[0]:
                 #     # skip games player is already joined (removing since there are probably too many cases where this would be confusing)
                 #     continue
