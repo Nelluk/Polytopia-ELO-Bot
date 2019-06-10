@@ -413,6 +413,8 @@ discord_id_ban_list = [
 poly_id_ban_list = [
     'MvSRS2t5vWLUyyuu',  # Caesar Augustas Trajan
     'AfMDTSO3yareZN2E',  # Freeze
+    'qIqw1okeZZgaFpUL',  # Remalin (skre alt)
+    '815D2hK94mN7StoL',  # Skrealder
 ]
 
 
