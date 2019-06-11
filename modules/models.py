@@ -525,9 +525,14 @@ class Player(BaseModel):
 
         logger.debug(f'Player {self.name} min_players: {min_players} - {len(subq_games_with_minimum_side_size)}')
 
-        return Lineup.select(Lineup.game).join(Game).where(
-            (Lineup.game.date > date_cutoff) &
-            (Lineup.game.id.in_(subq_games_with_minimum_side_size))
+        # return Lineup.select(Lineup.game).join(Game).where(
+        #     (Lineup.game.date > date_cutoff) &
+        #     (Lineup.game.id.in_(subq_games_with_minimum_side_size))
+        # ).order_by(-Game.date)
+
+        return Game.select().where(
+            (Game.date > date_cutoff) &
+            (Game.id.in_(subq_games_with_minimum_side_size))
         ).order_by(-Game.date)
 
     def wins(self):
