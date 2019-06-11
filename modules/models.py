@@ -625,16 +625,18 @@ class Player(BaseModel):
             elo_list = elo_list + player_elos
             player_games += games_played
 
-            if p.elo < 1000:
-                max_weighted_games = min(games_played, 3)
-            elif p.elo < 1100:
-                max_weighted_games = min(games_played, 5)
-            elif p.elo < 1200:
-                max_weighted_games = min(games_played, 7)
-            elif p.elo < 1300:
-                max_weighted_games = min(games_played, 10)
-            else:
-                max_weighted_games = min(games_played, 20)
+            max_weighted_games = min(games_played, 10)
+
+            # if p.elo < 1000:
+            #     max_weighted_games = min(games_played, 3)
+            # elif p.elo < 1100:
+            #     max_weighted_games = min(games_played, 5)
+            # elif p.elo < 1200:
+            #     max_weighted_games = min(games_played, 7)
+            # elif p.elo < 1300:
+            #     max_weighted_games = min(games_played, 10)
+            # else:
+            #     max_weighted_games = min(games_played, 20)
 
             elo_list = elo_list + [p.elo] * max_weighted_games
 
