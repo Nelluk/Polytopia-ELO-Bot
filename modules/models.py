@@ -507,15 +507,27 @@ class Player(BaseModel):
 
         return num_games
 
-    def games_played(self, in_days: int = None):
+    def games_played(self, in_days: int = None, min_players: int = None):
 
         if in_days:
             date_cutoff = (datetime.datetime.now() + datetime.timedelta(days=-in_days))
         else:
             date_cutoff = datetime.date.min  # 'forever' ?
 
+        if not min_players:
+            return Lineup.select(Lineup.game).join(Game).where(
+                (Lineup.game.date > date_cutoff) & (Lineup.player == self)
+            ).order_by(-Game.date)
+
+        subq_games_with_minimum_side_size = Lineup.select(Lineup.game).join(Game).join_from(Lineup, GameSide).where(
+            (Lineup.player == self) & (GameSide.size >= min_players)
+        )
+
+        logger.debug(f'Player {self.name} min_players: {min_players} - {len(subq_games_with_minimum_side_size)}')
+
         return Lineup.select(Lineup.game).join(Game).where(
-            (Lineup.game.date > date_cutoff) & (Lineup.player == self)
+            (Lineup.game.date > date_cutoff) &
+            (Lineup.game.id.in_(subq_games_with_minimum_side_size))
         ).order_by(-Game.date)
 
     def wins(self):
@@ -597,8 +609,13 @@ class Player(BaseModel):
         # elo_list1, elo_list2, elo_list3 = [], [], []
         player_games = 0
         for p in players:
+            logger.debug(f'START {p.name}')
             # print(p.elo, p.games_played(in_days=30).count())
             games_played = p.games_played(in_days=30).count()
+            logger.debug(f'Games played: {games_played}')
+            games_played = p.games_played(in_days=30, min_players=2).count()
+            logger.debug(f'Games played with minimum size side 2: {games_played}')
+
             player_elos = [p.elo] * games_played
             elo_list = elo_list + player_elos
             player_games += games_played
