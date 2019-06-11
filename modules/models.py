@@ -594,7 +594,7 @@ class Player(BaseModel):
         )
 
         elo_list = []
-        elo_list1, elo_list2, elo_list3 = [], [], []
+        # elo_list1, elo_list2, elo_list3 = [], [], []
         player_games = 0
         for p in players:
             # print(p.elo, p.games_played(in_days=30).count())
@@ -603,18 +603,22 @@ class Player(BaseModel):
             elo_list = elo_list + player_elos
             player_games += games_played
 
-            elo_list1 = elo_list1 + [p.elo] * min(games_played, 10)
-            elo_list2 = elo_list2 + [p.elo] * min(games_played, 2)
-            elo_list3 = elo_list3 + [p.elo]
+            if p.elo < 1000:
+                max_weighted_games = min(games_played, 2)
+            elif p.elo < 1100:
+                max_weighted_games = min(games_played, 3)
+            elif p.elo < 1200:
+                max_weighted_games = min(games_played, 5)
+            elif p.elo < 1300:
+                max_weighted_games = min(games_played, 8)
+            else:
+                max_weighted_games = min(games_played, 10)
+
+            elo_list = elo_list + [p.elo] * max_weighted_games
 
         if elo_list:
-            logger.info(f'Full weighting: {int(statistics.mean(elo_list))}')
-            logger.info(f'Min10: {int(statistics.mean(elo_list1))}')
-            logger.info(f'Min5: {int(statistics.mean(elo_list2))}')
-            logger.info(f'Median no weighting: {int(statistics.median(elo_list3))}')
 
-            # return int(statistics.mean(elo_list)), player_games
-            return int(statistics.mean(elo_list1)), player_games
+            return int(statistics.mean(elo_list)), player_games
 
         return 0, 0
 
