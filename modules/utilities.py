@@ -22,10 +22,10 @@ def is_valid_poly_gamename(input: str):
                  "Lights", "Wrath", "Destruction", "Whales", "Ruins", "Monuments", "Wonder", "Clowns",
                  "Bongo", "Duh!", "Squeal", "Squirrel", "Confusion", "Gruff", "Moan", "Chickens", "Spunge",
                  "Gnomes", "Bell boys", "Gurkins", "Commotion", "LOL", "Shenanigans", "Hullabaloo",
-                 "Papercuts", "Eggs", "Hills", "Fields", "Lands", "Forest", "Ocean", "Fruit", "Mountain",
+                 "Papercuts", "Eggs", "Mooni", "Gaami", "Hills", "Fields", "Lands", "Forest", "Ocean", "Fruit", "Mountain",
                  "Lake", "Paradise", "Jungle", "Desert", "River", "Sea", "Shores", "Valley", "Garden", "Moon",
                  "Star", "Winter", "Spring", "Summer", "Autumn", "Divide", "Square", "Custard", "Goon", "Cat",
-                 "Spagetti", "Fish", "Fame", "Popcorn", "Dessert", "Space", "Unknown", "Test"]
+                 "Spagetti", "Fish", "Fame", "Popcorn", "Dessert", "Space", "Glacier", "Ice", "Frozen", "Superb", "Unknown", "Test"]
     return any(word.upper() in input.upper() for word in key_words)
 
 
