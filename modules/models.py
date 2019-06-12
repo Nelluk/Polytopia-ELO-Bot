@@ -615,9 +615,6 @@ class Player(BaseModel):
         player_games = 0
         for p in players:
             logger.debug(f'START {p.name}')
-            # print(p.elo, p.games_played(in_days=30).count())
-            games_played = p.games_played(in_days=30).count()
-            logger.debug(f'Games played: {games_played}')
             games_played = p.games_played(in_days=30, min_players=2).count()
             logger.debug(f'Games played with minimum size side 2: {games_played}')
 
