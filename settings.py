@@ -341,14 +341,14 @@ config = {'default':
         #               'unranked_game_channel': None,
         #               'match_challenge_channels': [],
         #               'game_channel_categories': [568404156352561163]},
-        576962604124209180:                           # Small server run by PinkPigmyPuff#7107
+        576962604124209180:                           # Poly-Gyms PinkPigmyPuff#7107
                      {'helper_roles': ['ELO-Helper'],
                       'mod_roles': ['MOD'],
                       'user_roles_level_4': ['PolyPlayer!'],  # power user
                       'user_roles_level_3': ['@everyone'],  # power user
                       'user_roles_level_2': ['@everyone'],  # normal user
                       'user_roles_level_1': ['@everyone'],  # restricted user/newbie
-                      'display_name': 'PinkPigmyPuff Polytopia',
+                      'display_name': 'Poly-Gyms',
                       'require_teams': False,
                       'allow_teams': True,
                       'allow_uneven_teams': True,
@@ -356,8 +356,8 @@ config = {'default':
                       'command_prefix': '$',
                       'include_in_global_lb': False,
                       'bot_channels_private': [],
-                      'bot_channels_strict': [579779127641374720],
-                      'bot_channels': [579779127641374720],
+                      'bot_channels_strict': [579779127641374720, 580629131822366740],
+                      'bot_channels': [579779127641374720, 580629131822366740],
                       'ranked_game_channel': None,
                       'unranked_game_channel': None,
                       'game_announce_channel': 579728109842989058,
