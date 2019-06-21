@@ -267,7 +267,7 @@ class elo_games():
                 logger.error(f'Could not find matching role for team {team.name}')
                 continue
             member_count = 0
-            mia_role = discord.utils.get(ctx.guild.roles, name='MIA')
+            mia_role = discord.utils.get(ctx.guild.roles, name='Inactive')
             for team_member in team_role.members:
                 if mia_role and mia_role in team_member.roles:
                     continue
