@@ -248,7 +248,7 @@ class misc:
 
         league_balance = []
         indent_str = '\u00A0\u00A0 \u00A0\u00A0 \u00A0\u00A0'
-        mia_role = discord.utils.get(ctx.guild.roles, name='MIA')
+        mia_role = discord.utils.get(ctx.guild.roles, name='Inactive')
 
         for team, team_roles in league_teams:
 
@@ -317,7 +317,7 @@ class misc:
         """Prints list of Novas who meet graduation requirements but have not been drafted
         """
         grad_list = []
-        grad_role = discord.utils.get(ctx.guild.roles, name='Novas Grad')
+        grad_role = discord.utils.get(ctx.guild.roles, name='Free Agent')
         # recruiter_role = discord.utils.get(ctx.guild.roles, name='Team Recruiter')
         if ctx.guild.id == settings.server_ids['test']:
             grad_role = discord.utils.get(ctx.guild.roles, name='Team Leader')

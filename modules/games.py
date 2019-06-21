@@ -529,7 +529,7 @@ class elo_games():
 
         embed = discord.Embed(title=f'Team card for **{team.name}** {team.emoji}')
         team_role = discord.utils.get(ctx.guild.roles, name=team.name)
-        mia_role = discord.utils.get(ctx.guild.roles, name='MIA')
+        mia_role = discord.utils.get(ctx.guild.roles, name='Inactive')
         leader_role = discord.utils.get(ctx.guild.roles, name='Team Leader')
         coleader_role = discord.utils.get(ctx.guild.roles, name='Team Co-Leader')
         member_stats = []
