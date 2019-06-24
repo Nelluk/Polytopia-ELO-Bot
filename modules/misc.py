@@ -323,7 +323,6 @@ class misc:
         if ctx.guild.id == settings.server_ids['test']:
             grad_role = discord.utils.get(ctx.guild.roles, name='Team Leader')
 
-        await ctx.send(f'Listing all active members with the **{grad_role.name}** role...')
         for member in grad_role.members:
             if inactive_role and inactive_role in member.roles:
                 logger.debug(f'Skipping {member.name} since they have Inactive role')
@@ -347,12 +346,11 @@ class misc:
 
             grad_list.append((message, all_games))
 
+        await ctx.send(f'Listing {len(grad_list)} active members with the **{grad_role.name}** role...')
+
         grad_list.sort(key=lambda tup: tup[1], reverse=False)     # sort the list ascending by num games played
         for grad in grad_list:
             await ctx.send(grad[0])
-
-        if not grad_list:
-            await ctx.send('No active members found.')
 
     @commands.command(aliases=['random_tribes', 'rtribe'], usage='game_size [-banned_tribe ...]')
     @settings.in_bot_channel()

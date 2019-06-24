@@ -987,9 +987,9 @@ class Game(BaseModel):
         else:
             embed_content = None
 
-        if guild.id != settings.server_ids['polychampions']:
-            # embed.add_field(value='Powered by **PolyChampions** - https://discord.gg/cX7Ptnv', name='\u200b', inline=False)
-            embed.set_author(name='PolyChampions', url='https://discord.gg/cX7Ptnv', icon_url='https://cdn.discordapp.com/emojis/488510815893323787.png?v=1')
+        # if guild.id != settings.server_ids['polychampions']:
+        #     # embed.add_field(value='Powered by **PolyChampions** - https://discord.gg/cX7Ptnv', name='\u200b', inline=False)
+        #     embed.set_author(name='PolyChampions', url='https://discord.gg/cX7Ptnv', icon_url='https://cdn.discordapp.com/emojis/488510815893323787.png?v=1')
 
         if self.host:
             host_str = f' - Hosted by {self.host.name[:20]}'
