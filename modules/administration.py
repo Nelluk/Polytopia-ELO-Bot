@@ -432,7 +432,7 @@ class administration:
         grad_role = discord.utils.get(ctx.guild.roles, name='Free Agent')
         recruiter_role = discord.utils.get(ctx.guild.roles, name='Team Recruiter')
         drafter_role = discord.utils.get(ctx.guild.roles, name='Drafter')
-        inactive_role = grad_role = discord.utils.get(ctx.guild.roles, name='Inactive')
+        inactive_role = discord.utils.get(ctx.guild.roles, name='Inactive')
         grad_chan = ctx.guild.get_channel(540332800927072267)  # Novas draft talk
         if ctx.guild.id == settings.server_ids['test']:
             role = discord.utils.get(ctx.guild.roles, name='testers')
