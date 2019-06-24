@@ -318,11 +318,14 @@ class misc:
         """
         grad_list = []
         grad_role = discord.utils.get(ctx.guild.roles, name='Free Agent')
+        inactive_role = grad_role = discord.utils.get(ctx.guild.roles, name='Inactive')
         # recruiter_role = discord.utils.get(ctx.guild.roles, name='Team Recruiter')
         if ctx.guild.id == settings.server_ids['test']:
             grad_role = discord.utils.get(ctx.guild.roles, name='Team Leader')
 
         for member in grad_role.members:
+            if inactive_role and inactive_role in member.roles:
+                continue
             try:
                 dm = models.DiscordMember.get(discord_id=member.id)
                 player = models.Player.get(discord_member=dm, guild_id=ctx.guild.id)

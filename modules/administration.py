@@ -432,6 +432,7 @@ class administration:
         grad_role = discord.utils.get(ctx.guild.roles, name='Free Agent')
         recruiter_role = discord.utils.get(ctx.guild.roles, name='Team Recruiter')
         drafter_role = discord.utils.get(ctx.guild.roles, name='Drafter')
+        inactive_role = grad_role = discord.utils.get(ctx.guild.roles, name='Inactive')
         grad_chan = ctx.guild.get_channel(540332800927072267)  # Novas draft talk
         if ctx.guild.id == settings.server_ids['test']:
             role = discord.utils.get(ctx.guild.roles, name='testers')
@@ -443,6 +444,8 @@ class administration:
         await ctx.send(f'Auto-graduating Novas')
         async with ctx.typing():
             for member in role.members:
+                if inactive_role and inactive_role in member.roles:
+                    continue
                 try:
                     dm = models.DiscordMember.get(discord_id=member.id)
                     player = models.Player.get(discord_member=dm, guild_id=ctx.guild.id)
