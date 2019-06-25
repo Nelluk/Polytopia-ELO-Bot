@@ -129,7 +129,7 @@ class matchmaking():
                     return await ctx.send(f'Invalid expiration {arg}. Must be between 1H and 96H (One hour through four days).')
                 expiration_hours_override = int(m[1])
                 continue
-            if arg.lower() == 'unranked':
+            if arg.lower()[:8] == 'unranked':
                 is_ranked = False
                 continue
             m = re.match(r"<@&(\d+)>", arg)
@@ -171,8 +171,7 @@ class matchmaking():
                 # Arbitrary rule, unranked games can go +1 from server_size_max
                 logger.info('Opening unranked game that exceeds server_size_max')
             else:
-                return await ctx.send(f'Maximum ranked team size on this server is {server_size_max}.\n'
-                    'For full functionality with support for up to 6-person teams and team channels check out PolyChampions - <https://tinyurl.com/polychampions>')
+                return await ctx.send(f'Maximum ranked team size on this server is {server_size_max}.')
 
         required_roles = [None] * len(team_sizes)  # [None, None, None] for a 3-sided game
         required_role_names = [None] * len(team_sizes)
