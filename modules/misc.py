@@ -23,30 +23,33 @@ class misc:
             self.bg_task = bot.loop.create_task(self.task_broadcast_newbie_message())
             self.bg_task = bot.loop.create_task(self.task_send_polychamps_invite())
 
-    # @commands.command(hidden=True, aliases=['ts'])
-    # @commands.is_owner()
-    # async def test(self, ctx, *, arg: str = None):
+    @commands.command(hidden=True, aliases=['ts'])
+    @commands.is_owner()
+    async def test(self, ctx, *, arg: str = None):
 
-    #     games_list = models.Game.select().where(
-    #         (models.Game.is_confirmed == 1) &
-    #         (models.Game.guild_id == ctx.guild.id)
-    #     )
+        last_month = (datetime.datetime.now() + datetime.timedelta(days=-30))
 
-    #     win_count, total_count = 0, 0
-    #     for g in games_list:
-    #         g_size = g.size_string()
-    #         if g_size in ['1v1', '2v2', '3v3']:
-    #             total_count += 1
-    #             print('here')
-    #             if g.winner == g.ordered_side_list().limit(1).get():
-    #                 print('winner')
-    #                 win_count += 1
-    #             else:
-    #                 # print(g.ordered_side_list().limit(1).get())
-    #                 print('loser')
+        query = models.Player.select(models.DiscordMember.discord_id).join(models.Lineup).join(models.Game).join_from(models.Player, models.DiscordMember).where(
+            (models.Lineup.player == models.Player.id) & (models.Game.date > last_month) & (models.Game.guild_id == ctx.guild.id)
+        ).group_by(models.DiscordMember.discord_id).having(
+            peewee.fn.COUNT(models.Lineup.id) > 0
+        )
 
-    #     win_perc = round(float(win_count / total_count), 3) * 100
-    #     await ctx.send(f'Analyzing {total_count} concluded games that are 1v1, 2v2, or 3v3. Of those, the hosting side has won {win_count} games, or {win_perc}% of the time.')
+        print(len(query))
+        for p in query.tuples():
+            print(p)
+
+        list_of_ids = [p[0] for p in query.tuples()]
+        print(list_of_ids)
+
+        defunct_members = []
+        for member in ctx.guild.members:
+            if member.id in list_of_ids:
+                continue
+            defunct_members.append(member)
+            logger.debug(f'{member.name} is inactive')
+
+
 
     @commands.command(hidden=True, aliases=['bge'])
     async def bulk_global_elo(self, ctx, *, args=None):

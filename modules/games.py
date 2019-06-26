@@ -206,7 +206,7 @@ class elo_games():
                 (Lineup.player.discord_member == DiscordMember.id) & (Game.is_pending == 0)
             ).group_by(DiscordMember.id).order_by(-peewee.SQL('count'))
 
-            for counter, discord_member in enumerate(query[:500]):
+            for counter, discord_member in enumerate(query[:1000]):
                 wins, losses = discord_member.get_record()
                 leaderboard.append(
                     (f'{(counter + 1):>3}. {discord_member.name}', f'`ELO {discord_member.elo}\u00A0\u00A0\u00A0\u00A0Games Played {discord_member.count}`')
