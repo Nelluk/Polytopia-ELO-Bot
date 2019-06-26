@@ -424,7 +424,7 @@ class administration:
     async def deactivate_players(self, ctx, *, arg=None):
         """*Mods*: Add Inactive role to inactive players
         Apply the 'Inactive' role to any player who has not been activate lately.
-        - Three ranked team games, and ranked games with members of at least three League teams
+        - No games played in 45 days, and does not have a protected role (Team Leadership or Mod roles)
         """
 
         inactive_role = discord.utils.get(ctx.guild.roles, name='Inactive')
@@ -457,6 +457,7 @@ class administration:
                 continue
 
             defunct_members.append(member.name)
+            await member.add_roles(inactive_role)
             logger.debug(f'{member.name} is inactive')
 
         if not defunct_members:
@@ -585,12 +586,16 @@ class administration:
     @settings.on_polychampions()
     async def purge_novas(self, ctx, *, arg=None):
         """*Mods*: Purge inactive Novas
-        Purges the 'Novas' role from any player who either:
+        Purges roles ('The Novas', 'Inactive', 'ELO Rookie', 'ELO Player') role from any player who either:
         A) Joined more than a week ago and has no registered poly code, or
         B) Join more than 6 weeks ago and has no games registered with the bot in the last 8 weeks.
         """
 
         role = discord.utils.get(ctx.guild.roles, name='The Novas')
+        inactive_role = discord.utils.get(ctx.guild.roles, name='Inactive')
+        rookie_role = discord.utils.get(ctx.guild.roles, name='ELO Rookie')
+        player_role = discord.utils.get(ctx.guild.roles, name='ELO Player')
+
         last_week = (datetime.datetime.now() + datetime.timedelta(days=-7))
         eight_weeks = (datetime.datetime.now() + datetime.timedelta(days=-56))
         count = 0
@@ -604,7 +609,7 @@ class administration:
                     logger.info(f'Player {member.name} not registered.')
                     if member.joined_at < last_week:
                         logger.info(f'Joined more than a week ago with no code on file. Purging role...')
-                        await member.remove_roles(role)
+                        await member.remove_roles(role, inactive_role, player_role, rookie_role)
                         count += 1
                     continue
                 else:
@@ -612,7 +617,7 @@ class administration:
                     if member.joined_at < eight_weeks:
                         if not dm.games_played(in_days=56):
                             count += 1
-                            await member.remove_roles(role)
+                            await member.remove_roles(role, inactive_role, player_role, rookie_role)
                             logger.info(f'Purging {member.name} from Novas - joined more than 8 weeks ago and has played 0 games in that period.')
         await ctx.send(f'Purging  **The Novas** role from {count} members who have not registered a poly code in the last week OR played a game in the last 8 weeks.')
 
