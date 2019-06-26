@@ -27,11 +27,14 @@ class misc:
     @commands.is_owner()
     async def test(self, ctx, *, arg: str = None):
 
-        role = discord.utils.get(ctx.guild.roles, name='ELO Player')
+        role = discord.utils.get(ctx.guild.roles, name='Team Leader')
+        role1 = discord.utils.get(ctx.guild.roles, name='@everyone')
+        role_list = ctx.author.roles
 
-        for member in role.members:
-            if len(member.roles) == 2:
-                await ctx.send(f'{member.mention} is an ELO Player with no other role')
+        remaining_roles = [x for x in ctx.author.roles if x not in [role, role1]]
+        print(role_list)
+        # role_list.remove(role)
+        print(remaining_roles)
 
 
 

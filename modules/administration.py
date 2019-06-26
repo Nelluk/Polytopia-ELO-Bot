@@ -547,16 +547,31 @@ class administration:
     @settings.is_mod_check()
     @settings.on_polychampions()
     async def kick_inactive(self, ctx, *, arg=None):
+        """*Mods*: Kick players from server who don't meet activity requirements
+
+        Kicks members from server who either:
+        - Joined the server more than a week ago but have not registered a Poly code, or
+        - Joined more than a month ago but have played zero ELO games in the last month.
+
+        If a member has any role assigned they will not be kicked, beyond this list of 'kickable' roles:
+        Inactive, The Novas, ELO Rookie, ELO Player
+
+        For example, Someone with role The Novas that has played zero games in the last month will be kicked.
+        """
 
         count = 0
         last_week = (datetime.datetime.now() + datetime.timedelta(days=-7))
         last_month = (datetime.datetime.now() + datetime.timedelta(days=-30))
+        kickable_roles = [discord.utils.get(ctx.guild.roles, name='Inactive'), discord.utils.get(ctx.guild.roles, name='The Novas'),
+                          discord.utils.get(ctx.guild.roles, name='ELO Rookie'), discord.utils.get(ctx.guild.roles, name='ELO Player'),
+                          discord.utils.get(ctx.guild.roles, name='@everyone')]
 
         async with ctx.typing():
             for member in ctx.guild.members:
-                if len(member.roles) > 1:
-                    continue  # Skip if they have any assigned roles (no-role people have one default Everyone role in member.roles)
-                logger.debug(f'Checking role-less member {member.name} ...')
+                remaining_member_roles = [x for x in member.roles if x not in kickable_roles]
+                if len(remaining_member_roles) > 0:
+                    continue  # Skip if they have any assigned roles beyond a 'purgable' role
+                logger.debug(f'Member {member.name} qualifies based on roles...')
                 if member.joined_at > last_week:
                     logger.debug(f'Joined in the previous week. Skipping.')
                     continue
