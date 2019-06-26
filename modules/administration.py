@@ -445,20 +445,21 @@ class administration:
         list_of_active_player_ids = [p[0] for p in query.tuples()]
 
         defunct_members = []
-        for member in ctx.guild.members:
-            if member.id in list_of_active_player_ids or inactive_role in member.roles:
-                continue
-            if any(protected_role in member.roles for protected_role in protected_roles):
-                await ctx.send(f'Skipping inactive member **{member.name}** because they have a protected role.')
-                logger.debug(f'Skipping inactive member **{member.name}** because they have a protected role.')
-                continue
-            if member.joined_at > activity_time:
-                logger.debug(f'Skipping {member.name} since they joined recently.')
-                continue
+        async with ctx.typing():
+            for member in ctx.guild.members:
+                if member.id in list_of_active_player_ids or inactive_role in member.roles:
+                    continue
+                if any(protected_role in member.roles for protected_role in protected_roles):
+                    await ctx.send(f'Skipping inactive member **{member.name}** because they have a protected role.')
+                    logger.debug(f'Skipping inactive member **{member.name}** because they have a protected role.')
+                    continue
+                if member.joined_at > activity_time:
+                    logger.debug(f'Skipping {member.name} since they joined recently.')
+                    continue
 
-            defunct_members.append(member.name)
-            await member.add_roles(inactive_role)
-            logger.debug(f'{member.name} is inactive')
+                defunct_members.append(member.name)
+                await member.add_roles(inactive_role)
+                logger.debug(f'{member.name} is inactive')
 
         if not defunct_members:
             return await ctx.send(f'No inactive members found!')

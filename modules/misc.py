@@ -27,27 +27,11 @@ class misc:
     @commands.is_owner()
     async def test(self, ctx, *, arg: str = None):
 
-        last_month = (datetime.datetime.now() + datetime.timedelta(days=-30))
+        role = discord.utils.get(ctx.guild.roles, name='ELO Rookie')
 
-        query = models.Player.select(models.DiscordMember.discord_id).join(models.Lineup).join(models.Game).join_from(models.Player, models.DiscordMember).where(
-            (models.Lineup.player == models.Player.id) & (models.Game.date > last_month) & (models.Game.guild_id == ctx.guild.id)
-        ).group_by(models.DiscordMember.discord_id).having(
-            peewee.fn.COUNT(models.Lineup.id) > 0
-        )
-
-        print(len(query))
-        for p in query.tuples():
-            print(p)
-
-        list_of_ids = [p[0] for p in query.tuples()]
-        print(list_of_ids)
-
-        defunct_members = []
-        for member in ctx.guild.members:
-            if member.id in list_of_ids:
-                continue
-            defunct_members.append(member)
-            logger.debug(f'{member.name} is inactive')
+        for member in role.members:
+            if len(member.roles) == 2:
+                await ctx.send(f'{member.mention} is an ELO Rookie with no other role')
 
 
 
