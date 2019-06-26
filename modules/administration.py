@@ -427,8 +427,6 @@ class administration:
         - Three ranked team games, and ranked games with members of at least three League teams
         """
 
-        inactive = 0
-
         inactive_role = discord.utils.get(ctx.guild.roles, name='Inactive')
         protected_roles = [discord.utils.get(ctx.guild.roles, name='Team Recruiter'), discord.utils.get(ctx.guild.roles, name='Mod'),
                            discord.utils.get(ctx.guild.roles, name='Team Leader'), discord.utils.get(ctx.guild.roles, name='Team Co-Leader')]
@@ -452,6 +450,10 @@ class administration:
                 continue
             if any(protected_role in member.roles for protected_role in protected_roles):
                 await ctx.send(f'Skipping inactive member **{member.name}** because they have a protected role.')
+                logger.debug(f'Skipping inactive member **{member.name}** because they have a protected role.')
+                continue
+            if member.joined_at > activity_time:
+                logger.debug(f'Skipping {member.name} since they joined recently.')
                 continue
 
             defunct_members.append(member.name)
@@ -461,6 +463,8 @@ class administration:
             return await ctx.send(f'No inactive members found!')
 
         members_str = ' / '.join(defunct_members)
+        if len(members_str > 1850):
+            members_str = '(*Output truncated*)' + members_str[:1850]
         await ctx.send(f'Found {len(defunct_members)} inactive members - *{inactive_role.name}* has been applied to each: {members_str}')
 
     @commands.command()
