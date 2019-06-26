@@ -599,46 +599,6 @@ class administration:
 
     @commands.command()
     @settings.is_mod_check()
-    @settings.on_polychampions()
-    async def purge_novas(self, ctx, *, arg=None):
-        """*Mods*: Purge inactive Novas
-        Purges roles ('The Novas', 'Inactive', 'ELO Rookie', 'ELO Player') role from any player who either:
-        A) Joined more than a week ago and has no registered poly code, or
-        B) Join more than 6 weeks ago and has no games registered with the bot in the last 8 weeks.
-        """
-
-        role = discord.utils.get(ctx.guild.roles, name='The Novas')
-        inactive_role = discord.utils.get(ctx.guild.roles, name='Inactive')
-        rookie_role = discord.utils.get(ctx.guild.roles, name='ELO Rookie')
-        player_role = discord.utils.get(ctx.guild.roles, name='ELO Player')
-
-        last_week = (datetime.datetime.now() + datetime.timedelta(days=-7))
-        eight_weeks = (datetime.datetime.now() + datetime.timedelta(days=-56))
-        count = 0
-
-        await ctx.send(f'Purging  **The Novas** role from inactive players. This may take a minute.')
-        async with ctx.typing():
-            for member in role.members:
-                try:
-                    dm = models.DiscordMember.get(discord_id=member.id)
-                except peewee.DoesNotExist:
-                    logger.info(f'Player {member.name} not registered.')
-                    if member.joined_at < last_week:
-                        logger.info(f'Joined more than a week ago with no code on file. Purging role...')
-                        await member.remove_roles(role, inactive_role, player_role, rookie_role)
-                        count += 1
-                    continue
-                else:
-                    # logger.info(f'Player {member.name} is registered.')
-                    if member.joined_at < eight_weeks:
-                        if not dm.games_played(in_days=56):
-                            count += 1
-                            await member.remove_roles(role, inactive_role, player_role, rookie_role)
-                            logger.info(f'Purging {member.name} from Novas - joined more than 8 weeks ago and has played 0 games in that period.')
-        await ctx.send(f'Purging  **The Novas** role from {count} members who have not registered a poly code in the last week OR played a game in the last 8 weeks.')
-
-    @commands.command()
-    @settings.is_mod_check()
     async def purge_incomplete(self, ctx):
         """*Owner*: Purge old incomplete games
         Purges up to 10 games at a time. Only incomplete 2-player games that started more than 60 days ago, or 3-player games that started more than 90 days ago.
