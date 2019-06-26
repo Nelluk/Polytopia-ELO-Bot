@@ -418,12 +418,57 @@ class administration:
 
         await ctx.send(f'Team **{old_name}** has been renamed to **{team.name}**.')
 
+    @commands.command(aliases=['deactivate'])
+    @settings.is_mod_check()
+    @settings.on_polychampions()
+    async def deactivate_players(self, ctx, *, arg=None):
+        """*Mods*: Add Inactive role to inactive players
+        Apply the 'Inactive' role to any player who has not been activate lately.
+        - Three ranked team games, and ranked games with members of at least three League teams
+        """
+
+        inactive = 0
+
+        inactive_role = discord.utils.get(ctx.guild.roles, name='Inactive')
+        protected_roles = [discord.utils.get(ctx.guild.roles, name='Team Recruiter'), discord.utils.get(ctx.guild.roles, name='Mod'),
+                           discord.utils.get(ctx.guild.roles, name='Team Leader'), discord.utils.get(ctx.guild.roles, name='Team Co-Leader')]
+
+        activity_time = (datetime.datetime.now() + datetime.timedelta(days=-45))
+        if not inactive_role:
+            return await ctx.send('Error loading Inactive role')
+
+        query = models.Player.select(models.DiscordMember.discord_id).join(models.Lineup).join(models.Game).join_from(models.Player, models.DiscordMember).where(
+            (models.Lineup.player == models.Player.id) & (models.Game.date > activity_time) & (models.Game.guild_id == ctx.guild.id)
+        ).group_by(models.DiscordMember.discord_id).having(
+            peewee.fn.COUNT(models.Lineup.id) > 0
+        )
+
+
+        list_of_active_player_ids = [p[0] for p in query.tuples()]
+
+        defunct_members = []
+        for member in ctx.guild.members:
+            if member.id in list_of_active_player_ids or inactive_role in member.roles:
+                continue
+            if any(protected_role in member.roles for protected_role in protected_roles):
+                await ctx.send(f'Skipping inactive member **{member.name}** because they have a protected role.')
+                continue
+
+            defunct_members.append(member.name)
+            logger.debug(f'{member.name} is inactive')
+
+        if not defunct_members:
+            return await ctx.send(f'No inactive members found!')
+
+        members_str = ' / '.join(defunct_members)
+        await ctx.send(f'Found {len(defunct_members)} inactive members - *{inactive_role.name}* has been applied to each: {members_str}')
+
     @commands.command()
     # @settings.is_mod_check()
     @settings.on_polychampions()
     async def grad_novas(self, ctx, *, arg=None):
         """*Mods*: Check Novas for graduation requirements
-        Apply the 'Novas Grad' role to any Novas who meets requirements:
+        Apply the 'Free Agent' role to any Novas who meets requirements:
         - Three ranked team games, and ranked games with members of at least three League teams
         """
 
