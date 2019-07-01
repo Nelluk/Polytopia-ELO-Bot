@@ -775,7 +775,7 @@ class Game(BaseModel):
 
         if self.name and ('s4' in self.name.lower() or 's5' in self.name.lower() or 's6' in self.name.lower()):
             last_week = (datetime.datetime.now() + datetime.timedelta(days=-7))
-            if self.completed_ts > last_week:
+            if self.completed_ts and self.completed_ts > last_week:
                 return logger.warn(f'Skipping team channel deletion for game {self.id} {self.name} since it is a Season game concluded recently')
 
         for gameside in self.gamesides:
