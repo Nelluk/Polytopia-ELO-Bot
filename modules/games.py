@@ -30,7 +30,10 @@ class PolyGame(commands.Converter):
             logger.debug(f'Game with ID {game_id} found.')
             if game.guild_id != ctx.guild.id:
                 logger.warn('Game does not belong to same guild')
-                await ctx.send(f'Game with ID {game_id} is associated with a different Discord server.')
+                server_name = settings.guild_setting(game.guild_id, 'display_name')
+                game_name = f'*{game.name}*' if game.name and game.name.strip() else ''
+                await ctx.send(f'Game with ID {game_id} is associated with a different Discord server: __{server_name}__.\n'
+                    f'`{(str(game.date))}` - {game.get_gamesides_string(include_emoji=False)} - {game_name} - {game.get_game_status_string()}')
                 raise commands.UserInputError()
             return game
 

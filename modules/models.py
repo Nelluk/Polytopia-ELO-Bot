@@ -1072,18 +1072,41 @@ class Game(BaseModel):
 
         return embed, content_str
 
-    def get_headline(self):
+    def get_gamesides_string(self, include_emoji=True):
         # yields string like:
-        # Game 481   :fried_shrimp: The Crawfish vs :fried_shrimp: TestAccount1 vs :spy: TestBoye1\n*Name of Game*
+        # :fried_shrimp: The Crawfish vs :fried_shrimp: TestAccount1 vs :spy: TestBoye1
         gameside_strings = []
         for gameside in self.ordered_side_list():
             # logger.info(f'{self.id} gameside:', gameside)
             emoji = ''
-            if gameside.team and len(gameside.lineup) > 1:
+            if gameside.team and len(gameside.lineup) > 1 and include_emoji:
                 emoji = gameside.team.emoji
 
             gameside_strings.append(f'{emoji} **{gameside.name()}**')
         full_squad_string = ' *vs* '.join(gameside_strings)[:225]
+        return full_squad_string
+
+    def get_game_status_string(self):
+        game = self
+        if game.is_pending:
+            status_str = 'Not Started'
+        elif game.is_completed is False:
+            status_str = 'Incomplete'
+        else:
+            if game.is_confirmed is False:
+                (confirmed_count, side_count, _) = game.confirmations_count()
+                if side_count > 2:
+                    status_str = f'**WINNER** (Unconfirmed by {side_count - confirmed_count} of {side_count}): {game.winner.name()}'
+                else:
+                    status_str = f'**WINNER** (Unconfirmed): {game.winner.name()}'
+            else:
+                status_str = f'**WINNER:** {game.winner.name()}'
+        return status_str
+
+    def get_headline(self):
+        # yields string like:
+        # Game 481   :fried_shrimp: The Crawfish vs :fried_shrimp: TestAccount1 vs :spy: TestBoye1\n*Name of Game*
+        full_squad_string = self.get_gamesides_string()
 
         game_name = f'\n\u00a0*{self.name}*' if self.name and self.name.strip() else ''
         # \u00a0 is used as an invisible delimeter so game_name can be split out easily

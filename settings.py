@@ -35,6 +35,7 @@ config = {'default':
                       'user_roles_level_3': ['@everyone'],  # full user, host/join anything
                       'user_roles_level_2': ['@everyone'],  # normal user, can't host all match sizes
                       'user_roles_level_1': ['@everyone'],  # restricted user/newbie
+                      'display_name': 'Unknown Server',
                       'require_teams': False,
                       'allow_teams': False,
                       'allow_uneven_teams': False,
