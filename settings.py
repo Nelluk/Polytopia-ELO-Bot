@@ -417,6 +417,7 @@ poly_id_ban_list = [
     'qIqw1okeZZgaFpUL',  # Remalin (skre alt)
     '815D2hK94mN7StoL',  # Skrealder
     'fOEjbnrzO9tg1QYT',  # Doggo#8422
+    '8ZWg85d9PlogdY1H',  # Stupid#7043
 ]
 
 

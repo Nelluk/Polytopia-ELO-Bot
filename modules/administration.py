@@ -421,7 +421,7 @@ class administration:
     @commands.command(aliases=['deactivate'])
     @settings.is_mod_check()
     @settings.on_polychampions()
-    async def deactivate_players(self, ctx, *, arg=None):
+    async def deactivate_players(self, ctx):
         """*Mods*: Add Inactive role to inactive players
         Apply the 'Inactive' role to any player who has not been activate lately.
         - No games played in 45 days, and does not have a protected role (Team Leadership or Mod roles)
