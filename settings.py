@@ -277,7 +277,7 @@ config = {'default':
                       'match_challenge_channels': [511316081160355852, 511906353476927498],
                       'game_request_channel': 418175357137453058,
                       'game_announce_channel': 505523961812090900,
-                      'game_channel_categories': [546527176380645395, 551747728548298758, 551748058690617354, 560104969580183562, 590592163751002124]},
+                      'game_channel_categories': [546527176380645395, 551747728548298758, 551748058690617354, 560104969580183562, 590592163751002124, 598599707148943361]},
         274660262873661442:                           # Beta Server
                      {'helper_roles': ['ELO Helper', 'Bot Master', 'iOS', 'Android'],
                       'mod_roles': ['MOD', 'Manager'],
