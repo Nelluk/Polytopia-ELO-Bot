@@ -262,9 +262,14 @@ class administration:
                     game.winner = None
                     game.save()
 
-                    models.Game.recalculate_elo_since(timestamp=timestamp)
-            elo_logger.debug(f'unwin game {game.id} completed')
-            return await ctx.send(f'Game {game.id} has been marked as *Incomplete*. ELO changes have been reverted and ELO from all subsequent games recalculated.')
+                    if game.is_ranked:
+                        models.Game.recalculate_elo_since(timestamp=timestamp)
+                        elo_logger.debug(f'unwin game {game.id} completed')
+                        return await ctx.send(f'Game {game.id} has been marked as *Incomplete*. ELO changes have been reverted and ELO from all subsequent games recalculated.')
+
+                    else:
+                        elo_logger.debug(f'unwin game {game.id} completed (unranked)')
+                        return await ctx.send(f'Unranked game {game.id} has been marked as *Incomplete*.')
 
         elif game.is_completed:
             # Unconfirmed win
