@@ -35,6 +35,7 @@ config = {'default':
                       'user_roles_level_3': ['@everyone'],  # full user, host/join anything
                       'user_roles_level_2': ['@everyone'],  # normal user, can't host all match sizes
                       'user_roles_level_1': ['@everyone'],  # restricted user/newbie
+                      'inactive_role': None,
                       'display_name': 'Unknown Server',
                       'require_teams': False,
                       'allow_teams': False,
@@ -57,6 +58,7 @@ config = {'default':
         478571892832206869:                           # Nelluk Test Server (discord server ID)
                      {'helper_roles': ['testers'],
                       'mod_roles': ['role1'],
+                      'inactive_role': 'Inactive',
                       'display_name': 'Development Server',
                       'require_teams': False,
                       'allow_teams': True,
@@ -238,6 +240,7 @@ config = {'default':
                       'user_roles_level_3': ['@everyone'],  # power user
                       'user_roles_level_2': ['@everyone'],  # normal user
                       'user_roles_level_1': ['@everyone'],  # restricted user/newbie
+                      'inactive_role': 'Inactive',
                       'display_name': 'PolyChampions',
                       'require_teams': True,
                       'allow_teams': True,
@@ -261,7 +264,7 @@ config = {'default':
                       'user_roles_level_3': ['ELO Player', 'ELO Veteran'],  # full user
                       'user_roles_level_2': ['Rider', 'Boat', 'ELO Rookie'],  # normal user
                       'user_roles_level_1': ['Member', 'Warrior'],  # restricted user/newbie
-                      'display_name': 'Polytopia',
+                      'display_name': 'Polytopia Main',
                       'allow_uneven_teams': True,
                       'require_teams': False,
                       'allow_teams': False,
@@ -278,26 +281,26 @@ config = {'default':
                       'game_request_channel': 418175357137453058,
                       'game_announce_channel': 505523961812090900,
                       'game_channel_categories': [546527176380645395, 551747728548298758, 551748058690617354, 560104969580183562, 590592163751002124, 598599707148943361]},
-        274660262873661442:                           # Beta Server
-                     {'helper_roles': ['ELO Helper', 'Bot Master', 'iOS', 'Android'],
-                      'mod_roles': ['MOD', 'Manager'],
-                      'display_name': 'Polytopia Beta',
-                      'allow_uneven_teams': True,
-                      'require_teams': False,
-                      'allow_teams': False,
-                      'max_team_size': 4,
-                      'command_prefix': '$',
-                      'include_in_global_lb': False,
-                      'bot_channels_private': [],
-                      'bot_channels_strict': [514473680529784853],
-                      'bot_channels': [313387761405263873],
-                      # 'newbie_message_channels': [396069729657421824, 413721247260868618, 418326008526143508, 418326044077064192],  # multi-discussion, friend codes NA/euro/asia
-                      # 'ranked_game_channel': 511316081160355852,
-                      # 'unranked_game_channel': 511906353476927498,
-                      # 'match_challenge_channels': [511316081160355852, 511906353476927498],
-                      'game_request_channel': None,
-                      # 'game_announce_channel': 505523961812090900,
-                      'game_channel_categories': []},
+        # 274660262873661442:                           # Beta Server
+        #              {'helper_roles': ['ELO Helper', 'Bot Master', 'iOS', 'Android'],
+        #               'mod_roles': ['MOD', 'Manager'],
+        #               'display_name': 'Polytopia Beta',
+        #               'allow_uneven_teams': True,
+        #               'require_teams': False,
+        #               'allow_teams': False,
+        #               'max_team_size': 4,
+        #               'command_prefix': '$',
+        #               'include_in_global_lb': False,
+        #               'bot_channels_private': [],
+        #               'bot_channels_strict': [514473680529784853],
+        #               'bot_channels': [313387761405263873],
+        #               # 'newbie_message_channels': [396069729657421824, 413721247260868618, 418326008526143508, 418326044077064192],  # multi-discussion, friend codes NA/euro/asia
+        #               # 'ranked_game_channel': 511316081160355852,
+        #               # 'unranked_game_channel': 511906353476927498,
+        #               # 'match_challenge_channels': [511316081160355852, 511906353476927498],
+        #               'game_request_channel': None,
+        #               # 'game_announce_channel': 505523961812090900,
+        #               'game_channel_categories': []},
         507848578048196614:                           # Jets Server
                      {'helper_roles': ['Co-Leader'],
                       'mod_roles': ['Admin', 'Bot Admin'],

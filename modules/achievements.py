@@ -33,18 +33,18 @@ async def set_champion_role():
         global_champion_member = guild.get_member(global_champion.discord_id)
 
         for old_champion in role.members:
-            await old_champion.remove_roles(role)
+            await old_champion.remove_roles(role, reason='Recurring reset of champion list')
             logger.info(f'removing ELO Champion role from {old_champion.name}')
 
         if local_champion_member:
             logger.info(f'adding ELO Champion role to {local_champion_member.name}')
-            await local_champion_member.add_roles(role)
+            await local_champion_member.add_roles(role, reason='Local champion')
         else:
             logger.warn(f'Couldnt find local champion {local_champion} in guild {guild.name}!')
 
         if global_champion_member:
             logger.info(f'adding ELO Champion role to {global_champion_member.name}')
-            await global_champion_member.add_roles(role)
+            await global_champion_member.add_roles(role, reason='Global champion')
         else:
             logger.warn(f'Couldnt find global champion {global_champion.name} in guild {guild.name}!')
 

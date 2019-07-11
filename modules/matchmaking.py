@@ -299,9 +299,16 @@ class matchmaking():
         if not game.is_pending:
             return await ctx.send(f'The game has already started and can no longer be joined.')
 
+        inactive_role = discord.utils.get(ctx.guild.roles, name=settings.guild_setting(ctx.guild.id, 'inactive_role'))
+
         if len(args) == 0:
             # ctx.author is joining a game, no side given
             target = f'<@{ctx.author.id}>'
+
+            if inactive_role and inactive_role in ctx.author.roles:
+                await ctx.send(f'You have the inactive role **{inactive_role.name}**. Removing it since you seem to be active!')
+                await ctx.author.remove_roles(inactive_role, reason='Player joined a game so should no longer be inactive')
+
             side, side_open = game.first_open_side(roles=[role.id for role in ctx.author.roles]), True
             if not side:
                 players, capacity = game.capacity()
@@ -355,6 +362,9 @@ class matchmaking():
 
         if not player.discord_member.polytopia_id:
             return await ctx.send(f'**{player.name}** does not have a Polytopia game code on file. Use `{ctx.prefix}setcode` to set one.')
+
+        if inactive_role and inactive_role in guild_matches[0].roles:
+            return await ctx.send(f'**{player.name}** has the inactive role *{inactive_role.name}* - cannot join them to a game until the role is removed.')
 
         if player.is_banned or player.discord_member.is_banned:
             if settings.is_mod(ctx):

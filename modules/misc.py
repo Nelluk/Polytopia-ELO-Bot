@@ -238,7 +238,7 @@ class misc:
 
         league_balance = []
         indent_str = '\u00A0\u00A0 \u00A0\u00A0 \u00A0\u00A0'
-        mia_role = discord.utils.get(ctx.guild.roles, name='Inactive')
+        mia_role = discord.utils.get(ctx.guild.roles, name=settings.guild_setting(ctx.guild.id, 'inactive_role'))
 
         for team, team_roles in league_teams:
 
@@ -252,7 +252,7 @@ class misc:
             try:
                 pro_team = models.Team.get_or_except(team_roles[0], ctx.guild.id)
                 junior_team = models.Team.get_or_except(team_roles[1], ctx.guild.id)
-            except exceptions.NoSingleMatch as ex:
+            except exceptions.NoSingleMatch:
                 logger.warn(f'Could not load one team from database, using args: {team_roles}')
                 continue
 
@@ -308,7 +308,7 @@ class misc:
         """
         grad_list = []
         grad_role = discord.utils.get(ctx.guild.roles, name='Free Agent')
-        inactive_role = discord.utils.get(ctx.guild.roles, name='Inactive')
+        inactive_role = discord.utils.get(ctx.guild.roles, name=settings.guild_setting(ctx.guild.id, 'inactive_role'))
         # recruiter_role = discord.utils.get(ctx.guild.roles, name='Team Recruiter')
         if ctx.guild.id == settings.server_ids['test']:
             grad_role = discord.utils.get(ctx.guild.roles, name='Team Leader')

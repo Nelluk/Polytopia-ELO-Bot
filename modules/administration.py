@@ -432,7 +432,7 @@ class administration:
         - No games played in 45 days, and does not have a protected role (Team Leadership or Mod roles)
         """
 
-        inactive_role = discord.utils.get(ctx.guild.roles, name='Inactive')
+        inactive_role = discord.utils.get(ctx.guild.roles, name=settings.guild_setting(ctx.guild.id, 'inactive_role'))
         protected_roles = [discord.utils.get(ctx.guild.roles, name='Team Recruiter'), discord.utils.get(ctx.guild.roles, name='Mod'),
                            discord.utils.get(ctx.guild.roles, name='Team Leader'), discord.utils.get(ctx.guild.roles, name='Team Co-Leader')]
 
@@ -445,7 +445,6 @@ class administration:
         ).group_by(models.DiscordMember.discord_id).having(
             peewee.fn.COUNT(models.Lineup.id) > 0
         )
-
 
         list_of_active_player_ids = [p[0] for p in query.tuples()]
 
@@ -463,7 +462,7 @@ class administration:
                     continue
 
                 defunct_members.append(member.name)
-                await member.add_roles(inactive_role)
+                await member.add_roles(inactive_role, reason='Appeared inactive via deactivate_players command')
                 logger.debug(f'{member.name} is inactive')
 
         if not defunct_members:
@@ -488,7 +487,7 @@ class administration:
         grad_role = discord.utils.get(ctx.guild.roles, name='Free Agent')
         recruiter_role = discord.utils.get(ctx.guild.roles, name='Team Recruiter')
         drafter_role = discord.utils.get(ctx.guild.roles, name='Drafter')
-        inactive_role = discord.utils.get(ctx.guild.roles, name='Inactive')
+        inactive_role = discord.utils.get(ctx.guild.roles, name=settings.guild_setting(ctx.guild.id, 'inactive_role'))
         grad_chan = ctx.guild.get_channel(540332800927072267)  # Novas draft talk
         if ctx.guild.id == settings.server_ids['test']:
             role = discord.utils.get(ctx.guild.roles, name='testers')
@@ -567,7 +566,8 @@ class administration:
         count = 0
         last_week = (datetime.datetime.now() + datetime.timedelta(days=-7))
         last_month = (datetime.datetime.now() + datetime.timedelta(days=-30))
-        kickable_roles = [discord.utils.get(ctx.guild.roles, name='Inactive'), discord.utils.get(ctx.guild.roles, name='The Novas'),
+        inactive_role_name = settings.guild_setting(ctx.guild.id, 'inactive_role')
+        kickable_roles = [discord.utils.get(ctx.guild.roles, name=inactive_role_name), discord.utils.get(ctx.guild.roles, name='The Novas'),
                           discord.utils.get(ctx.guild.roles, name='ELO Rookie'), discord.utils.get(ctx.guild.roles, name='ELO Player'),
                           discord.utils.get(ctx.guild.roles, name='@everyone')]
 
