@@ -605,7 +605,7 @@ class administration:
     @commands.command()
     @settings.is_mod_check()
     async def purge_incomplete(self, ctx):
-        """*Owner*: Purge old incomplete games
+        """*Mod*: Purge old incomplete games
         Purges up to 10 games at a time. Only incomplete 2-player games that started more than 60 days ago, or 3-player games that started more than 90 days ago.
         """
 
