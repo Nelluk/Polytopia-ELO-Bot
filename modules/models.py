@@ -231,7 +231,8 @@ class DiscordMember(BaseModel):
             date_cutoff = datetime.date.min  # 'forever' ?
 
         return Lineup.select(Lineup.game).join(Game).join_from(Lineup, Player).where(
-            (Lineup.game.date > date_cutoff) & (Lineup.player.discord_member == self)
+            ((Lineup.game.date > date_cutoff) | (Lineup.game.completed_ts > date_cutoff)) &
+            (Lineup.player.discord_member == self)
         ).order_by(-Game.date)
 
     def completed_game_count(self, only_ranked=True):
@@ -515,23 +516,20 @@ class Player(BaseModel):
             date_cutoff = datetime.date.min  # 'forever' ?
 
         if not min_players:
+            # default: include any game type
             return Lineup.select(Lineup.game).join(Game).where(
-                (Lineup.game.date > date_cutoff) & (Lineup.player == self)
+                ((Lineup.game.date > date_cutoff) | (Lineup.game.completed_ts > date_cutoff)) & (Lineup.player == self)
             ).order_by(-Game.date)
 
+        # else restrict to games with minimum gamesize. use this to find out how many 2v2 games a player has played, for example.
         subq_games_with_minimum_side_size = Lineup.select(Lineup.game).join(Game).join_from(Lineup, GameSide).where(
             (Lineup.player == self) & (GameSide.size >= min_players)
         )
 
         logger.debug(f'Player {self.name} min_players: {min_players} - {len(subq_games_with_minimum_side_size)}')
 
-        # return Lineup.select(Lineup.game).join(Game).where(
-        #     (Lineup.game.date > date_cutoff) &
-        #     (Lineup.game.id.in_(subq_games_with_minimum_side_size))
-        # ).order_by(-Game.date)
-
         return Game.select().where(
-            (Game.date > date_cutoff) &
+            ((Game.date > date_cutoff) | (Game.completed_ts > date_cutoff)) &
             (Game.id.in_(subq_games_with_minimum_side_size))
         ).order_by(-Game.date)
 
