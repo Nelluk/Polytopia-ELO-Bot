@@ -461,7 +461,7 @@ class administration:
                     logger.debug(f'Skipping {member.name} since they joined recently.')
                     continue
 
-                defunct_members.append(member.name)
+                defunct_members.append(member.mention)
                 await member.add_roles(inactive_role, reason='Appeared inactive via deactivate_players command')
                 logger.debug(f'{member.name} is inactive')
 
