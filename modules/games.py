@@ -203,7 +203,7 @@ class elo_games():
         leaderboard = []
 
         query = Player.select(Player, peewee.fn.COUNT(Lineup.id).alias('count')).join(Lineup).join(Game).where(
-            (Lineup.player == Player.id) & (Game.is_pending == 0) & ((Game.date > last_month) | (Game.completed_ts > last_month)) & (Game.guild_id == ctx.guild.id)
+            (Lineup.player == Player.id) & ((Game.date > last_month) | (Game.completed_ts > last_month)) & (Game.guild_id == ctx.guild.id)
         ).group_by(Player.id).order_by(-peewee.SQL('count'))
 
         if ctx.invoked_with == 'lbactivealltime':
