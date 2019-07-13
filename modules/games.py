@@ -203,7 +203,7 @@ class elo_games():
         leaderboard = []
 
         query = Player.select(Player, peewee.fn.COUNT(Lineup.id).alias('count')).join(Lineup).join(Game).where(
-            (Lineup.player == Player.id) & (Game.is_pending == 0) & (Game.date > last_month) & (Game.guild_id == ctx.guild.id)
+            (Lineup.player == Player.id) & (Game.is_pending == 0) & ((Game.date > last_month) | (Game.completed_ts > last_month)) & (Game.guild_id == ctx.guild.id)
         ).group_by(Player.id).order_by(-peewee.SQL('count'))
 
         if ctx.invoked_with == 'lbactivealltime':
@@ -273,7 +273,7 @@ class elo_games():
                 logger.error(f'Could not find matching role for team {team.name}')
                 continue
             member_count = 0
-            mia_role = discord.utils.get(ctx.guild.roles, name='Inactive')
+            mia_role = discord.utils.get(ctx.guild.roles, name=settings.guild_setting(ctx.guild.id, 'inactive_role'))
             for team_member in team_role.members:
                 if mia_role and mia_role in team_member.roles:
                     continue
@@ -530,12 +530,12 @@ class elo_games():
 
         try:
             team = Team.get_or_except(team_string, ctx.guild.id)
-        except exceptions.NoSingleMatch as ex:
+        except exceptions.NoSingleMatch:
             return await ctx.send(f'Couldn\'t find a team name matching *{team_string}*. Check spelling or be more specific. **Example:** `{ctx.prefix}team Ronin`')
 
         embed = discord.Embed(title=f'Team card for **{team.name}** {team.emoji}')
         team_role = discord.utils.get(ctx.guild.roles, name=team.name)
-        mia_role = discord.utils.get(ctx.guild.roles, name='Inactive')
+        mia_role = discord.utils.get(ctx.guild.roles, name=settings.guild_setting(ctx.guild.id, 'inactive_role'))
         leader_role = discord.utils.get(ctx.guild.roles, name='Team Leader')
         coleader_role = discord.utils.get(ctx.guild.roles, name='Team Co-Leader')
         member_stats = []
