@@ -426,12 +426,21 @@ class misc:
             dms = models.DiscordMember.members_not_on_polychamps()
             logger.info(f'{len(dms)} discordmember results')
             for dm in dms:
-                if dm.wins().count() < 5:
+                wins_count, losses_count = dm.wins().count(), dm.losses().count()
+                if wins_count < 5:
                     logger.debug(f'Skipping {dm.name} - insufficient winning games')
                     continue
                 if dm.games_played(in_days=15).count() < 1:
                     logger.debug(f'Skipping {dm.name} - insufficient recent games')
                     continue
+                if dm.elo_max > 1150:
+                    logger.debug(f'{dm.name} qualifies due to higher ELO > 1150')
+                elif wins_count > losses_count:
+                    logger.debug(f'{dm.name} qualifies due to positive win ratio')
+                else:
+                    logger.debug(f'Skipping {dm.name} - ELO or W/L record insufficient')
+                    continue
+
                 logger.debug(f'Sending invite to {dm.name}')
                 guild_member = guild.get_member(dm.discord_id)
                 if not guild_member:
