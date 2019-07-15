@@ -429,7 +429,7 @@ class administration:
     async def deactivate_players(self, ctx):
         """*Mods*: Add Inactive role to inactive players
         Apply the 'Inactive' role to any player who has not been activate lately.
-        - No games played in 45 days, and does not have a protected role (Team Leadership or Mod roles)
+        - No games started in 45 days, and does not have a protected role (Team Leadership or Mod roles)
         """
 
         inactive_role = discord.utils.get(ctx.guild.roles, name=settings.guild_setting(ctx.guild.id, 'inactive_role'))

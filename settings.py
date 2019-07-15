@@ -301,6 +301,28 @@ config = {'default':
         #               'game_request_channel': None,
         #               # 'game_announce_channel': 505523961812090900,
         #               'game_channel_categories': []},
+        598698486384295946:                           # PolyConference run by Debussi
+                     {'helper_roles': ['ELO-Helper'],
+                      'mod_roles': ['MOD'],
+                      'user_roles_level_4': ['Qualifier, League Member'],  # power user
+                      'user_roles_level_3': ['@everyone'],  # power user
+                      'user_roles_level_2': ['@everyone'],  # normal user
+                      'user_roles_level_1': ['@everyone'],  # restricted user/newbie
+                      'display_name': 'PolyConference 2019',
+                      'require_teams': False,
+                      'allow_teams': False,
+                      'allow_uneven_teams': True,
+                      'max_team_size': 2,
+                      'command_prefix': '$',
+                      'include_in_global_lb': False,
+                      'bot_channels_private': [],
+                      'bot_channels_strict': [600413821445734543],
+                      'bot_channels': [600413821445734543],
+                      'ranked_game_channel': None,
+                      'unranked_game_channel': None,
+                      'game_announce_channel': None,
+                      'match_challenge_channels': [],
+                      'game_channel_categories': []},
         507848578048196614:                           # Jets Server
                      {'helper_roles': ['Co-Leader'],
                       'mod_roles': ['Admin', 'Bot Admin'],
