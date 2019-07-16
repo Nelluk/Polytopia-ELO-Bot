@@ -546,6 +546,7 @@ class matchmaking():
 
         ranked_filter, ranked_str = 2, ''
         filter_unjoinable = False
+        unjoinable_count = 0
         ranked_chan = settings.guild_setting(ctx.guild.id, 'ranked_game_channel')
         unranked_chan = settings.guild_setting(ctx.guild.id, 'unranked_game_channel')
 
@@ -569,13 +570,12 @@ class matchmaking():
                 filter_unjoinable = False
                 filter_str = ''
             else:
-                filter_str = ' joinable '
+                filter_str = ' joinable'
                 filter_unjoinable = True
 
             title_str = f'Current{filter_str}{ranked_str} open games with available spots'
             game_list = models.Game.search_pending(status_filter=2, guild_id=ctx.guild.id, ranked_filter=ranked_filter)
 
-        title_str_full = title_str + f'\nUse __`{ctx.prefix}join ID`__ to join one or __`{ctx.prefix}game ID`__ for more details.'
         gamelist_fields = [(f'`{"ID":<8}{"Host":<40} {"Type":<7} {"Capacity":<7} {"Exp":>4}` ', '\u200b')]
 
         for game in game_list:
@@ -585,12 +585,15 @@ class matchmaking():
             player_restricted_list = re.findall(r'<@!?(\d+)>', notes_str)
 
             if filter_unjoinable:
+
                 if player_restricted_list and str(ctx.author.id) not in player_restricted_list and (len(player_restricted_list) >= capacity - 1) and not game.is_hosted_by(ctx.author.id)[0]:
                     # skipping games that the command issuer is not invited to
+                    unjoinable_count += 1
                     continue
                 open_side = game.first_open_side(roles=[role.id for role in ctx.author.roles])
                 if not open_side:
                     # skipping games that are role-locked that player doesn't have role for
+                    unjoinable_count += 1
                     continue
                 player, _ = models.Player.get_by_discord_id(discord_id=ctx.author.id, discord_name=ctx.author.name, discord_nick=ctx.author.nick, guild_id=ctx.guild.id)
                 if player:
@@ -598,6 +601,7 @@ class matchmaking():
                     (min_elo, max_elo, min_elo_g, max_elo_g) = game.elo_requirements()
                     if player.elo < min_elo or player.elo > max_elo or player.discord_member.elo < min_elo_g or player.discord_member.elo > max_elo_g:
                         if not game.is_hosted_by(ctx.author.id)[0]:
+                            unjoinable_count += 1
                             continue
                 # if game.has_player(discord_id=ctx.author.id)[0] and not game.is_hosted_by(ctx.author.id)[0]:
                 #     # skip games player is already joined (removing since there are probably too many cases where this would be confusing)
@@ -612,6 +616,14 @@ class matchmaking():
             host_name = creating_player.name[:35] if creating_player else '<Vacant>'
             gamelist_fields.append((f'`{f"{game.id}":<8}{host_name:<40} {game.size_string():<7} {capacity_str:<7} {expiration:>5}`',
                 f'{ranked_str}{notes_str}\n \u200b'))
+
+        if filter_unjoinable and unjoinable_count:
+            if unjoinable_count == 1:
+                title_str = title_str + f'\n1 game that you cannot join was filtered. See `{ctx.prefix}{ctx.invoked_with} all` for an unfiltered list.'
+            else:
+                title_str = title_str + f'\n{unjoinable_count} games that you cannot join were filtered. See `{ctx.prefix}{ctx.invoked_with} all` for an unfiltered list.'
+
+        title_str_full = title_str + f'\nUse __`{ctx.prefix}join ID`__ to join one or __`{ctx.prefix}game ID`__ for more details.'
 
         self.bot.loop.create_task(utilities.paginate(self.bot, ctx, title=title_str_full, message_list=gamelist_fields, page_start=0, page_end=15, page_size=15))
         # paginator done as a task because otherwise it will not let the waitlist message send until after pagination is complete (20+ seconds)
