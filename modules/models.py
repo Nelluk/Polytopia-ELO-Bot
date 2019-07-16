@@ -1434,7 +1434,7 @@ class Game(BaseModel):
         return (False, None)
 
     def player(self, player: Player = None, discord_id: int = None, name: str = None):
-        # return game.lineup, based on either Player object or discord_id. else None
+        # return game.lineup, based on either Player object or discord_id. else None if player did not play in this game.
 
         if name:
             try:
@@ -1918,11 +1918,12 @@ class Game(BaseModel):
         logger.info(f'purge_expired_games #2: Purged {delete_query2.execute()}  games.')
 
     def confirmations_reset(self):
-        for side in self.gamesides:
-            side.win_confirmed = False
-            side.save()
-        self.win_claimed_ts = None
-        self.save()
+        with db.atomic():
+            for side in self.gamesides:
+                side.win_confirmed = False
+                side.save()
+            self.win_claimed_ts = None
+            self.save()
 
     def confirmations_count(self):
         fully_confirmed = True

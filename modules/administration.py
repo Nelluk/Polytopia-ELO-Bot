@@ -237,52 +237,6 @@ class administration:
         return await ctx.send(f'Game {game.id} is now an open game and no longer in progress.')
 
     @commands.command(usage='game_id')
-    async def unwin(self, ctx, game: PolyGame = None):
-        """ *Staff*: Reset a completed game to incomplete
-        Reverts ELO changes from the completed game and any subsequent completed game.
-        Resets the game as if it were still incomplete with no declared winner.
-         **Examples**
-        `[p]unwin 50`
-        """
-
-        if game is None:
-            return await ctx.send(f'No matching game was found.')
-
-        game.confirmations_reset()
-
-        if game.is_completed and game.is_confirmed:
-            elo_logger.debug(f'unwin game {game.id}')
-            async with ctx.typing():
-                with models.db.atomic():
-                    timestamp = game.completed_ts
-                    game.reverse_elo_changes()
-                    game.completed_ts = None
-                    game.is_confirmed = False
-                    game.is_completed = False
-                    game.winner = None
-                    game.save()
-
-                    if game.is_ranked:
-                        models.Game.recalculate_elo_since(timestamp=timestamp)
-                        elo_logger.debug(f'unwin game {game.id} completed')
-                        return await ctx.send(f'Game {game.id} has been marked as *Incomplete*. ELO changes have been reverted and ELO from all subsequent games recalculated.')
-
-                    else:
-                        elo_logger.debug(f'unwin game {game.id} completed (unranked)')
-                        return await ctx.send(f'Unranked game {game.id} has been marked as *Incomplete*.')
-
-        elif game.is_completed:
-            # Unconfirmed win
-            game.completed_ts = None
-            game.is_completed = False
-            game.winner = None
-            game.save()
-            return await ctx.send(f'Unconfirmed Game {game.id} has been marked as *Incomplete*.')
-
-        else:
-            return await ctx.send(f'Game {game.id} does not have a confirmed winner.')
-
-    @commands.command(usage='game_id')
     async def extend(self, ctx, game: PolyGame = None):
         """ *Staff*: Extends the timer of an open game by 24 hours
 

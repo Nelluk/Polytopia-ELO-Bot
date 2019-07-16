@@ -13,6 +13,7 @@ import re
 from itertools import groupby
 
 logger = logging.getLogger('polybot.' + __name__)
+elo_logger = logging.getLogger('polybot.elo')
 
 
 class PolyGame(commands.Converter):
@@ -1112,7 +1113,8 @@ class elo_games():
                     conf_str = 'Your confirmation has been logged. ' if new_confirmation else ''
                     await ctx.send(f'{conf_str}**Game {winning_game.id}** *{winning_game.name}* is pending confirmation: {confirmed_count} of {side_count} sides have confirmed.\n'
                         f'Participants in the game should use the command __`{ctx.prefix}win {winning_game.id} {printed_side_name}`__ to confirm the victory.\n'
-                        f'Please post a screenshot of your victory in case there is a dispute. If this win was claimed in error please ping a **@{helper_role}**.')
+                        f'Please post a screenshot of your victory in case there is a dispute. If this win was claimed in error please ping a **@{helper_role}**, '
+                        f'or you can cancel your claim with the command `{ctx.prefix}unwin {winning_game.id}`')
                 else:
                     winning_game.win_claimed_ts = datetime.datetime.now()
                     winning_game.save()
@@ -1121,6 +1123,7 @@ class elo_games():
                     await ctx.send(f'**Game {winning_game.id}** *{winning_game.name}* concluded pending confirmation of winner **{winning_obj.name}**\n'
                         f'To confirm, have opponents use the command __`{ctx.prefix}win {winning_game.id} {printed_side_name}`__\n'
                         f'If opponents do not dispute the win then the game will be confirmed automatically after a period of time.\n'
+                        f'If this win was claimed falsely please ping a **@{helper_role}** to contest, or you can cancel your claim with the command `{ctx.prefix}unwin {winning_game.id}`.\n'
                         f'*Game lineup*: {" ".join(player_mentions)}')
 
         winning_game.declare_winner(winning_side=winning_side, confirm=confirm_win)
@@ -1135,6 +1138,96 @@ class elo_games():
                 logger.error(f'Error during win command triggering post_win_messaging - trying to reopen and run again: {e}')
                 db.connect(reuse_if_open=True)
                 await post_win_messaging(ctx.guild, ctx.prefix, ctx.channel, winning_game)
+
+    @settings.in_bot_channel()
+    @commands.command(usage='game_id')
+    async def unwin(self, ctx, game: PolyGame = None):
+        """Reset a completed game to incomplete
+
+        **Staff usage**:
+        Reverts ELO changes from the completed game and any subsequent completed game.
+        Resets the game as if it were still incomplete with no declared winner.
+
+        **Player usage**:
+        If you use the `[p]win` command on the wrong game or for the wrong winner, use this command to undo your mistake.
+
+         **Examples**
+        `[p]unwin 12500`
+        """
+
+        if game is None:
+            return await ctx.send(f'No matching game was found.')
+
+        if game.is_pending:
+                return await ctx.send(f'Game {game.id} is marked as *pending / not started*. This command cannot be used.')
+        if not game.is_completed:
+                return await ctx.send(f'Game {game.id} is marked as *Incomplete*. This command cannot be used.')
+
+        if settings.is_staff(ctx):
+            # Staff usage: reset any game to Incomplete state
+            game.confirmations_reset()
+
+            if game.is_completed and game.is_confirmed:
+                elo_logger.debug(f'unwin game {game.id}')
+                async with ctx.typing():
+                    with db.atomic():
+                        timestamp = game.completed_ts
+                        game.reverse_elo_changes()
+                        game.completed_ts = None
+                        game.is_confirmed = False
+                        game.is_completed = False
+                        game.winner = None
+                        game.save()
+
+                        if game.is_ranked:
+                            Game.recalculate_elo_since(timestamp=timestamp)
+                            elo_logger.debug(f'unwin game {game.id} completed')
+                            return await ctx.send(f'Game {game.id} has been marked as *Incomplete*. ELO changes have been reverted and ELO from all subsequent games recalculated.')
+
+                        else:
+                            elo_logger.debug(f'unwin game {game.id} completed (unranked)')
+                            return await ctx.send(f'Unranked game {game.id} has been marked as *Incomplete*.')
+
+            elif game.is_completed:
+                # Unconfirmed win
+                game.completed_ts = None
+                game.is_completed = False
+                game.winner = None
+                game.save()
+                return await ctx.send(f'Unconfirmed Game {game.id} has been marked as *Incomplete*.')
+
+            else:
+                return await ctx.send(f'Game {game.id} does not have a confirmed winner.')
+        else:
+            # non-staff usage: remove your own claim on a game's win
+            has_player, author_side = game.has_player(discord_id=ctx.author.id)
+            if not has_player:
+                return await ctx.send(f'You are not a player in game {game.id} and do not have server staff permissions.')
+            if game.is_confirmed:
+                return await ctx.send(f'Game {game.id} has been confirmed already. Only server staff can use this command on confirmed games.')
+            if not author_side.win_confirmed:
+                return await ctx.send(f'Your side **{author_side.name()}** has no record of confirming a win from game {game.id} - this command cannot be used.')
+            if game.is_pending:
+                return await ctx.send(f'Game {game.id} is marked as *pending / not started*. This command cannot be used.')
+
+            if author_side == game.winner:
+                logger.debug(f'Player {ctx.author.name} is removing their own win claim on game {game.id}')
+                game.confirmations_reset()
+                game.completed_ts = None
+                game.is_completed = False
+                game.winner = None
+                game.save()
+                return await ctx.send(f'Your unconfirmed win in game {game.id} has been reset and the game is now marked as *Incomplete*.')
+            else:
+                # author removing win claim for a game pointing at another side as the winner
+                logger.debug(f'Player {ctx.author.name} is removing win claim on game {game.id}')
+                author_side.win_confirmed = False
+                author_side.save()
+
+                (confirmed_count, side_count, fully_confirmed) = game.confirmations_count()
+
+                return await ctx.send(f'Your confirmation that **{game.winner.name()}** won game {game.id} has been *removed*. The win is still pending confirmation. '
+                    f'{confirmed_count} of {side_count} sides are marked as confirming.')
 
     @settings.in_bot_channel()
     @commands.command(usage='game_id', aliases=['delete_game', 'delgame', 'delmatch', 'deletegame'])
