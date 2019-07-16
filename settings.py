@@ -74,6 +74,30 @@ config = {'default':
                       'game_request_channel': 480078679930830849,
                       'game_announce_channel': 481558031281160212,
                       'game_channel_categories': [493149162238640161, 493149183155503105]},
+        447883341463814144:                           # Polychampions
+                     {'helper_roles': ['Helper', 'ELO-Helper', 'Team Leader'],
+                      'mod_roles': ['Mod'],
+                      'user_roles_level_4': ['Team Co-Leader', 'ELO Hero'],  # power user
+                      'user_roles_level_3': ['@everyone'],  # power user
+                      'user_roles_level_2': ['@everyone'],  # normal user
+                      'user_roles_level_1': ['@everyone'],  # restricted user/newbie
+                      'inactive_role': 'Inactive',
+                      'display_name': 'PolyChampions',
+                      'require_teams': True,
+                      'allow_teams': True,
+                      'allow_uneven_teams': True,
+                      'max_team_size': 6,
+                      'command_prefix': '$',
+                      'include_in_global_lb': True,
+                      'bot_channels_private': [487304043786665986, 469027618289614850, 531636068739710997, 447902433964851210],  # 986 elo-staff-talk, 850 dont-timeout, 997 novas, 210 s4-drafts
+                      'bot_channels_strict': [487303307224940545, 448317497473630229],  # 545 elo-commands, 229 bot-commands
+                      'bot_channels': [487303307224940545, 448317497473630229, 452639822616723457],  # 457 elo-chalenges
+                      'ranked_game_channel': None,
+                      'unranked_game_channel': None,
+                      'match_challenge_channels': [452639822616723457],  # elo-challenges
+                      'game_request_channel': 487304043786665986,  # $staffhelp output
+                      'game_announce_channel': 487302138704429087,  # elo-drafts
+                      'game_channel_categories': [488421911529914368, 514141474229846018, 519131761733795841, 550414365044637712, 563717211362164736, 568093671912636420, 574669105752440842]},  # elo-games-i, ii, iii, iv, v, vi, vii
         572885616656908288:                           # Ronin team Server
                      {'helper_roles': ['Team Co-Leader'],
                       'mod_roles': ['Admin', 'Team Leader'],
@@ -233,30 +257,6 @@ config = {'default':
                       'bot_channels_strict': [573894372173807616],
                       'bot_channels': [573894372173807616],
                       'game_channel_categories': [573895174309150745]},
-        447883341463814144:                           # Polychampions
-                     {'helper_roles': ['Helper', 'ELO-Helper', 'Team Leader'],
-                      'mod_roles': ['Mod'],
-                      'user_roles_level_4': ['Team Co-Leader', 'ELO Hero'],  # power user
-                      'user_roles_level_3': ['@everyone'],  # power user
-                      'user_roles_level_2': ['@everyone'],  # normal user
-                      'user_roles_level_1': ['@everyone'],  # restricted user/newbie
-                      'inactive_role': 'Inactive',
-                      'display_name': 'PolyChampions',
-                      'require_teams': True,
-                      'allow_teams': True,
-                      'allow_uneven_teams': True,
-                      'max_team_size': 6,
-                      'command_prefix': '$',
-                      'include_in_global_lb': True,
-                      'bot_channels_private': [487304043786665986, 469027618289614850, 531636068739710997, 447902433964851210],  # 986 elo-staff-talk, 850 dont-timeout, 997 novas, 210 s4-drafts
-                      'bot_channels_strict': [487303307224940545, 448317497473630229],  # 545 elo-commands, 229 bot-commands
-                      'bot_channels': [487303307224940545, 448317497473630229, 452639822616723457],  # 457 elo-chalenges
-                      'ranked_game_channel': None,
-                      'unranked_game_channel': None,
-                      'match_challenge_channels': [452639822616723457],  # elo-challenges
-                      'game_request_channel': 487304043786665986,  # $staffhelp output
-                      'game_announce_channel': 487302138704429087,  # elo-drafts
-                      'game_channel_categories': [488421911529914368, 514141474229846018, 519131761733795841, 550414365044637712, 563717211362164736, 568093671912636420, 574669105752440842]},  # elo-games-i, ii, iii, iv, v, vi, vii
           283436219780825088:                           # Main Server
                      {'helper_roles': ['ELO-Helper', 'Bot Master', 'Director'],
                       'mod_roles': ['MOD', 'Manager'],
