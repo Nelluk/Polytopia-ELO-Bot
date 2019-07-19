@@ -56,8 +56,8 @@ config = {'default':
                       'game_announce_channel': None,
                       'game_channel_categories': []},
         478571892832206869:                           # Nelluk Test Server (discord server ID)
-                     {'helper_roles': ['testers'],
-                      'mod_roles': ['role1'],
+                     {'mod_roles': ['role1'],
+                      # 'helper_roles': ['role1'],
                       'inactive_role': 'Inactive',
                       'display_name': 'Development Server',
                       'require_teams': False,
@@ -75,7 +75,7 @@ config = {'default':
                       'game_announce_channel': 481558031281160212,
                       'game_channel_categories': [493149162238640161, 493149183155503105]},
         447883341463814144:                           # Polychampions
-                     {'helper_roles': ['Helper', 'ELO-Helper', 'Team Leader'],
+                     {'helper_roles': ['Mod', 'Helper', 'ELO-Helper', 'Team Leader'],
                       'mod_roles': ['Mod'],
                       'user_roles_level_4': ['Team Co-Leader', 'ELO Hero'],  # power user
                       'user_roles_level_3': ['@everyone'],  # power user
@@ -257,7 +257,30 @@ config = {'default':
                       'bot_channels_strict': [573894372173807616],
                       'bot_channels': [573894372173807616],
                       'game_channel_categories': [573895174309150745]},
-          283436219780825088:                           # Main Server
+        507848578048196614:                           # Jets Server
+                     {'helper_roles': ['Co-Leader'],
+                      'mod_roles': ['Admin', 'Bot Admin'],
+                      'user_roles_level_4': ['', 'Jets'],  # power user
+                      'user_roles_level_3': ['@everyone'],  # power user
+                      'user_roles_level_2': ['@everyone'],  # normal user
+                      'user_roles_level_1': ['@everyone'],  # restricted user/newbie
+                      'display_name': 'Jets',
+                      'require_teams': False,
+                      'allow_teams': True,
+                      'allow_uneven_teams': True,
+                      'max_team_size': 6,
+                      'command_prefix': '$',
+                      'include_in_global_lb': False,
+                      'bot_channels_private': [],
+                      'bot_channels_strict': [520307432166260746],
+                      'bot_channels': [520307432166260746],
+                      'ranked_game_channel': None,
+                      'unranked_game_channel': None,
+                      'match_challenge_channels': [],
+                      'game_request_channel': None,  # $staffhelp output
+                      'game_announce_channel': None,  # elo-drafts
+                      'game_channel_categories': [507946542024359938]},  # Jets vs Jets
+        283436219780825088:                           # Main Server
                      {'helper_roles': ['ELO-Helper', 'Bot Master', 'Director'],
                       'mod_roles': ['MOD', 'Manager'],
                       'user_roles_level_4': ['Archer', 'Defender', 'Ship', 'Catapult', 'Knight', 'Swordsman', 'Tridention', 'Battleship', 'Mind Bender', 'Giant', 'Crab', 'Dragon', 'ELO Hero'],
@@ -323,29 +346,6 @@ config = {'default':
                       'game_announce_channel': None,
                       'match_challenge_channels': [],
                       'game_channel_categories': []},
-        507848578048196614:                           # Jets Server
-                     {'helper_roles': ['Co-Leader'],
-                      'mod_roles': ['Admin', 'Bot Admin'],
-                      'user_roles_level_4': ['', 'Jets'],  # power user
-                      'user_roles_level_3': ['@everyone'],  # power user
-                      'user_roles_level_2': ['@everyone'],  # normal user
-                      'user_roles_level_1': ['@everyone'],  # restricted user/newbie
-                      'display_name': 'Jets',
-                      'require_teams': False,
-                      'allow_teams': True,
-                      'allow_uneven_teams': True,
-                      'max_team_size': 6,
-                      'command_prefix': '$',
-                      'include_in_global_lb': False,
-                      'bot_channels_private': [],
-                      'bot_channels_strict': [520307432166260746],
-                      'bot_channels': [520307432166260746],
-                      'ranked_game_channel': None,
-                      'unranked_game_channel': None,
-                      'match_challenge_channels': [],
-                      'game_request_channel': None,  # $staffhelp output
-                      'game_announce_channel': None,  # elo-drafts
-                      'game_channel_categories': [507946542024359938]},  # Jets vs Jets
         # 568090839545413635:                           # Polympire, small server run by WhyDoYouDide
         #              {'helper_roles': ['Bot-helper'],
         #               'mod_roles': ['Admin', 'Bot-mod'],
@@ -505,6 +505,27 @@ def get_user_level(ctx, user=None):
     if get_matching_roles(user, guild_setting(ctx.guild.id, 'user_roles_level_1')):
         return 1  # join ranked games up to 3p, unranked up to 6p. no hosting
     return 0
+
+
+def can_user_join_game(user_level: int, game_size: int, is_ranked: bool = True, is_host: bool = True):
+    # return bool_permission_given, str_error_message
+    if is_host:
+        if user_level <= 1 and game_size > 3:
+            return False, f'You can only host games with a maximum of 3 players.\n{levels_info}'
+        if user_level <= 2:
+            if game_size > 4 and is_ranked:
+                return False, f'You can only host ranked games of up to 4 players. More active players have permissons to host large games.\n{levels_info}'
+            if game_size > 6:
+                return False, f'You can only host unranked games of up to 6 players. More active players have permissons to host large games.\n{levels_info}'
+
+    if user_level <= 1:
+        if (is_ranked and game_size > 3) or (not is_ranked and game_size > 6):
+            return False, f'You are a restricted user (*level 1*) - complete a few more ELO games to have more permissions.\n{levels_info}'
+        if user_level <= 2:
+            if (is_ranked and game_size > 6) or (not is_ranked and game_size > 12):
+                return False, f'You are a restricted user (*level 2*) - complete a few more ELO games to have more permissions.\n{levels_info}'
+
+    return True, None  # Game allowed
 
 
 def is_staff(ctx, user=None):

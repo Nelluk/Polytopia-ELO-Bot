@@ -658,8 +658,12 @@ class elo_games():
 
         players_with_id = DiscordMember.select().where(DiscordMember.polytopia_id == new_id)
         if players_with_id.count() > 1 and new_id:
+            helper_role_name = settings.guild_setting(ctx.guild.id, 'helper_roles')[0]
+            helper_role = discord.utils.get(ctx.guild.roles, name=helper_role_name)
+            helper_role_str = f'someone with the {helper_role.mention} role' if helper_role else 'server staff'
             p_names = [p.name for p in players_with_id]
-            await ctx.send(f'**Warning:** This polytopia code is already entered in the database. Duplicated players: {", ".join(p_names)}')
+            await ctx.send(f'**Warning:** This polytopia code is already entered in the database. '
+                f'If you need help using this bot please contact {helper_role_str}.\nDuplicated players: {", ".join(p_names)}')
 
     @commands.command(aliases=['code'], usage='player_name')
     async def getcode(self, ctx, *, player_string: str = None):
@@ -964,8 +968,10 @@ class elo_games():
 
         if len(player_groups) < 2:
             return await ctx.send(f'Invalid format. {example_usage}')
-        if total_players > 4 and settings.get_user_level(ctx) <= 2:
-            return await ctx.send(f'You only have permissions to create games of up to 4 players. More active server members can create larger games.\n{settings.levels_info}')
+
+        game_allowed, join_error_message = settings.can_user_join_game(user_level=settings.get_user_level(ctx), game_size=total_players, is_ranked=ranked_flag, is_host=True)
+        if not game_allowed:
+            return await ctx.send(join_error_message)
 
         if total_players > 12:
             return await ctx.send(f'You cannot have more than twelve players.')

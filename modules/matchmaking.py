@@ -148,15 +148,18 @@ class matchmaking():
         if not team_size:
             return await ctx.send(f'Game size is required. Include argument like *1v1* to specify size')
 
-        # if settings.get_user_level(ctx) <= 1 and (is_ranked or sum(team_sizes) > 3):
-        if settings.get_user_level(ctx) <= 1 and sum(team_sizes) > 3:
-            return await ctx.send(f'You can only host games with a maximum of 3 players.\n{settings.levels_info}')
+        game_allowed, join_error_message = settings.can_user_join_game(user_level=settings.get_user_level(ctx), game_size=sum(team_sizes), is_ranked=is_ranked, is_host=True)
+        if not game_allowed:
+            return await ctx.send(join_error_message)
 
-        if settings.get_user_level(ctx) <= 2:
-            if sum(team_sizes) > 4 and is_ranked:
-                return await ctx.send(f'You can only host ranked games of up to 4 players. More active players have permissons to host large games.\n{settings.levels_info}')
-            if sum(team_sizes) > 6:
-                return await ctx.send(f'You can only host unranked games of up to 6 players. More active players have permissons to host large games.\n{settings.levels_info}')
+        # if settings.get_user_level(ctx) <= 1 and sum(team_sizes) > 3:
+        #     return await ctx.send(f'You can only host games with a maximum of 3 players.\n{settings.levels_info}')
+
+        # if settings.get_user_level(ctx) <= 2:
+        #     if sum(team_sizes) > 4 and is_ranked:
+        #         return await ctx.send(f'You can only host ranked games of up to 4 players. More active players have permissons to host large games.\n{settings.levels_info}')
+        #     if sum(team_sizes) > 6:
+        #         return await ctx.send(f'You can only host unranked games of up to 6 players. More active players have permissons to host large games.\n{settings.levels_info}')
 
         if not settings.guild_setting(ctx.guild.id, 'allow_uneven_teams') and not all(x == team_sizes[0] for x in team_sizes):
             return await ctx.send('Uneven team games are not allowed on this server.')
@@ -379,12 +382,16 @@ class matchmaking():
             await ctx.send('**Warning:** Since you are not joining side 1 you will not be the game creator.')
 
         _, game_size = game.capacity()
-        if settings.get_user_level(ctx) <= 1:
-            if (game.is_ranked and game_size) > 3 or (not game.is_ranked and game_size > 6):
-                return await ctx.send(f'You are a restricted user (*level 1*) - complete a few more ELO games to have more permissions.\n{settings.levels_info}')
-        elif settings.get_user_level(ctx) <= 2:
-            if (game.is_ranked and game_size) > 6 or (not game.is_ranked and game_size > 12):
-                return await ctx.send(f'You are a restricted user (*level 2*) - complete a few more ELO games to have more permissions.\n{settings.levels_info}')
+        game_allowed, join_error_message = settings.can_user_join_game(user_level=settings.get_user_level(ctx), game_size=game_size, is_ranked=game.is_ranked, is_host=False)
+        if not game_allowed:
+            return await ctx.send(join_error_message)
+
+        # if settings.get_user_level(ctx) <= 1:
+        #     if (game.is_ranked and game_size) > 3 or (not game.is_ranked and game_size > 6):
+        #         return await ctx.send(f'You are a restricted user (*level 1*) - complete a few more ELO games to have more permissions.\n{settings.levels_info}')
+        # elif settings.get_user_level(ctx) <= 2:
+        #     if (game.is_ranked and game_size) > 6 or (not game.is_ranked and game_size > 12):
+        #         return await ctx.send(f'You are a restricted user (*level 2*) - complete a few more ELO games to have more permissions.\n{settings.levels_info}')
 
         notes = game.notes if game.notes else ''
         (min_elo, max_elo, min_elo_g, max_elo_g) = game.elo_requirements()
@@ -549,6 +556,7 @@ class matchmaking():
         unjoinable_count = 0
         ranked_chan = settings.guild_setting(ctx.guild.id, 'ranked_game_channel')
         unranked_chan = settings.guild_setting(ctx.guild.id, 'unranked_game_channel')
+        user_level = settings.get_user_level(ctx)
 
         if ctx.channel.id == unranked_chan or any(arg.upper() == 'UNRANKED' for arg in args):
             ranked_filter = 0
@@ -585,6 +593,12 @@ class matchmaking():
             player_restricted_list = re.findall(r'<@!?(\d+)>', notes_str)
 
             if filter_unjoinable:
+
+                game_allowed, _ = settings.can_user_join_game(user_level=user_level, game_size=capacity, is_ranked=game.is_ranked, is_host=False)
+                if not game_allowed:
+                    # skipping games that user level restricts (ie joining a large ranked game for ELO Rookie/level 1)
+                    unjoinable_count += 1
+                    continue
 
                 if player_restricted_list and str(ctx.author.id) not in player_restricted_list and (len(player_restricted_list) >= capacity - 1) and not game.is_hosted_by(ctx.author.id)[0]:
                     # skipping games that the command issuer is not invited to
