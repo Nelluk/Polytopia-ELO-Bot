@@ -10,7 +10,7 @@ import logging
 import sys
 from logging.handlers import RotatingFileHandler
 from timeit import default_timer as timer
-import peewee
+# import peewee
 
 
 # Logger config is a bit of a mess and probably could be simplified a lot, but works. debug and above sent to file / error above sent to stderr

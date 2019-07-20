@@ -140,7 +140,7 @@ config = {'default':
                       'game_channel_categories': [574712176535666689]},
         492753802450173987:                           # Crawfish team server
                      {'helper_roles': ['Crawfish'],
-                      'mod_roles': ['Horse of the Seas', 'Lord of the Deep'],
+                      'mod_roles': ['Leadership', 'Lord of the Deep'],
                       'user_roles_level_4': ['@everyone'],  # power user
                       'user_roles_level_3': ['@everyone'],  # power user
                       'user_roles_level_2': ['@everyone'],  # normal user
