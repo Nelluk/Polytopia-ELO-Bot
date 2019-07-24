@@ -679,17 +679,17 @@ class elo_games():
             try:
                 game_id = int(player_string)
             except ValueError:
-                return await ctx.send(f'Could not find any server member matching *{player_string}*. Try specifying with an @Mention')
+                return await ctx.send(f'Could not find any server member matching `{player_string}`. Try specifying with an @Mention')
 
-            return await ctx.send(f'Could not find any server member matching *{player_string}*. For player codes for a game, try `{ctx.prefix}codes {game_id}`')
+            return await ctx.send(f'Could not find any server member matching `{player_string}`. For player codes for a game, try `{ctx.prefix}codes {game_id}`')
 
         elif len(guild_matches) > 1:
             player_matches = Player.string_matches(player_string=player_string, guild_id=ctx.guild.id)
             if len(player_matches) == 1:
-                await ctx.send(f'Found {len(guild_matches)} server members matching *{player_string}*, but only **{player_matches[0].name}** is registered.')
+                await ctx.send(f'Found {len(guild_matches)} server members matching `{player_string}`, but only **{player_matches[0].name}** is registered.')
                 return await ctx.send(player_matches[0].discord_member.polytopia_id)
 
-            return await ctx.send(f'Found {len(guild_matches)} server members matching *{player_string}*. Try specifying with an @Mention')
+            return await ctx.send(f'Found {len(guild_matches)} server members matching `{player_string}`. Try specifying with an @Mention')
         target_discord_member = guild_matches[0]
 
         discord_member = DiscordMember.get_or_none(discord_id=target_discord_member.id)
