@@ -406,6 +406,7 @@ class elo_games():
         # except exceptions.TooManyMatches:
         #     return await ctx.send(f'There is more than one player found with name *{player_mention}*. Specify user with @Mention.')
         except exceptions.NoSingleMatch:
+            player_mention = utilities.escape_mentions(player_mention)
             # No Player matches - check for guild membership
             guild_matches = await utilities.get_guild_member(ctx, player_mention)
             if len(guild_matches) > 1:
@@ -532,7 +533,7 @@ class elo_games():
         try:
             team = Team.get_or_except(team_string, ctx.guild.id)
         except exceptions.NoSingleMatch:
-            return await ctx.send(f'Couldn\'t find a team name matching *{team_string}*. Check spelling or be more specific. **Example:** `{ctx.prefix}team Ronin`')
+            return await ctx.send(f'Couldn\'t find a team name matching *{utilities.escape_mentions(team_string)}*. Check spelling or be more specific. **Example:** `{ctx.prefix}team Ronin`')
 
         embed = discord.Embed(title=f'Team card for **{team.name}** {team.emoji}')
         team_role = discord.utils.get(ctx.guild.roles, name=team.name)
@@ -673,23 +674,25 @@ class elo_games():
         if not player_string:
             player_string = str(ctx.author.id)
 
+        player_string_safe = utilities.escape_mentions(player_string)
+
         guild_matches = await utilities.get_guild_member(ctx, player_string)
 
         if len(guild_matches) == 0:
             try:
                 game_id = int(player_string)
             except ValueError:
-                return await ctx.send(f'Could not find any server member matching `{player_string}`. Try specifying with an @Mention')
+                return await ctx.send(f'Could not find any server member matching *{player_string_safe}*. Try specifying with an @Mention')
 
-            return await ctx.send(f'Could not find any server member matching `{player_string}`. For player codes for a game, try `{ctx.prefix}codes {game_id}`')
+            return await ctx.send(f'Could not find any server member matching *{player_string_safe}*. For player codes for a game, try `{ctx.prefix}codes {game_id}`')
 
         elif len(guild_matches) > 1:
             player_matches = Player.string_matches(player_string=player_string, guild_id=ctx.guild.id)
             if len(player_matches) == 1:
-                await ctx.send(f'Found {len(guild_matches)} server members matching `{player_string}`, but only **{player_matches[0].name}** is registered.')
+                await ctx.send(f'Found {len(guild_matches)} server members matching *{player_string_safe}*, but only **{player_matches[0].name}** is registered.')
                 return await ctx.send(player_matches[0].discord_member.polytopia_id)
 
-            return await ctx.send(f'Found {len(guild_matches)} server members matching `{player_string}`. Try specifying with an @Mention')
+            return await ctx.send(f'Found {len(guild_matches)} server members matching *{player_string_safe}*. Try specifying with an @Mention')
         target_discord_member = guild_matches[0]
 
         discord_member = DiscordMember.get_or_none(discord_id=target_discord_member.id)
@@ -781,6 +784,7 @@ class elo_games():
         except exceptions.TooManyMatches:
             return await ctx.send(f'Found more than one matches for a player with **{target_string}**. Be more specific or use an @Mention.\nExample usage: `{ctx.prefix}setname @Player in_game_name`')
 
+        new_name = utilities.escape_mentions(new_name)
         player_target.discord_member.polytopia_name = new_name
         player_target.discord_member.save()
         await ctx.send(f'Player **{player_target.name}** updated in system with Polytopia name **{new_name}**.')
@@ -1302,6 +1306,10 @@ class elo_games():
             return await ctx.send(f'Only the game creator **{game.creating_player().name}** or server staff can do this.')
 
         new_game_name = ' '.join(args)
+        if new_game_name and not utilities.is_valid_poly_gamename(input=new_game_name):
+            return await ctx.send('That name looks made up. :thinking: You need to manually create the game __in Polytopia__, come back and input the name of the new game you made.\n'
+                f'You can use `{ctx.prefix}code NAME` to get the code of each player in this game.')
+
         old_game_name = game.name
         game.name = new_game_name
 
@@ -1349,8 +1357,8 @@ class elo_games():
 
         for i in range(0, len(args), 2):
             # iterate over args two at a time
-            player_name = args[i]
-            tribe_name = args[i + 1]
+            player_name = utilities.escape_mentions(args[i])
+            tribe_name = utilities.escape_mentions(args[i + 1])
 
             if tribe_name.upper() == 'NONE':
                 tribeflair = None
@@ -1430,6 +1438,7 @@ class elo_games():
             if t_names:
                 results_title.append(f'Including teams: *{"* & *".join(t_names)}*')
             if remaining_args:
+                remaining_args = [utilities.escape_mentions(x) for x in remaining_args]
                 results_title.append(f'Included in name: *{"* *".join(remaining_args)}*')
 
             results_str = '\n'.join(results_title)

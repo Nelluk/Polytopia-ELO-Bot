@@ -1,7 +1,7 @@
 import discord
 from discord.ext import commands
 import modules.models as models
-# import modules.utilities as utilities
+import modules.utilities as utilities
 import settings
 import logging
 import asyncio
@@ -35,8 +35,6 @@ class misc:
         print(role_list)
         # role_list.remove(role)
         print(remaining_roles)
-
-
 
     @commands.command(hidden=True, aliases=['bge'])
     async def bulk_global_elo(self, ctx, *, args=None):
@@ -177,6 +175,9 @@ class misc:
         if ctx.message.attachments:
             attachment_urls = '\n'.join([attachment.url for attachment in ctx.message.attachments])
             message += f'\n{attachment_urls}'
+
+        # message = discord.utils.escape_mentions(message)  # to prevent @everyone vulnerability
+        message = utilities.escape_mentions(message)
 
         try:
             game = models.Game.get(id=int(game_id))

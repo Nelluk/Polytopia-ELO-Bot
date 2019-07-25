@@ -4,9 +4,15 @@ import logging
 import asyncio
 import settings
 import modules.models as models
+import re
 # import peewee
 
 logger = logging.getLogger('polybot.' + __name__)
+
+
+def escape_mentions(input: str):
+    # https://discordpy.readthedocs.io/en/latest/api.html#discord.utils.escape_mentions which is not in the older version of the lib i'm using right now
+    return re.sub(r'@(everyone|here|[!&]?[0-9]{17,21})', '@\u200b\\1', input)
 
 
 def is_valid_poly_gamename(input: str):
