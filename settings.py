@@ -409,8 +409,29 @@ config = {'default':
                       'ranked_game_channel': None,
                       'unranked_game_channel': None,
                       'match_challenge_channels': [],
+                      'game_channel_categories': []},
+        442780546624520203:                           # Diplotopia
+                     {'helper_roles': [''],
+                      'mod_roles': ['Moderator', 'Administrator'],
+                      'user_roles_level_4': ['@everyone'],  # power user
+                      'user_roles_level_3': ['@everyone'],  # power user
+                      'user_roles_level_2': ['@everyone'],  # normal user
+                      'user_roles_level_1': ['@everyone'],  # restricted user/newbie
+                      'display_name': 'Diplotopia',
+                      'require_teams': False,
+                      'allow_teams': False,
+                      'allow_uneven_teams': True,
+                      'max_team_size': 3,
+                      'command_prefix': '$',
+                      'include_in_global_lb': False,
+                      'bot_channels_private': [],
+                      'bot_channels_strict': [604336112999071766, 453347637622734888],
+                      'bot_channels': [604336112999071766, 453347637622734888],
+                      'ranked_game_channel': None,
+                      'unranked_game_channel': None,
+                      'game_announce_channel': 604336246646505492,
+                      'match_challenge_channels': [],
                       'game_channel_categories': []}
-
           }
 
 lobbies = [{'guild': 283436219780825088, 'size_str': '1v1', 'size': [1, 1], 'ranked': True, 'remake_partial': True, 'notes': '**Newbie game** - 1075 elo max'},
