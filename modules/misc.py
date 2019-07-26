@@ -177,7 +177,7 @@ class misc:
             message += f'\n{attachment_urls}'
 
         # message = discord.utils.escape_mentions(message)  # to prevent @everyone vulnerability
-        message = utilities.escape_mentions(message)
+        message = utilities.escape_role_mentions(message)
 
         try:
             game = models.Game.get(id=int(game_id))

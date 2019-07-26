@@ -15,6 +15,12 @@ def escape_mentions(input: str):
     return re.sub(r'@(everyone|here|[!&]?[0-9]{17,21})', '@\u200b\\1', input)
 
 
+def escape_role_mentions(input: str):
+    # like escape_mentions but allow user mentions. disallows everyone/here/role
+
+    return re.sub(r'@(everyone|here|&[0-9]{17,21})', '@\u200b\\1', input)
+
+
 def is_valid_poly_gamename(input: str):
     # key_words = ["War", "Spirit", "Faith", "Glory", "Blood", "Paradise", "Magical", "Jungle",
     #              "Empires", "Songs", "Dawn", "Prophecy", "Prophesy", "Gold",
