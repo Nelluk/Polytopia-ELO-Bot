@@ -1343,7 +1343,7 @@ class elo_games():
             return await ctx.send(f'Tribe name not provided. **Example usage:** `{ctx.prefix}{ctx.invoked_with} 1234 bardur`')
 
         if settings.get_user_level(ctx) < 4:
-            perm_str = 'You only have permissions to set your own tribe.'
+            perm_str = f'You only have permissions to set your own tribe. **Example usage:** `{ctx.prefix}{ctx.invoked_with} 1234 bardur`'
         else:
             perm_str = ''
 
@@ -1358,8 +1358,9 @@ class elo_games():
 
         for i in range(0, len(args), 2):
             # iterate over args two at a time
-            player_name = utilities.escape_mentions(args[i])
-            tribe_name = utilities.escape_mentions(args[i + 1])
+
+            player_name = args[i]
+            tribe_name = args[i + 1]
 
             if tribe_name.upper() == 'NONE':
                 tribeflair = None
@@ -1367,7 +1368,7 @@ class elo_games():
             else:
                 tribeflair = TribeFlair.get_by_name(name=tribe_name, guild_id=ctx.guild.id)
                 if not tribeflair:
-                    await ctx.send(f'Matching Tribe not found matching "{tribe_name}". Check spelling or be more specific. {perm_str}')
+                    await ctx.send(f'Matching Tribe not found matching "{utilities.escape_mentions(tribe_name)}". Check spelling or be more specific. {perm_str}')
                     continue
 
                 existing_lineup = None
@@ -1382,7 +1383,7 @@ class elo_games():
             lineup_match = game.player(name=player_name)
 
             if not lineup_match:
-                await ctx.send(f'Matching player not found in game {game.id} matching "{player_name}". Check spelling or be more specific. {perm_str}')
+                await ctx.send(f'Matching player not found in game {game.id} matching "{utilities.escape_role_mentions(player_name)}". Check spelling or be more specific. {perm_str}')
                 continue
 
             lineup_match.tribe = tribeflair
