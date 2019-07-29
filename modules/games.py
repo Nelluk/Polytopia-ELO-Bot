@@ -406,18 +406,18 @@ class elo_games():
         # except exceptions.TooManyMatches:
         #     return await ctx.send(f'There is more than one player found with name *{player_mention}*. Specify user with @Mention.')
         except exceptions.NoSingleMatch:
-            player_mention = utilities.escape_mentions(player_mention)
+            player_mention_safe = utilities.escape_role_mentions(player_mention)
             # No Player matches - check for guild membership
             guild_matches = await utilities.get_guild_member(ctx, player_mention)
             if len(guild_matches) > 1:
-                return await ctx.send(f'There is more than one member found with name *{player_mention}*. Specify user with @Mention.')
+                return await ctx.send(f'There is more than one member found with name *{player_mention_safe}*. Specify user with @Mention.')
             if len(guild_matches) == 0:
-                return await ctx.send(f'Could not find *{player_mention}* by Discord name, Polytopia name, or Polytopia ID.')
+                return await ctx.send(f'Could not find *{player_mention_safe}* by Discord name, Polytopia name, or Polytopia ID.')
 
             player, _ = Player.get_by_discord_id(discord_id=guild_matches[0].id, discord_name=guild_matches[0].name, discord_nick=guild_matches[0].nick, guild_id=ctx.guild.id)
             if not player:
                 # Matching guild member but no Player or DiscordMember
-                return await ctx.send(f'*{player_mention}* was found in the server but is not registered with me. '
+                return await ctx.send(f'*{player_mention_safe}* was found in the server but is not registered with me. '
                     f'Players can be register themselves with  `{ctx.prefix}setcode YOUR_POLYCODE`.')
 
         def async_create_player_embed():
@@ -1440,7 +1440,7 @@ class elo_games():
             if t_names:
                 results_title.append(f'Including teams: *{"* & *".join(t_names)}*')
             if remaining_args:
-                remaining_args = [utilities.escape_mentions(x) for x in remaining_args]
+                remaining_args = [utilities.escape_role_mentions(x) for x in remaining_args]
                 results_title.append(f'Included in name: *{"* *".join(remaining_args)}*')
 
             results_str = '\n'.join(results_title)
