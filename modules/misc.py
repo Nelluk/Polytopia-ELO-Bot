@@ -76,7 +76,7 @@ class misc:
                     # 'Its primary home is [PolyChampions](https://discord.gg/cX7Ptnv), a server focused on team play organized into a league.\n'
                     f'To register as a player with the bot use __`{ctx.prefix}setcode YOURPOLYCODEHERE`__')
 
-        embed = discord.Embed(title=f'PolyELO Bot Donation Link', url='https://cash.me/$Nelluk/2', description=bot_desc)
+        embed = discord.Embed(title=f'PolyELO Bot Donation Link', url='https://cash.me/$Nelluk/3', description=bot_desc)
 
         embed.add_field(name='Matchmaking',
             value=f'This helps players organize and find games.\nFor example, use __`{ctx.prefix}opengame 1v1`__ to create an open 1v1 game that others can join.\n'
@@ -104,7 +104,7 @@ class misc:
         """
         Display development credits
         """
-        embed = discord.Embed(title=f'PolyELO Bot Donation Link', url='https://cash.me/$Nelluk/2')
+        embed = discord.Embed(title=f'PolyELO Bot Donation Link', url='https://cash.me/$Nelluk/3')
 
         embed.add_field(name='Developer', value='Nelluk')
 
