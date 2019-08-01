@@ -39,16 +39,17 @@ class misc:
     @commands.command(hidden=True, aliases=['bulk_local_elo', 'ble', 'bge'])
     async def bulk_global_elo(self, ctx, *, args=None):
         """
-        Given a list of players, return that list sorted by player's global/local ELO.
+        Given a list of players, or a single mentioned role, return that list sorted by player's global/local ELO.
 
         `[p]bulk_global elo nelluk koric rickdaheals`
+        `[p]bulk_local_elo @Ronin`
         """
         if not args:
             return await ctx.send(f'Include list of players, example: `{ctx.prefix}bge nelluk koric` - @mentions and raw user IDs are supported')
         player_stats = []
 
         if ctx.message.role_mentions:
-            arg_list = [str(member) for member in ctx.message.role_mentions[0].members]
+            arg_list = [str(member.id) for member in ctx.message.role_mentions[0].members]
         else:
             arg_list = args.split(' ')
 
