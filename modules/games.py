@@ -400,17 +400,20 @@ class elo_games():
 
         # Otherwise look for a player matching whatever they entered
         player_mention = ' '.join(args_list)
+        player_mention_safe = utilities.escape_role_mentions(player_mention)
 
-        try:
-            player = Player.get_or_except(player_string=player_mention, guild_id=ctx.guild.id)
-        # except exceptions.TooManyMatches:
-        #     return await ctx.send(f'There is more than one player found with name *{player_mention}*. Specify user with @Mention.')
-        except exceptions.NoSingleMatch:
-            player_mention_safe = utilities.escape_role_mentions(player_mention)
+        player_results = Player.string_matches(player_string=player_mention, guild_id=ctx.guild.id)
+        if len(player_results) > 1:
+            p_names = [p.name for p in player_results]
+            p_names_str = '**, **'.join(p_names[:10])
+            return await ctx.send(f'Found {len(player_results)} players matching *{player_mention_safe}*. Be more specific or use an @Mention.\nFound: **{p_names_str}**')
+        elif len(player_results) == 0:
             # No Player matches - check for guild membership
             guild_matches = await utilities.get_guild_member(ctx, player_mention)
             if len(guild_matches) > 1:
-                return await ctx.send(f'There is more than one member found with name *{player_mention_safe}*. Specify user with @Mention.')
+                p_names = [p.display_name for p in guild_matches]
+                p_names_str = '**, **'.join(p_names[:10])
+                return await ctx.send(f'There is more than one member found with name *{player_mention_safe}*. Be more specific or use an @Mention.\nFound: **{p_names_str}**')
             if len(guild_matches) == 0:
                 return await ctx.send(f'Could not find *{player_mention_safe}* by Discord name, Polytopia name, or Polytopia ID.')
 
@@ -419,6 +422,8 @@ class elo_games():
                 # Matching guild member but no Player or DiscordMember
                 return await ctx.send(f'*{player_mention_safe}* was found in the server but is not registered with me. '
                     f'Players can be register themselves with  `{ctx.prefix}setcode YOUR_POLYCODE`.')
+        else:
+            player = player_results[0]
 
         def async_create_player_embed():
             wins, losses = player.get_record()
@@ -693,7 +698,7 @@ class elo_games():
                 await ctx.send(f'Found {len(guild_matches)} server members matching *{player_string_safe}*, but only **{player_matches[0].name}** is registered.')
                 return await ctx.send(player_matches[0].discord_member.polytopia_id)
 
-            return await ctx.send(f'Found {len(guild_matches)} server members matching *{player_string_safe}*. Try specifying with an @Mention')
+            return await ctx.send(f'Found {len(guild_matches)} server members matching *{player_string_safe}*. Try specifying with an @Mention or more characters.')
         target_discord_member = guild_matches[0]
 
         discord_member = DiscordMember.get_or_none(discord_id=target_discord_member.id)
