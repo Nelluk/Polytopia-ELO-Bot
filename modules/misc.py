@@ -76,7 +76,7 @@ class misc:
         for player in player_stats:
             message += f'{player[1].name} - {player[0]} - {player[1].games_played().count()}\n'
 
-        return await ctx.send(message)
+        return await ctx.send(message[:1999])
 
     @commands.command(usage=None)
     @settings.in_bot_channel_strict()
