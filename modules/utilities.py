@@ -10,6 +10,18 @@ import re
 logger = logging.getLogger('polybot.' + __name__)
 
 
+async def buffered_send(destination, content, max_length=2000):
+    # use to replace await ctx.send(message) if message could potentially be over the Discord limit of 2000 characters
+    # will split message by \n characters and send in chunks up to max_length size
+    paginator = commands.Paginator(prefix='', suffix='', max_size=max_length)
+
+    for line in content.split('\n'):
+        paginator.add_line(line)
+
+    for page in paginator.pages:
+        await destination.send(page)
+
+
 def escape_mentions(input: str):
     # https://discordpy.readthedocs.io/en/latest/api.html#discord.utils.escape_mentions which is not in the older version of the lib i'm using right now
     return re.sub(r'@(everyone|here|[!&]?[0-9]{17,21})', '@\u200b\\1', input)
