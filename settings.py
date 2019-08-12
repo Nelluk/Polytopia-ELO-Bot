@@ -386,6 +386,7 @@ config = {'default':
                       'bot_channels': [579779127641374720, 580629131822366740],
                       'ranked_game_channel': None,
                       'unranked_game_channel': None,
+                      'game_request_channel': 581012820695580692,  # bot-messing-around-with
                       'game_announce_channel': 579728109842989058,
                       'match_challenge_channels': [],
                       'game_channel_categories': []},
