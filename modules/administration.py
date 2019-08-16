@@ -603,6 +603,78 @@ class administration:
         delete_str = '\n'.join(delete_result)[:1900]  # max send length is 2000 chars.
         await ctx.send(f'{delete_str}\nFinished - purged {len(delete_result)} games')
 
+    @commands.command(aliases=['migrate'])
+    @commands.is_owner()
+    async def migrate_player(self, ctx, from_string: str, to_string: str):
+        """*Owner*: Migrate games from player's old account to new account
+        Target player cannot have any games associated with their profile. Use a @Mention or raw user ID as an argument.
+
+        **Examples**
+        [p]migrate_player @NellukOld @NellukNew
+        """
+
+        from_id, to_id = utilities.string_to_user_id(from_string), utilities.string_to_user_id(to_string)
+        if not from_id or not to_id:
+            return await ctx.send(f'Could not parse a discord ID. Usage: `{ctx.prefix}{ctx.invoked_with} @FromUser @ToUser`')
+
+        try:
+            old_discord_member = models.DiscordMember.select().where(models.DiscordMember.discord_id == from_id).get()
+        except peewee.DoesNotExist:
+            return await ctx.send(f'Could not find a DiscordMember in the database matching discord id `{from_id}`')
+
+        new_guild_member = discord.utils.get(ctx.guild.members, id=to_id)
+        if not new_guild_member:
+            return await ctx.send(f'Could not find a guild member matching ID {to_id}. The migration must be to an existing member of this server.')
+
+        try:
+            new_discord_member = models.DiscordMember.select().where(models.DiscordMember.discord_id == new_guild_member.id).get()
+        except peewee.DoesNotExist:
+            pass
+            # This is desired outcome - no DiscordMember found matching to_id, so its safe
+        else:
+            return await ctx.send(f'Found a DiscordMember *{new_discord_member.name}* in the database matching discord id `{new_guild_member.id}`. Cannot migrate to an existing player! Use `{ctx.prefix}delete_player` first.')
+
+        logger.warn(f'Migrating player profile of ID {from_id} {old_discord_member.name} to new guild member {new_guild_member.id}{new_guild_member.name}')
+
+        await ctx.send(f'The games from DiscordMember `{from_id}` *{old_discord_member.name}* will be migrated and become associated with {new_guild_member.mention}')
+
+        old_discord_member.discord_id = new_guild_member.id
+        old_discord_member.save()
+        old_discord_member.update_name(new_name=new_guild_member.name)
+
+        await ctx.send('Migration complete!')
+
+    @commands.command(aliases=['delplayer'])
+    @commands.is_owner()
+    async def delete_player(self, ctx, *, args=None):
+        """*Owner*: Delete a player entry from the bot's database
+        Target player cannot have any games associated with their profile. Use a @Mention or raw user ID as an argument.
+
+        **Examples**
+        [p]delete_player @Nelluk
+        [p]delete_player 272510639124250625
+        """
+
+        player_id = utilities.string_to_user_id(args)
+        if not player_id:
+            return await ctx.send(f'Could not parse a discord ID. Usage: `{ctx.prefix}{ctx.invoked_with} [<@Mention> / <Raw ID>]`')
+        print(player_id)
+        try:
+            discord_member = models.DiscordMember.select().where(models.DiscordMember.discord_id == player_id).get()
+        except peewee.DoesNotExist:
+            return await ctx.send(f'Could not find a DiscordMember in the database matching discord id `{player_id}`')
+
+        player_games = models.Lineup.select().join(models.Player).where(
+            (models.Lineup.player.discord_member == discord_member)
+        ).count()
+
+        if player_games > 0:
+            return await ctx.send(f'DiscordMember {discord_member.name} was found but has {player_games} associated ELO games. Can only delete players with zero games.')
+
+        name = discord_member.name
+        discord_member.delete_instance()
+        await ctx.send(f'Deleting DiscordMember {name} with discord ID `{player_id}` from ELO database. They have zero games associated with their profile.')
+
     @commands.command()
     @commands.is_owner()
     async def recalc_elo(self, ctx):

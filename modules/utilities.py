@@ -53,6 +53,14 @@ def is_valid_poly_gamename(input: str):
     return any(word.upper() in input.upper() for word in key_words)
 
 
+def string_to_user_id(input):
+    # given a user @Mention or a raw user ID, returns just the raw user ID (does not validate the ID itself)
+    try:
+        return int(str(input).strip('<>!@'))
+    except ValueError:
+        return None
+
+
 async def get_guild_member(ctx, input):
 
         # Find matching Guild member by @Mention or Name. Fall back to case-insensitive search
