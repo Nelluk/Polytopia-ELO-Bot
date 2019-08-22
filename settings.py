@@ -432,6 +432,28 @@ config = {'default':
                       'unranked_game_channel': None,
                       'game_announce_channel': 604336246646505492,
                       'match_challenge_channels': [],
+                      'game_channel_categories': []},
+        584524000521093120:                           # Polytopia League run by Smaker27
+                     {'helper_roles': [''],
+                      'mod_roles': ['MOD', 'Administrator'],
+                      'user_roles_level_4': ['League Member'],  # power user
+                      'user_roles_level_3': ['@everyone'],  # power user
+                      'user_roles_level_2': ['@everyone'],  # normal user
+                      'user_roles_level_1': ['@everyone'],  # restricted user/newbie
+                      'display_name': 'Polytopia League',
+                      'require_teams': False,
+                      'allow_teams': False,
+                      'allow_uneven_teams': True,
+                      'max_team_size': 3,
+                      'command_prefix': '$',
+                      'include_in_global_lb': False,
+                      'bot_channels_private': [],
+                      'bot_channels_strict': [614234606279065601, 614234606279065601],
+                      'bot_channels': [614234606279065601, 614234606279065601],
+                      'ranked_game_channel': None,
+                      'unranked_game_channel': None,
+                      'game_announce_channel': 614234715221786634,
+                      'match_challenge_channels': [],
                       'game_channel_categories': []}
           }
 
