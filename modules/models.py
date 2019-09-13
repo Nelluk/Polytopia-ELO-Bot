@@ -771,10 +771,13 @@ class Game(BaseModel):
     async def delete_game_channels(self, guild_list, guild_id):
         guild = discord.utils.get(guild_list, id=guild_id)
 
-        if self.name and ('s4' in self.name.lower() or 's5' in self.name.lower() or 's6' in self.name.lower()):
+        if self.name and ('s5' in self.name.lower() or 's6' in self.name.lower() or 's7' in self.name.lower()):
             last_week = (datetime.datetime.now() + datetime.timedelta(days=-7))
             if self.completed_ts and self.completed_ts > last_week:
                 return logger.warn(f'Skipping team channel deletion for game {self.id} {self.name} since it is a Season game concluded recently')
+
+        if self.name and self.name.upper()[:3] == 'LR1':
+            return logger.warn(f'Skipping team channel deletion for game {self.id} {self.name} since it is a protected LigaRex event game (Sept 2019 event)')
 
         for gameside in self.gamesides:
             if gameside.team_chan:

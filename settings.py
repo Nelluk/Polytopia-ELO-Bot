@@ -281,8 +281,8 @@ config = {'default':
                       'game_announce_channel': None,  # elo-drafts
                       'game_channel_categories': [507946542024359938]},  # Jets vs Jets
         283436219780825088:                           # Main Server
-                     {'helper_roles': ['ELO-Helper', 'Bot Master', 'Director'],
-                      'mod_roles': ['MOD', 'Manager'],
+                     {'helper_roles': ['ELO-Helper', 'Bot Master'],
+                      'mod_roles': ['MOD', 'Admin', 'Manager'],
                       'user_roles_level_4': ['Archer', 'Defender', 'Ship', 'Catapult', 'Knight', 'Swordsman', 'Tridention', 'Battleship', 'Mind Bender', 'Giant', 'Crab', 'Dragon', 'ELO Hero'],
                       'user_roles_level_3': ['ELO Player', 'ELO Veteran'],  # full user
                       'user_roles_level_2': ['Rider', 'Boat', 'ELO Rookie'],  # normal user

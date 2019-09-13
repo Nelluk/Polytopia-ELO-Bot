@@ -85,9 +85,11 @@ async def create_game_channel(guild, game, player_list, team_name: str = None, u
         logger.error(f'in create_squad_channel - cannot proceed due to None category')
         return None
 
-    if game.name.upper()[:3] == 'WWN' and guild.id == settings.server_ids['polychampions']:
-        # TODO: Remove when World War Newt event is over Q2 2019
-        wwn_category = discord.utils.get(guild.categories, id=510403013391679498)
+    if game.name.upper()[:3] == 'LR1' and guild.id == settings.server_ids['polychampions']:
+        # temp code for event-specific game prefixes to go in their own category
+        # 'wwn' leftover from original 'world war newt' event
+        # code reused for LigaRex event Sept 2019
+        wwn_category = discord.utils.get(guild.categories, id=622058617964593193)
         if wwn_category:
             chan_cat, team_cat_flag = wwn_category, False
 
