@@ -18,7 +18,8 @@ logger = logging.getLogger('polybot.' + __name__)
 
 async def set_champion_role():
 
-    global_champion = models.DiscordMember.select().order_by(-models.DiscordMember.elo).limit(1).get()
+    # global_champion = models.DiscordMember.select().order_by(-models.DiscordMember.elo).limit(1).get()
+    global_champion = models.DiscordMember.leaderboard(date_cutoff=settings.date_cutoff, guild_id=None, max_flag=False).limit(1).get()
 
     for guild in settings.bot.guilds:
         logger.info(f'Attempting champion set for guild {guild.name}')
@@ -27,7 +28,8 @@ async def set_champion_role():
             logger.warn(f'Could not load ELO Champion role in guild {guild.name}')
             continue
 
-        local_champion = models.Player.select().where(models.Player.guild_id == guild.id).order_by(-models.Player.elo).limit(1).get()
+        # local_champion = models.Player.select().where(models.Player.guild_id == guild.id).order_by(-models.Player.elo).limit(1).get()
+        local_champion = models.Player.leaderboard(date_cutoff=settings.date_cutoff, guild_id=guild.id, max_flag=False).limit(1).get()
 
         local_champion_member = guild.get_member(local_champion.discord_member.discord_id)
         global_champion_member = guild.get_member(global_champion.discord_id)
