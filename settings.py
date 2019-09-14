@@ -63,7 +63,8 @@ config = {'default':
                       'require_teams': False,
                       'allow_teams': True,
                       'allow_uneven_teams': True,
-                      'max_team_size': 6,
+                      # 'max_team_size': 6,
+                      'max_team_size': 1,
                       'command_prefix': '/',
                       'bot_channels_strict': [479292913080336397],
                       'bot_channels': [479292913080336397, 481558031281160212, 480078679930830849],  # 397 Bot Spam,  849 Admin Spam
@@ -291,7 +292,7 @@ config = {'default':
                       'allow_uneven_teams': True,
                       'require_teams': False,
                       'allow_teams': False,
-                      'max_team_size': 1,
+                      'max_team_size': 2,
                       'command_prefix': '$',
                       'include_in_global_lb': True,
                       'bot_channels_private': [418175357137453058],  # 058 testchamber

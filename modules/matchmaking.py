@@ -165,6 +165,7 @@ class matchmaking():
             return await ctx.send('Uneven team games are not allowed on this server.')
 
         server_size_max = settings.guild_setting(ctx.guild.id, 'max_team_size')
+        logger.debug(is_ranked, max(team_sizes), server_size_max)
         if max(team_sizes) > server_size_max:
             if settings.guild_setting(ctx.guild.id, 'allow_uneven_teams') and min(team_sizes) <= server_size_max:
                 await ctx.send('**Warning:** Team sizes are uneven.')
@@ -174,7 +175,7 @@ class matchmaking():
                 # Arbitrary rule, unranked games can go +1 from server_size_max
                 logger.info('Opening unranked game that exceeds server_size_max')
             else:
-                return await ctx.send(f'Maximum ranked team size on this server is {server_size_max}.')
+                return await ctx.send(f'Maximum ranked team size on this server is {server_size_max}. Maximum team size for an unranked game is {server_size_max + 1}.')
 
         required_roles = [None] * len(team_sizes)  # [None, None, None] for a 3-sided game
         required_role_names = [None] * len(team_sizes)
