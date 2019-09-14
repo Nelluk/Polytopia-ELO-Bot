@@ -281,6 +281,23 @@ config = {'default':
                       'game_request_channel': None,  # $staffhelp output
                       'game_announce_channel': None,  # elo-drafts
                       'game_channel_categories': [507946542024359938]},  # Jets vs Jets
+        615300195093184512:                           # Dragons/Narwhals team server
+                     {'helper_roles': ['Co-Leader🐉'],
+                      'mod_roles': ['Leader🐉'],
+                      'user_roles_level_4': ['@everyone'],  # power user
+                      'user_roles_level_3': ['@everyone'],  # power user
+                      'user_roles_level_2': ['@everyone'],  # normal user
+                      'user_roles_level_1': ['@everyone'],  # restricted user/newbie
+                      'display_name': 'Team Dragons',
+                      'require_teams': False,
+                      'allow_teams': True,
+                      'allow_uneven_teams': True,
+                      'max_team_size': 6,
+                      'command_prefix': '$',
+                      'include_in_global_lb': False,
+                      'bot_channels_strict': [616757304485871712],
+                      'bot_channels': [616757304485871712],
+                      'game_channel_categories': [616073517410287721]},
         283436219780825088:                           # Main Server
                      {'helper_roles': ['ELO-Helper', 'Bot Master'],
                       'mod_roles': ['MOD', 'Admin', 'Manager'],
