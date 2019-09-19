@@ -961,8 +961,10 @@ class elo_games():
             return await ctx.send(f'Invalid game name. Make sure to use "quotation marks" around the full game name.\n{example_usage}')
 
         if not utilities.is_valid_poly_gamename(input=game_name):
-            return await ctx.send('That name looks made up. :thinking: You need to manually create the game __in Polytopia__, come back and input the name of the new game you made.\n'
-                f'You can use `{ctx.prefix}code NAME` to get the code of each player in this game.')
+            if settings.get_user_level(ctx) <= 2:
+                return await ctx.send('That name looks made up. :thinking: You need to manually create the game __in Polytopia__, come back and input the name of the new game you made.\n'
+                    f'You can use `{ctx.prefix}code NAME` to get the code of each player in this game.')
+            await ctx.send(f'*Warning:* That game name looks made up - you are allowed to override due to your user level.')
 
         if len(args) == 1:
             args_list = [str(ctx.author.id), 'vs', args[0]]
@@ -1313,8 +1315,10 @@ class elo_games():
 
         new_game_name = ' '.join(args)
         if new_game_name and not utilities.is_valid_poly_gamename(input=new_game_name):
-            return await ctx.send('That name looks made up. :thinking: You need to manually create the game __in Polytopia__, come back and input the name of the new game you made.\n'
-                f'You can use `{ctx.prefix}code NAME` to get the code of each player in this game.')
+            if settings.get_user_level(ctx) <= 2:
+                return await ctx.send('That name looks made up. :thinking: You need to manually create the game __in Polytopia__, come back and input the name of the new game you made.\n'
+                    f'You can use `{ctx.prefix}code NAME` to get the code of each player in this game.')
+            await ctx.send(f'*Warning:* That game name looks made up - you are allowed to override due to your user level.')
 
         old_game_name = game.name
         game.name = new_game_name

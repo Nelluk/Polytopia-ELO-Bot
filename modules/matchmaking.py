@@ -692,8 +692,10 @@ class matchmaking():
             return await ctx.send(f'Game name is required. The game must be created **in Polytopia** first to get the correct name.\n{syntax}')
 
         if not utilities.is_valid_poly_gamename(input=name):
-            return await ctx.send('That name looks made up. :thinking: You need to manually create the game __in Polytopia__, come back and input the name of the new game you made.\n'
-                f'You can use `{ctx.prefix}codes {game.id}` to get the code of each player in this game in an easy-to-copy format.')
+            if settings.get_user_level(ctx) <= 2:
+                return await ctx.send('That name looks made up. :thinking: You need to manually create the game __in Polytopia__, come back and input the name of the new game you made.\n'
+                    f'You can use `{ctx.prefix}codes {game.id}` to get the code of each player in this game in an easy-to-copy format.')
+            await ctx.send(f'*Warning:* That game name looks made up - you are allowed to override due to your user level.')
 
         if not game.is_pending:
             return await ctx.send(f'Game {game.id} has already started with name **{game.name}**')

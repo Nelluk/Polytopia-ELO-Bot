@@ -39,7 +39,7 @@ def is_valid_poly_gamename(input: str):
     #              "Fire", "Swords", "Queens", "Kings", "Tribes", "Tribe", "Tales",
     #              "Hills", "Fields", "Lands", "Forest", "Ocean", "Fruit", "Mountain", "Lake",
     #              "Test", "Unknown"]
-    key_words = ["War", "Spirit", "Faith", "Glory", "Blood", "Empires", "Songs", "Dawn",
+    key_words = ["War", "Spirit", "Faith", "Glory", "Blood", "Empires", "Songs", "Dawn", "Majestic", "Parade",
                  "Prophecy", "Prophesy", "Gold", "Fire", "Swords", "Queens", "Knights", "Kings", "Tribes",
                  "Tales", "Quests", "Change", "Games", "Throne", "Conquest", "Struggle", "Victory",
                  "Battles", "Legends", "Heroes", "Storms", "Clouds", "Gods", "Love", "Lords",
