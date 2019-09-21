@@ -431,7 +431,7 @@ class administration:
     # @settings.is_mod_check()
     @settings.on_polychampions()
     async def grad_novas(self, ctx, *, arg=None):
-        """*Mods*: Check Novas for graduation requirements
+        """*Staff*: Check Novas for graduation requirements
         Apply the 'Free Agent' role to any Novas who meets requirements:
         - Three ranked team games, and ranked games with members of at least three League teams
         """
