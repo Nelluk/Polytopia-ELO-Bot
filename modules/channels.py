@@ -95,6 +95,9 @@ async def create_game_channel(guild, game, player_list, team_name: str = None, u
 
     chan_name = generate_channel_name(game_id=game.id, game_name=game.name, team_name=team_name)
     chan_members = [guild.get_member(p.discord_member.discord_id) for p in player_list]
+    if None in chan_members:
+        logger.error(f'At least one member of game is not found in guild {guild.name}. May be using external server and they are not in both servers?')
+        chan_members = [member for member in chan_members if member]
 
     if team_cat_flag or using_team_server_flag:
         # Channel is going into team-specific category, so let its permissions sync

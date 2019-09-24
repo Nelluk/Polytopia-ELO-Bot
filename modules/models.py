@@ -745,6 +745,17 @@ class Game(BaseModel):
                 side_guild = guild  # use current guild (ctx.guild)
                 using_team_server_flag = False
 
+            ###
+            # Below is temp hack to send Rex event game channels to a specific server for LigaRex event
+            # if self.name.upper()[:3] == 'LR1' and guild_id == settings.server_ids['polychampions']:
+            if self.name.upper()[:3] == 'LR1':
+                side_guild = discord.utils.get(guild_list, id=625819621748113408)  # override - sending game channels to Rex server for his event
+                using_team_server_flag = False
+                guild = side_guild
+                logger.info('Using external server for game channels - LR1 event.')
+            #
+            ###
+
             player_list = [l.player for l in gameside.ordered_player_list()]
             if len(player_list) < 2:
                 continue
@@ -759,7 +770,8 @@ class Game(BaseModel):
 
                 await channels.greet_game_channel(side_guild, chan=chan, player_list=player_list, roster_names=roster_names, game=self, full_game=False)
 
-        if (len(ordered_side_list) > 2 and len(self.lineup) > 5) or len(ordered_side_list) > 3:
+        # if (len(ordered_side_list) > 2 and len(self.lineup) > 5) or len(ordered_side_list) > 3:
+        if True:
             # create game channel for larger games - 4+ sides, or 3+ sides with 6+ players
             player_list = [l.player for l in self.lineup]
             chan = await channels.create_game_channel(guild, game=self, team_name=None, player_list=player_list)

@@ -472,7 +472,29 @@ config = {'default':
                       'unranked_game_channel': None,
                       'game_announce_channel': 614234715221786634,
                       'match_challenge_channels': [],
-                      'game_channel_categories': []}
+                      'game_channel_categories': []},
+        625819621748113408:                         # LigaRex event server by AnarchoRex. Not a full server, info mostly here just to put game_channel_categories in use
+                    {'helper_roles': [''],
+                      'mod_roles': ['MOD', 'Bot Shepherd'],
+                      'user_roles_level_4': ['League Member'],  # power user
+                      'user_roles_level_3': ['@everyone'],  # power user
+                      'user_roles_level_2': ['@everyone'],  # normal user
+                      'user_roles_level_1': ['@everyone'],  # restricted user/newbie
+                      'display_name': 'LigaRex',
+                      'require_teams': False,
+                      'allow_teams': True,
+                      'allow_uneven_teams': True,
+                      'max_team_size': 6,
+                      'command_prefix': '$',
+                      'include_in_global_lb': False,
+                      'bot_channels_private': [],
+                      'bot_channels_strict': [625874241233092648],
+                      'bot_channels': [625874241233092648],
+                      'ranked_game_channel': None,
+                      'unranked_game_channel': None,
+                      'game_announce_channel': None,
+                      'match_challenge_channels': [],
+                      'game_channel_categories': [625874394786430977, 625874455893245953]},
           }
 
 lobbies = [{'guild': 283436219780825088, 'size_str': '1v1', 'size': [1, 1], 'ranked': True, 'remake_partial': True, 'notes': '**Newbie game** - 1075 elo max'},
