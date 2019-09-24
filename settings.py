@@ -494,7 +494,7 @@ config = {'default':
                       'unranked_game_channel': None,
                       'game_announce_channel': None,
                       'match_challenge_channels': [],
-                      'game_channel_categories': [625874394786430977, 625874455893245953]},
+                      'game_channel_categories': [625874394786430977, 625874455893245953, 625876193744388136, 625876453795561485, 625876480425066497, 625876505884622858, 625876537757007882, 625876574050320406, 625876603351728148, 625876629289435146]},
           }
 
 lobbies = [{'guild': 283436219780825088, 'size_str': '1v1', 'size': [1, 1], 'ranked': True, 'remake_partial': True, 'notes': '**Newbie game** - 1075 elo max'},
