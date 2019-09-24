@@ -770,8 +770,7 @@ class Game(BaseModel):
 
                 await channels.greet_game_channel(side_guild, chan=chan, player_list=player_list, roster_names=roster_names, game=self, full_game=False)
 
-        # if (len(ordered_side_list) > 2 and len(self.lineup) > 5) or len(ordered_side_list) > 3:
-        if True:
+        if (len(ordered_side_list) > 2 and len(self.lineup) > 5) or len(ordered_side_list) > 3:
             # create game channel for larger games - 4+ sides, or 3+ sides with 6+ players
             player_list = [l.player for l in self.lineup]
             chan = await channels.create_game_channel(guild, game=self, team_name=None, player_list=player_list)
