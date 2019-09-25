@@ -170,6 +170,58 @@ class misc:
 
         await ctx.send(embed=embed)
 
+    @commands.command(hidden=True, usage='message')
+    @commands.cooldown(1, 30, commands.BucketType.user)
+    @settings.in_bot_channel_strict()
+    async def pingall(self, ctx, *message):
+        """ Ping everyone in all of your incomplete games
+
+        Not useable by all players.
+
+         **Examples**
+        `[p]pingall My phone died and I will make all turns tomorrow`
+        Send a message to everyone in all of your incomplete games
+        `[p]pingall @Glouc3stershire Glouc is in Tahiti and will play again tomorrow`
+        *Staff:* Send a message to everyone in another player's games
+
+        """
+
+        if not message:
+            return await ctx.send(f'Message is required.')
+
+        m = re.match(r"<@[!]?([0-9]{17,21})>", message[0])
+
+        if m:
+            # Staff member using command on third party
+            if settings.get_user_level(ctx) <= 4:
+                return await ctx.send(f'You do not have permission to use this command on another player\'s games.')
+            message = message[1:]
+            target = m[1]
+        else:
+            # Play using command on their own games
+            if settings.get_user_level(ctx) <= 3:
+                return await ctx.send(f'You do not have permission to use this command. You can ask a server staff member to use this command on your games for you.')
+            target = str(ctx.author.id)
+
+        try:
+            player_match = models.Player.get_or_except(player_string=target, guild_id=ctx.guild.id)
+        except exceptions.NoSingleMatch:
+            return await ctx.send(f'User <@{target}> is not a registered ELO player.')
+
+        game_list = models.Game.search(player_filter=[player_match], status_filter=2, guild_id=ctx.guild.id)
+
+        list_of_players = []
+        for g in game_list:
+            list_of_players += [f'<@{l.player.discord_member.discord_id}>' for l in g.lineup]
+
+        list_of_players = list(set(list_of_players))
+        clean_message = utilities.escape_role_mentions(''.join(message))
+        if len(list_of_players) > 100:
+            await ctx.send(f'*Warning:* More than 100 unique players are addressed. Only the first 100 will be mentioned.')
+        await ctx.send(f'Message to all players in unfinished games for <@{target}>: *{clean_message}*')
+
+        return await ctx.send(f'Message recipients: {" ".join(list_of_players[:100])}')
+
     @commands.command(usage='game_id')
     @commands.cooldown(1, 20, commands.BucketType.user)
     async def ping(self, ctx, game_id: int = None, *, message: str = None):
@@ -177,6 +229,9 @@ class misc:
 
          **Examples**
         `[p]ping 100 I won't be able to take my turn today` - Send a message to everyone in game 100
+
+        See `[p]help pingall` for a command to ping ALL incomplete games simultaneously.
+
         """
         if not game_id:
             ctx.command.reset_cooldown(ctx)
