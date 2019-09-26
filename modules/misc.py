@@ -215,7 +215,7 @@ class misc:
             list_of_players += [f'<@{l.player.discord_member.discord_id}>' for l in g.lineup]
 
         list_of_players = list(set(list_of_players))
-        clean_message = utilities.escape_role_mentions(''.join(message))
+        clean_message = utilities.escape_role_mentions(' '.join(message))
         if len(list_of_players) > 100:
             await ctx.send(f'*Warning:* More than 100 unique players are addressed. Only the first 100 will be mentioned.')
         await ctx.send(f'Message to all players in unfinished games for <@{target}>: *{clean_message}*')
