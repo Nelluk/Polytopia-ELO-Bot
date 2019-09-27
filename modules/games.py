@@ -1090,6 +1090,7 @@ class elo_games():
         except exceptions.MyBaseException as ex:
             return await ctx.send(f'{ex}')
 
+        reset_confirmations_flag = False
         if winning_game.is_completed is True:
             if winning_game.is_confirmed is True:
                 return await ctx.send(f'Game with ID {winning_game.id} is already marked as completed with winner **{winning_game.winner.name()}**')
@@ -1097,7 +1098,7 @@ class elo_games():
                 (confirmed_count, side_count, _) = winning_game.confirmations_count()
                 await ctx.send(f'Warning: Unconfirmed game with ID {winning_game.id} had previously been marked with winner **{winning_game.winner.name()}**.\n'
                     f'{confirmed_count} of {side_count} sides had confirmed.')
-                winning_game.confirmations_reset()
+                reset_confirmations_flag = True
 
         if winning_game.is_pending:
             return await ctx.send(f'This game has not started yet.')
@@ -1110,6 +1111,9 @@ class elo_games():
 
             if not has_player:
                 return await ctx.send(f'You were not a participant in this game.')
+
+            if reset_confirmations_flag:
+                winning_game.confirmations_reset()
 
             new_confirmation = not author_side.win_confirmed  # To track if author had previously confirmed or not
             winning_side.win_confirmed = True
