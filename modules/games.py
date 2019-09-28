@@ -1201,6 +1201,7 @@ class elo_games():
                         game.winner = None
                         game.save()
 
+                        await post_unwin_messaging(ctx.guild, ctx.prefix, ctx.channel, game, previously_confirmed=True)
                         if game.is_ranked:
                             Game.recalculate_elo_since(timestamp=timestamp)
                             elo_logger.debug(f'unwin game {game.id} completed')
@@ -1216,6 +1217,7 @@ class elo_games():
                 game.is_completed = False
                 game.winner = None
                 game.save()
+                await post_unwin_messaging(ctx.guild, ctx.prefix, ctx.channel, game, previously_confirmed=False)
                 return await ctx.send(f'Unconfirmed Game {game.id} has been marked as *Incomplete*.')
 
             else:
@@ -1239,6 +1241,7 @@ class elo_games():
                 game.is_completed = False
                 game.winner = None
                 game.save()
+                await post_unwin_messaging(ctx.guild, ctx.prefix, ctx.channel, game, previously_confirmed=False)
                 return await ctx.send(f'Your unconfirmed win in game {game.id} has been reset and the game is now marked as *Incomplete*.')
             else:
                 # author removing win claim for a game pointing at another side as the winner
@@ -1523,6 +1526,18 @@ async def post_win_messaging(guild, prefix, current_chan, winning_game):
 
     await current_chan.send(f'Game concluded! Congrats **{winning_game.winner.name()}**. Roster: {" ".join(player_mentions)}')
     await current_chan.send(embed=embed, content=content)
+
+
+async def post_unwin_messaging(guild, prefix, current_chan, game, previously_confirmed: bool=False):
+
+    await game.update_squad_channels(guild_list=settings.bot.guilds, guild_id=guild.id, message=f'The game has reset to *Incomplete* status.')
+    player_mentions = [f'<@{l.player.discord_member.discord_id}>' for l in game.lineup]
+
+    if previously_confirmed:
+        for l in game.lineup:
+                    await achievements.set_experience_role(l.player.discord_member)
+
+    await current_chan.send(f'Game reset to *Incomplete*. Previously claimed win has been canceled.  Notifying game roster: {" ".join(player_mentions)}')
 
 
 async def post_newgame_messaging(ctx, game):
