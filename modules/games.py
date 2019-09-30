@@ -79,6 +79,7 @@ class elo_games():
             return
 
         if before.nick != after.nick:
+            logger.debug(f'Attempting to change member nick for {before.name}({before.nick}) to {after.name}({after.nick})')
             # update nick in guild's Player record
             try:
                 player = player_query.get()
@@ -87,6 +88,7 @@ class elo_games():
             player.generate_display_name(player_name=after.name, player_nick=after.nick)
 
         if before.name != after.name:
+            logger.debug(f'Attempting to change member discordname for {before.name}({before.nick}) to {after.name}({after.nick})')
             # update Discord Member Name, and update display name for each Guild/Player they share with the bot
             try:
                 discord_member = DiscordMember.select().where(DiscordMember.discord_id == after.id).get()
