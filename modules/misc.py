@@ -27,14 +27,7 @@ class misc:
     @commands.is_owner()
     async def test(self, ctx, *, arg: str = None):
 
-        role = discord.utils.get(ctx.guild.roles, name='Team Leader')
-        role1 = discord.utils.get(ctx.guild.roles, name='@everyone')
-        role_list = ctx.author.roles
-
-        remaining_roles = [x for x in ctx.author.roles if x not in [role, role1]]
-        print(role_list)
-        # role_list.remove(role)
-        print(remaining_roles)
+        await ctx.send(f'<:Bardur:389967516841148418> <:zoyconfused:604831256974327829>')
 
     @commands.command(hidden=True, aliases=['bulk_local_elo', 'ble', 'bge'])
     async def bulk_global_elo(self, ctx, *, args=None):
