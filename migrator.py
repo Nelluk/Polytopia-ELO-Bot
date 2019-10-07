@@ -41,7 +41,7 @@ migrator = PostgresqlMigrator(db)
 # date_polychamps_invite_sent = DateField(default=None, null=True)
 # external_server = BitField(unique=False, null=True)
 # team_chan_external_server = BitField(unique=False, null=True, default=None)
-tribe_direct = ForeignKeyField(Tribe, null=True, on_delete='SET NULL', field=Tribe.id)
+# tribe_direct = ForeignKeyField(Tribe, null=True, on_delete='SET NULL', field=Tribe.id)
 emoji = TextField(null=False, default='')
 
 migrate(
@@ -58,31 +58,10 @@ migrate(
     # migrator.add_column('gameside', 'team_chan_external_server', external_server),
     # migrator.add_column('team', 'external_server', external_server)
     # migrator.add_column('lineup', 'tribe_direct_id', tribe_direct)
+    migrator.drop_column('tribe', 'emoji'),
+    migrator.add_column('tribe', 'emoji', emoji)
 
 )
 
 
-tribe_ids = {}
-q = TribeFlair.select(TribeFlair.id, TribeFlair.tribe_id).order_by(TribeFlair.tribe_id)
-for tf in q.tuples():
-    tribe_ids[tf[0]] = tf[1]
 
-print(tribe_ids)
-migrate(
-    migrator.add_column('lineup', 'tribe_direct_id', tribe_direct)
-)
-
-with db.transaction():
-
-    for k, v in tribe_ids.items():
-        print(f'Executing for k,v pair: {k},{v}')
-        query = Lineup.update(tribe_direct_id=v).where(Lineup.tribe_id == k)
-        query.execute()
-
-    migrate(
-        migrator.drop_column('lineup', 'tribe_id'),
-        migrator.rename_column('lineup', 'tribe_direct_id', 'tribe_id'),
-        migrator.add_column('tribe', 'emoji', tribe_direct)
-    )
-
-    TribeFlair.drop_table()

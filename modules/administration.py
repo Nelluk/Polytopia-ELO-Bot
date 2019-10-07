@@ -265,7 +265,7 @@ class administration:
         **Example:**
         `[p]tribe_emoji Bardur :new_bardur_emoji:`
         """
-        if not settings.guild_setting(ctx.guild.id, 'include_in_global_lb'):
+        if not settings.guild_setting(ctx.guild.id, 'include_in_global_lb') and ctx.author.id != settings.owner_id:
             return await ctx.send(f'This command can only be run in a Global ELO server (ie. PolyChampions or Polytopia Main')
 
         if len(emoji) != 1 and ('<:' not in emoji):
