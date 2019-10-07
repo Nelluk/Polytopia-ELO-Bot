@@ -265,16 +265,18 @@ class administration:
         **Example:**
         `[p]tribe_emoji Bardur :new_bardur_emoji:`
         """
+        if not settings.guild_setting(ctx.guild.id, 'include_in_global_lb'):
+            return await ctx.send(f'This command can only be run in a Global ELO server (ie. PolyChampions or Polytopia Main')
 
         if len(emoji) != 1 and ('<:' not in emoji):
             return await ctx.send('Valid emoji not detected. Example: `{}tribe_emoji Tribename :my_custom_emoji:`'.format(ctx.prefix))
 
         try:
-            tribeflair = models.TribeFlair.upsert(name=tribe_name, guild_id=ctx.guild.id, emoji=emoji)
+            tribe = models.Tribe.update_emoji(name=tribe_name, emoji=emoji)
         except exceptions.CheckFailedError as e:
             return await ctx.send(e)
 
-        await ctx.send('Tribe {0.tribe.name} updated with new emoji: {0.emoji}'.format(tribeflair))
+        await ctx.send(f'Tribe {tribe.name} updated with new emoji: {tribe.emoji}')
 
     @commands.command(aliases=['team_add_junior'], usage='new_team_name')
     @settings.is_mod_check()

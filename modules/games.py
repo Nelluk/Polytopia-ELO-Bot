@@ -5,7 +5,7 @@ import settings
 import modules.exceptions as exceptions
 import modules.achievements as achievements
 import peewee
-from modules.models import Game, db, Player, Team, DiscordMember, Squad, GameSide, TribeFlair, Lineup
+from modules.models import Game, db, Player, Team, DiscordMember, Squad, GameSide, Tribe, Lineup
 import logging
 import datetime
 import asyncio
@@ -489,8 +489,9 @@ class elo_games():
 
             favorite_tribes = player.discord_member.favorite_tribes(limit=3)
             if favorite_tribes:
-                favorite_tribe_objs = [TribeFlair.get_by_name(name=t['name'], guild_id=ctx.guild.id) for t in favorite_tribes]
-                tribes_str = ' '.join([f'{t.emoji if t.emoji else t.tribe.name}' for t in favorite_tribe_objs])
+                # favorite_tribe_objs = [TribeFlair.get_by_name(name=t['name'], guild_id=ctx.guild.id) for t in favorite_tribes]
+                # tribes_str = ' '.join([f'{t.emoji if t.emoji else t.tribe.name}' for t in favorite_tribe_objs])
+                tribes_str = ' '.join([f'{t["emoji"] if t["emoji"] else t["name"]}' for t in favorite_tribes])
                 misc_stats.append(('Most-logged tribes', tribes_str))
 
             misc_stats = [f'`{stat[0]:.<25}` {stat[1]}' for stat in misc_stats]
@@ -1381,21 +1382,21 @@ class elo_games():
             tribe_name = args[i + 1]
 
             if tribe_name.upper() == 'NONE':
-                tribeflair = None
+                tribe = None
 
             else:
-                tribeflair = TribeFlair.get_by_name(name=tribe_name, guild_id=ctx.guild.id)
-                if not tribeflair:
+                tribe = Tribe.get_by_name(name=tribe_name)
+                if not tribe:
                     await ctx.send(f'Matching Tribe not found matching "{utilities.escape_mentions(tribe_name)}". Check spelling or be more specific. {perm_str}')
                     continue
 
                 existing_lineup = None
                 for l in game.lineup:
-                    if l.tribe == tribeflair:
+                    if l.tribe == tribe:
                         existing_lineup = l
                         break
                 if existing_lineup:
-                    await ctx.send(f'*{tribeflair.tribe.name}* has already been assigned to player **{l.player.name}** in this game.')
+                    await ctx.send(f'*{tribe.name}* has already been assigned to player **{l.player.name}** in this game.')
                     continue
 
             lineup_match = game.player(name=player_name)
@@ -1404,9 +1405,9 @@ class elo_games():
                 await ctx.send(f'Matching player not found in game {game.id} matching "{utilities.escape_role_mentions(player_name)}". Check spelling or be more specific. {perm_str}')
                 continue
 
-            lineup_match.tribe = tribeflair
+            lineup_match.tribe = tribe
             lineup_match.save()
-            await ctx.send(f'Player **{lineup_match.player.name}** assigned to tribe *{tribeflair.tribe.name if tribeflair else "None"}* in game {game.id} {tribeflair.emoji if tribeflair else ""}')
+            await ctx.send(f'Player **{lineup_match.player.name}** assigned to tribe *{tribe.name if tribe else "None"}* in game {game.id} {tribe.emoji if tribe else ""}')
 
         game = game.load_full_game()
         await game.update_announcement(guild=ctx.guild, prefix=ctx.prefix)

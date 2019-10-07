@@ -3,6 +3,7 @@ import settings
 from playhouse.postgres_ext import *
 import logging
 from logging.handlers import RotatingFileHandler
+from modules.models import Tribe, TribeFlair, Lineup
 
 # http://docs.peewee-orm.com/en/latest/peewee/playhouse.html#schema-migrations
 handler = RotatingFileHandler(filename='discord.log', encoding='utf-8', maxBytes=500 * 1024, backupCount=1)
@@ -38,8 +39,10 @@ migrator = PostgresqlMigrator(db)
 # game_chan = BitField(default=None, null=True)
 # pro_league = BooleanField(default=True)
 # date_polychamps_invite_sent = DateField(default=None, null=True)
-external_server = BitField(unique=False, null=True)
-team_chan_external_server = BitField(unique=False, null=True, default=None)
+# external_server = BitField(unique=False, null=True)
+# team_chan_external_server = BitField(unique=False, null=True, default=None)
+tribe_direct = ForeignKeyField(Tribe, null=True, on_delete='SET NULL', field=Tribe.id)
+emoji = TextField(null=False, default='')
 
 migrate(
     # migrator.add_column('discordmember', 'elo_max', elo_max),
@@ -52,8 +55,34 @@ migrate(
     # migrator.add_column('gameside', 'elo_change_team_alltime', elo_change_team_alltime),
     # migrator.add_column('team', 'elo_alltime', elo_alltime)
     # migrator.add_column('discordmember', 'date_polychamps_invite_sent', date_polychamps_invite_sent)
-    migrator.add_column('gameside', 'team_chan_external_server', external_server),
-    migrator.add_column('team', 'external_server', external_server)
-
+    # migrator.add_column('gameside', 'team_chan_external_server', external_server),
+    # migrator.add_column('team', 'external_server', external_server)
+    # migrator.add_column('lineup', 'tribe_direct_id', tribe_direct)
 
 )
+
+
+tribe_ids = {}
+q = TribeFlair.select(TribeFlair.id, TribeFlair.tribe_id).order_by(TribeFlair.tribe_id)
+for tf in q.tuples():
+    tribe_ids[tf[0]] = tf[1]
+
+print(tribe_ids)
+migrate(
+    migrator.add_column('lineup', 'tribe_direct_id', tribe_direct)
+)
+
+with db.transaction():
+
+    for k, v in tribe_ids.items():
+        print(f'Executing for k,v pair: {k},{v}')
+        query = Lineup.update(tribe_direct_id=v).where(Lineup.tribe_id == k)
+        query.execute()
+
+    migrate(
+        migrator.drop_column('lineup', 'tribe_id'),
+        migrator.rename_column('lineup', 'tribe_direct_id', 'tribe_id'),
+        migrator.add_column('tribe', 'emoji', tribe_direct)
+    )
+
+    TribeFlair.drop_table()

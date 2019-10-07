@@ -294,10 +294,17 @@ class DiscordMember(BaseModel):
         # {'tribe': 7, 'name': 'Luxidoor', 'tribe_count': 14}
         # doesnt include TribeFlair.emoji like Player.favorite_tribes() because it needs to get the emoji based on the context of the discord guild
 
-        q = Lineup.select(Lineup.tribe, Tribe.name, fn.COUNT(Lineup.tribe).alias('tribe_count')).join(
-            TribeFlair).join(Tribe).join_from(Lineup, Player).where(
+        # q = Lineup.select(Lineup.tribe, Tribe.name, fn.COUNT(Lineup.tribe).alias('tribe_count')).join(
+        #     TribeFlair).join(Tribe).join_from(Lineup, Player).where(
+        #     (Lineup.player.discord_member == self) & (Lineup.tribe.is_null(False))
+        # ).group_by(Lineup.tribe, Tribe.name).order_by(-SQL('tribe_count')).limit(limit)
+
+        # Returns a list of dicts of format:
+        # {'tribe': 7, 'emoji': '<:luxidoor:448015285212151809>', 'name': 'Luxidoor', 'tribe_count': 14}
+
+        q = Lineup.select(Lineup.tribe, Tribe.emoji, Tribe.name, fn.COUNT(Lineup.tribe).alias('tribe_count')).join(Tribe).join_from(Lineup, Player).where(
             (Lineup.player.discord_member == self) & (Lineup.tribe.is_null(False))
-        ).group_by(Lineup.tribe, Tribe.name).order_by(-SQL('tribe_count')).limit(limit)
+        ).group_by(Lineup.tribe, Lineup.tribe.emoji, Tribe.name).order_by(-SQL('tribe_count')).limit(limit)
 
         return q.dicts()
 
@@ -594,7 +601,11 @@ class Player(BaseModel):
         # Returns a list of dicts of format:
         # {'tribe': 7, 'emoji': '<:luxidoor:448015285212151809>', 'name': 'Luxidoor', 'tribe_count': 14}
 
-        q = Lineup.select(Lineup.tribe, TribeFlair.emoji, Tribe.name, fn.COUNT(Lineup.tribe).alias('tribe_count')).join(TribeFlair).join(Tribe).where(
+        # q = Lineup.select(Lineup.tribe, TribeFlair.emoji, Tribe.name, fn.COUNT(Lineup.tribe).alias('tribe_count')).join(TribeFlair).join(Tribe).where(
+        #     (Lineup.player == self) & (Lineup.tribe.is_null(False))
+        # ).group_by(Lineup.tribe, Lineup.tribe.emoji, Tribe.name).order_by(-SQL('tribe_count')).limit(limit)
+
+        q = Lineup.select(Lineup.tribe, Tribe.emoji, Tribe.name, fn.COUNT(Lineup.tribe).alias('tribe_count')).join(Tribe).where(
             (Lineup.player == self) & (Lineup.tribe.is_null(False))
         ).group_by(Lineup.tribe, Lineup.tribe.emoji, Tribe.name).order_by(-SQL('tribe_count')).limit(limit)
 
@@ -647,6 +658,26 @@ class Player(BaseModel):
 
 class Tribe(BaseModel):
     name = TextField(unique=True, null=False)
+    emoji = TextField(null=False, default='')
+
+    def get_by_name(name: str):
+
+        tribe_name_match = Tribe.select().where(Tribe.name.startswith(name))
+
+        if tribe_name_match.count() == 0:
+            logger.warn(f'No Tribe could be matched to {name}')
+            return None
+        return tribe_name_match[0]
+
+    def update_emoji(name: str, emoji: str):
+        try:
+            tribe = Tribe.get(Tribe.name.startswith(name))
+        except DoesNotExist:
+            raise exceptions.CheckFailedError(f'Could not find any tribe name containing "{name}"')
+
+        tribe.emoji = emoji
+        tribe.save()
+        return tribe
 
 
 class TribeFlair(BaseModel):
@@ -1154,9 +1185,8 @@ class Game(BaseModel):
         subq = GameSide.select(GameSide, Team).join(Team, JOIN.LEFT_OUTER).join_from(GameSide, Squad, JOIN.LEFT_OUTER)
 
         subq2 = Lineup.select(
-            Lineup, Tribe, TribeFlair, Player, DiscordMember).join(
-            TribeFlair, JOIN.LEFT_OUTER).join(  # Need LEFT_OUTER_JOIN - default inner join would only return records that have a Tribe chosen
-            Tribe, JOIN.LEFT_OUTER).join_from(
+            Lineup, Tribe, Player, DiscordMember).join(
+            Tribe, JOIN.LEFT_OUTER).join_from(  # Need LEFT_OUTER_JOIN - default inner join would only return records that have a Tribe chosen
             Lineup, Player).join_from(Player, DiscordMember)
 
         res = prefetch(game, subq, subq2)
@@ -2246,7 +2276,9 @@ class GameSide(BaseModel):
 
 
 class Lineup(BaseModel):
-    tribe = ForeignKeyField(TribeFlair, null=True, on_delete='SET NULL')
+    # tribe = ForeignKeyField(TribeFlair, null=True, on_delete='SET NULL')
+    tribe_direct = ForeignKeyField(Tribe, unique=False, null=False, on_delete='CASCADE')
+    tribe = ForeignKeyField(Tribe, null=True, on_delete='SET NULL')
     game = ForeignKeyField(Game, null=False, backref='lineup', on_delete='CASCADE')
     gameside = ForeignKeyField(GameSide, null=False, backref='lineup', on_delete='CASCADE')
     player = ForeignKeyField(Player, null=False, backref='lineup', on_delete='RESTRICT')
@@ -2323,7 +2355,7 @@ class Lineup(BaseModel):
 
 
 with db:
-    db.create_tables([Team, DiscordMember, Game, Player, Tribe, Squad, GameSide, SquadMember, Lineup, TribeFlair])
+    db.create_tables([Team, DiscordMember, Game, Player, Tribe, Squad, GameSide, SquadMember, Lineup])
     # Only creates missing tables so should be safe to run each time
     try:
         # Creates deferred FK http://docs.peewee-orm.com/en/latest/peewee/models.html#circular-foreign-key-dependencies
