@@ -2277,7 +2277,7 @@ class GameSide(BaseModel):
 
 class Lineup(BaseModel):
     # tribe = ForeignKeyField(TribeFlair, null=True, on_delete='SET NULL')
-    tribe_direct = ForeignKeyField(Tribe, unique=False, null=False, on_delete='CASCADE')
+    # tribe_direct = ForeignKeyField(Tribe, unique=False, null=False, on_delete='CASCADE')
     tribe = ForeignKeyField(Tribe, null=True, on_delete='SET NULL')
     game = ForeignKeyField(Game, null=False, backref='lineup', on_delete='CASCADE')
     gameside = ForeignKeyField(GameSide, null=False, backref='lineup', on_delete='CASCADE')
