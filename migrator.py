@@ -3,7 +3,7 @@ import settings
 from playhouse.postgres_ext import *
 import logging
 from logging.handlers import RotatingFileHandler
-from modules.models import Tribe, TribeFlair, Lineup
+# from modules.models import Tribe, Lineup
 
 # http://docs.peewee-orm.com/en/latest/peewee/playhouse.html#schema-migrations
 handler = RotatingFileHandler(filename='discord.log', encoding='utf-8', maxBytes=500 * 1024, backupCount=1)

@@ -262,6 +262,8 @@ class administration:
     @settings.is_mod_check()
     async def tribe_emoji(self, ctx, tribe_name: str, emoji):
         """*Mod*: Assign an emoji to a tribe
+        The emoji chosen will be used on *all* servers that this bot is on.
+        It can only be triggered by an admin on a server that contributes to the Global ELO leaderboard.
         **Example:**
         `[p]tribe_emoji Bardur :new_bardur_emoji:`
         """

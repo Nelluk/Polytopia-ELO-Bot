@@ -489,8 +489,6 @@ class elo_games():
 
             favorite_tribes = player.discord_member.favorite_tribes(limit=3)
             if favorite_tribes:
-                # favorite_tribe_objs = [TribeFlair.get_by_name(name=t['name'], guild_id=ctx.guild.id) for t in favorite_tribes]
-                # tribes_str = ' '.join([f'{t.emoji if t.emoji else t.tribe.name}' for t in favorite_tribe_objs])
                 tribes_str = ' '.join([f'{t["emoji"] if t["emoji"] else t["name"]}' for t in favorite_tribes])
                 misc_stats.append(('Most-logged tribes', tribes_str))
 

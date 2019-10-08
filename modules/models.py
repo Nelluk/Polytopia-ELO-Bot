@@ -291,15 +291,6 @@ class DiscordMember(BaseModel):
 
     def favorite_tribes(self, limit=3):
         # Returns a list of dicts of format:
-        # {'tribe': 7, 'name': 'Luxidoor', 'tribe_count': 14}
-        # doesnt include TribeFlair.emoji like Player.favorite_tribes() because it needs to get the emoji based on the context of the discord guild
-
-        # q = Lineup.select(Lineup.tribe, Tribe.name, fn.COUNT(Lineup.tribe).alias('tribe_count')).join(
-        #     TribeFlair).join(Tribe).join_from(Lineup, Player).where(
-        #     (Lineup.player.discord_member == self) & (Lineup.tribe.is_null(False))
-        # ).group_by(Lineup.tribe, Tribe.name).order_by(-SQL('tribe_count')).limit(limit)
-
-        # Returns a list of dicts of format:
         # {'tribe': 7, 'emoji': '<:luxidoor:448015285212151809>', 'name': 'Luxidoor', 'tribe_count': 14}
 
         q = Lineup.select(Lineup.tribe, Tribe.emoji, Tribe.name, fn.COUNT(Lineup.tribe).alias('tribe_count')).join(Tribe).join_from(Lineup, Player).where(
@@ -601,10 +592,6 @@ class Player(BaseModel):
         # Returns a list of dicts of format:
         # {'tribe': 7, 'emoji': '<:luxidoor:448015285212151809>', 'name': 'Luxidoor', 'tribe_count': 14}
 
-        # q = Lineup.select(Lineup.tribe, TribeFlair.emoji, Tribe.name, fn.COUNT(Lineup.tribe).alias('tribe_count')).join(TribeFlair).join(Tribe).where(
-        #     (Lineup.player == self) & (Lineup.tribe.is_null(False))
-        # ).group_by(Lineup.tribe, Lineup.tribe.emoji, Tribe.name).order_by(-SQL('tribe_count')).limit(limit)
-
         q = Lineup.select(Lineup.tribe, Tribe.emoji, Tribe.name, fn.COUNT(Lineup.tribe).alias('tribe_count')).join(Tribe).where(
             (Lineup.player == self) & (Lineup.tribe.is_null(False))
         ).group_by(Lineup.tribe, Lineup.tribe.emoji, Tribe.name).order_by(-SQL('tribe_count')).limit(limit)
@@ -678,48 +665,6 @@ class Tribe(BaseModel):
         tribe.emoji = emoji
         tribe.save()
         return tribe
-
-
-class TribeFlair(BaseModel):
-    tribe = ForeignKeyField(Tribe, unique=False, null=False, on_delete='CASCADE')
-    emoji = TextField(null=False, default='')
-    guild_id = BitField(unique=False, null=False)
-
-    class Meta:
-        indexes = ((('tribe', 'guild_id'), True),)   # Trailing comma is required
-        # http://docs.peewee-orm.com/en/3.6.0/peewee/models.html#multi-column-indexes
-
-    def get_by_name(name: str, guild_id: int):
-        tribe_flair_match = TribeFlair.select(TribeFlair, Tribe).join(Tribe).where(
-            (Tribe.name.startswith(name)) & (TribeFlair.guild_id == guild_id)
-        )
-
-        tribe_name_match = Tribe.select().where(Tribe.name.startswith(name))
-
-        if tribe_flair_match.count() == 0:
-            if tribe_name_match.count() == 0:
-                logger.warn(f'No TribeFlair -or- Tribe could be matched to {name}')
-                return None
-            else:
-                logger.warn(f'No TribeFlair for this guild matched to {tribe_name_match[0].name}. Creating TribeFlair with blank emoji.')
-                with db.atomic():
-                    new_tribeflair = TribeFlair.create(tribe=tribe_name_match[0], guild_id=guild_id)
-                    return new_tribeflair
-        else:
-            return tribe_flair_match[0]
-
-    def upsert(name: str, guild_id: int, emoji: str):
-        try:
-            tribe = Tribe.get(Tribe.name.startswith(name))
-        except DoesNotExist:
-            raise exceptions.CheckFailedError(f'Could not find any tribe name containing "{name}"')
-
-        tribeflair, created = TribeFlair.get_or_create(tribe=tribe, guild_id=guild_id, defaults={'emoji': emoji})
-        if not created:
-            tribeflair.emoji = emoji
-            tribeflair.save()
-
-        return tribeflair
 
 
 class Game(BaseModel):
@@ -2276,8 +2221,6 @@ class GameSide(BaseModel):
 
 
 class Lineup(BaseModel):
-    # tribe = ForeignKeyField(TribeFlair, null=True, on_delete='SET NULL')
-    # tribe_direct = ForeignKeyField(Tribe, unique=False, null=False, on_delete='CASCADE')
     tribe = ForeignKeyField(Tribe, null=True, on_delete='SET NULL')
     game = ForeignKeyField(Game, null=False, backref='lineup', on_delete='CASCADE')
     gameside = ForeignKeyField(GameSide, null=False, backref='lineup', on_delete='CASCADE')
