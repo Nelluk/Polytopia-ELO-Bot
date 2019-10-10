@@ -645,7 +645,7 @@ class administration:
         await ctx.send('Migration complete!')
 
     @commands.command(aliases=['delplayer'])
-    @commands.is_mod_check()
+    @commands.is_owner()
     async def delete_player(self, ctx, *, args=None):
         """*Owner*: Delete a player entry from the bot's database
         Target player cannot have any games associated with their profile. Use a @Mention or raw user ID as an argument.
