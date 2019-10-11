@@ -469,6 +469,7 @@ config = {'default':
                       'bot_channels_private': [],
                       'bot_channels_strict': [614234606279065601, 614234606279065601],
                       'bot_channels': [614234606279065601, 614234606279065601],
+                      'game_request_channel': 619748006681509910,  # bot-commands-2
                       'ranked_game_channel': None,
                       'unranked_game_channel': None,
                       'game_announce_channel': 614234715221786634,
