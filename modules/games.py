@@ -31,7 +31,11 @@ class PolyGame(commands.Converter):
             logger.debug(f'Game with ID {game_id} found.')
             if game.guild_id != ctx.guild.id:
                 logger.warn('Game does not belong to same guild')
-                server_name = settings.guild_setting(game.guild_id, 'display_name')
+                try:
+                    server_name = settings.guild_setting(guild_id=game.guild_id, setting_name='display_name')
+                except exceptions.CheckFailedError:
+                    server_name = settings.guild_setting(guild_id=None, setting_name='display_name')
+                    # config['default'][setting_name]
                 if game.is_pending:
                     game_summary_str = ''
                 else:
