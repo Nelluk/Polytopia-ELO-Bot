@@ -2236,7 +2236,7 @@ class Lineup(BaseModel):
         # ELO is compared 950 vs 1100 and all players treated equally
 
         if by_discord_member is True:
-            if not settings.guild_setting(self.game.guild_id, 'include_in_global_lb'):
+            if self.game.guild_id not in settings.servers_included_in_global_lb():
                 logger.info(f'Skipping ELO change by discord member because {self.game.guild_id} is set to be excluded.')
                 return
             num_games = self.player.discord_member.completed_game_count()
