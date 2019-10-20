@@ -191,11 +191,6 @@ if __name__ == '__main__':
     initial_extensions = ['modules.games', 'modules.help', 'modules.matchmaking', 'modules.administration', 'modules.misc']
     for extension in initial_extensions:
         bot.load_extension(extension)
-        try:
-            bot.load_extension(extension)
-        except Exception as e:
-            print(f'Failed to load extension {extension}: {e}')
-            pass
 
     @bot.event
     async def on_ready():

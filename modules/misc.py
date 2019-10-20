@@ -27,7 +27,9 @@ class misc:
     @commands.is_owner()
     async def test(self, ctx, *, arg: str = None):
 
-        await ctx.send(f'<:Bardur:389967516841148418> <:zoyconfused:604831256974327829>')
+        for chan in ctx.guild.text_channels:
+            msg = chan.last_message()
+            print(msg.created_at)
 
     @commands.command(hidden=True, aliases=['bulk_local_elo', 'ble', 'bge'])
     async def bulk_global_elo(self, ctx, *, args=None):
