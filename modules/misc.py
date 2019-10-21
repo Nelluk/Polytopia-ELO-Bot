@@ -299,7 +299,8 @@ class misc:
                         ('Sparkies', ['The Sparkies', 'The Pups']),
                         ('Wildfire', ['The Wildfire', 'The Flames']),
                         ('Mallards', ['The Mallards', 'The Drakes']),
-                        ('Plague', ['The Plague', 'The Rats'])]
+                        ('Plague', ['The Plague', 'The Rats']),
+                        ('Dragons', ['The Dragons', 'The Narwhals'])]
 
         league_balance = []
         indent_str = '\u00A0\u00A0 \u00A0\u00A0 \u00A0\u00A0'
