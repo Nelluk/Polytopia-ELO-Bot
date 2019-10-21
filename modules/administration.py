@@ -14,7 +14,7 @@ logger = logging.getLogger('polybot.' + __name__)
 elo_logger = logging.getLogger('polybot.elo')
 
 
-class administration:
+class administration(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         if settings.run_tasks:

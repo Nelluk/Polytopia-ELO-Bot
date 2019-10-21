@@ -16,7 +16,7 @@ import peewee
 logger = logging.getLogger('polybot.' + __name__)
 
 
-class misc:
+class misc(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         if settings.run_tasks:

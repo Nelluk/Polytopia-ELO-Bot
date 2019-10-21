@@ -38,7 +38,7 @@ class PolyMatch(commands.Converter):
             raise commands.UserInputError()
 
 
-class matchmaking():
+class matchmaking(commands.Cog):
     """
     Host open and find open games.
     """
