@@ -664,7 +664,7 @@ class administration:
         if not discord_member:
             return await ctx.send(f'Could not find a DiscordMember in the database matching discord id `{player_id}`')
 
-        player_games = models.DiscordMember.games_played(in_days=None).count()
+        player_games = discord_member.games_played(in_days=None).count()
 
         if player_games > 0:
             return await ctx.send(f'DiscordMember {discord_member.name} was found but has {player_games} associated ELO games. Can only delete players with zero games.')
