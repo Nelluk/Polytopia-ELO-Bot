@@ -133,6 +133,7 @@ class misc(commands.Cog):
         last_week = (datetime.datetime.now() + datetime.timedelta(days=-7))
 
         games_played = models.Game.select().where(models.Game.is_completed == 1)
+        games_played_90d = models.Game.select().where((models.Game.is_pending == 0) & (models.Game.date > last_quarter))
         games_played_30d = models.Game.select().where((models.Game.is_pending == 0) & (models.Game.date > last_month))
         games_played_7d = models.Game.select().where((models.Game.is_pending == 0) & (models.Game.date > last_week))
 
@@ -152,6 +153,7 @@ class misc(commands.Cog):
 
         embed.add_field(value='\u200b', name=f'`{"----------------------------------":<35}` Global (Local)', inline=False)
         game_stats = (f'`{"Total games completed:":<35}\u200b` {games_played.count()} ({games_played.where(models.Game.guild_id == ctx.guild.id).count()})\n'
+                      f'`{"Games created in last 90 days:":<35}\u200b`\u200b {games_played_90d.count()} ({games_played_90d.where(models.Game.guild_id == ctx.guild.id).count()})\n'
                       f'`{"Games created in last 30 days:":<35}\u200b`\u200b {games_played_30d.count()} ({games_played_30d.where(models.Game.guild_id == ctx.guild.id).count()})\n'
                       f'`{"Games created in last 7 days:":<35}\u200b`\u200b {games_played_7d.count()} ({games_played_7d.where(models.Game.guild_id == ctx.guild.id).count()})\n'
                       f'`{"Incomplete games:":<35}\u200b` {incomplete_games.count()} ({incomplete_games.where(models.Game.guild_id == ctx.guild.id).count()})\n'
@@ -299,7 +301,8 @@ class misc(commands.Cog):
                         ('Sparkies', ['The Sparkies', 'The Pups']),
                         ('Wildfire', ['The Wildfire', 'The Flames']),
                         ('Mallards', ['The Mallards', 'The Drakes']),
-                        ('Plague', ['The Plague', 'The Rats'])]
+                        ('Plague', ['The Plague', 'The Rats']),
+                        ('Dragons', ['The Dragons', 'The Narwhals'])]
 
         league_balance = []
         indent_str = '\u00A0\u00A0 \u00A0\u00A0 \u00A0\u00A0'

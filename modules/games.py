@@ -31,7 +31,11 @@ class PolyGame(commands.Converter):
             logger.debug(f'Game with ID {game_id} found.')
             if game.guild_id != ctx.guild.id:
                 logger.warn('Game does not belong to same guild')
-                server_name = settings.guild_setting(game.guild_id, 'display_name')
+                try:
+                    server_name = settings.guild_setting(guild_id=game.guild_id, setting_name='display_name')
+                except exceptions.CheckFailedError:
+                    server_name = settings.guild_setting(guild_id=None, setting_name='display_name')
+                    # config['default'][setting_name]
                 if game.is_pending:
                     game_summary_str = ''
                 else:
@@ -489,8 +493,6 @@ class elo_games(commands.Cog):
 
             favorite_tribes = player.discord_member.favorite_tribes(limit=3)
             if favorite_tribes:
-                # favorite_tribe_objs = [TribeFlair.get_by_name(name=t['name'], guild_id=ctx.guild.id) for t in favorite_tribes]
-                # tribes_str = ' '.join([f'{t.emoji if t.emoji else t.tribe.name}' for t in favorite_tribe_objs])
                 tribes_str = ' '.join([f'{t["emoji"] if t["emoji"] else t["name"]}' for t in favorite_tribes])
                 misc_stats.append(('Most-logged tribes', tribes_str))
 

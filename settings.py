@@ -312,9 +312,9 @@ config = {'default':
                       'max_team_size': 2,
                       'command_prefix': '$',
                       'include_in_global_lb': True,
-                      'bot_channels_private': [418175357137453058],  # 058 testchamber
-                      'bot_channels_strict': [403724174532673536],  # 536 BotCommands
-                      'bot_channels': [403724174532673536, 511316081160355852, 511906353476927498, 396069729657421824],  # 498 unranked-games, 852 ranked-games, 824 multi-discussion
+                      'bot_channels_private': [418175357137453058, 403724174532673536],  # 058 testchamber, 536 bot-commands
+                      'bot_channels_strict': [635091071717867521],  # 521 elo-bot-commands
+                      'bot_channels': [635091071717867521, 403724174532673536, 511316081160355852, 511906353476927498, 396069729657421824],  # 498 unranked-games, 852 ranked-games, 824 multi-discussion
                       'newbie_message_channels': [396069729657421824, 413721247260868618],  # multi-discussion, #friend-codes
                       'ranked_game_channel': 511316081160355852,
                       'unranked_game_channel': 511906353476927498,
@@ -385,29 +385,30 @@ config = {'default':
         #               'unranked_game_channel': None,
         #               'match_challenge_channels': [],
         #               'game_channel_categories': [568404156352561163]},
-        576962604124209180:                           # Poly-Gyms PinkPigmyPuff#7107
-                     {'helper_roles': ['ELO-Helper'],
-                      'mod_roles': ['MOD'],
-                      'user_roles_level_4': ['PolyPlayer!'],  # power user
-                      'user_roles_level_3': ['@everyone'],  # power user
-                      'user_roles_level_2': ['@everyone'],  # normal user
-                      'user_roles_level_1': ['@everyone'],  # restricted user/newbie
-                      'display_name': 'Poly-Gyms',
-                      'require_teams': False,
-                      'allow_teams': True,
-                      'allow_uneven_teams': True,
-                      'max_team_size': 2,
-                      'command_prefix': '$',
-                      'include_in_global_lb': False,
-                      'bot_channels_private': [],
-                      'bot_channels_strict': [579779127641374720, 580629131822366740],
-                      'bot_channels': [579779127641374720, 580629131822366740],
-                      'ranked_game_channel': None,
-                      'unranked_game_channel': None,
-                      'game_request_channel': 581012820695580692,  # bot-messing-around-with
-                      'game_announce_channel': 579728109842989058,
-                      'match_challenge_channels': [],
-                      'game_channel_categories': []},
+
+        # 576962604124209180:                           # Poly-Gyms PinkPigmyPuff#7107
+        #              {'helper_roles': ['ELO-Helper'],
+        #               'mod_roles': ['MOD'],
+        #               'user_roles_level_4': ['PolyPlayer!'],  # power user
+        #               'user_roles_level_3': ['@everyone'],  # power user
+        #               'user_roles_level_2': ['@everyone'],  # normal user
+        #               'user_roles_level_1': ['@everyone'],  # restricted user/newbie
+        #               'display_name': 'Poly-Gyms',
+        #               'require_teams': False,
+        #               'allow_teams': True,
+        #               'allow_uneven_teams': True,
+        #               'max_team_size': 2,
+        #               'command_prefix': '$',
+        #               'include_in_global_lb': False,
+        #               'bot_channels_private': [],
+        #               'bot_channels_strict': [579779127641374720, 580629131822366740],
+        #               'bot_channels': [579779127641374720, 580629131822366740],
+        #               'ranked_game_channel': None,
+        #               'unranked_game_channel': None,
+        #               'game_request_channel': 581012820695580692,  # bot-messing-around-with
+        #               'game_announce_channel': 579728109842989058,
+        #               'match_challenge_channels': [],
+        #               'game_channel_categories': []},
         419286093360529420:                           # Pooltopia, run by Bomber
                      {'helper_roles': ['pooltopia'],
                       'mod_roles': ['mod', 'pooltopian'],
@@ -468,6 +469,7 @@ config = {'default':
                       'bot_channels_private': [],
                       'bot_channels_strict': [614234606279065601, 614234606279065601],
                       'bot_channels': [614234606279065601, 614234606279065601],
+                      'game_request_channel': 619748006681509910,  # bot-commands-2
                       'ranked_game_channel': None,
                       'unranked_game_channel': None,
                       'game_announce_channel': 614234715221786634,
@@ -544,16 +546,22 @@ def get_setting(setting_name):
 
 
 def guild_setting(guild_id: int, setting_name: str):
+    # if guild_id = None, default block will be used
 
-    try:
-        settings_obj = config[guild_id]
-    except KeyError:
-        logger.error(f'Unauthorized guild id {guild_id}.')
-        raise exceptions.CheckFailedError('Unauthorized: This guild is not in the config.ini file.')
+    if guild_id:
 
-    try:
-        return settings_obj[setting_name]
-    except KeyError:
+        try:
+            settings_obj = config[guild_id]
+        except KeyError:
+            logger.error(f'Unauthorized guild id {guild_id}.')
+            raise exceptions.CheckFailedError('Unauthorized: This guild is not in the config.ini file.')
+
+        try:
+            return settings_obj[setting_name]
+        except KeyError:
+            return config['default'][setting_name]
+
+    else:
         return config['default'][setting_name]
 
 

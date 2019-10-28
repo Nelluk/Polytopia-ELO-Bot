@@ -262,10 +262,12 @@ class administration(commands.Cog):
     @settings.is_mod_check()
     async def tribe_emoji(self, ctx, tribe_name: str, emoji):
         """*Mod*: Assign an emoji to a tribe
+        The emoji chosen will be used on *all* servers that this bot is on.
+        It can only be triggered by an admin on a server that contributes to the Global ELO leaderboard.
         **Example:**
         `[p]tribe_emoji Bardur :new_bardur_emoji:`
         """
-        if not settings.guild_setting(ctx.guild.id, 'include_in_global_lb'):
+        if not settings.guild_setting(ctx.guild.id, 'include_in_global_lb') and ctx.author.id != settings.owner_id:
             return await ctx.send(f'This command can only be run in a Global ELO server (ie. PolyChampions or Polytopia Main')
 
         if len(emoji) != 1 and ('<:' not in emoji):
@@ -628,12 +630,8 @@ class administration(commands.Cog):
         if not new_guild_member:
             return await ctx.send(f'Could not find a guild member matching ID {to_id}. The migration must be to an existing member of this server.')
 
-        try:
-            new_discord_member = models.DiscordMember.select().where(models.DiscordMember.discord_id == new_guild_member.id).get()
-        except peewee.DoesNotExist:
-            pass
-            # This is desired outcome - no DiscordMember found matching to_id, so its safe
-        else:
+        new_discord_member = models.DiscordMember.get_or_none(discord_id=new_guild_member.id)
+        if new_discord_member:
             return await ctx.send(f'Found a DiscordMember *{new_discord_member.name}* in the database matching discord id `{new_guild_member.id}`. Cannot migrate to an existing player! Use `{ctx.prefix}delete_player` first.')
 
         logger.warn(f'Migrating player profile of ID {from_id} {old_discord_member.name} to new guild member {new_guild_member.id}{new_guild_member.name}')
@@ -661,14 +659,12 @@ class administration(commands.Cog):
         if not player_id:
             return await ctx.send(f'Could not parse a discord ID. Usage: `{ctx.prefix}{ctx.invoked_with} [<@Mention> / <Raw ID>]`')
         print(player_id)
-        try:
-            discord_member = models.DiscordMember.select().where(models.DiscordMember.discord_id == player_id).get()
-        except peewee.DoesNotExist:
+
+        discord_member = models.DiscordMember.get_or_none(discord_id=player_id)
+        if not discord_member:
             return await ctx.send(f'Could not find a DiscordMember in the database matching discord id `{player_id}`')
 
-        player_games = models.Lineup.select().join(models.Player).where(
-            (models.Lineup.player.discord_member == discord_member)
-        ).count()
+        player_games = discord_member.games_played(in_days=None).count()
 
         if player_games > 0:
             return await ctx.send(f'DiscordMember {discord_member.name} was found but has {player_games} associated ELO games. Can only delete players with zero games.')
