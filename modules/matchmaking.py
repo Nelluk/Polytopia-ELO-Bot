@@ -165,7 +165,7 @@ class matchmaking():
             return await ctx.send('Uneven team games are not allowed on this server.')
 
         server_size_max = settings.guild_setting(ctx.guild.id, 'max_team_size')
-        logger.debug(is_ranked, max(team_sizes), server_size_max)
+
         if max(team_sizes) > server_size_max:
             if settings.guild_setting(ctx.guild.id, 'allow_uneven_teams') and min(team_sizes) <= server_size_max:
                 await ctx.send('**Warning:** Team sizes are uneven.')
