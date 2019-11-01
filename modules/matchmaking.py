@@ -656,7 +656,7 @@ class matchmaking():
         if waitlist:
             await asyncio.sleep(1)
             if len(waitlist) == 1:
-                start_str = f'Type __`{ctx.prefix}game {waitlist[0]}`'
+                start_str = f'Type __`{ctx.prefix}game {(waitlist_hosting + waitlist_creating)[0]}`'
             else:
                 f'Type __`{ctx.prefix}game IDNUM`__ for more details, ie `{ctx.prefix}game {(waitlist_hosting + waitlist_creating)[0]}`'
             await ctx.send(f'{ctx.author.mention}, you have full games waiting to start: **{", ".join(waitlist)}**\n{start_str}')
