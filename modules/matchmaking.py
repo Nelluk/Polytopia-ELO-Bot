@@ -303,6 +303,16 @@ class matchmaking():
         if not game.is_pending:
             return await ctx.send(f'The game has already started and can no longer be joined.')
 
+        waitlist_hosting = [f'{g.id}' for g in models.Game.search_pending(status_filter=1, guild_id=ctx.guild.id, host_discord_id=ctx.author.id)]
+        waitlist_creating = [f'{g.game}' for g in models.Game.waiting_for_creator(creator_discord_id=ctx.author.id)]
+        waitlist = set(waitlist_hosting + waitlist_creating)
+
+        if len(waitlist) > 2 and settings.get_user_level(ctx) < 3:
+            # Prevent newer players from having a big backlog of games needing to start and then joining more games
+            return await ctx.send(f'You are the host of {len(waitlist)} games that are waiting to start. You cannot join new games until that is complete. Game IDs: **{", ".join(waitlist)}**\n'
+                f'Type __`{ctx.prefix}game IDNUM`__ for more details, ie `{ctx.prefix}game {(waitlist_hosting + waitlist_creating)[0]}`\n'
+                f'You must create each game in Polytopia and invite the other players using their friend codes, and then use the `{ctx.prefix}start` command in this bot.')
+
         inactive_role = discord.utils.get(ctx.guild.roles, name=settings.guild_setting(ctx.guild.id, 'inactive_role'))
 
         if len(args) == 0:
