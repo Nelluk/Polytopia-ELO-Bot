@@ -436,6 +436,16 @@ class matchmaking():
         embed, content = game.embed(guild=ctx.guild, prefix=ctx.prefix)
         await ctx.send(embed=embed, content=content)
 
+        # Alert user if they have >1 games ready to start
+        waitlist_hosting = [f'{g.id}' for g in models.Game.search_pending(status_filter=1, guild_id=ctx.guild.id, host_discord_id=ctx.author.id)]
+        waitlist_creating = [f'{g.game}' for g in models.Game.waiting_for_creator(creator_discord_id=ctx.author.id)]
+        waitlist = set(waitlist_hosting + waitlist_creating)
+
+        if len(waitlist) > 1:
+            await asyncio.sleep(1)
+            start_str = f'Type __`{ctx.prefix}game IDNUM`__ for more details, ie `{ctx.prefix}game {(waitlist_hosting + waitlist_creating)[0]}`'
+            await ctx.send(f'{ctx.author.mention}, you have full games waiting to start: **{", ".join(waitlist)}**\n{start_str}')
+
     @settings.in_bot_channel()
     @commands.command(usage='game_id', aliases=['leavegame', 'leavematch'])
     async def leave(self, ctx, game: PolyMatch = None):
@@ -642,11 +652,6 @@ class matchmaking():
 
         self.bot.loop.create_task(utilities.paginate(self.bot, ctx, title=title_str_full, message_list=gamelist_fields, page_start=0, page_end=15, page_size=15))
         # paginator done as a task because otherwise it will not let the waitlist message send until after pagination is complete (20+ seconds)
-
-        # if ctx.guild.id != settings.server_ids['polychampions']:
-        #     await asyncio.sleep(1)
-        #     await ctx.send('Powered by PolyChampions. League server with a focus on team play:\n'
-        #         '<https://tinyurl.com/polychampions>')
 
         # Alert user if a game they are hosting OR should be creating is waiting to be created
         waitlist_hosting = [f'{g.id}' for g in models.Game.search_pending(status_filter=1, guild_id=ctx.guild.id, host_discord_id=ctx.author.id)]
