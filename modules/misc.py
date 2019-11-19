@@ -158,12 +158,12 @@ class misc(commands.Cog):
                       f'`{"Games created in last 7 days:":<35}\u200b`\u200b {games_played_7d.count()} ({games_played_7d.where(models.Game.guild_id == ctx.guild.id).count()})\n'
                       f'`{"Incomplete games:":<35}\u200b` {incomplete_games.count()} ({incomplete_games.where(models.Game.guild_id == ctx.guild.id).count()})\n'
                       )
-        embed.add_field(value='\u200b', name=game_stats)
+        embed.add_field(value='\u200b', name=game_stats, inline=False)
 
         stats_2 = (f'`{"Participants in last 90 days:":<35}\u200b` {participants_90d.count()} ({participants_90d.where(models.Game.guild_id == ctx.guild.id).count()})\n'
                    f'`{"Participants in last 30 days:":<35}\u200b` {participants_30d.count()} ({participants_30d.where(models.Game.guild_id == ctx.guild.id).count()})\n'
                    f'`{"Participants in last 7 days:":<35}\u200b` {participants_7d.count()} ({participants_7d.where(models.Game.guild_id == ctx.guild.id).count()})\n')
-        embed.add_field(value='\u200b', name=stats_2)
+        embed.add_field(value='\u200b', name=stats_2, inline=False)
 
         await ctx.send(embed=embed)
 
