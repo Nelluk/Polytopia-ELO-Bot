@@ -821,7 +821,7 @@ class Game(BaseModel):
             return logger.warn('Couldn\'t get channel in update_announacement')
 
         try:
-            message = await channel.get_message(self.announcement_message)
+            message = await channel.fetch_message(self.announcement_message)
         except (discord.errors.Forbidden, discord.errors.NotFound, discord.errors.HTTPException):
             return logger.warn('Couldn\'t get message in update_announacement')
 
