@@ -190,6 +190,7 @@ if __name__ == '__main__':
 
     initial_extensions = ['modules.games', 'modules.help', 'modules.matchmaking', 'modules.administration', 'modules.misc']
     initial_extensions = ['modules.games', 'modules.customhelp', 'modules.matchmaking', 'modules.administration', 'modules.misc']
+    # initial_extensions = ['modules.games', 'modules.robodannyhelp', 'modules.matchmaking', 'modules.administration', 'modules.misc']
     for extension in initial_extensions:
         bot.load_extension(extension)
 
