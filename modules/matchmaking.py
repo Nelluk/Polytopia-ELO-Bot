@@ -165,7 +165,7 @@ class matchmaking(commands.Cog):
             return await ctx.send('Uneven team games are not allowed on this server.')
 
         server_size_max = settings.guild_setting(ctx.guild.id, 'max_team_size')
-        logger.debug(is_ranked, max(team_sizes), server_size_max)
+
         if max(team_sizes) > server_size_max:
             if settings.guild_setting(ctx.guild.id, 'allow_uneven_teams') and min(team_sizes) <= server_size_max:
                 await ctx.send('**Warning:** Team sizes are uneven.')
@@ -303,6 +303,16 @@ class matchmaking(commands.Cog):
         if not game.is_pending:
             return await ctx.send(f'The game has already started and can no longer be joined.')
 
+        waitlist_hosting = [f'{g.id}' for g in models.Game.search_pending(status_filter=1, guild_id=ctx.guild.id, host_discord_id=ctx.author.id)]
+        waitlist_creating = [f'{g.game}' for g in models.Game.waiting_for_creator(creator_discord_id=ctx.author.id)]
+        waitlist = set(waitlist_hosting + waitlist_creating)
+
+        if len(waitlist) > 2 and settings.get_user_level(ctx) < 3:
+            # Prevent newer players from having a big backlog of games needing to start and then joining more games
+            return await ctx.send(f'You are the host of {len(waitlist)} games that are waiting to start. You cannot join new games until that is complete. Game IDs: **{", ".join(waitlist)}**\n'
+                f'Type __`{ctx.prefix}game IDNUM`__ for more details, ie `{ctx.prefix}game {(waitlist_hosting + waitlist_creating)[0]}`\n'
+                f'You must create each game in Polytopia and invite the other players using their friend codes, and then use the `{ctx.prefix}start` command in this bot.')
+
         inactive_role = discord.utils.get(ctx.guild.roles, name=settings.guild_setting(ctx.guild.id, 'inactive_role'))
 
         if len(args) == 0:
@@ -435,6 +445,16 @@ class matchmaking(commands.Cog):
 
         embed, content = game.embed(guild=ctx.guild, prefix=ctx.prefix)
         await ctx.send(embed=embed, content=content)
+
+        # Alert user if they have >1 games ready to start
+        waitlist_hosting = [f'{g.id}' for g in models.Game.search_pending(status_filter=1, guild_id=ctx.guild.id, host_discord_id=ctx.author.id)]
+        waitlist_creating = [f'{g.game}' for g in models.Game.waiting_for_creator(creator_discord_id=ctx.author.id)]
+        waitlist = set(waitlist_hosting + waitlist_creating)
+
+        if len(waitlist) > 1:
+            await asyncio.sleep(1)
+            start_str = f'Type __`{ctx.prefix}game IDNUM`__ for more details, ie `{ctx.prefix}game {(waitlist_hosting + waitlist_creating)[0]}`'
+            await ctx.send(f'{ctx.author.mention}, you have full games waiting to start: **{", ".join(waitlist)}**\n{start_str}')
 
     @settings.in_bot_channel()
     @commands.command(usage='game_id', aliases=['leavegame', 'leavematch'])
@@ -643,11 +663,6 @@ class matchmaking(commands.Cog):
         self.bot.loop.create_task(utilities.paginate(self.bot, ctx, title=title_str_full, message_list=gamelist_fields, page_start=0, page_end=15, page_size=15))
         # paginator done as a task because otherwise it will not let the waitlist message send until after pagination is complete (20+ seconds)
 
-        # if ctx.guild.id != settings.server_ids['polychampions']:
-        #     await asyncio.sleep(1)
-        #     await ctx.send('Powered by PolyChampions. League server with a focus on team play:\n'
-        #         '<https://tinyurl.com/polychampions>')
-
         # Alert user if a game they are hosting OR should be creating is waiting to be created
         waitlist_hosting = [f'{g.id}' for g in models.Game.search_pending(status_filter=1, guild_id=ctx.guild.id, host_discord_id=ctx.author.id)]
         waitlist_creating = [f'{g.game}' for g in models.Game.waiting_for_creator(creator_discord_id=ctx.author.id)]
@@ -655,8 +670,11 @@ class matchmaking(commands.Cog):
 
         if waitlist:
             await asyncio.sleep(1)
-            await ctx.send(f'{ctx.author.mention}, you have full games waiting to start: **{", ".join(waitlist)}**\n'
-                f'Type __`{ctx.prefix}game IDNUM`__ for more details, ie `{ctx.prefix}game {(waitlist_hosting + waitlist_creating)[0]}`')
+            if len(waitlist) == 1:
+                start_str = f'Type __`{ctx.prefix}game {(waitlist_hosting + waitlist_creating)[0]}`__ for more details.'
+            else:
+                start_str = f'Type __`{ctx.prefix}game IDNUM`__ for more details, ie `{ctx.prefix}game {(waitlist_hosting + waitlist_creating)[0]}`'
+            await ctx.send(f'{ctx.author.mention}, you have full games waiting to start: **{", ".join(waitlist)}**\n{start_str}')
 
     @settings.in_bot_channel()
     @commands.command(aliases=['startmatch', 'start'], usage='game_id Name of Poly Game')
