@@ -90,18 +90,18 @@ class misc(commands.Cog):
         embed.add_field(name='Matchmaking',
             value=f'This helps players organize and find games.\nFor example, use __`{ctx.prefix}opengame 1v1`__ to create an open 1v1 game that others can join.\n'
                 f'To see a list of open games you can join use __`{ctx.prefix}opengames`__. Once the game is full the host would use __`{ctx.prefix}startgame`__ to close it and track it for the leaderboards.\n'
-                f'See __`{ctx.prefix}help matchmaking`__ for all commands.')
+                f'See __`{ctx.prefix}help matchmaking`__ for all commands.', inline=False)
 
         embed.add_field(name='ELO Leaderboards',
             value='Win your games and climb the leaderboards! Earn sweet ELO points!\n'
                 'ELO points are gained or lost based on your game results. You will gain more points if you defeat an opponent with a higher ELO.\n'
                 f'Use __`{ctx.prefix}lb`__ to view the individual leaderboards. There is also a __`{ctx.prefix}lbsquad`__ squad leaderboard. Form a squad by playing with the same person in multiple games!'
-                f'\nSee __`{ctx.prefix}help`__ for all commands.')
+                f'\nSee __`{ctx.prefix}help`__ for all commands.', inline=False)
 
         embed.add_field(name='Finishing tracked games',
             value=f'Use the __`{ctx.prefix}win`__ command to tell the bot that a game has concluded.\n'
             f'For example if Nelluk wins game 10150, he would type __`{ctx.prefix}win 10150 nelluk`__. The losing player can confirm using the same command. '
-            f'Games are auto-confirmed after 24 hours, or sooner if the losing side manually confirms.')
+            f'Games are auto-confirmed after 24 hours, or sooner if the losing side manually confirms.', inline=False)
 
         embed.set_thumbnail(url=self.bot.user.avatar_url_as(size=512))
         embed.set_footer(text='Developer: Nelluk')
