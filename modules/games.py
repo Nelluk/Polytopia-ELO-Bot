@@ -443,16 +443,16 @@ class elo_games(commands.Cog):
             else:
                 rank_str = f'{rank} of {lb_length}'
 
-            results_str = f'ELO: {player.elo}\u00A0\u00A0\u00A0\u00A0W {wins} / L {losses}'
+            results_str = f'ELO: {player.elo}\nW\u00A0{wins}\u00A0/\u00A0L\u00A0{losses}'
 
             if rank_g:
                 rank_str = f'{rank_str}\n{rank_g} of {lb_length_g} *Global*'
-                results_str = f'{results_str}\n**Global**\nELO: {player.discord_member.elo}\u00A0\u00A0\u00A0\u00A0W {wins_g} / L {losses_g}'
+                results_str = f'{results_str}\n**Global**\nELO: {player.discord_member.elo}\nW\u00A0{wins_g}\u00A0/\u00A0L\u00A0{losses_g}'
 
             # embed = discord.Embed(title=f'Player card for __{player.name}__')
             embed = discord.Embed(description=f'__Player card for <@{player.discord_member.discord_id}>__')
-            embed.add_field(name='Results', value=results_str)
-            embed.add_field(name='Ranking', value=rank_str)
+            embed.add_field(name='**Results**', value=results_str)
+            embed.add_field(name='**Ranking**', value=rank_str)
 
             guild_member = ctx.guild.get_member(player.discord_member.discord_id)
             if guild_member:
@@ -460,7 +460,7 @@ class elo_games(commands.Cog):
 
             if player.team:
                 team_str = f'{player.team.name} {player.team.emoji}' if player.team.emoji else player.team.name
-                embed.add_field(name='Last-known Team', value=team_str)
+                embed.add_field(name='**Last-known Team**', value=team_str)
             if player.discord_member.polytopia_name:
                 embed.add_field(name='Polytopia Game Name', value=player.discord_member.polytopia_name)
             if player.discord_member.polytopia_id:
@@ -500,14 +500,14 @@ class elo_games(commands.Cog):
             misc_stats = [stat.replace(".", "\u200b ") for stat in misc_stats]
 
             if misc_stats:
-                embed.add_field(name='Miscellaneous Global Stats', value='\n'.join(misc_stats), inline=False)
+                embed.add_field(name='__Miscellaneous Global Stats__', value='\n'.join(misc_stats), inline=False)
 
             games_list = Game.search(player_filter=[player])
             if not games_list:
                 recent_games_str = 'No games played'
             else:
                 recent_games_count = player.games_played(in_days=30).count()
-                recent_games_str = f'Most recent games ({len(games_list)} total, {recent_games_count} recently):'
+                recent_games_str = f'__Most recent games ({len(games_list)} total, {recent_games_count} recently):__'
             embed.add_field(value='\u200b', name=recent_games_str, inline=False)
 
             game_list = utilities.summarize_game_list(games_list[:5])
