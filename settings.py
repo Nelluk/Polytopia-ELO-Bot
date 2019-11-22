@@ -512,6 +512,7 @@ lobbies = [{'guild': 283436219780825088, 'size_str': '1v1', 'size': [1, 1], 'ran
            {'guild': 478571892832206869, 'size_str': 'FFA', 'size': [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], 'ranked': True, 'exp': 95, 'remake_partial': True, 'notes': 'Open to all'}]
 
 discord_id_ban_list = [
+    493503844865671187,  # BlueberryCraft#9080 (star hacker)
     436330481341169675,  # Mr Bucky
     481581027685564416,  # Shadow Knight
     # 396699990577119244,  # Skrealder
@@ -524,6 +525,7 @@ discord_id_ban_list = [
 ]
 
 poly_id_ban_list = [
+    'pKUaK61nd2BzNY65',  # BlueberryCraft#9080 (star hacker)
     'MvSRS2t5vWLUyyuu',  # Caesar Augustas Trajan
     'AfMDTSO3yareZN2E',  # Freeze
     'qIqw1okeZZgaFpUL',  # Remalin (skre alt)

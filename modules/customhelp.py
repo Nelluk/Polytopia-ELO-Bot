@@ -6,8 +6,6 @@ from discord.ext import commands
 # probably best to override DefaultHelpCommand directly:
 # https://github.com/Rapptz/discord.py/blob/master/discord/ext/commands/help.py
 
-# TODO: By default the minimalhelpcommand does not respect cog-level checks (on administration cog for example) only command-specific checks
-
 # class MyHelpCommand(commands.MinimalHelpCommand):
 class MyHelpCommand(commands.DefaultHelpCommand):
     def get_command_signature(self, command):
