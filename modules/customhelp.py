@@ -3,9 +3,13 @@ from discord.ext import commands
 
 # notes:
 # look into the discord.py code for $help category (ie $help matchmaking) output which by default is not too far from what i want for the overall $help output
+# probably best to override DefaultHelpCommand directly:
+# https://github.com/Rapptz/discord.py/blob/master/discord/ext/commands/help.py
 
-class MyHelpCommand(commands.MinimalHelpCommand):
-# class MyHelpCommand(commands.DefaultHelpCommand):
+# TODO: By default the minimalhelpcommand does not respect cog-level checks (on administration cog for example) only command-specific checks
+
+# class MyHelpCommand(commands.MinimalHelpCommand):
+class MyHelpCommand(commands.DefaultHelpCommand):
     def get_command_signature(self, command):
         # top line of '$help <command>' output
         return '{0.clean_prefix}{1.qualified_name} {1.signature}'.format(self, command)

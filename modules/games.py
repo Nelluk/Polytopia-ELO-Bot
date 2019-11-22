@@ -544,7 +544,7 @@ class elo_games(commands.Cog):
         try:
             team = Team.get_or_except(team_string, ctx.guild.id)
         except exceptions.NoSingleMatch:
-            return await ctx.send(f'Couldn\'t find a team name matching *{utilities.escape_mentions(team_string)}*. Check spelling or be more specific. **Example:** `{ctx.prefix}team Ronin`')
+            return await ctx.send(f'Couldn\'t find a team name matching *{discord.utils.escape_mentions(team_string)}*. Check spelling or be more specific. **Example:** `{ctx.prefix}team Ronin`')
 
         embed = discord.Embed(title=f'Team card for **{team.name}** {team.emoji}')
         team_role = discord.utils.get(ctx.guild.roles, name=team.name)
@@ -685,7 +685,7 @@ class elo_games(commands.Cog):
         if not player_string:
             player_string = str(ctx.author.id)
 
-        player_string_safe = utilities.escape_mentions(player_string)
+        player_string_safe = discord.utils.escape_mentions(player_string)
 
         guild_matches = await utilities.get_guild_member(ctx, player_string)
 
@@ -795,7 +795,7 @@ class elo_games(commands.Cog):
         except exceptions.TooManyMatches:
             return await ctx.send(f'Found more than one matches for a player with **{target_string}**. Be more specific or use an @Mention.\nExample usage: `{ctx.prefix}setname @Player in_game_name`')
 
-        new_name = utilities.escape_mentions(new_name)
+        new_name = discord.utils.escape_mentions(new_name)
         player_target.discord_member.polytopia_name = new_name
         player_target.discord_member.save()
         await ctx.send(f'Player **{player_target.name}** updated in system with Polytopia name **{new_name}**.')
@@ -1389,7 +1389,7 @@ class elo_games(commands.Cog):
             else:
                 tribe = Tribe.get_by_name(name=tribe_name)
                 if not tribe:
-                    await ctx.send(f'Matching Tribe not found matching "{utilities.escape_mentions(tribe_name)}". Check spelling or be more specific. {perm_str}')
+                    await ctx.send(f'Matching Tribe not found matching "{discord.utils.escape_mentions(tribe_name)}". Check spelling or be more specific. {perm_str}')
                     continue
 
                 existing_lineup = None

@@ -20,7 +20,7 @@ class administration(commands.Cog):
         if settings.run_tasks:
             self.bg_task = bot.loop.create_task(self.task_confirm_auto())
 
-    async def __local_check(self, ctx):
+    async def cog_check(self, ctx):
 
         if settings.is_staff(ctx):
             return True
