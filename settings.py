@@ -364,6 +364,28 @@ config = {'default':
                       'game_announce_channel': None,
                       'match_challenge_channels': [],
                       'game_channel_categories': []},
+        614259582642159626:                           # AutumnGames run by SneakyTacts
+                     {'helper_roles': [''],
+                      'mod_roles': ['Director'],
+                      'user_roles_level_4': ['@everyone'],  # power user
+                      'user_roles_level_3': ['@everyone'],  # power user
+                      'user_roles_level_2': ['@everyone'],  # normal user
+                      'user_roles_level_1': ['@everyone'],  # restricted user/newbie
+                      'display_name': 'Autumn Games',
+                      'require_teams': False,
+                      'allow_teams': False,
+                      'allow_uneven_teams': True,
+                      'max_team_size': 2,
+                      'command_prefix': '$',
+                      'include_in_global_lb': False,
+                      'bot_channels_private': [],
+                      'bot_channels_strict': [623322009635389462],
+                      'bot_channels': [623322009635389462],
+                      'ranked_game_channel': None,
+                      'unranked_game_channel': None,
+                      'game_announce_channel': 647868483094183964,
+                      'match_challenge_channels': [],
+                      'game_channel_categories': [614259582642159627]},
         # 568090839545413635:                           # Polympire, small server run by WhyDoYouDide
         #              {'helper_roles': ['Bot-helper'],
         #               'mod_roles': ['Admin', 'Bot-mod'],
