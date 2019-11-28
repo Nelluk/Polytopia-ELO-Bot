@@ -54,6 +54,7 @@ class elo_games(commands.Cog):
             self.bg_task = bot.loop.create_task(self.task_purge_game_channels())
             self.bg_task2 = bot.loop.create_task(self.task_set_champion_role())
 
+    @commands.Cog.listener()
     async def on_member_update(self, before, after):
         player_query = Player.select().join(DiscordMember).where(
             (DiscordMember.discord_id == after.id) & (Player.guild_id == after.guild.id)
