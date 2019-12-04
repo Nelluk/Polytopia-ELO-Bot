@@ -55,6 +55,17 @@ class elo_games(commands.Cog):
             self.bg_task2 = bot.loop.create_task(self.task_set_champion_role())
 
     @commands.Cog.listener()
+    async def on_user_update(self, before, after):
+        if before.name != after.name:
+            logger.debug(f'Attempting to change member discordname for {before.name}({before.nick}) to {after.name}({after.nick})')
+            # update Discord Member Name, and update display name for each Guild/Player they share with the bot
+            try:
+                discord_member = DiscordMember.select().where(DiscordMember.discord_id == after.id).get()
+            except peewee.DoesNotExist:
+                return
+            discord_member.update_name(new_name=after.name)
+
+    @commands.Cog.listener()
     async def on_member_update(self, before, after):
         player_query = Player.select().join(DiscordMember).where(
             (DiscordMember.discord_id == after.id) & (Player.guild_id == after.guild.id)
@@ -91,15 +102,6 @@ class elo_games(commands.Cog):
             except peewee.DoesNotExist:
                 return
             player.generate_display_name(player_name=after.name, player_nick=after.nick)
-
-        if before.name != after.name:
-            logger.debug(f'Attempting to change member discordname for {before.name}({before.nick}) to {after.name}({after.nick})')
-            # update Discord Member Name, and update display name for each Guild/Player they share with the bot
-            try:
-                discord_member = DiscordMember.select().where(DiscordMember.discord_id == after.id).get()
-            except peewee.DoesNotExist:
-                return
-            discord_member.update_name(new_name=after.name)
 
     @commands.command(aliases=['reqgame', 'helpstaff'], hidden=True)
     @commands.cooldown(2, 30, commands.BucketType.user)
