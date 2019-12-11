@@ -678,7 +678,7 @@ class elo_games(commands.Cog):
             helper_role_str = f'someone with the {helper_role.mention} role' if helper_role else 'server staff'
             p_names = [f'<@{p.discord_id}> ({p.name})' for p in players_with_id]
             await ctx.send(f'**Warning:** This polytopia code is already entered in the database. '
-                f'If you need help using this bot please contact {helper_role_str}.\nDuplicated players: {", ".join(p_names)}')
+                f'If you need help using this bot please contact {helper_role_str} or <@{settings.owner_id}>.\nDuplicated players: {", ".join(p_names)}')
 
     @commands.command(aliases=['code'], usage='player_name')
     async def getcode(self, ctx, *, player_string: str = None):
