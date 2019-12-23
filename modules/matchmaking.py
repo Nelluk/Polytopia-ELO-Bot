@@ -198,7 +198,7 @@ class matchmaking(commands.Cog):
         if required_role_message:
             await ctx.send(required_role_message)
 
-        game_notes = ' '.join(note_args)[:150].strip()
+        game_notes = utilities.escape_everyone_here_roles(' '.join(note_args)[:150].strip())
         notes_str = game_notes if game_notes else "\u200b"
         if expiration_hours_override:
             expiration_hours = expiration_hours_override
