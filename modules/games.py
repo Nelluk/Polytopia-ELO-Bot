@@ -63,7 +63,7 @@ class elo_games(commands.Cog):
                 discord_member = DiscordMember.select().where(DiscordMember.discord_id == after.id).get()
             except peewee.DoesNotExist:
                 return
-            discord_member.update_name(new_name=after.name)
+            discord_member.update_name(new_name=utilities.escape_role_mentions(after.name))
 
     @commands.Cog.listener()
     async def on_member_update(self, before, after):
@@ -101,7 +101,7 @@ class elo_games(commands.Cog):
                 player = player_query.get()
             except peewee.DoesNotExist:
                 return
-            player.generate_display_name(player_name=after.name, player_nick=after.nick)
+            player.generate_display_name(player_name=utilities.escape_role_mentions(after.name), player_nick=utilities.escape_role_mentions(after.nick))
 
     @commands.command(aliases=['reqgame', 'helpstaff'], hidden=True)
     @commands.cooldown(2, 30, commands.BucketType.user)
