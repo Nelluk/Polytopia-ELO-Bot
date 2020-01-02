@@ -519,6 +519,30 @@ config = {'default':
                       'game_announce_channel': None,
                       'match_challenge_channels': [],
                       'game_channel_categories': [625874394786430977, 625874455893245953, 625876193744388136, 625876453795561485, 625876480425066497, 625876505884622858, 625876537757007882, 625876574050320406, 625876603351728148, 625876629289435146]},
+        606284456474443786:                           # CustomPoly
+                     {'helper_roles': ['admin', 'helper'],
+                      'mod_roles': ['admin'],
+                      'user_roles_level_4': ['customizer'],  # power user
+                      'user_roles_level_3': ['@everyone'],  # power user
+                      'user_roles_level_2': ['@everyone'],  # normal user
+                      'user_roles_level_1': ['@everyone'],  # restricted user/newbie
+                      'inactive_role': None,
+                      'display_name': 'CustomPoly',
+                      'require_teams': False,
+                      'allow_teams': True,
+                      'allow_uneven_teams': True,
+                      'max_team_size': 6,
+                      'command_prefix': '$',
+                      'include_in_global_lb': False,
+                      'bot_channels_private': [662390393048006656],  # 656 staff-bot-channel
+                      'bot_channels_strict': [608093784898666497],  # 497 bot-commands
+                      'bot_channels': [608093784898666497, 606284456478638081],  # 497 bot-commands 081 general
+                      'ranked_game_channel': None,
+                      'unranked_game_channel': 608093784898666497,  # 497 bot-commands 656 staff-bot-channel 081 general
+                      'match_challenge_channels': [608093784898666497],  # 497 bot-commands,
+                      'game_request_channel': 487304043786665986,  # $staffhelp output
+                      'game_announce_channel': 608093784898666497,  # 497 bot-commands
+                      'game_channel_categories': [618499589670043679]},  # 'ongoing games'
           }
 
 lobbies = [{'guild': 283436219780825088, 'size_str': '1v1', 'size': [1, 1], 'ranked': True, 'remake_partial': True, 'notes': '**Newbie game** - 1075 elo max'},
