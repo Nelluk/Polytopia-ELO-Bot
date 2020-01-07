@@ -23,7 +23,7 @@ server_ids = {'main': 283436219780825088, 'polychampions': 447883341463814144, '
 owner_id = 272510639124250625  # Nelluk
 bot = None
 run_tasks = True  # if set as False via command line option, tasks should check this and skip
-team_elo_reset_date = '1/1/2019'
+team_elo_reset_date = '1/1/2020'
 
 # bot invite URL https://discordapp.com/oauth2/authorize?client_id=484067640302764042&scope=bot
 # bot invite URL for beta bot https://discordapp.com/oauth2/authorize?client_id=479029527553638401&scope=bot
