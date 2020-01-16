@@ -190,13 +190,13 @@ class misc(commands.Cog):
 
         if m:
             # Staff member using command on third party
-            if settings.get_user_level(ctx) <= 4:
+            if settings.get_user_level(ctx) <= 3:
                 return await ctx.send(f'You do not have permission to use this command on another player\'s games.')
             message = message[1:]
             target = m[1]
         else:
             # Play using command on their own games
-            if settings.get_user_level(ctx) <= 3:
+            if settings.get_user_level(ctx) <= 2:
                 return await ctx.send(f'You do not have permission to use this command. You can ask a server staff member to use this command on your games for you.')
             target = str(ctx.author.id)
 
