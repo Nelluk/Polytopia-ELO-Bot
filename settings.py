@@ -341,11 +341,11 @@ config = {'default':
                       'bot_channels_strict': [667414547061145601],  # 601 bot-commands
                       'bot_channels': [667414547061145601, 667455359283232769],  # 601 bot-commands 769 general
                       'ranked_game_channel': [667414547061145601],  # 601 bot-commands
-                      'unranked_game_channel': none,
+                      'unranked_game_channel': None,
                       'match_challenge_channels': [667414547061145601],  # 601 bot-commands,
                       'game_request_channel': 667458314338041886,  # bot-private
                       'game_announce_channel': 667465781595996180,  # 180 elo-drafts
-                      'game_channel_categories': [667458667716804609]}  # current games
+                      'game_channel_categories': [667458667716804609]},  # current games
         # 274660262873661442:                           # Beta Server
         #              {'helper_roles': ['ELO Helper', 'Bot Master', 'iOS', 'Android'],
         #               'mod_roles': ['MOD', 'Manager'],
