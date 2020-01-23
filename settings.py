@@ -322,6 +322,30 @@ config = {'default':
                       'game_request_channel': 418175357137453058,
                       'game_announce_channel': 505523961812090900,
                       'game_channel_categories': [546527176380645395, 551747728548298758, 551748058690617354, 560104969580183562, 590592163751002124, 598599707148943361, 628288610235449364, 628288644729405452]},
+        667409158806437919:                           # PolyFFA
+                     {'helper_roles': ['MOD', 'helper'],
+                      'mod_roles': ['MOD'],
+                      'user_roles_level_4': ['''@everyone'''],  # power user
+                      'user_roles_level_3': ['''@everyone'''],  # power user
+                      'user_roles_level_2': ['''@everyone'''],  # normal user
+                      'user_roles_level_1': ['''@everyone'''],  # restricted user/newbie
+                      'inactive_role': None,
+                      'display_name': 'PolyFFA',
+                      'require_teams': False,
+                      'allow_teams': True,
+                      'allow_uneven_teams': True,
+                      'max_team_size': 10,
+                      'command_prefix': '$',
+                      'include_in_global_lb': False,
+                      'bot_channels_private': [667458314338041886],  # 886 bot-private
+                      'bot_channels_strict': [667414547061145601],  # 601 bot-commands
+                      'bot_channels': [667414547061145601, 667455359283232769],  # 601 bot-commands 769 general
+                      'ranked_game_channel': [667414547061145601],  # 601 bot-commands
+                      'unranked_game_channel': none,
+                      'match_challenge_channels': [667414547061145601],  # 601 bot-commands,
+                      'game_request_channel': 667458314338041886,  # bot-private
+                      'game_announce_channel': 667465781595996180,  # 180 elo-drafts
+                      'game_channel_categories': [667458667716804609]}  # current games
         # 274660262873661442:                           # Beta Server
         #              {'helper_roles': ['ELO Helper', 'Bot Master', 'iOS', 'Android'],
         #               'mod_roles': ['MOD', 'Manager'],
