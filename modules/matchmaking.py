@@ -63,6 +63,8 @@ class matchmaking(commands.Cog):
         `[p]opengame 1v1`
 
         `[p]opengame 1v1 48h`  (Expires in 48 hours)
+        
+        `[p]opengame 6FFA` (6 player free-for-all)
 
         `[p]opengame 1v1 unranked`  (Add word *unranked* to have game not count for ELO)
 
@@ -120,6 +122,17 @@ class matchmaking(commands.Cog):
                     return await ctx.send(f'Invalid game size **{team_size_str}**: Each side must have at least 1 player.')
                 if sum(team_sizes) > 12:
                     return await ctx.send(f'Invalid game size **{team_size_str}**: Games can have a maximum of 12 players.')
+                team_size = True
+                continue
+            m = re.match(r"(\d+)ffa", arg.lower())
+            if m:
+                # arg looks like '6FFA'
+                players = int(m[0])
+                if players < 2:
+                    return await ctx.send(f'Invalid game size **{arg}**: There must be at least 2 sides.')
+                if players > 12:
+                    return await ctx.send(f'Invalid game size **{arg}**: Games can have a maximum of 12 players.')
+                team_sizes = [1] * players
                 team_size = True
                 continue
             m = re.match(r"(\d+)h", arg.lower())
