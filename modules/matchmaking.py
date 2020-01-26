@@ -133,8 +133,9 @@ class matchmaking(commands.Cog):
                 if players > 12:
                     return await ctx.send(f'Invalid game size **{arg}**: Games can have a maximum of 12 players.')
                 team_sizes = [1] * players
-                team_size_str = 'v'.join(team_sizes)
+                team_size_str = 'v'.join([str(x) for x in team_sizes])
                 team_size = True
+                print(team_sizes)
                 continue
             m = re.match(r"(\d+)h", arg.lower())
             if m:
