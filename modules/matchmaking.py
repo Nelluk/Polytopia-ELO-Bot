@@ -135,7 +135,6 @@ class matchmaking(commands.Cog):
                 team_sizes = [1] * players
                 team_size_str = 'v'.join([str(x) for x in team_sizes])
                 team_size = True
-                print(team_sizes)
                 continue
             m = re.match(r"(\d+)h", arg.lower())
             if m:
