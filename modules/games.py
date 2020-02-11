@@ -57,7 +57,7 @@ class elo_games(commands.Cog):
     @commands.Cog.listener()
     async def on_user_update(self, before, after):
         if before.name != after.name:
-            logger.debug(f'Attempting to change member discordname for {before.name}({before.nick}) to {after.name}({after.nick})')
+            logger.debug(f'Attempting to change member discordname for {before.name} to {after.name}')
             # update Discord Member Name, and update display name for each Guild/Player they share with the bot
             try:
                 discord_member = DiscordMember.select().where(DiscordMember.discord_id == after.id).get()
