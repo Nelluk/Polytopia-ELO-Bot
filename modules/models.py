@@ -735,8 +735,9 @@ class Game(BaseModel):
             player_list = [l.player for l in gameside.ordered_player_list()]
             if len(player_list) < 2:
                 continue
-            if len(guild.text_channels) > 475 and len(player_list) < 3:
+            if len(guild.text_channels) > 425 and len(player_list) < 3:
                 raise exceptions.MyBaseException('Server has nearly reached the maximum number of channels: skipping channel creation for this game.')
+                logger.warn('Server has nearly reached the maximum number of channels: skipping channel creation for this game.')
             chan = await channels.create_game_channel(side_guild, game=self, team_name=gameside.team.name, player_list=player_list, using_team_server_flag=using_team_server_flag)
             if chan:
                 gameside.team_chan = chan.id
