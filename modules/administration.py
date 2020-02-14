@@ -41,7 +41,7 @@ class administration(commands.Cog):
 
         channels = [chan for chan in ctx.guild.channels if chan.category_id in settings.guild_setting(ctx.guild.id, 'game_channel_categories')]
         await ctx.send(f'Returned {len(channels)} channels')
-        old_45d = (datetime.datetime.today() + datetime.timedelta(days=-45))
+        old_30d = (datetime.datetime.today() + datetime.timedelta(days=-30))
 
         for chan in channels:
             if chan.last_message_id:
@@ -53,16 +53,16 @@ class administration(commands.Cog):
                 if len(messages) > 3:
                     logger.debug(f'{chan.name} not eligible for deletion - has at least 4 messages in history')
                     continue
-                if messages[0].created_at > old_45d:
+                if messages[0].created_at > old_30d:
                     logger.debug(f'{chan.name} not eligible for deletion - has a recent message in history')
                     continue
                 logger.warn(f'{chan.name} {chan.id} is eligible for deletion - few messages and no recent messages in history')
                 await ctx.send(f'Deleting channel **{chan.name}** - few messages and no recent messages in history')
-                # try:
-                #     logger.warn(f'Deleting channel {chan.name}')
-                #     await chan.delete(reason='Purging game channels with inactive history')
-                # except discord.DiscordException as e:
-                #     logger.error(f'Could not delete channel: {e}')
+                try:
+                    logger.warn(f'Deleting channel {chan.name}')
+                    await chan.delete(reason='Purging game channels with inactive history')
+                except discord.DiscordException as e:
+                    logger.error(f'Could not delete channel: {e}')
 
         await ctx.send(f'Channel cleanup complete')
 
