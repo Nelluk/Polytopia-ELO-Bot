@@ -31,6 +31,41 @@ class administration(commands.Cog):
                 await ctx.send('You do not have permission to use this command.')
                 return False
 
+    @settings.is_mod_check()
+    @commands.command()
+    async def purge_game_channels(self, ctx, *, arg: str = None):
+        # TODO: Remove references to deleted channels from database.  i dont -think- having ghost references will cause any usability problems
+
+        if not settings.guild_setting(ctx.guild.id, 'game_channel_categories'):
+            return await ctx.send(f'Cannot purge - this guild has no `game_channel_categories` setting')
+
+        channels = [chan for chan in ctx.guild.channels if chan.category_id in settings.guild_setting(ctx.guild.id, 'game_channel_categories')]
+        await ctx.send(f'Returned {len(channels)} channels')
+        old_45d = (datetime.datetime.today() + datetime.timedelta(days=-45))
+
+        for chan in channels:
+            if chan.last_message_id:
+                try:
+                    messages = await chan.history(limit=5, oldest_first=False).flatten()
+                except discord.DiscordException as e:
+                    logger.error(f'Could not load channel history: {e}')
+                    continue
+                if len(messages) > 3:
+                    logger.debug(f'{chan.name} not eligible for deletion - has at least 4 messages in history')
+                    continue
+                if messages[0].created_at > old_45d:
+                    logger.debug(f'{chan.name} not eligible for deletion - has a recent message in history')
+                    continue
+                logger.warn(f'{chan.name} {chan.id} is eligible for deletion - few messages and no recent messages in history')
+                await ctx.send(f'Deleting channel **{chan.name}** - few messages and no recent messages in history')
+                # try:
+                #     logger.warn(f'Deleting channel {chan.name}')
+                #     await chan.delete(reason='Purging game channels with inactive history')
+                # except discord.DiscordException as e:
+                #     logger.error(f'Could not delete channel: {e}')
+
+        await ctx.send(f'Channel cleanup complete')
+
     @commands.command(aliases=['confirmgame'], usage='game_id')
     # async def confirm(self, ctx, winning_game: PolyGame = None):
     async def confirm(self, ctx, *, arg: str = None):
