@@ -217,7 +217,8 @@ class misc(commands.Cog):
             await ctx.send(f'*Warning:* More than 100 unique players are addressed. Only the first 100 will be mentioned.')
         await ctx.send(f'Message to all players in unfinished games for <@{target}>: *{clean_message}*')
 
-        return await ctx.send(f'Message recipients: {" ".join(list_of_players[:100])}')
+        recipient_message = f'Message recipients: {" ".join(list_of_players[:100])}'
+        return await ctx.send(recipient_message[:2000])
 
     @commands.command(usage='game_id')
     @commands.cooldown(1, 20, commands.BucketType.user)
