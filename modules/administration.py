@@ -272,7 +272,8 @@ class administration(commands.Cog):
 
                     delete_str = '\n'.join(delete_result)
                     logger.info(f'Purging incomplete games for guild {guild.name}:\n{delete_str}')
-                    await staff_output_channel.send(f'{delete_str[:1900]}\nFinished - purged {len(delete_result)} games')
+                    if len(delete_result):
+                        await staff_output_channel.send(f'{delete_str[:1900]}\nFinished - purged {len(delete_result)} games')
 
             await asyncio.sleep(sleep_cycle)
 
