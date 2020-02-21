@@ -205,14 +205,14 @@ class administration(commands.Cog):
         await self.bot.wait_until_ready()
         sleep_cycle = (60 * 60 * 2)  # 2 hour cycle
 
-        old_60d = (datetime.date.today() + datetime.timedelta(days=-60))
-        old_90d = (datetime.date.today() + datetime.timedelta(days=-90))
-        old_120d = (datetime.date.today() + datetime.timedelta(days=-120))
-        old_150d = (datetime.date.today() + datetime.timedelta(days=-150))
-
         while not self.bot.is_closed():
             await asyncio.sleep(20)
             logger.debug('Task running: task_purge_incomplete')
+
+            old_60d = (datetime.date.today() + datetime.timedelta(days=-60))
+            old_90d = (datetime.date.today() + datetime.timedelta(days=-90))
+            old_120d = (datetime.date.today() + datetime.timedelta(days=-120))
+            old_150d = (datetime.date.today() + datetime.timedelta(days=-150))
 
             with models.db:
                 for guild in self.bot.guilds:
