@@ -21,7 +21,7 @@ class PolyGame(commands.Converter):
 
         try:
             game = Game.get(id=int(game_id))
-        except ValueError:
+        except (ValueError, peewee.DataError):
             await ctx.send(f'Invalid game ID "{game_id}".')
             raise commands.UserInputError()
         except peewee.DoesNotExist:

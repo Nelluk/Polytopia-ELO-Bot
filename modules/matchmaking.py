@@ -30,7 +30,7 @@ class PolyMatch(commands.Converter):
         except peewee.DoesNotExist:
             await ctx.send(f'Game with ID {match_id} cannot be found. Use `{ctx.prefix}opengames` to see available matches.')
             raise commands.UserInputError()
-        except ValueError:
+        except (ValueError, peewee.DataError):
             if match_id.upper() == 'ID':
                 await ctx.send(f'Invalid Game ID "**{match_id}**". Use the numeric game ID *only*.')
             else:
