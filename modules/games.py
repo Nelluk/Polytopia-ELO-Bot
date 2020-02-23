@@ -1444,6 +1444,8 @@ class elo_games(commands.Cog):
                 if status_filter == 2:
                     query = list(query)  # reversing 'Incomplete' queries so oldest is at top
                     query.reverse()
+                logger.debug(f'Searching games, status filter: {status_filter}')
+                logger.debug(f'Returned {len(query)} results')
                 list_name = f'All {status_str}s ({len(query)})'
                 game_list = utilities.summarize_game_list(query[:500])
                 return game_list, list_name
@@ -1473,6 +1475,8 @@ class elo_games(commands.Cog):
 
             def async_game_search():
                 query = Game.search(status_filter=status_filter, player_filter=player_matches, team_filter=team_matches, title_filter=remaining_args, guild_id=ctx.guild.id)
+                logger.debug(f'Searching games, status filter: {status_filter}, player_filter: {player_matches}, team_filter: {team_matches}, title_filter: {remaining_args}')
+                logger.debug(f'Returned {len(query)} results')
                 game_list = utilities.summarize_game_list(query[:500])
                 list_name = f'{len(query)} {status_str}{"s" if len(query) != 1 else ""}\n{results_str}'
                 return game_list, list_name
