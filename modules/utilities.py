@@ -127,7 +127,7 @@ def summarize_game_list(games_query):
             f'{game.get_headline()}'[:255],
             f'{(str(game.date))} - {rank_str}{game.size_string()} - {status_str}'
         ))
-        logger.debug(f'Parsed game {game_list[-1]}')
+        # logger.debug(f'Parsed game {game_list[-1]}')
     return game_list
 
 
