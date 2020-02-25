@@ -116,6 +116,7 @@ class misc(commands.Cog):
         embed = discord.Embed(title=f'PolyELO Bot Donation Link', url='https://cash.me/$Nelluk/3')
 
         embed.add_field(name='Developer', value='Nelluk')
+        embed.add_field(name='Source code', value='https://github.com/Nelluk/Polytopia-ELO-Bot')
 
         embed.add_field(name='Contributions', value='rickdaheals, koric, Gerenuk, theSeahorse, Octo', inline=False)
 
