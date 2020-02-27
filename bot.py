@@ -186,7 +186,7 @@ if __name__ == '__main__':
     async def post_invoke_cleanup(ctx):
         try:
             if models.db.close():
-                logger.debug('db closing normally')
+                logger.debug('db connecton closing normally')
             else:
                 logger.warn('db connection was already closed')
 
