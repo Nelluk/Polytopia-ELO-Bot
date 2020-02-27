@@ -10,7 +10,7 @@ import logging
 import sys
 from logging.handlers import RotatingFileHandler
 from timeit import default_timer as timer
-# import peewee
+import peewee
 
 
 # Logger config is a bit of a mess and probably could be simplified a lot, but works. debug and above sent to file / error above sent to stderr
@@ -176,17 +176,24 @@ if __name__ == '__main__':
 
     @bot.before_invoke
     async def pre_invoke_setup(ctx):
-        models.db.connect(reuse_if_open=True)
+        if models.db.connect(reuse_if_open=True):
+            logger.debug('new db connection opened')
+        else:
+            logger.debug('reusing db connection')
         logger.debug(f'Command invoked: {ctx.message.clean_content}. By {ctx.message.author.name} in {ctx.channel.id} {ctx.channel.name} on {ctx.guild.name}')
 
-    # @bot.after_invoke
-    # async def post_invoke_cleanup(ctx):
-    #     try:
-    #         models.db.close()
-    #     except peewee.PeeweeException as e:
-    #         print(f'Error during post_invoke_cleanup db.close(): {e}')
-    #         logger.warn(f'Error during post_invoke_cleanup db.close(): {e}')
-    #         pass
+    @bot.after_invoke
+    async def post_invoke_cleanup(ctx):
+        try:
+            if models.db.close():
+                logger.debug('db closing normally')
+            else:
+                logger.warn('db connection was already closed')
+
+        except peewee.PeeweeException as e:
+            print(f'Error during post_invoke_cleanup db.close(): {e}')
+            logger.warn(f'Error during post_invoke_cleanup db.close(): {e}')
+            pass
 
     initial_extensions = ['modules.games', 'modules.help', 'modules.matchmaking', 'modules.administration', 'modules.misc']
     initial_extensions = ['modules.games', 'modules.customhelp', 'modules.matchmaking', 'modules.administration', 'modules.misc']
