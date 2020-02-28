@@ -186,13 +186,13 @@ if __name__ == '__main__':
     async def post_invoke_cleanup(ctx):
         try:
             if models.db.close():
-                logger.debug('db connecton closing normally')
+                logger.debug('db connecton closing normally b')
             else:
                 logger.warn('db connection was already closed')
 
         except peewee.PeeweeException as e:
             print(f'Error during post_invoke_cleanup db.close(): {e}')
-            logger.warn(f'Error during post_invoke_cleanup db.close(): {e}')
+            logger.warn(f'Error during post_invoke_cleanup db.close(): {e} || Command attempting to close db: {ctx.message.clean_content}')
             pass
 
     initial_extensions = ['modules.games', 'modules.help', 'modules.matchmaking', 'modules.administration', 'modules.misc']

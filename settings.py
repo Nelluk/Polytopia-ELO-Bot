@@ -172,7 +172,7 @@ config = {'default':
                       'include_in_global_lb': False,
                       'bot_channels_strict': [573136597894168577],
                       'bot_channels': [573136597894168577],
-                      'game_channel_categories': [573135845221990401]},
+                      'game_channel_categories': [682763015421952128]},
         466331712591233035:                           # Wildfire team server
                      {'helper_roles': ['Wildfire 🔥'],
                       'mod_roles': ['Mood', 'Admoon', 'Inner Circle'],
