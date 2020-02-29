@@ -111,6 +111,7 @@ def get_prefix(bot, message):
         if message.guild:
             logging.error(f'Message received not from allowed guild. ID {message.guild.id }')
         # probably a PM
+        logger.warn(f'returning None prefix for received PM. Author: {message.author.name}')
         return None
 
 
