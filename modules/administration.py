@@ -214,19 +214,19 @@ class administration(commands.Cog):
             old_120d = (datetime.date.today() + datetime.timedelta(days=-120))
             old_150d = (datetime.date.today() + datetime.timedelta(days=-150))
 
-            with models.db:
-                for guild in self.bot.guilds:
-                    staff_output_channel = guild.get_channel(settings.guild_setting(guild.id, 'game_request_channel'))
-                    if not staff_output_channel:
-                        logger.debug(f'Could not load game_request_channel for server {guild.id} {guild.name} - skipping')
-                        continue
+            for guild in self.bot.guilds:
+                staff_output_channel = guild.get_channel(settings.guild_setting(guild.id, 'game_request_channel'))
+                if not staff_output_channel:
+                    logger.debug(f'Could not load game_request_channel for server {guild.id} {guild.name} - skipping')
+                    continue
 
-                    def async_game_search():
-                        query = models.Game.search(status_filter=2, guild_id=guild.id)
-                        query = list(query)  # reversing 'Incomplete' queries so oldest is at top
-                        query.reverse()
-                        return query
+                def async_game_search():
+                    query = models.Game.search(status_filter=2, guild_id=guild.id)
+                    query = list(query)  # reversing 'Incomplete' queries so oldest is at top
+                    query.reverse()
+                    return query
 
+                with models.db:
                     game_list = await self.bot.loop.run_in_executor(None, async_game_search)
 
                     delete_result = []
