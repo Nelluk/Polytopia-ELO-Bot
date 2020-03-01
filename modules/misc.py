@@ -27,9 +27,11 @@ class misc(commands.Cog):
     @commands.is_owner()
     async def test(self, ctx, *, arg: str = None):
 
-        for chan in ctx.guild.text_channels:
-            msg = chan.last_message()
-            print(msg.created_at)
+        print(f'starting test')
+        with models.db.atomic():
+            await ctx.send(f'test')
+            await asyncio.sleep(6)
+        print('end test')
 
     @commands.command(hidden=True, aliases=['bulk_local_elo', 'ble', 'bge'])
     async def bulk_global_elo(self, ctx, *, args=None):

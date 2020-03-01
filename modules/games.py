@@ -19,32 +19,32 @@ elo_logger = logging.getLogger('polybot.elo')
 class PolyGame(commands.Converter):
     async def convert(self, ctx, game_id):
 
-        with db:
-            try:
-                game = Game.get(id=int(game_id))
-            except (ValueError, peewee.DataError):
-                await ctx.send(f'Invalid game ID "{game_id}".')
+        # with db:
+        try:
+            game = Game.get(id=int(game_id))
+        except (ValueError, peewee.DataError):
+            await ctx.send(f'Invalid game ID "{game_id}".')
+            raise commands.UserInputError()
+        except peewee.DoesNotExist:
+            await ctx.send(f'Game with ID {game_id} cannot be found.')
+            raise commands.UserInputError()
+        else:
+            logger.debug(f'Game with ID {game_id} found.')
+            if game.guild_id != ctx.guild.id:
+                logger.warn('Game does not belong to same guild')
+                try:
+                    server_name = settings.guild_setting(guild_id=game.guild_id, setting_name='display_name')
+                except exceptions.CheckFailedError:
+                    server_name = settings.guild_setting(guild_id=None, setting_name='display_name')
+                    # config['default'][setting_name]
+                if game.is_pending:
+                    game_summary_str = ''
+                else:
+                    game_name = f'*{game.name}*' if game.name and game.name.strip() else ''
+                    game_summary_str = f'\n`{(str(game.date))}` - {game.size_string()} - {game.get_gamesides_string(include_emoji=False)} - {game_name} - {game.get_game_status_string()}'
+                await ctx.send(f'Game with ID {game_id} is associated with a different Discord server: __{server_name}__.{game_summary_str}')
                 raise commands.UserInputError()
-            except peewee.DoesNotExist:
-                await ctx.send(f'Game with ID {game_id} cannot be found.')
-                raise commands.UserInputError()
-            else:
-                logger.debug(f'Game with ID {game_id} found.')
-                if game.guild_id != ctx.guild.id:
-                    logger.warn('Game does not belong to same guild')
-                    try:
-                        server_name = settings.guild_setting(guild_id=game.guild_id, setting_name='display_name')
-                    except exceptions.CheckFailedError:
-                        server_name = settings.guild_setting(guild_id=None, setting_name='display_name')
-                        # config['default'][setting_name]
-                    if game.is_pending:
-                        game_summary_str = ''
-                    else:
-                        game_name = f'*{game.name}*' if game.name and game.name.strip() else ''
-                        game_summary_str = f'\n`{(str(game.date))}` - {game.size_string()} - {game.get_gamesides_string(include_emoji=False)} - {game_name} - {game.get_game_status_string()}'
-                    await ctx.send(f'Game with ID {game_id} is associated with a different Discord server: __{server_name}__.{game_summary_str}')
-                    raise commands.UserInputError()
-                return game
+            return game
 
 
 class elo_games(commands.Cog):

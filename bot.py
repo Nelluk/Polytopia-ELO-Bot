@@ -182,17 +182,21 @@ if __name__ == '__main__':
     async def pre_invoke_setup(ctx):
         if models.db.connect(reuse_if_open=True):
             logger.debug('new db connection opened')
+            print('new db connecton opened')
         else:
             logger.debug('reusing db connection')
+            print('reusing db connection')
         logger.debug(f'Command invoked: {ctx.message.clean_content}. By {ctx.message.author.name} in {ctx.channel.id} {ctx.channel.name} on {ctx.guild.name}')
 
     @bot.after_invoke
     async def post_invoke_cleanup(ctx):
         try:
             if models.db.close():
-                logger.debug('db connecton closing normally b')
+                logger.debug('db connecton closing normally')
+                print('db connecton closing normally')
             else:
                 logger.warn('db connection was already closed')
+                print('db connecton already closed')
 
         except peewee.PeeweeException as e:
             print(f'Error during post_invoke_cleanup db.close(): {e}')
