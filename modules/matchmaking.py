@@ -19,23 +19,24 @@ class PolyMatch(commands.Converter):
 
         match_id = match_id.strip('#')
 
-        try:
-            match = models.Game.get(id=match_id)
-            logger.debug(f'Game with ID {match_id} found.')
+        with models.db:
+            try:
+                match = models.Game.get(id=match_id)
+                logger.debug(f'Game with ID {match_id} found.')
 
-            if match.guild_id != ctx.guild.id:
-                await ctx.send(f'Game with ID {match_id} is associated with a different Discord server. Use `{ctx.prefix}opengames` to see available matches.')
+                if match.guild_id != ctx.guild.id:
+                    await ctx.send(f'Game with ID {match_id} is associated with a different Discord server. Use `{ctx.prefix}opengames` to see available matches.')
+                    raise commands.UserInputError()
+                return match
+            except peewee.DoesNotExist:
+                await ctx.send(f'Game with ID {match_id} cannot be found. Use `{ctx.prefix}opengames` to see available matches.')
                 raise commands.UserInputError()
-            return match
-        except peewee.DoesNotExist:
-            await ctx.send(f'Game with ID {match_id} cannot be found. Use `{ctx.prefix}opengames` to see available matches.')
-            raise commands.UserInputError()
-        except ValueError:
-            if match_id.upper() == 'ID':
-                await ctx.send(f'Invalid Game ID "**{match_id}**". Use the numeric game ID *only*.')
-            else:
-                await ctx.send(f'Invalid Game ID "**{match_id}**".')
-            raise commands.UserInputError()
+            except (ValueError, peewee.DataError):
+                if match_id.upper() == 'ID':
+                    await ctx.send(f'Invalid Game ID "**{match_id}**". Use the numeric game ID *only*.')
+                else:
+                    await ctx.send(f'Invalid Game ID "**{match_id}**".')
+                raise commands.UserInputError()
 
 
 class matchmaking(commands.Cog):
@@ -63,6 +64,8 @@ class matchmaking(commands.Cog):
         `[p]opengame 1v1`
 
         `[p]opengame 1v1 48h`  (Expires in 48 hours)
+
+        `[p]opengame 6FFA` (6 player free-for-all)
 
         `[p]opengame 1v1 unranked`  (Add word *unranked* to have game not count for ELO)
 
@@ -120,6 +123,18 @@ class matchmaking(commands.Cog):
                     return await ctx.send(f'Invalid game size **{team_size_str}**: Each side must have at least 1 player.')
                 if sum(team_sizes) > 12:
                     return await ctx.send(f'Invalid game size **{team_size_str}**: Games can have a maximum of 12 players.')
+                team_size = True
+                continue
+            m = re.match(r"(\d+)ffa", arg.lower())
+            if m:
+                # arg looks like '6FFA'
+                players = int(m[1])
+                if players < 2:
+                    return await ctx.send(f'Invalid game size **{arg}**: There must be at least 2 sides.')
+                if players > 12:
+                    return await ctx.send(f'Invalid game size **{arg}**: Games can have a maximum of 12 players.')
+                team_sizes = [1] * players
+                team_size_str = 'v'.join([str(x) for x in team_sizes])
                 team_size = True
                 continue
             m = re.match(r"(\d+)h", arg.lower())
@@ -198,7 +213,7 @@ class matchmaking(commands.Cog):
         if required_role_message:
             await ctx.send(required_role_message)
 
-        game_notes = ' '.join(note_args)[:150].strip()
+        game_notes = utilities.escape_everyone_here_roles(' '.join(note_args)[:150].strip())
         notes_str = game_notes if game_notes else "\u200b"
         if expiration_hours_override:
             expiration_hours = expiration_hours_override
@@ -768,7 +783,8 @@ class matchmaking(commands.Cog):
         while not self.bot.is_closed():
             await asyncio.sleep(60 * 60 * 10)
             logger.debug('Task running: task_dm_game_creators')
-            full_games = models.Game.search_pending(status_filter=1, ranked_filter=1)
+            with models.db:
+                full_games = models.Game.search_pending(status_filter=1, ranked_filter=1)
             logger.debug(f'Starting task_dm_game_creators on {len(full_games)} games')
             for game in full_games:
                 guild = discord.utils.get(self.bot.guilds, id=game.guild_id)
@@ -806,48 +822,49 @@ class matchmaking(commands.Cog):
         while not self.bot.is_closed():
             await asyncio.sleep(60)
             logger.debug('Task running: task_create_empty_matchmaking_lobbies')
-            unhosted_game_list = models.Game.search_pending(status_filter=2, host_discord_id=0)
-            for lobby in settings.lobbies:
-                matching_lobby = False
-                for g in unhosted_game_list:
-                    if (g.guild_id == lobby['guild'] and g.size_string() == lobby['size_str'] and
-                            g.is_ranked == lobby['ranked'] and g.notes == lobby['notes']):
+            with models.db:
+                unhosted_game_list = models.Game.search_pending(status_filter=2, host_discord_id=0)
+                for lobby in settings.lobbies:
+                    matching_lobby = False
+                    for g in unhosted_game_list:
+                        if (g.guild_id == lobby['guild'] and g.size_string() == lobby['size_str'] and
+                                g.is_ranked == lobby['ranked'] and g.notes == lobby['notes']):
 
-                        players_in_lobby = g.capacity()[0]
-                        # if remake_partial == True, lobby will be regenerated if anybody is in it.
-                        # if remake_partial == False, lobby will only be regenerated once it is full
+                            players_in_lobby = g.capacity()[0]
+                            # if remake_partial == True, lobby will be regenerated if anybody is in it.
+                            # if remake_partial == False, lobby will only be regenerated once it is full
 
-                        if lobby['remake_partial'] and players_in_lobby > 0:
-                            pass  # Leave matching_lobby as current value. So it will be remade if no other open games change it
-                        else:
-                            matching_lobby = True  # Lobby meets desired criteria, so nothing new will be created
+                            if lobby['remake_partial'] and players_in_lobby > 0:
+                                pass  # Leave matching_lobby as current value. So it will be remade if no other open games change it
+                            else:
+                                matching_lobby = True  # Lobby meets desired criteria, so nothing new will be created
 
-                if not matching_lobby:
-                    logger.info(f'creating new lobby {lobby}')
-                    guild = discord.utils.get(self.bot.guilds, id=lobby['guild'])
-                    if not guild:
-                        logger.warn(f'Bot not a member of guild {lobby["guild"]}')
-                        continue
-                    expiration_hours = lobby.get('exp', 30)
-                    expiration_timestamp = (datetime.datetime.now() + datetime.timedelta(hours=expiration_hours)).strftime("%Y-%m-%d %H:%M:%S")
-                    role_locks = lobby.get('role_locks', [None] * len(lobby['size']))
-                    with models.db.atomic():
-                        opengame = models.Game.create(host=None, notes=lobby['notes'],
-                                                      guild_id=lobby['guild'], is_pending=True,
-                                                      is_ranked=lobby['ranked'], expiration=expiration_timestamp)
-                        for count, size in enumerate(lobby['size']):
-                            role_lock_id = role_locks[count]
-                            role_lock_name = None
-                            if role_lock_id:
-                                role_lock = discord.utils.get(guild.roles, id=role_lock_id)
-                                if not role_lock:
-                                    logger.warn(f'Lock to role {role_lock_id} was specified, but that role is not found in guild {guild.id} {guild.name}')
-                                    role_lock_id = None
-                                else:
-                                    # successfully found role - using its ID to lock a side and its name for the role side
-                                    role_lock_name = role_lock.name
+                    if not matching_lobby:
+                        logger.info(f'creating new lobby {lobby}')
+                        guild = discord.utils.get(self.bot.guilds, id=lobby['guild'])
+                        if not guild:
+                            logger.warn(f'Bot not a member of guild {lobby["guild"]}')
+                            continue
+                        expiration_hours = lobby.get('exp', 30)
+                        expiration_timestamp = (datetime.datetime.now() + datetime.timedelta(hours=expiration_hours)).strftime("%Y-%m-%d %H:%M:%S")
+                        role_locks = lobby.get('role_locks', [None] * len(lobby['size']))
+                        with models.db.atomic():
+                            opengame = models.Game.create(host=None, notes=lobby['notes'],
+                                                          guild_id=lobby['guild'], is_pending=True,
+                                                          is_ranked=lobby['ranked'], expiration=expiration_timestamp)
+                            for count, size in enumerate(lobby['size']):
+                                role_lock_id = role_locks[count]
+                                role_lock_name = None
+                                if role_lock_id:
+                                    role_lock = discord.utils.get(guild.roles, id=role_lock_id)
+                                    if not role_lock:
+                                        logger.warn(f'Lock to role {role_lock_id} was specified, but that role is not found in guild {guild.id} {guild.name}')
+                                        role_lock_id = None
+                                    else:
+                                        # successfully found role - using its ID to lock a side and its name for the role side
+                                        role_lock_name = role_lock.name
 
-                            models.GameSide.create(game=opengame, size=size, position=count + 1, required_role_id=role_lock_id, sidename=role_lock_name)
+                                models.GameSide.create(game=opengame, size=size, position=count + 1, required_role_id=role_lock_id, sidename=role_lock_name)
 
     async def task_print_matchlist(self):
         await self.bot.wait_until_ready()
@@ -856,61 +873,62 @@ class matchmaking(commands.Cog):
         while not self.bot.is_closed():
             await asyncio.sleep(5)
             logger.debug('Task running: task_print_matchlist')
-            models.Game.purge_expired_games()
-            for guild in self.bot.guilds:
-                broadcast_channels = [guild.get_channel(chan) for chan in settings.guild_setting(guild.id, 'match_challenge_channels')]
-                if not broadcast_channels:
-                    continue
-
-                ranked_chan = settings.guild_setting(guild.id, 'ranked_game_channel')
-                unranked_chan = settings.guild_setting(guild.id, 'unranked_game_channel')
-
-                for chan in broadcast_channels:
-                    if not chan:
-                        continue
-                    if chan.id == ranked_chan:
-                        game_list = models.Game.search_pending(status_filter=2, ranked_filter=1, guild_id=chan.guild.id)[:12]
-                        list_title = 'Current ranked open games'
-                    elif chan.id == unranked_chan:
-                        game_list = models.Game.search_pending(status_filter=2, ranked_filter=0, guild_id=chan.guild.id)[:12]
-                        list_title = 'Current unranked open games'
-                    else:
-                        game_list = models.Game.search_pending(status_filter=2, ranked_filter=2, guild_id=chan.guild.id)[:12]
-                        list_title = 'Current open games'
-                    if not game_list:
+            with models.db:
+                models.Game.purge_expired_games()
+                for guild in self.bot.guilds:
+                    broadcast_channels = [guild.get_channel(chan) for chan in settings.guild_setting(guild.id, 'match_challenge_channels')]
+                    if not broadcast_channels:
                         continue
 
-                    pfx = settings.guild_setting(guild.id, 'command_prefix')
+                    ranked_chan = settings.guild_setting(guild.id, 'ranked_game_channel')
+                    unranked_chan = settings.guild_setting(guild.id, 'unranked_game_channel')
 
-                    embed = discord.Embed(title=f'{list_title}\n'
-                        f'Use __`{pfx}join ID`__ to join one or __`{pfx}game ID`__ for more details.')
-                    embed.add_field(name=f'`{"ID":<8}{"Host":<40} {"Type":<7} {"Capacity":<7} {"Exp":>4} `', value='\u200b', inline=False)
-                    for game in game_list:
-
-                        notes_str = game.notes if game.notes else '\u200b'
-                        players, capacity = game.capacity()
-                        player_restricted_list = re.findall(r'<@!?(\d+)>', notes_str)
-
-                        if player_restricted_list and (len(player_restricted_list) >= capacity - 1) and len(game_list) > 15:
-                            # skipping invite-only games IF the games list is large
+                    for chan in broadcast_channels:
+                        if not chan:
+                            continue
+                        if chan.id == ranked_chan:
+                            game_list = models.Game.search_pending(status_filter=2, ranked_filter=1, guild_id=chan.guild.id)[:12]
+                            list_title = 'Current ranked open games'
+                        elif chan.id == unranked_chan:
+                            game_list = models.Game.search_pending(status_filter=2, ranked_filter=0, guild_id=chan.guild.id)[:12]
+                            list_title = 'Current unranked open games'
+                        else:
+                            game_list = models.Game.search_pending(status_filter=2, ranked_filter=2, guild_id=chan.guild.id)[:12]
+                            list_title = 'Current open games'
+                        if not game_list:
                             continue
 
-                        capacity_str = f' {players}/{capacity}'
-                        expiration = int((game.expiration - datetime.datetime.now()).total_seconds() / 3600.0)
-                        expiration = 'Exp' if expiration < 0 else f'{expiration}H'
-                        creating_player = game.creating_player()
-                        host_name = creating_player.name[:35] if creating_player else '<Vacant>'
-                        ranked_str = '*Unranked*' if not game.is_ranked else ''
-                        ranked_str = ranked_str + ' - ' if game.notes and ranked_str else ranked_str
+                        pfx = settings.guild_setting(guild.id, 'command_prefix')
 
-                        embed.add_field(name=f'`{game.id:<8}{host_name:<40} {game.size_string():<7} {capacity_str:<7} {expiration:>5}`', value=f'{ranked_str}{notes_str}\n \u200b', inline=False)
+                        embed = discord.Embed(title=f'{list_title}\n'
+                            f'Use __`{pfx}join ID`__ to join one or __`{pfx}game ID`__ for more details.')
+                        embed.add_field(name=f'`{"ID":<8}{"Host":<40} {"Type":<7} {"Capacity":<7} {"Exp":>4} `', value='\u200b', inline=False)
+                        for game in game_list:
 
-                    try:
-                        message = await chan.send(embed=embed, delete_after=sleep_cycle)
-                    except discord.DiscordException as e:
-                        logger.warn(f'Error broadcasting game list: {e}')
-                    else:
-                        logger.info(f'Broadcast game list to channel {chan.id} in message {message.id}')
+                            notes_str = game.notes if game.notes else '\u200b'
+                            players, capacity = game.capacity()
+                            player_restricted_list = re.findall(r'<@!?(\d+)>', notes_str)
+
+                            if player_restricted_list and (len(player_restricted_list) >= capacity - 1) and len(game_list) > 15:
+                                # skipping invite-only games IF the games list is large
+                                continue
+
+                            capacity_str = f' {players}/{capacity}'
+                            expiration = int((game.expiration - datetime.datetime.now()).total_seconds() / 3600.0)
+                            expiration = 'Exp' if expiration < 0 else f'{expiration}H'
+                            creating_player = game.creating_player()
+                            host_name = creating_player.name[:35] if creating_player else '<Vacant>'
+                            ranked_str = '*Unranked*' if not game.is_ranked else ''
+                            ranked_str = ranked_str + ' - ' if game.notes and ranked_str else ranked_str
+
+                            embed.add_field(name=f'`{game.id:<8}{host_name:<40} {game.size_string():<7} {capacity_str:<7} {expiration:>5}`', value=f'{ranked_str}{notes_str}\n \u200b', inline=False)
+
+                        try:
+                            message = await chan.send(embed=embed, delete_after=sleep_cycle)
+                        except discord.DiscordException as e:
+                            logger.warn(f'Error broadcasting game list: {e}')
+                        else:
+                            logger.info(f'Broadcast game list to channel {chan.id} in message {message.id}')
 
             await asyncio.sleep(sleep_cycle)
 

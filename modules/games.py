@@ -19,9 +19,10 @@ elo_logger = logging.getLogger('polybot.elo')
 class PolyGame(commands.Converter):
     async def convert(self, ctx, game_id):
 
+        # with db:
         try:
             game = Game.get(id=int(game_id))
-        except ValueError:
+        except (ValueError, peewee.DataError):
             await ctx.send(f'Invalid game ID "{game_id}".')
             raise commands.UserInputError()
         except peewee.DoesNotExist:
@@ -53,6 +54,17 @@ class elo_games(commands.Cog):
         if settings.run_tasks:
             self.bg_task = bot.loop.create_task(self.task_purge_game_channels())
             self.bg_task2 = bot.loop.create_task(self.task_set_champion_role())
+
+    @commands.Cog.listener()
+    async def on_user_update(self, before, after):
+        if before.name != after.name:
+            logger.debug(f'Attempting to change member discordname for {before.name} to {after.name}')
+            # update Discord Member Name, and update display name for each Guild/Player they share with the bot
+            try:
+                discord_member = DiscordMember.select().where(DiscordMember.discord_id == after.id).get()
+            except peewee.DoesNotExist:
+                return
+            discord_member.update_name(new_name=utilities.escape_role_mentions(after.name))
 
     @commands.Cog.listener()
     async def on_member_update(self, before, after):
@@ -90,16 +102,7 @@ class elo_games(commands.Cog):
                 player = player_query.get()
             except peewee.DoesNotExist:
                 return
-            player.generate_display_name(player_name=after.name, player_nick=after.nick)
-
-        if before.name != after.name:
-            logger.debug(f'Attempting to change member discordname for {before.name}({before.nick}) to {after.name}({after.nick})')
-            # update Discord Member Name, and update display name for each Guild/Player they share with the bot
-            try:
-                discord_member = DiscordMember.select().where(DiscordMember.discord_id == after.id).get()
-            except peewee.DoesNotExist:
-                return
-            discord_member.update_name(new_name=after.name)
+            player.generate_display_name(player_name=utilities.escape_role_mentions(after.name), player_nick=utilities.escape_role_mentions(after.nick))
 
     @commands.command(aliases=['reqgame', 'helpstaff'], hidden=True)
     @commands.cooldown(2, 30, commands.BucketType.user)
@@ -674,9 +677,9 @@ class elo_games(commands.Cog):
             helper_role_name = settings.guild_setting(ctx.guild.id, 'helper_roles')[0]
             helper_role = discord.utils.get(ctx.guild.roles, name=helper_role_name)
             helper_role_str = f'someone with the {helper_role.mention} role' if helper_role else 'server staff'
-            p_names = [p.name for p in players_with_id]
+            p_names = [f'<@{p.discord_id}> ({p.name})' for p in players_with_id]
             await ctx.send(f'**Warning:** This polytopia code is already entered in the database. '
-                f'If you need help using this bot please contact {helper_role_str}.\nDuplicated players: {", ".join(p_names)}')
+                f'If you need help using this bot please contact {helper_role_str} or <@{settings.owner_id}>.\nDuplicated players: {", ".join(p_names)}')
 
     @commands.command(aliases=['code'], usage='player_name')
     async def getcode(self, ctx, *, player_string: str = None):
@@ -1442,6 +1445,8 @@ class elo_games(commands.Cog):
                 if status_filter == 2:
                     query = list(query)  # reversing 'Incomplete' queries so oldest is at top
                     query.reverse()
+                logger.debug(f'Searching games, status filter: {status_filter}')
+                logger.debug(f'Returned {len(query)} results')
                 list_name = f'All {status_str}s ({len(query)})'
                 game_list = utilities.summarize_game_list(query[:500])
                 return game_list, list_name
@@ -1471,6 +1476,8 @@ class elo_games(commands.Cog):
 
             def async_game_search():
                 query = Game.search(status_filter=status_filter, player_filter=player_matches, team_filter=team_matches, title_filter=remaining_args, guild_id=ctx.guild.id)
+                logger.debug(f'Searching games, status filter: {status_filter}, player_filter: {player_matches}, team_filter: {team_matches}, title_filter: {remaining_args}')
+                logger.debug(f'Returned {len(query)} results')
                 game_list = utilities.summarize_game_list(query[:500])
                 list_name = f'{len(query)} {status_str}{"s" if len(query) != 1 else ""}\n{results_str}'
                 return game_list, list_name
@@ -1490,16 +1497,17 @@ class elo_games(commands.Cog):
             logger.debug('Task running: task_purge_game_channels')
             yesterday = (datetime.datetime.now() + datetime.timedelta(hours=-24))
 
-            old_games = Game.select().join(GameSide, on=(GameSide.game == Game.id)).where(
-                (Game.is_confirmed == 1) & (Game.completed_ts < yesterday) &
-                ((GameSide.team_chan.is_null(False)) | (Game.game_chan.is_null(False)))
-            )
+            with db:
+                old_games = Game.select().join(GameSide, on=(GameSide.game == Game.id)).where(
+                    (Game.is_confirmed == 1) & (Game.completed_ts < yesterday) &
+                    ((GameSide.team_chan.is_null(False)) | (Game.game_chan.is_null(False)))
+                )
 
-            logger.info(f'running task_purge_game_channels on {len(old_games)} games')
-            for game in old_games:
-                guild = discord.utils.get(self.bot.guilds, id=game.guild_id)
-                if guild:
-                    await game.delete_game_channels(self.bot.guilds, game.guild_id)
+                logger.info(f'running task_purge_game_channels on {len(old_games)} games')
+                for game in old_games:
+                    guild = discord.utils.get(self.bot.guilds, id=game.guild_id)
+                    if guild:
+                        await game.delete_game_channels(self.bot.guilds, game.guild_id)
 
             await asyncio.sleep(60 * 60 * 2)
 
@@ -1509,7 +1517,8 @@ class elo_games(commands.Cog):
 
             await asyncio.sleep(7)
             logger.debug('Task running: task_set_champion_role')
-            await achievements.set_champion_role()
+            with db:
+                await achievements.set_champion_role()
 
             await asyncio.sleep(60 * 60 * 2)
 

@@ -27,9 +27,11 @@ class misc(commands.Cog):
     @commands.is_owner()
     async def test(self, ctx, *, arg: str = None):
 
-        for chan in ctx.guild.text_channels:
-            msg = chan.last_message()
-            print(msg.created_at)
+        print(f'starting test')
+        with models.db.atomic():
+            await ctx.send(f'test')
+            await asyncio.sleep(6)
+        print('end test')
 
     @commands.command(hidden=True, aliases=['bulk_local_elo', 'ble', 'bge'])
     async def bulk_global_elo(self, ctx, *, args=None):
@@ -116,6 +118,7 @@ class misc(commands.Cog):
         embed = discord.Embed(title=f'PolyELO Bot Donation Link', url='https://cash.me/$Nelluk/3')
 
         embed.add_field(name='Developer', value='Nelluk')
+        embed.add_field(name='Source code', value='https://github.com/Nelluk/Polytopia-ELO-Bot')
 
         embed.add_field(name='Contributions', value='rickdaheals, koric, Gerenuk, theSeahorse, Octo', inline=False)
 
@@ -190,13 +193,13 @@ class misc(commands.Cog):
 
         if m:
             # Staff member using command on third party
-            if settings.get_user_level(ctx) <= 4:
+            if settings.get_user_level(ctx) <= 3:
                 return await ctx.send(f'You do not have permission to use this command on another player\'s games.')
             message = message[1:]
             target = m[1]
         else:
             # Play using command on their own games
-            if settings.get_user_level(ctx) <= 3:
+            if settings.get_user_level(ctx) <= 2:
                 return await ctx.send(f'You do not have permission to use this command. You can ask a server staff member to use this command on your games for you.')
             target = str(ctx.author.id)
 
@@ -217,7 +220,8 @@ class misc(commands.Cog):
             await ctx.send(f'*Warning:* More than 100 unique players are addressed. Only the first 100 will be mentioned.')
         await ctx.send(f'Message to all players in unfinished games for <@{target}>: *{clean_message}*')
 
-        return await ctx.send(f'Message recipients: {" ".join(list_of_players[:100])}')
+        recipient_message = f'Message recipients: {" ".join(list_of_players[:100])}'
+        return await ctx.send(recipient_message[:2000])
 
     @commands.command(usage='game_id')
     @commands.cooldown(1, 20, commands.BucketType.user)

@@ -25,7 +25,13 @@ async def buffered_send(destination, content, max_length=2000):
 def escape_role_mentions(input: str):
     # like escape_mentions but allow user mentions. disallows everyone/here/role
 
-    return re.sub(r'@(everyone|here|&[0-9]{17,21})', '@\u200b\\1', input)
+    return re.sub(r'@(everyone|here|&[0-9]{17,21})', '@\u200b\\1', str(input))
+
+
+def escape_everyone_here_roles(input: str):
+    # escapes @everyone and @here
+
+    return re.sub(r'@(everyone|here)', '@\u200b\\1', str(input))
 
 
 def is_valid_poly_gamename(input: str):
@@ -121,6 +127,7 @@ def summarize_game_list(games_query):
             f'{game.get_headline()}'[:255],
             f'{(str(game.date))} - {rank_str}{game.size_string()} - {status_str}'
         ))
+        # logger.debug(f'Parsed game {game_list[-1]}')
     return game_list
 
 
