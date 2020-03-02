@@ -495,6 +495,7 @@ class misc(commands.Cog):
             if not guild:
                 logger.warn('Could not load guild via server_id')
                 break
+            utilities.connect()
             dms = models.DiscordMember.members_not_on_polychamps()
             logger.info(f'{len(dms)} discordmember results')
             for dm in dms:

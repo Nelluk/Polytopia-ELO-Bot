@@ -19,7 +19,7 @@ elo_logger = logging.getLogger('polybot.elo')
 class PolyGame(commands.Converter):
     async def convert(self, ctx, game_id):
 
-        # with db:
+        utilities.connect()
         try:
             game = Game.get(id=int(game_id))
         except (ValueError, peewee.DataError):
@@ -186,6 +186,7 @@ class elo_games(commands.Cog):
             lb_title += ' - Maximum ELO Achieved'
 
         def process_leaderboard():
+            utilities.connect()
             leaderboard_query = target_model.leaderboard(date_cutoff=settings.date_cutoff, guild_id=ctx.guild.id, max_flag=max_flag)
 
             for counter, player in enumerate(leaderboard_query[:2000]):
@@ -436,6 +437,7 @@ class elo_games(commands.Cog):
             player = player_results[0]
 
         def async_create_player_embed():
+            utilities.connect()
             wins, losses = player.get_record()
             rank, lb_length = player.leaderboard_rank(settings.date_cutoff)
 
@@ -1441,6 +1443,7 @@ class elo_games(commands.Cog):
             results_str = f'All {status_str}s'
 
             def async_game_search():
+                utilities.connect()
                 query = Game.search(status_filter=status_filter, guild_id=ctx.guild.id)
                 if status_filter == 2:
                     query = list(query)  # reversing 'Incomplete' queries so oldest is at top
@@ -1475,6 +1478,7 @@ class elo_games(commands.Cog):
                 results_str = 'No filters applied'
 
             def async_game_search():
+                utilities.connect()
                 query = Game.search(status_filter=status_filter, player_filter=player_matches, team_filter=team_matches, title_filter=remaining_args, guild_id=ctx.guild.id)
                 logger.debug(f'Searching games, status filter: {status_filter}, player_filter: {player_matches}, team_filter: {team_matches}, title_filter: {remaining_args}')
                 logger.debug(f'Returned {len(query)} results')
@@ -1497,17 +1501,17 @@ class elo_games(commands.Cog):
             logger.debug('Task running: task_purge_game_channels')
             yesterday = (datetime.datetime.now() + datetime.timedelta(hours=-24))
 
-            with db:
-                old_games = Game.select().join(GameSide, on=(GameSide.game == Game.id)).where(
-                    (Game.is_confirmed == 1) & (Game.completed_ts < yesterday) &
-                    ((GameSide.team_chan.is_null(False)) | (Game.game_chan.is_null(False)))
-                )
+            utilities.connect()
+            old_games = Game.select().join(GameSide, on=(GameSide.game == Game.id)).where(
+                (Game.is_confirmed == 1) & (Game.completed_ts < yesterday) &
+                ((GameSide.team_chan.is_null(False)) | (Game.game_chan.is_null(False)))
+            )
 
-                logger.info(f'running task_purge_game_channels on {len(old_games)} games')
-                for game in old_games:
-                    guild = discord.utils.get(self.bot.guilds, id=game.guild_id)
-                    if guild:
-                        await game.delete_game_channels(self.bot.guilds, game.guild_id)
+            logger.info(f'running task_purge_game_channels on {len(old_games)} games')
+            for game in old_games:
+                guild = discord.utils.get(self.bot.guilds, id=game.guild_id)
+                if guild:
+                    await game.delete_game_channels(self.bot.guilds, game.guild_id)
 
             await asyncio.sleep(60 * 60 * 2)
 
@@ -1517,8 +1521,8 @@ class elo_games(commands.Cog):
 
             await asyncio.sleep(7)
             logger.debug('Task running: task_set_champion_role')
-            with db:
-                await achievements.set_champion_role()
+            utilities.connect()
+            await achievements.set_champion_role()
 
             await asyncio.sleep(60 * 60 * 2)
 

@@ -32,6 +32,26 @@ class administration(commands.Cog):
                 await ctx.send('You do not have permission to use this command.')
                 return False
 
+    @commands.is_owner()
+    @commands.command()
+    async def quit(self, ctx):
+
+        await ctx.send('Shutting down')
+        await self.bot.close()
+        message = ''
+
+        try:
+            if models.db.close():
+                message = 'db connecton closing normally'
+            else:
+                message = 'db connection was already closed'
+
+        except peewee.PeeweeException as e:
+            message = f'Error during post_invoke_cleanup db.close(): {e}'
+        finally:
+            logger.info(message)
+            print(message)
+
     @settings.is_mod_check()
     @commands.command()
     async def purge_game_channels(self, ctx, *, arg: str = None):
@@ -187,17 +207,17 @@ class administration(commands.Cog):
             await asyncio.sleep(8)
             logger.debug('Task running: task_confirm_auto')
 
-            with models.db:
-                for guild in self.bot.guilds:
-                    staff_output_channel = guild.get_channel(settings.guild_setting(guild.id, 'game_request_channel'))
-                    if not staff_output_channel:
-                        logger.debug(f'Could not load game_request_channel for server {guild.id} - skipping')
-                        continue
+            utilities.connect()
+            for guild in self.bot.guilds:
+                staff_output_channel = guild.get_channel(settings.guild_setting(guild.id, 'game_request_channel'))
+                if not staff_output_channel:
+                    logger.debug(f'Could not load game_request_channel for server {guild.id} - skipping')
+                    continue
 
-                    prefix = settings.guild_setting(guild.id, 'command_prefix')
-                    (unconfirmed_count, games_confirmed) = await self.confirm_auto(guild, prefix, staff_output_channel)
-                    if games_confirmed:
-                        await staff_output_channel.send(f'Autoconfirm process complete. {games_confirmed} games auto-confirmed. {unconfirmed_count - games_confirmed} games left unconfirmed.')
+                prefix = settings.guild_setting(guild.id, 'command_prefix')
+                (unconfirmed_count, games_confirmed) = await self.confirm_auto(guild, prefix, staff_output_channel)
+                if games_confirmed:
+                    await staff_output_channel.send(f'Autoconfirm process complete. {games_confirmed} games auto-confirmed. {unconfirmed_count - games_confirmed} games left unconfirmed.')
 
             await asyncio.sleep(sleep_cycle)
 
@@ -220,60 +240,62 @@ class administration(commands.Cog):
                     logger.debug(f'Could not load game_request_channel for server {guild.id} {guild.name} - skipping')
                     continue
 
+                utilities.connect()
+
                 def async_game_search():
+                    utilities.connect()
                     query = models.Game.search(status_filter=2, guild_id=guild.id)
                     query = list(query)  # reversing 'Incomplete' queries so oldest is at top
                     query.reverse()
                     return query
 
-                with models.db:
-                    game_list = await self.bot.loop.run_in_executor(None, async_game_search)
+                game_list = await self.bot.loop.run_in_executor(None, async_game_search)
 
-                    delete_result = []
-                    for game in game_list[:500]:
-                        game_size = len(game.lineup)
-                        rank_str = ' - *Unranked*' if not game.is_ranked else ''
-                        if game_size == 2 and game.date < old_60d and not game.is_completed:
-                            delete_result.append(f'Deleting incomplete 1v1 game older than 60 days. - {game.get_headline()} - {game.date}{rank_str}')
-                            # await self.bot.loop.run_in_executor(None, game.delete_game)
+                delete_result = []
+                for game in game_list[:500]:
+                    game_size = len(game.lineup)
+                    rank_str = ' - *Unranked*' if not game.is_ranked else ''
+                    if game_size == 2 and game.date < old_60d and not game.is_completed:
+                        delete_result.append(f'Deleting incomplete 1v1 game older than 60 days. - {game.get_headline()} - {game.date}{rank_str}')
+                        # await self.bot.loop.run_in_executor(None, game.delete_game)
+                        game.delete_game()
+
+                    if game_size == 3 and game.date < old_90d and not game.is_completed:
+                        delete_result.append(f'Deleting incomplete 3-player game older than 90 days. - {game.get_headline()} - {game.date}{rank_str}')
+                        await game.delete_game_channels(self.bot.guilds, guild.id)
+                        # await self.bot.loop.run_in_executor(None, game.delete_game)
+                        game.delete_game()
+
+                    if game_size == 4:
+                        if game.date < old_90d and not game.is_completed and not game.is_ranked:
+                            delete_result.append(f'Deleting incomplete 4-player game older than 90 days. - {game.get_headline()} - {game.date}{rank_str}')
+                            await game.delete_game_channels(self.bot.guilds, guild.id)
+                            await self.bot.loop.run_in_executor(None, game.delete_game)
                             game.delete_game()
-
-                        if game_size == 3 and game.date < old_90d and not game.is_completed:
-                            delete_result.append(f'Deleting incomplete 3-player game older than 90 days. - {game.get_headline()} - {game.date}{rank_str}')
+                        if game.date < old_120d and not game.is_completed and game.is_ranked:
+                            delete_result.append(f'Deleting incomplete ranked 4-player game older than 120 days. - {game.get_headline()} - {game.date}{rank_str}')
                             await game.delete_game_channels(self.bot.guilds, guild.id)
                             # await self.bot.loop.run_in_executor(None, game.delete_game)
                             game.delete_game()
 
-                        if game_size == 4:
-                            if game.date < old_90d and not game.is_completed and not game.is_ranked:
-                                delete_result.append(f'Deleting incomplete 4-player game older than 90 days. - {game.get_headline()} - {game.date}{rank_str}')
-                                await game.delete_game_channels(self.bot.guilds, guild.id)
-                                await self.bot.loop.run_in_executor(None, game.delete_game)
-                                game.delete_game()
-                            if game.date < old_120d and not game.is_completed and game.is_ranked:
-                                delete_result.append(f'Deleting incomplete ranked 4-player game older than 120 days. - {game.get_headline()} - {game.date}{rank_str}')
-                                await game.delete_game_channels(self.bot.guilds, guild.id)
-                                # await self.bot.loop.run_in_executor(None, game.delete_game)
-                                game.delete_game()
+                    if (game_size == 5 or game_size == 6) and game.is_ranked and game.date < old_150d and not game.is_completed:
+                        # Max out ranked game deletion at game_size==6
+                        delete_result.append(f'Deleting incomplete ranked {game_size}-player game older than 150 days. - {game.get_headline()} - {game.date}{rank_str}')
+                        await game.delete_game_channels(self.bot.guilds, guild.id)
+                        # await self.bot.loop.run_in_executor(None, game.delete_game)
+                        game.delete_game()
 
-                        if (game_size == 5 or game_size == 6) and game.is_ranked and game.date < old_150d and not game.is_completed:
-                            # Max out ranked game deletion at game_size==6
-                            delete_result.append(f'Deleting incomplete ranked {game_size}-player game older than 150 days. - {game.get_headline()} - {game.date}{rank_str}')
-                            await game.delete_game_channels(self.bot.guilds, guild.id)
-                            # await self.bot.loop.run_in_executor(None, game.delete_game)
-                            game.delete_game()
+                    if game_size >= 5 and not game.is_ranked and game.date < old_120d and not game.is_completed:
+                        # no cap on unranked game deletion above 120 days old
+                        delete_result.append(f'Deleting incomplete unranked {game_size}-player game older than 120 days. - {game.get_headline()} - {game.date}{rank_str}')
+                        await game.delete_game_channels(self.bot.guilds, guild.id)
+                        # await self.bot.loop.run_in_executor(None, game.delete_game)
+                        game.delete_game()
 
-                        if game_size >= 5 and not game.is_ranked and game.date < old_120d and not game.is_completed:
-                            # no cap on unranked game deletion above 120 days old
-                            delete_result.append(f'Deleting incomplete unranked {game_size}-player game older than 120 days. - {game.get_headline()} - {game.date}{rank_str}')
-                            await game.delete_game_channels(self.bot.guilds, guild.id)
-                            # await self.bot.loop.run_in_executor(None, game.delete_game)
-                            game.delete_game()
-
-                    delete_str = '\n'.join(delete_result)
-                    logger.info(f'Purging incomplete games for guild {guild.name}:\n{delete_str}')
-                    if len(delete_result):
-                        await staff_output_channel.send(f'{delete_str[:1900]}\nFinished - purged {len(delete_result)} games')
+                delete_str = '\n'.join(delete_result)
+                logger.info(f'Purging incomplete games for guild {guild.name}:\n{delete_str}')
+                if len(delete_result):
+                    await staff_output_channel.send(f'{delete_str[:1900]}\nFinished - purged {len(delete_result)} games')
 
             await asyncio.sleep(sleep_cycle)
 

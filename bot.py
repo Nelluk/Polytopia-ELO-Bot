@@ -10,7 +10,7 @@ import logging
 import sys
 from logging.handlers import RotatingFileHandler
 from timeit import default_timer as timer
-import peewee
+# import peewee
 
 
 # Logger config is a bit of a mess and probably could be simplified a lot, but works. debug and above sent to file / error above sent to stderr
@@ -85,18 +85,19 @@ def main():
         settings.run_tasks = False
 
     logger.info('Resetting Discord ID ban list')
-    models.DiscordMember.update(is_banned=False).execute()
-    if settings.discord_id_ban_list:
-        query = models.DiscordMember.update(is_banned=True).where(
-            (models.DiscordMember.discord_id.in_(settings.discord_id_ban_list))
-        )
-        logger.info(f'{query.execute()} discord IDs are banned')
+    with models.db:
+        models.DiscordMember.update(is_banned=False).execute()
+        if settings.discord_id_ban_list:
+            query = models.DiscordMember.update(is_banned=True).where(
+                (models.DiscordMember.discord_id.in_(settings.discord_id_ban_list))
+            )
+            logger.info(f'{query.execute()} discord IDs are banned')
 
-    if settings.poly_id_ban_list:
-        query = models.DiscordMember.update(is_banned=True).where(
-            (models.DiscordMember.polytopia_id.in_(settings.poly_id_ban_list))
-        )
-        logger.info(f'{query.execute()} polytopia IDs are banned')
+        if settings.poly_id_ban_list:
+            query = models.DiscordMember.update(is_banned=True).where(
+                (models.DiscordMember.polytopia_id.in_(settings.poly_id_ban_list))
+            )
+            logger.info(f'{query.execute()} polytopia IDs are banned')
 
 
 def get_prefix(bot, message):
@@ -180,28 +181,23 @@ if __name__ == '__main__':
 
     @bot.before_invoke
     async def pre_invoke_setup(ctx):
-        if models.db.connect(reuse_if_open=True):
-            logger.debug('new db connection opened')
-            print('new db connecton opened')
-        else:
-            logger.debug('reusing db connection')
-            print('reusing db connection')
+        utilities.connect()
         logger.debug(f'Command invoked: {ctx.message.clean_content}. By {ctx.message.author.name} in {ctx.channel.id} {ctx.channel.name} on {ctx.guild.name}')
 
-    @bot.after_invoke
-    async def post_invoke_cleanup(ctx):
-        try:
-            if models.db.close():
-                logger.debug('db connecton closing normally')
-                print('db connecton closing normally')
-            else:
-                logger.warn('db connection was already closed')
-                print('db connecton already closed')
+    # @bot.after_invoke
+    # async def post_invoke_cleanup(ctx):
+    #     try:
+    #         if models.db.close():
+    #             logger.debug('db connecton closing normally')
+    #             print('db connecton closing normally')
+    #         else:
+    #             logger.warn('db connection was already closed')
+    #             print('db connecton already closed')
 
-        except peewee.PeeweeException as e:
-            print(f'Error during post_invoke_cleanup db.close(): {e}')
-            logger.warn(f'Error during post_invoke_cleanup db.close(): {e} || Command attempting to close db: {ctx.message.clean_content}')
-            pass
+    #     except peewee.PeeweeException as e:
+    #         print(f'Error during post_invoke_cleanup db.close(): {e}')
+    #         logger.warn(f'Error during post_invoke_cleanup db.close(): {e} || Command attempting to close db: {ctx.message.clean_content}')
+    #         pass
 
     initial_extensions = ['modules.games', 'modules.help', 'modules.matchmaking', 'modules.administration', 'modules.misc']
     initial_extensions = ['modules.games', 'modules.customhelp', 'modules.matchmaking', 'modules.administration', 'modules.misc']

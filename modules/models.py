@@ -15,7 +15,7 @@ import logging
 logger = logging.getLogger('polybot.' + __name__)
 elo_logger = logging.getLogger('polybot.elo')
 
-db = PostgresqlDatabase(settings.psql_db, autorollback=True, user=settings.psql_user)
+db = PostgresqlDatabase(settings.psql_db, autorollback=True, user=settings.psql_user, autoconnect=False)
 
 
 def tomorrow():

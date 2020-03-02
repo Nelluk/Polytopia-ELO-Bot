@@ -10,6 +10,15 @@ import re
 logger = logging.getLogger('polybot.' + __name__)
 
 
+def connect():
+    if models.db.connect(reuse_if_open=True):
+        logger.debug('new db connection opened')
+        return True
+    else:
+        logger.debug('reusing db connection')
+        return False
+
+
 async def buffered_send(destination, content, max_length=2000):
     # use to replace await ctx.send(message) if message could potentially be over the Discord limit of 2000 characters
     # will split message by \n characters and send in chunks up to max_length size
