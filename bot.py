@@ -104,13 +104,16 @@ def get_prefix(bot, message):
     # Guild-specific command prefixes
     if message.guild and message.guild.id in settings.config:
         # Current guild is allowed
+        set_prefix = settings.guild_setting(message.guild.id, "command_prefix")
+        if not set_prefix:
+            logger.error(f'No prefix found in settings! Guild: {message.guild.id} {message.guild.name}')
 
         # temp debug log to try to fix NoneType errors related to prefixes
         logger.debug(f'Found prefix setting {settings.guild_setting(message.guild.id, "command_prefix")} for guild {message.guild.id}')
         return commands.when_mentioned_or(settings.guild_setting(message.guild.id, 'command_prefix'))(bot, message)
     else:
         if message.guild:
-            logging.error(f'Message received not from allowed guild. ID {message.guild.id }')
+            logger.error(f'Message received not from allowed guild. ID {message.guild.id }')
         # probably a PM
         logger.warn(f'returning None prefix for received PM. Author: {message.author.name}')
         return None
