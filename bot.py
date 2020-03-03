@@ -107,6 +107,7 @@ def get_prefix(bot, message):
         set_prefix = settings.guild_setting(message.guild.id, "command_prefix")
         if not set_prefix:
             logger.error(f'No prefix found in settings! Guild: {message.guild.id} {message.guild.name}')
+            return 'fakeprefix'
 
         # temp debug log to try to fix NoneType errors related to prefixes
         logger.debug(f'Found prefix setting {settings.guild_setting(message.guild.id, "command_prefix")} for guild {message.guild.id}')
@@ -116,7 +117,7 @@ def get_prefix(bot, message):
             logger.error(f'Message received not from allowed guild. ID {message.guild.id }')
         # probably a PM
         logger.warn(f'returning None prefix for received PM. Author: {message.author.name}')
-        return None
+        return 'fakeprefix'
 
 
 if __name__ == '__main__':
