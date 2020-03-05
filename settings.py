@@ -564,7 +564,7 @@ config = {'default':
                       'ranked_game_channel': None,
                       'unranked_game_channel': 608093784898666497,  # 497 bot-commands 656 staff-bot-channel 081 general
                     # 'match_challenge_channels': [608093784898666497],  # 497 bot-commands,
-                      'game_request_channel': 608110441503129619,  # $staffhelp output
+                      'game_request_channel': 684944690893946972,  # $staffhelp output
                       'game_channel_categories': [618499589670043679]},  # 'ongoing games'
           }
 
