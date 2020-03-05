@@ -544,7 +544,7 @@ config = {'default':
                       'match_challenge_channels': [],
                       'game_channel_categories': [625874394786430977, 625874455893245953, 625876193744388136, 625876453795561485, 625876480425066497, 625876505884622858, 625876537757007882, 625876574050320406, 625876603351728148, 625876629289435146]},
         606284456474443786:                           # CustomPoly
-                     {'helper_roles': ['admin', 'helper'],
+                     {'helper_roles': ['helper', 'admin'],
                       'mod_roles': ['admin'],
                       'user_roles_level_4': ['customizer'],  # power user
                       'user_roles_level_3': ['@everyone'],  # power user
