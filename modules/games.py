@@ -106,7 +106,6 @@ class elo_games(commands.Cog):
 
     @commands.command(aliases=['reqgame', 'helpstaff'], hidden=True)
     @commands.cooldown(2, 30, commands.BucketType.user)
-    @settings.on_polychampions()
     async def staffhelp(self, ctx, *, message: str = None):
         """
         Send staff updates/fixes for an ELO game
