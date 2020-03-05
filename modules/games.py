@@ -128,7 +128,11 @@ class elo_games(commands.Cog):
             ctx.command.reset_cooldown(ctx)
             return await ctx.send(f'You must supply a help request, ie: `{ctx.prefix}staffhelp Game 51, restarted with name "Sweet New Game Name"`')
 
-        await channel.send(f'{ctx.message.author} submitted: {ctx.message.clean_content}')
+        helper_role_name = settings.guild_setting(ctx.guild.id, 'helper_roles')[0]
+        helper_role = discord.utils.get(ctx.guild.roles, name=helper_role_name)
+        helper_role_str = f'{helper_role.mention}' if helper_role else 'server staff'
+
+        await channel.send(f'Attention {helper_role_str} - {ctx.message.author} submitted: {ctx.message.clean_content}')
 
     @commands.command(hidden=True, brief='Sends staff details on a League game', usage='Week 2 game vs Mallards started called "Oceans of Fire"')
     @settings.on_polychampions()
