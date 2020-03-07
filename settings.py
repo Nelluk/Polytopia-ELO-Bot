@@ -591,6 +591,7 @@ discord_id_ban_list = [
     359831073737146369,  # Epi
     427018182310756352,  # Freeze
     386549614964244481,  # logs#4361
+    313427349775450112,  # SouthPenguinJay#3692
 ]
 
 poly_id_ban_list = [
@@ -603,6 +604,7 @@ poly_id_ban_list = [
     '8ZWg85d9PlogdY1H',  # Stupid#7043
     'R5NregRkLycUsq7C',  # Just7609
     '9x85fWIxxkLyOMem',  # logs#4361
+    'JU1Zb9jGO4H1I4Ls',  # SouthPenguinJay#3692
 ]
 
 
