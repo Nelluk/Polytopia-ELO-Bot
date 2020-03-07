@@ -6,7 +6,8 @@ from psycopg2.errors import DuplicateObject
 from peewee import *
 from playhouse.postgres_ext import *
 import modules.exceptions as exceptions
-from modules import utilities
+# from modules import utilities
+# import modules.utilities as utilities
 from modules import channels
 import statistics
 import settings
@@ -325,12 +326,18 @@ class Player(BaseModel):
     is_banned = BooleanField(default=False)
 
     def generate_display_name(self=None, player_name=None, player_nick=None):
-        player_name = utilities.escape_role_mentions(player_name)
-        player_name = utilities.escape_invisible_brackets(player_name)
+
+        def escape_name(input: str):
+            # prevent hiding discord name with ||Name||
+            input = re.sub(r'\|\|', '\u200b|\u200b|', str(input))
+            # escape role mentions (copied from Utilities otherwise there would be a circular import)
+            return re.sub(r'@(everyone|here|&[0-9]{17,21})', '@\u200b\\1', str(input))
+
+        player_name = escape_name(player_name)
 
         if player_nick:
-            player_nick = utilities.escape_role_mentions(player_nick)
-            player_nick = utilities.escape_invisible_brackets(player_nick)
+            player_nick = escape_name(player_nick)
+
             if player_name in player_nick:
                 display_name = player_nick
             else:

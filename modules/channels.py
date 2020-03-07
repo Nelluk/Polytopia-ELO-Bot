@@ -159,9 +159,12 @@ async def greet_game_channel(guild, chan, roster_names, game, player_list, full_
 
 async def delete_game_channel(guild, channel_id: int):
 
-    chan = guild.get_channel(channel_id)
-    if chan is None:
-        return logger.warn(f'Channel ID {channel_id} provided for deletion but it could not be loaded from guild')
+    try:
+        chan = await settings.bot.fetch_channel(channel_id)
+    except discord.DiscordException as e:
+        logger.warn(f'Could not retrieve channel with id {channel_id}: {e}')
+        return
+
     try:
         logger.warn(f'Deleting channel {chan.name}')
         await chan.delete(reason='Game concluded')
