@@ -102,7 +102,7 @@ class elo_games(commands.Cog):
                 player = player_query.get()
             except peewee.DoesNotExist:
                 return
-            player.generate_display_name(player_name=utilities.escape_role_mentions(after.name), player_nick=utilities.escape_role_mentions(after.nick))
+            player.generate_display_name(player_name=after.name, player_nick=after.nick)
 
     @commands.command(aliases=['reqgame', 'helpstaff'], hidden=True)
     @commands.cooldown(2, 30, commands.BucketType.user)

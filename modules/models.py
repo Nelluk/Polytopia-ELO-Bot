@@ -6,7 +6,7 @@ from psycopg2.errors import DuplicateObject
 from peewee import *
 from playhouse.postgres_ext import *
 import modules.exceptions as exceptions
-# from modules import utilities
+from modules import utilities
 from modules import channels
 import statistics
 import settings
@@ -325,7 +325,12 @@ class Player(BaseModel):
     is_banned = BooleanField(default=False)
 
     def generate_display_name(self=None, player_name=None, player_nick=None):
+        player_name = utilities.escape_role_mentions(player_name)
+        player_name = utilities.escape_invisible_brackets(player_name)
+
         if player_nick:
+            player_nick = utilities.escape_role_mentions(player_nick)
+            player_nick = utilities.escape_invisible_brackets(player_nick)
             if player_name in player_nick:
                 display_name = player_nick
             else:

@@ -43,6 +43,12 @@ def escape_everyone_here_roles(input: str):
     return re.sub(r'@(everyone|here)', '@\u200b\\1', str(input))
 
 
+def escape_invisible_brackets(input: str):
+    # prevent hiding discord name with ||Name||
+
+    return re.sub(r'\|\|', '\u200b|\u200b|', str(input))
+
+
 def is_valid_poly_gamename(input: str):
     # key_words = ["War", "Spirit", "Faith", "Glory", "Blood", "Paradise", "Magical", "Jungle",
     #              "Empires", "Songs", "Dawn", "Prophecy", "Prophesy", "Gold",
