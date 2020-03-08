@@ -3,7 +3,7 @@ from discord.ext import commands
 import modules.models as models
 import modules.utilities as utilities
 import settings
-# import modules.exceptions as exceptions
+import modules.exceptions as exceptions
 from modules.games import post_newgame_messaging
 import peewee
 import re
@@ -749,9 +749,13 @@ class matchmaking(commands.Cog):
                 mentions.append(guild_member.mention)
             sides.append(current_side)
 
-        teams_for_each_discord_member, list_of_final_teams = models.Game.pregame_check(discord_groups=sides,
+        try:
+            teams_for_each_discord_member, list_of_final_teams = models.Game.pregame_check(discord_groups=sides,
                                                                 guild_id=ctx.guild.id,
                                                                 require_teams=settings.guild_setting(ctx.guild.id, 'require_teams'))
+        except (peewee.PeeweeException, exceptions.CheckFailedError) as e:
+            logger.warn(f'Error creating new game: {e}')
+            return await ctx.send(f'Error creating new game: {e}')
 
         with models.db.atomic():
             # Convert game from pending matchmaking session to in-progress game

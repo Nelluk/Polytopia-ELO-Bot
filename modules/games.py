@@ -1061,8 +1061,9 @@ class elo_games(commands.Cog):
                     newgame.save()
                 else:
                     logger.error('Could not add host for newgame')
-            except peewee.PeeweeException as e:
+            except (peewee.PeeweeException, exceptions.CheckFailedError) as e:
                 logger.error(f'Error creating new game: {e}')
+                await ctx.send(f'Error creating new game: {e}')
                 newgame = None
 
         if newgame:

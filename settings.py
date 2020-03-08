@@ -60,7 +60,7 @@ config = {'default':
                       # 'helper_roles': ['role1'],
                       'inactive_role': 'Inactive',
                       'display_name': 'Development Server',
-                      'require_teams': False,
+                      'require_teams': True,
                       'allow_teams': True,
                       'allow_uneven_teams': True,
                       # 'max_team_size': 6,
