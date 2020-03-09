@@ -171,9 +171,9 @@ class misc(commands.Cog):
         await ctx.send(embed=embed)
 
     @commands.command(hidden=True, usage='message')
-    @commands.cooldown(1, 30, commands.BucketType.user)
+    # @commands.cooldown(1, 30, commands.BucketType.user)
     @settings.in_bot_channel_strict()
-    async def pingall(self, ctx, *message):
+    async def pingall(self, ctx, *, message: str = None):
         """ Ping everyone in all of your incomplete games
 
         Not useable by all players.
@@ -185,23 +185,28 @@ class misc(commands.Cog):
         *Staff:* Send a message to everyone in another player's games
 
         """
-
         if not message:
             return await ctx.send(f'Message is required.')
 
-        m = re.match(r"<@[!]?([0-9]{17,21})>", message[0])
+        m = re.match(r"<@[!]?([0-9]{17,21})>", message.split()[0])
 
         if m:
+            logger.debug('Third party use of pingall')
             # Staff member using command on third party
             if settings.get_user_level(ctx) <= 3:
+                logger.debug('insufficient user level')
                 return await ctx.send(f'You do not have permission to use this command on another player\'s games.')
-            message = message[1:]
+            message = ''.join(message.split()[1:])  # remove @Mention first word of message
             target = m[1]
         else:
+            logger.debug('first party usage of pingall')
             # Play using command on their own games
             if settings.get_user_level(ctx) <= 2:
+                logger.debug('insufficient user level')
                 return await ctx.send(f'You do not have permission to use this command. You can ask a server staff member to use this command on your games for you.')
             target = str(ctx.author.id)
+
+        logger.debug(f'pingall target is {target}')
 
         try:
             player_match = models.Player.get_or_except(player_string=target, guild_id=ctx.guild.id)
@@ -209,13 +214,15 @@ class misc(commands.Cog):
             return await ctx.send(f'User <@{target}> is not a registered ELO player.')
 
         game_list = models.Game.search(player_filter=[player_match], status_filter=2, guild_id=ctx.guild.id)
+        logger.debug(f'{len(game_list)} incomplete games for target')
 
         list_of_players = []
         for g in game_list:
             list_of_players += [f'<@{l.player.discord_member.discord_id}>' for l in g.lineup]
 
         list_of_players = list(set(list_of_players))
-        clean_message = utilities.escape_role_mentions(' '.join(message))
+        logger.debug(f'{len(list_of_players)} unique opponents for target')
+        clean_message = utilities.escape_role_mentions(message)
         if len(list_of_players) > 100:
             await ctx.send(f'*Warning:* More than 100 unique players are addressed. Only the first 100 will be mentioned.')
         await ctx.send(f'Message to all players in unfinished games for <@{target}>: *{clean_message}*')
