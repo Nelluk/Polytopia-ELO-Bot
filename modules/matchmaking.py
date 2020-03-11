@@ -472,13 +472,13 @@ class matchmaking(commands.Cog):
             await ctx.send(f'{ctx.author.mention}, you have full games waiting to start: **{", ".join(waitlist)}**\n{start_str}')
 
     @settings.in_bot_channel()
-    @commands.command(usage='game_id', aliases=['leavegame', 'leavematch'])
+    @commands.command(usage='game_id')
     async def leave(self, ctx, game: PolyMatch = None):
         """
         Leave a game that you have joined
 
         **Example:**
-        `[p]leavegame 25`
+        `[p]leave 25`
         """
         if not game:
             return await ctx.send(f'No game ID provided. Use `{ctx.prefix}leave ID` to leave a specific game.')
