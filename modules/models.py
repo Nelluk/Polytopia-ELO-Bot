@@ -840,13 +840,13 @@ class Game(BaseModel):
 
         try:
             message = await channel.fetch_message(self.announcement_message)
-        except (discord.errors.Forbidden, discord.errors.NotFound, discord.errors.HTTPException):
+        except discord.DiscordException:
             return logger.warn('Couldn\'t get message in update_announacement')
 
         try:
             embed, content = self.embed(guild=guild, prefix=prefix)
             await message.edit(embed=embed, content=content)
-        except discord.errors.HTTPException:
+        except discord.DiscordException:
             return logger.warn('Couldn\'t update message in update_announacement')
 
     def is_hosted_by(self, discord_id: int):
