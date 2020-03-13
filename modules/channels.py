@@ -180,7 +180,7 @@ async def send_message_to_channel(guild, channel_id: int, message: str):
     try:
         await chan.send(message)
     except discord.DiscordException as e:
-        logger.error(f'Could not delete channel: {e}')
+        logger.error(f'Could not send message to channel: {e}')
 
 
 async def update_game_channel_name(guild, channel_id: int, game_id: int, game_name: str, team_name: str = None):
@@ -197,6 +197,9 @@ async def update_game_channel_name(guild, channel_id: int, game_id: int, game_na
         await chan.edit(name=chan_name, reason='Game renamed')
         logger.info(f'Renamed channel for game {game_id} to {chan_name}')
     except discord.DiscordException as e:
-        logger.error(f'Could not delete channel: {e}')
+        logger.error(f'Could not edit channel: {e}')
 
-    await chan.send(f'This game has been renamed to *{game_name}*.')
+    try:
+        await chan.send(f'This game has been renamed to *{game_name}*.')
+    except discord.DiscordException as e:
+        logger.error(f'Could not send to channel: {e}')
