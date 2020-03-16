@@ -1362,6 +1362,10 @@ class Game(BaseModel):
 
         with db.atomic():
             if confirm is True:
+                if self.is_confirmed:
+                    # Without this check, possible for a race condition in which two $win commands are issued near-simultaneously and ELO changes are double counted
+                    raise exceptions.CheckFailedError(f'Cannot process win. This may happen if this game is closed by multiple people at the same time.')
+
                 if not self.completed_ts:
                     self.completed_ts = datetime.datetime.now()  # will be preserved if ELO is re-calculated after initial win.
 

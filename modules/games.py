@@ -1163,18 +1163,21 @@ class elo_games(commands.Cog):
                         f'If this win was claimed falsely please ping a **@{helper_role}** to contest, or you can cancel your claim with the command `{ctx.prefix}unwin {winning_game.id}`.\n'
                         f'*Game lineup*: {" ".join(player_mentions)}')
 
-        winning_game.declare_winner(winning_side=winning_side, confirm=confirm_win)
+        try:
+            winning_game.declare_winner(winning_side=winning_side, confirm=confirm_win)
+        except exceptions.CheckFailedError as e:
+            await ctx.send(f'*Error*: {e}')
+        else:
+            if confirm_win:
+                # Cleanup game channels and announce winners
+                # try/except block is attempt at a bandaid where sometimes an InterfaceError/Cursor Closed exception would hit here, probably due to issues with async code
 
-        if confirm_win:
-            # Cleanup game channels and announce winners
-            # try/except block is attempt at a bandaid where sometimes an InterfaceError/Cursor Closed exception would hit here, probably due to issues with async code
-
-            try:
-                await post_win_messaging(ctx.guild, ctx.prefix, ctx.channel, winning_game)
-            except peewee.PeeweeException as e:
-                logger.error(f'Error during win command triggering post_win_messaging - trying to reopen and run again: {e}')
-                db.connect(reuse_if_open=True)
-                await post_win_messaging(ctx.guild, ctx.prefix, ctx.channel, winning_game)
+                try:
+                    await post_win_messaging(ctx.guild, ctx.prefix, ctx.channel, winning_game)
+                except peewee.PeeweeException as e:
+                    logger.error(f'Error during win command triggering post_win_messaging - trying to reopen and run again: {e}')
+                    db.connect(reuse_if_open=True)
+                    await post_win_messaging(ctx.guild, ctx.prefix, ctx.channel, winning_game)
 
     @settings.in_bot_channel()
     @commands.command(usage='game_id')
