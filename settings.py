@@ -98,7 +98,7 @@ config = {'default':
                       'match_challenge_channels': [452639822616723457],  # elo-challenges
                       'game_request_channel': 487304043786665986,  # $staffhelp output
                       'game_announce_channel': 487302138704429087,  # elo-drafts
-                      'game_channel_categories': [488421911529914368, 514141474229846018, 519131761733795841, 550414365044637712, 563717211362164736, 568093671912636420, 574669105752440842]},  # elo-games-i, ii, iii, iv, v, vi, vii
+                      'game_channel_categories': [488421911529914368, 514141474229846018, 519131761733795841, 550414365044637712, 563717211362164736, 568093671912636420, 574669105752440842, 689093537131790388]},  # elo-games-i, ii, iii, iv, v, vi, vii, viii
         572885616656908288:                           # Ronin team Server
                      {'helper_roles': ['Team Co-Leader'],
                       'mod_roles': ['Admin', 'Team Leader'],
