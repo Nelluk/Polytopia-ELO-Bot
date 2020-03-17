@@ -343,6 +343,7 @@ class administration(commands.Cog):
         logger.info(f'Game {game.id} is now marked as unranked.')
         return await ctx.send(f'Game {game.id} is now marked as unranked.')
 
+    @settings.in_bot_channel()
     @commands.command(usage='game_id')
     async def unstart(self, ctx, game: PolyGame = None):
         """ *Staff*: Resets an in progress game to a pending matchmaking sesson
@@ -368,7 +369,11 @@ class administration(commands.Cog):
         tomorrow = (datetime.datetime.now() + datetime.timedelta(hours=24))
         game.expiration = tomorrow if game.expiration < tomorrow else game.expiration
         game.save()
-        return await ctx.send(f'Game {game.id} is now an open game and no longer in progress.')
+
+        try:
+            await ctx.send(f'Game {game.id} is now an open game and no longer in progress.')
+        except discord.errors.NotFound:
+            logger.warn('Game unstarted while in game-related channel')
 
     @commands.command(usage='game_id')
     async def extend(self, ctx, game: PolyGame = None):
