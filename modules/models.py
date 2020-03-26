@@ -1351,6 +1351,7 @@ class Game(BaseModel):
         return win_chance_list
 
     def declare_winner(self, winning_side: 'GameSide', confirm: bool):
+        logger.debug(f'Running declare_winner for game {self.id}')
 
         if winning_side.game != self:
             raise exceptions.CheckFailedError(f'GameSide id {winning_side.id} did not play in this game')
@@ -1819,6 +1820,7 @@ class Game(BaseModel):
         for g in games:
             g.reverse_elo_changes()
             g.is_completed = 0  # To have correct completed game counts for new ELO calculations
+            g.is_confirmed = 0
             g.save()
 
         for g in games:
