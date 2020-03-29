@@ -44,19 +44,28 @@ def get_channel_category(guild, team_name: str = None, using_team_server_flag: b
 
     if team_name:
         team_name_lc = team_name.lower().replace('the', '').strip()  # The Ronin > ronin
-        # first seek a channel named something like 'Polychamps Ronin Games', fallback to any category with 'Ronin' in the name.
+        # first seek a category named something like 'Polychamps Ronin Games', fallback to any category with 'Ronin' in the name.
         for cat in guild.categories:
             if 'polychamp' in cat.name.lower() and team_name_lc in cat.name.lower():
                 logger.debug(f'Using {cat.id} - {cat.name} as a team channel category')
+                if len(cat.channels) >= 50:
+                    logger.warn(f'Chosen category is full - falling back')
+                    continue
                 return cat, True
         for cat in guild.categories:
             if team_name_lc in cat.name.lower():
                 logger.debug(f'Using {cat.id} - {cat.name} as a team channel category')
+                if len(cat.channels) >= 50:
+                    logger.warn(f'Chosen category is full - falling back')
+                    continue
                 return cat, True
         if team_name in list_of_generic_team_names and using_team_server_flag:
             for cat in guild.categories:
                 if 'polychamp' in cat.name.lower() and 'other' in cat.name.lower():
                     logger.debug(f'Mixed team - Using {cat.id} - {cat.name} as a team channel category')
+                    if len(cat.channels) >= 50:
+                        logger.warn(f'Chosen category is full - falling back')
+                        continue
                     return cat, True
 
     # No team category found - using default category. ie. intermingled home/away games or channel for entire game
