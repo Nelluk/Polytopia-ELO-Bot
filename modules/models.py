@@ -739,7 +739,7 @@ class Game(BaseModel):
             # if self.name.upper()[:3] == 'LR1' and guild_id == settings.server_ids['polychampions']:
             if self.name.upper()[:3] == 'LR1':
                 side_guild = discord.utils.get(guild_list, id=625819621748113408)  # override - sending game channels to Rex server for his event
-                using_team_server_flag = False
+                using_team_server_flag = False  # I think i had this line set to False counterintuitively to handle permissions setting better - to sync to individual players
                 guild = side_guild
                 logger.info('Using external server for game channels - LR1 event.')
             #
@@ -748,7 +748,7 @@ class Game(BaseModel):
             player_list = [l.player for l in gameside.ordered_player_list()]
             if len(player_list) < 2:
                 continue
-            if len(guild.text_channels) > 425 and len(player_list) < 3:
+            if len(guild.text_channels) > 425 and len(player_list) < 3 and not using_team_server_flag and not self.name.upper()[:3] == 'LR1':
                 error_message = 'Server has nearly reached the maximum number of channels: skipping channel creation for this game.'
                 logger.warn('Skipping channel creation for a team due to server exceeding 425 channels')
                 continue
