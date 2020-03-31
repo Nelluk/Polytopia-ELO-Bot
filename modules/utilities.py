@@ -185,9 +185,9 @@ async def paginate(bot, ctx, title, message_list, page_start=0, page_end=10, pag
             sent_message = await ctx.send(embed=embed)
         else:
             try:
-                await sent_message.clear_reactions()
+                await reaction.remove(user)
             except (discord.ext.commands.errors.CommandInvokeError, discord.errors.Forbidden):
-                logger.warn('Unable to clear message reaction due to insufficient permissions. Giving bot \'Manage Messages\' permission will improve usability.')
+                logger.warn('Unable to remove message reaction due to insufficient permissions. Giving bot \'Manage Messages\' permission will improve usability.')
             await sent_message.edit(embed=embed)
 
         if page_start > 0:
