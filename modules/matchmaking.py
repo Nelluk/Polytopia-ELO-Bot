@@ -329,16 +329,15 @@ class matchmaking(commands.Cog):
                 f'You must create each game in Polytopia and invite the other players using their friend codes, and then use the `{ctx.prefix}start` command in this bot.')
 
         inactive_role = discord.utils.get(ctx.guild.roles, name=settings.guild_setting(ctx.guild.id, 'inactive_role'))
+        if inactive_role and inactive_role in ctx.author.roles:
+            await ctx.send(f'You have the inactive role **{inactive_role.name}**. Removing it since you seem to be active!')
+            await ctx.author.remove_roles(inactive_role, reason='Player joined a game so should no longer be inactive')
 
         if len(args) == 0:
             # ctx.author is joining a game, no side given
             target = f'<@{ctx.author.id}>'
-
-            if inactive_role and inactive_role in ctx.author.roles:
-                await ctx.send(f'You have the inactive role **{inactive_role.name}**. Removing it since you seem to be active!')
-                await ctx.author.remove_roles(inactive_role, reason='Player joined a game so should no longer be inactive')
-
             side, side_open = game.first_open_side(roles=[role.id for role in ctx.author.roles]), True
+
             if not side:
                 players, capacity = game.capacity()
                 if players < capacity:
@@ -349,6 +348,7 @@ class matchmaking(commands.Cog):
             # ctx.author is joining a match, with a side specified
             target = f'<@{ctx.author.id}>'
             side, side_open = game.get_side(lookup=args[0])
+
             if not side:
                 return await ctx.send(f'Could not find side with "{args[0]}" in game {game.id}. You can use a side number or name if available.\n{syntax}')
 
