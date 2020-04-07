@@ -379,7 +379,6 @@ class misc(commands.Cog):
 
         await ctx.send(embed=embed)
 
-    @commands.command()
     @commands.command(aliases=['nova', 'joinnovas'])
     @settings.on_polychampions()
     async def novas(self, ctx, *, arg=None):
