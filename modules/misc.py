@@ -407,10 +407,10 @@ class misc(commands.Cog):
         # Also add 'the novas' role to everyone as a catchall role, after it is no longer considered a team in the bot
 
         if len(red_role.members) > len(blue_role.members):
-            await ctx.author.add_roles([blue_role, novas_role], reason='Joining Nova Blue')
+            await ctx.author.add_roles(blue_role, novas_role, reason='Joining Nova Blue')
             await ctx.send(f'Congrats, you are now a member of the **Nova Blue** team! To join the fight go to a bot channel and type `{ctx.prefix}opengames`')
         else:
-            await ctx.author.add_roles([red_role, novas_role], reason='Joining Nova Red')
+            await ctx.author.add_roles(red_role, novas_role, reason='Joining Nova Red')
             await ctx.send(f'Congrats, you are now a member of the **Nova Red** team! To join the fight go to a bot channel and type `{ctx.prefix}opengames`')
 
     # @commands.command()
