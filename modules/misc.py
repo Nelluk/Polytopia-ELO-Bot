@@ -397,6 +397,7 @@ class misc(commands.Cog):
         red_role = discord.utils.get(ctx.guild.roles, name='Nova Red')
         blue_role = discord.utils.get(ctx.guild.roles, name='Nova Blue')
         novas_role = discord.utils.get(ctx.guild.roles, name='The Novas')
+        newbie_role = discord.utils.get(ctx.guild.roles, name='Newbie')
 
         if not red_role or not blue_role or not novas_role:
             return await ctx.send(f'Error finding Novas roles. Searched for *Nova Red* and *Nova Blue* and *The Novas*.')
@@ -413,6 +414,9 @@ class misc(commands.Cog):
         else:
             await ctx.author.add_roles(red_role, novas_role, reason='Joining Nova Red')
             await ctx.send(f'Congrats, you are now a member of the **Nova Red** team! To join the fight go to a bot channel and type `{ctx.prefix}opengames`')
+
+        if newbie_role:
+            await ctx.author.remove_roles(newbie_role, reason='Joining Novas')
 
     # @commands.command()
     # @commands.is_owner()
