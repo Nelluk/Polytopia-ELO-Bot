@@ -395,9 +395,10 @@ class misc(commands.Cog):
 
         red_role = discord.utils.get(ctx.guild.roles, name='Nova Red')
         blue_role = discord.utils.get(ctx.guild.roles, name='Nova Blue')
+        novas_role = discord.utils.get(ctx.guild.roles, name='The Novas')
 
-        if not red_role or not blue_role:
-            return await ctx.send(f'Error finding Novas roles. Searched for *Nova Red* and *Nova Blue*.')
+        if not red_role or not blue_role or not novas_role:
+            return await ctx.send(f'Error finding Novas roles. Searched for *Nova Red* and *Nova Blue* and *The Novas*.')
 
         # TODO: team numbers may be inflated due to inactive members. Can either count up only player recency, or easier but less effective way
         # would be to have $deactivate remove novas roles and make them rejoin if they come back
@@ -406,32 +407,32 @@ class misc(commands.Cog):
         # Also add 'the novas' role to everyone as a catchall role, after it is no longer considered a team in the bot
 
         if len(red_role.members) > len(blue_role.members):
-            await ctx.author.add_roles(blue_role, reason='Joining Nova Blue')
+            await ctx.author.add_roles([blue_role, novas_role], reason='Joining Nova Blue')
             await ctx.send(f'Congrats, you are now a member of the **Nova Blue** team! To join the fight go to a bot channel and type `{ctx.prefix}opengames`')
         else:
-            await ctx.author.add_roles(red_role, reason='Joining Nova Red')
+            await ctx.author.add_roles([red_role, novas_role], reason='Joining Nova Red')
             await ctx.send(f'Congrats, you are now a member of the **Nova Red** team! To join the fight go to a bot channel and type `{ctx.prefix}opengames`')
 
-    @commands.command()
-    @commands.is_owner()
-    @settings.on_polychampions()
-    async def assign_novas(self, ctx, *, arg=None):
-        novas_role = discord.utils.get(ctx.guild.roles, name='The Novas')
-        red_role = discord.utils.get(ctx.guild.roles, name='Nova Red')
-        blue_role = discord.utils.get(ctx.guild.roles, name='Nova Blue')
+    # @commands.command()
+    # @commands.is_owner()
+    # @settings.on_polychampions()
+    # async def assign_novas(self, ctx, *, arg=None):
+    #     novas_role = discord.utils.get(ctx.guild.roles, name='The Novas')
+    #     red_role = discord.utils.get(ctx.guild.roles, name='Nova Red')
+    #     blue_role = discord.utils.get(ctx.guild.roles, name='Nova Blue')
 
-        async with ctx.typing():
-            await ctx.send('Assigning half of Novas to *Nova Blue*...')
-            for nova in novas_role.members[0::2]:
-                # iterates over every other list member, starting with first member
-                await nova.add_roles(blue_role, reason='Joining Nova Blue')
+    #     async with ctx.typing():
+    #         await ctx.send('Assigning half of Novas to *Nova Blue*...')
+    #         for nova in novas_role.members[0::2]:
+    #             # iterates over every other list member, starting with first member
+    #             await nova.add_roles(blue_role, reason='Joining Nova Blue')
 
-            await ctx.send('Assigning half of Novas to *Nova Red*...')
-            for nova in novas_role.members[1::2]:
-                # iterates over every other list member, starting with second member
-                await nova.add_roles(red_role, reason='Joining Nova Red')
+    #         await ctx.send('Assigning half of Novas to *Nova Red*...')
+    #         for nova in novas_role.members[1::2]:
+    #             # iterates over every other list member, starting with second member
+    #             await nova.add_roles(red_role, reason='Joining Nova Red')
 
-            await ctx.send('Done!')
+    #         await ctx.send('Done!')
 
     @commands.command(aliases=['undrafted'])
     @commands.cooldown(1, 30, commands.BucketType.channel)
