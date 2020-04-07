@@ -754,6 +754,8 @@ class Game(BaseModel):
                    not self.name.upper()[:3] == 'LR1' and  # temp hack for LigaRex games which use external server but not flag):
                    gameside.required_role_id not in [696841367103602768, 696841359616901150]):  # skip check for game chans locked to Nova Blue or Nova Red
 
+                # TODO: maybe, have different thresholds, ie start skipping NOva or 3-player channels or full-game channels is server is at a higher mark like 475
+
                 error_message = 'Server has nearly reached the maximum number of channels: skipping channel creation for this game.'
                 logger.warn('Skipping channel creation for a team due to server exceeding 425 channels')
                 continue
