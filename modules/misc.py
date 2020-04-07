@@ -424,12 +424,12 @@ class misc(commands.Cog):
             await ctx.send('Assigning half of Novas to *Nova Blue*...')
             for nova in novas_role.members[0::2]:
                 # iterates over every other list member, starting with first member
-                await ctx.author.add_roles(blue_role, reason='Joining Nova Blue')
+                await nova.add_roles(blue_role, reason='Joining Nova Blue')
 
             await ctx.send('Assigning half of Novas to *Nova Red*...')
             for nova in novas_role.members[1::2]:
                 # iterates over every other list member, starting with second member
-                await ctx.author.add_roles(red_role, reason='Joining Nova Red')
+                await nova.add_roles(red_role, reason='Joining Nova Red')
 
             await ctx.send('Done!')
 
