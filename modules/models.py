@@ -748,7 +748,12 @@ class Game(BaseModel):
             player_list = [l.player for l in gameside.ordered_player_list()]
             if len(player_list) < 2:
                 continue
-            if len(guild.text_channels) > 425 and len(player_list) < 3 and not using_team_server_flag and not self.name.upper()[:3] == 'LR1':
+            if (len(guild.text_channels) > 440 and  # Give server some breathing room for non-game channels
+                   len(player_list) < 3 and  # Large-team chans still get created
+                   not using_team_server_flag and  # if on external server, skip check
+                   not self.name.upper()[:3] == 'LR1' and  # temp hack for LigaRex games which use external server but not flag):
+                   gameside.required_role_id not in [696841367103602768, 696841359616901150]):  # skip check for game chans locked to Nova Blue or Nova Red
+
                 error_message = 'Server has nearly reached the maximum number of channels: skipping channel creation for this game.'
                 logger.warn('Skipping channel creation for a team due to server exceeding 425 channels')
                 continue
