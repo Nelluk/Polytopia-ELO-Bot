@@ -1075,12 +1075,10 @@ class elo_games(commands.Cog):
         """
         Declare winner of an existing game
 
-        The win must be confirmed by a losing player or server staff.
+        The win will be finalized when multiple players confirm the winner, or after approximately 24 hours if no other players confirm.
 
-        __Best Practice__:
-        1. Declare that you've won a game - `[p]win 2050 myname`
-        2. Post a screenshot showing that you are the only human player left
-        3. Wait for either a losing player to confirm, or for staff to check for unconfirmed games with screenshot evidence.
+        If declaring your own victory it can be good practice to post a screenshot indicating that you are the last human player remaining,
+        in case there is a later dispute over the outcome.
 
         **Examples:**
         `[p]win 2050 Home` - Declare *Home* team winner of game 2050
