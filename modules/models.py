@@ -610,7 +610,7 @@ class Player(BaseModel):
 
         return q.dicts()
 
-    def weighted_elo_of_player_list(list_of_discord_ids, guild_id):
+    def average_elo_of_player_list(list_of_discord_ids, guild_id, weighted=True):
 
         # Given a group of discord_ids (likely teammates) come up with an average ELO for that group, weighted by how active they are
         # ie if a team has two players and the guy with 1500 elo plays a lot and the guy with 1000 elo plays not at all, 1500 will be the weighted median elo
@@ -619,8 +619,8 @@ class Player(BaseModel):
         )
 
         elo_list = []
-        # elo_list1, elo_list2, elo_list3 = [], [], []
         player_games = 0
+
         for p in players:
             logger.debug(f'START {p.name}')
             games_played = p.games_played(in_days=30, min_players=2).count()
@@ -630,20 +630,12 @@ class Player(BaseModel):
             elo_list = elo_list + player_elos
             player_games += games_played
 
-            max_weighted_games = min(games_played, 10)
-
-            # if p.elo < 1000:
-            #     max_weighted_games = min(games_played, 3)
-            # elif p.elo < 1100:
-            #     max_weighted_games = min(games_played, 5)
-            # elif p.elo < 1200:
-            #     max_weighted_games = min(games_played, 7)
-            # elif p.elo < 1300:
-            #     max_weighted_games = min(games_played, 10)
-            # else:
-            #     max_weighted_games = min(games_played, 20)
-
-            elo_list = elo_list + [p.elo] * max_weighted_games
+            if weighted:
+                max_weighted_games = min(games_played, 10)
+                elo_list = elo_list + [p.elo] * max_weighted_games
+            else:
+                # Straight average of player elo scores with no weighting
+                elo_list.append(p.elo)
 
         if elo_list:
 

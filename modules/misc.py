@@ -313,7 +313,8 @@ class misc(commands.Cog):
                         ('Wildfire', ['The Wildfire', 'The Flames']),
                         ('Mallards', ['The Mallards', 'The Drakes']),
                         ('Plague', ['The Plague', 'The Rats']),
-                        ('Dragons', ['The Dragons', 'The Narwhals'])]
+                        ('Dragons', ['The Dragons', 'The Narwhals'])
+                        ]
 
         league_balance = []
         indent_str = '\u00A0\u00A0 \u00A0\u00A0 \u00A0\u00A0'
@@ -351,7 +352,10 @@ class misc(commands.Cog):
                     junior_discord_ids.append(member.id)
 
             logger.info(team)
-            combined_elo, player_games_total = models.Player.weighted_elo_of_player_list(list_of_discord_ids=junior_discord_ids + pro_discord_ids, guild_id=ctx.guild.id)
+            combined_elo, player_games_total = models.Player.average_elo_of_player_list(list_of_discord_ids=junior_discord_ids + pro_discord_ids, guild_id=ctx.guild.id, weighted=True)
+
+            pro_elo, _ = models.Player.average_elo_of_player_list(list_of_discord_ids=pro_discord_ids, guild_id=ctx.guild.id, weighted=False)
+            junior_elo, _ = models.Player.average_elo_of_player_list(list_of_discord_ids=junior_discord_ids, guild_id=ctx.guild.id, weighted=False)
 
             league_balance.append(
                 (team,
@@ -360,10 +364,10 @@ class misc(commands.Cog):
                  len(pro_members),
                  len(junior_members),
                  mia_count,
-                 # pro_elo,
-                 # junior_elo,
                  combined_elo,
-                 player_games_total)
+                 player_games_total,
+                 pro_elo,
+                 junior_elo)
             )
 
         league_balance.sort(key=lambda tup: tup[6], reverse=True)     # sort by combined_elo
@@ -372,8 +376,8 @@ class misc(commands.Cog):
         for team in league_balance:
             embed.add_field(name=(f'{team[1].emoji} {team[0]} ({team[3] + team[4]}) {team[2].emoji}\n{indent_str} \u00A0\u00A0 ActiveELO™: {team[6]}'
                                   f'\n{indent_str} \u00A0\u00A0 Recent member-games: {team[7]}'),
-                value=(f'-{indent_str}__**{team[1].name}**__ ({team[3]}) **ELO: {team[1].elo}**\n'
-                       f'-{indent_str}__**{team[2].name}**__ ({team[4]}) **ELO: {team[2].elo}**\n'), inline=False)
+                value=(f'-{indent_str}__**{team[1].name}**__ ({team[3]}) **ELO: {team[1].elo}** (Avg: {team[8]})\n'
+                       f'-{indent_str}__**{team[2].name}**__ ({team[4]}) **ELO: {team[2].elo}** (Avg: {team[9]})\n'), inline=False)
 
         embed.set_footer(text='ActiveELO™ is the mean ELO of members weighted by how many games each member has played in the last 30 days.')
 
