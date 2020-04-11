@@ -607,31 +607,20 @@ class administration(commands.Cog):
                 if grad_role in member.roles:
                     logger.debug(f'Player {player.name} already has the graduate role.')
                     continue
-                if player.completed_game_count() < 3:
-                    logger.debug(f'Player {player.name} has not completed enough ranked games ({player.completed_game_count()} completed).')
-                    continue
-                if player.games_played(in_days=7).count() == 0:
+                if player.games_played(in_days=10).count() == 0:
                     logger.debug(f'Player {player.name} has not played in any recent games.')
                     continue
 
-                team_game_count = 0
-                league_teams_represented, qualifying_games = [], []
+                qualifying_games = []
 
                 for lineup in player.games_played():
                     game = lineup.game
-                    if not game.is_ranked or game.largest_team() == 1:
-                        continue
-                    team_game_count += 1
-                    for lineup in game.lineup:
-                        if lineup.player.team not in league_teams_represented and lineup.player.team != player.team and lineup.gameside.team != player.team:
-                            league_teams_represented.append(lineup.player.team)
-                            if str(game.id) not in qualifying_games:
-                                qualifying_games.append(str(game.id))
-                if team_game_count < 3:
-                    logger.debug(f'Player {player.name} has not completed enough team games.')
-                    continue
-                if len(league_teams_represented) < 3:
-                    logger.debug(f'Player {player.name} has not played with enough league members.')
+                    if 'Nova Red' in game.notes and 'Nova Blue' in game.notes:
+                        if not game.is_pending:
+                            qualifying_games.append(str(game.id))
+
+                if len(qualifying_games) < 3:
+                    logger.debug(f'Player {player.name} has insufficient qualifying games. Games that qualified: {qualifying_games}')
                     continue
 
                 wins, losses = dm.get_record()
