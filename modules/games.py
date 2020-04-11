@@ -435,7 +435,7 @@ class elo_games(commands.Cog):
             if not player:
                 # Matching guild member but no Player or DiscordMember
                 return await ctx.send(f'*{player_mention_safe}* was found in the server but is not registered with me. '
-                    f'Players can be register themselves with  `{ctx.prefix}setcode YOUR_POLYCODE`.')
+                    f'Players can register themselves with  `{ctx.prefix}setcode YOUR_POLYCODE`.')
         else:
             player = player_results[0]
 
