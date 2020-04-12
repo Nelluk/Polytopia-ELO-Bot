@@ -610,7 +610,7 @@ class matchmaking(commands.Cog):
             game_list = models.Game.search_pending(guild_id=ctx.guild.id, player_discord_id=ctx.author.id)
 
         elif ctx.invoked_with == 'novagames':
-            filter_str = ' Nova League'
+            title_str = f'Current pending Nova League games'
             novas_only = True
             game_list = models.Game.search_pending(status_filter=2, guild_id=ctx.guild.id, ranked_filter=ranked_filter)
 
