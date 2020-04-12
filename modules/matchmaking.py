@@ -571,7 +571,7 @@ class matchmaking(commands.Cog):
             await ctx.send(f'Game {game.id} expiration has been reset to 24 hours from now')
 
     @settings.in_bot_channel()
-    @commands.command(aliases=['games', 'listmatches', 'matchlist', 'openmatches', 'listmatch', 'matches'])
+    @commands.command(aliases=['games', 'listmatches', 'matchlist', 'openmatches', 'listmatch', 'matches', 'novagames'])
     async def opengames(self, ctx, *args):
         """
         List joinable open games
@@ -588,7 +588,7 @@ class matchmaking(commands.Cog):
         models.Game.purge_expired_games()
 
         ranked_filter, ranked_str = 2, ''
-        filter_unjoinable = False
+        filter_unjoinable, novas_only = False, True
         unjoinable_count = 0
         ranked_chan = settings.guild_setting(ctx.guild.id, 'ranked_game_channel')
         unranked_chan = settings.guild_setting(ctx.guild.id, 'unranked_game_channel')
@@ -608,6 +608,10 @@ class matchmaking(commands.Cog):
         elif len(args) > 0 and args[0].upper() == 'ME':
             title_str = f'Open games joined by **{ctx.author.name}**'
             game_list = models.Game.search_pending(guild_id=ctx.guild.id, player_discord_id=ctx.author.id)
+
+        elif ctx.invoked_with == 'novagames':
+            filter_str = ' Nova League'
+            novas_only = True
 
         else:
             if len(args) > 0 and args[0].upper() == 'ALL':
@@ -652,6 +656,10 @@ class matchmaking(commands.Cog):
                     if player.elo < min_elo or player.elo > max_elo or player.discord_member.elo < min_elo_g or player.discord_member.elo > max_elo_g:
                         unjoinable_count += 1
                         continue
+
+            if novas_only and'Nova Red' not in game.notes and 'Nova Blue' not in game.notes:
+                unjoinable_count += 1
+                continue
 
             capacity_str = f' {players}/{capacity}'
             expiration = int((game.expiration - datetime.datetime.now()).total_seconds() / 3600.0)
