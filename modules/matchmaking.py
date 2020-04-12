@@ -588,7 +588,7 @@ class matchmaking(commands.Cog):
         models.Game.purge_expired_games()
 
         ranked_filter, ranked_str = 2, ''
-        filter_unjoinable, novas_only = False, True
+        filter_unjoinable, novas_only = False, False
         unjoinable_count = 0
         ranked_chan = settings.guild_setting(ctx.guild.id, 'ranked_game_channel')
         unranked_chan = settings.guild_setting(ctx.guild.id, 'unranked_game_channel')
@@ -610,7 +610,7 @@ class matchmaking(commands.Cog):
             game_list = models.Game.search_pending(guild_id=ctx.guild.id, player_discord_id=ctx.author.id)
 
         elif ctx.invoked_with == 'novagames':
-            title_str = f'Current pending Nova League games'
+            title_str = f'Current pending Nova League games\nUse `{ctx.prefix}games` to view all joinable games'
             novas_only = True
             game_list = models.Game.search_pending(status_filter=2, guild_id=ctx.guild.id, ranked_filter=ranked_filter)
 
