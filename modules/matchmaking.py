@@ -612,6 +612,7 @@ class matchmaking(commands.Cog):
         elif ctx.invoked_with == 'novagames':
             filter_str = ' Nova League'
             novas_only = True
+            game_list = models.Game.search_pending(status_filter=2, guild_id=ctx.guild.id, ranked_filter=ranked_filter)
 
         else:
             if len(args) > 0 and args[0].upper() == 'ALL':
