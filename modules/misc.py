@@ -413,10 +413,10 @@ class misc(commands.Cog):
 
         if len(red_role.members) > len(blue_role.members):
             await ctx.author.add_roles(blue_role, novas_role, reason='Joining Nova Blue')
-            await ctx.send(f'Congrats, you are now a member of the **Nova Blue** team! To join the fight go to a bot channel and type `{ctx.prefix}opengames`')
+            await ctx.send(f'Congrats, you are now a member of the **Nova Blue** team! To join the fight go to a bot channel and type `{ctx.prefix}novagames`')
         else:
             await ctx.author.add_roles(red_role, novas_role, reason='Joining Nova Red')
-            await ctx.send(f'Congrats, you are now a member of the **Nova Red** team! To join the fight go to a bot channel and type `{ctx.prefix}opengames`')
+            await ctx.send(f'Congrats, you are now a member of the **Nova Red** team! To join the fight go to a bot channel and type `{ctx.prefix}novagames`')
 
         if newbie_role:
             await ctx.author.remove_roles(newbie_role, reason='Joining Novas')
