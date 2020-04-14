@@ -22,7 +22,7 @@ def generate_channel_name(game_id, game_name: str, team_name: str = None):
 
     game_team = f'{game_name.replace("the ","").replace("The ","")}_{team_name.replace("the ","").replace("The ","")}'.strip('_')
 
-    if 's5' in game_name.lower() or 's6' in game_name.lower():
+    if 's6' in game_name.lower() or 's7' in game_name.lower() or 's8' in game_name.lower() or 's9' in game_name.lower():
         # hack to have special naming for season games, named eg 'S3W1 Mountains of Fire'. Makes channel easier to see
         chan_name = f'{" ".join(game_team.split()).replace(" ", "-")}-e{game_id}'
     elif game_name.upper()[:3] == 'WWN' or game_name.upper()[:2] == 'WWN':
