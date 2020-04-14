@@ -644,7 +644,7 @@ class administration(commands.Cog):
         - Joined more than a month ago but have played zero ELO games in the last month.
 
         If a member has any role assigned they will not be kicked, beyond this list of 'kickable' roles:
-        Inactive, The Novas, ELO Rookie, ELO Player
+        Inactive, The Novas, Novas Red, Novas Blue, ELO Rookie, ELO Player
 
         For example, Someone with role The Novas that has played zero games in the last month will be kicked.
         """
@@ -655,7 +655,8 @@ class administration(commands.Cog):
         inactive_role_name = settings.guild_setting(ctx.guild.id, 'inactive_role')
         kickable_roles = [discord.utils.get(ctx.guild.roles, name=inactive_role_name), discord.utils.get(ctx.guild.roles, name='The Novas'),
                           discord.utils.get(ctx.guild.roles, name='ELO Rookie'), discord.utils.get(ctx.guild.roles, name='ELO Player'),
-                          discord.utils.get(ctx.guild.roles, name='@everyone')]
+                          discord.utils.get(ctx.guild.roles, name='@everyone'), discord.utils.get(ctx.guild.roles, name='Novas Blue'),
+                          discord.utils.get(ctx.guild.roles, name='Novas Red')]
 
         async with ctx.typing():
             for member in ctx.guild.members:
