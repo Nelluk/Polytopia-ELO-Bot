@@ -658,7 +658,7 @@ class matchmaking(commands.Cog):
                         unjoinable_count += 1
                         continue
 
-            if novas_only and game.notes and 'Nova Red' not in game.notes and 'Nova Blue' not in game.notes:
+            if novas_only and not game.notes or (game.notes and 'Nova Red' not in game.notes and 'Nova Blue' not in game.notes):
                 unjoinable_count += 1
                 continue
 
