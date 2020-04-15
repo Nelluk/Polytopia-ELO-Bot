@@ -615,7 +615,7 @@ class administration(commands.Cog):
 
                 for lineup in player.games_played():
                     game = lineup.game
-                    if 'Nova Red' in game.notes and 'Nova Blue' in game.notes:
+                    if game.notes and 'Nova Red' in game.notes and 'Nova Blue' in game.notes:
                         if not game.is_pending:
                             qualifying_games.append(str(game.id))
 
