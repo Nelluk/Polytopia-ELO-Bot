@@ -393,7 +393,7 @@ class matchmaking(commands.Cog):
             return await ctx.send(f'**{player.name}** does not have a Polytopia game code on file. Use `{ctx.prefix}setcode` to set one.')
 
         if inactive_role and inactive_role in guild_matches[0].roles:
-            return await ctx.send(f'**{player.name}** has the inactive role *{inactive_role.name}* - cannot join them to a game until the role is removed.')
+            return await ctx.send(f'**{player.name}** has the inactive role *{inactive_role.name}* - cannot join them to a game until the role is removed. The role will be removed if they use the `{ctx.prefix}join` command themselves.')
 
         if player.is_banned or player.discord_member.is_banned:
             if settings.is_mod(ctx):
