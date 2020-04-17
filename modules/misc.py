@@ -484,7 +484,7 @@ class misc(commands.Cog):
         for grad in grad_list:
             await ctx.send(grad[0])
 
-    @commands.command(aliases=['random_tribes', 'rtribe'], usage='game_size [-banned_tribe ...]')
+    @commands.command(hidden=True, aliases=['random_tribes', 'rtribe'], usage='game_size [-banned_tribe ...]')
     @settings.in_bot_channel()
     async def rtribes(self, ctx, size='1v1', *args):
         """Show a random tribe combination for a given game size.
