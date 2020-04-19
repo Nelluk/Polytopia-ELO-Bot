@@ -300,8 +300,8 @@ config = {'default':
                       'game_channel_categories': [616073517410287721]},
         283436219780825088:                           # Main Server
                      {'helper_roles': ['ELO-Helper', 'Bot Master'],
-                      'mod_roles': ['MOD', 'Admin', 'Manager'],
-                      'user_roles_level_4': ['Archer', 'Defender', 'Ship', 'Catapult', 'Knight', 'Swordsman', 'Tridention', 'Battleship', 'Mind Bender', 'Giant', 'Crab', 'Dragon', 'ELO Hero'],
+                      'mod_roles': ['Admin', 'Manager'],
+                      'user_roles_level_4': ['Moderator', 'Archer', 'Defender', 'Ship', 'Catapult', 'Knight', 'Swordsman', 'Tridention', 'Battleship', 'Mind Bender', 'Giant', 'Crab', 'Dragon', 'ELO Hero'],
                       'user_roles_level_3': ['ELO Player', 'ELO Veteran'],  # full user
                       'user_roles_level_2': ['Rider', 'Boat', 'ELO Rookie'],  # normal user
                       'user_roles_level_1': ['Member', 'Warrior'],  # restricted user/newbie
