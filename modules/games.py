@@ -168,6 +168,7 @@ class elo_games(commands.Cog):
         `[p]lb` - Default local leaderboard
         `[p]lb global` - Global leaderboard
         `[p]lb max` - Local leaderboard for maximum historic ELO
+        `[p]lb alltime` - Local leaderboard all time (by default, players are removed if they do not play for 90 days)
         `[p]lb global max` - Leaderboard of maximum historic *global* ELO
         """
 
@@ -175,6 +176,7 @@ class elo_games(commands.Cog):
         max_flag, global_flag = False, False
         target_model = Player
         lb_title = 'Individual Leaderboard'
+        date_cutoff = settings.date_cutoff
 
         if ctx.invoked_with == 'lbglobal' or ctx.invoked_with == 'lbg':
             filters = filters + 'GLOBAL'
@@ -184,13 +186,17 @@ class elo_games(commands.Cog):
             lb_title = 'Global Leaderboard'
             target_model = DiscordMember
 
+        if 'ALLTIME' in filters.upper():
+            lb_title += ' - Alltime'
+            date_cutoff = datetime.date.min
+
         if 'MAX' in filters.upper():
             max_flag = True  # leaderboard ranked by player.max_elo
             lb_title += ' - Maximum ELO Achieved'
 
         def process_leaderboard():
             utilities.connect()
-            leaderboard_query = target_model.leaderboard(date_cutoff=settings.date_cutoff, guild_id=ctx.guild.id, max_flag=max_flag)
+            leaderboard_query = target_model.leaderboard(date_cutoff=date_cutoff, guild_id=ctx.guild.id, max_flag=max_flag)
 
             for counter, player in enumerate(leaderboard_query[:2000]):
                 wins, losses = player.get_record()
