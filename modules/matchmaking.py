@@ -660,8 +660,8 @@ class matchmaking(commands.Cog):
                         unjoinable_count += 1
                         continue
 
-            if (novas_only and not game.notes) or (novas_only and game.notes and 'Nova Red' not in game.notes and 'Nova Blue' not in game.notes):
-                # skip all non-nova league template games
+            if (novas_only and not game.notes) or (novas_only and game.notes and 'Nova' not in game.notes):
+                # skip all non-nova league template games, (will also include anything with "nova" in the game notes)
                 unjoinable_count += 1
                 continue
 
