@@ -1857,13 +1857,17 @@ class Game(BaseModel):
     def first_open_side(self, roles):
 
         # first check to see if there are any sides with a role ID that the user has (ie Team Ronin role ID)
+        # returns Side, bool(role_locked_sides)
+        # Side will be the first open side that can be joined, or None
+        # bool(role_locked_sides) is True if the game contains a side that is role locked to one of the given roles, regardless of capacity
+
         role_locked_sides = GameSide.select().where(
             (GameSide.game == self) & (GameSide.required_role_id.in_(roles))
         ).order_by(GameSide.position).prefetch(Lineup)
 
         for side in role_locked_sides:
             if len(side.lineup) < side.size:
-                return side
+                return side, True
 
         # else just use the first side with no role requirement
         sides = GameSide.select().where(
@@ -1872,8 +1876,8 @@ class Game(BaseModel):
 
         for side in sides:
             if len(side.lineup) < side.size:
-                return side
-        return None
+                return side, bool(role_locked_sides)
+        return None, bool(role_locked_sides)
 
     def get_side(self, lookup):
         # lookup can be a side number/position (integer) or side name

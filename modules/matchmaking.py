@@ -235,7 +235,7 @@ class matchmaking(commands.Cog):
             for count, size in enumerate(team_sizes):
                 models.GameSide.create(game=opengame, size=size, position=count + 1, required_role_id=required_roles[count], sidename=required_role_names[count])
 
-            first_side = opengame.first_open_side(roles=[role.id for role in ctx.author.roles])
+            first_side, _ = opengame.first_open_side(roles=[role.id for role in ctx.author.roles])
             if not first_side:
                 if settings.get_user_level(ctx) >= 4:
                     warning_message = f'**Warning:** All sides in this game are locked to a specific @Role - and you don\'t have any of those roles. You are not a player in this game.'
@@ -336,12 +336,14 @@ class matchmaking(commands.Cog):
         if len(args) == 0:
             # ctx.author is joining a game, no side given
             target = f'<@{ctx.author.id}>'
-            side, side_open = game.first_open_side(roles=[role.id for role in ctx.author.roles]), True
+            (side, has_role_locked_side), side_open = game.first_open_side(roles=[role.id for role in ctx.author.roles]), True
 
             if not side:
                 players, capacity = game.capacity()
                 if players < capacity:
-                    return await ctx.send(f'Game {game.id} is limited to specific roles. You are not allowed to join. See game notes for details: `{ctx.prefix}game {game.id}`')
+                    if has_role_locked_side:
+                        return await ctx.send(f'Game {game.id} is limited to specific roles, and your eligible side is **full**. See details with `{ctx.prefix}game {game.id}`')
+                    return await ctx.send(f'Game {game.id} is limited to specific roles. You are not allowed to join. See details with`{ctx.prefix}game {game.id}`')
                 return await ctx.send(f'Game {game.id} is completely full!')
 
         elif len(args) == 1:
@@ -645,7 +647,7 @@ class matchmaking(commands.Cog):
                     # skipping games that the command issuer is not invited to
                     unjoinable_count += 1
                     continue
-                open_side = game.first_open_side(roles=[role.id for role in ctx.author.roles])
+                open_side, _ = game.first_open_side(roles=[role.id for role in ctx.author.roles])
                 if not open_side:
                     # skipping games that are role-locked that player doesn't have role for
                     unjoinable_count += 1
