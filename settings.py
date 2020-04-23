@@ -591,7 +591,6 @@ discord_id_ban_list = [
     # 396699990577119244,  # Skrealder
     # 481525222072254484,  # testaccount1
     342341358218117121,  # Caesar Augustas Trajan
-    327433644589187072,  # Spacebar/Robit
     359831073737146369,  # Epi
     427018182310756352,  # Freeze
     386549614964244481,  # logs#4361
