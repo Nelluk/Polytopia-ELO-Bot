@@ -6,8 +6,9 @@ from discord.ext import commands
 # probably best to override DefaultHelpCommand directly:
 # https://github.com/Rapptz/discord.py/blob/master/discord/ext/commands/help.py
 
-# class MyHelpCommand(commands.MinimalHelpCommand):
-class MyHelpCommand(commands.DefaultHelpCommand):
+
+class MyHelpCommand(commands.MinimalHelpCommand):
+    # class MyHelpCommand(commands.DefaultHelpCommand):
 
     def __init__(self, **options):
         self.width = options.pop('width', 80)

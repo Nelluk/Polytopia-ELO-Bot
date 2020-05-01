@@ -447,7 +447,10 @@ class misc(commands.Cog):
     @settings.on_polychampions()
     async def undrafted_novas(self, ctx, *, arg=None):
         """Prints list of Novas who meet graduation requirements but have not been drafted
+
+        Use `[p]undrafted_novas elo` to sort by global elo
         """
+
         grad_list = []
         grad_role = discord.utils.get(ctx.guild.roles, name='Free Agent')
         inactive_role = discord.utils.get(ctx.guild.roles, name=settings.guild_setting(ctx.guild.id, 'inactive_role'))
@@ -476,11 +479,15 @@ class misc(commands.Cog):
                 f'\n\u00A0\u00A0 \u00A0\u00A0 \u00A0\u00A0 ELO:  {dm.elo} *global* / {player.elo} *local*\n'
                 f'\u00A0\u00A0 \u00A0\u00A0 \u00A0\u00A0 __W {g_wins} / L {g_losses}__ *global* \u00A0\u00A0 - \u00A0\u00A0 __W {wins} / L {losses}__ *local*\n')
 
-            grad_list.append((message, all_games))
+            grad_list.append((message, all_games, dm.elo))
 
         await ctx.send(f'Listing {len(grad_list)} active members with the **{grad_role.name}** role...')
 
-        grad_list.sort(key=lambda tup: tup[1], reverse=False)     # sort the list ascending by num games played
+        if arg.upper() == 'ELO':
+            grad_list.sort(key=lambda tup: tup[2], reverse=False)     # sort the list ascending by num games played
+        else:
+            grad_list.sort(key=lambda tup: tup[1], reverse=False)     # sort the list ascending by num games played
+
         for grad in grad_list:
             await ctx.send(grad[0])
 
