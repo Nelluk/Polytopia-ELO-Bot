@@ -493,7 +493,7 @@ class misc(commands.Cog):
             # await ctx.send(grad[0])
             message.append(grad[0])
 
-        await utilities.buffered_send(destination=ctx, content='\n'.join(message))
+        await utilities.buffered_send(destination=ctx, content=''.join(message))
 
     @commands.command(hidden=True, aliases=['random_tribes', 'rtribe'], usage='game_size [-banned_tribe ...]')
     @settings.in_bot_channel()
