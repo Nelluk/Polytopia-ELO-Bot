@@ -483,13 +483,17 @@ class misc(commands.Cog):
 
         await ctx.send(f'Listing {len(grad_list)} active members with the **{grad_role.name}** role...')
 
-        if arg.upper() == 'ELO':
+        if arg and arg.upper() == 'ELO':
             grad_list.sort(key=lambda tup: tup[2], reverse=False)     # sort the list ascending by num games played
         else:
             grad_list.sort(key=lambda tup: tup[1], reverse=False)     # sort the list ascending by num games played
 
+        message = []
         for grad in grad_list:
-            await ctx.send(grad[0])
+            # await ctx.send(grad[0])
+            message.append(grad[0])
+
+        await utilities.buffered_send(destination=ctx, content='\n'.join(message))
 
     @commands.command(hidden=True, aliases=['random_tribes', 'rtribe'], usage='game_size [-banned_tribe ...]')
     @settings.in_bot_channel()
