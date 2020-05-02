@@ -232,7 +232,7 @@ class misc(commands.Cog):
 
     @commands.command(usage='game_id')
     @commands.cooldown(1, 20, commands.BucketType.user)
-    async def ping(self, ctx, game_id: int = None, *, message: str = None):
+    async def ping(self, ctx, game_id=None, *, message: str = None):
         """ Ping everyone in one of your games with a message
 
          **Examples**
@@ -241,6 +241,12 @@ class misc(commands.Cog):
         See `[p]help pingall` for a command to ping ALL incomplete games simultaneously.
 
         """
+
+        try:
+            game_id = int(game_id) if game_id else ''
+        except ValueError:
+            game_id = None
+
         if not game_id:
             ctx.command.reset_cooldown(ctx)
             return await ctx.send(f'Game ID was not included. Example usage: `{ctx.prefix}ping 100 Here\'s a nice note for everyone in game 100.`')
