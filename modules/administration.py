@@ -35,6 +35,7 @@ class administration(commands.Cog):
     @commands.is_owner()
     @commands.command()
     async def quit(self, ctx):
+        """ *Owner*: Close database connection and quit bot gracefully """
 
         await ctx.send('Shutting down')
         await self.bot.close()
