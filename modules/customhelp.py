@@ -9,6 +9,8 @@ from discord.ext import commands
 
 class MyHelpCommand(commands.MinimalHelpCommand):
     # class MyHelpCommand(commands.DefaultHelpCommand):
+    # DefaultHelpCommand advantage is it shows short help text at the /help level - but all output is in codeblocks and ignores formatting
+    # MinimalHelpCommand looks cleaner on mobile and the `/help command` usage will show formatting
 
     def __init__(self, **options):
         self.width = options.pop('width', 80)
@@ -85,13 +87,11 @@ class MyHelpCommand(commands.MinimalHelpCommand):
 
         if command.description:
             self.paginator.add_line(command.description, empty=True)
-            # print(command.description)
         else:
-            # print('none')
             pass
 
         signature = self.get_command_signature(command)
-        print(signature)
+        # print(signature)
         self.paginator.add_line(signature, empty=True)
 
         if command.help:
@@ -102,43 +102,24 @@ class MyHelpCommand(commands.MinimalHelpCommand):
                     self.paginator.add_line(line)
                 self.paginator.add_line()
 
-    # # below copied from https://github.com/mpsparrow/applesauce/blob/master/cogs/required/help.py
-    # async def send_command_help(self, command):
-    #     embed = discord.Embed(title=f'{command.name}', description=f'**Description:**  {command.description}\n**Usage:**  `{command.usage}`\n**Aliases:**  {command.aliases}', color=0xc1c100)
-    #     await self.context.send(embed=embed)
-
-    # async def send_bot_help(self, mapping):
-
-    #     embed = discord.Embed(title='Help', description=f'All commands. Use `help command` for more info.', color=0xc1c100)
-
-    #     # get list of commands
-    #     cmds = []
-    #     for cog, cog_commands in mapping.items():
-    #         cmds = cmds + cog_commands
-
-    #     # put commands in alphabetical order
-    #     newCmds = []
-    #     for item in cmds:
-    #         newCmds.append(str(item))
-    #     newCmds = sorted(newCmds)
-
-    #     # combine commands into string for output
-    #     commandStr = ''
-    #     for cmd in newCmds:
-    #         commandStr += '``' + str(cmd) + '`` '
-
-    #     # add all commands to embed and message it
-    #     embed.add_field(name='Commands', value=f'{commandStr}', inline=False)
-    #     await self.context.send(embed=embed)
-
-# new_short_doc = command.short_doc.replace('[p]', self.clean_prefix)
+    def get_opening_note(self):
+        """Returns help command's opening note. This is mainly useful to override for i18n purposes.
+        The default implementation returns ::
+            Use `{prefix}{command_name} [command]` for more info on a command.
+            You can also use `{prefix}{command_name} [category]` for more info on a category.
+        """
+        command_name = self.invoked_with
+        return "Use `{0}{1} [command]` for more info on a command.\n" \
+               "You can also use `{0}{1} [category]` for short descriptions of each command".format(self.clean_prefix, command_name)
+        # return "Use `{0}{1} [command]` for more info on a command.\n".format(self.clean_prefix, command_name)
 
 
 class CustomHelp(commands.Cog):
     def __init__(self, bot):
         self._original_help_command = bot.help_command
-        bot.help_command = MyHelpCommand()
+        bot.help_command = MyHelpCommand(command_attrs={"hidden": True})
         bot.help_command.cog = self
+        # self.bot.help_command.command_attrs("hidden": True)
 
     def cog_unload(self):
         self.bot.help_command = self._original_help_command

@@ -47,7 +47,7 @@ class PolyGame(commands.Converter):
             return game
 
 
-class elo_games(commands.Cog):
+class games(commands.Cog):
 
     def __init__(self, bot):
         self.bot = bot
@@ -1630,5 +1630,5 @@ def parse_players_and_teams(input_list, guild_id: int):
 
 
 def setup(bot):
-    bot.add_cog(elo_games(bot))
+    bot.add_cog(games(bot))
     # bot.load_extension('modules.games')
