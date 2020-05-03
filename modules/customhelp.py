@@ -85,9 +85,10 @@ class MyHelpCommand(commands.MinimalHelpCommand):
 
         if command.description:
             self.paginator.add_line(command.description, empty=True)
-            print(command.description)
+            # print(command.description)
         else:
-            print('none')
+            # print('none')
+            pass
 
         signature = self.get_command_signature(command)
         print(signature)

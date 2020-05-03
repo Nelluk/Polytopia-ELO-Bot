@@ -170,6 +170,9 @@ class elo_games(commands.Cog):
         `[p]lb max` - Local leaderboard for maximum historic ELO
         `[p]lb alltime` - Local leaderboard all time (by default, players are removed if they do not play for 90 days)
         `[p]lb global max` - Leaderboard of maximum historic *global* ELO
+
+        `[p]lbrecent` - Most active players of the last 30 days
+        `[p]lbactivealltime` - Most active players of all time
         """
 
         leaderboard = []
@@ -215,7 +218,7 @@ class elo_games(commands.Cog):
         await utilities.paginate(self.bot, ctx, title=f'**{lb_title}**\n{leaderboard_size} ranked players', message_list=leaderboard, page_start=0, page_end=10, page_size=10)
 
     @settings.in_bot_channel_strict()
-    @commands.command(aliases=['recent', 'active', 'lbactivealltime'])
+    @commands.command(aliases=['recent', 'active', 'lbactivealltime'], hidden=True)
     @commands.cooldown(2, 30, commands.BucketType.channel)
     async def lbrecent(self, ctx):
         """ Display most active recent players"""
