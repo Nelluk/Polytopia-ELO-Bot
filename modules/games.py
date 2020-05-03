@@ -60,6 +60,7 @@ class elo_games(commands.Cog):
         if before.name != after.name:
             logger.debug(f'Attempting to change member discordname for {before.name} to {after.name}')
             # update Discord Member Name, and update display name for each Guild/Player they share with the bot
+            utilities.connect()
             try:
                 discord_member = DiscordMember.select().where(DiscordMember.discord_id == after.id).get()
             except peewee.DoesNotExist:
@@ -74,6 +75,7 @@ class elo_games(commands.Cog):
 
         banned_role = discord.utils.get(before.guild.roles, name='ELO Banned')
         if banned_role not in before.roles and banned_role in after.roles:
+            utilities.connect()
             try:
                 player = player_query.get()
             except peewee.DoesNotExist:
@@ -83,6 +85,7 @@ class elo_games(commands.Cog):
             logger.info(f'ELO Ban added for player {player.id} {player.name}')
 
         if banned_role in before.roles and banned_role not in after.roles:
+            utilities.connect()
             try:
                 player = player_query.get()
             except peewee.DoesNotExist:
@@ -97,6 +100,7 @@ class elo_games(commands.Cog):
 
         if before.nick != after.nick:
             logger.debug(f'Attempting to change member nick for {before.name}({before.nick}) to {after.name}({after.nick})')
+            utilities.connect()
             # update nick in guild's Player record
             try:
                 player = player_query.get()
