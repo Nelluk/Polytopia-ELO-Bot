@@ -684,9 +684,8 @@ class games(commands.Cog):
 
         if created:
             await ctx.send(f'Player **{player.name}** added to system with Polytopia code `{player.discord_member.polytopia_id}` and ELO **{player.elo}**\n'
-                f'Optionally also set your Polytopia ingame name with `{ctx.prefix}setname YOUR_INGAME_NAME` as well as your timezone using '
-                f'`{ctx.prefix}settime YOUR_TIMEZONE_OFFSET` (eg. `UTC-5` for Eastern Standard Time)\n'
-                f'To find games to join use the `{ctx.prefix}opengames` command.')
+                f'If your in-game name is different than your discord name, let the bot know with `{ctx.prefix}setname YOUR_INGAME_NAME`\n'
+                f'To find games to join use the `{ctx.prefix}games` command.')
         else:
             await ctx.send(f'Player **{player.name}** updated in system with Polytopia code `{player.discord_member.polytopia_id}`.')
 
