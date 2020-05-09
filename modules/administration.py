@@ -819,24 +819,10 @@ class administration(commands.Cog):
         discord_member.delete_instance()
         await ctx.send(f'Deleting DiscordMember {name} with discord ID `{player_id}` from ELO database. They have zero games associated with their profile.')
 
-    @commands.command()
-    @commands.is_owner()
-    async def recalc_elo(self, ctx):
-        """*Owner*: Recalculate ELO for all games
-        Intended to be used when a change to the ELO math is made to apply to all games retroactively
-        """
-
-        async with ctx.typing():
-            await ctx.send('Recalculating ELO for all games in database.')
-            await self.bot.loop.run_in_executor(None, models.Game.recalculate_all_elo)
-            # Allows bot to remain responsive while this large operation is running.
-        await ctx.send('Recalculation complete!')
-
     @commands.command(aliases=['dbb'])
     @commands.is_owner()
     async def backup_db(self, ctx):
         """*Owner*: Backup PSQL database to a file
-        Intended to be used when a change to the ELO math is made to apply to all games retroactively
         """
         import subprocess
         from subprocess import PIPE
