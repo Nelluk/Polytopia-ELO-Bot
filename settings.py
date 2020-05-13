@@ -301,7 +301,7 @@ config = {'default':
         283436219780825088:                           # Main Server
                      {'helper_roles': ['ELO-Helper', 'Bot Master'],
                       'mod_roles': ['Admin', 'Manager'],
-                      'user_roles_level_4': ['Moderator', 'Archer', 'Defender', 'Ship', 'Catapult', 'Knight', 'Swordsman', 'Tridention', 'Battleship', 'Mind Bender', 'Giant', 'Crab', 'Dragon', 'ELO Hero'],
+                      'user_roles_level_4': ['Moderator', 'Archer', 'Ice Archer', 'Defender', 'Ship', 'Catapult', 'Polytaur', 'Battle Sled', 'Swordsman', 'Tridention', 'Knight', 'Ice Fortress', 'Battleship', 'Navalon', 'Mind Bender', 'Giant', 'Crab', 'Gaami', 'Dragon', 'ELO Hero'],
                       'user_roles_level_3': ['ELO Player', 'ELO Veteran'],  # full user
                       'user_roles_level_2': ['Rider', 'Boat', 'ELO Rookie'],  # normal user
                       'user_roles_level_1': ['Member', 'Warrior'],  # restricted user/newbie
@@ -314,8 +314,8 @@ config = {'default':
                       'include_in_global_lb': True,
                       'bot_channels_private': [418175357137453058, 403724174532673536],  # 058 testchamber, 536 bot-commands
                       'bot_channels_strict': [635091071717867521],  # 521 elo-bot-commands
-                      'bot_channels': [635091071717867521, 403724174532673536, 511316081160355852, 511906353476927498, 396069729657421824],  # 498 unranked-games, 852 ranked-games, 824 multi-discussion
-                      'newbie_message_channels': [396069729657421824, 413721247260868618],  # multi-discussion, #friend-codes
+                      'bot_channels': [635091071717867521, 403724174532673536, 511316081160355852, 511906353476927498],  # 498 unranked-games, 852 ranked-games
+                      'newbie_message_channels': [413721247260868618],  # friend-codes
                       'ranked_game_channel': 511316081160355852,
                       'unranked_game_channel': 511906353476927498,
                       'match_challenge_channels': [511316081160355852, 511906353476927498],
