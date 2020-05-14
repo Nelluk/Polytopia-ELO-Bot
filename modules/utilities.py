@@ -66,11 +66,21 @@ def is_valid_poly_gamename(input: str):
     return any(word.upper() in input.upper() for word in key_words)
 
 
+# def string_to_user_id(input):
+#     # given a user @Mention or a raw user ID, returns just the raw user ID (does not validate the ID itself)
+#     try:
+#         return int(str(input).strip('<>!@'))
+#     except ValueError:
+#         return None
+
 def string_to_user_id(input):
-    # given a user @Mention or a raw user ID, returns just the raw user ID (does not validate the ID itself)
+    # given a user @Mention or a raw user ID, returns just the raw user ID (does not validate the ID itself, but does sanity check length)
+    match = re.match(r'([0-9]{15,21})$', input) or re.match(r'<@!?([0-9]+)>$', input)
+    # regexp is from https://github.com/Rapptz/discord.py/blob/02397306b2ed76b3bc42b2b28e8672e839bdeaf5/discord/ext/commands/converter.py#L117
+
     try:
-        return int(str(input).strip('<>!@'))
-    except ValueError:
+        return int(match.group(1))
+    except (ValueError, AttributeError):
         return None
 
 
@@ -81,27 +91,40 @@ async def get_guild_member(ctx, input):
     # TODO: Work around flaw noted below in MemberConverter
 
     guild_matches, substring_matches = [], []
-    try:
-        guild_matches.append(await commands.MemberConverter().convert(ctx, input))
-        # One flaw in MemberConverter is that if there are multiple exact matches, it will just return the first one
-        # (with no indication that there were more matches)
-        # Potential workaround is to only use MemberConverter if the input is a discord ID or includes a discriminator
-    except commands.errors.BadArgument:
-        pass
-        # No matches in standard MemberConverter. Move on to a case-insensitive search.
-        input = input.strip('@')  # Attempt to handle fake @Mentions that sometimes slip through
-        for p in ctx.guild.members:
-            name_str = p.nick.upper() + p.name.upper() if p.nick else p.name.upper()
-            if p.name.upper() == input.upper():
-                guild_matches.append(p)
-            elif input.upper() in name_str:
-                substring_matches.append(p)
 
-        return guild_matches + substring_matches
-        # if len(guild_matches) > 0:
-        #     return guild_matches
-        # if len(input) > 2:
-        #     return substring_matches
+    user_id_match = string_to_user_id(input)
+    if user_id_match:
+        result = ctx.guild.get_member(user_id_match) or discord.utils.get(ctx.message.mentions, id=user_id_match)
+        if result:
+            # input is a user id or mention, and a member matching that ID was retrieved
+            return [result]
+    if len(input) > 5 and input[-5] == '#':
+        # The 5 length is checking to see if #0000 is in the string,
+        # as a#0000 has a length of 6, the minimum for a potential
+        # discriminator lookup.
+        potential_discriminator = input[-4:]
+
+        # do the actual lookup and return if found
+        # if it isn't found then we'll do a full name lookup below.
+        result = discord.utils.get(ctx.guild.members, name=input[:-5], discriminator=potential_discriminator)
+        if result is not None:
+            return [result]
+
+    # No matches in by user ID or Name#Discriminator. Move on to case insensitive partial matches
+
+    input = input.strip('@')  # Attempt to handle fake @Mentions that sometimes slip through
+    for p in ctx.guild.members:
+        name_str = p.nick.upper() + p.name.upper() if p.nick else p.name.upper()
+        if p.name.upper() == input.upper():
+            guild_matches.append(p)
+        elif input.upper() in name_str:
+            substring_matches.append(p)
+
+    return guild_matches + substring_matches
+    # if len(guild_matches) > 0:
+    #     return guild_matches
+    # if len(input) > 2:
+    #     return substring_matches
 
     return guild_matches
 
