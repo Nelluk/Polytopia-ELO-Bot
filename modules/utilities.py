@@ -66,13 +66,6 @@ def is_valid_poly_gamename(input: str):
     return any(word.upper() in input.upper() for word in key_words)
 
 
-# def string_to_user_id(input):
-#     # given a user @Mention or a raw user ID, returns just the raw user ID (does not validate the ID itself)
-#     try:
-#         return int(str(input).strip('<>!@'))
-#     except ValueError:
-#         return None
-
 def string_to_user_id(input):
     # given a user @Mention or a raw user ID, returns just the raw user ID (does not validate the ID itself, but does sanity check length)
     match = re.match(r'([0-9]{15,21})$', input) or re.match(r'<@!?([0-9]+)>$', input)
