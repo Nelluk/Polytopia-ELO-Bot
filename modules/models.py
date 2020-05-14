@@ -23,6 +23,17 @@ def tomorrow():
     return (datetime.datetime.now() + datetime.timedelta(hours=24)).strftime("%Y-%m-%d %H:%M:%S")
 
 
+def string_to_user_id(input):
+    # given a user @Mention or a raw user ID, returns just the raw user ID (does not validate the ID itself, but does sanity check length)
+    match = re.match(r'([0-9]{15,21})$', input) or re.match(r'<@!?([0-9]+)>$', input)
+    # regexp is from https://github.com/Rapptz/discord.py/blob/02397306b2ed76b3bc42b2b28e8672e839bdeaf5/discord/ext/commands/converter.py#L117
+
+    try:
+        return int(match.group(1))
+    except (ValueError, AttributeError):
+        return None
+
+
 class BaseModel(Model):
     class Meta:
         database = db
@@ -427,7 +438,7 @@ class Player(BaseModel):
         # Returns QuerySet containing players in current guild matching string. Searches against discord mention ID first, then exact discord name match,
         # then falls back to substring match on name/nick, then a lastly a substring match of polytopia ID or polytopia in-game name
 
-        p_id = utilities.string_to_user_id(player_string)
+        p_id = string_to_user_id(player_string)
         if p_id:
             # lookup either on <@####> mention string or raw ID #
             query_by_id = Player.select(Player, DiscordMember).join(DiscordMember).where(
@@ -1446,7 +1457,7 @@ class Game(BaseModel):
         # return game.lineup, based on either Player object or discord_id. else None if player did not play in this game.
 
         if name and not discord_id:
-            discord_id = utilities.string_to_user_id(name)
+            discord_id = string_to_user_id(name)
 
         if player:
             discord_id = player.discord_member.discord_id
@@ -1490,7 +1501,7 @@ class Game(BaseModel):
         for gameside in gamesides:
             if len(gameside.lineup) == 1:
 
-                p_id = utilities.string_to_user_id(name)
+                p_id = string_to_user_id(name)
                 if p_id and p_id == gameside.lineup[0].player.discord_member.discord_id:
                     # name is a <@PlayerMention> or raw player_id
                     # compare to single squad player's discord ID
