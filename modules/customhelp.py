@@ -29,7 +29,7 @@ class MyHelpCommand(commands.MinimalHelpCommand):
 
     def get_command_signature(self, command):
         # top line of '$help <command>' output
-        return '{0.clean_prefix}{1.qualified_name} {1.signature}'.format(self, command)
+        return '`{0.clean_prefix}{1.qualified_name} {1.signature}`'.format(self, command)
 
     def add_indented_commands(self, commands, *, heading, max_size=None):
         """Indents a list of commands after the specified heading.

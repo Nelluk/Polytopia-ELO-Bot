@@ -881,8 +881,11 @@ class games(commands.Cog):
         # async def game(self, ctx, game: PolyGame = None):
 
         """See details on a specific game ID
+
+        If you use something other than a numeric game ID with this command, it is assumed you are trying to use `allgames`, which allows you to search games by player, game name, result, or team. See `[p]help allgames`
+
         **Examples**:
-        `[p]game 51` - See details on game # 51.
+        `[p]game 1251` - See details on game # 1251.
         """
         if not game_search:
             return await ctx.send(f'Game ID number must be supplied, example: __`{ctx.prefix}game 1250`__')

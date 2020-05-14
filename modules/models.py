@@ -24,6 +24,8 @@ def tomorrow():
 
 
 def string_to_user_id(input):
+    # copied from Utilities - probably a better way to structure this but currently importing utilities creates circular import
+
     # given a user @Mention or a raw user ID, returns just the raw user ID (does not validate the ID itself, but does sanity check length)
     match = re.match(r'([0-9]{15,21})$', input) or re.match(r'<@!?([0-9]+)>$', input)
     # regexp is from https://github.com/Rapptz/discord.py/blob/02397306b2ed76b3bc42b2b28e8672e839bdeaf5/discord/ext/commands/converter.py#L117
