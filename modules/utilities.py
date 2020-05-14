@@ -88,9 +88,6 @@ async def get_guild_member(ctx, input):
 
     # Find matching Guild member by @Mention or Name. Fall back to case-insensitive search
     # TODO: use exceptions.NoSingleMatch etc like Player.get_or_except()
-    # Possible TODO, start by looking for an exact match and then fall back to partial matches
-    # Previously exact matches were handled by using the MemberConverter but removed that since it did not handle
-    # -multiple- exact matches well.
 
     name_matches, nick_matches, substring_matches = [], [], []
 
@@ -112,10 +109,7 @@ async def get_guild_member(ctx, input):
         if result is not None:
             return [result]
 
-    # No matches by user ID or Name#Discriminator. Move on to case insensitive partial matches
-
-    def name_check(foo):
-        pass
+    # No matches by user ID or Name#Discriminator. Move on to name/nick matches
 
     input = input.strip('@')  # Attempt to handle fake @Mentions that sometimes slip through
     for p in ctx.guild.members:
