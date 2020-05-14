@@ -427,11 +427,8 @@ class Player(BaseModel):
         # Returns QuerySet containing players in current guild matching string. Searches against discord mention ID first, then exact discord name match,
         # then falls back to substring match on name/nick, then a lastly a substring match of polytopia ID or polytopia in-game name
 
-        try:
-            p_id = int(player_string.strip('<>!@'))
-        except ValueError:
-            pass
-        else:
+        p_id = utilities.string_to_user_id(player_string)
+        if p_id:
             # lookup either on <@####> mention string or raw ID #
             query_by_id = Player.select(Player, DiscordMember).join(DiscordMember).where(
                 (DiscordMember.discord_id == p_id) & (Player.guild_id == guild_id)
@@ -1448,11 +1445,8 @@ class Game(BaseModel):
     def player(self, player: Player = None, discord_id: int = None, name: str = None):
         # return game.lineup, based on either Player object or discord_id. else None if player did not play in this game.
 
-        if name:
-            try:
-                discord_id = int(str(name).strip('<>!@'))
-            except ValueError:
-                pass
+        if name and not discord_id:
+            discord_id = utilities.string_to_user_id(name)
 
         if player:
             discord_id = player.discord_member.discord_id
@@ -1495,15 +1489,12 @@ class Game(BaseModel):
 
         for gameside in gamesides:
             if len(gameside.lineup) == 1:
-                try:
-                    p_id = int(name.strip('<>!@'))
-                except ValueError:
-                    pass
-                else:
+
+                p_id = utilities.string_to_user_id(name)
+                if p_id and p_id == gameside.lineup[0].player.discord_member.discord_id:
                     # name is a <@PlayerMention> or raw player_id
                     # compare to single squad player's discord ID
-                    if p_id == gameside.lineup[0].player.discord_member.discord_id:
-                        return (gameside.lineup[0].player, gameside)
+                    return (gameside.lineup[0].player, gameside)
 
                 # Compare to single gamesides player's name
                 if name.lower() in gameside.lineup[0].player.name.lower():
