@@ -200,6 +200,8 @@ async def paginate(bot, ctx, title, message_list, page_start=0, page_end=10, pag
     page_end = page_end if len(message_list) > page_end else len(message_list)
 
     first_loop = True
+    reaction, user = None, None
+
     while True:
         embed = discord.Embed(title=title)
         for entry in range(page_start, page_end):
