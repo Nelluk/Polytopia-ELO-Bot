@@ -88,9 +88,11 @@ async def get_guild_member(ctx, input):
 
     # Find matching Guild member by @Mention or Name. Fall back to case-insensitive search
     # TODO: use exceptions.NoSingleMatch etc like Player.get_or_except()
-    # TODO: Work around flaw noted below in MemberConverter
+    # Possible TODO, start by looking for an exact match and then fall back to partial matches
+    # Previously exact matches were handled by using the MemberConverter but removed that since it did not handle
+    # -multiple- exact matches well.
 
-    guild_matches, substring_matches = [], []
+    name_matches, nick_matches, substring_matches = [], [], []
 
     user_id_match = string_to_user_id(input)
     if user_id_match:
@@ -110,23 +112,31 @@ async def get_guild_member(ctx, input):
         if result is not None:
             return [result]
 
-    # No matches in by user ID or Name#Discriminator. Move on to case insensitive partial matches
+    # No matches by user ID or Name#Discriminator. Move on to case insensitive partial matches
+
+    def name_check(foo):
+        pass
 
     input = input.strip('@')  # Attempt to handle fake @Mentions that sometimes slip through
     for p in ctx.guild.members:
-        name_str = p.nick.upper() + p.name.upper() if p.nick else p.name.upper()
+
         if p.name.upper() == input.upper():
-            guild_matches.append(p)
-        elif input.upper() in name_str:
-            substring_matches.append(p)
+            name_matches.append(p)
+        elif p.nick and p.nick.upper() == input.upper():
+            nick_matches.append(p)
+        else:
+            full_name_str = p.nick.upper() + p.name.upper() if p.nick else p.name.upper()
+            if input.upper() in full_name_str:
+                substring_matches.append(p)
 
-    return guild_matches + substring_matches
-    # if len(guild_matches) > 0:
-    #     return guild_matches
-    # if len(input) > 2:
-    #     return substring_matches
-
-    return guild_matches
+    if name_matches:
+        # prioritize exact name matches first
+        return name_matches
+    if nick_matches:
+        # prioritize exact nick matches second
+        return nick_matches
+    # lastly, partial matches against nick or name equally weighted
+    return substring_matches
 
 
 def get_matching_roles(discord_member, list_of_role_names):
