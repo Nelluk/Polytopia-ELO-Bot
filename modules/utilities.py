@@ -209,27 +209,25 @@ async def paginate(bot, ctx, title, message_list, page_start=0, page_end=10, pag
 
         if first_loop is True:
             sent_message = await ctx.send(embed=embed)
-        else:
-            try:
-                await sent_message.clear_reactions()
-            except (discord.ext.commands.errors.CommandInvokeError, discord.errors.Forbidden):
-                logger.warn('Unable to clear message reaction due to insufficient permissions. Giving bot \'Manage Messages\' permission will improve usability.')
-            await sent_message.edit(embed=embed)
-
-        if page_start > 0:
             await sent_message.add_reaction('⏪')
             await sent_message.add_reaction('⬅')
-        if page_end < len(message_list):
             await sent_message.add_reaction('➡')
             await sent_message.add_reaction('⏩')
+        else:
+            try:
+                await reaction.remove(user)
+            except (discord.ext.commands.errors.CommandInvokeError, discord.errors.Forbidden):
+                logger.warn('Unable to remove message reaction due to insufficient permissions. Giving bot \'Manage Messages\' permission will improve usability.')
+            await sent_message.edit(embed=embed)
 
         def check(reaction, user):
             e = str(reaction.emoji)
-
+            compare = False
             if page_size < len(message_list):
-                compare = e.startswith(('⏪', '⏩', '➡', '⬅'))
-            else:
-                compare = False
+                if page_start > 0 and e in '⏪⬅':
+                    compare = True
+                elif page_end < len(message_list) and e in '➡⏩':
+                    compare = True
             return ((user == ctx.message.author) and (reaction.message.id == sent_message.id) and compare)
 
         try:
