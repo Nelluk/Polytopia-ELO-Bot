@@ -211,10 +211,13 @@ async def paginate(bot, ctx, title, message_list, page_start=0, page_end=10, pag
 
         if first_loop is True:
             sent_message = await ctx.send(embed=embed)
-            await sent_message.add_reaction('⏪')
-            await sent_message.add_reaction('⬅')
-            await sent_message.add_reaction('➡')
-            await sent_message.add_reaction('⏩')
+            if len(message_list) > page_size:
+                await sent_message.add_reaction('⏪')
+                await sent_message.add_reaction('⬅')
+                await sent_message.add_reaction('➡')
+                await sent_message.add_reaction('⏩')
+            else:
+                return
         else:
             try:
                 await reaction.remove(user)
