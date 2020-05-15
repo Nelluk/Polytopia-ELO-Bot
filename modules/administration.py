@@ -757,7 +757,7 @@ class administration(commands.Cog):
     @commands.is_owner()
     async def migrate_player(self, ctx, from_string: str, to_string: str):
         """*Owner*: Migrate games from player's old account to new account
-        Target player cannot have any games associated with their profile. Use a @Mention or raw user ID as an argument.
+        Target player cannot have any completed games associated with their profile. Use a @Mention or raw user ID as an argument.
 
         **Examples**
         [p]migrate_player @NellukOld @NellukNew
@@ -778,17 +778,50 @@ class administration(commands.Cog):
 
         new_discord_member = models.DiscordMember.get_or_none(discord_id=new_guild_member.id)
         if new_discord_member:
-            return await ctx.send(f'Found a DiscordMember *{new_discord_member.name}* in the database matching discord id `{new_guild_member.id}`. Cannot migrate to an existing player! Use `{ctx.prefix}delete_player` first.')
+            # New player is already registered with the bot
+            if new_discord_member.completed_game_count(only_ranked=False) > 0:
+                return await ctx.send(f'Found a DiscordMember *{new_discord_member.name}* in the database matching discord id `{new_guild_member.id}`. Cannot migrate to an existing player with completed games!')
 
-        logger.warn(f'Migrating player profile of ID {from_id} {old_discord_member.name} to new guild member {new_guild_member.id}{new_guild_member.name}')
+            # but has no completed games - proceeding to migrate
+            logger.warn(f'Migrating player profile of ID {from_id} {old_discord_member.name} to new guild member {new_guild_member.id}{new_guild_member.name} with existing incomplete games')
 
-        await ctx.send(f'The games from DiscordMember `{from_id}` *{old_discord_member.name}* will be migrated and become associated with {new_guild_member.mention}')
+            with models.db.atomic():
+                for gm in new_discord_member.guildmembers:
+                    old_gm = models.Player.get_or_none(discord_member=old_discord_member, guild_id=gm.guild_id)
+                    if old_gm:
+                        # Both old account and new account are registered in this guild
+                        for l in gm.lineup:
+                            # cycle through new incomplete games and switch to the old player
+                            l.player = old_gm
+                            l.save()
+                    else:
+                        # New account in this guild but old account not
+                        # associate its player in this guild with the old account
+                        gm.discord_member = old_discord_member
+                        gm.save()
 
-        old_discord_member.discord_id = new_guild_member.id
-        old_discord_member.save()
-        old_discord_member.update_name(new_name=new_guild_member.name)
+                new_discord_member.delete_instance()
 
-        await ctx.send('Migration complete!')
+                # set old account with new discord ID and refresh name
+                old_discord_member.discord_id = new_guild_member.id
+                old_discord_member.save()
+                old_discord_member.update_name(new_name=new_guild_member.name)
+
+            return await ctx.send('Migration complete!')
+
+        else:
+            # New player has no presence in the bot
+            logger.warn(f'Migrating player profile of ID {from_id} {old_discord_member.name} to new guild member {new_guild_member.id}{new_guild_member.name}')
+
+            await ctx.send(f'The games from DiscordMember `{from_id}` *{old_discord_member.name}* will be migrated and become associated with {new_guild_member.mention}')
+
+            with models.db.atomic():
+
+                old_discord_member.discord_id = new_guild_member.id
+                old_discord_member.save()
+                old_discord_member.update_name(new_name=new_guild_member.name)
+
+            await ctx.send('Migration complete!')
 
     @commands.command(aliases=['delplayer'])
     @commands.is_owner()
