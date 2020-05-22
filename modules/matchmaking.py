@@ -752,9 +752,10 @@ class matchmaking(commands.Cog):
             for gameplayer in side.ordered_player_list():
                 guild_member = ctx.guild.get_member(gameplayer.player.discord_member.discord_id)
                 if not guild_member:
-                    return await ctx.send(f'Player *{gameplayer.player.name}* not found on this server. (Maybe they left?)')
-                current_side.append(guild_member)
-                mentions.append(guild_member.mention)
+                    await ctx.send(f'Player *{gameplayer.player.name}* not found on this server. (Maybe they left?) Game will still be created.')
+                else:
+                    current_side.append(guild_member)
+                    mentions.append(guild_member.mention)
             sides.append(current_side)
 
         try:
