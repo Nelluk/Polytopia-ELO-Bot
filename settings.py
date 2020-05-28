@@ -596,6 +596,7 @@ discord_id_ban_list = [
     427018182310756352,  # Freeze
     386549614964244481,  # logs#4361
     313427349775450112,  # SouthPenguinJay#3692
+    616737820261875721,  # CoolGuyNotFoolGuy#0498 troll who blatantly lied about game confirmations
 ]
 
 poly_id_ban_list = [
@@ -609,6 +610,7 @@ poly_id_ban_list = [
     'R5NregRkLycUsq7C',  # Just7609
     '9x85fWIxxkLyOMem',  # logs#4361
     'JU1Zb9jGO4H1I4Ls',  # SouthPenguinJay#3692
+    'MhJJohJENaeBUz7H',  # CoolGuyNotFoolGuy#0498
 ]
 
 
