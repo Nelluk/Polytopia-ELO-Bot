@@ -340,16 +340,10 @@ class Player(BaseModel):
 
     def generate_display_name(self=None, player_name=None, player_nick=None):
 
-        def escape_name(input: str):
-            # prevent hiding discord name with ||Name||
-            input = re.sub(r'\|\|', '\u200b|\u200b|', str(input))
-            # escape role mentions (copied from Utilities otherwise there would be a circular import)
-            return re.sub(r'@(everyone|here|&[0-9]{17,21})', '@\u200b\\1', str(input))
-
-        player_name = escape_name(player_name)
+        player_name = discord.utils.escape_markdown(discord.utils.escape_mentions(player_name), as_needed=True)
 
         if player_nick:
-            player_nick = escape_name(player_nick)
+            player_nick = discord.utils.escape_markdown(discord.utils.escape_mentions(player_nick), as_needed=True)
 
             if player_name in player_nick:
                 display_name = player_nick
