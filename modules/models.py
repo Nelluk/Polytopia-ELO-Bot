@@ -1522,7 +1522,7 @@ class Game(BaseModel):
             names_str = '\n'.join(self.list_gameside_membership())
             raise exceptions.NoMatches(f'No sides found with name **{name}** in game {self.id}. Sides in this game are:\n{names_str}')
         else:
-            raise exceptions.TooManyMatches(f'{len(matches)} matches found for "{name}" in game {self.id}.')
+            raise exceptions.TooManyMatches(f'{len(matches)} matches found for "{name}" in game {self.id}. Be more specific or use a @Mention.')
 
     def elo_requirements(self):
 
