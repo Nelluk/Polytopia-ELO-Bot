@@ -315,7 +315,7 @@ config = {'default':
                       'bot_channels_private': [418175357137453058, 403724174532673536],  # 058 testchamber, 536 bot-commands
                       'bot_channels_strict': [635091071717867521],  # 521 elo-bot-commands
                       'bot_channels': [635091071717867521, 403724174532673536, 511316081160355852, 511906353476927498],  # 498 unranked-games, 852 ranked-games
-                      'newbie_message_channels': [413721247260868618],  # friend-codes
+                      'newbie_message_channels': [396069729657421824, 413721247260868618],  # multi-discussion, friend-codes
                       'ranked_game_channel': 511316081160355852,
                       'unranked_game_channel': 511906353476927498,
                       'match_challenge_channels': [511316081160355852, 511906353476927498],

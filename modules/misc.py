@@ -618,7 +618,7 @@ class misc(commands.Cog):
     async def task_broadcast_newbie_message(self):
         await self.bot.wait_until_ready()
         while not self.bot.is_closed():
-            sleep_cycle = (60 * 60 * 2)
+            sleep_cycle = (60 * 60 * 3)
             await asyncio.sleep(10)
 
             for guild in self.bot.guilds:
