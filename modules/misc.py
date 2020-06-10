@@ -188,7 +188,7 @@ class misc(commands.Cog):
         if not message:
             return await ctx.send(f'Message is required.')
 
-        m = re.match(r"<@[!]?([0-9]{17,21})>", message.split()[0])
+        m = utilities.string_to_user_id(message.split()[0])
 
         if m:
             logger.debug('Third party use of pingall')
@@ -196,8 +196,8 @@ class misc(commands.Cog):
             if settings.get_user_level(ctx) <= 3:
                 logger.debug('insufficient user level')
                 return await ctx.send(f'You do not have permission to use this command on another player\'s games.')
-            message = ''.join(message.split()[1:])  # remove @Mention first word of message
-            target = m[1]
+            message = ' '.join(message.split()[1:])  # remove @Mention first word of message
+            target = str(m)
         else:
             logger.debug('first party usage of pingall')
             # Play using command on their own games
