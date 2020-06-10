@@ -429,14 +429,20 @@ class games(commands.Cog):
         player_mention = ' '.join(args_list)
         player_mention_safe = utilities.escape_role_mentions(player_mention)
 
+        guild_matches = await utilities.get_guild_member(ctx, player_mention)
+        if len(guild_matches) == 1:
+            # If there is one exact match from active guild members, use their precise member ID to pull up the player
+            # Helps in a scenario where there are two existing players in the DB with the same name, but only one is actively on the server
+            player_mention = str(guild_matches[0].id)
+
         player_results = Player.string_matches(player_string=player_mention, guild_id=ctx.guild.id)
+
         if len(player_results) > 1:
             p_names = [p.name for p in player_results]
             p_names_str = '**, **'.join(p_names[:10])
             return await ctx.send(f'Found {len(player_results)} players matching *{player_mention_safe}*. Be more specific or use an @Mention.\nFound: **{p_names_str}**')
         elif len(player_results) == 0:
             # No Player matches - check for guild membership
-            guild_matches = await utilities.get_guild_member(ctx, player_mention)
             if len(guild_matches) > 1:
                 p_names = [p.display_name for p in guild_matches]
                 p_names_str = '**, **'.join(p_names[:10])
@@ -449,6 +455,7 @@ class games(commands.Cog):
                 # Matching guild member but no Player or DiscordMember
                 return await ctx.send(f'*{player_mention_safe}* was found in the server but is not registered with me. '
                     f'Players can register themselves with  `{ctx.prefix}setcode YOUR_POLYCODE`.')
+            # if still running here that means there was a DiscordMember match not in current guild, and upserted into guild
         else:
             player = player_results[0]
 
@@ -1395,8 +1402,6 @@ class games(commands.Cog):
         if settings.get_user_level(ctx) < 4 or len(args) == 1:
             # if non-priviledged user, force the command to be about the ctx.author
             args = (f'<@{ctx.author.id}>', args[0])
-
-        print(args)
 
         if len(args) % 2 != 0:
             return await ctx.send(f'Wrong number of arguments. See `{ctx.prefix}help settribe` for usage examples.')
