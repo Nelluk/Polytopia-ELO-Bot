@@ -567,9 +567,7 @@ class administration(commands.Cog):
             return await ctx.send(f'No inactive members found!')
 
         members_str = ' / '.join(defunct_members)
-        if len(members_str) > 1850:
-            members_str = '(*Output truncated*)' + members_str[:1850]
-        await ctx.send(f'Found {len(defunct_members)} inactive members - *{inactive_role.name}* has been applied to each: {members_str}')
+        await utilities.buffered_send(destination=ctx, content=f'Found {len(defunct_members)} inactive members - *{inactive_role.name}* has been applied to each: {members_str}')
 
     @commands.command()
     # @settings.is_mod_check()
