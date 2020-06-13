@@ -19,7 +19,7 @@ class administration(commands.Cog):
         self.bot = bot
         if settings.run_tasks:
             self.bg_task = bot.loop.create_task(self.task_confirm_auto())
-            self.bg_task = bot.loop.create_task(self.task_purge_incomplete())
+            self.bg_task2 = bot.loop.create_task(self.task_purge_incomplete())
 
     async def cog_check(self, ctx):
 
