@@ -761,6 +761,10 @@ class Game(BaseModel):
                 gameside.team_chan = chan.id
                 if side_guild.id != guild_id:
                     gameside.team_chan_external_server = side_guild.id
+                else:
+                    gameside.team_chan_external_server = None
+                    # Making sure this is set to None for the edge case of a restarted game that previously had been on a team server
+                    # and now no longer needs to be
                 gameside.save()
 
                 await channels.greet_game_channel(side_guild, chan=chan, player_list=player_list, roster_names=roster_names, game=self, full_game=False)
