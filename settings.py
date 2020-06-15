@@ -388,6 +388,28 @@ config = {'default':
                       'game_announce_channel': None,
                       'match_challenge_channels': [],
                       'game_channel_categories': []},
+        570621740653477898:                           # Luxidoor Palace
+                     {'helper_roles': ['Advisor', 'Bot Commander', 'Arena Staff'],
+                      'mod_roles': ['Sultan of Luxidoor', 'Emperor', 'Server Emperor'],
+                      'user_roles_level_4': ['Luxidoor'],  # power user
+                      'user_roles_level_3': ['@everyone'],  # power user
+                      'user_roles_level_2': ['@everyone'],  # normal user
+                      'user_roles_level_1': ['@everyone'],  # restricted user/newbie
+                      'display_name': 'Grand Palace of Luxidoor',
+                      'require_teams': False,
+                      'allow_teams': False,
+                      'allow_uneven_teams': True,
+                      'max_team_size': 2,
+                      'command_prefix': '$',
+                      'include_in_global_lb': False,
+                      'bot_channels_private': [],
+                      'bot_channels_strict': [584208108075614219],
+                      'bot_channels': [584208108075614219],
+                      'ranked_game_channel': None,
+                      'unranked_game_channel': None,
+                      'game_announce_channel': None,
+                      'match_challenge_channels': [],
+                      'game_channel_categories': [625005163425300480]},
         614259582642159626:                           # AutumnGames run by SneakyTacts
                      {'helper_roles': [''],
                       'mod_roles': ['Director'],
