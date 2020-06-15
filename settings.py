@@ -397,7 +397,7 @@ config = {'default':
                       'user_roles_level_1': ['@everyone'],  # restricted user/newbie
                       'display_name': 'Grand Palace of Luxidoor',
                       'require_teams': False,
-                      'allow_teams': False,
+                      'allow_teams': True,
                       'allow_uneven_teams': True,
                       'max_team_size': 2,
                       'command_prefix': '$',
