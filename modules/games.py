@@ -795,22 +795,28 @@ class games(commands.Cog):
         When this is set, people can find you by the in-game name with the `[p]player` command.
         **Examples:**
         `[p]setname PolyChamp` - Set your own in-game name to *PolyChamp*
-        `[p]setname Nelluk PolyChamp` - Lets staff set in-game name of Nelluk to *PolyChamp*
+        `[p]setname @Nelluk PolyChamp` - Lets staff set in-game name of Nelluk to *PolyChamp*
         """
 
-        if len(args) == 1:
-            # User setting code for themselves. No special permissions required.
-            target_string = f'<@{ctx.author.id}>'
-            new_name = args[0]
-        elif len(args) == 2:
-            # User changing another user's code. Admin permissions required.
+        if not args:
+            return await ctx.send(f'bzzt')
+
+        m = utilities.string_to_user_id(args[0])
+
+        if m:
+            logger.debug('Third party use of setname')
+            # Staff member using command on third party
             if settings.is_staff(ctx) is False:
-                return await ctx.send(f'You do not have permission to trigger this command. Set your own in-game name with `{ctx.prefix}setname "My In-Game Name"`  *(Quotes required if more than one word)*')
-            target_string = args[0]
-            new_name = args[1]
+                logger.debug('insufficient user level')
+                return await ctx.send(f'You do not have permission to set another player\'s name.')
+            new_name = ' '.join(args[1:])
+            target_string = str(m)
         else:
-            # Unexpected input
-            return await ctx.send(f'Wrong number of arguments. Use `{ctx.prefix}setname my_polytopia_name`. Use "quotation marks" if the name is more than one word.')
+            # Play using command on their own games
+            new_name = ' '.join(args)
+            target_string = str(ctx.author.id)
+
+        logger.debug(f'setname target is {target_string} with name {new_name}')
 
         try:
             player_target = Player.get_or_except(target_string, ctx.guild.id)
