@@ -19,10 +19,12 @@ except KeyError:
 
 pastebin_key = config['DEFAULT'].get('pastebin_key', None)
 
-server_ids = {'main': 283436219780825088, 'polychampions': 447883341463814144, 'test': 478571892832206869, 'beta': 274660262873661442}
-owner_id = 272510639124250625  # Nelluk
+# server_ids = {'main': 283436219780825088, 'polychampions': 447883341463814144, 'test': 722995447131799664, 'beta': 274660262873661442}
+server_ids = {'test': 722995447131799664}
+# owner_id = 272510639124250625  # Nelluk
+owner_id = 692805816687788122 # theoldlove
 bot = None
-run_tasks = True  # if set as False via command line option, tasks should check this and skip
+run_tasks = False  # if set as False via command line option, tasks should check this and skip
 team_elo_reset_date = '1/1/2020'
 
 # bot invite URL https://discordapp.com/oauth2/authorize?client_id=484067640302764042&scope=bot
@@ -55,26 +57,28 @@ config = {'default':
                       'game_request_channel': None,
                       'game_announce_channel': None,
                       'game_channel_categories': []},
-        478571892832206869:                           # Nelluk Test Server (discord server ID)
+        722995447131799664:                           # theoldlove Test Server (discord server ID)
                      {'mod_roles': ['role1'],
                       # 'helper_roles': ['role1'],
                       'inactive_role': 'Inactive',
                       'display_name': 'Development Server',
-                      'require_teams': True,
+                      'require_teams': False,
                       'allow_teams': True,
                       'allow_uneven_teams': True,
                       # 'max_team_size': 6,
                       'max_team_size': 1,
-                      'command_prefix': '/',
-                      'bot_channels_strict': [479292913080336397],
-                      'bot_channels': [479292913080336397, 481558031281160212, 480078679930830849],  # 397 Bot Spam,  849 Admin Spam
+                      'command_prefix': '$',
+                      'bot_channels_strict': [723009364314816524],
+                      'bot_channels': [723009364314816524],  # 397 Bot Spam,  849 Admin Spam
                       # 'match_challenge_channels': [481558031281160212, 478571893272870913],  # 212 Testroom1
                       # 'newbie_message_channels': [481558031281160212, 396069729657421824, 413721247260868618],
                       # 'ranked_game_channel': 479292913080336397,
                       # 'unranked_game_channel': 481558031281160212,
-                      'game_request_channel': 480078679930830849,
-                      'game_announce_channel': 481558031281160212,
-                      'game_channel_categories': [493149162238640161, 493149183155503105]},
+                      'game_request_channel': 723009364314816524,
+                      'game_announce_channel': 723009364314816524,
+                      'game_channel_categories': [723009364314816524]}}
+
+"""
         447883341463814144:                           # Polychampions
                      {'helper_roles': ['Mod', 'Helper', 'ELO-Helper', 'Team Leader'],
                       'mod_roles': ['Mod'],
@@ -587,10 +591,14 @@ config = {'default':
                       'unranked_game_channel': 608093784898666497,  # 497 bot-commands 656 staff-bot-channel 081 general
                     # 'match_challenge_channels': [608093784898666497],  # 497 bot-commands,
                       'game_request_channel': 684944690893946972,  # $staffhelp output
-                      'game_channel_categories': [618499589670043679]},  # 'ongoing games'
-          }
+                      'game_channel_categories': [618499589670043679]},  # 'ongoing games' 
+"""
+          
 
-lobbies = [{'guild': 283436219780825088, 'size_str': '1v1', 'size': [1, 1], 'ranked': True, 'remake_partial': True, 'notes': '**Newbie game** - 1075 elo max'},
+lobbies = []
+
+"""
+{'guild': 283436219780825088, 'size_str': '1v1', 'size': [1, 1], 'ranked': True, 'remake_partial': True, 'notes': '**Newbie game** - 1075 elo max'},
            {'guild': 283436219780825088, 'size_str': '1v1', 'size': [1, 1], 'ranked': True, 'remake_partial': False, 'notes': ''},
            {'guild': 283436219780825088, 'size_str': 'FFA', 'size': [1, 1, 1], 'ranked': True, 'remake_partial': False, 'notes': ''},
            {'guild': 283436219780825088, 'size_str': '1v1', 'size': [1, 1], 'ranked': False, 'remake_partial': True, 'notes': ''},
@@ -604,7 +612,8 @@ lobbies = [{'guild': 283436219780825088, 'size_str': '1v1', 'size': [1, 1], 'ran
            # {'guild': 447883341463814144, 'size_str': '3v3', 'size': [3, 3], 'ranked': False, 'exp': 95, 'remake_partial': False, 'role_locks': [None, 531567102042308609], 'notes': 'Newbie 3v3 game, Novas welcome <:novas:531568047824306188>'},
            # {'guild': 447883341463814144, 'size_str': '3v3', 'size': [3, 3], 'ranked': True, 'exp': 95, 'remake_partial': False, 'notes': 'Open to all'},
            {'guild': 478571892832206869, 'size_str': '3v3', 'size': [3, 3], 'ranked': False, 'exp': 95, 'remake_partial': False, 'role_locks': [None, 480350546172182530], 'notes': 'Test lobby for role locks'},
-           {'guild': 478571892832206869, 'size_str': 'FFA', 'size': [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], 'ranked': True, 'exp': 95, 'remake_partial': True, 'notes': 'Open to all'}]
+           {'guild': 478571892832206869, 'size_str': 'FFA', 'size': [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], 'ranked': True, 'exp': 95, 'remake_partial': True, 'notes': 'Open to all'}
+"""
 
 discord_id_ban_list = [
     493503844865671187,  # BlueberryCraft#9080 (star hacker)

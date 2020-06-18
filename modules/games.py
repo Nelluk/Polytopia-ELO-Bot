@@ -11,6 +11,8 @@ import datetime
 import asyncio
 import re
 from itertools import groupby
+from matplotlib import pyplot as plt
+import io
 
 logger = logging.getLogger('polybot.' + __name__)
 elo_logger = logging.getLogger('polybot.elo')
@@ -467,6 +469,8 @@ class games(commands.Cog):
             wins_g, losses_g = player.discord_member.get_record()
             rank_g, lb_length_g = player.discord_member.leaderboard_rank(settings.date_cutoff)
 
+            image = None
+
             if rank is None:
                 rank_str = 'Unranked'
             else:
@@ -531,6 +535,44 @@ class games(commands.Cog):
             if misc_stats:
                 embed.add_field(name='__Miscellaneous Global Stats__', value='\n'.join(misc_stats), inline=False)
 
+            elo_history_query = (Lineup
+                .select(Game.completed_ts, Lineup.elo_after_game)
+                .join(Game)
+                .where((Lineup.player_id == player.id) & (Lineup.elo_after_game.is_null(False))))
+
+            elo_history_dates = [l.completed_ts for l in elo_history_query.objects()]
+
+            if elo_history_dates:
+                elo_history_elos = [l.elo_after_game for l in elo_history_query.objects()]
+
+                try:
+                    server_name = settings.guild_setting(guild_id=player.guild_id, setting_name='display_name')
+                except exceptions.CheckFailedError:
+                    server_name = settings.guild_setting(guild_id=None, setting_name='display_name')
+                
+                plt.switch_backend('Agg')
+
+                fig, ax = plt.subplots()
+                fig.suptitle('ELO History (' + server_name + ')', fontsize=16)
+                fig.autofmt_xdate()
+
+                plt.plot(elo_history_dates, elo_history_elos, 'o', color='#47a0ff', markersize=7)
+
+                ax.yaxis.grid()
+                ax.spines['top'].set_visible(False)
+                ax.spines['right'].set_visible(False)
+                ax.spines['left'].set_visible(False)
+
+                plt.savefig('graph.png', transparent=True)
+                plt.close(fig)
+
+                embed.set_image(url=f'attachment://graph.png')
+
+                with open('graph.png', 'rb') as f:
+                    file = io.BytesIO(f.read())
+
+                image = discord.File(file, filename='graph.png')
+
             games_list = Game.search(player_filter=[player])
             if not games_list:
                 recent_games_str = 'No games played'
@@ -546,10 +588,11 @@ class games(commands.Cog):
             # if ctx.guild.id != settings.server_ids['polychampions']:
             #     embed.add_field(value='Powered by **PolyChampions** - https://discord.gg/cX7Ptnv', name='\u200b', inline=False)
 
-            return content_str, embed
+            return content_str, embed, image
 
-        content_str, embed = await self.bot.loop.run_in_executor(None, async_create_player_embed)
-        await ctx.send(content=content_str, embed=embed)
+        content_str, embed, image = await self.bot.loop.run_in_executor(None, async_create_player_embed)
+
+        await ctx.send(content=content_str, file=image, embed=embed)
 
     @settings.in_bot_channel()
     @settings.teams_allowed()
