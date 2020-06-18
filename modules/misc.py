@@ -624,25 +624,14 @@ class misc(commands.Cog):
                     continue
 
                 prefix = settings.guild_setting(guild.id, 'command_prefix')
-                ranked_chan = settings.guild_setting(guild.id, 'ranked_game_channel')
-                unranked_chan = settings.guild_setting(guild.id, 'unranked_game_channel')
-                # bot_spam_chan = settings.guild_setting(guild.id, 'bot_channels_strict')[0]
+                # ranked_chan = settings.guild_setting(guild.id, 'ranked_game_channel')
+                # unranked_chan = settings.guild_setting(guild.id, 'unranked_game_channel')
+                bot_spam_chan = settings.guild_setting(guild.id, 'bot_channels_strict')[0]
                 elo_guide_channel = 533391050014720040
 
-                broadcast_message = ('I am here to help improve Polytopia multiplayer with matchmaking and leaderboards!\n'
-                    f'To **register your code** with me, type __`{prefix}setcode YOURCODEHERE`__')
-
-                if ranked_chan:
-                    broadcast_message += (f'\n\nTo find **ranked** games that count for the leaderboard, join <#{ranked_chan}>. '
-                        f'Type __`{prefix}opengames`__ to see what games are available to join. '
-                        f'To host your own game, try __`{prefix}opengame 1v1`__ to host a 1v1 duel. '
-                        'I will alert you once someone else has joined, and then you will add your opponent\'s friend code and create the game in Polytopia.')
-
-                if unranked_chan:
-                    broadcast_message += (f'\n\nYou can also find unranked games - use the same commands as above in <#{unranked_chan}>. '
-                        'Start here if you are new to Polytopia multiplayer.')
-
-                broadcast_message += f'\n\nFor full information go read <#{elo_guide_channel}>.'
+                broadcast_message = (f'To register for ELO leaderboards and matchmaking use the command __`{prefix}setcode YOURCODEHERE`__')
+                broadcast_message += f'\nTo get started with joining an open game, go to <#{bot_spam_chan}> and type __`{prefix}games`__'
+                broadcast_message += f'\nFor full information go read <#{elo_guide_channel}>.'
 
                 for broadcast_channel in broadcast_channels:
                     if broadcast_channel:

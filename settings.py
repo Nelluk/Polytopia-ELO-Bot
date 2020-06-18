@@ -94,7 +94,7 @@ config = {'default':
                       'max_team_size': 6,
                       'command_prefix': '$',
                       'include_in_global_lb': True,
-                      'bot_channels_private': [487304043786665986, 469027618289614850, 531636068739710997, 447902433964851210, 627601961046507541],  # 986 elo-staff-talk, 850 dont-timeout, 997 novas, 210 s4-drafts
+                      'bot_channels_private': [487304043786665986, 469027618289614850, 531636068739710997, 447902433964851210, 627601961046507541, 721522509782057051],  # 986 elo-staff-talk, 850 dont-timeout, 997 novas, 210 s4-drafts
                       'bot_channels_strict': [487303307224940545, 448317497473630229],  # 545 elo-commands, 229 bot-commands
                       'bot_channels': [487303307224940545, 448317497473630229, 452639822616723457],  # 457 elo-chalenges
                       'ranked_game_channel': None,
