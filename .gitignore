@@ -23,3 +23,5 @@ pip-selfcheck.json
 *test.py
 .python-version
 TODO.txt
+*.png
+*.DS_Store

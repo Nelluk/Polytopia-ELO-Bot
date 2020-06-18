@@ -549,7 +549,7 @@ class games(commands.Cog):
                     server_name = settings.guild_setting(guild_id=player.guild_id, setting_name='display_name')
                 except exceptions.CheckFailedError:
                     server_name = settings.guild_setting(guild_id=None, setting_name='display_name')
-                
+
                 plt.switch_backend('Agg')
 
                 fig, ax = plt.subplots()
