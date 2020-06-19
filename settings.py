@@ -76,7 +76,7 @@ config = {'default':
                       'game_announce_channel': 481558031281160212,
                       'game_channel_categories': [493149162238640161, 493149183155503105]},
         447883341463814144:                           # Polychampions
-                     {'helper_roles': ['Mod', 'Helper', 'ELO-Helper', 'Team Leader'],
+                     {'helper_roles': ['Mod', 'Helper', 'ELO-Helper', 'Team Leader', 'Nova Coordinator'],
                       'mod_roles': ['Mod'],
                       'user_roles_level_4': ['Team Co-Leader', 'ELO Hero', 'Event Organizer', 'Team Recruiter'],  # power user
                       'user_roles_level_3': ['@everyone'],  # power user
