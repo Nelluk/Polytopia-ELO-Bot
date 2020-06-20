@@ -10,7 +10,7 @@ import re
 import datetime
 import random
 import peewee
-# from modules.games import PolyGame
+from modules.games import PolyGame
 # import modules.achievements as achievements
 
 logger = logging.getLogger('polybot.' + __name__)
@@ -279,12 +279,7 @@ class misc(commands.Cog):
         if inferred_game:
             game = inferred_game
         else:
-            try:
-                game = models.Game.get(id=int(game_id))
-            except ValueError:
-                return await ctx.send(f'Invalid game ID "{game_id}".')
-            except peewee.DoesNotExist:
-                return await ctx.send(f'Game with ID {game_id} cannot be found.')
+            game = await PolyGame().convert(ctx, int(game_id), allow_cross_guild=True)
 
         if not game.player(discord_id=ctx.author.id) and not settings.is_staff(ctx):
             ctx.command.reset_cooldown(ctx)
