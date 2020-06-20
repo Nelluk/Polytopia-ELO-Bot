@@ -27,11 +27,9 @@ class misc(commands.Cog):
     @commands.is_owner()
     async def test(self, ctx, *, arg: str = None):
 
-        res = models.Game.by_channel_id(chan_id=ctx.message.channel.id)
-        print(res)
-        print(res[0])
-        for r in res:
-            print(r.id, r)
+        func = settings.in_bot_channel()
+        print(func(ctx))
+        print(settings.in_bot_channel())
 
     @commands.command(hidden=True, aliases=['bulk_local_elo', 'ble', 'bge'])
     async def bulk_global_elo(self, ctx, *, args=None):

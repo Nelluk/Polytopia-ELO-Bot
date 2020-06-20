@@ -1384,7 +1384,6 @@ class games(commands.Cog):
             logger.warn('Game deleted while in game-related channel')
             await self.bot.loop.run_in_executor(None, game.delete_game)
 
-    @settings.in_bot_channel()
     @commands.command(usage='game_id "New Name"')
     async def rename(self, ctx, *args):
         """Renames an existing game (due to restarts)
@@ -1406,21 +1405,22 @@ class games(commands.Cog):
             new_game_name = ' '.join(args)
 
         inferred_game = None
-        if not game_id:
-            try:
-                inferred_game = Game.by_channel_id(chan_id=ctx.message.channel.id)
-            except exceptions.TooManyMatches:
-                logger.error(f'More than one game with matching channel {ctx.message.channel.id}')
-                return await ctx.send('Error looking up game based on current channel - please contact the bot owner.')
-            except exceptions.NoMatches:
+        try:
+            inferred_game = Game.by_channel_id(chan_id=ctx.message.channel.id)
+        except exceptions.TooManyMatches:
+            logger.error(f'More than one game with matching channel {ctx.message.channel.id}')
+            return await ctx.send('Error looking up game based on current channel - please contact the bot owner.')
+        except exceptions.NoMatches:
+            if game_id:
+                game = await PolyGame().convert(ctx, int(game_id), allow_cross_guild=False)
+                if ctx.channel.id not in settings.guild_setting(ctx.guild.id, 'bot_channels'):
+                    return await ctx.send(f'This command must be used in a bot spam channel or in a game-specific channel.')
+            else:
                 ctx.command.reset_cooldown(ctx)
-                return await ctx.send(f'Game ID was not included. {usage}')
-            logger.debug(f'Inferring game {inferred_game.id} from rename command used in channel {ctx.message.channel.id}')
-
-        if inferred_game:
-            game = inferred_game
+                return await ctx.send(f'Game ID was not included and this does not appear to be a game-specific channel.\n{usage}')
         else:
-            game = await PolyGame().convert(ctx, int(game_id), allow_cross_guild=False)
+            game = inferred_game
+            logger.debug(f'Inferring game {inferred_game.id} from rename command used in channel {ctx.message.channel.id}')
 
         if game.is_pending:
             return await ctx.send(f'This game has not started yet.')
