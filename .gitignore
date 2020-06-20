@@ -25,3 +25,4 @@ pip-selfcheck.json
 TODO.txt
 *.png
 *.DS_Store
+.DS_Store

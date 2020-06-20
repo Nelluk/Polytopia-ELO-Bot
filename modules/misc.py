@@ -27,11 +27,11 @@ class misc(commands.Cog):
     @commands.is_owner()
     async def test(self, ctx, *, arg: str = None):
 
-        print(f'starting test')
-        with models.db.atomic():
-            await ctx.send(f'test')
-            await asyncio.sleep(6)
-        print('end test')
+        res = models.Game.by_channel_id(chan_id=ctx.message.channel.id)
+        print(res)
+        print(res[0])
+        for r in res:
+            print(r.id, r)
 
     @commands.command(hidden=True, aliases=['bulk_local_elo', 'ble', 'bge'])
     async def bulk_global_elo(self, ctx, *, args=None):
@@ -230,26 +230,41 @@ class misc(commands.Cog):
         recipient_message = f'Message recipients: {" ".join(list_of_players[:100])}'
         return await ctx.send(recipient_message[:2000])
 
-    @commands.command(usage='game_id')
+    @commands.command(usage='game_id message')
     @commands.cooldown(1, 20, commands.BucketType.user)
-    async def ping(self, ctx, game_id=None, *, message: str = None):
+    async def ping(self, ctx, *args):
         """ Ping everyone in one of your games with a message
 
          **Examples**
         `[p]ping 100 I won't be able to take my turn today` - Send a message to everyone in game 100
+        `[p]ping This game is amazing!` - You can omit the game ID if you send the command from a game-specific channel
 
         See `[p]help pingall` for a command to ping ALL incomplete games simultaneously.
 
         """
 
+        if not args:
+            return await ctx.send(f'**Example usage:** `{ctx.prefix}ping 100 Here\'s a nice note for everyone in game 100.`\n'
+                    'You can also omit the game ID if you use the command from a game-specific channel.')
         try:
-            game_id = int(game_id) if game_id else ''
+            game_id = int(args[0])
+            message = ' '.join(args[1:])
         except ValueError:
             game_id = None
+            message = ' '.join(args)
 
+        inferred_game = None
         if not game_id:
-            ctx.command.reset_cooldown(ctx)
-            return await ctx.send(f'Game ID was not included. Example usage: `{ctx.prefix}ping 100 Here\'s a nice note for everyone in game 100.`')
+            try:
+                inferred_game = models.Game.by_channel_id(chan_id=ctx.message.channel.id)
+            except exceptions.TooManyMatches:
+                logger.error(f'More than one game with matching channel {ctx.message.channel.id}')
+                return await ctx.send('Error looking up game based on current channel - please contact the bot owner.')
+            except exceptions.NoMatches:
+                ctx.command.reset_cooldown(ctx)
+                return await ctx.send(f'Game ID was not included. Example usage: `{ctx.prefix}ping 100 Here\'s a nice note for everyone in game 100.`\n'
+                    'You can also omit the game ID if you use the command from a game-specific channel.')
+            logger.debug(f'Inferring game {inferred_game.id} from ping command used in channel {ctx.message.channel.id}')
 
         if not message:
             ctx.command.reset_cooldown(ctx)
@@ -259,15 +274,17 @@ class misc(commands.Cog):
             attachment_urls = '\n'.join([attachment.url for attachment in ctx.message.attachments])
             message += f'\n{attachment_urls}'
 
-        # message = discord.utils.escape_mentions(message)  # to prevent @everyone vulnerability
         message = utilities.escape_role_mentions(message)
 
-        try:
-            game = models.Game.get(id=int(game_id))
-        except ValueError:
-            return await ctx.send(f'Invalid game ID "{game_id}".')
-        except peewee.DoesNotExist:
-            return await ctx.send(f'Game with ID {game_id} cannot be found.')
+        if inferred_game:
+            game = inferred_game
+        else:
+            try:
+                game = models.Game.get(id=int(game_id))
+            except ValueError:
+                return await ctx.send(f'Invalid game ID "{game_id}".')
+            except peewee.DoesNotExist:
+                return await ctx.send(f'Game with ID {game_id} cannot be found.')
 
         if not game.player(discord_id=ctx.author.id) and not settings.is_staff(ctx):
             ctx.command.reset_cooldown(ctx)

@@ -1606,7 +1606,7 @@ async def post_win_messaging(guild, prefix, current_chan, winning_game):
     embed, content = winning_game.embed(guild=guild, prefix=prefix)
 
     for l in winning_game.lineup:
-                await achievements.set_experience_role(l.player.discord_member)
+        await achievements.set_experience_role(l.player.discord_member)
 
     if settings.guild_setting(guild.id, 'game_announce_channel') is not None:
         channel = guild.get_channel(settings.guild_setting(guild.id, 'game_announce_channel'))
@@ -1619,14 +1619,14 @@ async def post_win_messaging(guild, prefix, current_chan, winning_game):
     await current_chan.send(embed=embed, content=content)
 
 
-async def post_unwin_messaging(guild, prefix, current_chan, game, previously_confirmed: bool=False):
+async def post_unwin_messaging(guild, prefix, current_chan, game, previously_confirmed: bool = False):
 
     await game.update_squad_channels(guild_list=settings.bot.guilds, guild_id=guild.id, message=f'The game has reset to *Incomplete* status.')
     player_mentions = [f'<@{l.player.discord_member.discord_id}>' for l in game.lineup]
 
     if previously_confirmed:
         for l in game.lineup:
-                    await achievements.set_experience_role(l.player.discord_member)
+            await achievements.set_experience_role(l.player.discord_member)
 
     await current_chan.send(f'Game reset to *Incomplete*. Previously claimed win has been canceled.  Notifying game roster: {" ".join(player_mentions)}')
 

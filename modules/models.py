@@ -1772,6 +1772,21 @@ class Game(BaseModel):
             return ((gamesides[1], s2_wins), (gamesides[0], s1_wins))
         return ((gamesides[0], s1_wins), (gamesides[1], s2_wins))
 
+    def by_channel_id(chan_id: int):
+        # Given a discord channel id (such as 722725679443214347) return a Game that uses that channel as its gameside or game channel ID
+        # Raise exception if no match or more than one match
+
+        query = Game.select().join(GameSide, on=(GameSide.game == Game.id)).where(
+            (GameSide.team_chan == int(chan_id)) | (Game.game_chan == int(chan_id))
+        )
+
+        if len(query) == 0:
+            raise exceptions.NoMatches(f'No matching game found for given channel')
+        if len(query) > 1:
+            raise exceptions.TooManyMatches(f'More than game found with this associated channel')
+
+        return query[0]
+
     def by_opponents(player_lists):
         # Given lists of player objects representing game sides, ie:
         # [[p1, p2], [p3, [p4], [p5, p6]] for a 2v2v2 game
@@ -1998,7 +2013,7 @@ class Squad(BaseModel):
 
         return elo_delta
 
-    def subq_squads_by_size(min_size: int=2, exact=False):
+    def subq_squads_by_size(min_size: int = 2, exact=False):
 
         if exact:
             # Squads with exactly min_size number of members
@@ -2011,7 +2026,7 @@ class Squad(BaseModel):
             SquadMember.squad
         ).having(fn.COUNT('*') >= min_size)
 
-    def subq_squads_with_completed_games(min_games: int=1):
+    def subq_squads_with_completed_games(min_games: int = 1):
         # Defaults to squads who have completed more than 0 games
 
         if min_games <= 0:
