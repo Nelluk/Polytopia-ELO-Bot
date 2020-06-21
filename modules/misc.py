@@ -230,7 +230,7 @@ class misc(commands.Cog):
 
     @commands.command(usage='game_id message')
     @commands.cooldown(1, 20, commands.BucketType.user)
-    async def ping(self, ctx, *args):
+    async def ping(self, ctx, *, args=None):
         """ Ping everyone in one of your games with a message
 
          **Examples**
@@ -241,9 +241,16 @@ class misc(commands.Cog):
 
         """
 
-        if not args:
-            return await ctx.send(f'**Example usage:** `{ctx.prefix}ping 100 Here\'s a nice note for everyone in game 100.`\n'
+        usage = (f'**Example usage:** `{ctx.prefix}ping 100 Here\'s a nice note for everyone in game 100.`\n'
                     'You can also omit the game ID if you use the command from a game-specific channel.')
+        if not args:
+            ctx.command.reset_cooldown(ctx)
+            return await ctx.send(usage)
+
+        if settings.is_mod(ctx):
+            ctx.command.reset_cooldown(ctx)
+
+        args = args.split()
         try:
             game_id = int(args[0])
             message = ' '.join(args[1:])
@@ -260,13 +267,12 @@ class misc(commands.Cog):
                 return await ctx.send('Error looking up game based on current channel - please contact the bot owner.')
             except exceptions.NoMatches:
                 ctx.command.reset_cooldown(ctx)
-                return await ctx.send(f'Game ID was not included. Example usage: `{ctx.prefix}ping 100 Here\'s a nice note for everyone in game 100.`\n'
-                    'You can also omit the game ID if you use the command from a game-specific channel.')
+                return await ctx.send(f'Game ID was not included. {usage}')
             logger.debug(f'Inferring game {inferred_game.id} from ping command used in channel {ctx.message.channel.id}')
 
         if not message:
             ctx.command.reset_cooldown(ctx)
-            return await ctx.send(f'Message was not included. Example usage: `{ctx.prefix}ping 100 Here\'s a nice note`')
+            return await ctx.send(f'Message was not included. {usage}')
 
         if ctx.message.attachments:
             attachment_urls = '\n'.join([attachment.url for attachment in ctx.message.attachments])
