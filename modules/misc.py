@@ -325,6 +325,8 @@ class misc(commands.Cog):
     @commands.cooldown(1, 30, commands.BucketType.channel)
     @settings.on_polychampions()
     async def league_balance(self, ctx, *, arg=None):
+        """ Print some stats on PolyChampions league balance
+        """
         league_teams = [('Ronin', ['The Ronin', 'The Bandits']),
                         ('Jets', ['The Jets', 'The Cropdusters']),
                         ('Bombers', ['The Bombers', 'The Dynamite']),
@@ -408,6 +410,8 @@ class misc(commands.Cog):
     @commands.command(aliases=['nova', 'joinnovas'])
     @settings.on_polychampions()
     async def novas(self, ctx, *, arg=None):
+        """ Join yourself to the Novas team
+        """
 
         player, _ = models.Player.get_by_discord_id(discord_id=ctx.author.id, discord_name=ctx.author.name, discord_nick=ctx.author.nick, guild_id=ctx.guild.id)
         if not player:
