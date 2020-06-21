@@ -505,7 +505,7 @@ class matchmaking(commands.Cog):
         await ctx.send('Removing you from the game.')
 
     @settings.in_bot_channel()
-    @commands.command(usage='game_id', aliases=['notes', 'matchnotes'])
+    @commands.command(hidden=True, usage='game_id', aliases=['notes', 'matchnotes'])
     # clean_content converter flattens and user/role tags
     async def gamenotes(self, ctx, game: PolyMatch, *, notes: discord.ext.commands.clean_content = None):
         """
@@ -575,8 +575,8 @@ class matchmaking(commands.Cog):
             await ctx.send(f'Game {game.id} expiration has been reset to 24 hours from now')
 
     @settings.in_bot_channel()
-    @commands.command(aliases=['games', 'listmatches', 'matchlist', 'openmatches', 'listmatch', 'matches', 'novagames'])
-    async def opengames(self, ctx, *args):
+    @commands.command(aliases=['opengames', 'novagames'])
+    async def games(self, ctx, *args):
         """
         List joinable open games
 
@@ -702,8 +702,8 @@ class matchmaking(commands.Cog):
             await ctx.send(f'{ctx.author.mention}, you have full games waiting to start: **{", ".join(waitlist)}**\n{start_str}')
 
     @settings.in_bot_channel()
-    @commands.command(aliases=['startmatch', 'start'], usage='game_id Name of Poly Game')
-    async def startgame(self, ctx, game: PolyMatch = None, *, name: str = None):
+    @commands.command(aliases=['startgame'], usage='game_id Name of Poly Game')
+    async def start(self, ctx, game: PolyMatch = None, *, name: str = None):
         """
         Start a full game and track it for ELO
         Use this command after you have created the game in Polytopia.
