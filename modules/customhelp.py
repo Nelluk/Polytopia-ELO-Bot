@@ -64,6 +64,20 @@ class MyHelpCommand(commands.MinimalHelpCommand):
             entry = '{0}{1:<{width}} {2}'.format(self.indent * ' ', name, command.short_doc.replace('[p]', self.clean_prefix), width=width)
             self.paginator.add_line(self.shorten_text(entry))
 
+    def add_bot_commands_formatting(self, commands, heading):
+        # Changed built in version to a list with short descriptions included. This builds the list of the main help command output.
+
+        if commands:
+            # U+2002 Middle Dot
+
+            self.paginator.add_line('__**%s**__' % heading)  # Add Cog/category name ie Games/Administration/Misc
+
+            for c in commands:
+
+                c_name = f'__**`{self.clean_prefix}{c.qualified_name}`**__'  # formatted prefix + command name
+                c_desc = c.short_doc.replace('[p]', self.clean_prefix) if c.short_doc else ''
+                self.paginator.add_line(f'{c_name} \u200b \N{EN DASH} \u200b {c_desc}')
+
     def add_subcommand_formatting(self, command):
         """Adds formatting information on a subcommand.
         The formatting should be added to the :attr:`paginator`.
@@ -74,7 +88,7 @@ class MyHelpCommand(commands.MinimalHelpCommand):
         command: :class:`Command`
             The command to show information of.
         """
-        fmt = '{0}{1} \N{EN DASH} {2}' if command.short_doc else '{0}{1}'
+        fmt = '__**`{0}{1}`**__ \N{EN DASH} {2}' if command.short_doc else '__**`{0}{1}`**__'
         self.paginator.add_line(fmt.format(self.clean_prefix, command.qualified_name, command.short_doc.replace('[p]', self.clean_prefix)))
 
     def add_command_formatting(self, command):
@@ -110,7 +124,7 @@ class MyHelpCommand(commands.MinimalHelpCommand):
         """
         command_name = self.invoked_with
         return "Use `{0}{1} [command]` for more info on a command.\n" \
-               "You can also use `{0}{1} [category]` for short descriptions of each command".format(self.clean_prefix, command_name)
+               "Use `{0}guide` for a general bot overview.".format(self.clean_prefix, command_name)
         # return "Use `{0}{1} [command]` for more info on a command.\n".format(self.clean_prefix, command_name)
 
 
