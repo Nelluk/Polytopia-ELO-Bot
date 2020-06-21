@@ -42,7 +42,10 @@ migrator = PostgresqlMigrator(db)
 # external_server = BitField(unique=False, null=True)
 # team_chan_external_server = BitField(unique=False, null=True, default=None)
 # tribe_direct = ForeignKeyField(Tribe, null=True, on_delete='SET NULL', field=Tribe.id)
-emoji = TextField(null=False, default='')
+# emoji = TextField(null=False, default='')
+elo_after_game_global = SmallIntegerField(default=None, null=True)
+team_elo_after_game = SmallIntegerField(default=None, null=True)
+team_elo_after_game_alltime = SmallIntegerField(default=None, null=True)
 
 migrate(
     # migrator.add_column('discordmember', 'elo_max', elo_max),
@@ -58,8 +61,10 @@ migrate(
     # migrator.add_column('gameside', 'team_chan_external_server', external_server),
     # migrator.add_column('team', 'external_server', external_server)
     # migrator.add_column('lineup', 'tribe_direct_id', tribe_direct)
-    migrator.drop_column('tribe', 'emoji'),
-    migrator.add_column('tribe', 'emoji', emoji)
+    # migrator.drop_column('tribe', 'emoji'),
+    migrator.add_column('lineup', 'elo_after_game_global', elo_after_game_global),
+    migrator.add_column('gameside', 'team_elo_after_game', team_elo_after_game),
+    migrator.add_column('gameside', 'team_elo_after_game_alltime', team_elo_after_game_alltime)
 
 )
 

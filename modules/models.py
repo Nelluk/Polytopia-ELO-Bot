@@ -683,7 +683,7 @@ class Game(BaseModel):
     announcement_message = BitField(default=None, null=True)
     announcement_channel = BitField(default=None, null=True)
     date = DateField(default=datetime.datetime.today)
-    completed_ts = DateTimeField(null=True, default=None)  # set when game is confirmed and ELO is calculated
+    completed_ts = DateTimeField(null=True, default=None)  # set when game is confirmed and ELO is calculated (the first time, preserved for subsequent recalcs)
     win_claimed_ts = DateTimeField(null=True, default=None)  # set when win is claimed, used to check old unconfirmed wins
     name = TextField(null=True)
     winner = DeferredForeignKey('GameSide', null=True, on_delete='RESTRICT')
@@ -691,7 +691,7 @@ class Game(BaseModel):
     host = ForeignKeyField(Player, null=True, backref='hosting', on_delete='SET NULL')
     expiration = DateTimeField(null=True, default=tomorrow)  # For pending/matchmaking status
     notes = TextField(null=True)
-    is_pending = BooleanField(default=False)
+    is_pending = BooleanField(default=False)  # True == open, unstarted game
     is_ranked = BooleanField(default=True)
     game_chan = BitField(default=None, null=True)
 
@@ -1270,6 +1270,7 @@ class Game(BaseModel):
             lineup.player.save()
             lineup.elo_change_player = 0
             lineup.elo_after_game = None
+            lineup.elo_after_game_global = None
             if lineup.elo_change_discordmember:
                 lineup.player.discord_member.elo += lineup.elo_change_discordmember * -1
                 lineup.player.discord_member.save()
@@ -1292,6 +1293,8 @@ class Game(BaseModel):
                 gameside.team.save()
                 gameside.elo_change_team_alltime = 0
 
+            gameside.team_elo_after_game = None
+            gameside.team_elo_after_game_alltime = None
             gameside.save()
 
     def delete_game(self):
@@ -1424,11 +1427,13 @@ class Game(BaseModel):
                             team_elo_delta = side.team.change_elo_after_game(team_win_chances[i], is_winner)
                             side.elo_change_team = team_elo_delta
                             side.team.elo = int(side.team.elo + team_elo_delta)
+                            side.team_elo_after_game = int(side.team.elo + team_elo_delta)
                             side.team.save()
                         if team_win_chances_alltime:
                             team_elo_delta = side.team.change_elo_after_game(team_win_chances_alltime[i], is_winner)
                             side.elo_change_team_alltime = team_elo_delta
                             side.team.elo_alltime = int(side.team.elo_alltime + team_elo_delta)
+                            side.team_elo_after_game_alltime = int(side.team.elo_alltime + team_elo_delta)
                             side.team.save()
                         if squad_win_chances:
                             side.elo_change_squad = side.squad.change_elo_after_game(squad_win_chances[i], is_winner)
@@ -1857,12 +1862,12 @@ class Game(BaseModel):
             DiscordMember.update(elo=1000, elo_max=1000).execute()
             Squad.update(elo=1000).execute()
 
-            Game.update(is_completed=0).where(
-                (Game.is_confirmed == 1) & (Game.winner.is_null(False)) & (Game.is_ranked == 1)
+            Game.update(is_completed=0, is_confirmed=0).where(
+                (Game.is_confirmed == 1) & (Game.winner.is_null(False)) & (Game.is_ranked == 1) & (Game.completed_ts.is_null(False))
             ).execute()  # Resets completed game counts for players/squads/team ELO bonuses
 
             games = Game.select().where(
-                (Game.is_completed == 0) & (Game.is_confirmed == 1) & (Game.winner.is_null(False)) & (Game.is_ranked == 1)
+                (Game.is_completed == 0) & (Game.completed_ts.is_null(False)) & (Game.winner.is_null(False)) & (Game.is_ranked == 1)
             ).order_by(Game.completed_ts)
 
             for game in games:
@@ -2138,6 +2143,8 @@ class GameSide(BaseModel):
     elo_change_squad = SmallIntegerField(default=0)
     elo_change_team = SmallIntegerField(default=0)
     elo_change_team_alltime = SmallIntegerField(default=0)
+    team_elo_after_game = SmallIntegerField(default=None, null=True)  # snapshot of what team elo was after game concluded
+    team_elo_after_game_alltime = SmallIntegerField(default=None, null=True)  # snapshot of what alltime team elo was after game concluded
     team_chan = BitField(default=None, null=True)
     sidename = TextField(null=True)  # for pending open games/matchmaking
     size = SmallIntegerField(null=False, default=1)
@@ -2273,6 +2280,7 @@ class Lineup(BaseModel):
     elo_change_player = SmallIntegerField(default=0)
     elo_change_discordmember = SmallIntegerField(default=0)
     elo_after_game = SmallIntegerField(default=None, null=True)  # snapshot of what elo was after game concluded
+    elo_after_game_global = SmallIntegerField(default=None, null=True)  # snapshot of what global (discordmember) elo was after game concluded
 
     def change_elo_after_game(self, chance_of_winning: float, is_winner: bool, by_discord_member: bool = False):
         # Average(Away Side Elo) is compared to Average(Home_Side_Elo) for calculation - ie all members on a side will have the same elo_delta
@@ -2321,6 +2329,7 @@ class Lineup(BaseModel):
                 if self.player.discord_member.elo > self.player.discord_member.elo_max:
                     self.player.discord_member.elo_max = self.player.discord_member.elo
                 self.elo_change_discordmember = elo_delta
+                self.elo_after_game_global = int(elo + elo_delta)
                 self.player.discord_member.save()
                 self.save()
             else:
