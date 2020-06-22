@@ -42,6 +42,12 @@ class league(commands.Cog):
         # if not, PM failure message and remove reaction
         # remove Draftable role if user removes their reaction
 
+        """ luna suggestions
+        $draftable - displays list of people that signed up for the draft
+        $newdraft (staff only) - anyone who still has free agent role is added to a new list 'fatable' - for people who can be bought with fats, the rest are cleared from the $draftable list
+        $fatable - displays list of people that can be bought with fats
+        """
+
         await ctx.send('here')
 
     @commands.command(aliases=['balance'])

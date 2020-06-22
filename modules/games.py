@@ -1467,10 +1467,15 @@ class games(commands.Cog):
         old_game_name = game.name
         game.name = new_game_name
 
+        game_guild = discord.utils.get(self.bot.guilds, id=game.guild_id)
+        if not game_guild:
+            logger.error(f'Error attempting in rename command for game {game.id} - could not load guild {game.guild_id}')
+            return await ctx.send('Error loading guild associated with this game. Please contact the bot owner.')
+
         game.save()
 
-        await game.update_squad_channels(self.bot.guilds, ctx.guild.id)
-        await game.update_announcement(guild=ctx.guild, prefix=ctx.prefix)
+        await game.update_squad_channels(self.bot.guilds, game_guild.id)
+        await game.update_announcement(guild=game_guild, prefix=ctx.prefix)
 
         new_game_name = game.name if game.name else 'None'
         old_game_name = old_game_name if old_game_name else 'None'
