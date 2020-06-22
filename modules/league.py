@@ -223,68 +223,73 @@ class league(commands.Cog):
 
         await utilities.buffered_send(destination=ctx, content=''.join(message))
 
-    @commands.command()
-    @settings.is_staff_check()
-    @settings.on_polychampions()
-    async def grad_novas(self, ctx, *, arg=None):
-        """*Staff*: Check Novas for graduation requirements
-        Apply the 'Free Agent' role to any Novas who meets requirements:
-        - Three ranked team games, and ranked games with members of at least three League teams
-        """
+async def auto_grad_novas(ctx, game):
 
-        grad_count = 0
-        role = discord.utils.get(ctx.guild.roles, name='The Novas')
-        grad_role = discord.utils.get(ctx.guild.roles, name='Free Agent')
-        recruiter_role = discord.utils.get(ctx.guild.roles, name='Team Recruiter')
-        drafter_role = discord.utils.get(ctx.guild.roles, name='Drafter')
-        inactive_role = discord.utils.get(ctx.guild.roles, name=settings.guild_setting(ctx.guild.id, 'inactive_role'))
-        grad_chan = ctx.guild.get_channel(540332800927072267)  # Novas draft talk
-        if ctx.guild.id == settings.server_ids['test']:
-            role = discord.utils.get(ctx.guild.roles, name='testers')
-            grad_role = discord.utils.get(ctx.guild.roles, name='Team Leader')
-            recruiter_role = discord.utils.get(ctx.guild.roles, name='role1')
-            drafter_role = recruiter_role
-            grad_chan = ctx.guild.get_channel(479292913080336397)  # bot spam
+    if ctx.guild.id == settings.server_ids['polychampions'] or ctx.guild.id == settings.server_ids['test']:
+        pass
+    else:
+        logger.debug(f'Ignoring auto_grad_novas for game {game.id}')
+        return
 
-        await ctx.send(f'Auto-graduating Novas')
-        async with ctx.typing():
-            for member in role.members:
-                if inactive_role and inactive_role in member.roles:
-                    continue
-                try:
-                    dm = models.DiscordMember.get(discord_id=member.id)
-                    player = models.Player.get(discord_member=dm, guild_id=ctx.guild.id)
-                except peewee.DoesNotExist:
-                    logger.debug(f'Player {member.name} not registered.')
-                    continue
-                if grad_role in member.roles:
-                    logger.debug(f'Player {player.name} already has the graduate role.')
-                    continue
-                if player.games_played(in_days=10).count() == 0:
-                    logger.debug(f'Player {player.name} has not played in any recent games.')
-                    continue
+    role = discord.utils.get(ctx.guild.roles, name='The Novas')
+    grad_role = discord.utils.get(ctx.guild.roles, name='Free Agent')
+    grad_chan = ctx.guild.get_channel(540332800927072267)  # Novas draft talk
+    if ctx.guild.id == settings.server_ids['test']:
+        role = discord.utils.get(ctx.guild.roles, name='testers')
+        grad_role = discord.utils.get(ctx.guild.roles, name='Team Leader')
+        grad_chan = ctx.guild.get_channel(479292913080336397)  # bot spam
 
-                qualifying_games = []
+    if not role or not grad_role:
+        logger.warn(f'Could not load required roles to complete auto_grad_novas')
+        return
 
-                for lineup in player.games_played():
-                    game = lineup.game
-                    if game.notes and 'Nova Red' in game.notes and 'Nova Blue' in game.notes:
-                        if not game.is_pending:
-                            qualifying_games.append(str(game.id))
+    player_id_list = [l.player.discord_member.discord_id for l in game.lineup]
+    for player_id in player_id_list:
+        member = ctx.guild.get_member(player_id)
+        if not member:
+            logger.warn(f'Could not load guild member matching discord_id {player_id} for game {game.id} in auto_grad_novas')
+            continue
 
-                if len(qualifying_games) < 3:
-                    logger.debug(f'Player {player.name} has insufficient qualifying games. Games that qualified: {qualifying_games}')
-                    continue
+        if role not in member.roles or grad_role in member.roles:
+            continue  # skip non-novas or people who are already graduates
 
-                wins, losses = dm.get_record()
-                logger.debug(f'Player {player.name} meets qualifications: {qualifying_games}')
-                grad_count += 1
-                await member.add_roles(grad_role)
-                await grad_chan.send(f'Player {member.mention} (*Global ELO: {dm.elo} \u00A0\u00A0\u00A0\u00A0W {wins} / L {losses}*) qualifies for graduation on the basis of games: `{" ".join(qualifying_games)}`')
-            if grad_count:
-                await grad_chan.send(f'{recruiter_role.mention} the above player(s) meet the qualifications for graduation. DM {drafter_role.mention} to express interest.')
+        logger.debug(f'Checking league graduation status for player {member.name}')
 
-            await ctx.send(f'Completed auto-grad: {grad_count} new graduates.')
+        try:
+            dm = models.DiscordMember.get(discord_id=member.id)
+            player = models.Player.get(discord_member=dm, guild_id=ctx.guild.id)
+        except peewee.DoesNotExist:
+            logger.warn(f'Player {member.name} not registered.')
+            continue
+
+        qualifying_games = []
+
+        for lineup in player.games_played():
+            game = lineup.game
+            if game.notes and 'Nova Red' in game.notes and 'Nova Blue' in game.notes:
+                if not game.is_pending:
+                    qualifying_games.append(str(game.id))
+
+        if len(qualifying_games) < 3:
+            logger.debug(f'Player {player.name} has insufficient qualifying games. Games that qualified: {qualifying_games}')
+            continue
+
+        wins, losses = dm.get_record()
+        logger.debug(f'Player {player.name} meets qualifications: {qualifying_games}')
+
+        try:
+            await member.add_roles(grad_role)
+        except discord.DiscordException as e:
+            logger.error(f'Could not assign league graduation role: {e}')
+            break
+
+        grad_announcement = (f'Player {member.mention} (*Global ELO: {dm.elo} \u00A0\u00A0\u00A0\u00A0W {wins} / L {losses}*) '
+                f'has met the qualifications and is now a **{grad_role.name}**\n'
+                'You will be notified soon of the next draft signup.')
+        if grad_chan:
+            await grad_chan.send(f'{grad_announcement}')
+        else:
+            await ctx.send(f'{grad_announcement}')
 
 
 def setup(bot):

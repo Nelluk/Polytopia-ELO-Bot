@@ -7,6 +7,7 @@ import modules.achievements as achievements
 import peewee
 import modules.models as models
 from modules.models import Game, db, Player, Team, DiscordMember, Squad, GameSide, Tribe, Lineup
+from modules.league import auto_grad_novas
 import logging
 import datetime
 import asyncio
@@ -1695,18 +1696,24 @@ async def post_newgame_messaging(ctx, game):
 
     embed, content = game.embed(guild=ctx.guild, prefix=ctx.prefix)
     ranked_str = 'unranked ' if not game.is_ranked else ''
+    announce_str = f'New {ranked_str}game ID **{game.id}** started! Roster: {" ".join(mentions_list)}'
 
-    if settings.guild_setting(ctx.guild.id, 'game_announce_channel') is not None:
+    if settings.guild_setting(ctx.guild.id, 'game_announce_channel'):
         channel = ctx.guild.get_channel(settings.guild_setting(ctx.guild.id, 'game_announce_channel'))
-        if channel is not None:
-            await channel.send(f'New {ranked_str}game ID **{game.id}** started! Roster: {" ".join(mentions_list)}')
+        if channel:
+            await channel.send(f'{announce_str}')
             announcement = await channel.send(embed=embed, content=content)
             await ctx.send(f'New {ranked_str}game ID **{game.id}** started! See {channel.mention} for full details.')
             game.announcement_message = announcement.id
             game.announcement_channel = announcement.channel.id
             game.save()
+        else:
+            await ctx.send(embed=embed, content=content)
+            await ctx.send(f'Error loading game announcement channel from server settings. Please inform the bot owner.')
+            logger.error(f'Could not load game_announce_channel channel for guild {ctx.guild.id}')
+
     else:
-        await ctx.send(f'New {ranked_str}game ID {game.id} started! Roster: {" ".join(mentions_list)}')
+        await channel.send(f'{announce_str}')
         await ctx.send(embed=embed, content=content)
 
     if settings.guild_setting(ctx.guild.id, 'game_channel_categories'):
@@ -1715,6 +1722,8 @@ async def post_newgame_messaging(ctx, game):
             await game.create_game_channels(settings.bot.guilds, ctx.guild.id)
         except exceptions.MyBaseException as e:
             await ctx.send(f'Error during channel creation: {e}')
+
+    await auto_grad_novas(ctx, game)
 
 
 def parse_players_and_teams(input_list, guild_id: int):
