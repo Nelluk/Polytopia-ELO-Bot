@@ -535,20 +535,32 @@ class games(commands.Cog):
             if misc_stats:
                 embed.add_field(name='__Miscellaneous Global Stats__', value='\n'.join(misc_stats), inline=False)
 
-            elo_history_query = (Lineup
+            local_elo_history_query = (Lineup
                 .select(Game.completed_ts, Lineup.elo_after_game)
                 .join(Game)
                 .where((Lineup.player_id == player.id) & (Lineup.elo_after_game.is_null(False))))
 
-            elo_history_dates = [l.completed_ts for l in elo_history_query.objects()]
+            local_elo_history_dates = [l.completed_ts for l in local_elo_history_query.objects()]
 
-            if elo_history_dates:
-                elo_history_elos = [l.elo_after_game for l in elo_history_query.objects()]
+            if local_elo_history_dates:
+                local_elo_history_elos = [l.elo_after_game for l in local_elo_history_query.objects()]
+
+                global_elo_history_query = (Player
+                    .select(Game.completed_ts, Lineup.elo_after_game_global)
+                    .join(Lineup)
+                    .join(Game)
+                    .where((Player.discord_member_id == player.discord_member_id) & (Lineup.elo_after_game_global.is_null(False)))
+                    .order_by(Game.completed_ts))
+
+                global_elo_history_dates = [l.completed_ts for l in global_elo_history_query.objects()]
+                global_elo_history_elos = [l.elo_after_game_global for l in global_elo_history_query.objects()]
 
                 try:
                     server_name = settings.guild_setting(guild_id=player.guild_id, setting_name='display_name')
                 except exceptions.CheckFailedError:
                     server_name = settings.guild_setting(guild_id=None, setting_name='display_name')
+                
+                plt.style.use('default')
 
                 plt.switch_backend('Agg')
 
@@ -556,14 +568,17 @@ class games(commands.Cog):
                 fig.suptitle('ELO History (' + server_name + ')', fontsize=16)
                 fig.autofmt_xdate()
 
-                plt.plot(elo_history_dates, elo_history_elos, 'o', color='#47a0ff', markersize=7)
+                plt.plot(local_elo_history_dates, local_elo_history_elos, 'o', markersize=3, label = server_name)
+                plt.plot(global_elo_history_dates, global_elo_history_elos, 'o', markersize=3, label = 'Global')
 
                 ax.yaxis.grid()
                 ax.spines['top'].set_visible(False)
                 ax.spines['right'].set_visible(False)
                 ax.spines['left'].set_visible(False)
 
-                plt.savefig('graph.png', transparent=True)
+                plt.legend(loc="lower right")
+
+                plt.savefig('graph.png', transparent=False)
                 plt.close(fig)
 
                 embed.set_image(url=f'attachment://graph.png')
