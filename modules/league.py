@@ -223,7 +223,9 @@ class league(commands.Cog):
 
         await utilities.buffered_send(destination=ctx, content=''.join(message))
 
+
 async def auto_grad_novas(ctx, game):
+    # called from post_newgame_messaging() - check if any member of the newly-started game now meets Nova graduation requirements
 
     if ctx.guild.id == settings.server_ids['polychampions'] or ctx.guild.id == settings.server_ids['test']:
         pass
