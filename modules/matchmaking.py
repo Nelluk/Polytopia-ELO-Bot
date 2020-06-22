@@ -52,6 +52,7 @@ class matchmaking(commands.Cog):
             self.bg_task3 = bot.loop.create_task(self.task_create_empty_matchmaking_lobbies())
 
     @settings.in_bot_channel()
+    @models.is_registered_member()
     @commands.command(aliases=['openmatch', 'open'], usage='size expiration rules')
     async def opengame(self, ctx, *, args=None):
 
@@ -299,6 +300,7 @@ class matchmaking(commands.Cog):
         return await ctx.send(msg)
 
     @settings.in_bot_channel()
+    @models.is_registered_member()
     @commands.command(usage='game_id', aliases=['joingame', 'joinmatch'])
     async def join(self, ctx, game: PolyMatch = None, *args):
         """
@@ -474,6 +476,7 @@ class matchmaking(commands.Cog):
             await ctx.send(f'{ctx.author.mention}, you have full games waiting to start: **{", ".join(waitlist)}**\n{start_str}')
 
     @settings.in_bot_channel()
+    @models.is_registered_member()
     @commands.command(usage='game_id')
     async def leave(self, ctx, game: PolyMatch = None):
         """
@@ -505,6 +508,7 @@ class matchmaking(commands.Cog):
         await ctx.send('Removing you from the game.')
 
     @settings.in_bot_channel()
+    @models.is_registered_member()
     @commands.command(hidden=True, usage='game_id', aliases=['notes', 'matchnotes'])
     # clean_content converter flattens and user/role tags
     async def gamenotes(self, ctx, game: PolyMatch, *, notes: discord.ext.commands.clean_content = None):
@@ -540,6 +544,7 @@ class matchmaking(commands.Cog):
             await ctx.send('**Warning**: Updated notes included role/user mentions. This will not impact who is allowed to join the game and will only change the content of the notes.')
 
     @settings.in_bot_channel()
+    @models.is_registered_member()
     @commands.command(usage='game_id player')
     async def kick(self, ctx, game: PolyMatch, player: str):
         """
@@ -702,6 +707,7 @@ class matchmaking(commands.Cog):
             await ctx.send(f'{ctx.author.mention}, you have full games waiting to start: **{", ".join(waitlist)}**\n{start_str}')
 
     @settings.in_bot_channel()
+    @models.is_registered_member()
     @commands.command(aliases=['startgame'], usage='game_id Name of Poly Game')
     async def start(self, ctx, game: PolyMatch = None, *, name: str = None):
         """

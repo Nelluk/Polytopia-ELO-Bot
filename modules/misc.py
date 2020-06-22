@@ -9,7 +9,6 @@ import modules.exceptions as exceptions
 import re
 import datetime
 import random
-import peewee
 from modules.games import PolyGame
 # import modules.achievements as achievements
 
@@ -171,6 +170,7 @@ class misc(commands.Cog):
     @commands.command(hidden=True, usage='message')
     # @commands.cooldown(1, 30, commands.BucketType.user)
     @settings.in_bot_channel_strict()
+    @models.is_registered_member()
     async def pingall(self, ctx, *, message: str = None):
         """ Ping everyone in all of your incomplete games
 
@@ -229,6 +229,7 @@ class misc(commands.Cog):
         return await ctx.send(recipient_message[:2000])
 
     @commands.command(usage='game_id message')
+    @models.is_registered_member()
     @commands.cooldown(1, 20, commands.BucketType.user)
     async def ping(self, ctx, *, args=None):
         """ Ping everyone in one of your games with a message
@@ -320,203 +321,6 @@ class misc(commands.Cog):
             logger.debug(f'Ping triggered in non-private channel {ctx.channel.id}')
             await game.update_squad_channels(self.bot.guilds, ctx.guild.id, message=full_message)
             await ctx.send(f'{full_message}\n{" ".join(player_mentions)}')
-
-    @commands.command(aliases=['balance'])
-    @commands.cooldown(1, 30, commands.BucketType.channel)
-    @settings.on_polychampions()
-    async def league_balance(self, ctx, *, arg=None):
-        """ Print some stats on PolyChampions league balance
-        """
-        league_teams = [('Ronin', ['The Ronin', 'The Bandits']),
-                        ('Jets', ['The Jets', 'The Cropdusters']),
-                        ('Bombers', ['The Bombers', 'The Dynamite']),
-                        ('Lightning', ['The Lightning', 'The Pulse']),
-                        ('Cosmonauts', ['The Cosmonauts', 'The Space Cadets']),
-                        ('Crawfish', ['The Crawfish', 'The Shrimps']),
-                        ('Sparkies', ['The Sparkies', 'The Pups']),
-                        ('Wildfire', ['The Wildfire', 'The Flames']),
-                        ('Mallards', ['The Mallards', 'The Drakes']),
-                        ('Plague', ['The Plague', 'The Rats']),
-                        ('Dragons', ['The Dragons', 'The Narwhals'])
-                        ]
-
-        league_balance = []
-        indent_str = '\u00A0\u00A0 \u00A0\u00A0 \u00A0\u00A0'
-        mia_role = discord.utils.get(ctx.guild.roles, name=settings.guild_setting(ctx.guild.id, 'inactive_role'))
-
-        for team, team_roles in league_teams:
-
-            pro_role = discord.utils.get(ctx.guild.roles, name=team_roles[0])
-            junior_role = discord.utils.get(ctx.guild.roles, name=team_roles[1])
-
-            if not pro_role or not junior_role:
-                logger.warn(f'Could not load one team role from guild, using args: {team_roles}')
-                continue
-
-            try:
-                pro_team = models.Team.get_or_except(team_roles[0], ctx.guild.id)
-                junior_team = models.Team.get_or_except(team_roles[1], ctx.guild.id)
-            except exceptions.NoSingleMatch:
-                logger.warn(f'Could not load one team from database, using args: {team_roles}')
-                continue
-
-            pro_members, junior_members, pro_discord_ids, junior_discord_ids, mia_count = [], [], [], [], 0
-
-            for member in pro_role.members:
-                if mia_role in member.roles:
-                    mia_count += 1
-                else:
-                    pro_members.append(member)
-                    pro_discord_ids.append(member.id)
-            for member in junior_role.members:
-                if mia_role in member.roles:
-                    mia_count += 1
-                else:
-                    junior_members.append(member)
-                    junior_discord_ids.append(member.id)
-
-            logger.info(team)
-            combined_elo, player_games_total = models.Player.average_elo_of_player_list(list_of_discord_ids=junior_discord_ids + pro_discord_ids, guild_id=ctx.guild.id, weighted=True)
-
-            pro_elo, _ = models.Player.average_elo_of_player_list(list_of_discord_ids=pro_discord_ids, guild_id=ctx.guild.id, weighted=False)
-            junior_elo, _ = models.Player.average_elo_of_player_list(list_of_discord_ids=junior_discord_ids, guild_id=ctx.guild.id, weighted=False)
-
-            league_balance.append(
-                (team,
-                 pro_team,
-                 junior_team,
-                 len(pro_members),
-                 len(junior_members),
-                 mia_count,
-                 combined_elo,
-                 player_games_total,
-                 pro_elo,
-                 junior_elo)
-            )
-
-        league_balance.sort(key=lambda tup: tup[6], reverse=True)     # sort by combined_elo
-
-        embed = discord.Embed(title='PolyChampions League Balance Summary')
-        for team in league_balance:
-            embed.add_field(name=(f'{team[1].emoji} {team[0]} ({team[3] + team[4]}) {team[2].emoji}\n{indent_str} \u00A0\u00A0 ActiveELO™: {team[6]}'
-                                  f'\n{indent_str} \u00A0\u00A0 Recent member-games: {team[7]}'),
-                value=(f'-{indent_str}__**{team[1].name}**__ ({team[3]}) **ELO: {team[1].elo}** (Avg: {team[8]})\n'
-                       f'-{indent_str}__**{team[2].name}**__ ({team[4]}) **ELO: {team[2].elo}** (Avg: {team[9]})\n'), inline=False)
-
-        embed.set_footer(text='ActiveELO™ is the mean ELO of members weighted by how many games each member has played in the last 30 days.')
-
-        await ctx.send(embed=embed)
-
-    @commands.command(aliases=['nova', 'joinnovas'])
-    @settings.on_polychampions()
-    async def novas(self, ctx, *, arg=None):
-        """ Join yourself to the Novas team
-        """
-
-        player, _ = models.Player.get_by_discord_id(discord_id=ctx.author.id, discord_name=ctx.author.name, discord_nick=ctx.author.nick, guild_id=ctx.guild.id)
-        if not player:
-            # Matching guild member but no Player or DiscordMember
-            return await ctx.send(f'*{ctx.author.name}* was found in the server but is not registered with me. '
-                f'Players can be register themselves with `{ctx.prefix}setcode POLYTOPIA_CODE`.')
-
-        on_team, player_team = models.Player.is_in_team(guild_id=ctx.guild.id, discord_member=ctx.author)
-        if on_team:
-            return await ctx.send(f'You are already a member of team *{player_team.name}* {player_team.emoji}. Server staff is required to remove you from a team.')
-
-        red_role = discord.utils.get(ctx.guild.roles, name='Nova Red')
-        blue_role = discord.utils.get(ctx.guild.roles, name='Nova Blue')
-        novas_role = discord.utils.get(ctx.guild.roles, name='The Novas')
-        newbie_role = discord.utils.get(ctx.guild.roles, name='Newbie')
-
-        if not red_role or not blue_role or not novas_role:
-            return await ctx.send(f'Error finding Novas roles. Searched for *Nova Red* and *Nova Blue* and *The Novas*.')
-
-        # TODO: team numbers may be inflated due to inactive members. Can either count up only player recency, or easier but less effective way
-        # would be to have $deactivate remove novas roles and make them rejoin if they come back
-
-        if len(red_role.members) > len(blue_role.members):
-            await ctx.author.add_roles(blue_role, novas_role, reason='Joining Nova Blue')
-            await ctx.send(f'Congrats, you are now a member of the **Nova Blue** team! To join the fight go to a bot channel and type `{ctx.prefix}novagames`')
-        else:
-            await ctx.author.add_roles(red_role, novas_role, reason='Joining Nova Red')
-            await ctx.send(f'Congrats, you are now a member of the **Nova Red** team! To join the fight go to a bot channel and type `{ctx.prefix}novagames`')
-
-        if newbie_role:
-            await ctx.author.remove_roles(newbie_role, reason='Joining Novas')
-
-    # @commands.command()
-    # @commands.is_owner()
-    # @settings.on_polychampions()
-    # async def assign_novas(self, ctx, *, arg=None):
-    #     novas_role = discord.utils.get(ctx.guild.roles, name='The Novas')
-    #     red_role = discord.utils.get(ctx.guild.roles, name='Nova Red')
-    #     blue_role = discord.utils.get(ctx.guild.roles, name='Nova Blue')
-
-    #     async with ctx.typing():
-    #         await ctx.send('Assigning half of Novas to *Nova Blue*...')
-    #         for nova in novas_role.members[0::2]:
-    #             # iterates over every other list member, starting with first member
-    #             await nova.add_roles(blue_role, reason='Joining Nova Blue')
-
-    #         await ctx.send('Assigning half of Novas to *Nova Red*...')
-    #         for nova in novas_role.members[1::2]:
-    #             # iterates over every other list member, starting with second member
-    #             await nova.add_roles(red_role, reason='Joining Nova Red')
-
-    #         await ctx.send('Done!')
-
-    @commands.command(aliases=['undrafted'])
-    @commands.cooldown(1, 30, commands.BucketType.channel)
-    @settings.on_polychampions()
-    async def undrafted_novas(self, ctx, *, arg=None):
-        """Prints list of Novas who meet graduation requirements but have not been drafted
-
-        Use `[p]undrafted_novas elo` to sort by global elo
-        """
-
-        grad_list = []
-        grad_role = discord.utils.get(ctx.guild.roles, name='Free Agent')
-        inactive_role = discord.utils.get(ctx.guild.roles, name=settings.guild_setting(ctx.guild.id, 'inactive_role'))
-        # recruiter_role = discord.utils.get(ctx.guild.roles, name='Team Recruiter')
-        if ctx.guild.id == settings.server_ids['test']:
-            grad_role = discord.utils.get(ctx.guild.roles, name='Team Leader')
-
-        for member in grad_role.members:
-            if inactive_role and inactive_role in member.roles:
-                logger.debug(f'Skipping {member.name} since they have Inactive role')
-                continue
-            try:
-                dm = models.DiscordMember.get(discord_id=member.id)
-                player = models.Player.get(discord_member=dm, guild_id=ctx.guild.id)
-            except peewee.DoesNotExist:
-                logger.debug(f'Player {member.name} not registered.')
-                continue
-
-            g_wins, g_losses = dm.get_record()
-            wins, losses = player.get_record()
-            recent_games = dm.games_played(in_days=14).count()
-            all_games = dm.games_played().count()
-
-            message = (f'**{player.name}**'
-                f'\n\u00A0\u00A0 \u00A0\u00A0 \u00A0\u00A0 {recent_games} games played in last 14 days, {all_games} all-time'
-                f'\n\u00A0\u00A0 \u00A0\u00A0 \u00A0\u00A0 ELO:  {dm.elo} *global* / {player.elo} *local*\n'
-                f'\u00A0\u00A0 \u00A0\u00A0 \u00A0\u00A0 __W {g_wins} / L {g_losses}__ *global* \u00A0\u00A0 - \u00A0\u00A0 __W {wins} / L {losses}__ *local*\n')
-
-            grad_list.append((message, all_games, dm.elo))
-
-        await ctx.send(f'Listing {len(grad_list)} active members with the **{grad_role.name}** role...')
-
-        if arg and arg.upper() == 'ELO':
-            grad_list.sort(key=lambda tup: tup[2], reverse=False)     # sort the list ascending by num games played
-        else:
-            grad_list.sort(key=lambda tup: tup[1], reverse=False)     # sort the list ascending by num games played
-
-        message = []
-        for grad in grad_list:
-            # await ctx.send(grad[0])
-            message.append(grad[0])
-
-        await utilities.buffered_send(destination=ctx, content=''.join(message))
 
     @commands.command(hidden=True, aliases=['random_tribes', 'rtribe'], usage='game_size [-banned_tribe ...]')
     @settings.in_bot_channel()

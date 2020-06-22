@@ -5,6 +5,7 @@ import settings
 import modules.exceptions as exceptions
 import modules.achievements as achievements
 import peewee
+import modules.models as models
 from modules.models import Game, db, Player, Team, DiscordMember, Squad, GameSide, Tribe, Lineup
 import logging
 import datetime
@@ -791,6 +792,7 @@ class games(commands.Cog):
                 f'Register your own code with `{ctx.prefix}setcode YOURCODEHERE`')
 
     @commands.command(aliases=['codes'], usage='game_id')
+    @models.is_registered_member()
     async def getcodes(self, ctx, *, game: PolyGame = None):
         """Print all player codes associated with a game ID
         The codes will be printed on separate line for ease of copying, and in the order that players should be added to the game.
@@ -833,6 +835,7 @@ class games(commands.Cog):
                 await ctx.send(poly_id if poly_id else '*No code registered*')
 
     @commands.command(brief='Set in-game name', usage='new_name')
+    @models.is_registered_member()
     async def setname(self, ctx, *args):
         """Sets your own in-game name, or lets staff set a player's in-game name
         When this is set, people can find you by the in-game name with the `[p]player` command.
@@ -878,6 +881,7 @@ class games(commands.Cog):
         await ctx.send(f'Player **{player_target.name}** updated in system with Polytopia name **{new_name}**.')
 
     @commands.command(brief='Set player time zone', usage='UTC±#')
+    @models.is_registered_member()
     async def settime(self, ctx, *args):
         """Sets your own timezone, or lets staff set a player's timezone
         This will be shown on your `[p]player` profile and can be used to order large games for faster player.
@@ -962,6 +966,7 @@ class games(commands.Cog):
         return await ctx.send(embed=embed, content=content)
 
     @settings.in_bot_channel_strict()
+    @models.is_registered_member()
     @commands.command(usage='player1 player2 ... ')
     async def allgames(self, ctx, *, args=None):
         """Search for games by participants or game name
@@ -982,6 +987,7 @@ class games(commands.Cog):
         await self.game_search(ctx=ctx, mode='ALLGAMES', arg_list=target_list)
 
     @settings.in_bot_channel_strict()
+    @models.is_registered_member()
     @commands.command(aliases=['complete', 'completed'], hidden=False)
     async def incomplete(self, ctx, *, args=None):
         """List incomplete games for you or other players - also `[p]complete`
@@ -1000,6 +1006,7 @@ class games(commands.Cog):
             await self.game_search(ctx=ctx, mode='INCOMPLETE', arg_list=target_list)
 
     @settings.in_bot_channel_strict()
+    @models.is_registered_member()
     @commands.command(aliases=['losses', 'loss'], hidden=False)
     async def wins(self, ctx, *, args=None):
         """List games that you or others have won - also `[p]losses`
@@ -1018,6 +1025,7 @@ class games(commands.Cog):
             await self.game_search(ctx=ctx, mode='WINS', arg_list=target_list)
 
     @settings.in_bot_channel()
+    @models.is_registered_member()
     @commands.command(usage='"Name of Game" player1 player2 vs player3 player4', aliases=['newgameunranked'])
     # @settings.is_user_check()
     async def newgame(self, ctx, game_name: str = None, *args):
@@ -1140,6 +1148,7 @@ class games(commands.Cog):
             await post_newgame_messaging(ctx, game=newgame)
 
     @settings.in_bot_channel()
+    @models.is_registered_member()
     @commands.command(usage='game_id winner_name', aliases=['lose'])
     async def win(self, ctx, winning_game: PolyGame = None, *, winning_side_name: str = None):
         """
@@ -1248,6 +1257,7 @@ class games(commands.Cog):
                     await post_win_messaging(ctx.guild, ctx.prefix, ctx.channel, winning_game)
 
     @settings.in_bot_channel()
+    @models.is_registered_member()
     @commands.command(usage='game_id')
     async def unwin(self, ctx, game: PolyGame = None):
         """Reset a completed game to incomplete
@@ -1341,6 +1351,7 @@ class games(commands.Cog):
                     f'{confirmed_count} of {side_count} sides are marked as confirming.')
 
     @settings.in_bot_channel()
+    @models.is_registered_member()
     @commands.command(usage='game_id', aliases=['delete_game', 'delgame', 'delmatch', 'deletegame'])
     async def delete(self, ctx, game: PolyGame = None):
         """Deletes a game
@@ -1385,6 +1396,7 @@ class games(commands.Cog):
             await self.bot.loop.run_in_executor(None, game.delete_game)
 
     @commands.command(usage='game_id "New Name"')
+    @models.is_registered_member()
     async def rename(self, ctx, *args):
         """Renames an existing game (due to restarts)
 
@@ -1450,6 +1462,7 @@ class games(commands.Cog):
         await ctx.send(f'Game ID {game.id} has been renamed to "**{new_game_name}**" from "**{old_game_name}**"')
 
     @commands.command(aliases=['settribes'], usage='game_id player_name tribe_name [player2 tribe2 ... ]')
+    @models.is_registered_member()
     async def settribe(self, ctx, game: PolyGame = None, *args):
         """Set tribe of players for a game
 

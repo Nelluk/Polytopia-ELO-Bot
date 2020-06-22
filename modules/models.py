@@ -1,5 +1,6 @@
 import datetime
 import discord
+from discord.ext import commands
 import re
 # import psycopg2
 from psycopg2.errors import DuplicateObject
@@ -34,6 +35,23 @@ def string_to_user_id(input):
         return int(match.group(1))
     except (ValueError, AttributeError):
         return None
+
+
+def is_registered_member():
+    async def predicate(ctx):
+        db.connect(reuse_if_open=True)
+        member_match = DiscordMember.select(DiscordMember.discord_id).where(
+            (DiscordMember.discord_id == ctx.author.id)
+        ).count()
+
+        if member_match:
+            return True
+        if ctx.invoked_with == 'help' and ctx.command.name != 'help':
+            return False
+        else:
+            await ctx.send(f'This command requires bot registration first. Type __`{ctx.prefix}setcode`__ to get started.')
+        return False
+    return commands.check(predicate)
 
 
 class BaseModel(Model):

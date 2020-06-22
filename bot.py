@@ -203,9 +203,7 @@ if __name__ == '__main__':
     #         logger.warn(f'Error during post_invoke_cleanup db.close(): {e} || Command attempting to close db: {ctx.message.clean_content}')
     #         pass
 
-    initial_extensions = ['modules.games', 'modules.help', 'modules.matchmaking', 'modules.administration', 'modules.misc']
-    initial_extensions = ['modules.games', 'modules.customhelp', 'modules.matchmaking', 'modules.administration', 'modules.misc']
-    # initial_extensions = ['modules.games', 'modules.masarykbothelp', 'modules.matchmaking', 'modules.administration', 'modules.misc']
+    initial_extensions = ['modules.games', 'modules.customhelp', 'modules.matchmaking', 'modules.administration', 'modules.misc', 'modules.league']
     for extension in initial_extensions:
         bot.load_extension(extension)
 

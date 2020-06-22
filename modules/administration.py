@@ -423,7 +423,6 @@ class administration(commands.Cog):
     @commands.command(aliases=['team_add_junior'], usage='new_team_name')
     @settings.is_mod_check()
     @settings.teams_allowed()
-    # async def team_add(self, ctx, *args):
     async def team_add(self, ctx, *, team_name: str):
         """*Mod*: Create new server Team
         The team should have a Role with an identical name.
@@ -455,6 +454,7 @@ class administration(commands.Cog):
 
     @commands.command(usage='team_name new_emoji')
     @settings.is_mod_check()
+    @settings.teams_allowed()
     async def team_emoji(self, ctx, team_name: str, emoji):
         """*Mod*: Assign an emoji to a team
         **Example:**
@@ -570,69 +570,6 @@ class administration(commands.Cog):
         await utilities.buffered_send(destination=ctx, content=f'Found {len(defunct_members)} inactive members - *{inactive_role.name}* has been applied to each: {members_str}')
 
     @commands.command()
-    # @settings.is_mod_check()
-    @settings.on_polychampions()
-    async def grad_novas(self, ctx, *, arg=None):
-        """*Staff*: Check Novas for graduation requirements
-        Apply the 'Free Agent' role to any Novas who meets requirements:
-        - Three ranked team games, and ranked games with members of at least three League teams
-        """
-
-        grad_count = 0
-        role = discord.utils.get(ctx.guild.roles, name='The Novas')
-        grad_role = discord.utils.get(ctx.guild.roles, name='Free Agent')
-        recruiter_role = discord.utils.get(ctx.guild.roles, name='Team Recruiter')
-        drafter_role = discord.utils.get(ctx.guild.roles, name='Drafter')
-        inactive_role = discord.utils.get(ctx.guild.roles, name=settings.guild_setting(ctx.guild.id, 'inactive_role'))
-        grad_chan = ctx.guild.get_channel(540332800927072267)  # Novas draft talk
-        if ctx.guild.id == settings.server_ids['test']:
-            role = discord.utils.get(ctx.guild.roles, name='testers')
-            grad_role = discord.utils.get(ctx.guild.roles, name='Team Leader')
-            recruiter_role = discord.utils.get(ctx.guild.roles, name='role1')
-            drafter_role = recruiter_role
-            grad_chan = ctx.guild.get_channel(479292913080336397)  # bot spam
-
-        await ctx.send(f'Auto-graduating Novas')
-        async with ctx.typing():
-            for member in role.members:
-                if inactive_role and inactive_role in member.roles:
-                    continue
-                try:
-                    dm = models.DiscordMember.get(discord_id=member.id)
-                    player = models.Player.get(discord_member=dm, guild_id=ctx.guild.id)
-                except peewee.DoesNotExist:
-                    logger.debug(f'Player {member.name} not registered.')
-                    continue
-                if grad_role in member.roles:
-                    logger.debug(f'Player {player.name} already has the graduate role.')
-                    continue
-                if player.games_played(in_days=10).count() == 0:
-                    logger.debug(f'Player {player.name} has not played in any recent games.')
-                    continue
-
-                qualifying_games = []
-
-                for lineup in player.games_played():
-                    game = lineup.game
-                    if game.notes and 'Nova Red' in game.notes and 'Nova Blue' in game.notes:
-                        if not game.is_pending:
-                            qualifying_games.append(str(game.id))
-
-                if len(qualifying_games) < 3:
-                    logger.debug(f'Player {player.name} has insufficient qualifying games. Games that qualified: {qualifying_games}')
-                    continue
-
-                wins, losses = dm.get_record()
-                logger.debug(f'Player {player.name} meets qualifications: {qualifying_games}')
-                grad_count += 1
-                await member.add_roles(grad_role)
-                await grad_chan.send(f'Player {member.mention} (*Global ELO: {dm.elo} \u00A0\u00A0\u00A0\u00A0W {wins} / L {losses}*) qualifies for graduation on the basis of games: `{" ".join(qualifying_games)}`')
-            if grad_count:
-                await grad_chan.send(f'{recruiter_role.mention} the above player(s) meet the qualifications for graduation. DM {drafter_role.mention} to express interest.')
-
-            await ctx.send(f'Completed auto-grad: {grad_count} new graduates.')
-
-    @commands.command()
     @settings.is_mod_check()
     @settings.on_polychampions()
     async def kick_inactive(self, ctx, *, arg=None):
@@ -687,69 +624,6 @@ class administration(commands.Cog):
                             count += 1
 
         await ctx.send(f'Kicking {count} members without any assigned role and have insufficient ELO history.')
-
-    # replaced with repeating task 2/19/20
-    # @commands.command()
-    # @settings.is_mod_check()
-    # async def purge_incomplete(self, ctx):
-    #     """*Mod*: Purge old incomplete games
-    #     Purges up to 10 games at a time. Only incomplete 2-player games that started more than 60 days ago, or 3-player games that started more than 90 days ago.
-    #     """
-
-    #     old_60d = (datetime.date.today() + datetime.timedelta(days=-60))
-    #     old_90d = (datetime.date.today() + datetime.timedelta(days=-90))
-    #     old_120d = (datetime.date.today() + datetime.timedelta(days=-120))
-    #     old_150d = (datetime.date.today() + datetime.timedelta(days=-150))
-
-    #     def async_game_search():
-    #         query = models.Game.search(status_filter=2, guild_id=ctx.guild.id)
-    #         query = list(query)  # reversing 'Incomplete' queries so oldest is at top
-    #         query.reverse()
-    #         return query
-
-    #     game_list = await self.bot.loop.run_in_executor(None, async_game_search)
-
-    #     delete_result = []
-    #     for game in game_list[:500]:
-    #         game_size = len(game.lineup)
-    #         rank_str = ' - *Unranked*' if not game.is_ranked else ''
-    #         if game_size == 2 and game.date < old_60d and not game.is_completed:
-    #             delete_result.append(f'Deleting incomplete 1v1 game older than 60 days. - {game.get_headline()} - {game.date}{rank_str}')
-    #             await self.bot.loop.run_in_executor(None, game.delete_game)
-
-    #         if game_size == 3 and game.date < old_90d and not game.is_completed:
-    #             delete_result.append(f'Deleting incomplete 3-player game older than 90 days. - {game.get_headline()} - {game.date}{rank_str}')
-    #             await game.delete_game_channels(self.bot.guilds, ctx.guild.id)
-    #             await self.bot.loop.run_in_executor(None, game.delete_game)
-
-    #         if game_size == 4:
-    #             if game.date < old_90d and not game.is_completed and not game.is_ranked:
-    #                 delete_result.append(f'Deleting incomplete 4-player game older than 90 days. - {game.get_headline()} - {game.date}{rank_str}')
-    #                 await game.delete_game_channels(self.bot.guilds, ctx.guild.id)
-    #                 await self.bot.loop.run_in_executor(None, game.delete_game)
-    #             if game.date < old_120d and not game.is_completed and game.is_ranked:
-    #                 delete_result.append(f'Deleting incomplete ranked 4-player game older than 120 days. - {game.get_headline()} - {game.date}{rank_str}')
-    #                 await game.delete_game_channels(self.bot.guilds, ctx.guild.id)
-    #                 await self.bot.loop.run_in_executor(None, game.delete_game)
-
-    #         if (game_size == 5 or game_size == 6) and game.is_ranked and game.date < old_150d and not game.is_completed:
-    #             # Max out ranked game deletion at game_size==6
-    #             delete_result.append(f'Deleting incomplete ranked {game_size}-player game older than 150 days. - {game.get_headline()} - {game.date}{rank_str}')
-    #             await game.delete_game_channels(self.bot.guilds, ctx.guild.id)
-    #             await self.bot.loop.run_in_executor(None, game.delete_game)
-
-    #         if game_size >= 5 and not game.is_ranked and game.date < old_120d and not game.is_completed:
-    #             # no cap on unranked game deletion above 120 days old
-    #             delete_result.append(f'Deleting incomplete unranked {game_size}-player game older than 120 days. - {game.get_headline()} - {game.date}{rank_str}')
-    #             await game.delete_game_channels(self.bot.guilds, ctx.guild.id)
-    #             await self.bot.loop.run_in_executor(None, game.delete_game)
-
-    #         if len(delete_result) >= 10:
-    #             break  # more than ten games and the output will be truncated
-
-    #     delete_str = '\n'.join(delete_result)
-    #     logger.warn(f'Purging incomplete games:\n{delete_str}')
-    #     await ctx.send(f'{delete_str[:1900]}\nFinished - purged {len(delete_result)} games')
 
     @commands.command(aliases=['migrate'])
     @commands.is_owner()
