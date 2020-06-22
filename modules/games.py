@@ -1713,7 +1713,7 @@ async def post_newgame_messaging(ctx, game):
             logger.error(f'Could not load game_announce_channel channel for guild {ctx.guild.id}')
 
     else:
-        await channel.send(f'{announce_str}')
+        await ctx.send(f'{announce_str}')
         await ctx.send(embed=embed, content=content)
 
     if settings.guild_setting(ctx.guild.id, 'game_channel_categories'):
