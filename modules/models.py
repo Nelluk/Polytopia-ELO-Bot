@@ -1801,7 +1801,7 @@ class Game(BaseModel):
 
         query = Game.select().join(GameSide, on=(GameSide.game == Game.id)).where(
             (GameSide.team_chan == int(chan_id)) | (Game.game_chan == int(chan_id))
-        )
+        ).distinct()
 
         if len(query) == 0:
             raise exceptions.NoMatches(f'No matching game found for given channel')

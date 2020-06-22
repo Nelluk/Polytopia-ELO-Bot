@@ -36,6 +36,12 @@ class league(commands.Cog):
         Type `[p]guide` for an overview of what this bot is for and how to use it.
         """
 
+        # post message in announcements (optional argument of a different channel if mod wants announcement to go elsewhere?)
+        # listen for reactions in a check
+        # if reactor has Free Agent role, PM success message and apply Draftable role
+        # if not, PM failure message and remove reaction
+        # remove Draftable role if user removes their reaction
+
         await ctx.send('here')
 
     @commands.command(aliases=['balance'])
