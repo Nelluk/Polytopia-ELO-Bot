@@ -560,7 +560,7 @@ class games(commands.Cog):
                     server_name = settings.guild_setting(guild_id=player.guild_id, setting_name='display_name')
                 except exceptions.CheckFailedError:
                     server_name = settings.guild_setting(guild_id=None, setting_name='display_name')
-                
+
                 plt.style.use('default')
 
                 plt.switch_backend('Agg')
@@ -569,8 +569,8 @@ class games(commands.Cog):
                 fig.suptitle('ELO History (' + server_name + ')', fontsize=16)
                 fig.autofmt_xdate()
 
-                plt.plot(local_elo_history_dates, local_elo_history_elos, 'o', markersize=3, label = server_name)
-                plt.plot(global_elo_history_dates, global_elo_history_elos, 'o', markersize=3, label = 'Global')
+                plt.plot(local_elo_history_dates, local_elo_history_elos, 'o', markersize=3, label=server_name)
+                plt.plot(global_elo_history_dates, global_elo_history_elos, 'o', markersize=3, label='Global')
 
                 ax.yaxis.grid()
                 ax.spines['top'].set_visible(False)
@@ -606,7 +606,8 @@ class games(commands.Cog):
 
             return content_str, embed, image
 
-        content_str, embed, image = await self.bot.loop.run_in_executor(None, async_create_player_embed)
+        async with ctx.typing():
+            content_str, embed, image = await self.bot.loop.run_in_executor(None, async_create_player_embed)
 
         await ctx.send(content=content_str, file=image, embed=embed)
 
