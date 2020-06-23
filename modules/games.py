@@ -537,24 +537,24 @@ class games(commands.Cog):
             if misc_stats:
                 embed.add_field(name='__Miscellaneous Global Stats__', value='\n'.join(misc_stats), inline=False)
 
-            local_elo_history_query = (Lineup
-                .select(Game.completed_ts, Lineup.elo_after_game)
+            global_elo_history_query = (Player
+                .select(Game.completed_ts, Lineup.elo_after_game_global)
+                .join(Lineup)
                 .join(Game)
-                .where((Lineup.player_id == player.id) & (Lineup.elo_after_game.is_null(False))))
+                .where((Player.discord_member_id == player.discord_member_id) & (Lineup.elo_after_game_global.is_null(False)))
+                .order_by(Game.completed_ts))
 
-            local_elo_history_dates = [l.completed_ts for l in local_elo_history_query.objects()]
+            global_elo_history_dates = [l.completed_ts for l in global_elo_history_query.objects()]
 
-            if local_elo_history_dates:
+            if global_elo_history_dates:
+                local_elo_history_query = (Lineup
+                    .select(Game.completed_ts, Lineup.elo_after_game)
+                    .join(Game)
+                    .where((Lineup.player_id == player.id) & (Lineup.elo_after_game.is_null(False))))
+
+                local_elo_history_dates = [l.completed_ts for l in local_elo_history_query.objects()]               
                 local_elo_history_elos = [l.elo_after_game for l in local_elo_history_query.objects()]
 
-                global_elo_history_query = (Player
-                    .select(Game.completed_ts, Lineup.elo_after_game_global)
-                    .join(Lineup)
-                    .join(Game)
-                    .where((Player.discord_member_id == player.discord_member_id) & (Lineup.elo_after_game_global.is_null(False)))
-                    .order_by(Game.completed_ts))
-
-                global_elo_history_dates = [l.completed_ts for l in global_elo_history_query.objects()]
                 global_elo_history_elos = [l.elo_after_game_global for l in global_elo_history_query.objects()]
 
                 try:
@@ -643,6 +643,7 @@ class games(commands.Cog):
         coleader_role = discord.utils.get(ctx.guild.roles, name='Team Co-Leader')
         member_stats = []
         leaders_list, coleaders_list = [], []
+        image = None
 
         wins, losses = team.get_record(alltime=False)
         embed.add_field(name='Results', value=f'ELO: {team.elo}   Wins {wins} / Losses {losses}', inline=False)
@@ -700,7 +701,57 @@ class games(commands.Cog):
         for game, result in game_list:
             embed.add_field(name=game, value=result)
 
-        await ctx.send(embed=embed)
+        alltime_team_elo_history_query = (GameSide
+                .select(Game.completed_ts, GameSide.team_elo_after_game_alltime)
+                .join(Game)
+                .where((GameSide.team_id == team.id) & (GameSide.team_elo_after_game_alltime.is_null(False)))
+                .order_by(Game.completed_ts))
+
+        alltime_team_elo_history_dates = [l.completed_ts for l in alltime_team_elo_history_query.objects()]
+
+        if alltime_team_elo_history_dates:
+            alltime_team_elo_history_elos = [l.team_elo_after_game_alltime for l in alltime_team_elo_history_query.objects()]
+
+            team_elo_history_query = (GameSide
+                .select(Game.completed_ts, GameSide.team_elo_after_game)
+                .join(Game)
+                .where((GameSide.team_id == team.id) & (GameSide.team_elo_after_game.is_null(False)))
+                .order_by(Game.completed_ts))
+
+            team_elo_history_dates = [l.completed_ts for l in team_elo_history_query.objects()]
+            team_elo_history_elos = [l.team_elo_after_game for l in team_elo_history_query.objects()]
+
+            fig, ax = plt.subplots()
+
+            plt.style.use('default')
+
+            plt.switch_backend('Agg')
+
+            fig.suptitle('ELO History (' + team.name + ')', fontsize=16)
+            fig.autofmt_xdate()
+
+            plt.plot(team_elo_history_dates, team_elo_history_elos, 'o', markersize=3, label = 'Since 1/1/2020')
+            plt.plot(alltime_team_elo_history_dates, alltime_team_elo_history_elos, 'o', markersize=3, label = 'Alltime')
+
+            ax.yaxis.grid()
+
+            ax.spines['top'].set_visible(False)
+            ax.spines['right'].set_visible(False)
+            ax.spines['left'].set_visible(False)
+
+            plt.legend(loc="lower left")
+
+            plt.savefig('graph.png', transparent=False)
+            plt.close(fig)
+
+            embed.set_image(url=f'attachment://graph.png')
+
+            with open('graph.png', 'rb') as f:
+                file = io.BytesIO(f.read())
+
+            image = discord.File(file, filename='graph.png')
+
+        await ctx.send(file=image, embed=embed)
 
     @commands.command(brief='Sets a Polytopia game code and registers user with the bot', usage='[user] polytopia_code')
     async def setcode(self, ctx, *args):
