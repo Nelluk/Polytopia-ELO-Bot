@@ -117,7 +117,7 @@ class misc(commands.Cog):
         embed.add_field(name='Developer', value='Nelluk')
         embed.add_field(name='Source code', value='https://github.com/Nelluk/Polytopia-ELO-Bot')
 
-        embed.add_field(name='Contributions', value='rickdaheals, koric, Gerenuk, theSeahorse, Octo, Artemis, theoldlove', inline=False)
+        embed.add_field(name='Contributions', value='rickdaheals, koric, Gerenuk, alphaSeahorse, Octo, Artemis, theoldlove', inline=False)
 
         embed.set_thumbnail(url=self.bot.user.avatar_url_as(size=512))
         await ctx.send(embed=embed)
