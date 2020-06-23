@@ -25,7 +25,7 @@ class league(commands.Cog):
 
     grad_role_name = 'Nova Grad'         # met graduation requirements and is eligible to sign up for draft
     draftable_role_name = 'Draftable'    # signed up for current draft
-    free_agent_role_name = 'Free Agent'  # eligible for prior draft but did not get drafted
+    free_agent_role_name = 'Free Agent'  # signed up for a prior draft but did not get drafted
 
     def __init__(self, bot):
         self.bot = bot
@@ -62,7 +62,9 @@ class league(commands.Cog):
             pass
 
     async def signup_emoji_clicked(member, channel, message):
-        pass
+        grad_role = discord.utils.get(member.guild.roles, name=self.grad_role)
+        grad_role = discord.utils.get(member.guild.roles, name=self.grad_role)
+        grad_role = discord.utils.get(member.guild.roles, name=self.grad_role)
 
     def get_draft_config(self, guild_id):
         record, _ = models.Configuration.get_or_create(guild_id=guild_id)

@@ -27,9 +27,10 @@ class misc(commands.Cog):
     async def test(self, ctx, *, arg: str = None):
 
         free_agents = discord.utils.get(ctx.guild.roles, name='Free Agent')
-        grads = discord.utils.get(ctx.guild.roles, name='Nova Grad')
+        # grads = discord.utils.get(ctx.guild.roles, name='Nova Grad')
         for agent in free_agents.members:
-            await agent.add_roles(grads, reason='Adjusting nova roles')
+            # logger.debug(f'adding grad role to {agent.display_name}')
+            await agent.remove_roles(free_agents, reason='Adjusting nova roles')
 
     @commands.command(hidden=True, aliases=['bulk_local_elo', 'ble', 'bge'])
     async def bulk_global_elo(self, ctx, *, args=None):
