@@ -59,15 +59,12 @@ class BaseModel(Model):
         database = db
 
 
-default_draft_data = {
-    'announcement_message': None,
-    'announcement_channel': None,
-    'draft_open': False,
-    'date_opened': None,
-}
 class Configuration(BaseModel):
+    def draft_config_defaults():
+        return {'announcement_message': None, 'announcement_channel': None,
+                'draft_open': False, 'date_opened': None}
 
-    polychamps_draft = BinaryJSONField(null=True, default=default_draft_data)
+    polychamps_draft = BinaryJSONField(null=True, default=draft_config_defaults())
     guild_id = BitField(unique=True, null=False)
 
 
@@ -2382,7 +2379,6 @@ class Lineup(BaseModel):
 
 
 with db.connection_context():
-    print('here')
     db.create_tables([Configuration, Team, DiscordMember, Game, Player, Tribe, Squad, GameSide, SquadMember, Lineup])
     # Only creates missing tables so should be safe to run each time
 

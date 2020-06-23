@@ -25,6 +25,10 @@ class league(commands.Cog):
             # self.bg_task = bot.loop.create_task(self.task_broadcast_newbie_message())
             # self.bg_task = bot.loop.create_task(self.task_send_polychamps_invite())
 
+    # def get_draft_config(self, ctx):
+    #     config_record, created = models.Configuration.get_or_create(guild_id=ctx.guild.id, defaults={'polychamps_draft': self.default_draft_config})
+    #     return config_record
+
     async def cog_check(self, ctx):
         return ctx.guild.id == settings.server_ids['polychampions'] or ctx.guild.id == settings.server_ids['test']
 
@@ -48,7 +52,14 @@ class league(commands.Cog):
         $fatable - displays list of people that can be bought with fats
         """
 
-        await ctx.send('here')
+        announcement_channel = ctx.guild.get_channel(480078679930830849)  # admin-spam
+        config_record, _ = models.Configuration.get_or_create(guild_id=ctx.guild.id)
+
+        print(config_record.polychamps_draft)
+        announcement_message = await announcement_channel.send('New draft!!!!')
+
+        # draft_config['announcement_message'] = announcement_message.id
+        # draft_config['announcement_channel'] = announcement_channel.id
 
     @commands.command(aliases=['balance'])
     @commands.cooldown(1, 30, commands.BucketType.channel)
