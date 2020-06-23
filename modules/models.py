@@ -17,7 +17,7 @@ import logging
 logger = logging.getLogger('polybot.' + __name__)
 elo_logger = logging.getLogger('polybot.elo')
 
-db = PostgresqlDatabase(settings.psql_db, autorollback=True, user=settings.psql_user, autoconnect=False)
+db = PostgresqlExtDatabase(settings.psql_db, autorollback=True, user=settings.psql_user, autoconnect=False)
 
 
 def tomorrow():
@@ -57,6 +57,18 @@ def is_registered_member():
 class BaseModel(Model):
     class Meta:
         database = db
+
+
+default_draft_data = {
+    'announcement_message': None,
+    'announcement_channel': None,
+    'draft_open': False,
+    'date_opened': None,
+}
+class Configuration(BaseModel):
+
+    polychamps_draft = BinaryJSONField(null=True, default=default_draft_data)
+    guild_id = BitField(unique=True, null=False)
 
 
 class Team(BaseModel):
@@ -2369,12 +2381,16 @@ class Lineup(BaseModel):
             return ''
 
 
-with db:
-    db.create_tables([Team, DiscordMember, Game, Player, Tribe, Squad, GameSide, SquadMember, Lineup])
+with db.connection_context():
+    print('here')
+    db.create_tables([Configuration, Team, DiscordMember, Game, Player, Tribe, Squad, GameSide, SquadMember, Lineup])
     # Only creates missing tables so should be safe to run each time
+
     try:
         # Creates deferred FK http://docs.peewee-orm.com/en/latest/peewee/models.html#circular-foreign-key-dependencies
         Game._schema.create_foreign_key(Game.winner)
     except (ProgrammingError, DuplicateObject):
         pass
         # Will throw one of above exceptions if foreign key already exists - exception depends on which version of psycopg2 is running
+        # if exception is caught inside a transaction then the transaction will be rolled back (create_tables reverted),
+        # so using the connection_context() and this section is not run using any transactions

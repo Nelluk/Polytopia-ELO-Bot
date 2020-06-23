@@ -26,9 +26,8 @@ class misc(commands.Cog):
     @commands.is_owner()
     async def test(self, ctx, *, arg: str = None):
 
-        func = settings.in_bot_channel()
-        print(func(ctx))
-        print(settings.in_bot_channel())
+        query = models.Configuration.select()
+        print(query.count())
 
     @commands.command(hidden=True, aliases=['bulk_local_elo', 'ble', 'bge'])
     async def bulk_global_elo(self, ctx, *, args=None):
