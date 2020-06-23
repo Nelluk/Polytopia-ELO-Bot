@@ -537,24 +537,24 @@ class games(commands.Cog):
             if misc_stats:
                 embed.add_field(name='__Miscellaneous Global Stats__', value='\n'.join(misc_stats), inline=False)
 
-            local_elo_history_query = (Lineup
-                .select(Game.completed_ts, Lineup.elo_after_game)
+            global_elo_history_query = (Player
+                .select(Game.completed_ts, Lineup.elo_after_game_global)
+                .join(Lineup)
                 .join(Game)
-                .where((Lineup.player_id == player.id) & (Lineup.elo_after_game.is_null(False))))
+                .where((Player.discord_member_id == player.discord_member_id) & (Lineup.elo_after_game_global.is_null(False)))
+                .order_by(Game.completed_ts))
 
-            local_elo_history_dates = [l.completed_ts for l in local_elo_history_query.objects()]
+            global_elo_history_dates = [l.completed_ts for l in global_elo_history_query.objects()]
 
-            if local_elo_history_dates:
+            if global_elo_history_dates:
+                local_elo_history_query = (Lineup
+                    .select(Game.completed_ts, Lineup.elo_after_game)
+                    .join(Game)
+                    .where((Lineup.player_id == player.id) & (Lineup.elo_after_game.is_null(False))))
+
+                local_elo_history_dates = [l.completed_ts for l in local_elo_history_query.objects()]               
                 local_elo_history_elos = [l.elo_after_game for l in local_elo_history_query.objects()]
 
-                global_elo_history_query = (Player
-                    .select(Game.completed_ts, Lineup.elo_after_game_global)
-                    .join(Lineup)
-                    .join(Game)
-                    .where((Player.discord_member_id == player.discord_member_id) & (Lineup.elo_after_game_global.is_null(False)))
-                    .order_by(Game.completed_ts))
-
-                global_elo_history_dates = [l.completed_ts for l in global_elo_history_query.objects()]
                 global_elo_history_elos = [l.elo_after_game_global for l in global_elo_history_query.objects()]
 
                 try:
