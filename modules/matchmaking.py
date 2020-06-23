@@ -333,7 +333,7 @@ class matchmaking(commands.Cog):
         inactive_role = discord.utils.get(ctx.guild.roles, name=settings.guild_setting(ctx.guild.id, 'inactive_role'))
         if inactive_role and inactive_role in ctx.author.roles:
             await ctx.author.remove_roles(inactive_role, reason='Player joined a game so should no longer be inactive')
-            return await ctx.send(f'You have the inactive role **{inactive_role.name}**. Removing it since you seem to be active! Just use the `{ctx.prefix}{ctx.invoked_with}` command one more time.')
+            return await ctx.send(f'You have the inactive role **{inactive_role.name}**. Removing it since you seem to be active! :smiling_face_with_3_hearts: Just use the `{ctx.prefix}{ctx.invoked_with}` command one more time.')
 
         if len(args) == 0:
             # ctx.author is joining a game, no side given
