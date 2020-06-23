@@ -26,8 +26,10 @@ class misc(commands.Cog):
     @commands.is_owner()
     async def test(self, ctx, *, arg: str = None):
 
-        query = models.Configuration.select()
-        print(query.count())
+        free_agents = discord.utils.get(ctx.guild.roles, name='Free Agent')
+        grads = discord.utils.get(ctx.guild.roles, name='Nova Grad')
+        for agent in free_agents.members:
+            await agent.add_roles(grads, reason='Adjusting nova roles')
 
     @commands.command(hidden=True, aliases=['bulk_local_elo', 'ble', 'bge'])
     async def bulk_global_elo(self, ctx, *, args=None):

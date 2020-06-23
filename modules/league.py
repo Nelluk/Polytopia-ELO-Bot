@@ -18,19 +18,60 @@ class league(commands.Cog):
     Commands specific to the PolyChampions league, such as drafting-related commands
     """
 
+    emoji_draft_signup = '🚸'
+    emoji_draft_close = '✅'
+    emoji_draft_conclude = '❎'
+    emoji_list = [emoji_draft_signup, emoji_draft_close, emoji_draft_conclude]
+
+    grad_role_name = 'Nova Grad'         # met graduation requirements and is eligible to sign up for draft
+    draftable_role_name = 'Draftable'    # signed up for current draft
+    free_agent_role_name = 'Free Agent'  # eligible for prior draft but did not get drafted
+
     def __init__(self, bot):
         self.bot = bot
+        self.announcement_messages = []  # populate from DB, to check from reactions_add (safe to limit to PolyChamps i think)
         if settings.run_tasks:
             pass
-            # self.bg_task = bot.loop.create_task(self.task_broadcast_newbie_message())
-            # self.bg_task = bot.loop.create_task(self.task_send_polychamps_invite())
-
-    # def get_draft_config(self, ctx):
-    #     config_record, created = models.Configuration.get_or_create(guild_id=ctx.guild.id, defaults={'polychamps_draft': self.default_draft_config})
-    #     return config_record
 
     async def cog_check(self, ctx):
         return ctx.guild.id == settings.server_ids['polychampions'] or ctx.guild.id == settings.server_ids['test']
+
+    @commands.Cog.listener()
+    async def on_raw_reaction_add(self, payload):
+        # Monitors all reactions being added to all messages, looking for reactions added to relevant league announcement messages
+
+        if payload.message_id not in self.announcement_messages:
+            return
+
+        channel = payload.member.guild.get_channel(payload.channel_id)
+        message = await channel.fetch_message(payload.message_id)
+
+        if payload.emoji.name not in self.emoji_list:
+            # Irrelevant reaction was added to relevant message. Clear it off.
+            try:
+                await message.remove_reaction(payload.emoji.name, payload.member)
+            except discord.DiscordException:
+                logger.debug('Unable to remove irrelevant reaction in on_raw_reaction_add()')
+            return
+
+        if payload.emoji.name == self.emoji_draft_signup:
+            await self.signup_emoji_clicked(payload.member, channel, message)
+        elif payload.emoji.name == self.emoji_draft_close:
+            pass
+        elif payload.emoji.name == self.emoji_draft_conclude:
+            pass
+
+    async def signup_emoji_clicked(member, channel, message):
+        pass
+
+    def get_draft_config(self, guild_id):
+        record, _ = models.Configuration.get_or_create(guild_id=guild_id)
+        return record.polychamps_draft
+
+    def save_draft_config(self, guild_id, config_obj):
+        record, _ = models.Configuration.get_or_create(guild_id=guild_id)
+        record.polychamps_draft = config_obj
+        return record.save()
 
     @commands.command(aliases=['ds'], usage=None)
     async def newdraft(self, ctx, *, arg: str = None):
@@ -53,15 +94,17 @@ class league(commands.Cog):
         """
 
         announcement_channel = ctx.guild.get_channel(480078679930830849)  # admin-spam
-        config_record, _ = models.Configuration.get_or_create(guild_id=ctx.guild.id)
 
-        print(config_record.polychamps_draft)
+        draft_config = self.get_draft_config(ctx.guild.id)
         announcement_message = await announcement_channel.send('New draft!!!!')
 
-        # draft_config['announcement_message'] = announcement_message.id
-        # draft_config['announcement_channel'] = announcement_channel.id
+        draft_config['announcement_message'] = announcement_message.id
+        draft_config['draft_opened'] = True
+        self.announcement_messages.append(announcement_message.id)
+        self.save_draft_config(ctx.guild.id, draft_config)
 
     @commands.command(aliases=['balance'])
+    @settings.in_bot_channel()
     @commands.cooldown(1, 30, commands.BucketType.channel)
     async def league_balance(self, ctx, *, arg=None):
         """ Print some stats on PolyChampions league balance
@@ -191,7 +234,7 @@ class league(commands.Cog):
         """
 
         grad_list = []
-        grad_role = discord.utils.get(ctx.guild.roles, name='Free Agent')
+        grad_role = discord.utils.get(ctx.guild.roles, name='Nova Grad')
         inactive_role = discord.utils.get(ctx.guild.roles, name=settings.guild_setting(ctx.guild.id, 'inactive_role'))
         # recruiter_role = discord.utils.get(ctx.guild.roles, name='Team Recruiter')
         if ctx.guild.id == settings.server_ids['test']:
@@ -245,7 +288,7 @@ async def auto_grad_novas(ctx, game):
         return
 
     role = discord.utils.get(ctx.guild.roles, name='The Novas')
-    grad_role = discord.utils.get(ctx.guild.roles, name='Free Agent')
+    grad_role = discord.utils.get(ctx.guild.roles, name='Nova Grad')
     grad_chan = ctx.guild.get_channel(540332800927072267)  # Novas draft talk
     if ctx.guild.id == settings.server_ids['test']:
         role = discord.utils.get(ctx.guild.roles, name='testers')
