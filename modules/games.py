@@ -721,20 +721,18 @@ class games(commands.Cog):
             team_elo_history_dates = [l.completed_ts for l in team_elo_history_query.objects()]
             team_elo_history_elos = [l.team_elo_after_game for l in team_elo_history_query.objects()]
 
-            fig, ax = plt.subplots()
-
             plt.style.use('default')
 
             plt.switch_backend('Agg')
 
+            fig, ax = plt.subplots()
             fig.suptitle('ELO History (' + team.name + ')', fontsize=16)
             fig.autofmt_xdate()
 
-            plt.plot(team_elo_history_dates, team_elo_history_elos, 'o', markersize=3, label = 'Since 1/1/2020')
+            plt.plot(team_elo_history_dates, team_elo_history_elos, 'o', markersize=3, label = f'Since {settings.team_elo_reset_date}')
             plt.plot(alltime_team_elo_history_dates, alltime_team_elo_history_elos, 'o', markersize=3, label = 'Alltime')
 
             ax.yaxis.grid()
-
             ax.spines['top'].set_visible(False)
             ax.spines['right'].set_visible(False)
             ax.spines['left'].set_visible(False)
