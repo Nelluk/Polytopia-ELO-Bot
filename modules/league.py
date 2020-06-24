@@ -110,8 +110,11 @@ class league(commands.Cog):
         if not settings.is_mod(member):
             return
 
+        free_agent_role = discord.utils.get(member.guild.roles, name=self.free_agent_role_name)
+        draftable_role = discord.utils.get(member.guild.roles, name=self.draftable_role_name)
+
         confirm_message = await channel.send(f'<@{member.id}>, react below to confirm the conclusion of the current draft. '
-            f'Any members with the **{self.draftable_role_name}** role will lose that role and become the current crop with the **{self.free_agent_role_name}** role.\n'
+            f'{len(free_agent_role.members)} members will lose the **{self.free_agent_role_name}** role and {len(draftable_role.members)} members with the **{self.draftable_role_name}** role will lose that role and become the current crop with the **{self.free_agent_role_name}** role.\n'
             '*If you do not react within 30 seconds the draft will remain open.*', delete_after=35)
         await confirm_message.add_reaction('✅')
 
@@ -128,27 +131,27 @@ class league(commands.Cog):
             logger.debug(f'No reaction to confirmation message.')
             return
 
-        free_agent_role = discord.utils.get(member.guild.roles, name=self.free_agent_role_name)
-        draftable_role = discord.utils.get(member.guild.roles, name=self.draftable_role_name)
+        result_message_list = [f'Draft successfully closed by <@{member.id}>']
+        self.announcement_message = None
+        await message.delete()
 
-        # result_message_list = []
         async with channel.typing():
             for old_free_agent in free_agent_role.members:
                 await old_free_agent.remove_roles(free_agent_role, reason='Purging old free agents')
                 logger.debug(f'Removing free agent role from {old_free_agent.name}')
-                # result_message_list.append()
+
+                result_message_list.append(f'Removing free agent role from {old_free_agent.name} <@{old_free_agent.id}>')
 
             for new_free_agent in draftable_role.members:
                 await new_free_agent.add_roles(free_agent_role, reason='New crop of free agents')
                 logger.debug(f'Adding free agent role to {new_free_agent.name}')
+
                 await new_free_agent.remove_roles(draftable_role, reason='Purging old free agents')
                 logger.debug(f'Removing draftable role from {new_free_agent.name}')
 
-        staff_output_channel = member.guild.get_channel(settings.guild_setting(member.guild.id, 'game_request_channel'))
-        if not staff_output_channel:
-            logger.debug(f'Could not load game_request_channel for server {member.guild.id} - skipping')
-        else:
-            await staff_output_channel.send(f'Draft successfully closed by <@{member.id}> In the future this message will have a more detailed log.')
+                result_message_list.append(f'Removing draftable role from and applying free agent role to {new_free_agent.name} <@{new_free_agent.id}>')
+
+        await self.send_to_log_channel(member.guild, '\n'.join(result_message_list))
 
     async def close_draft_emoji_added(self, member, channel, message):
         announce_message_link = f'https://discord.com/channels/{member.guild.id}/{channel.id}/{message.id}'
@@ -166,12 +169,15 @@ class league(commands.Cog):
 
         if draft_config['draft_opened']:
             new_message = self.draft_closed_message
+            log_message = f'Draft status closed by <@{member.id}>'
             draft_config['draft_opened'] = False
         else:
             new_message = self.draft_open_message
+            log_message = f'Draft status opened by <@{member.id}>'
             draft_config['draft_opened'] = True
 
         self.save_draft_config(member.guild.id, draft_config)
+        await self.send_to_log_channel(member.guild, log_message)
         try:
             await message.edit(content=new_message)
         except discord.DiscordException as e:
@@ -180,7 +186,7 @@ class league(commands.Cog):
     async def signup_emoji_clicked(self, member, channel, message, reaction_added=True):
 
         draft_opened = self.get_draft_config(member.guild.id)['draft_opened']
-        member_message = ''
+        member_message, log_message = '', ''
         grad_role = discord.utils.get(member.guild.roles, name=self.grad_role_name)
         draftable_role = discord.utils.get(member.guild.roles, name=self.draftable_role_name)
         announce_message_link = f'https://discord.com/channels/{member.guild.id}/{channel.id}/{message.id}'
@@ -196,6 +202,7 @@ class league(commands.Cog):
                     return
                 else:
                     member_message = f'You are now signed up for the next draft. If you would like to remove yourself, just remove the reaction you just placed.\n{announce_message_link}'
+                    log_message = f'<@{member.id}> reacted to the draft and received the {draftable_role.name} role.'
             else:
                 # Ineligible signup - either draft is closed or member does not have grad_role
                 try:
@@ -204,8 +211,10 @@ class league(commands.Cog):
                     logger.warn(f'Unable to remove irrelevant reaction in signup_emoji_clicked(): {e}')
                 if not draft_opened:
                     member_message = 'The draft has been closed to new signups - your signup has been rejected.'
+                    log_message = f'<@{member.id}> reacted to the draft but was rejected since it is closed.'
                 else:
                     member_message = f'Your signup has been rejected. You do not have the **{grad_role.name}** role.'
+                    log_message = f'<@{member.id}> reacted to the draft but was rejected since they lack the {grad_role.name} role.'
         else:
             # Reaction removed
             if draftable_role in member.roles:
@@ -217,6 +226,7 @@ class league(commands.Cog):
                     return
                 else:
                     member_message = f'You have been removed from the next draft. You can sign back up at the announcement message:\n{announce_message_link}'
+                    log_message = f'<@{member.id}> removed their draft reaction and has lost the {draftable_role.name} role.'
             else:
                 return
                 # member_message = (f'You removed your signup reaction from the draft announcement, but you did not have the **{draftable_role.name}** :thinking:\n'
@@ -226,6 +236,8 @@ class league(commands.Cog):
                 # the original author or an admin/bot. Could kinda solve by storing timestamp when removing role and ignoring role removal
                 # if it has a nearly-same timestamp
 
+        if log_message:
+            await self.send_to_log_channel(member.guild, log_message)
         if member_message:
             try:
                 await member.send(member_message)
@@ -240,6 +252,15 @@ class league(commands.Cog):
         record, _ = models.Configuration.get_or_create(guild_id=guild_id)
         record.polychamps_draft = config_obj
         return record.save()
+
+    async def send_to_log_channel(self, guild, message):
+
+        logger.debug(f'Sending log message to game_request_channel: {message}')
+        staff_output_channel = guild.get_channel(settings.guild_setting(guild.id, 'game_request_channel'))
+        if not staff_output_channel:
+            logger.warn(f'Could not load game_request_channel for server {guild.id} - skipping')
+        else:
+            await utilities.buffered_send(destination=staff_output_channel, content=message)
 
     @commands.command(aliases=['ds'], usage=None)
     @settings.is_mod_check()
@@ -263,9 +284,11 @@ class league(commands.Cog):
         $fatable - displays list of people that can be bought with fats
         """
 
-        announcement_channel = ctx.guild.get_channel(480078679930830849)  # admin-spam
         if ctx.guild.id == settings.server_ids['polychampions']:
             announcement_channel = ctx.guild.get_channel(607002872046944266)  # free agent staff talk
+        else:
+            announcement_channel = ctx.guild.get_channel(480078679930830849)  # admin-spam
+            self.announcement_message = self.get_draft_config(settings.server_ids['test'])['announcement_message']
 
         draft_config = self.get_draft_config(ctx.guild.id)
 
