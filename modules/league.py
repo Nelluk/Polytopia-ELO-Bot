@@ -228,8 +228,8 @@ class league(commands.Cog):
                     member_message = 'The draft has been closed to new signups - your signup has been rejected.'
                     log_message = f'<@{member.id}> reacted to the draft but was rejected since it is closed.'
                 else:
-                    member_message = f'Your signup has been rejected. You do not have the **{grad_role.name}** role.'
-                    log_message = f'<@{member.id}> reacted to the draft but was rejected since they lack the {grad_role.name} role.'
+                    member_message = f'Your signup has been rejected. You do not have the **{grad_role.name}** role. Try again once you have met the graduation requirements.'
+                    log_message = f'Rejected <@{member.id}> from the draft since they lack the {grad_role.name} role.'
         else:
             # Reaction removed
             if draftable_role in member.roles:
@@ -318,6 +318,7 @@ class league(commands.Cog):
         $draftable - displays list of people that signed up for the draft
         $newdraft (staff only) - anyone who still has free agent role is added to a new list 'fatable' - for people who can be bought with fats, the rest are cleared from the $draftable list
         $fatable - displays list of people that can be bought with fats
+        # TODO: rewrite $undrafted to multiple commands / $agents / $draftable / $roleelo
         """
         if channel_override:
             announcement_channel = channel_override
@@ -346,8 +347,6 @@ class league(commands.Cog):
 
         formatted_message = self.draft_open_format_str.format(grad_role.mention, novas_role.mention, added_message)
         announcement_message = await announcement_channel.send(formatted_message)
-
-        # TODO: send new draft message to log channel
 
         await announcement_message.add_reaction(self.emoji_draft_signup)
         await announcement_message.add_reaction(self.emoji_draft_close)
@@ -487,25 +486,37 @@ class league(commands.Cog):
         if newbie_role:
             await ctx.author.remove_roles(newbie_role, reason='Joining Novas')
 
-    @commands.command(aliases=['undrafted'])
-    @commands.cooldown(1, 30, commands.BucketType.channel)
-    async def undrafted_novas(self, ctx, *, arg=None):
+    @commands.command(aliases=['freeagents', 'roleelo'])
+    @commands.cooldown(1, 5, commands.BucketType.channel)
+    async def draftable(self, ctx, *, arg=None):
         """Prints list of Novas who meet graduation requirements but have not been drafted
 
         Use `[p]undrafted_novas elo` to sort by global elo
         """
+        args = arg.split() if arg else []
 
-        grad_list = []
-        grad_role = discord.utils.get(ctx.guild.roles, name='Nova Grad')
-        inactive_role = discord.utils.get(ctx.guild.roles, name=settings.guild_setting(ctx.guild.id, 'inactive_role'))
-        # recruiter_role = discord.utils.get(ctx.guild.roles, name='Team Recruiter')
-        if ctx.guild.id == settings.server_ids['test']:
-            grad_role = discord.utils.get(ctx.guild.roles, name='Team Leader')
+        if args and args[0].upper() == 'ELO':
+            by_elo = True
+            args = ' '.join(args[1:])
+        else:
+            by_elo = False
+            args = ' '.join(args)
 
-        for member in grad_role.members:
-            if inactive_role and inactive_role in member.roles:
-                logger.debug(f'Skipping {member.name} since they have Inactive role')
-                continue
+        if ctx.invoked_with == 'draftable':
+            role_check_name = self.draftable_role_name
+        elif ctx.invoked_with == 'freeagents':
+            role_check_name = self.free_agent_role_name
+        elif ctx.invoked_with == 'roleelo':
+            role_check_name = args
+
+        player_list = []
+        checked_role = discord.utils.get(ctx.guild.roles, name=role_check_name)
+
+        if not checked_role:
+            return await ctx.send(f'Could not load a role from the guild with the name **{role_check_name}**. Make sure the match is exact.')
+
+        for member in checked_role.members:
+
             try:
                 dm = models.DiscordMember.get(discord_id=member.id)
                 player = models.Player.get(discord_member=dm, guild_id=ctx.guild.id)
@@ -523,17 +534,17 @@ class league(commands.Cog):
                 f'\n\u00A0\u00A0 \u00A0\u00A0 \u00A0\u00A0 ELO:  {dm.elo} *global* / {player.elo} *local*\n'
                 f'\u00A0\u00A0 \u00A0\u00A0 \u00A0\u00A0 __W {g_wins} / L {g_losses}__ *global* \u00A0\u00A0 - \u00A0\u00A0 __W {wins} / L {losses}__ *local*\n')
 
-            grad_list.append((message, all_games, dm.elo))
+            player_list.append((message, all_games, dm.elo))
 
-        await ctx.send(f'Listing {len(grad_list)} active members with the **{grad_role.name}** role...')
+        await ctx.send(f'Listing {len(player_list)} active members with the **{checked_role.name}** role...')
 
-        if arg and arg.upper() == 'ELO':
-            grad_list.sort(key=lambda tup: tup[2], reverse=False)     # sort the list ascending by num games played
+        if by_elo:
+            player_list.sort(key=lambda tup: tup[2], reverse=False)     # sort the list ascending by num games played
         else:
-            grad_list.sort(key=lambda tup: tup[1], reverse=False)     # sort the list ascending by num games played
+            player_list.sort(key=lambda tup: tup[1], reverse=False)     # sort the list ascending by num games played
 
         message = []
-        for grad in grad_list:
+        for grad in player_list:
             # await ctx.send(grad[0])
             message.append(grad[0])
 

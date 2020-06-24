@@ -22,6 +22,9 @@ def connect():
 async def buffered_send(destination, content, max_length=2000):
     # use to replace await ctx.send(message) if message could potentially be over the Discord limit of 2000 characters
     # will split message by \n characters and send in chunks up to max_length size
+
+    if not content:
+        return
     paginator = commands.Paginator(prefix='', suffix='', max_size=max_length)
 
     for line in content.split('\n'):
