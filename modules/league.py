@@ -486,10 +486,23 @@ class league(commands.Cog):
         if newbie_role:
             await ctx.author.remove_roles(newbie_role, reason='Joining Novas')
 
-    @commands.command(aliases=['freeagents', 'roleelo'])
+    @commands.command(aliases=['freeagents', 'draftable'], usage='[elo] [role name]')
     @commands.cooldown(1, 5, commands.BucketType.channel)
-    async def draftable(self, ctx, *, arg=None):
-        """Prints list of Novas who meet graduation requirements but have not been drafted
+    async def roleelo(self, ctx, *, arg=None):
+        """Prints list of players with a given role and their ELO stats
+
+        Use 'elo' as the first argument to sort the list by global elo, otherwise the list will be sorted by number of games played.
+
+        Members with the Inactive role will be skipped.
+
+        This command has some shortcuts:
+        `[p]draftable` - List members with the Draftable role
+        `[p]freeagents` - List members with the Free Agent role
+
+        **Examples**
+        `[p]roleelo novas` - List all members with a role matching 'novas'
+        `[p]roleelo elo novas` - List all members with a role matching 'novas', sorted by global elo
+        `[p]draftable elo`
 
         Use `[p]undrafted_novas elo` to sort by global elo
         """
@@ -510,12 +523,20 @@ class league(commands.Cog):
             role_check_name = args
 
         player_list = []
-        checked_role = discord.utils.get(ctx.guild.roles, name=role_check_name)
+        checked_role = None
+
+        for role in ctx.guild.roles:
+            if role_check_name.upper() in role.name.upper():
+                checked_role = role
 
         if not checked_role:
             return await ctx.send(f'Could not load a role from the guild with the name **{role_check_name}**. Make sure the match is exact.')
 
+        inactive_role = discord.utils.get(ctx.guild.roles, name=settings.guild_setting(ctx.guild.id, 'inactive_role'))
         for member in checked_role.members:
+            if inactive_role and inactive_role in member.roles:
+                logger.debug(f'Skipping {member.name} since they have Inactive role')
+                continue
 
             try:
                 dm = models.DiscordMember.get(discord_id=member.id)
