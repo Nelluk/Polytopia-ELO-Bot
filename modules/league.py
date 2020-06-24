@@ -265,7 +265,7 @@ class league(commands.Cog):
 
         announcement_channel = ctx.guild.get_channel(480078679930830849)  # admin-spam
         if ctx.guild.id == settings.server_ids['polychampions']:
-            announcement_channel = 607002872046944266  # free agent staff talk
+            announcement_channel = ctx.guild.get_channel(607002872046944266)  # free agent staff talk
 
         draft_config = self.get_draft_config(ctx.guild.id)
 
