@@ -28,9 +28,11 @@ class league(commands.Cog):
     grad_role_name = 'Nova Grad'         # met graduation requirements and is eligible to sign up for draft
     draftable_role_name = 'Draftable'    # signed up for current draft
     free_agent_role_name = 'Free Agent'  # signed up for a prior draft but did not get drafted
+    novas_role_name = 'The Novas'
 
-    draft_open_message = f'The draft is open for signups! {0}\'s can react with a {emoji_draft_signup} below to sign up.\n{1}'
-    draft_open_format_str = f'The draft is open for signups! {{0}}\'s can react with a {emoji_draft_signup} below to sign up.\n{{1}}'
+    # TODO: method to get role objects and return them in a dict?
+
+    draft_open_format_str = f'The draft is open for signups! {{0}}\'s can react with a {emoji_draft_signup} below to sign up. {{1}} who have not graduated have until the end of the draft signup period to meet requirements and sign up.\n{{2}}'
     draft_closed_message = f'The draft is closed to new signups. Mods can use the {emoji_draft_conclude} reaction after players have been drafted to clean up the remaining players and delete this message.'
 
     def __init__(self, bot):
@@ -159,6 +161,7 @@ class league(commands.Cog):
         announce_message_link = f'https://discord.com/channels/{member.guild.id}/{channel.id}/{message.id}'
         logger.debug(f'Draft close reaction added by {member.name} to draft announcement {announce_message_link}')
         grad_role = discord.utils.get(member.guild.roles, name=self.grad_role_name)
+        novas_role = discord.utils.get(member.guild.roles, name=self.novas_role_name)
 
         try:
             await message.remove_reaction(self.emoji_draft_close, member)
@@ -171,11 +174,11 @@ class league(commands.Cog):
         draft_config = self.get_draft_config(member.guild.id)
 
         if draft_config['draft_opened']:
-            new_message = self.draft_closed_message
+            new_message = f'~~{message.content}~~\n{self.draft_closed_message}'
             log_message = f'Draft status closed by <@{member.id}>'
             draft_config['draft_opened'] = False
         else:
-            new_message = self.draft_open_format_str.format(grad_role.mention, draft_config['draft_message'])
+            new_message = self.draft_open_format_str.format(grad_role.mention, novas_role.mention, draft_config['draft_message'])
             log_message = f'Draft status opened by <@{member.id}>'
             draft_config['draft_opened'] = True
 
@@ -205,7 +208,7 @@ class league(commands.Cog):
                     return
                 else:
                     member_message = f'You are now signed up for the next draft. If you would like to remove yourself, just remove the reaction you just placed.\n{announce_message_link}'
-                    log_message = f'<@{member.id}> reacted to the draft and received the {draftable_role.name} role.'
+                    log_message = f'<@{member.id}> ({member.name}) reacted to the draft and received the {draftable_role.name} role.'
             else:
                 # Ineligible signup - either draft is closed or member does not have grad_role
                 try:
@@ -331,15 +334,19 @@ class league(commands.Cog):
                 logger.warn(f'Error loading existing draft announcement message in newdraft command: {e}')
 
         grad_role = discord.utils.get(ctx.guild.roles, name=self.grad_role_name)
-        formatted_message = self.draft_open_format_str.format(grad_role.mention, added_message)
+        novas_role = discord.utils.get(ctx.guild.roles, name=self.novas_role_name)
+
+        formatted_message = self.draft_open_format_str.format(grad_role.mention, novas_role.mention, added_message)
         announcement_message = await announcement_channel.send(formatted_message)
 
-        # TODO: make open message format string which can take Nova Grad role and added_message as an argument
         # TODO: send new draft message to log channel
 
         await announcement_message.add_reaction(self.emoji_draft_signup)
         await announcement_message.add_reaction(self.emoji_draft_close)
         await announcement_message.add_reaction(self.emoji_draft_conclude)
+
+        await self.send_to_log_channel(ctx.guild, f'Draft created by <@{ctx.author.id}>\n'
+            f'https://discord.com/channels/{ctx.guild.id}/{announcement_channel.id}/{announcement_message.id}')
 
         draft_config['announcement_message'] = announcement_message.id
         draft_config['announcement_channel'] = announcement_message.channel.id
