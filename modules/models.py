@@ -62,7 +62,7 @@ class BaseModel(Model):
 class Configuration(BaseModel):
     def draft_config_defaults():
         return {'announcement_message': None, 'announcement_channel': None,
-                'draft_open': False, 'date_opened': None}
+                'draft_open': False, 'date_opened': None, 'added_message': ''}
 
     polychamps_draft = BinaryJSONField(null=True, default=draft_config_defaults())
     guild_id = BitField(unique=True, null=False)

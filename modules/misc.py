@@ -26,7 +26,15 @@ class misc(commands.Cog):
     @commands.is_owner()
     async def test(self, ctx, *, arg: str = None):
 
-        print(self.bot)
+        emoji_draft_signup = '🔆'
+        grad_role_name = 'Nova Grad'
+        grad_role = discord.utils.get(ctx.guild.roles, name=grad_role_name)
+        print(grad_role)
+        print(grad_role.mention)
+
+        fmt_str = f'The draft is open for signups! {{0}}\'s can react with a {emoji_draft_signup} below to sign up.\n{{1}}'
+
+        await ctx.send(fmt_str.format(grad_role.mention, "message addition"))
 
     @commands.command(hidden=True, aliases=['bulk_local_elo', 'ble', 'bge'])
     async def bulk_global_elo(self, ctx, *, args=None):
