@@ -736,35 +736,24 @@ def is_staff(ctx, user=None):
     return len(target_match) > 0
 
 
-def is_mod(ctx, user=None):
-    user = ctx.author if not user else user
+def is_mod(ctx_or_member, user=None):
+    # if member passed as first arg, checks to see if member is a mod of the guild they are a member of
+    # if ctx is passed, will check second arg user as a mod, or check ctx.member as a mod
 
-    if ctx.author.id == owner_id:
+    if type(ctx_or_member).__name__ == 'Context':
+        user = ctx_or_member.author if not user else user
+        guild = ctx_or_member.guild
+    else:
+        # Assuming Member object passed
+        user = ctx_or_member
+        guild = user.guild
+
+    if user.id == owner_id:
         return True
-    mod_roles = guild_setting(ctx.guild.id, 'mod_roles')
+    mod_roles = guild_setting(guild.id, 'mod_roles')
 
     target_match = get_matching_roles(user, mod_roles)
     return len(target_match) > 0
-
-
-# async def is_user(ctx, user=None):
-#     user = ctx.author if not user else user
-
-#     if ctx.guild.id == server_ids['main']:
-#         minimum_role = discord.utils.get(ctx.guild.roles, name='Rider')
-#         if user.top_role < minimum_role:
-#             if ctx.invoked_with != 'help':
-#                 await ctx.send('You must attain *"Rider"* role to use this command. Please participate in the server more.')
-#             return False
-#     return True
-
-
-# def is_user_check():
-#     # restrict commands to is_staff with syntax like @settings.is_staff_check()
-
-#     def predicate(ctx):
-#         return is_user(ctx)
-#     return commands.check(predicate)
 
 
 def is_staff_check():
