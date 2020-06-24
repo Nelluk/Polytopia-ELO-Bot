@@ -487,6 +487,7 @@ class league(commands.Cog):
             await ctx.author.remove_roles(newbie_role, reason='Joining Novas')
 
     @commands.command(aliases=['freeagents', 'draftable'], usage='[elo] [role name]')
+    @settings.in_bot_channel_strict()
     @commands.cooldown(1, 5, commands.BucketType.channel)
     async def roleelo(self, ctx, *, arg=None):
         """Prints list of players with a given role and their ELO stats
@@ -557,7 +558,8 @@ class league(commands.Cog):
 
             player_list.append((message, all_games, dm.elo))
 
-        await ctx.send(f'Listing {len(player_list)} active members with the **{checked_role.name}** role...')
+        await ctx.send(f'Listing {len(player_list)} active members with the **{utilities.escape_role_mentions(checked_role.name)}** role...')
+        # without the escape then 'everyone.name' still is a mention
 
         if by_elo:
             player_list.sort(key=lambda tup: tup[2], reverse=False)     # sort the list ascending by num games played
