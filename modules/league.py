@@ -32,7 +32,7 @@ class league(commands.Cog):
 
     # TODO: method to get role objects and return them in a dict?
 
-    draft_open_format_str = f'The draft is open for signups! {{0}}\'s can react with a {emoji_draft_signup} below to sign up. {{1}} who have not graduated have until the end of the draft signup period to meet requirements and sign up.\n{{2}}'
+    draft_open_format_str = f'The draft is open for signups! {{0}}\'s can react with a {emoji_draft_signup} below to sign up. {{1}} who have not graduated have until the end of the draft signup period to meet requirements and sign up.\n\n{{2}}'
     draft_closed_message = f'The draft is closed to new signups. Mods can use the {emoji_draft_conclude} reaction after players have been drafted to clean up the remaining players and delete this message.'
 
     def __init__(self, bot):
@@ -40,14 +40,21 @@ class league(commands.Cog):
         self.bot = bot
         self.announcement_message = None  # Will be populated from db if exists
 
-        utilities.connect()
-        self.announcement_message = self.get_draft_config(settings.server_ids['polychampions'])['announcement_message']
-
         if settings.run_tasks:
             pass
 
     async def cog_check(self, ctx):
         return ctx.guild.id == settings.server_ids['polychampions'] or ctx.guild.id == settings.server_ids['test']
+
+    @commands.Cog.listener()
+    async def on_ready(self):
+        utilities.connect()
+        if self.bot.user.id == 479029527553638401:
+            # beta bot, using nelluk server to watch for messages
+            self.announcement_message = self.get_draft_config(settings.server_ids['test'])['announcement_message']
+        else:
+            # assume polychampions
+            self.announcement_message = self.get_draft_config(settings.server_ids['polychampions'])['announcement_message']
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload):
@@ -64,10 +71,12 @@ class league(commands.Cog):
 
         if payload.emoji.name not in self.emoji_list:
             # Irrelevant reaction was added to relevant message. Clear it off.
+            removal_emoji = self.bot.get_emoji(payload.emoji.id) if payload.emoji.id else payload.emoji.name
+
             try:
-                await message.remove_reaction(payload.emoji.name, payload.member)
-            except discord.DiscordException:
-                logger.debug('Unable to remove irrelevant reaction in on_raw_reaction_add()')
+                await message.remove_reaction(removal_emoji, payload.member)
+            except discord.DiscordException as e:
+                logger.debug(f'Unable to remove irrelevant reaction in on_raw_reaction_add(): {e}')
             return
 
         if payload.emoji.name == self.emoji_draft_signup:
@@ -315,10 +324,9 @@ class league(commands.Cog):
         else:
             # use default channel for announcement
             if ctx.guild.id == settings.server_ids['polychampions']:
-                announcement_channel = ctx.guild.get_channel(607002872046944266)  # free agent staff talk
+                announcement_channel = ctx.guild.get_channel(447986488152686594)  # #server-announcements
             else:
-                announcement_channel = ctx.guild.get_channel(480078679930830849)  # admin-spam
-                self.announcement_message = self.get_draft_config(settings.server_ids['test'])['announcement_message']
+                announcement_channel = ctx.guild.get_channel(480078679930830849)  # #admin-spam
 
         draft_config = self.get_draft_config(ctx.guild.id)
 
