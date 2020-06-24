@@ -569,7 +569,8 @@ class league(commands.Cog):
             # await ctx.send(grad[0])
             message.append(grad[0])
 
-        await utilities.buffered_send(destination=ctx, content=''.join(message))
+        async with ctx.typing():
+            await utilities.buffered_send(destination=ctx, content=''.join(message))
 
 
 async def auto_grad_novas(ctx, game):
