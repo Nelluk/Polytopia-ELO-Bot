@@ -9,6 +9,7 @@ import modules.exceptions as exceptions
 # import re
 import datetime
 import peewee
+import typing
 
 logger = logging.getLogger('polybot.' + __name__)
 
@@ -264,10 +265,32 @@ class league(commands.Cog):
 
     @commands.command(aliases=['ds'], usage=None)
     @settings.is_mod_check()
-    async def newdraft(self, ctx, *, arg: str = None):
+    async def newdraft(self, ctx, channel_override: typing.Optional[discord.TextChannel], *, added_message: str = ''):
 
         """
         Post a new draft signup announcement
+
+        Will post a default draft signup announcement into a default announcement channel.
+
+        Three emoji reactions are used to interact with the draft. The first can be used by any member who has the Nova Grad role,
+        and they will receive the Draftable role when they react. They can also unreact to lose the role.
+
+        The play/pause reaction is mod-only and can be used to close or re-open the draft to new signups. A draftable member can remove
+        themselves from the draft while it is closed, but any new signups will be rejected.
+
+        The ❎ reaction should be used by a mod after the draft has been performed and members have been put onto their new teams.
+        Any current Free Agents will be removed from that role. Anyone remaining as Draftable will lose that role and gain the Free Agent role.
+
+        Hitting this reaction will tell you exactly how many members will be affected by role changes and ask for a confirmation.
+
+        You can optionally direct the announcement to a non-default channel, and add an optional message to the end of the announcement message.
+        If the draft is cloed and re-opened, any optional message will be lost.
+
+        **Examples**
+        `[p]newdraft` Normal usage
+        `[p]newdraft #special-channel` Direct message to a non-standard channel
+        `[p]newdraft Signups close early this week!` Add an extra message to the announcement.
+
         """
 
         # post message in announcements (optional argument of a different channel if mod wants announcement to go elsewhere?)
@@ -283,7 +306,8 @@ class league(commands.Cog):
         $newdraft (staff only) - anyone who still has free agent role is added to a new list 'fatable' - for people who can be bought with fats, the rest are cleared from the $draftable list
         $fatable - displays list of people that can be bought with fats
         """
-
+        if channel_override:
+            print(channel_override.name)
         if ctx.guild.id == settings.server_ids['polychampions']:
             announcement_channel = ctx.guild.get_channel(607002872046944266)  # free agent staff talk
         else:
@@ -303,7 +327,7 @@ class league(commands.Cog):
             except discord.DiscordException as e:
                 logger.warn(f'Error loading existing draft announcement message in newdraft command: {e}')
 
-        announcement_message = await announcement_channel.send(self.draft_open_message)
+        announcement_message = await announcement_channel.send(f'{self.draft_open_message} {added_message}')
         await announcement_message.add_reaction(self.emoji_draft_signup)
         await announcement_message.add_reaction(self.emoji_draft_close)
         await announcement_message.add_reaction(self.emoji_draft_conclude)
