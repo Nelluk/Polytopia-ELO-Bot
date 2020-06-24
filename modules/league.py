@@ -272,11 +272,11 @@ class league(commands.Cog):
 
         Will post a default draft signup announcement into a default announcement channel.
 
-        Three emoji reactions are used to interact with the draft. The first can be used by any member who has the Nova Grad role,
-        and they will receive the Draftable role when they react. They can also unreact to lose the role.
+        Three emoji reactions are used to interact with the draft.
+        The first can be used by any member who has the Nova Grad role, and they will receive the Draftable role when they react. They can also unreact to lose the role.
 
-        The play/pause reaction is mod-only and can be used to close or re-open the draft to new signups. A draftable member can remove
-        themselves from the draft while it is closed, but any new signups will be rejected.
+        The play/pause reaction is mod-only and can be used to close or re-open the draft to new signups.
+        A draftable member can remove themselves from the draft while it is closed, but any new signups will be rejected.
 
         The ❎ reaction should be used by a mod after the draft has been performed and members have been put onto their new teams.
         Any current Free Agents will be removed from that role. Anyone remaining as Draftable will lose that role and gain the Free Agent role.
@@ -284,7 +284,7 @@ class league(commands.Cog):
         Hitting this reaction will tell you exactly how many members will be affected by role changes and ask for a confirmation.
 
         You can optionally direct the announcement to a non-default channel, and add an optional message to the end of the announcement message.
-        If the draft is cloed and re-opened, any optional message will be lost.
+        If the draft is closed and re-opened, any optional message will be lost.
 
         **Examples**
         `[p]newdraft` Normal usage
@@ -328,6 +328,8 @@ class league(commands.Cog):
                 logger.warn(f'Error loading existing draft announcement message in newdraft command: {e}')
 
         announcement_message = await announcement_channel.send(f'{self.draft_open_message} {added_message}')
+        # TODO: make open message format string which can take Nova Grad role and added_message as an argument
+
         await announcement_message.add_reaction(self.emoji_draft_signup)
         await announcement_message.add_reaction(self.emoji_draft_close)
         await announcement_message.add_reaction(self.emoji_draft_conclude)
