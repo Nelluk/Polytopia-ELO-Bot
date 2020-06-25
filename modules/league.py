@@ -14,21 +14,21 @@ import typing
 logger = logging.getLogger('polybot.' + __name__)
 
 
+grad_role_name = 'Nova Grad'         # met graduation requirements and is eligible to sign up for draft
+draftable_role_name = 'Draftable'    # signed up for current draft
+free_agent_role_name = 'Free Agent'  # signed up for a prior draft but did not get drafted
+novas_role_name = 'The Novas'        # Umbrella newbie role that all of above should also have
+
+
 class league(commands.Cog):
     """
     Commands specific to the PolyChampions league, such as drafting-related commands
     """
 
     emoji_draft_signup = '🔆'
-    # emoji_draft_close = '🔒'
     emoji_draft_close = '⏯'
     emoji_draft_conclude = '❎'
     emoji_list = [emoji_draft_signup, emoji_draft_close, emoji_draft_conclude]
-
-    grad_role_name = 'Nova Grad'         # met graduation requirements and is eligible to sign up for draft
-    draftable_role_name = 'Draftable'    # signed up for current draft
-    free_agent_role_name = 'Free Agent'  # signed up for a prior draft but did not get drafted
-    novas_role_name = 'The Novas'
 
     # TODO: method to get role objects and return them in a dict?
 
@@ -75,6 +75,7 @@ class league(commands.Cog):
 
             try:
                 await message.remove_reaction(removal_emoji, payload.member)
+                logger.debug(f'Removing irrelevant {payload.emoji.name} reaction placed by {payload.member.name} on message {payload.message_id}')
             except discord.DiscordException as e:
                 logger.debug(f'Unable to remove irrelevant reaction in on_raw_reaction_add(): {e}')
             return
@@ -117,17 +118,18 @@ class league(commands.Cog):
 
         try:
             await message.remove_reaction(self.emoji_draft_conclude, member)
+            logger.debug(f'Removing {self.emoji_draft_conclude} reaction placed by {member.name} on message {message.id}')
         except discord.DiscordException as e:
             logger.warn(f'Unable to remove reaction in conclude_draft_emoji_added(): {e}')
 
         if not settings.is_mod(member):
             return
 
-        free_agent_role = discord.utils.get(member.guild.roles, name=self.free_agent_role_name)
-        draftable_role = discord.utils.get(member.guild.roles, name=self.draftable_role_name)
+        free_agent_role = discord.utils.get(member.guild.roles, name=free_agent_role_name)
+        draftable_role = discord.utils.get(member.guild.roles, name=draftable_role_name)
 
         confirm_message = await channel.send(f'<@{member.id}>, react below to confirm the conclusion of the current draft. '
-            f'{len(free_agent_role.members)} members will lose the **{self.free_agent_role_name}** role and {len(draftable_role.members)} members with the **{self.draftable_role_name}** role will lose that role and become the current crop with the **{self.free_agent_role_name}** role.\n'
+            f'{len(free_agent_role.members)} members will lose the **{free_agent_role_name}** role and {len(draftable_role.members)} members with the **{draftable_role_name}** role will lose that role and become the current crop with the **{free_agent_role_name}** role.\n'
             '*If you do not react within 30 seconds the draft will remain open.*', delete_after=35)
         await confirm_message.add_reaction('✅')
 
@@ -169,11 +171,12 @@ class league(commands.Cog):
     async def close_draft_emoji_added(self, member, channel, message):
         announce_message_link = f'https://discord.com/channels/{member.guild.id}/{channel.id}/{message.id}'
         logger.debug(f'Draft close reaction added by {member.name} to draft announcement {announce_message_link}')
-        grad_role = discord.utils.get(member.guild.roles, name=self.grad_role_name)
-        novas_role = discord.utils.get(member.guild.roles, name=self.novas_role_name)
+        grad_role = discord.utils.get(member.guild.roles, name=grad_role_name)
+        novas_role = discord.utils.get(member.guild.roles, name=novas_role_name)
 
         try:
             await message.remove_reaction(self.emoji_draft_close, member)
+            logger.debug(f'Removing {self.emoji_draft_close} reaction placed by {member.name} on message {message.id}')
         except discord.DiscordException as e:
             logger.warn(f'Unable to remove reaction in close_draft_emoji_added(): {e}')
 
@@ -202,8 +205,8 @@ class league(commands.Cog):
 
         draft_opened = self.get_draft_config(member.guild.id)['draft_opened']
         member_message, log_message = '', ''
-        grad_role = discord.utils.get(member.guild.roles, name=self.grad_role_name)
-        draftable_role = discord.utils.get(member.guild.roles, name=self.draftable_role_name)
+        grad_role = discord.utils.get(member.guild.roles, name=grad_role_name)
+        draftable_role = discord.utils.get(member.guild.roles, name=draftable_role_name)
         announce_message_link = f'https://discord.com/channels/{member.guild.id}/{channel.id}/{message.id}'
         logger.debug(f'Draft signup reaction added by {member.name} to draft announcement {announce_message_link}')
 
@@ -222,14 +225,15 @@ class league(commands.Cog):
                 # Ineligible signup - either draft is closed or member does not have grad_role
                 try:
                     await message.remove_reaction(self.emoji_draft_signup, member)
+                    logger.debug(f'Removing {self.emoji_draft_signup} reaction placed by {member.name} on message {message.id}')
                 except discord.DiscordException as e:
                     logger.warn(f'Unable to remove irrelevant reaction in signup_emoji_clicked(): {e}')
                 if not draft_opened:
                     member_message = 'The draft has been closed to new signups - your signup has been rejected.'
-                    log_message = f'<@{member.id}> reacted to the draft but was rejected since it is closed.'
+                    logger.debug(f'{member.id}> reacted to the draft but was rejected since it is closed.')
                 else:
                     member_message = f'Your signup has been rejected. You do not have the **{grad_role.name}** role. Try again once you have met the graduation requirements.'
-                    log_message = f'Rejected <@{member.id}> from the draft since they lack the {grad_role.name} role.'
+                    logger.debug(f'Rejected {member.name} from the draft since they lack the {grad_role.name} role.')
         else:
             # Reaction removed
             if draftable_role in member.roles:
@@ -314,12 +318,6 @@ class league(commands.Cog):
 
         # when draft is concluded, everyone who has free agent role has it removed, everyone who has draftable has that removed and is given free agent role
 
-        """ luna suggestions
-        $draftable - displays list of people that signed up for the draft
-        $newdraft (staff only) - anyone who still has free agent role is added to a new list 'fatable' - for people who can be bought with fats, the rest are cleared from the $draftable list
-        $fatable - displays list of people that can be bought with fats
-        # TODO: rewrite $undrafted to multiple commands / $agents / $draftable / $roleelo
-        """
         if channel_override:
             announcement_channel = channel_override
         else:
@@ -338,12 +336,12 @@ class league(commands.Cog):
                     return await ctx.send(f'There is already an existing announcement message. Use the {self.emoji_draft_conclude} reaction on that message (preferred) '
                         f'or delete the message.\nhttps://discord.com/channels/{ctx.guild.id}/{channel.id}/{self.announcement_message}')
             except discord.NotFound:
-                pass  # Message delete
+                pass  # Message no longer exists - assume deleted and create a fresh draft message
             except discord.DiscordException as e:
                 logger.warn(f'Error loading existing draft announcement message in newdraft command: {e}')
 
-        grad_role = discord.utils.get(ctx.guild.roles, name=self.grad_role_name)
-        novas_role = discord.utils.get(ctx.guild.roles, name=self.novas_role_name)
+        grad_role = discord.utils.get(ctx.guild.roles, name=grad_role_name)
+        novas_role = discord.utils.get(ctx.guild.roles, name=novas_role_name)
 
         formatted_message = self.draft_open_format_str.format(grad_role.mention, novas_role.mention, added_message)
         announcement_message = await announcement_channel.send(formatted_message)
@@ -517,9 +515,9 @@ class league(commands.Cog):
             args = ' '.join(args)
 
         if ctx.invoked_with == 'draftable':
-            role_check_name = self.draftable_role_name
+            role_check_name = draftable_role_name
         elif ctx.invoked_with == 'freeagents':
-            role_check_name = self.free_agent_role_name
+            role_check_name = free_agent_role_name
         elif ctx.invoked_with == 'roleelo':
             role_check_name = args
 
@@ -550,6 +548,8 @@ class league(commands.Cog):
             wins, losses = player.get_record()
             recent_games = dm.games_played(in_days=14).count()
             all_games = dm.games_played().count()
+
+            # TODO: Mention players without pinging them once discord.py 1.4 is out https://discordpy.readthedocs.io/en/latest/api.html#discord.TextChannel.send
 
             message = (f'**{player.name}**'
                 f'\n\u00A0\u00A0 \u00A0\u00A0 \u00A0\u00A0 {recent_games} games played in last 14 days, {all_games} all-time'
@@ -584,8 +584,8 @@ async def auto_grad_novas(ctx, game):
         logger.debug(f'Ignoring auto_grad_novas for game {game.id}')
         return
 
-    role = discord.utils.get(ctx.guild.roles, name='The Novas')
-    grad_role = discord.utils.get(ctx.guild.roles, name='Nova Grad')
+    role = discord.utils.get(ctx.guild.roles, name=novas_role_name)
+    grad_role = discord.utils.get(ctx.guild.roles, name=grad_role_name)
     grad_chan = ctx.guild.get_channel(540332800927072267)  # Novas draft talk
     if ctx.guild.id == settings.server_ids['test']:
         role = discord.utils.get(ctx.guild.roles, name='testers')
