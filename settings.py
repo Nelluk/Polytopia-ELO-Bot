@@ -283,7 +283,7 @@ config = {'default':
                       'game_channel_categories': [507946542024359938]},  # Jets vs Jets
         615300195093184512:                           # Dragons/Narwhals team server
                      {'helper_roles': ['Co-Leader🐉'],
-                      'mod_roles': ['Leader🐉'],
+                      'mod_roles': ['Leader🐉', 'Co-Leader🐉'],
                       'user_roles_level_4': ['@everyone'],  # power user
                       'user_roles_level_3': ['@everyone'],  # power user
                       'user_roles_level_2': ['@everyone'],  # normal user
