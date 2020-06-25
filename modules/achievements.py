@@ -7,11 +7,10 @@ import settings
 import peewee
 logger = logging.getLogger('polybot.' + __name__)
 
-# platinum - 1500
-# gold - 1300+
 
-# ELO Player - 2+ games
-# ELO Veteran - 10+ games
+# ELO Rookie - 2+ games
+# ELO Player - 10+ games
+# ELO Veteran - 1200+ games
 # ELO Hero - 1350+ elo
 # ELO Champion - #1 local or global leaderboard
 
