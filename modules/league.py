@@ -504,8 +504,8 @@ class league(commands.Cog):
 
         **Examples**
         `[p]roleelo novas` - List all members with a role matching 'novas'
-        `[p]roleelo elo novas` - List all members with a role matching 'novas', sorted by global elo
-        `[p]draftable elo`
+        `[p]roleelo elo novas` - List all members with a role matching 'novas', sorted by local elo
+        `[p]draftable recent` - List all members with the Draftable role sorted by recent games
 
         Use `[p]undrafted_novas elo` to sort by global elo
         """
