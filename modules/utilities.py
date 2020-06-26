@@ -15,7 +15,7 @@ def connect():
         logger.debug('new db connection opened')
         return True
     else:
-        logger.debug('reusing db connection')
+        # logger.debug('reusing db connection')
         return False
 
 
