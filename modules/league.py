@@ -506,8 +506,6 @@ class league(commands.Cog):
         `[p]roleelo novas` - List all members with a role matching 'novas'
         `[p]roleelo elo novas` - List all members with a role matching 'novas', sorted by local elo
         `[p]draftable recent` - List all members with the Draftable role sorted by recent games
-
-        Use `[p]undrafted_novas elo` to sort by global elo
         """
         args = arg.split() if arg else []
 
