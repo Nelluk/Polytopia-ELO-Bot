@@ -552,7 +552,7 @@ class games(commands.Cog):
                     .join(Game)
                     .where((Lineup.player_id == player.id) & (Lineup.elo_after_game.is_null(False))))
 
-                local_elo_history_dates = [l.completed_ts for l in local_elo_history_query.objects()]               
+                local_elo_history_dates = [l.completed_ts for l in local_elo_history_query.objects()]
                 local_elo_history_elos = [l.elo_after_game for l in local_elo_history_query.objects()]
 
                 global_elo_history_elos = [l.elo_after_game_global for l in global_elo_history_query.objects()]

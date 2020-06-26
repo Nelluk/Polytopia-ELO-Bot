@@ -490,7 +490,11 @@ class league(commands.Cog):
     async def roleelo(self, ctx, *, arg=None):
         """Prints list of players with a given role and their ELO stats
 
-        Use 'elo' as the first argument to sort the list by global elo, otherwise the list will be sorted by number of games played.
+        Use one of the following options as the first argument to change the sorting:
+        **g_elo** - Global ELO (default)
+        **elo** - Local ELO
+        **games** - Total number of games played
+        **recent** - Recent games played (14 days)
 
         Members with the Inactive role will be skipped.
 
@@ -507,12 +511,26 @@ class league(commands.Cog):
         """
         args = arg.split() if arg else []
 
-        if args and args[0].upper() == 'ELO':
-            by_elo = True
+        if args and args[0].upper() == 'G_ELO':
+            sort_key = 1
             args = ' '.join(args[1:])
+            sort_str = 'Global ELO'
+        elif args and args[0].upper() == 'ELO':
+            sort_key = 2
+            args = ' '.join(args[1:])
+            sort_str = 'Local ELO'
+        elif args and args[0].upper() == 'GAMES':
+            sort_key = 3
+            args = ' '.join(args[1:])
+            sort_str = 'total games played'
+        elif args and args[0].upper() == 'RECENT':
+            sort_key = 4
+            args = ' '.join(args[1:])
+            sort_str = 'recent games played'
         else:
-            by_elo = False
+            sort_key = 1  # No argument supplied, use g_elo default
             args = ' '.join(args)
+            sort_str = 'Global ELO'
 
         if ctx.invoked_with == 'draftable':
             role_check_name = draftable_role_name
@@ -556,15 +574,12 @@ class league(commands.Cog):
                 f'\n\u00A0\u00A0 \u00A0\u00A0 \u00A0\u00A0 ELO:  {dm.elo} *global* / {player.elo} *local*\n'
                 f'\u00A0\u00A0 \u00A0\u00A0 \u00A0\u00A0 __W {g_wins} / L {g_losses}__ *global* \u00A0\u00A0 - \u00A0\u00A0 __W {wins} / L {losses}__ *local*\n')
 
-            player_list.append((message, all_games, dm.elo))
+            player_list.append((message, dm.elo, player.elo, all_games, recent_games))
 
-        await ctx.send(f'Listing {len(player_list)} active members with the **{utilities.escape_role_mentions(checked_role.name)}** role...')
+        await ctx.send(f'Listing {len(player_list)} active members with the **{utilities.escape_role_mentions(checked_role.name)}** role (sorted by {sort_str})...')
         # without the escape then 'everyone.name' still is a mention
 
-        if by_elo:
-            player_list.sort(key=lambda tup: tup[2], reverse=False)     # sort the list ascending by num games played
-        else:
-            player_list.sort(key=lambda tup: tup[1], reverse=False)     # sort the list ascending by num games played
+        player_list.sort(key=lambda tup: tup[sort_key], reverse=False)     # sort the list by argument supplied
 
         message = []
         for grad in player_list:
@@ -572,7 +587,7 @@ class league(commands.Cog):
             message.append(grad[0])
 
         async with ctx.typing():
-            await utilities.buffered_send(destination=ctx, content=''.join(message))
+            await utilities.buffered_send(destination=ctx, content=''.join(message).replace(".", "\u200b "))
 
 
 async def auto_grad_novas(ctx, game):

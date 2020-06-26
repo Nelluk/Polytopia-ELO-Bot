@@ -592,7 +592,7 @@ class administration(commands.Cog):
         kickable_roles = [discord.utils.get(ctx.guild.roles, name=inactive_role_name), discord.utils.get(ctx.guild.roles, name='The Novas'),
                           discord.utils.get(ctx.guild.roles, name='ELO Rookie'), discord.utils.get(ctx.guild.roles, name='ELO Player'),
                           discord.utils.get(ctx.guild.roles, name='@everyone'), discord.utils.get(ctx.guild.roles, name='Novas Blue'),
-                          discord.utils.get(ctx.guild.roles, name='Novas Red')]
+                          discord.utils.get(ctx.guild.roles, name='Novas Red'), discord.utils.get(ctx.guild.roles, name='Nova Grad')]
 
         async with ctx.typing():
             for member in ctx.guild.members:
