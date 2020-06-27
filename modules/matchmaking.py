@@ -506,7 +506,7 @@ class matchmaking(commands.Cog):
         if not lineup:
             return await ctx.send(f'You are not a member of game {game.id}')
 
-        models.GameLog.create(game=game, message=f'**{ctx.author.display_name}** (`{ctx.author.id}`)left the game.')
+        models.GameLog.create(game=game, message=f'**{ctx.author.display_name}** (`{ctx.author.id}`) left the game.')
         lineup.delete_instance()
         await ctx.send('Removing you from the game.')
 
