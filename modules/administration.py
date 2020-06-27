@@ -395,7 +395,10 @@ class administration(commands.Cog):
         for entry in entries:
             message_list.append(f'`{entry.message_ts.strftime("%Y-%m-%d %H:%M:%S")}` - {entry.message}')
 
-        await utilities.buffered_send(destination=ctx, content='\n'.join(message_list))
+        if message_list:
+            await utilities.buffered_send(destination=ctx, content='\n'.join(message_list))
+        else:
+            await ctx.send(f'No log entries for game {game.id}. Actions did not get logged before June 27th 2020.')
 
     @commands.command(usage='game_id')
     async def extend(self, ctx, game: PolyGame = None):
