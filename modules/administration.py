@@ -320,6 +320,7 @@ class administration(commands.Cog):
         game.save()
 
         logger.info(f'Game {game.id} is now marked as ranked.')
+        models.GameLog.create(game=game, message=f'**{ctx.author.display_name}** (`{ctx.author.id}`) set game to be ranked.')
         return await ctx.send(f'Game {game.id} is now marked as ranked.')
 
     @commands.command(usage='game_id')
@@ -342,6 +343,7 @@ class administration(commands.Cog):
         game.save()
 
         logger.info(f'Game {game.id} is now marked as unranked.')
+        models.GameLog.create(game=game, message=f'**{ctx.author.display_name}** (`{ctx.author.id}`) set game to be unranked.')
         return await ctx.send(f'Game {game.id} is now marked as unranked.')
 
     @settings.in_bot_channel()
@@ -370,11 +372,30 @@ class administration(commands.Cog):
         tomorrow = (datetime.datetime.now() + datetime.timedelta(hours=24))
         game.expiration = tomorrow if game.expiration < tomorrow else game.expiration
         game.save()
+        models.GameLog.create(game=game, message=f'**{ctx.author.display_name}** (`{ctx.author.id}`) changed in-progress game to an open game. ({ctx.prefix}unstart)')
 
         try:
             await ctx.send(f'Game {game.id} is now an open game and no longer in progress.')
         except discord.errors.NotFound:
             logger.warn('Game unstarted while in game-related channel')
+
+    @commands.command(usage='game_id')
+    async def gamelog(self, ctx, game: PolyGame = None):
+        """ *Staff*: Lists log entries related to a particular game
+
+         **Examples**
+        `[p]gamelog 1234`
+        """
+
+        if game is None:
+            return await ctx.send(f'No matching game was found.')
+
+        message_list = []
+        entries = models.GameLog.select().where(models.GameLog.game == game).order_by(models.GameLog.message_ts)
+        for entry in entries:
+            message_list.append(f'`{entry.message_ts.strftime("%Y-%m-%d %H:%M:%S")}` - {entry.message}')
+
+        await utilities.buffered_send(destination=ctx, content='\n'.join(message_list))
 
     @commands.command(usage='game_id')
     async def extend(self, ctx, game: PolyGame = None):

@@ -256,6 +256,7 @@ class matchmaking(commands.Cog):
         if warning_message:
             await ctx.send(warning_message)
 
+        models.GameLog.create(game=opengame, message=f'**{ctx.author.display_name}** (`{ctx.author.id}`) opened new {team_size_str} game. Notes: {notes_str}')
         await ctx.send(f'Starting new {"unranked " if not is_ranked else ""}open game ID {opengame.id}. Size: {team_size_str}. Expiration: {expiration_hours} hours.\nNotes: *{notes_str}*\n'
             f'Other players can join this game with `{ctx.prefix}join {opengame.id}`.')
 
@@ -453,6 +454,7 @@ class matchmaking(commands.Cog):
             logger.debug(f'Associating team {player_team} with player {player.id} {player.name}')
             player.save()
         await ctx.send(f'Joining <@{player.discord_member.discord_id}> to side {side.position} of game {game.id}')
+        models.GameLog.create(game=game, message=f'Joined by **{player.discord_member.name}** (`{player.discord_member.discord_id}`)')
 
         players, capacity = game.capacity()
         if players >= capacity:
@@ -504,6 +506,7 @@ class matchmaking(commands.Cog):
         if not lineup:
             return await ctx.send(f'You are not a member of game {game.id}')
 
+        models.GameLog.create(game=game, message=f'**{ctx.author.display_name}** (`{ctx.author.id}`)left the game.')
         lineup.delete_instance()
         await ctx.send('Removing you from the game.')
 
@@ -536,6 +539,7 @@ class matchmaking(commands.Cog):
         game.notes = notes[:150] if notes else None
         game.save()
 
+        models.GameLog.create(game=game, message=f'**{ctx.author.display_name}** (`{ctx.author.id}`) edited game notes: {game.notes}')
         await ctx.send(f'Updated notes for game {game.id} to: {game.notes}')
         embed, content = game.embed(guild=ctx.guild, prefix=ctx.prefix)
         await ctx.send(embed=embed, content=content)
@@ -571,6 +575,7 @@ class matchmaking(commands.Cog):
             return await ctx.send('Stop kicking yourself!')
 
         await ctx.send(f'Removing **{lineup.player.name}** from the game.')
+        models.GameLog.create(game=game, message=f'**{ctx.author.display_name}** (`{ctx.author.id}`) kicked {lineup.player.discord_member.name} (`{lineup.player.discord_member.discord_id}`)')
         lineup.delete_instance()
 
         if game.expiration < (datetime.datetime.now() + datetime.timedelta(hours=2)):

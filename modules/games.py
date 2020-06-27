@@ -1261,6 +1261,7 @@ class games(commands.Cog):
         if winning_game.is_pending:
             return await ctx.send(f'This game has not started yet.')
 
+        models.GameLog.create(game=winning_game, message=f'Win confirm logged by **{ctx.author.display_name}** (`{ctx.author.id}`) for winner **{winning_obj.name}**')
         if settings.is_staff(ctx):
             confirm_win = True
         else:
@@ -1350,7 +1351,7 @@ class games(commands.Cog):
         if settings.is_staff(ctx):
             # Staff usage: reset any game to Incomplete state
             game.confirmations_reset()
-
+            models.GameLog.create(game=game, message=f'**{ctx.author.display_name}** (`{ctx.author.id}`) staffer used unwin command.')
             if game.is_completed and game.is_confirmed:
                 elo_logger.debug(f'unwin game {game.id}')
                 async with ctx.typing():
@@ -1398,6 +1399,7 @@ class games(commands.Cog):
 
             if author_side == game.winner:
                 logger.debug(f'Player {ctx.author.name} is removing their own win claim on game {game.id}')
+                models.GameLog.create(game=game, message=f'**{ctx.author.display_name}** (`{ctx.author.id}`) removes their self-win claim and confirmations have reset.')
                 game.confirmations_reset()
                 game.completed_ts = None
                 game.is_completed = False
@@ -1408,6 +1410,7 @@ class games(commands.Cog):
             else:
                 # author removing win claim for a game pointing at another side as the winner
                 logger.debug(f'Player {ctx.author.name} is removing win claim on game {game.id}')
+                models.GameLog.create(game=game, message=f'**{ctx.author.display_name}** (`{ctx.author.id}`) removed their confirmation of the game winner.')
                 author_side.win_confirmed = False
                 author_side.save()
 
@@ -1526,6 +1529,7 @@ class games(commands.Cog):
 
         await game.update_squad_channels(self.bot.guilds, game_guild.id)
         await game.update_announcement(guild=game_guild, prefix=ctx.prefix)
+        models.GameLog.create(game=game, message=f'**{ctx.author.display_name}** (`{ctx.author.id}`) renamed the game.')
 
         new_game_name = game.name if game.name else 'None'
         old_game_name = old_game_name if old_game_name else 'None'
@@ -1741,6 +1745,7 @@ async def post_unwin_messaging(guild, prefix, current_chan, game, previously_con
 
 async def post_newgame_messaging(ctx, game):
 
+    models.GameLog.create(game=game, message=f'Started with name **{game.name}**')
     mentions_list = [f'<@{l.player.discord_member.discord_id}>' for l in game.lineup]
 
     embed, content = game.embed(guild=ctx.guild, prefix=ctx.prefix)

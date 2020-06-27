@@ -839,7 +839,6 @@ class Game(BaseModel):
 
     async def update_squad_channels(self, guild_list, guild_id, message: str = None):
         guild = discord.utils.get(guild_list, id=guild_id)
-        game_chan = self.game_chan  # loading early here trying to avoid InterfaceError
 
         for gameside in list(self.gamesides):
             if gameside.team_chan:
@@ -858,11 +857,11 @@ class Game(BaseModel):
                 else:
                     await channels.update_game_channel_name(side_guild, channel_id=gameside.team_chan, game_id=self.id, game_name=self.name, team_name=gameside.team.name)
 
-        if game_chan:
+        if self.game_chan:
             if message:
-                await channels.send_message_to_channel(guild, channel_id=game_chan, message=message)
+                await channels.send_message_to_channel(guild, channel_id=self.game_chan, message=message)
             else:
-                await channels.update_game_channel_name(guild, channel_id=game_chan, game_id=self.id, game_name=self.name, team_name=None)
+                await channels.update_game_channel_name(guild, channel_id=self.game_chan, game_id=self.id, game_name=self.name, team_name=None)
 
     async def update_announcement(self, guild, prefix):
         # Updates contents of new game announcement with updated game_embed card
@@ -2299,6 +2298,12 @@ class GameSide(BaseModel):
         return player_list
 
 
+class GameLog(BaseModel):
+    game = ForeignKeyField(Game, null=False, backref='logs', on_delete='CASCADE')
+    message = TextField(null=True)
+    message_ts = DateTimeField(default=datetime.datetime.now)
+
+
 class Lineup(BaseModel):
     tribe = ForeignKeyField(Tribe, null=True, on_delete='SET NULL')
     game = ForeignKeyField(Game, null=False, backref='lineup', on_delete='CASCADE')
@@ -2379,7 +2384,7 @@ class Lineup(BaseModel):
 
 
 with db.connection_context():
-    db.create_tables([Configuration, Team, DiscordMember, Game, Player, Tribe, Squad, GameSide, SquadMember, Lineup])
+    db.create_tables([Configuration, Team, DiscordMember, Game, Player, Tribe, Squad, GameSide, SquadMember, Lineup, GameLog])
     # Only creates missing tables so should be safe to run each time
 
     try:

@@ -202,6 +202,7 @@ class misc(commands.Cog):
                 return await ctx.send(f'You do not have permission to use this command on another player\'s games.')
             message = ' '.join(message.split()[1:])  # remove @Mention first word of message
             target = str(m)
+            log_message = f'**{ctx.author.display_name}** (`{ctx.author.id}`) used pingall on behalf of player ID `{target}` with message: '
         else:
             logger.debug('first party usage of pingall')
             # Play using command on their own games
@@ -209,6 +210,7 @@ class misc(commands.Cog):
                 logger.debug('insufficient user level')
                 return await ctx.send(f'You do not have permission to use this command. You can ask a server staff member to use this command on your games for you.')
             target = str(ctx.author.id)
+            log_message = f'**{ctx.author.display_name}** (`{ctx.author.id}`) used pingall with message: '
 
         logger.debug(f'pingall target is {target}')
 
@@ -236,6 +238,7 @@ class misc(commands.Cog):
 
         for game in game_list:
             logger.debug(f'Sending message to game channels for game {game.id} from pingall')
+            models.GameLog.create(game=game, message=f'{log_message} {clean_message}')
             await game.update_squad_channels(self.bot.guilds, game.guild_id, message=f'Message to all players in unfinished games for <@{target}>: *{clean_message}*')
 
     @commands.command(usage='game_id message')
@@ -323,6 +326,7 @@ class misc(commands.Cog):
 
         player_mentions = [f'<@{l.player.discord_member.discord_id}>' for l in game.lineup]
         full_message = f'Message from {ctx.author.mention} (**{ctx.author.name}**) regarding game {game.id} **{game.name}**:\n*{message}*'
+        models.GameLog.create(game=game, message=f'**{ctx.author.display_name}** (`{ctx.author.id}`) pinged the game with message: {message}')
 
         if ctx.channel.id in permitted_channels_private:
             logger.debug(f'Ping triggered in private channel {ctx.channel.id}')
