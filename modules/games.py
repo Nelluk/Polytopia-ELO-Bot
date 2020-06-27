@@ -1529,7 +1529,7 @@ class games(commands.Cog):
 
         await game.update_squad_channels(self.bot.guilds, game_guild.id)
         await game.update_announcement(guild=game_guild, prefix=ctx.prefix)
-        models.GameLog.create(game=game, message=f'**{ctx.author.display_name}** (`{ctx.author.id}`) renamed the game.')
+        models.GameLog.create(game=game, message=f'**{ctx.author.display_name}** (`{ctx.author.id}`) renamed the game to *{new_game_name}*')
 
         new_game_name = game.name if game.name else 'None'
         old_game_name = old_game_name if old_game_name else 'None'
