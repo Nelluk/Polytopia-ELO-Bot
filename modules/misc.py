@@ -232,7 +232,11 @@ class misc(commands.Cog):
         await ctx.send(f'Message to all players in unfinished games for <@{target}>: *{clean_message}*')
 
         recipient_message = f'Message recipients: {" ".join(list_of_players[:100])}'
-        return await ctx.send(recipient_message[:2000])
+        await ctx.send(recipient_message[:2000])
+
+        for game in game_list:
+            logger.debug(f'Sending message to game channels for game {game.id} from pingall')
+            await game.update_squad_channels(self.bot.guilds, game.guild_id, message=f'Message to all players in unfinished games for <@{target}>: *{clean_message}*')
 
     @commands.command(usage='game_id message')
     @models.is_registered_member()
