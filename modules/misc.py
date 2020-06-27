@@ -244,7 +244,7 @@ class misc(commands.Cog):
     @commands.command(usage='game_id message')
     @models.is_registered_member()
     @commands.cooldown(1, 20, commands.BucketType.user)
-    async def ping(self, ctx, *, args=None):
+    async def ping(self, ctx, *, args=''):
         """ Ping everyone in one of your games with a message
 
          **Examples**
@@ -257,6 +257,11 @@ class misc(commands.Cog):
 
         usage = (f'**Example usage:** `{ctx.prefix}ping 100 Here\'s a nice note for everyone in game 100.`\n'
                     'You can also omit the game ID if you use the command from a game-specific channel.')
+
+        if ctx.message.attachments:
+            attachment_urls = '\n'.join([attachment.url for attachment in ctx.message.attachments])
+            args += f'\n{attachment_urls}'
+
         if not args:
             ctx.command.reset_cooldown(ctx)
             return await ctx.send(usage)
@@ -287,10 +292,6 @@ class misc(commands.Cog):
         if not message:
             ctx.command.reset_cooldown(ctx)
             return await ctx.send(f'Message was not included. {usage}')
-
-        if ctx.message.attachments:
-            attachment_urls = '\n'.join([attachment.url for attachment in ctx.message.attachments])
-            message += f'\n{attachment_urls}'
 
         message = utilities.escape_role_mentions(message)
 
