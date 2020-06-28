@@ -27,11 +27,14 @@ class misc(commands.Cog):
     async def test(self, ctx, *, arg: str = None):
 
         games = models.Game.search(size_filter=[0])
+        names = []
         for g in games:
             print(g.id, g.get_headline())
+            names.append(g.get_headline())
             if ctx.invoked_with == 'tsgo':
                 print(f'Deleting {g.id}')
                 g.delete_game()
+        await utilities.buffered_send(destination=ctx, content='\n'.join(names))
 
     @commands.command(usage=None)
     @settings.in_bot_channel_strict()
