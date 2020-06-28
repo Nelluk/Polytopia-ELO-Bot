@@ -34,6 +34,9 @@ class misc(commands.Cog):
             if ctx.invoked_with == 'tsgo' and g.is_pending:
                 print(f'Deleting {g.id}')
                 g.delete_game()
+            g.size = [1, 1]
+            r = g.save()
+            print(r)
         await utilities.buffered_send(destination=ctx, content='\n'.join(names))
 
     @commands.command(usage=None)
