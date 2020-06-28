@@ -1042,6 +1042,7 @@ class games(commands.Cog):
         `[p]allgames OCEANS OF FIRE` - Search by title - words in all caps are used to search title/notes.
         `[p]allgames Nelluk OCEANS` - See games that included player Nelluk and the word *OCEANS* in the game name or game notes.
         `[p]allgames Jets`
+        `[p]allgames Nelluk 2v2` - Show all 2v2 games including Nelluk
         `[p]allgames Jets Ronin` - See games between those two teams
         `[p]allgames Nelluk rickdaheals frodakcin Jets Ronin` - See games in which three players and two teams were all involved
 
