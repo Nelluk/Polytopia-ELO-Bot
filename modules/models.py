@@ -721,6 +721,7 @@ class Game(BaseModel):
     is_pending = BooleanField(default=False)  # True == open, unstarted game
     is_ranked = BooleanField(default=True)
     game_chan = BitField(default=None, null=True)
+    size = ArrayField(SmallIntegerField, default=[0])
 
     def __setattr__(self, name, value):
         if name == 'name':
@@ -1258,7 +1259,8 @@ class Game(BaseModel):
         with db.atomic():
             newgame = Game.create(name=name,
                                   guild_id=guild_id,
-                                  is_ranked=is_ranked)
+                                  is_ranked=is_ranked,
+                                  size=[len(g) for g in discord_groups])
 
             side_position = 1
             for team_group, allied_team, discord_group in zip(teams_for_each_discord_member, list_of_final_teams, discord_groups):

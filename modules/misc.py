@@ -26,15 +26,16 @@ class misc(commands.Cog):
     @commands.is_owner()
     async def test(self, ctx, *, arg: str = None):
 
-        emoji_draft_signup = '🔆'
-        grad_role_name = 'Nova Grad'
-        grad_role = discord.utils.get(ctx.guild.roles, name=grad_role_name)
-        print(grad_role)
-        print(grad_role.mention)
+        query = models.Game.select(models.Game.id, models.Game.size).where(models.Game.id < 100)
+        query = models.Game.select()
+        for g in query.prefetch(query, models.GameSide):
+            size = [s.size for s in g.gamesides]
+            print(g.id, size)
+            # g.size = size
+            # g.save()
 
-        fmt_str = f'The draft is open for signups! {{0}}\'s can react with a {emoji_draft_signup} below to sign up.\n{{1}}'
-
-        await ctx.send(fmt_str.format(grad_role.mention, "message addition"))
+        # for g in models.Game.select().where(models.Game.size == [4, 4]):
+            # print(g.id)
 
     @commands.command(usage=None)
     @settings.in_bot_channel_strict()

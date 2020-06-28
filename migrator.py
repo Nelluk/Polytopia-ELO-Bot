@@ -4,6 +4,7 @@ from playhouse.postgres_ext import *
 import logging
 from logging.handlers import RotatingFileHandler
 # from modules.models import Tribe, Lineup
+import modules.models as models
 
 # http://docs.peewee-orm.com/en/latest/peewee/playhouse.html#schema-migrations
 handler = RotatingFileHandler(filename='discord.log', encoding='utf-8', maxBytes=500 * 1024, backupCount=1)
@@ -43,30 +44,42 @@ migrator = PostgresqlMigrator(db)
 # team_chan_external_server = BitField(unique=False, null=True, default=None)
 # tribe_direct = ForeignKeyField(Tribe, null=True, on_delete='SET NULL', field=Tribe.id)
 # emoji = TextField(null=False, default='')
-elo_after_game_global = SmallIntegerField(default=None, null=True)
-team_elo_after_game = SmallIntegerField(default=None, null=True)
-team_elo_after_game_alltime = SmallIntegerField(default=None, null=True)
+# elo_after_game_global = SmallIntegerField(default=None, null=True)
+# team_elo_after_game = SmallIntegerField(default=None, null=True)
+# team_elo_after_game_alltime = SmallIntegerField(default=None, null=True)
+size = ArrayField(SmallIntegerField, default=0)
 
-migrate(
-    # migrator.add_column('discordmember', 'elo_max', elo_max),
-    # migrator.add_column('player', 'is_banned', is_banned),
-    # migrator.add_column('discordmember', 'is_banned', is_banned),
-    # migrator.add_column('gameside', 'required_role_id', required_role_id)
-    # migrator.add_column('discordmember', 'timezone_offset', timezone_offset),
-    # migrator.add_column('game', 'win_claimed_ts', win_claimed_ts),
-    # migrator.add_column('gameside', 'win_confirmed', win_confirmed)
-    # migrator.add_column('gameside', 'elo_change_team_alltime', elo_change_team_alltime),
-    # migrator.add_column('team', 'elo_alltime', elo_alltime)
-    # migrator.add_column('discordmember', 'date_polychamps_invite_sent', date_polychamps_invite_sent)
-    # migrator.add_column('gameside', 'team_chan_external_server', external_server),
-    # migrator.add_column('team', 'external_server', external_server)
-    # migrator.add_column('lineup', 'tribe_direct_id', tribe_direct)
-    # migrator.drop_column('tribe', 'emoji'),
-    migrator.add_column('lineup', 'elo_after_game_global', elo_after_game_global),
-    migrator.add_column('gameside', 'team_elo_after_game', team_elo_after_game),
-    migrator.add_column('gameside', 'team_elo_after_game_alltime', team_elo_after_game_alltime)
+try:
+    migrate(
+        # migrator.add_column('discordmember', 'elo_max', elo_max),
+        # migrator.add_column('player', 'is_banned', is_banned),
+        # migrator.add_column('discordmember', 'is_banned', is_banned),
+        # migrator.add_column('gameside', 'required_role_id', required_role_id)
+        # migrator.add_column('discordmember', 'timezone_offset', timezone_offset),
+        # migrator.add_column('game', 'win_claimed_ts', win_claimed_ts),
+        # migrator.add_column('gameside', 'win_confirmed', win_confirmed)
+        # migrator.add_column('gameside', 'elo_change_team_alltime', elo_change_team_alltime),
+        # migrator.add_column('team', 'elo_alltime', elo_alltime)
+        # migrator.add_column('discordmember', 'date_polychamps_invite_sent', date_polychamps_invite_sent)
+        # migrator.add_column('gameside', 'team_chan_external_server', external_server),
+        # migrator.add_column('team', 'external_server', external_server)
+        # migrator.add_column('lineup', 'tribe_direct_id', tribe_direct)
+        # migrator.drop_column('tribe', 'emoji'),
+        # migrator.add_column('lineup', 'elo_after_game_global', elo_after_game_global),
+        # migrator.add_column('gameside', 'team_elo_after_game', team_elo_after_game),
+        # migrator.add_column('gameside', 'team_elo_after_game_alltime', team_elo_after_game_alltime)
+        migrator.add_column('game', 'size', size),
+        # migrator.drop_column('game', 'size'),
 
-)
+    )
+except TypeError:
+    pass
 
+models.db.connect()
+for g in models.Game.select():
+    size = [s.size for s in g.gamesides]
+    # print(g.id, size)
+    g.size = size
+    g.save()
 
-
+print('done')
