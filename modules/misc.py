@@ -29,9 +29,9 @@ class misc(commands.Cog):
         games = models.Game.search(size_filter=[0])
         names = []
         for g in games:
-            print(g.id, g.get_headline())
+            print(g.id, g.get_headline(), g.is_pending)
             names.append(g.get_headline())
-            if ctx.invoked_with == 'tsgo':
+            if ctx.invoked_with == 'tsgo' and g.is_pending:
                 print(f'Deleting {g.id}')
                 g.delete_game()
         await utilities.buffered_send(destination=ctx, content='\n'.join(names))
