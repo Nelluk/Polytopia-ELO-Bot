@@ -22,24 +22,16 @@ class misc(commands.Cog):
             self.bg_task = bot.loop.create_task(self.task_broadcast_newbie_message())
             self.bg_task = bot.loop.create_task(self.task_send_polychamps_invite())
 
-    @commands.command(hidden=True, aliases=['ts'])
+    @commands.command(hidden=True, aliases=['ts', 'tsgo'])
     @commands.is_owner()
     async def test(self, ctx, *, arg: str = None):
 
-        m = re.search(r"\d+(?:(v|vs)\d+)+", arg.lower())
-        if m:
-            # print(m[0])
-            arg = arg.remove(m[0])
-            team_sizes = [int(x) for x in m[0].lower().split(m[1])]  # split on 'vs' or 'v'; whichever the regexp detects
-        else:
-            print('no match')
-            team_sizes = []
-        print(arg, team_sizes)
-        games = models.Game.search(size_filter=[4, 4])
-
+        games = models.Game.search(size_filter=[0])
         for g in games:
-            # print(g.get_headline())
-            pass
+            print(g.id, g.get_headline())
+            if ctx.invoked_with == 'tsgo':
+                print(f'Deleting {g.id}')
+                g.delete_game()
 
     @commands.command(usage=None)
     @settings.in_bot_channel_strict()

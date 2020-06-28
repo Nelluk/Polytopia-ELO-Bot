@@ -855,6 +855,7 @@ class matchmaking(commands.Cog):
             for lobby in settings.lobbies:
                 matching_lobby = False
                 for g in unhosted_game_list:
+                    print(g.size_string())
                     if (g.guild_id == lobby['guild'] and g.size_string() == lobby['size_str'] and
                             g.is_ranked == lobby['ranked'] and g.notes == lobby['notes']):
 
@@ -879,7 +880,7 @@ class matchmaking(commands.Cog):
                     with models.db.atomic():
                         opengame = models.Game.create(host=None, notes=lobby['notes'],
                                                       guild_id=lobby['guild'], is_pending=True,
-                                                      is_ranked=lobby['ranked'], expiration=expiration_timestamp)
+                                                      is_ranked=lobby['ranked'], expiration=expiration_timestamp, size=lobby['size'])
                         for count, size in enumerate(lobby['size']):
                             role_lock_id = role_locks[count]
                             role_lock_name = None
