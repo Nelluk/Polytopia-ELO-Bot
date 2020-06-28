@@ -36,48 +36,6 @@ class misc(commands.Cog):
 
         await ctx.send(fmt_str.format(grad_role.mention, "message addition"))
 
-    @commands.command(hidden=True, aliases=['bulk_local_elo', 'ble', 'bge'])
-    async def bulk_global_elo(self, ctx, *, args=None):
-        """
-        Given a list of players, or a single mentioned role, return that list sorted by player's global/local ELO.
-
-        `[p]bulk_global elo nelluk koric rickdaheals`
-        `[p]bulk_local_elo @Ronin`
-        """
-        if not args:
-            return await ctx.send(f'Include list of players, example: `{ctx.prefix}bge nelluk koric` - @mentions and raw user IDs are supported')
-        player_stats = []
-
-        if ctx.message.role_mentions:
-            arg_list = [str(member.id) for member in ctx.message.role_mentions[0].members]
-        else:
-            arg_list = args.split(' ')
-
-        for arg in arg_list:
-            try:
-                player_match = models.Player.get_or_except(player_string=arg, guild_id=ctx.guild.id)
-            except exceptions.NoSingleMatch:
-                await ctx.send(f'Could not match `{arg}` to a player. Specify user with @Mention or user ID.')
-                continue
-
-            if ctx.invoked_with in ['bulk_local_elo', 'ble']:
-                player_stats.append((player_match.elo, player_match))
-            else:
-                player_stats.append((player_match.discord_member.elo, player_match))
-
-        player_stats.sort(key=lambda tup: tup[0], reverse=True)     # sort the list descending by ELO
-        print(player_stats)
-
-        if ctx.invoked_with in ['bulk_local_elo', 'ble']:
-            message = '__Player name - Local ELO - Local games played__\n'
-        else:
-            message = '__Player name - Global ELO - Local games played__\n'
-
-        for player in player_stats:
-            message += f'{player[1].name} - {player[0]} - {player[1].games_played().count()}\n'
-
-        await utilities.buffered_send(destination=ctx, content=message)
-
     @commands.command(usage=None)
     @settings.in_bot_channel_strict()
     async def guide(self, ctx):

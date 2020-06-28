@@ -484,7 +484,7 @@ class league(commands.Cog):
         if newbie_role:
             await ctx.author.remove_roles(newbie_role, reason='Joining Novas')
 
-    @commands.command(aliases=['freeagents', 'draftable'], usage='[sort] [role name]')
+    @commands.command(aliases=['freeagents', 'draftable', 'ble', 'bge'], usage='[sort] [role name]')
     @settings.in_bot_channel_strict()
     @commands.cooldown(1, 5, commands.BucketType.channel)
     async def roleelo(self, ctx, *, arg=None):
@@ -508,6 +508,11 @@ class league(commands.Cog):
         `[p]draftable recent` - List all members with the Draftable role sorted by recent games
         """
         args = arg.split() if arg else []
+        usage = (f'**Example usage:** `{ctx.prefix}roleelo Ronin`\n'
+                    f'See `{ctx.prefix}help roleelo` for sorting options and more examples.')
+
+        if ctx.invoked_with in ['ble', 'bge']:
+            return await ctx.send(f'The `{ctx.prefix}{ctx.invoked_with}` command has been replaced by `{ctx.prefix}roleelo`\n{usage}')
 
         if args and args[0].upper() == 'G_ELO':
             sort_key = 1
@@ -536,6 +541,8 @@ class league(commands.Cog):
             role_check_name = free_agent_role_name
         elif ctx.invoked_with == 'roleelo':
             role_check_name = args
+            if not args:
+                return await ctx.send(f'No role name was supplied.\n{usage}')
 
         player_list = []
         checked_role = None
