@@ -30,7 +30,7 @@ class misc(commands.Cog):
         names = []
         for g in games:
             print(g.id, g.get_headline(), g.is_pending)
-            names.append(g.get_headline())
+            names.append(g.get_headline(), g.is_pending)
             if ctx.invoked_with == 'tsgo' and g.is_pending:
                 print(f'Deleting {g.id}')
                 g.delete_game()
