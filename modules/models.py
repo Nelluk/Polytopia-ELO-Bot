@@ -1161,20 +1161,7 @@ class Game(BaseModel):
 
     def size_string(self):
 
-        gamesides = self.ordered_side_list()
-
-        if self.is_pending:
-            # use capacity for matchmaking strings
-            if max(s.size for s in gamesides) == 1 and len(gamesides) > 2:
-                return 'FFA'
-            else:
-                return 'v'.join(str(s.size) for s in gamesides)
-
-        # this might be superfluous, combined Match and Game functions together
-        if self.largest_team() == 1 and len(self.gamesides) > 2:
-            return 'FFA'
-        else:
-            return 'v'.join(str(len(s.lineup)) for s in gamesides)
+        return 'v'.join([str(s) for s in self.size])
 
     def load_full_game(game_id: int):
         # Returns a single Game object with all related tables pre-fetched. or None
@@ -1508,7 +1495,7 @@ class Game(BaseModel):
         return None
 
     def capacity(self):
-        return (len(self.lineup), sum(s.size for s in self.gamesides))
+        return (len(self.lineup), sum(s for s in self.size))
 
     def list_gameside_membership(self):
         sidenames = []
@@ -1673,13 +1660,14 @@ class Game(BaseModel):
                 -(fn.SUM(GameSide.size) - fn.COUNT(Lineup.id))
             ).prefetch(GameSide, Lineup, Player)
 
-    def search(player_filter=None, team_filter=None, title_filter=None, status_filter: int = 0, guild_id: int = None):
+    def search(player_filter=None, team_filter=None, title_filter=None, status_filter: int = 0, guild_id: int = None, size_filter=None):
         # Returns Games by almost any combination of player/team participation, and game status
         # player_filter/team_filter should be a [List, of, Player/Team, objects] (or ID #s)
         # status_filter:
         # 0 = all games, 1 = completed games, 2 = incomplete games
         # 3 = wins, 4 = losses (only for first player in player_list or, if empty, first team in team list)
         # 5 = unconfirmed wins
+        # size filter: array of ints, eg [3, 2] will return games that are 3v2. Ordering matters (will not return 2v3)
 
         confirmed_filter, completed_filter, pending_filter = [0, 1], [0, 1], [0, 1]
 
@@ -1700,6 +1688,11 @@ class Game(BaseModel):
             guild_filter = Game.select(Game.id).where(Game.guild_id == guild_id)
         else:
             guild_filter = Game.select(Game.id)
+
+        if size_filter:
+            size_query = Game.select(Game.id).where(Game.size == size_filter)
+        else:
+            size_query = Game.select(Game.id)
 
         if team_filter:
             team_subq = GameSide.select(GameSide.game).join(Game).where(
@@ -1770,6 +1763,8 @@ class Game(BaseModel):
                 Game.id.in_(victory_subq)
             ) & (
                 Game.id.in_(guild_filter)
+            ) & (
+                Game.id.in_(size_query)
             ) & (
                 Game.is_pending.in_(pending_filter))
         ).order_by(-Game.completed_ts, -Game.date)

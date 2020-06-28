@@ -26,16 +26,20 @@ class misc(commands.Cog):
     @commands.is_owner()
     async def test(self, ctx, *, arg: str = None):
 
-        query = models.Game.select(models.Game.id, models.Game.size).where(models.Game.id < 100)
-        query = models.Game.select()
-        for g in query.prefetch(query, models.GameSide):
-            size = [s.size for s in g.gamesides]
-            print(g.id, size)
-            # g.size = size
-            # g.save()
+        m = re.search(r"\d+(?:(v|vs)\d+)+", arg.lower())
+        if m:
+            # print(m[0])
+            arg = arg.remove(m[0])
+            team_sizes = [int(x) for x in m[0].lower().split(m[1])]  # split on 'vs' or 'v'; whichever the regexp detects
+        else:
+            print('no match')
+            team_sizes = []
+        print(arg, team_sizes)
+        games = models.Game.search(size_filter=[4, 4])
 
-        # for g in models.Game.select().where(models.Game.size == [4, 4]):
-            # print(g.id)
+        for g in games:
+            # print(g.get_headline())
+            pass
 
     @commands.command(usage=None)
     @settings.in_bot_channel_strict()

@@ -1644,6 +1644,16 @@ class games(commands.Cog):
                 # Target is person issuing command
                 target_list.append(str(ctx.author.id))
 
+            team_size_str, team_sizes = '', []
+            for arg in target_list:
+                m = re.fullmatch(r"\d+(?:(v|vs)\d+)+", arg.lower())
+                if m:
+                    # arg looks like '3v3' or '1v1v1'
+                    team_size_str = m[0]
+                    team_sizes = [int(x) for x in arg.lower().split(m[1])]
+                    target_list.remove(arg)
+                    continue
+
             results_title = []
 
             player_matches, team_matches, remaining_args = parse_players_and_teams(target_list, ctx.guild.id)
@@ -1656,6 +1666,8 @@ class games(commands.Cog):
             if remaining_args:
                 remaining_args = [utilities.escape_role_mentions(x) for x in remaining_args]
                 results_title.append(f'Included in name: *{"* *".join(remaining_args)}*')
+            if team_size_str:
+                results_title.append(f'Game size: *{team_size_str}*')
 
             results_str = '\n'.join(results_title)
             if not results_title:
@@ -1663,7 +1675,7 @@ class games(commands.Cog):
 
             def async_game_search():
                 utilities.connect()
-                query = Game.search(status_filter=status_filter, player_filter=player_matches, team_filter=team_matches, title_filter=remaining_args, guild_id=ctx.guild.id)
+                query = Game.search(status_filter=status_filter, player_filter=player_matches, team_filter=team_matches, title_filter=remaining_args, guild_id=ctx.guild.id, size_filter=team_sizes)
                 logger.debug(f'Searching games, status filter: {status_filter}, player_filter: {player_matches}, team_filter: {team_matches}, title_filter: {remaining_args}')
                 logger.debug(f'Returned {len(query)} results')
                 game_list = utilities.summarize_game_list(query[:500])
