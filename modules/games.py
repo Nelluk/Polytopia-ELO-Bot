@@ -1065,6 +1065,8 @@ class games(commands.Cog):
         `[p]incomplete Nelluk anarchoRex` - Lists all incomplete games with both players
         `[p]incomplete Nelluk Jets` - Lists all incomplete games for Nelluk that include team Jets
         `[p]incomplete Ronin Jets` - Lists all incomplete games that include teams Ronin and Jets
+
+        You can also include a game size such as *2v2* to limit by size.
         """
         target_list = args.split() if args else []
         if ctx.invoked_with.upper() in ['COMPLETED', 'COMPLETE']:
@@ -1084,6 +1086,8 @@ class games(commands.Cog):
         `[p]wins Nelluk anarchoRex` - Lists all games for both players, in which the first player is the winner
         `[p]wins Nelluk frodakcin Jets` - Lists all wins for Nelluk in which player frodakcin and team Jets participated
         `[p]wins Ronin Jets` - Lists all wins for team Ronin in which team Jets participated
+
+        You can also include a game size such as *2v2* to limit by size.
         """
         target_list = args.split() if args else []
         if ctx.invoked_with.upper() in ['LOSS', 'LOSSES']:
