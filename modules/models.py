@@ -1161,6 +1161,8 @@ class Game(BaseModel):
 
     def size_string(self):
 
+        if max(self.size) == 1 and len(self.size) > 2:
+            return 'FFA'
         return 'v'.join([str(s) for s in self.size])
 
     def load_full_game(game_id: int):

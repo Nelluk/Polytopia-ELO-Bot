@@ -26,17 +26,16 @@ class misc(commands.Cog):
     @commands.is_owner()
     async def test(self, ctx, *, arg: str = None):
 
-        games = models.Game.search(size_filter=[0])
+        games = models.Game.select().where(models.Game.is_pending == 1)
         names = []
         for g in games:
-            print(g.id, g.get_headline(), g.is_pending)
-            names.append(f'{g.get_headline()} {g.is_pending}')
-            if ctx.invoked_with == 'tsgo' and g.is_pending:
+            players_in_lobby = g.capacity()[0]
+            print(g.get_headline(), players_in_lobby)
+            if players_in_lobby == 0 and ctx.invoked_with == 'tsgo':
+                names.append(f'{g.get_headline()} {g.is_pending}')
                 print(f'Deleting {g.id}')
                 g.delete_game()
-            g.size = [1, 1]
-            r = g.save()
-            print(r)
+
         await utilities.buffered_send(destination=ctx, content='\n'.join(names))
 
     @commands.command(usage=None)
