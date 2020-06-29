@@ -185,14 +185,14 @@ class league(commands.Cog):
 
         draft_config = self.get_draft_config(member.guild.id)
 
-        if draft_config['draft_opened']:
+        if draft_config['draft_open']:
             new_message = f'~~{message.content}~~\n{self.draft_closed_message}'
             log_message = f'Draft status closed by <@{member.id}>'
-            draft_config['draft_opened'] = False
+            draft_config['draft_open'] = False
         else:
             new_message = self.draft_open_format_str.format(grad_role.mention, novas_role.mention, draft_config['draft_message'])
             log_message = f'Draft status opened by <@{member.id}>'
-            draft_config['draft_opened'] = True
+            draft_config['draft_open'] = True
 
         self.save_draft_config(member.guild.id, draft_config)
         await self.send_to_log_channel(member.guild, log_message)
@@ -203,7 +203,7 @@ class league(commands.Cog):
 
     async def signup_emoji_clicked(self, member, channel, message, reaction_added=True):
 
-        draft_opened = self.get_draft_config(member.guild.id)['draft_opened']
+        draft_opened = self.get_draft_config(member.guild.id)['draft_open']
         member_message, log_message = '', ''
         grad_role = discord.utils.get(member.guild.roles, name=grad_role_name)
         draftable_role = discord.utils.get(member.guild.roles, name=draftable_role_name)
@@ -356,7 +356,7 @@ class league(commands.Cog):
         draft_config['announcement_message'] = announcement_message.id
         draft_config['announcement_channel'] = announcement_message.channel.id
         draft_config['date_opened'] = str(datetime.datetime.today())
-        draft_config['draft_opened'] = True
+        draft_config['draft_open'] = True
         draft_config['draft_message'] = added_message
 
         self.announcement_message = announcement_message.id
@@ -598,8 +598,6 @@ class league(commands.Cog):
 async def auto_grad_novas(ctx, game):
     # called from post_newgame_messaging() - check if any member of the newly-started game now meets Nova graduation requirements
 
-    # TODO: Send them a link to the current draft signup link if it is loadable
-
     if ctx.guild.id == settings.server_ids['polychampions'] or ctx.guild.id == settings.server_ids['test']:
         pass
     else:
@@ -610,8 +608,6 @@ async def auto_grad_novas(ctx, game):
     grad_role = discord.utils.get(ctx.guild.roles, name=grad_role_name)
     grad_chan = ctx.guild.get_channel(540332800927072267)  # Novas draft talk
     if ctx.guild.id == settings.server_ids['test']:
-        role = discord.utils.get(ctx.guild.roles, name='testers')
-        grad_role = discord.utils.get(ctx.guild.roles, name='Team Leader')
         grad_chan = ctx.guild.get_channel(479292913080336397)  # bot spam
 
     if not role or not grad_role:
@@ -628,7 +624,7 @@ async def auto_grad_novas(ctx, game):
         if role not in member.roles or grad_role in member.roles:
             continue  # skip non-novas or people who are already graduates
 
-        logger.debug(f'Checking league graduation status for player {member.name}')
+        logger.debug(f'Checking league graduation status for player {member.name} in auto_grad_novas')
 
         try:
             dm = models.DiscordMember.get(discord_id=member.id)
@@ -658,9 +654,21 @@ async def auto_grad_novas(ctx, game):
             logger.error(f'Could not assign league graduation role: {e}')
             break
 
+        config, _ = models.Configuration.get_or_create(guild_id=ctx.guild.id)
+        announce_str = f'Draft signups open regularly - pay attention to server announcements for a notification of the next one.'
+        if config.polychamps_draft['draft_open']:
+            try:
+                channel = ctx.guild.get_channel(config.polychamps_draft['announcement_channel'])
+                if channel and await channel.fetch_message(config.polychamps_draft['announcement_message']):
+                    announce_str = f'Draft signups are currently open in <#{channel.id}>'
+            except discord.NotFound:
+                pass  # Draft signup message no longer exists - assume its been deleted intentionally and closed
+            except discord.DiscordException as e:
+                logger.warn(f'Error loading existing draft announcement message in auto_grad_novas: {e}')
+
         grad_announcement = (f'Player {member.mention} (*Global ELO: {dm.elo} \u00A0\u00A0\u00A0\u00A0W {wins} / L {losses}*) '
                 f'has met the qualifications and is now a **{grad_role.name}**\n'
-                'You will be notified soon of the next draft signup.')
+                f'{announce_str}')
         if grad_chan:
             await grad_chan.send(f'{grad_announcement}')
         else:

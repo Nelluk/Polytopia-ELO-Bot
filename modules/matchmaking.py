@@ -857,6 +857,7 @@ class matchmaking(commands.Cog):
                 for g in unhosted_game_list:
                     if (g.guild_id == lobby['guild'] and g.size_string() == lobby['size_str'] and
                             g.is_ranked == lobby['ranked'] and g.notes == lobby['notes']):
+                        # TODO: could be improved by comparing g.size to lobby['size'] now that Game.size is a field
 
                         players_in_lobby = g.capacity()[0]
                         # if remake_partial == True, lobby will be regenerated if anybody is in it.
