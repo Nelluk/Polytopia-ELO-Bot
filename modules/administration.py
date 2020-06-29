@@ -385,7 +385,7 @@ class administration(commands.Cog):
         except discord.errors.NotFound:
             logger.warn('Game unstarted while in game-related channel')
 
-    @commands.command(usage='game_id')
+    @commands.command(usage='game_id', aliases=['gamelogs'])
     @commands.cooldown(1, 20, commands.BucketType.user)
     async def gamelog(self, ctx, game_id: int = None):
         """ *Staff*: Lists log entries related to a particular game
@@ -394,18 +394,24 @@ class administration(commands.Cog):
         `[p]gamelog 1234`
         """
 
-        if game_id is None:
-            return await ctx.send(f'No game ID was entered')
+        if ctx.invoked_with == 'gamelog':
+            # look up history of one game
+            if game_id is None:
+                return await ctx.send(f'No game ID was entered')
 
-        message_list = []
-        entries = models.GameLog.select().where(models.GameLog.game == game_id).order_by(models.GameLog.message_ts)
-        for entry in entries:
-            message_list.append(f'`{entry.message_ts.strftime("%Y-%m-%d %H:%M:%S")}` - {entry.message}')
+            message_list = [f'Listing all entries for game # {game_id}...']
+            entries = models.GameLog.select().where(models.GameLog.game == game_id).order_by(models.GameLog.message_ts)
+            for entry in entries:
+                message_list.append(f'`{entry.message_ts.strftime("%Y-%m-%d %H:%M:%S")}` - {entry.message}')
 
-        if message_list:
-            await utilities.buffered_send(destination=ctx, content='\n'.join(message_list))
-        else:
-            await ctx.send(f'No log entries for game {game_id}. Actions did not get logged before June 27th 2020.')
+        elif ctx.invoked_with == 'gamelogs' and settings.is_mod(ctx.author):
+            # List 50 more recent logged actions
+            message_list = [f'Listing the 50 most recent log items...']
+            entries = models.GameLog.select().order_by(-models.GameLog.message_ts).limit(50)
+            for entry in entries:
+                message_list.append(f'`{entry.message_ts.strftime("%Y-%m-%d %H:%M:%S")}` - {entry.game_id} - {entry.message}')
+
+        await utilities.buffered_send(destination=ctx, content='\n'.join(message_list))
 
     @commands.command(usage='game_id')
     async def extend(self, ctx, game: PolyGame = None):
