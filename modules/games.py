@@ -204,6 +204,7 @@ class games(commands.Cog):
         if 'MAX' in filters.upper():
             max_flag = True  # leaderboard ranked by player.max_elo
             lb_title += ' - Maximum ELO Achieved'
+            date_cutoff = datetime.date.min
 
         def process_leaderboard():
             utilities.connect()
