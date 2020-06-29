@@ -1444,6 +1444,7 @@ class games(commands.Cog):
             if not is_hosted_by and not settings.is_staff(ctx):
                 host_name = f' **{host.name}**' if host else ''
                 return await ctx.send(f'Only the game host{host_name} or server staff can do this.')
+            models.GameLog.create(game=game, message=f'**{ctx.author.display_name}** (`{ctx.author.id}`) deleted the game.')
             game.delete_game()
             return await ctx.send(f'Deleting open game {game.id}')
 
@@ -1458,6 +1459,7 @@ class games(commands.Cog):
             await game.update_announcement(guild=ctx.guild, prefix=ctx.prefix)
 
         await game.delete_game_channels(self.bot.guilds, ctx.guild.id)
+        models.GameLog.create(game=game, message=f'**{ctx.author.display_name}** (`{ctx.author.id}`) deleted the game.')
         gid = game.id
         try:
             async with ctx.typing():
@@ -1731,6 +1733,7 @@ class games(commands.Cog):
 async def post_win_messaging(guild, prefix, current_chan, winning_game):
 
     await winning_game.update_squad_channels(guild_list=settings.bot.guilds, guild_id=guild.id, message=f'The game is over with **{winning_game.winner.name()}** victorious. *This channel will be purged soon.*')
+    models.GameLog.create(game=winning_game.id, message=f'Win is confirmed and ELO changes processed.')
     player_mentions = [f'<@{l.player.discord_member.discord_id}>' for l in winning_game.lineup]
     embed, content = winning_game.embed(guild=guild, prefix=prefix)
 

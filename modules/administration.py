@@ -259,12 +259,14 @@ class administration(commands.Cog):
                     if game_size == 2 and game.date < old_60d and not game.is_completed:
                         delete_result.append(f'Deleting incomplete 1v1 game older than 60 days. - {game.get_headline()} - {game.date}{rank_str}')
                         # await self.bot.loop.run_in_executor(None, game.delete_game)
+                        models.GameLog.create(game=game, message=f'I purged the game during cleanup of old incomplete games.')
                         game.delete_game()
 
                     if game_size == 3 and game.date < old_90d and not game.is_completed:
                         delete_result.append(f'Deleting incomplete 3-player game older than 90 days. - {game.get_headline()} - {game.date}{rank_str}')
                         await game.delete_game_channels(self.bot.guilds, guild.id)
                         # await self.bot.loop.run_in_executor(None, game.delete_game)
+                        models.GameLog.create(game=game, message=f'I purged the game during cleanup of old incomplete games.')
                         game.delete_game()
 
                     if game_size == 4:
@@ -272,10 +274,12 @@ class administration(commands.Cog):
                             delete_result.append(f'Deleting incomplete 4-player game older than 90 days. - {game.get_headline()} - {game.date}{rank_str}')
                             await game.delete_game_channels(self.bot.guilds, guild.id)
                             await self.bot.loop.run_in_executor(None, game.delete_game)
+                            models.GameLog.create(game=game, message=f'I purged the game during cleanup of old incomplete games.')
                             game.delete_game()
                         if game.date < old_120d and not game.is_completed and game.is_ranked:
                             delete_result.append(f'Deleting incomplete ranked 4-player game older than 120 days. - {game.get_headline()} - {game.date}{rank_str}')
                             await game.delete_game_channels(self.bot.guilds, guild.id)
+                            models.GameLog.create(game=game, message=f'I purged the game during cleanup of old incomplete games.')
                             # await self.bot.loop.run_in_executor(None, game.delete_game)
                             game.delete_game()
 
@@ -284,6 +288,7 @@ class administration(commands.Cog):
                         delete_result.append(f'Deleting incomplete ranked {game_size}-player game older than 150 days. - {game.get_headline()} - {game.date}{rank_str}')
                         await game.delete_game_channels(self.bot.guilds, guild.id)
                         # await self.bot.loop.run_in_executor(None, game.delete_game)
+                        models.GameLog.create(game=game, message=f'I purged the game during cleanup of old incomplete games.')
                         game.delete_game()
 
                     if game_size >= 5 and not game.is_ranked and game.date < old_120d and not game.is_completed:
@@ -291,6 +296,7 @@ class administration(commands.Cog):
                         delete_result.append(f'Deleting incomplete unranked {game_size}-player game older than 120 days. - {game.get_headline()} - {game.date}{rank_str}')
                         await game.delete_game_channels(self.bot.guilds, guild.id)
                         # await self.bot.loop.run_in_executor(None, game.delete_game)
+                        models.GameLog.create(game=game, message=f'I purged the game during cleanup of old incomplete games.')
                         game.delete_game()
 
                 delete_str = '\n'.join(delete_result)
@@ -380,25 +386,26 @@ class administration(commands.Cog):
             logger.warn('Game unstarted while in game-related channel')
 
     @commands.command(usage='game_id')
-    async def gamelog(self, ctx, game: PolyGame = None):
+    @commands.cooldown(1, 20, commands.BucketType.user)
+    async def gamelog(self, ctx, game_id: int = None):
         """ *Staff*: Lists log entries related to a particular game
 
          **Examples**
         `[p]gamelog 1234`
         """
 
-        if game is None:
-            return await ctx.send(f'No matching game was found.')
+        if game_id is None:
+            return await ctx.send(f'No game ID was entered')
 
         message_list = []
-        entries = models.GameLog.select().where(models.GameLog.game == game).order_by(models.GameLog.message_ts)
+        entries = models.GameLog.select().where(models.GameLog.game == game_id).order_by(models.GameLog.message_ts)
         for entry in entries:
             message_list.append(f'`{entry.message_ts.strftime("%Y-%m-%d %H:%M:%S")}` - {entry.message}')
 
         if message_list:
             await utilities.buffered_send(destination=ctx, content='\n'.join(message_list))
         else:
-            await ctx.send(f'No log entries for game {game.id}. Actions did not get logged before June 27th 2020.')
+            await ctx.send(f'No log entries for game {game_id}. Actions did not get logged before June 27th 2020.')
 
     @commands.command(usage='game_id')
     async def extend(self, ctx, game: PolyGame = None):

@@ -134,7 +134,7 @@ class misc(commands.Cog):
         await ctx.send(embed=embed)
 
     @commands.command(hidden=True, usage='message')
-    # @commands.cooldown(1, 30, commands.BucketType.user)
+    @commands.cooldown(1, 30, commands.BucketType.user)
     @settings.in_bot_channel_strict()
     @models.is_registered_member()
     async def pingall(self, ctx, *, message: str = None):
