@@ -28,12 +28,9 @@ class misc(commands.Cog):
         messages = []
         logs = models.GameLog.select().where(models.GameLog.guild_id == 0)
         for log in logs:
-            game = models.Game.get_or_none(id=log.game_id)
-            if game:
-                log.guild_id = game.guild_id
-                log.save()
-            else:
-                messages.append(f'Could not get game id for log of game {log.game_id}')
+
+            messages.append(f'Deleting log of game {log.game_id}: {log.message}')
+            log.delete_instance()
 
         await utilities.buffered_send(destination=ctx, content='\n'.join(messages))
 

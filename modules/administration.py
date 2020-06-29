@@ -415,19 +415,28 @@ class administration(commands.Cog):
 
             if game_id:
                 message_list = [f'Listing all entries for game # {game_id}...']
-                entries = models.GameLog.select().where(models.GameLog.game_id == game_id).order_by(-models.GameLog.message_ts)
+                entries = models.GameLog.select().where(
+                    (models.GameLog.game_id == game_id) & (models.GameLog.guild_id == ctx.guild.id)
+                ).order_by(-models.GameLog.message_ts)
                 for entry in entries:
                     message_list.append(f'`{entry.message_ts.strftime("%Y-%m-%d %H:%M:%S")}` - {entry.message}')
             else:
                 message_list = [f'Listing the 50 most recent entries matching **{search_term}**...']
-                entries = models.GameLog.select().where(models.GameLog.message.contains(search_term)).order_by(-models.GameLog.message_ts).limit(50)
+                entries = models.GameLog.select().where(
+                    (models.GameLog.message.contains(search_term)) & (models.GameLog.guild_id == ctx.guild.id)
+                ).order_by(-models.GameLog.message_ts).limit(50)
                 for entry in entries:
                     message_list.append(f'`{entry.message_ts.strftime("%Y-%m-%d %H:%M:%S")}` - {entry.game_id} - {entry.message}')
 
         elif ctx.invoked_with == 'gamelogs' and settings.is_mod(ctx.author):
             # List 50 more recent logged actions
-            message_list = [f'Listing the 50 most recent log items...']
-            entries = models.GameLog.select().order_by(-models.GameLog.message_ts).limit(50)
+            if search_term and search_term.upper() == 'ALL':
+                message_list = [f'Listing the 50 most recent log items (across all guilds)...']
+                entries = models.GameLog.select().order_by(-models.GameLog.message_ts).limit(50)
+            else:
+                message_list = [f'Listing the 50 most recent log items...']
+                entries = models.GameLog.select().where(models.GameLog.guild_id == ctx.guild.id).order_by(-models.GameLog.message_ts).limit(50)
+
             for entry in entries:
                 message_list.append(f'`{entry.message_ts.strftime("%Y-%m-%d %H:%M:%S")}` - {entry.game_id} - {entry.message}')
 
