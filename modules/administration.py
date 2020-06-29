@@ -385,24 +385,41 @@ class administration(commands.Cog):
         except discord.errors.NotFound:
             logger.warn('Game unstarted while in game-related channel')
 
-    @commands.command(usage='game_id', aliases=['gamelogs'])
-    @commands.cooldown(1, 20, commands.BucketType.user)
-    async def gamelog(self, ctx, game_id: int = None):
+    @commands.command(usage='search_term', aliases=['gamelogs'])
+    # @commands.cooldown(1, 20, commands.BucketType.user)
+    async def gamelog(self, ctx, *, search_term: str = None):
         """ *Staff*: Lists log entries related to a particular game
 
          **Examples**
         `[p]gamelog 1234`
+        `[p]gamelog Nelluk`
         """
-
         if ctx.invoked_with == 'gamelog':
             # look up history of one game
-            if game_id is None:
-                return await ctx.send(f'No game ID was entered')
 
-            message_list = [f'Listing all entries for game # {game_id}...']
-            entries = models.GameLog.select().where(models.GameLog.game == game_id).order_by(models.GameLog.message_ts)
-            for entry in entries:
-                message_list.append(f'`{entry.message_ts.strftime("%Y-%m-%d %H:%M:%S")}` - {entry.message}')
+            if search_term:
+                try:
+                    game_id = int(search_term)
+                except (ValueError):
+                    game_id = None  # search_term is string, used for text search of log contents
+                else:
+                    # Numeric search term passed, if its <= 7 chars assume its a game ID and search that way
+                    if len(search_term) > 7:
+                        # if numeric string > 7 chars passed, assuming its not a game ID but will be used for a text search
+                        game_id = None
+            else:
+                return await ctx.send(f'No search term was entered')
+
+            if game_id:
+                message_list = [f'Listing all entries for game # {game_id}...']
+                entries = models.GameLog.select().where(models.GameLog.game == game_id).order_by(models.GameLog.message_ts)
+                for entry in entries:
+                    message_list.append(f'`{entry.message_ts.strftime("%Y-%m-%d %H:%M:%S")}` - {entry.message}')
+            else:
+                message_list = [f'Listing the 50 most recent entries matching **{search_term}**...']
+                entries = models.GameLog.select().where(models.GameLog.message.contains(search_term)).order_by(-models.GameLog.message_ts).limit(50)
+                for entry in entries:
+                    message_list.append(f'`{entry.message_ts.strftime("%Y-%m-%d %H:%M:%S")}` - {entry.game_id} - {entry.message}')
 
         elif ctx.invoked_with == 'gamelogs' and settings.is_mod(ctx.author):
             # List 50 more recent logged actions
