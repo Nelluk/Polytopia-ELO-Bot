@@ -393,6 +393,8 @@ class administration(commands.Cog):
          **Examples**
         `[p]gamelog 1234`
         `[p]gamelog Nelluk`
+
+        `[p]gamelogs` - *Mod only*: List last 50 log messages, regardless of game.
         """
 
         # TODO: Might have issue with log entries leaking across servers. Could add a guild_id field to the log table and limit
