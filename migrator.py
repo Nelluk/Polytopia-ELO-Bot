@@ -47,6 +47,7 @@ migrator = PostgresqlMigrator(db)
 # team_elo_after_game = SmallIntegerField(default=None, null=True)
 # team_elo_after_game_alltime = SmallIntegerField(default=None, null=True)
 # size = ArrayField(SmallIntegerField, default=0)
+guild_id = BitField(unique=False, null=False, default=0)
 
 migrate(
     # migrator.add_column('discordmember', 'elo_max', elo_max),
@@ -66,10 +67,10 @@ migrate(
     # migrator.add_column('lineup', 'elo_after_game_global', elo_after_game_global),
     # migrator.add_column('gameside', 'team_elo_after_game', team_elo_after_game),
     # migrator.add_column('gameside', 'team_elo_after_game_alltime', team_elo_after_game_alltime)
-    # migrator.add_column('game', 'size', size),
+    migrator.add_column('gamelog', 'guild_id', guild_id),
     # migrator.drop_column('game', 'size'),
     # migrator.alter_column_type('gamelog', 'game_id', ForeignKeyField(Game))
-    migrator.drop_constraint('gamelog', 'gamelog_game_id_fkey')
+    # migrator.drop_constraint('gamelog', 'gamelog_game_id_fkey')
 
 )
 

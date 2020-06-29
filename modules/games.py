@@ -1266,7 +1266,7 @@ class games(commands.Cog):
         if winning_game.is_pending:
             return await ctx.send(f'This game has not started yet.')
 
-        models.GameLog.create(game=winning_game, message=f'Win confirm logged by **{ctx.author.display_name}** (`{ctx.author.id}`) for winner **{winning_obj.name}**')
+        models.GameLog.create(game_id=winning_game, guild_id=ctx.guild.id, message=f'Win confirm logged by **{ctx.author.display_name}** (`{ctx.author.id}`) for winner **{winning_obj.name}**')
         if settings.is_staff(ctx):
             confirm_win = True
         else:
@@ -1356,7 +1356,7 @@ class games(commands.Cog):
         if settings.is_staff(ctx):
             # Staff usage: reset any game to Incomplete state
             game.confirmations_reset()
-            models.GameLog.create(game=game, message=f'**{ctx.author.display_name}** (`{ctx.author.id}`) staffer used unwin command.')
+            models.GameLog.create(game_id=game, guild_id=ctx.guild.id, message=f'**{ctx.author.display_name}** (`{ctx.author.id}`) staffer used unwin command.')
             if game.is_completed and game.is_confirmed:
                 elo_logger.debug(f'unwin game {game.id}')
                 async with ctx.typing():
@@ -1404,7 +1404,7 @@ class games(commands.Cog):
 
             if author_side == game.winner:
                 logger.debug(f'Player {ctx.author.name} is removing their own win claim on game {game.id}')
-                models.GameLog.create(game=game, message=f'**{ctx.author.display_name}** (`{ctx.author.id}`) removes their self-win claim and confirmations have reset.')
+                models.GameLog.create(game_id=game, guild_id=ctx.guild.id, message=f'**{ctx.author.display_name}** (`{ctx.author.id}`) removes their self-win claim and confirmations have reset.')
                 game.confirmations_reset()
                 game.completed_ts = None
                 game.is_completed = False
@@ -1415,7 +1415,7 @@ class games(commands.Cog):
             else:
                 # author removing win claim for a game pointing at another side as the winner
                 logger.debug(f'Player {ctx.author.name} is removing win claim on game {game.id}')
-                models.GameLog.create(game=game, message=f'**{ctx.author.display_name}** (`{ctx.author.id}`) removed their confirmation of the game winner.')
+                models.GameLog.create(game_id=game, guild_id=ctx.guild.id, message=f'**{ctx.author.display_name}** (`{ctx.author.id}`) removed their confirmation of the game winner.')
                 author_side.win_confirmed = False
                 author_side.save()
 
@@ -1444,7 +1444,7 @@ class games(commands.Cog):
             if not is_hosted_by and not settings.is_staff(ctx):
                 host_name = f' **{host.name}**' if host else ''
                 return await ctx.send(f'Only the game host{host_name} or server staff can do this.')
-            models.GameLog.create(game=game, message=f'**{ctx.author.display_name}** (`{ctx.author.id}`) deleted the game.')
+            models.GameLog.create(game_id=game, guild_id=ctx.guild.id, message=f'**{ctx.author.display_name}** (`{ctx.author.id}`) deleted the game.')
             game.delete_game()
             return await ctx.send(f'Deleting open game {game.id}')
 
@@ -1459,7 +1459,7 @@ class games(commands.Cog):
             await game.update_announcement(guild=ctx.guild, prefix=ctx.prefix)
 
         await game.delete_game_channels(self.bot.guilds, ctx.guild.id)
-        models.GameLog.create(game=game, message=f'**{ctx.author.display_name}** (`{ctx.author.id}`) deleted the game.')
+        models.GameLog.create(game_id=game, guild_id=ctx.guild.id, message=f'**{ctx.author.display_name}** (`{ctx.author.id}`) deleted the game.')
         gid = game.id
         try:
             async with ctx.typing():
@@ -1536,7 +1536,7 @@ class games(commands.Cog):
 
         await game.update_squad_channels(self.bot.guilds, game_guild.id)
         await game.update_announcement(guild=game_guild, prefix=ctx.prefix)
-        models.GameLog.create(game=game, message=f'**{ctx.author.display_name}** (`{ctx.author.id}`) renamed the game to *{new_game_name}*')
+        models.GameLog.create(game_id=game, guild_id=ctx.guild.id, message=f'**{ctx.author.display_name}** (`{ctx.author.id}`) renamed the game to *{new_game_name}*')
 
         new_game_name = game.name if game.name else 'None'
         old_game_name = old_game_name if old_game_name else 'None'
@@ -1733,7 +1733,7 @@ class games(commands.Cog):
 async def post_win_messaging(guild, prefix, current_chan, winning_game):
 
     await winning_game.update_squad_channels(guild_list=settings.bot.guilds, guild_id=guild.id, message=f'The game is over with **{winning_game.winner.name()}** victorious. *This channel will be purged soon.*')
-    models.GameLog.create(game=winning_game.id, message=f'Win is confirmed and ELO changes processed.')
+    models.GameLog.create(game_id=winning_game.id, guild_id=winning_game.guild_id, message=f'Win is confirmed and ELO changes processed.')
     player_mentions = [f'<@{l.player.discord_member.discord_id}>' for l in winning_game.lineup]
     embed, content = winning_game.embed(guild=guild, prefix=prefix)
 
@@ -1765,7 +1765,7 @@ async def post_unwin_messaging(guild, prefix, current_chan, game, previously_con
 
 async def post_newgame_messaging(ctx, game):
 
-    models.GameLog.create(game=game, message=f'Started with name **{game.name}**')
+    models.GameLog.create(game_id=game, guild_id=ctx.guild.id, message=f'Started with name **{game.name}**')
     mentions_list = [f'<@{l.player.discord_member.discord_id}>' for l in game.lineup]
 
     embed, content = game.embed(guild=ctx.guild, prefix=ctx.prefix)

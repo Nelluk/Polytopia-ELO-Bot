@@ -2298,9 +2298,10 @@ class GameSide(BaseModel):
 
 
 class GameLog(BaseModel):
-    game = ForeignKeyField(Game, null=False, backref='logs', on_delete='CASCADE')
+    game_id = SmallIntegerField(null=False)
     message = TextField(null=True)
     message_ts = DateTimeField(default=datetime.datetime.now)
+    guild_id = BitField(unique=False, null=False, default=0)
 
 
 class Lineup(BaseModel):

@@ -26,17 +26,16 @@ class misc(commands.Cog):
     @commands.is_owner()
     async def test(self, ctx, *, arg: str = None):
 
-        games = models.Game.select().where(models.Game.is_pending == 1)
-        names = []
-        for g in games:
-            players_in_lobby = g.capacity()[0]
-            print(g.get_headline(), players_in_lobby)
-            if players_in_lobby == 0 and ctx.invoked_with == 'tsgo':
-                names.append(f'{g.get_headline()} {g.is_pending}')
-                print(f'Deleting {g.id}')
-                g.delete_game()
+        logs = models.GameLog.select().where(models.GameLog.guild_id == 0)
+        for log in logs:
+            game = models.Game.get_or_none(id=log.game_id)
+            if game:
+                log.guild_id = game.guild_id
+                log.save()
+            else:
+                print(f'Could not get game id for log of game {log.game_id}')
 
-        await utilities.buffered_send(destination=ctx, content='\n'.join(names))
+        await ctx.send(f'Processed {len(logs)} logs')
 
     @commands.command(usage=None)
     @settings.in_bot_channel_strict()
@@ -198,7 +197,7 @@ class misc(commands.Cog):
 
         for game in game_list:
             logger.debug(f'Sending message to game channels for game {game.id} from pingall')
-            models.GameLog.create(game=game, message=f'{log_message} *{clean_message}*')
+            models.GameLog.create(game_id=game, guild_id=ctx.guild.id, message=f'{log_message} *{clean_message}*')
             await game.update_squad_channels(self.bot.guilds, game.guild_id, message=f'Message to all players in unfinished games for <@{target}>: *{clean_message}*')
 
     @commands.command(usage='game_id message')
@@ -287,7 +286,7 @@ class misc(commands.Cog):
 
         player_mentions = [f'<@{l.player.discord_member.discord_id}>' for l in game.lineup]
         full_message = f'Message from {ctx.author.mention} (**{ctx.author.name}**) regarding game {game.id} **{game.name}**:\n*{message}*'
-        models.GameLog.create(game=game, message=f'**{ctx.author.display_name}** (`{ctx.author.id}`) pinged the game with message: *{message}*')
+        models.GameLog.create(game_id=game, guild_id=ctx.guild.id, message=f'**{ctx.author.display_name}** (`{ctx.author.id}`) pinged the game with message: *{message}*')
 
         if ctx.channel.id in permitted_channels_private:
             logger.debug(f'Ping triggered in private channel {ctx.channel.id}')
