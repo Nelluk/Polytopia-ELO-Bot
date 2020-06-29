@@ -25,7 +25,7 @@ class misc(commands.Cog):
     @commands.command(hidden=True, aliases=['ts', 'tsgo'])
     @commands.is_owner()
     async def test(self, ctx, *, arg: str = None):
-
+        messages = []
         logs = models.GameLog.select().where(models.GameLog.guild_id == 0)
         for log in logs:
             game = models.Game.get_or_none(id=log.game_id)
@@ -33,9 +33,9 @@ class misc(commands.Cog):
                 log.guild_id = game.guild_id
                 log.save()
             else:
-                print(f'Could not get game id for log of game {log.game_id}')
+                messages.append(f'Could not get game id for log of game {log.game_id}')
 
-        await ctx.send(f'Processed {len(logs)} logs')
+        await utilities.buffered_send(destination=ctx, content='\n'.join(messages))
 
     @commands.command(usage=None)
     @settings.in_bot_channel_strict()
