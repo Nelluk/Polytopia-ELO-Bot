@@ -412,7 +412,7 @@ class administration(commands.Cog):
 
             if game_id:
                 message_list = [f'Listing all entries for game # {game_id}...']
-                entries = models.GameLog.select().where(models.GameLog.game == game_id).order_by(models.GameLog.message_ts)
+                entries = models.GameLog.select().where(models.GameLog.game == game_id).order_by(-models.GameLog.message_ts)
                 for entry in entries:
                     message_list.append(f'`{entry.message_ts.strftime("%Y-%m-%d %H:%M:%S")}` - {entry.message}')
             else:
