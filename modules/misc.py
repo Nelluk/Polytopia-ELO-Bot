@@ -35,6 +35,8 @@ class misc(commands.Cog):
             gamesides = g.ordered_side_list()
             new_size = [gs.size for gs in gamesides]
             message.append(f'{g.get_headline()} - {new_size}')
+            g.size = new_size
+            g.save()
 
         # for g in games:
         #     if len(g.lineup) > 2:
@@ -43,10 +45,6 @@ class misc(commands.Cog):
         #         g.save()
         #         print(g.get_headline())
         await utilities.buffered_send(destination=ctx, content='\n'.join(message))
-        gs = models.GameSide.select().where(models.GameSide.size == 0)
-        for g in gs:
-            g.size = 1
-            g.save()
 
     @commands.command(usage=None)
     @settings.in_bot_channel_strict()
