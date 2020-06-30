@@ -26,16 +26,21 @@ class misc(commands.Cog):
     @commands.is_owner()
     async def test(self, ctx, *, arg: str = None):
 
-        games = models.Game.select().where(
-            (models.Game.id < 2000) & (models.Game.size == [1, 1])
-        )
+        # games = models.Game.select().where(
+        #     (models.Game.id < 2000) & (models.Game.size == [1, 1])
+        # )
 
-        for g in games:
-            if len(g.lineup) > 2:
-                gamesides = g.ordered_side_list()
-                g.size = [len(gs.lineup) for gs in gamesides]
-                g.save()
-                print(g.get_headline())
+        # for g in games:
+        #     if len(g.lineup) > 2:
+        #         gamesides = g.ordered_side_list()
+        #         g.size = [len(gs.lineup) for gs in gamesides]
+        #         g.save()
+        #         print(g.get_headline())
+
+        gs = models.GameSide.select().where(models.GameSide.size == 0)
+        for g in gs:
+            g.size = 1
+            g.save()
 
     @commands.command(usage=None)
     @settings.in_bot_channel_strict()
