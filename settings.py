@@ -805,26 +805,30 @@ def in_bot_channel():
     return commands.check(predicate)
 
 
+async def is_bot_channel_strict(ctx):
+    if guild_setting(ctx.guild.id, 'bot_channels_strict') is None:
+        if guild_setting(ctx.guild.id, 'bot_channels') is None:
+            return True
+        else:
+            chan_list = guild_setting(ctx.guild.id, 'bot_channels')
+    else:
+        chan_list = guild_setting(ctx.guild.id, 'bot_channels_strict')
+    if is_mod(ctx):
+        return True
+    if ctx.message.channel.id in chan_list + guild_setting(ctx.guild.id, 'bot_channels_private'):
+        return True
+    else:
+        if ctx.invoked_with == 'help' and ctx.command.name != 'help':
+            # Silently fail check when help cycles through every bot command for a check.
+            pass
+        else:
+            # primary_bot_channel = chan_list[0]
+            channel_tags = [f'<#{chan_id}>' for chan_id in chan_list]
+            await ctx.send(f'This command can only be used in a designated bot spam channel. Try: {" ".join(channel_tags)}')
+        return False
+
+
 def in_bot_channel_strict():
     async def predicate(ctx):
-        if guild_setting(ctx.guild.id, 'bot_channels_strict') is None:
-            if guild_setting(ctx.guild.id, 'bot_channels') is None:
-                return True
-            else:
-                chan_list = guild_setting(ctx.guild.id, 'bot_channels')
-        else:
-            chan_list = guild_setting(ctx.guild.id, 'bot_channels_strict')
-        if is_mod(ctx):
-            return True
-        if ctx.message.channel.id in chan_list + guild_setting(ctx.guild.id, 'bot_channels_private'):
-            return True
-        else:
-            if ctx.invoked_with == 'help' and ctx.command.name != 'help':
-                # Silently fail check when help cycles through every bot command for a check.
-                pass
-            else:
-                # primary_bot_channel = chan_list[0]
-                channel_tags = [f'<#{chan_id}>' for chan_id in chan_list]
-                await ctx.send(f'This command can only be used in a designated bot spam channel. Try: {" ".join(channel_tags)}')
-            return False
+        return is_bot_channel_strict(ctx)
     return commands.check(predicate)

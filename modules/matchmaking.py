@@ -256,6 +256,9 @@ class matchmaking(commands.Cog):
         if warning_message:
             await ctx.send(warning_message)
 
+        # fmt_log_opengame = '**{0.display_name}** (`{0.id}`) opened new {1} game. Notes: {2}'
+        # models.GameLog.create(game_id=opengame, guild_id=ctx.guild.id, message=fmt_log_opengame.format(ctx.author, team_size_str, notes_str))
+
         models.GameLog.create(game_id=opengame, guild_id=ctx.guild.id, message=f'**{ctx.author.display_name}** (`{ctx.author.id}`) opened new {team_size_str} game. Notes: {notes_str}')
         await ctx.send(f'Starting new {"unranked " if not is_ranked else ""}open game ID {opengame.id}. Size: {team_size_str}. Expiration: {expiration_hours} hours.\nNotes: *{notes_str}*\n'
             f'Other players can join this game with `{ctx.prefix}join {opengame.id}`.')

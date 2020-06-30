@@ -1,5 +1,6 @@
 import discord
 from discord.ext import commands
+# import settings
 
 # notes:
 # look into the discord.py code for $help category (ie $help matchmaking) output which by default is not too far from what i want for the overall $help output
@@ -26,6 +27,13 @@ class MyHelpCommand(commands.MinimalHelpCommand):
             self.paginator = commands.Paginator(prefix=None)
 
         super().__init__(**options)
+
+    # TODO: Currently help command works in non-bot channels which gives a list of only commands that work in that channel
+    # not sure how to add an in_bot_channel_strict check to the help command itself - adding a Cog level check like below doesn't
+    # seem to behave as I'd want
+    # async def cog_check(self, ctx):
+
+    #     return settings.is_bot_channel_strict(ctx)
 
     def get_command_signature(self, command):
         # top line of '$help <command>' output
