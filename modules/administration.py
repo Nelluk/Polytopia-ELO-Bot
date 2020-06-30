@@ -41,6 +41,7 @@ class administration(commands.Cog):
         await self.bot.close()
         message = ''
 
+        # TODO: use this clean quit to delete messages currently waiting for deletion (misc.task_broadcast_newbie_message())
         try:
             if models.db.close():
                 message = 'db connecton closing normally'
