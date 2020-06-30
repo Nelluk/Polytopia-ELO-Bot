@@ -42,7 +42,7 @@ class misc(commands.Cog):
         #         g.size = [len(gs.lineup) for gs in gamesides]
         #         g.save()
         #         print(g.get_headline())
-
+        await utilities.buffered_send(destination=ctx, content='\n'.join(message))
         gs = models.GameSide.select().where(models.GameSide.size == 0)
         for g in gs:
             g.size = 1
