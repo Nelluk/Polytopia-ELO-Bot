@@ -26,9 +26,15 @@ class misc(commands.Cog):
     @commands.is_owner()
     async def test(self, ctx, *, arg: str = None):
 
-        # games = models.Game.select().where(
-        #     (models.Game.id < 2000) & (models.Game.size == [1, 1])
-        # )
+        message = []
+        games = models.Game.select().where(
+            (models.Game.is_pending == 1)
+        )
+
+        for g in games:
+            gamesides = g.ordered_side_list()
+            new_size = [gs.size for gs in gamesides]
+            message.append(f'{g.get_headline()} - {new_size}')
 
         # for g in games:
         #     if len(g.lineup) > 2:
