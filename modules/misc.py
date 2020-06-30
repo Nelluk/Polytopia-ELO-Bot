@@ -25,14 +25,17 @@ class misc(commands.Cog):
     @commands.command(hidden=True, aliases=['ts', 'tsgo'])
     @commands.is_owner()
     async def test(self, ctx, *, arg: str = None):
-        messages = []
-        logs = models.GameLog.select().where(models.GameLog.guild_id == 0)
-        for log in logs:
 
-            messages.append(f'Deleting log of game {log.game_id}: {log.message}')
-            log.delete_instance()
+        games = models.Game.select().where(
+            (models.Game.id < 2000) & (models.Game.size == [1, 1])
+        )
 
-        await utilities.buffered_send(destination=ctx, content='\n'.join(messages))
+        for g in games:
+            if len(g.lineup) > 2:
+                gamesides = g.ordered_side_list()
+                g.size = [len(gs.lineup) for gs in gamesides]
+                g.save()
+                print(g.get_headline())
 
     @commands.command(usage=None)
     @settings.in_bot_channel_strict()
