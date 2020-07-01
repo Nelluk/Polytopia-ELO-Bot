@@ -295,7 +295,7 @@ class misc(commands.Cog):
 
         player_mentions = [f'<@{l.player.discord_member.discord_id}>' for l in game.lineup]
         full_message = f'Message from {ctx.author.mention} (**{ctx.author.name}**) regarding game {game.id} **{game.name}**:\n*{message}*'
-        models.GameLog.create(game_id=game, guild_id=ctx.guild.id, message=f'**{discord.utils.escape_markdown(ctx.author.display_name)}** (`{ctx.author.id}`) pinged the game with message: *{discord.utils.escape_markdown(message)}*')
+        models.GameLog.create(game_id=game, guild_id=game.guild_id, message=f'**{discord.utils.escape_markdown(ctx.author.display_name)}** (`{ctx.author.id}`) pinged the game with message: *{discord.utils.escape_markdown(message)}*')
 
         if ctx.channel.id in permitted_channels_private:
             logger.debug(f'Ping triggered in private channel {ctx.channel.id}')
