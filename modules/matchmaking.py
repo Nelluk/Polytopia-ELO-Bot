@@ -881,7 +881,8 @@ class matchmaking(commands.Cog):
                         opengame = models.Game.create(host=None, notes=lobby['notes'],
                                                       guild_id=lobby['guild'], is_pending=True,
                                                       is_ranked=lobby['ranked'], expiration=expiration_timestamp, size=lobby['size'])
-                        models.GameLog.create(game_id=opengame, guild_id=guild.id, message=f'I created an empty {lobby["size_str"]} lobby. *{discord.utils.escape_markdown(opengame.notes)}*')
+                        notes_str = f'*{discord.utils.escape_markdown(opengame.notes)}*' if opengame.notes else ''
+                        models.GameLog.create(game_id=opengame, guild_id=guild.id, message=f'I created an empty {lobby["size_str"]} lobby. {notes_str}')
                         for count, size in enumerate(lobby['size']):
                             role_lock_id = role_locks[count]
                             role_lock_name = None
