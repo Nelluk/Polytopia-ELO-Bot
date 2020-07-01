@@ -26,25 +26,19 @@ class misc(commands.Cog):
     @commands.is_owner()
     async def test(self, ctx, *, arg: str = None):
 
-        message = []
-        games = models.Game.select().where(
-            (models.Game.is_pending == 1)
-        )
+        messages = []
+        logs = models.GameLog.select().where(models.GameLog.message.contains('ping'))
+        await ctx.send(f'{len(logs)} matching entries')
+        for log in logs:
+            game = models.Game.get_or_none(id=log.game_id)
+            if game:
+                log.guild_id = game.guild_id
+                log.save()
+                messages.append(f'Updating log entry for game {log.game_id}')
+            else:
+                messages.append(f'Could not get game id for log of game {log.game_id}')
 
-        for g in games:
-            gamesides = g.ordered_side_list()
-            new_size = [gs.size for gs in gamesides]
-            message.append(f'{g.get_headline()} - {new_size}')
-            g.size = new_size
-            g.save()
-
-        # for g in games:
-        #     if len(g.lineup) > 2:
-        #         gamesides = g.ordered_side_list()
-        #         g.size = [len(gs.lineup) for gs in gamesides]
-        #         g.save()
-        #         print(g.get_headline())
-        await utilities.buffered_send(destination=ctx, content='\n'.join(message))
+        await utilities.buffered_send(destination=ctx, content='\n'.join(messages))
 
     @commands.command(usage=None)
     @settings.in_bot_channel_strict()
