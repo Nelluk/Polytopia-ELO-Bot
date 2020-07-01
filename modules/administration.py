@@ -42,6 +42,7 @@ class administration(commands.Cog):
         message = ''
 
         # TODO: use this clean quit to delete messages currently waiting for deletion (misc.task_broadcast_newbie_message())
+        # would need to store the message/channel IDs in memory as they are created (not sure how to purge the ones that are being deleted)
         try:
             if models.db.close():
                 message = 'db connecton closing normally'
@@ -327,7 +328,7 @@ class administration(commands.Cog):
         game.save()
 
         logger.info(f'Game {game.id} is now marked as ranked.')
-        models.GameLog.create(game_id=game, guild_id=ctx.guild.id, message=f'**{ctx.author.display_name}** (`{ctx.author.id}`) set game to be ranked.')
+        models.GameLog.create(game_id=game, guild_id=ctx.guild.id, message=f'**{discord.utils.escape_markdown(ctx.author.display_name)}** (`{ctx.author.id}`) set game to be ranked.')
         return await ctx.send(f'Game {game.id} is now marked as ranked.')
 
     @commands.command(usage='game_id')
@@ -379,7 +380,7 @@ class administration(commands.Cog):
         tomorrow = (datetime.datetime.now() + datetime.timedelta(hours=24))
         game.expiration = tomorrow if game.expiration < tomorrow else game.expiration
         game.save()
-        models.GameLog.create(game_id=game, guild_id=ctx.guild.id, message=f'**{ctx.author.display_name}** (`{ctx.author.id}`) changed in-progress game to an open game. ({ctx.prefix}unstart)')
+        models.GameLog.create(game_id=game, guild_id=ctx.guild.id, message=f'**{discord.utils.escape_markdown(ctx.author.display_name)}** (`{ctx.author.id}`) changed in-progress game to an open game. ({ctx.prefix}unstart)')
 
         try:
             await ctx.send(f'Game {game.id} is now an open game and no longer in progress.')
