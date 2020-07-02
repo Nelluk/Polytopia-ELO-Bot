@@ -2302,6 +2302,7 @@ class GameLog(BaseModel):
     message = TextField(null=True)
     message_ts = DateTimeField(default=datetime.datetime.now)
     guild_id = BitField(unique=False, null=False, default=0)
+    # Entries will have a game_id and guild_id of 0 for things like $setcode and $setname
 
 
 class Lineup(BaseModel):

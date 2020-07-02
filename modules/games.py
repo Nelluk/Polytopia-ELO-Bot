@@ -764,6 +764,7 @@ class games(commands.Cog):
         if len(args) == 1:      # User setting code for themselves. No special permissions required.
             target_discord_member = ctx.message.author
             new_id = args[0]
+            log_by_str = ''
 
         elif len(args) == 2:    # User changing another user's code. Helper permissions required.
 
@@ -778,6 +779,7 @@ class games(commands.Cog):
                 return await ctx.send(f'Found {len(guild_matches)} server members matching *{args[0]}*. Try specifying with an @Mention')
             target_discord_member = guild_matches[0]
             new_id = args[1]
+            log_by_str = f' by {ctx.author.display_name} (`{ctx.author.id}`)'
         else:
             # Unexpected input
             await ctx.send(f'Wrong number of arguments. Use `{ctx.prefix}setcode YOURCODEHERE`')
@@ -798,6 +800,8 @@ class games(commands.Cog):
                                         team=team_list[0])
         player.discord_member.polytopia_id = new_id
         player.discord_member.save()
+
+        models.GameLog.create(game_id=0, guild_id=0, message=f'**{player.discord_member.name}** (`{player.discord_member.discord_id}`) code set to `{new_id}` {log_by_str}')
 
         if created:
             await ctx.send(f'Player **{player.name}** added to system with Polytopia code `{player.discord_member.polytopia_id}` and ELO **{player.elo}**\n'
@@ -923,6 +927,7 @@ class games(commands.Cog):
                 return await ctx.send(f'You do not have permission to set another player\'s name.')
             new_name = ' '.join(args[1:])
             target_string = str(m)
+            log_by_str = f' by {ctx.author.display_name} (`{ctx.author.id}`)'
         else:
             # Play using command on their own games
             new_name = ' '.join(args)
@@ -944,6 +949,8 @@ class games(commands.Cog):
         new_name = discord.utils.escape_mentions(new_name)
         player_target.discord_member.polytopia_name = new_name
         player_target.discord_member.save()
+
+        models.GameLog.create(game_id=0, guild_id=0, message=f'**{player_target.discord_member.name}** (`{player_target.discord_member.discord_id}`) name set to *{new_name}* {log_by_str}')
         await ctx.send(f'Player **{player_target.name}** updated in system with Polytopia name **{new_name}**.')
 
     @commands.command(brief='Set player time zone', usage='UTC±#')

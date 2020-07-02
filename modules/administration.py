@@ -425,9 +425,12 @@ class administration(commands.Cog):
                 for entry in entries:
                     message_list.append(f'`{entry.message_ts.strftime("%Y-%m-%d %H:%M:%S")}` - {entry.message}')
             else:
+                # Keyword search will also return log entries not tied to a game or server, specifically code/name sets
                 message_list = [f'Listing the 50 most recent entries matching **{search_term}**...']
                 entries = models.GameLog.select().where(
-                    (models.GameLog.message.contains(search_term)) & (models.GameLog.guild_id == ctx.guild.id)
+                    (models.GameLog.message.contains(search_term)) & (
+                        (models.GameLog.guild_id == ctx.guild.id) | (models.GameLog.guild_id == 0)
+                    )
                 ).order_by(-models.GameLog.message_ts).limit(50)
                 for entry in entries:
                     message_list.append(f'`{entry.message_ts.strftime("%Y-%m-%d %H:%M:%S")}` - {entry.game_id} - {entry.message}')
