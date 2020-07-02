@@ -27,16 +27,16 @@ class misc(commands.Cog):
     async def test(self, ctx, *, arg: str = None):
 
         types = [
-            [1, 1], [2, 2], [3, 3], [4, 4]
+            [1, 1], [2, 2], [3, 3], [4, 4], [1, 1, 1], [1, 1, 1, 1], [1, 1, 1, 1, 1]
         ]
         messages = []
         for typ in types:
             game_totals = models.GameSide.select().join(models.Game).where(
-                (models.GameSide.position == 1) & (models.GameSide.game.size == typ) & (models.GameSide.game.guild_id == ctx.guild.id)
+                (models.GameSide.position == 1) & (models.GameSide.game.size == typ)
             ).count()
 
             game_wins = models.GameSide.select().join(models.Game).where(
-                (models.GameSide.position == 1) & (models.GameSide.game.size == typ) & (models.GameSide.game.winner == models.GameSide.id) & (models.GameSide.game.guild_id == ctx.guild.id)
+                (models.GameSide.position == 1) & (models.GameSide.game.size == typ) & (models.GameSide.game.winner == models.GameSide.id)
             ).count()
 
             if game_totals:
