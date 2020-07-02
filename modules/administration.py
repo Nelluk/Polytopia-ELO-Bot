@@ -390,11 +390,12 @@ class administration(commands.Cog):
     @commands.command(usage='search_term', aliases=['gamelogs'])
     # @commands.cooldown(1, 20, commands.BucketType.user)
     async def gamelog(self, ctx, *, search_term: str = None):
-        """ *Staff*: Lists log entries related to a particular game
+        """ *Staff*: Lists or searches log entries
 
          **Examples**
-        `[p]gamelog 1234`
-        `[p]gamelog Nelluk`
+        `[p]gamelog 1234` - See all entries related to a specific game
+        `[p]gamelog Nelluk` - See all entries containing the term Nelluk
+        `[p]gamelog Nelluk join` - See all entries containing both words
 
         `[p]gamelogs` - *Mod only*: List last 50 log messages, regardless of game.
         """
