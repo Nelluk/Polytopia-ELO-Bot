@@ -556,7 +556,7 @@ class league(commands.Cog):
 
         inactive_role = discord.utils.get(ctx.guild.roles, name=settings.guild_setting(ctx.guild.id, 'inactive_role'))
         for member in checked_role.members:
-            if inactive_role and inactive_role in member.roles:
+            if inactive_role and inactive_role in member.roles and inactive_role != checked_role:
                 logger.debug(f'Skipping {member.name} since they have Inactive role')
                 continue
 

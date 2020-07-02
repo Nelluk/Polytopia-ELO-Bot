@@ -612,13 +612,16 @@ class administration(commands.Cog):
         if not inactive_role:
             return await ctx.send('Error loading Inactive role')
 
-        query = models.Player.select(models.DiscordMember.discord_id).join(models.Lineup).join(models.Game).join_from(models.Player, models.DiscordMember).where(
-            (models.Lineup.player == models.Player.id) & (models.Game.date > activity_time) & (models.Game.guild_id == ctx.guild.id)
+        active_players = models.Player.select(models.DiscordMember.discord_id).join(models.Lineup).join(models.Game).join_from(models.Player, models.DiscordMember).where(
+            (models.Lineup.player == models.Player.id) & (models.Game.guild_id == ctx.guild.id) & (
+                (models.Game.date > activity_time) | (models.Game.is_completed == 0)
+            )
         ).group_by(models.DiscordMember.discord_id).having(
             peewee.fn.COUNT(models.Lineup.id) > 0
         )
+        # players who are in an active game or any game started within 45 days
 
-        list_of_active_player_ids = [p[0] for p in query.tuples()]
+        list_of_active_player_ids = [p[0] for p in active_players.tuples()]
 
         defunct_members = []
         async with ctx.typing():
