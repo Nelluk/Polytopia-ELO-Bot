@@ -932,6 +932,7 @@ class games(commands.Cog):
             # Play using command on their own games
             new_name = ' '.join(args)
             target_string = str(ctx.author.id)
+            log_by_str = ''
 
         logger.debug(f'setname target is {target_string} with name {new_name}')
 
