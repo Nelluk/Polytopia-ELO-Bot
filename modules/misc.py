@@ -32,11 +32,11 @@ class misc(commands.Cog):
         messages = []
         for typ in types:
             game_totals = models.GameSide.select().join(models.Game).where(
-                (models.GameSide.position == 1) & (models.GameSide.game.size == typ) & (models.GameSide.game.guild_id == ctx.guild.id) & (models.GameSide.game.is_ranked == 1)
+                (models.GameSide.position == 1) & (models.GameSide.game.size == typ) & (models.GameSide.game.guild_id == ctx.guild.id)
             ).count()
 
             game_wins = models.GameSide.select().join(models.Game).where(
-                (models.GameSide.position == 1) & (models.GameSide.game.size == typ) & (models.GameSide.game.winner == models.GameSide.id) & (models.GameSide.game.guild_id == ctx.guild.id) & (models.GameSide.game.is_ranked == 1)
+                (models.GameSide.position == 1) & (models.GameSide.game.size == typ) & (models.GameSide.game.winner == models.GameSide.id) & (models.GameSide.game.guild_id == ctx.guild.id)
             ).count()
 
             if game_totals:
