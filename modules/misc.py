@@ -27,7 +27,7 @@ class misc(commands.Cog):
     async def test(self, ctx, *, arg: str = None):
 
         types = [
-            [1, 1], [2, 2], [3, 3], [4, 4], [1, 1, 1], [1, 1, 1, 1], [1, 1, 1, 1, 1]
+            [1, 1], [2, 2], [3, 3], [4, 4], [1, 1, 1], [1, 1, 1, 1], [1, 1, 1, 1, 1], [1, 2], [1, 3], [2, 3]
         ]
         messages = []
         for typ in types:
@@ -43,7 +43,7 @@ class misc(commands.Cog):
                 rate = str(round(game_wins / game_totals, 3) * 100)
             else:
                 rate = ''
-            messages.append(f'For game type {typ[0]}v{typ[0]}: {game_wins} home wins of {game_totals} total games  ({rate}%)')
+            messages.append(f'For game type {"v".join(type)}: {game_wins} home wins of {game_totals} total games  ({rate}%)')
 
         await ctx.send('\n'.join(messages))
 
