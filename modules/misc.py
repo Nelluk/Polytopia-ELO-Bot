@@ -43,7 +43,7 @@ class misc(commands.Cog):
                 rate = str(round(game_wins / game_totals, 3) * 100)
             else:
                 rate = ''
-            messages.append(f'For game type {"v".join(type)}: {game_wins} home wins of {game_totals} total games  ({rate}%)')
+            messages.append(f'For game type {"v".join(typ)}: {game_wins} home wins of {game_totals} total games  ({rate}%)')
 
         await ctx.send('\n'.join(messages))
 
