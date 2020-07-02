@@ -26,19 +26,21 @@ class misc(commands.Cog):
     @commands.is_owner()
     async def test(self, ctx, *, arg: str = None):
 
+        types = [
+            [1, 1], [2, 2], [3, 3], [4, 4]
+        ]
         messages = []
-        logs = models.GameLog.select().where(models.GameLog.message.contains('ping'))
-        await ctx.send(f'{len(logs)} matching entries')
-        for log in logs:
-            game = models.Game.get_or_none(id=log.game_id)
-            if game:
-                log.guild_id = game.guild_id
-                log.save()
-                messages.append(f'Updating log entry for game {log.game_id}')
-            else:
-                messages.append(f'Could not get game id for log of game {log.game_id}')
+        for typ in types:
+            game_totals = models.GameSide.select().join(models.Game).where(
+                (models.GameSide.position == 1) & (models.GameSide.game.size == typ)
+            ).count()
 
-        await utilities.buffered_send(destination=ctx, content='\n'.join(messages))
+            game_wins = models.GameSide.select().join(models.Game).where(
+                (models.GameSide.position == 1) & (models.GameSide.game.size == typ) & (models.GameSide.game.winner == models.GameSide.id)
+            ).count()
+            messages.append(f'For game type {typ[0]}v{typ[0]}: {game_wins} home wins of {game_totals} total games')
+
+        await ctx.send('\n'.join(messages))
 
     @commands.command(usage=None)
     @settings.in_bot_channel_strict()
