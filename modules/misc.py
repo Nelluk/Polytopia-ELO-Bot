@@ -38,7 +38,9 @@ class misc(commands.Cog):
             game_wins = models.GameSide.select().join(models.Game).where(
                 (models.GameSide.position == 1) & (models.GameSide.game.size == typ) & (models.GameSide.game.winner == models.GameSide.id)
             ).count()
-            messages.append(f'For game type {typ[0]}v{typ[0]}: {game_wins} home wins of {game_totals} total games')
+
+            rate = round(game_wins / game_totals, 3) * 100
+            messages.append(f'For game type {typ[0]}v{typ[0]}: {game_wins} home wins of {game_totals} total games  ({rate}%)')
 
         await ctx.send('\n'.join(messages))
 
