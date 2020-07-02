@@ -32,14 +32,17 @@ class misc(commands.Cog):
         messages = []
         for typ in types:
             game_totals = models.GameSide.select().join(models.Game).where(
-                (models.GameSide.position == 1) & (models.GameSide.game.size == typ)
+                (models.GameSide.position == 1) & (models.GameSide.game.size == typ) & (models.GameSide.game.guild_id == ctx.guild.id) & (models.GameSide.game.is_ranked == 1)
             ).count()
 
             game_wins = models.GameSide.select().join(models.Game).where(
-                (models.GameSide.position == 1) & (models.GameSide.game.size == typ) & (models.GameSide.game.winner == models.GameSide.id)
+                (models.GameSide.position == 1) & (models.GameSide.game.size == typ) & (models.GameSide.game.winner == models.GameSide.id) & (models.GameSide.game.guild_id == ctx.guild.id) & (models.GameSide.game.is_ranked == 1)
             ).count()
 
-            rate = round(game_wins / game_totals, 3) * 100
+            if game_totals:
+                rate = str(round(game_wins / game_totals, 3) * 100)
+            else:
+                rate = ''
             messages.append(f'For game type {typ[0]}v{typ[0]}: {game_wins} home wins of {game_totals} total games  ({rate}%)')
 
         await ctx.send('\n'.join(messages))
