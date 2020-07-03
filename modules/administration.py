@@ -666,10 +666,56 @@ class administration(commands.Cog):
         last_week = (datetime.datetime.now() + datetime.timedelta(days=-7))
         last_month = (datetime.datetime.now() + datetime.timedelta(days=-30))
         inactive_role_name = settings.guild_setting(ctx.guild.id, 'inactive_role')
+
+        kickable_role_name = [
+            settings.guild_setting(ctx.guild.id, 'inactive_role'),
+            '@everyone',
+            'The Novas',
+            'Nova Red',
+            'Nova Blue'
+            'Nova Grad'
+            'ELO Rookie',
+            'ELO Player',
+            'The Bombers',
+            'The Dynamite',
+            'Bombers',
+            'The Cosmonauts',
+            'The Space Cadets',
+            'Cosmonauts',
+            'The Crawfish',
+            'The Shrimps',
+            'Crawfish',
+            'The Dragons',
+            'The Narwhals',
+            'Dragons',
+            'The Jets',
+            'The Cropdusters',
+            'Jets',
+            'The Lightning',
+            'The Pulse',
+            'Lightning',
+            'The Mallards',
+            'The Drakes',
+            'Mallards',
+            'The Plague',
+            'The Rats',
+            'Plague',
+            'The Ronin',
+            'The Bandits',
+            'Ronin',
+            'The Sparkies',
+            'The Pups',
+            'Sparkies',
+            'The Wildfire',
+            'The Flames',
+            'Wildfire',
+            'ELO Banned',
+            'Newbie',
+        ]
         kickable_roles = [discord.utils.get(ctx.guild.roles, name=inactive_role_name), discord.utils.get(ctx.guild.roles, name='The Novas'),
                           discord.utils.get(ctx.guild.roles, name='ELO Rookie'), discord.utils.get(ctx.guild.roles, name='ELO Player'),
-                          discord.utils.get(ctx.guild.roles, name='@everyone'), discord.utils.get(ctx.guild.roles, name='Novas Blue'),
-                          discord.utils.get(ctx.guild.roles, name='Novas Red'), discord.utils.get(ctx.guild.roles, name='Nova Grad')]
+                          discord.utils.get(ctx.guild.roles, name='@everyone'), discord.utils.get(ctx.guild.roles, name='Nova Blue'),
+                          discord.utils.get(ctx.guild.roles, name='Nova Red'), discord.utils.get(ctx.guild.roles, name='Nova Grad')]
 
         async with ctx.typing():
             for member in ctx.guild.members:

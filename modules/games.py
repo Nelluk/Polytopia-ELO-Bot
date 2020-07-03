@@ -323,7 +323,10 @@ class games(commands.Cog):
     @commands.command(aliases=['squadlb'])
     @commands.cooldown(2, 30, commands.BucketType.channel)
     async def lbsquad(self, ctx):
-        """Display squad leaderboard"""
+        """Display squad leaderboard
+
+        A squad is any combination of players that have completed at least two games together.
+        """
 
         leaderboard = []
         squads = Squad.leaderboard(date_cutoff=settings.date_cutoff, guild_id=ctx.guild.id)
@@ -343,6 +346,9 @@ class games(commands.Cog):
     @commands.command(brief='Find squads or see details on a squad', usage='player1 [player2] [player3]', aliases=['squads'])
     async def squad(self, ctx, *args):
         """Find squads with specific players, or see details on a squad
+
+        A squad is any combination of players that have completed at least two games together.
+
         **Examples:**
         `[p]squad 5` - details on squad 5
         `[p]squad Nelluk` - squads containing Nelluk
