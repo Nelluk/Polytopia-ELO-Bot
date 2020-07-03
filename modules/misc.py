@@ -22,22 +22,35 @@ class misc(commands.Cog):
             self.bg_task = bot.loop.create_task(self.task_broadcast_newbie_message())
             self.bg_task = bot.loop.create_task(self.task_send_polychamps_invite())
 
-    @commands.command(hidden=True, aliases=['ts', 'tsgo'])
+    @commands.command(hidden=True, aliases=['ts', 'tsbefore', 'tsafter'])
     @commands.is_owner()
     async def test(self, ctx, *, arg: str = None):
+
+        date_cutoff = datetime.datetime.strptime('6/30/2019', "%m/%d/%Y").date()
 
         types = [
             [1, 1], [2, 2], [3, 3], [4, 4], [1, 1, 1], [1, 1, 1, 1], [1, 1, 1, 1, 1], [1, 2], [1, 3], [2, 3]
         ]
         messages = []
         for typ in types:
-            game_totals = models.GameSide.select().join(models.Game).where(
-                (models.GameSide.position == 1) & (models.GameSide.game.size == typ)
-            ).count()
+            if ctx.invoked_with == 'tsbefore':
+                game_totals = models.GameSide.select().join(models.Game).where(
+                    (models.GameSide.position == 1) & (models.GameSide.game.size == typ) & (models.GameSide.game.date < date_cutoff)
+                ).count()
 
-            game_wins = models.GameSide.select().join(models.Game).where(
-                (models.GameSide.position == 1) & (models.GameSide.game.size == typ) & (models.GameSide.game.winner == models.GameSide.id)
-            ).count()
+                game_wins = models.GameSide.select().join(models.Game).where(
+                    (models.GameSide.position == 1) & (models.GameSide.game.size == typ) & (models.GameSide.game.date < date_cutoff) & (models.GameSide.game.winner == models.GameSide.id)
+                ).count()
+            elif ctx.invoked_with == 'tsafter':
+                game_totals = models.GameSide.select().join(models.Game).where(
+                    (models.GameSide.position == 1) & (models.GameSide.game.size == typ) & (models.GameSide.game.date > date_cutoff)
+                ).count()
+
+                game_wins = models.GameSide.select().join(models.Game).where(
+                    (models.GameSide.position == 1) & (models.GameSide.game.size == typ) & (models.GameSide.game.date > date_cutoff) & (models.GameSide.game.winner == models.GameSide.id)
+                ).count()
+            else:
+                return await ctx.send('Bzzt')
 
             if game_totals:
                 rate = str(round(game_wins / game_totals, 3) * 100)
