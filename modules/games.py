@@ -1230,6 +1230,7 @@ class games(commands.Cog):
                 newgame = None
 
         if newgame:
+            models.GameLog.create(game_id=newgame, guild_id=ctx.guild.id, message=f'**{discord.utils.escape_markdown(ctx.author.display_name)}** (`{ctx.author.id}`) created game with `{ctx.invoked_with}` command with name *{discord.utils.escape_markdown(newgame.name)}*')
             await post_newgame_messaging(ctx, game=newgame)
 
     @settings.in_bot_channel()
@@ -1779,7 +1780,6 @@ async def post_unwin_messaging(guild, prefix, current_chan, game, previously_con
 
 async def post_newgame_messaging(ctx, game):
 
-    models.GameLog.create(game_id=game, guild_id=ctx.guild.id, message=f'Started with name **{discord.utils.escape_markdown(game.name)}**')
     mentions_list = [f'<@{l.player.discord_member.discord_id}>' for l in game.lineup]
 
     embed, content = game.embed(guild=ctx.guild, prefix=ctx.prefix)

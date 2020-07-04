@@ -339,6 +339,7 @@ class matchmaking(commands.Cog):
         if len(args) == 0:
             # ctx.author is joining a game, no side given
             target = f'<@{ctx.author.id}>'
+            log_by_str = ''
             (side, has_role_locked_side), side_open = game.first_open_side(roles=[role.id for role in ctx.author.roles]), True
 
             if not side:
@@ -352,6 +353,7 @@ class matchmaking(commands.Cog):
         elif len(args) == 1:
             # ctx.author is joining a match, with a side specified
             target = f'<@{ctx.author.id}>'
+            log_by_str = ''
             side, side_open = game.get_side(lookup=args[0])
 
             if not side:
@@ -359,6 +361,7 @@ class matchmaking(commands.Cog):
 
         elif len(args) == 2:
             # author is putting a third party into this match
+            log_by_str = f'(Command issued by **{discord.utils.escape_markdown(ctx.author.display_name)}** (`{ctx.author.id}`))'
             if settings.get_user_level(ctx) < 4:
                 return await ctx.send('You do not have permissions to add another person to a game. Tell them to use the command:\n'
                     f'`{ctx.prefix}join {game.id} {args[1]}` to join themselves.')
@@ -454,7 +457,7 @@ class matchmaking(commands.Cog):
             logger.debug(f'Associating team {player_team} with player {player.id} {player.name}')
             player.save()
         await ctx.send(f'Joining <@{player.discord_member.discord_id}> to side {side.position} of game {game.id}')
-        models.GameLog.create(game_id=game, guild_id=ctx.guild.id, message=f'Joined by **{player.discord_member.name}** (`{player.discord_member.discord_id}`)')
+        models.GameLog.create(game_id=game, guild_id=ctx.guild.id, message=f'Side {side.position} joined by **{player.discord_member.name}** (`{player.discord_member.discord_id}`) {log_by_str}')
 
         players, capacity = game.capacity()
         if players >= capacity:
@@ -804,6 +807,7 @@ class matchmaking(commands.Cog):
             game.save()
 
         logger.info(f'Game {game.id} closed and being tracked for ELO')
+        models.GameLog.create(game_id=game, guild_id=ctx.guild.id, message=f'**{discord.utils.escape_markdown(ctx.author.display_name)}** (`{ctx.author.id}`) started game with name *{discord.utils.escape_markdown(game.name)}*')
         await post_newgame_messaging(ctx, game=game)
 
     async def task_dm_game_creators(self):
