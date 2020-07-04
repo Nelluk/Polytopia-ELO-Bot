@@ -830,5 +830,5 @@ async def is_bot_channel_strict(ctx):
 
 def in_bot_channel_strict():
     async def predicate(ctx):
-        return is_bot_channel_strict(ctx)
+        return await is_bot_channel_strict(ctx)
     return commands.check(predicate)
