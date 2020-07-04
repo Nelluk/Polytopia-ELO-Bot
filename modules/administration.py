@@ -600,15 +600,19 @@ class administration(commands.Cog):
     @settings.on_polychampions()
     async def deactivate_players(self, ctx):
         """*Mods*: Add Inactive role to inactive players
+
         Apply the 'Inactive' role to any player who has not been activate lately.
-        - No games started in 45 days, and does not have a protected role (Team Leadership or Mod roles)
+
+        - No games started in the last 60 days
+        - No games currently incomplete
+        - Does not have a protected role (Team Leadership or Mod roles)
         """
 
         inactive_role = discord.utils.get(ctx.guild.roles, name=settings.guild_setting(ctx.guild.id, 'inactive_role'))
         protected_roles = [discord.utils.get(ctx.guild.roles, name='Team Recruiter'), discord.utils.get(ctx.guild.roles, name='Mod'),
                            discord.utils.get(ctx.guild.roles, name='Team Leader'), discord.utils.get(ctx.guild.roles, name='Team Co-Leader')]
 
-        activity_time = (datetime.datetime.now() + datetime.timedelta(days=-45))
+        activity_time = (datetime.datetime.now() + datetime.timedelta(days=-60))
         if not inactive_role:
             return await ctx.send('Error loading Inactive role')
 
