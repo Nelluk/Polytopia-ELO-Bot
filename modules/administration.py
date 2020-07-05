@@ -725,14 +725,10 @@ class administration(commands.Cog):
 
         kickable_roles = [discord.utils.get(ctx.guild.roles, name=n) for n in kickable_role_names]
         team_roles = [discord.utils.get(ctx.guild.roles, name=n) for n in team_role_names]
-        print(kickable_roles)
-        print(team_roles)
+
         async with ctx.typing():
             for member in inactive_role.members:
-                print(member.display_name)
-                print(member.roles)
                 remaining_member_roles = [x for x in member.roles if x not in kickable_roles]
-                print(f'Remaining: {remaining_member_roles}')
 
                 if len(remaining_member_roles) == 0:
                     # Member only had Kickable roles - had no team roles or anything else
@@ -768,15 +764,16 @@ class administration(commands.Cog):
                             logger.debug('Has played recent ELO game on at least one server. Skipping.')
                         else:
                             logger.info(f'Joined more than a month ago and has played zero recent ELO games. Kicking from server')
-                            # await member.kick(reason='No protected roles, no ELO games in at least 60 days.')
+                            await member.kick(reason='No protected roles, no ELO games in at least 60 days.')
                             total_kicked_count += 1
                             if team_member:
+                                await member.send(f'You have been kicked from PolyChampions as part of an automated purge of inactive players. Please be assured this is nothing personal and is merely a manifestation of Nelluk\'s irrational need for a clean player list. If you are interested in rejoining please do so: http://discord.gg/cX7Ptnv')
                                 team_kicked_count += 1
                                 team_kicked_list.append(member.mention)
 
                             models.GameLog.create(game_id=0, guild_id=ctx.guild.id, message=f'I kicked **{discord.utils.escape_markdown(member.display_name)}** (`{member.id}`) in a mass purge.')
 
-        await utilities.buffered_send(destination=ctx, content=f'**TEST ONLY NO KICKS PERFORMED** Kicking {total_kicked_count} inactive members. Of those, {team_kicked_count} had a team role, listed below:\n {" / ".join(team_kicked_list)}')
+        await utilities.buffered_send(destination=ctx, content=f'Kicking {total_kicked_count} inactive members. Of those, {team_kicked_count} had a team role, listed below:\n {" / ".join(team_kicked_list)}')
 
     @commands.command(aliases=['migrate'])
     @commands.is_owner()
