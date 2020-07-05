@@ -676,6 +676,7 @@ class administration(commands.Cog):
             return await ctx.send(f'Error loading Inactive role.')
 
         kickable_role_names = [
+            settings.guild_setting(ctx.guild.id, 'inactive_role'),
             '@everyone',
             'The Novas',
             'Nova Red',
