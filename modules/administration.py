@@ -665,14 +665,16 @@ class administration(commands.Cog):
     async def kick_inactive(self, ctx, *, arg=None):
         """*Mods*: Kick players from server who don't meet activity requirements
 
-        Kicks members from server who either:
+        Kicks members from server who have the Inactive role and meet the following requirements:
         - Joined the server more than a week ago but have not registered a Poly code, or
-        - Joined more than a month ago but have played zero ELO games in the last month.
+        - Joined more than a month ago but have played zero ELO games (on *any server* in the last 60 days.
 
         If a member has any role assigned they will not be kicked, beyond this list of 'kickable' roles:
-        Inactive, The Novas, Novas Red, Novas Blue, ELO Rookie, ELO Player
+        Newbie, ELO Rookie, ELO Player, Nova roles, Team roles.
 
         For example, Someone with role The Novas that has played zero games in the last month will be kicked.
+
+        Anyone with ELO Veteran, ELO Hero, etc roles with never be auto-kicked.
         """
 
         total_kicked_count, team_kicked_count = 0, 0
