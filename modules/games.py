@@ -87,6 +87,7 @@ class games(commands.Cog):
             player.is_banned = True
             player.save()
             logger.info(f'ELO Ban added for player {player.id} {player.name}')
+            models.GameLog.create(game_id=0, guild_id=after.guild.id, message=f'**{after.display_name}** (`{after.id}`) had *ELO Banned* role applied.')
 
         if banned_role in before.roles and banned_role not in after.roles:
             utilities.connect()
@@ -97,6 +98,26 @@ class games(commands.Cog):
             player.is_banned = False
             player.save()
             logger.info(f'ELO Ban removed for player {player.id} {player.name}')
+            models.GameLog.create(game_id=0, guild_id=after.guild.id, message=f'**{after.display_name}** (`{after.id}`) had *ELO Banned* role removed.')
+
+        inactive_role = discord.utils.get(before.guild.roles, name=settings.guild_setting(before.guild.id, 'inactive_role'))
+        if inactive_role not in before.roles and inactive_role in after.roles:
+            utilities.connect()
+            try:
+                player = player_query.get()
+            except peewee.DoesNotExist:
+                return
+            logger.info(f'Inactive role added for player {player.id} {player.name}')
+            models.GameLog.create(game_id=0, guild_id=after.guild.id, message=f'**{after.display_name}** (`{after.id}`) had *{inactive_role.name}* role applied.')
+
+        if inactive_role in before.roles and inactive_role not in after.roles:
+            utilities.connect()
+            try:
+                player = player_query.get()
+            except peewee.DoesNotExist:
+                return
+            logger.info(f'Inactive removed for player {player.id} {player.name}')
+            models.GameLog.create(game_id=0, guild_id=after.guild.id, message=f'**{after.display_name}** (`{after.id}`) had *{inactive_role.name}* role removed.')
 
         # Updates display name in DB if user changes their discord name or guild nick
         if before.nick == after.nick and before.name == after.name:
