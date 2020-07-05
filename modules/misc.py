@@ -184,7 +184,7 @@ class misc(commands.Cog):
                 return await ctx.send(f'You do not have permission to use this command on another player\'s games.')
             message = ' '.join(message.split()[1:])  # remove @Mention first word of message
             target = str(m)
-            log_message = f'**{discord.utils.escape_markdown(ctx.author.display_name)}** (`{ctx.author.id}`) used pingall on behalf of player ID `{target}` with message: '
+            log_message = f'{models.GameLog.member_string(ctx.author)} used pingall on behalf of player ID `{target}` with message: '
         else:
             logger.debug('first party usage of pingall')
             # Play using command on their own games
@@ -192,7 +192,7 @@ class misc(commands.Cog):
                 logger.debug('insufficient user level')
                 return await ctx.send(f'You do not have permission to use this command. You can ask a server staff member to use this command on your games for you.')
             target = str(ctx.author.id)
-            log_message = f'**{discord.utils.escape_markdown(ctx.author.display_name)}** (`{ctx.author.id}`) used pingall with message: '
+            log_message = f'{models.GameLog.member_string(ctx.author)} used pingall with message: '
 
         logger.debug(f'pingall target is {target}')
 
@@ -309,7 +309,7 @@ class misc(commands.Cog):
 
         player_mentions = [f'<@{l.player.discord_member.discord_id}>' for l in game.lineup]
         full_message = f'Message from {ctx.author.mention} (**{ctx.author.name}**) regarding game {game.id} **{game.name}**:\n*{message}*'
-        models.GameLog.create(game_id=game, guild_id=game.guild_id, message=f'**{discord.utils.escape_markdown(ctx.author.display_name)}** (`{ctx.author.id}`) pinged the game with message: *{discord.utils.escape_markdown(message)}*')
+        models.GameLog.create(game_id=game, guild_id=game.guild_id, message=f'{models.GameLog.member_string(ctx.author)} pinged the game with message: *{discord.utils.escape_markdown(message)}*')
 
         if ctx.channel.id in permitted_channels_private:
             logger.debug(f'Ping triggered in private channel {ctx.channel.id}')

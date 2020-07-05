@@ -256,7 +256,7 @@ class matchmaking(commands.Cog):
         if warning_message:
             await ctx.send(warning_message)
 
-        models.GameLog.create(game_id=opengame, guild_id=ctx.guild.id, message=f'**{discord.utils.escape_markdown(ctx.author.display_name)}** (`{ctx.author.id}`) opened new {team_size_str} game. Notes: *{discord.utils.escape_markdown(notes_str)}*')
+        models.GameLog.create(game_id=opengame, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} opened new {team_size_str} game. Notes: *{discord.utils.escape_markdown(notes_str)}*')
         await ctx.send(f'Starting new {"unranked " if not is_ranked else ""}open game ID {opengame.id}. Size: {team_size_str}. Expiration: {expiration_hours} hours.\nNotes: *{notes_str}*\n'
             f'Other players can join this game with `{ctx.prefix}join {opengame.id}`.')
 
@@ -361,7 +361,7 @@ class matchmaking(commands.Cog):
 
         elif len(args) == 2:
             # author is putting a third party into this match
-            log_by_str = f'(Command issued by **{discord.utils.escape_markdown(ctx.author.display_name)}** (`{ctx.author.id}`))'
+            log_by_str = f'(Command issued by {models.GameLog.member_string(ctx.author)})'
             if settings.get_user_level(ctx) < 4:
                 return await ctx.send('You do not have permissions to add another person to a game. Tell them to use the command:\n'
                     f'`{ctx.prefix}join {game.id} {args[1]}` to join themselves.')
@@ -457,8 +457,7 @@ class matchmaking(commands.Cog):
             logger.debug(f'Associating team {player_team} with player {player.id} {player.name}')
             player.save()
         await ctx.send(f'Joining <@{player.discord_member.discord_id}> to side {side.position} of game {game.id}')
-        models.GameLog.create(game_id=game, guild_id=ctx.guild.id, message=f'Side {side.position} joined by **{player.discord_member.name}** (`{player.discord_member.discord_id}`) {log_by_str}')
-
+        models.GameLog.create(game_id=game, guild_id=ctx.guild.id, message=f'Side {side.position} joined by {models.GameLog.member_string(player.discord_member)} {log_by_str}')
         players, capacity = game.capacity()
         if players >= capacity:
             creating_player = game.creating_player()
@@ -509,7 +508,7 @@ class matchmaking(commands.Cog):
         if not lineup:
             return await ctx.send(f'You are not a member of game {game.id}')
 
-        models.GameLog.create(game_id=game, guild_id=ctx.guild.id, message=f'**{discord.utils.escape_markdown(ctx.author.display_name)}** (`{ctx.author.id}`) left the game.')
+        models.GameLog.create(game_id=game, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} left the game.')
         lineup.delete_instance()
         await ctx.send('Removing you from the game.')
 
@@ -542,7 +541,7 @@ class matchmaking(commands.Cog):
         game.notes = notes[:150] if notes else None
         game.save()
 
-        models.GameLog.create(game_id=game, guild_id=ctx.guild.id, message=f'**{discord.utils.escape_markdown(ctx.author.display_name)}** (`{ctx.author.id}`) edited game notes: {game.notes}')
+        models.GameLog.create(game_id=game, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} edited game notes: {game.notes}')
         await ctx.send(f'Updated notes for game {game.id} to: {game.notes}')
         embed, content = game.embed(guild=ctx.guild, prefix=ctx.prefix)
         await ctx.send(embed=embed, content=content)
@@ -578,7 +577,7 @@ class matchmaking(commands.Cog):
             return await ctx.send('Stop kicking yourself!')
 
         await ctx.send(f'Removing **{lineup.player.name}** from the game.')
-        models.GameLog.create(game_id=game, guild_id=ctx.guild.id, message=f'**{discord.utils.escape_markdown(ctx.author.display_name)}** (`{ctx.author.id}`) kicked {lineup.player.discord_member.name} (`{lineup.player.discord_member.discord_id}`)')
+        models.GameLog.create(game_id=game, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} kicked {models.GameLog.member_string(lineup.player.discord_member)}')
         lineup.delete_instance()
 
         if game.expiration < (datetime.datetime.now() + datetime.timedelta(hours=2)):
@@ -807,7 +806,7 @@ class matchmaking(commands.Cog):
             game.save()
 
         logger.info(f'Game {game.id} closed and being tracked for ELO')
-        models.GameLog.create(game_id=game, guild_id=ctx.guild.id, message=f'**{discord.utils.escape_markdown(ctx.author.display_name)}** (`{ctx.author.id}`) started game with name *{discord.utils.escape_markdown(game.name)}*')
+        models.GameLog.create(game_id=game, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} started game with name *{discord.utils.escape_markdown(game.name)}*')
         await post_newgame_messaging(ctx, game=game)
 
     async def task_dm_game_creators(self):

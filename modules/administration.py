@@ -337,7 +337,7 @@ class administration(commands.Cog):
         game.save()
 
         logger.info(f'Game {game.id} is now marked as ranked.')
-        models.GameLog.create(game_id=game, guild_id=ctx.guild.id, message=f'**{discord.utils.escape_markdown(ctx.author.display_name)}** (`{ctx.author.id}`) set game to be ranked.')
+        models.GameLog.create(game_id=game, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} set game to be ranked.')
         return await ctx.send(f'Game {game.id} is now marked as ranked.')
 
     @commands.command(usage='game_id')
@@ -360,7 +360,7 @@ class administration(commands.Cog):
         game.save()
 
         logger.info(f'Game {game.id} is now marked as unranked.')
-        models.GameLog.create(game_id=game, guild_id=ctx.guild.id, message=f'**{ctx.author.display_name}** (`{ctx.author.id}`) set game to be unranked.')
+        models.GameLog.create(game_id=game, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} set game to be unranked.')
         return await ctx.send(f'Game {game.id} is now marked as unranked.')
 
     @settings.in_bot_channel()
@@ -389,7 +389,7 @@ class administration(commands.Cog):
         tomorrow = (datetime.datetime.now() + datetime.timedelta(hours=24))
         game.expiration = tomorrow if game.expiration < tomorrow else game.expiration
         game.save()
-        models.GameLog.create(game_id=game, guild_id=ctx.guild.id, message=f'**{discord.utils.escape_markdown(ctx.author.display_name)}** (`{ctx.author.id}`) changed in-progress game to an open game. ({ctx.prefix}unstart)')
+        models.GameLog.create(game_id=game, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} changed in-progress game to an open game. ({ctx.prefix}unstart)')
 
         try:
             await ctx.send(f'Game {game.id} is now an open game and no longer in progress.')
@@ -782,7 +782,7 @@ class administration(commands.Cog):
                                 team_kicked_count += 1
                                 team_kicked_list.append(member.mention)
 
-                            models.GameLog.create(game_id=0, guild_id=ctx.guild.id, message=f'I kicked **{discord.utils.escape_markdown(member.display_name)}** (`{member.id}`) in a mass purge.')
+                            models.GameLog.create(game_id=0, guild_id=ctx.guild.id, message=f'I kicked {models.GameLog.member_string(member)} in a mass purge.')
 
         await utilities.buffered_send(destination=ctx, content=f'Kicking {total_kicked_count} inactive members. Of those, {team_kicked_count} had a team role, listed below:\n {" / ".join(team_kicked_list)}')
 
@@ -802,6 +802,7 @@ class administration(commands.Cog):
 
         try:
             old_discord_member = models.DiscordMember.select().where(models.DiscordMember.discord_id == from_id).get()
+            old_name = old_discord_member.name
         except peewee.DoesNotExist:
             return await ctx.send(f'Could not find a DiscordMember in the database matching discord id `{from_id}`')
 
@@ -840,7 +841,7 @@ class administration(commands.Cog):
                 old_discord_member.save()
                 old_discord_member.update_name(new_name=new_guild_member.name)
 
-            return await ctx.send('Migration complete!')
+            await ctx.send('Migration complete!')
 
         else:
             # New player has no presence in the bot
@@ -855,6 +856,8 @@ class administration(commands.Cog):
                 old_discord_member.update_name(new_name=new_guild_member.name)
 
             await ctx.send('Migration complete!')
+
+        models.GameLog.create(game_id=0, guild_id=0, message=f'**{ctx.author.display_name}** migrated old ELO player **{old_name}** `{from_id}` to {models.GameLog.member_string(new_guild_member)}')
 
     @commands.command(aliases=['delplayer'])
     @commands.is_owner()

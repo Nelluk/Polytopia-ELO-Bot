@@ -2304,6 +2304,18 @@ class GameLog(BaseModel):
     guild_id = BitField(unique=False, null=False, default=0)
     # Entries will have a game_id and guild_id of 0 for things like $setcode and $setname
 
+    def member_string(member):
+
+        try:
+            # discord.Member API object
+            name = member.display_name
+            d_id = member.id
+        except AttributeError:
+            # local discordmember database entry
+            name = member.name
+            d_id = member.discord_id
+        return f'**{discord.utils.escape_markdown(name)}** (`{d_id}`)'
+
 
 class Lineup(BaseModel):
     tribe = ForeignKeyField(Tribe, null=True, on_delete='SET NULL')
