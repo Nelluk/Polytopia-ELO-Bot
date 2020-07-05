@@ -37,12 +37,18 @@ class administration(commands.Cog):
     async def quit(self, ctx):
         """ *Owner*: Close database connection and quit bot gracefully """
 
-        await ctx.send('Shutting down')
-        await self.bot.close()
         message = ''
 
-        # TODO: use this clean quit to delete messages currently waiting for deletion (misc.task_broadcast_newbie_message())
-        # would need to store the message/channel IDs in memory as they are created (not sure how to purge the ones that are being deleted)
+        for guild_id, channel_id, message_id in self.bot.purgable_messages:
+            # purge messages created by Misc.task_broadcast_newbie_message() so they arent duplicated when bot restarts
+            guild = discord.utils.get(self.bot.guilds, id=guild_id)
+            channel = guild.get_channel(channel_id)
+            try:
+                message = await channel.fetch_message(message_id)
+                await message.delete()
+            except discord.DiscordException:
+                pass
+
         try:
             if models.db.close():
                 message = 'db connecton closing normally'
@@ -53,7 +59,10 @@ class administration(commands.Cog):
             message = f'Error during post_invoke_cleanup db.close(): {e}'
         finally:
             logger.info(message)
-            print(message)
+
+        await asyncio.sleep(2)  # to make sure message deletes go through
+        await ctx.send('Shutting down')
+        await self.bot.close()
 
     @settings.is_mod_check()
     @commands.command()

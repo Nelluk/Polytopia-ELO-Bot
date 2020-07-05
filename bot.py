@@ -126,6 +126,7 @@ if __name__ == '__main__':
 
     bot = commands.Bot(command_prefix=get_prefix, owner_id=settings.owner_id)
     settings.bot = bot
+    bot.purgable_messages = []  # auto-deleting messages to get cleaned up by Administraton.quit  (guild, channel, message) tuple list
 
     cooldown = commands.CooldownMapping.from_cooldown(6, 30.0, commands.BucketType.user)
 
