@@ -680,8 +680,8 @@ class administration(commands.Cog):
             '@everyone',
             'The Novas',
             'Nova Red',
-            'Nova Blue'
-            'Nova Grad'
+            'Nova Blue',
+            'Nova Grad',
             'ELO Rookie',
             'ELO Player',
             'ELO Banned',
@@ -725,16 +725,21 @@ class administration(commands.Cog):
 
         kickable_roles = [discord.utils.get(ctx.guild.roles, name=n) for n in kickable_role_names]
         team_roles = [discord.utils.get(ctx.guild.roles, name=n) for n in team_role_names]
-
+        print(kickable_roles)
+        print(team_roles)
         async with ctx.typing():
             for member in inactive_role.members:
+                print(member.display_name)
+                print(member.roles)
                 remaining_member_roles = [x for x in member.roles if x not in kickable_roles]
+                print(f'Remaining: {remaining_member_roles}')
 
                 if len(remaining_member_roles) == 0:
                     # Member only had Kickable roles - had no team roles or anything else
                     team_member = False
                 else:
                     roles_without_team_roles = [x for x in remaining_member_roles if x not in team_roles]
+                    print(f'Without team: {roles_without_team_roles}')
                     if len(roles_without_team_roles) == 0:
                         # Kickable Inactive member with a Team role but nothing beyond that
                         team_member = True
