@@ -666,13 +666,16 @@ class administration(commands.Cog):
         For example, Someone with role The Novas that has played zero games in the last month will be kicked.
         """
 
-        count = 0
+        total_kicked_count, team_kicked_count = 0, 0
+        team_kicked_list = []
         last_week = (datetime.datetime.now() + datetime.timedelta(days=-7))
         last_month = (datetime.datetime.now() + datetime.timedelta(days=-30))
-        inactive_role_name = settings.guild_setting(ctx.guild.id, 'inactive_role')
+        inactive_role = discord.utils.get(ctx.guild.roles, name=settings.guild_setting(ctx.guild.id, 'inactive_role'))
+        if not inactive_role:
+            logger.warn(f'Could not load Inactive role by name {settings.guild_setting(ctx.guild.id, "inactive_role")}')
+            return await ctx.send(f'Error loading Inactive role.')
 
-        kickable_role_name = [
-            settings.guild_setting(ctx.guild.id, 'inactive_role'),
+        kickable_role_names = [
             '@everyone',
             'The Novas',
             'Nova Red',
@@ -680,6 +683,11 @@ class administration(commands.Cog):
             'Nova Grad'
             'ELO Rookie',
             'ELO Player',
+            'ELO Banned',
+            'Newbie',
+        ]
+
+        team_role_names = [
             'The Bombers',
             'The Dynamite',
             'Bombers',
@@ -712,22 +720,28 @@ class administration(commands.Cog):
             'Sparkies',
             'The Wildfire',
             'The Flames',
-            'Wildfire',
-            'ELO Banned',
-            'Newbie',
-        ]
-        kickable_roles = [discord.utils.get(ctx.guild.roles, name=inactive_role_name), discord.utils.get(ctx.guild.roles, name='The Novas'),
-                          discord.utils.get(ctx.guild.roles, name='ELO Rookie'), discord.utils.get(ctx.guild.roles, name='ELO Player'),
-                          discord.utils.get(ctx.guild.roles, name='@everyone'), discord.utils.get(ctx.guild.roles, name='Nova Blue'),
-                          discord.utils.get(ctx.guild.roles, name='Nova Red'), discord.utils.get(ctx.guild.roles, name='Nova Grad'),
-                          discord.utils.get(ctx.guild.roles, name='Newbie')]
+            'Wildfire']
+
+        kickable_roles = [discord.utils.get(ctx.guild.roles, name=n) for n in kickable_role_names]
+        team_roles = [discord.utils.get(ctx.guild.roles, name=n) for n in team_role_names]
 
         async with ctx.typing():
-            for member in ctx.guild.members:
+            for member in inactive_role.members:
                 remaining_member_roles = [x for x in member.roles if x not in kickable_roles]
-                if len(remaining_member_roles) > 0:
-                    continue  # Skip if they have any assigned roles beyond a 'purgable' role
-                logger.debug(f'Member {member.name} qualifies based on roles...')
+
+                if len(remaining_member_roles) == 0:
+                    # Member only had Kickable roles - had no team roles or anything else
+                    team_member = False
+                else:
+                    roles_without_team_roles = [x for x in remaining_member_roles if x not in team_roles]
+                    if len(roles_without_team_roles) == 0:
+                        # Kickable Inactive member with a Team role but nothing beyond that
+                        team_member = True
+                    else:
+                        logger.debug(f'Inactive member {member.name} has additional roles and will not be kicked: {roles_without_team_roles}')
+                        continue  # Member has roles being kickable_roles and team_roles
+
+                logger.debug(f'Member {member.name} qualifies for kicking based on roles. Team member? {team_member}')
                 if member.joined_at > last_week:
                     logger.debug(f'Joined in the previous week. Skipping.')
                     continue
@@ -740,18 +754,23 @@ class administration(commands.Cog):
                     if member.joined_at < last_week:
                         logger.info(f'Joined more than a week ago with no code on file. Kicking from server')
                         await member.kick(reason='No role, no code on file')
-                        count += 1
+                        total_kicked_count += 1
                     continue
                 else:
                     if member.joined_at < last_month:
-                        if dm.games_played(in_days=30):
+                        if dm.games_played(in_days=60):
                             logger.debug('Has played recent ELO game on at least one server. Skipping.')
                         else:
-                            logger.info(f'Joined more than a month ago and has played zero ELO games. Kicking from server')
-                            await member.kick(reason='No role, no ELO games in at least 30 days.')
-                            count += 1
+                            logger.info(f'Joined more than a month ago and has played zero recent ELO games. Kicking from server')
+                            # await member.kick(reason='No protected roles, no ELO games in at least 60 days.')
+                            total_kicked_count += 1
+                            if team_member:
+                                team_kicked_count += 1
+                                team_kicked_list.append(member.mention)
 
-        await ctx.send(f'Kicking {count} members without any assigned role and have insufficient ELO history.')
+                            models.GameLog.create(game_id=0, guild_id=ctx.guild.id, message=f'I kicked **{discord.utils.escape_markdown(member.display_name)}** (`{member.id}`) in a mass purge.')
+
+        await utilities.buffered_send(destination=ctx, content=f'**TEST ONLY NO KICKS PERFORMED** Kicking {total_kicked_count} inactive members. Of those, {team_kicked_count} had a team role, listed below:\n {" / ".join(team_kicked_list)}')
 
     @commands.command(aliases=['migrate'])
     @commands.is_owner()
