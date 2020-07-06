@@ -46,6 +46,11 @@ class PolyGame(commands.Converter):
                 else:
                     game_name = f'*{game.name}*' if game.name and game.name.strip() else ''
                     game_summary_str = f'\n`{(str(game.date))}` - {game.size_string()} - {game.get_gamesides_string(include_emoji=False)} - {game_name} - {game.get_game_status_string()}'
+
+                if not game.is_pending:
+                    embed, _ = game.embed(guild=ctx.guild, prefix=ctx.prefix)
+                    await ctx.send(embed=embed)
+
                 await ctx.send(f'Game with ID {game_id} is associated with a different Discord server: __{server_name}__.{game_summary_str}')
                 raise commands.UserInputError()
             return game
