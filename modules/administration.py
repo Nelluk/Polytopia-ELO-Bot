@@ -61,7 +61,8 @@ class administration(commands.Cog):
         finally:
             logger.info(message)
 
-        await asyncio.sleep(2)  # to make sure message deletes go through
+        await ctx.send(f'Cleaning up temporary announcement messages...')
+        await asyncio.sleep(5)  # to make sure message deletes go through
         await ctx.send('Shutting down')
         await self.bot.close()
 
