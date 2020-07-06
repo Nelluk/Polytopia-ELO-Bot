@@ -26,9 +26,9 @@ class misc(commands.Cog):
     @commands.is_owner()
     async def test(self, ctx, *, arg: str = None):
 
-        # query = Stat.update(counter=Stat.counter + 1).where(Stat.url == request.url)
-        query = models.GameLog.update(message=f'__{str(models.GameLog.game_id)}__ - {models.GameLog.message}').where(models.GameLog.game_id > 0)
-        query.execute()
+        q = models.GameLog.search(keywords='Nelluk', guild_id=ctx.guild.id)
+        for gl in q:
+            print(gl.message, gl.guild_id)
 
     @commands.command(usage=None)
     @settings.in_bot_channel_strict()

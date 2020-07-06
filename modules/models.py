@@ -2298,11 +2298,10 @@ class GameSide(BaseModel):
 
 
 class GameLog(BaseModel):
-    # game_id = SmallIntegerField(null=False)
     message = TextField(null=True)
     message_ts = DateTimeField(default=datetime.datetime.now)
     guild_id = BitField(unique=False, null=False, default=0)
-    # Entries will have a game_id and guild_id of 0 for things like $setcode and $setname
+    # Entries will have guild_id of 0 for things like $setcode and $setname that arent guild-specific
 
     def member_string(member):
 
@@ -2321,6 +2320,24 @@ class GameLog(BaseModel):
             message = f'__{str(game_id)}__ - {message}'
 
         return GameLog.create(guild_id=guild_id, message=message)
+
+    def search(keywords=None, negative_keyword=None, guild_id=None, limit=500):
+
+        if not keywords:
+            keywords = '%'  # Wildcard/return all matches
+        else:
+            keywords = keywords.replace(' ', '%')  # match multiple words with ALL
+
+        if guild_id:
+            subq_by_guild = GameLog.select(GameLog.id).where((GameLog.guild_id == guild_id) | (GameLog.guild_id == 0))
+        else:
+            subq_by_guild = GameLog.select(GameLog.id)
+
+        return GameLog.select().where(
+            GameLog.id.in_(subq_by_guild) &
+            GameLog.message.contains(keywords) &
+            ~GameLog.message.contains(negative_keyword)
+        ).order_by(-GameLog.message_ts).limit(limit)
 
 
 class Lineup(BaseModel):

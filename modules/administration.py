@@ -397,74 +397,47 @@ class administration(commands.Cog):
         except discord.errors.NotFound:
             logger.warn('Game unstarted while in game-related channel')
 
-    @commands.command(usage='search_term', aliases=['gamelogs'])
+    @commands.command(usage='search_term', aliases=['gamelog', 'gamelogs', 'global_logs'])
     # @commands.cooldown(1, 20, commands.BucketType.user)
-    async def gamelog(self, ctx, *, search_term: str = None):
+    async def logs(self, ctx, *, search_term: str = None):
         """ *Staff*: Lists or searches log entries
 
          **Examples**
-        `[p]gamelog 1234` - See all entries related to a specific game
-        `[p]gamelog Nelluk` - See all entries containing the term Nelluk
-        `[p]gamelog Nelluk join` - See all entries containing both words
+        `[p]logs` - See all recent entries
+        `[p]logs 1234` - See all entries related to a specific game
+        `[p]logs Nelluk` - See all entries containing the term Nelluk
+        `[p]logs Nelluk join` - See all entries containing both words
+        `[p]logs Nelluk -Kamfer` - See all entries containing the first word but *not* the second word
 
-        `[p]gamelogs` - *Mod only*: List last 50 log messages, regardless of game.
+        `[p]global_logs` - *Owner only*: Search or list log entries across all bot servers
         """
 
         paginated_message_list = []
-        game_id = None
 
         negative_parameter = re.search(r'-(\S+)', search_term) if search_term else ''
         if negative_parameter:
             negative_term = negative_parameter[1]
             search_term = search_term.replace(negative_parameter[0], '').replace('  ', ' ').strip()
+            negative_title_str = f'\nExcluding entries containing *{negative_term}*'
         else:
             negative_term = None
-        # print(negative_parameter)
-        # print(negative_term)
-        # print(search_term)
+            negative_title_str = ''
 
-        # negative_terms = ['joined']
-        # negative_term = '%'.join(negative_terms)
-        if ctx.invoked_with == 'gamelog':
-            # look up history of one game
+        if search_term:
+            title_str = f'Searching for log entries containing *{search_term}*{negative_title_str}'
+        else:
+            title_str = f'All recent log entries{negative_title_str}'
 
-            if not search_term:
-                return await ctx.send(f'No search term was entered')
-
-            if game_id:
-                title_str = f'Listing entries for game {game_id}'
-                # See log entries tied to a specific game ID
-                entries = models.GameLog.select().where(
-                    (models.GameLog.game_id == game_id) & (models.GameLog.guild_id == ctx.guild.id)
-                ).order_by(-models.GameLog.message_ts)
-                for entry in entries:
-                    paginated_message_list.append((f'`{entry.message_ts.strftime("%Y-%m-%d %H:%M:%S")}`', entry.message))
+        guild_id = ctx.guild.id
+        if ctx.invoked_with == 'global_logs':
+            if ctx.author.id == settings.owner_id:
+                guild_id = None  # search globally, owner only
             else:
-                # See log entries with a matching key word
-                # Keyword search will also return log entries not tied to a game or server, specifically code/name sets
-                title_str = f'Listing the most recent entries containing *{search_term}*...'
-                entries = models.GameLog.select().where(
-                    (models.GameLog.message.contains(search_term.replace(' ', '%'))) & (
-                        (models.GameLog.guild_id == ctx.guild.id) | (models.GameLog.guild_id == 0)
-                    ) &
-                    (~models.GameLog.message.contains(negative_term))
-                ).order_by(-models.GameLog.message_ts).limit(500)
-                for entry in entries:
-                    # game_id_str = f'__{entry.game_id}__ - ' if entry.game_id else ''
-                    paginated_message_list.append((f'`{entry.message_ts.strftime("%Y-%m-%d %H:%M:%S")}`', f'{entry.message}'))
+                return await ctx.send('Only the bot owner can search global logs.')
 
-        elif ctx.invoked_with == 'gamelogs' and settings.is_mod(ctx.author):
-            # List most recent logged actions regardless of keyword/game
-            if search_term and search_term.upper() == 'ALL':
-                title_str = f'Listing the most recent log items (across all guilds)...'
-                entries = models.GameLog.select().order_by(-models.GameLog.message_ts).limit(500)
-            else:
-                title_str = f'Listing the most recent log items...'
-                entries = models.GameLog.select().where(models.GameLog.guild_id == ctx.guild.id).order_by(-models.GameLog.message_ts).limit(500)
-
-            for entry in entries:
-                # game_id_str = f'__{entry.game_id}__ - ' if entry.game_id else ''
-                paginated_message_list.append((f'`{entry.message_ts.strftime("%Y-%m-%d %H:%M:%S")}`', f'{entry.message}'))
+        entries = models.GameLog.search(keywords=search_term, negative_keyword=negative_term, guild_id=guild_id)
+        for entry in entries:
+            paginated_message_list.append((f'`{entry.message_ts.strftime("%Y-%m-%d %H:%M:%S")}`', f'{entry.message}'))
 
         await utilities.paginate(self.bot, ctx, title=title_str, message_list=paginated_message_list, page_start=0, page_end=10, page_size=10)
 
