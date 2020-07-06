@@ -87,7 +87,7 @@ class games(commands.Cog):
             player.is_banned = True
             player.save()
             logger.info(f'ELO Ban added for player {player.id} {player.name}')
-            models.GameLog.create(game_id=0, guild_id=after.guild.id, message=f'{models.GameLog.member_string(after)} had *ELO Banned* role applied.')
+            models.GameLog.write(game_id=0, guild_id=after.guild.id, message=f'{models.GameLog.member_string(after)} had *ELO Banned* role applied.')
 
         if banned_role in before.roles and banned_role not in after.roles:
             utilities.connect()
@@ -98,7 +98,7 @@ class games(commands.Cog):
             player.is_banned = False
             player.save()
             logger.info(f'ELO Ban removed for player {player.id} {player.name}')
-            models.GameLog.create(game_id=0, guild_id=after.guild.id, message=f'{models.GameLog.member_string(after)} had *ELO Banned* role removed.')
+            models.GameLog.write(game_id=0, guild_id=after.guild.id, message=f'{models.GameLog.member_string(after)} had *ELO Banned* role removed.')
 
         inactive_role = discord.utils.get(before.guild.roles, name=settings.guild_setting(before.guild.id, 'inactive_role'))
         if inactive_role not in before.roles and inactive_role in after.roles:
@@ -108,7 +108,7 @@ class games(commands.Cog):
             except peewee.DoesNotExist:
                 return
             logger.info(f'Inactive role added for player {player.id} {player.name}')
-            models.GameLog.create(game_id=0, guild_id=after.guild.id, message=f'{models.GameLog.member_string(after)} had *{inactive_role.name}* role applied.')
+            models.GameLog.write(game_id=0, guild_id=after.guild.id, message=f'{models.GameLog.member_string(after)} had *{inactive_role.name}* role applied.')
 
         if inactive_role in before.roles and inactive_role not in after.roles:
             utilities.connect()
@@ -117,7 +117,7 @@ class games(commands.Cog):
             except peewee.DoesNotExist:
                 return
             logger.info(f'Inactive removed for player {player.id} {player.name}')
-            models.GameLog.create(game_id=0, guild_id=after.guild.id, message=f'{models.GameLog.member_string(after)} had *{inactive_role.name}* role removed.')
+            models.GameLog.write(game_id=0, guild_id=after.guild.id, message=f'{models.GameLog.member_string(after)} had *{inactive_role.name}* role removed.')
 
         # Updates display name in DB if user changes their discord name or guild nick
         if before.nick == after.nick and before.name == after.name:
@@ -829,7 +829,7 @@ class games(commands.Cog):
         player.discord_member.polytopia_id = new_id
         player.discord_member.save()
 
-        models.GameLog.create(game_id=0, guild_id=0, message=f'**{player.discord_member.name}** {models.GameLog.member_string(player.discord_member)} code set to `{new_id}` {log_by_str}')
+        models.GameLog.write(game_id=0, guild_id=0, message=f'**{player.discord_member.name}** {models.GameLog.member_string(player.discord_member)} code set to `{new_id}` {log_by_str}')
 
         if created:
             await ctx.send(f'Player **{player.name}** added to system with Polytopia code `{player.discord_member.polytopia_id}` and ELO **{player.elo}**\n'
@@ -979,7 +979,7 @@ class games(commands.Cog):
         player_target.discord_member.polytopia_name = new_name
         player_target.discord_member.save()
 
-        models.GameLog.create(game_id=0, guild_id=0, message=f'{models.GameLog.member_string(player_target.discord_member)} name set to *{new_name}* {log_by_str}')
+        models.GameLog.write(game_id=0, guild_id=0, message=f'{models.GameLog.member_string(player_target.discord_member)} name set to *{new_name}* {log_by_str}')
         await ctx.send(f'Player **{player_target.name}** updated in system with Polytopia name **{new_name}**.')
 
     @commands.command(brief='Set player time zone', usage='UTC±#')
@@ -1252,7 +1252,7 @@ class games(commands.Cog):
                 newgame = None
 
         if newgame:
-            models.GameLog.create(game_id=newgame, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} created game with `{ctx.invoked_with}` command with name *{discord.utils.escape_markdown(newgame.name)}*')
+            models.GameLog.write(game_id=newgame, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} created game with `{ctx.invoked_with}` command with name *{discord.utils.escape_markdown(newgame.name)}*')
             await post_newgame_messaging(ctx, game=newgame)
 
     @settings.in_bot_channel()
@@ -1303,7 +1303,7 @@ class games(commands.Cog):
         if winning_game.is_pending:
             return await ctx.send(f'This game has not started yet.')
 
-        models.GameLog.create(game_id=winning_game, guild_id=ctx.guild.id, message=f'Win confirm logged by {models.GameLog.member_string(ctx.author)} for winner **{discord.utils.escape_markdown(winning_obj.name)}**')
+        models.GameLog.write(game_id=winning_game, guild_id=ctx.guild.id, message=f'Win confirm logged by {models.GameLog.member_string(ctx.author)} for winner **{discord.utils.escape_markdown(winning_obj.name)}**')
         if settings.is_staff(ctx):
             confirm_win = True
         else:
@@ -1393,7 +1393,7 @@ class games(commands.Cog):
         if settings.is_staff(ctx):
             # Staff usage: reset any game to Incomplete state
             game.confirmations_reset()
-            models.GameLog.create(game_id=game, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} staffer used unwin command.')
+            models.GameLog.write(game_id=game, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} staffer used unwin command.')
             if game.is_completed and game.is_confirmed:
                 elo_logger.debug(f'unwin game {game.id}')
                 async with ctx.typing():
@@ -1441,7 +1441,7 @@ class games(commands.Cog):
 
             if author_side == game.winner:
                 logger.debug(f'Player {ctx.author.name} is removing their own win claim on game {game.id}')
-                models.GameLog.create(game_id=game, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} removes their self-win claim and confirmations have reset.')
+                models.GameLog.write(game_id=game, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} removes their self-win claim and confirmations have reset.')
                 game.confirmations_reset()
                 game.completed_ts = None
                 game.is_completed = False
@@ -1452,7 +1452,7 @@ class games(commands.Cog):
             else:
                 # author removing win claim for a game pointing at another side as the winner
                 logger.debug(f'Player {ctx.author.name} is removing win claim on game {game.id}')
-                models.GameLog.create(game_id=game, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} removed their confirmation of the game winner.')
+                models.GameLog.write(game_id=game, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} removed their confirmation of the game winner.')
                 author_side.win_confirmed = False
                 author_side.save()
 
@@ -1481,7 +1481,7 @@ class games(commands.Cog):
             if not is_hosted_by and not settings.is_staff(ctx):
                 host_name = f' **{host.name}**' if host else ''
                 return await ctx.send(f'Only the game host{host_name} or server staff can do this.')
-            models.GameLog.create(game_id=game, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} deleted the game.')
+            models.GameLog.write(game_id=game, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} deleted the game.')
             game.delete_game()
             return await ctx.send(f'Deleting open game {game.id}')
 
@@ -1496,7 +1496,7 @@ class games(commands.Cog):
             await game.update_announcement(guild=ctx.guild, prefix=ctx.prefix)
 
         await game.delete_game_channels(self.bot.guilds, ctx.guild.id)
-        models.GameLog.create(game_id=game, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} deleted the game.')
+        models.GameLog.write(game_id=game, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} deleted the game.')
         gid = game.id
         try:
             async with ctx.typing():
@@ -1573,7 +1573,7 @@ class games(commands.Cog):
 
         await game.update_squad_channels(self.bot.guilds, game_guild.id)
         await game.update_announcement(guild=game_guild, prefix=ctx.prefix)
-        models.GameLog.create(game_id=game, guild_id=game.guild_id, message=f'{models.GameLog.member_string(ctx.author)} renamed the game to *{discord.utils.escape_markdown(new_game_name)}*')
+        models.GameLog.write(game_id=game, guild_id=game.guild_id, message=f'{models.GameLog.member_string(ctx.author)} renamed the game to *{discord.utils.escape_markdown(new_game_name)}*')
 
         new_game_name = game.name if game.name else 'None'
         old_game_name = old_game_name if old_game_name else 'None'
@@ -1770,7 +1770,7 @@ class games(commands.Cog):
 async def post_win_messaging(guild, prefix, current_chan, winning_game):
 
     await winning_game.update_squad_channels(guild_list=settings.bot.guilds, guild_id=guild.id, message=f'The game is over with **{winning_game.winner.name()}** victorious. *This channel will be purged soon.*')
-    models.GameLog.create(game_id=winning_game.id, guild_id=winning_game.guild_id, message=f'Win is confirmed and ELO changes processed.')
+    models.GameLog.write(game_id=winning_game.id, guild_id=winning_game.guild_id, message=f'Win is confirmed and ELO changes processed.')
     player_mentions = [f'<@{l.player.discord_member.discord_id}>' for l in winning_game.lineup]
     embed, content = winning_game.embed(guild=guild, prefix=prefix)
 

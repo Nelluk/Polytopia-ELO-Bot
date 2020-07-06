@@ -8,6 +8,7 @@ import modules.exceptions as exceptions
 import datetime
 import asyncio
 import discord
+import re
 from modules.games import PolyGame, post_win_messaging
 
 logger = logging.getLogger('polybot.' + __name__)
@@ -270,14 +271,14 @@ class administration(commands.Cog):
                     if game_size == 2 and game.date < old_60d and not game.is_completed:
                         delete_result.append(f'Deleting incomplete 1v1 game older than 60 days. - {game.get_headline()} - {game.date}{rank_str}')
                         # await self.bot.loop.run_in_executor(None, game.delete_game)
-                        models.GameLog.create(game_id=game, guild_id=guild.id, message=f'I purged the game during cleanup of old incomplete games.')
+                        models.GameLog.write(game_id=game, guild_id=guild.id, message=f'I purged the game during cleanup of old incomplete games.')
                         game.delete_game()
 
                     if game_size == 3 and game.date < old_90d and not game.is_completed:
                         delete_result.append(f'Deleting incomplete 3-player game older than 90 days. - {game.get_headline()} - {game.date}{rank_str}')
                         await game.delete_game_channels(self.bot.guilds, guild.id)
                         # await self.bot.loop.run_in_executor(None, game.delete_game)
-                        models.GameLog.create(game_id=game, guild_id=guild.id, message=f'I purged the game during cleanup of old incomplete games.')
+                        models.GameLog.write(game_id=game, guild_id=guild.id, message=f'I purged the game during cleanup of old incomplete games.')
                         game.delete_game()
 
                     if game_size == 4:
@@ -285,12 +286,12 @@ class administration(commands.Cog):
                             delete_result.append(f'Deleting incomplete 4-player game older than 90 days. - {game.get_headline()} - {game.date}{rank_str}')
                             await game.delete_game_channels(self.bot.guilds, guild.id)
                             await self.bot.loop.run_in_executor(None, game.delete_game)
-                            models.GameLog.create(game_id=game, guild_id=guild.id, message=f'I purged the game during cleanup of old incomplete games.')
+                            models.GameLog.write(game_id=game, guild_id=guild.id, message=f'I purged the game during cleanup of old incomplete games.')
                             game.delete_game()
                         if game.date < old_120d and not game.is_completed and game.is_ranked:
                             delete_result.append(f'Deleting incomplete ranked 4-player game older than 120 days. - {game.get_headline()} - {game.date}{rank_str}')
                             await game.delete_game_channels(self.bot.guilds, guild.id)
-                            models.GameLog.create(game_id=game, guild_id=guild.id, message=f'I purged the game during cleanup of old incomplete games.')
+                            models.GameLog.write(game_id=game, guild_id=guild.id, message=f'I purged the game during cleanup of old incomplete games.')
                             # await self.bot.loop.run_in_executor(None, game.delete_game)
                             game.delete_game()
 
@@ -299,7 +300,7 @@ class administration(commands.Cog):
                         delete_result.append(f'Deleting incomplete ranked {game_size}-player game older than 150 days. - {game.get_headline()} - {game.date}{rank_str}')
                         await game.delete_game_channels(self.bot.guilds, guild.id)
                         # await self.bot.loop.run_in_executor(None, game.delete_game)
-                        models.GameLog.create(game_id=game, guild_id=guild.id, message=f'I purged the game during cleanup of old incomplete games.')
+                        models.GameLog.write(game_id=game, guild_id=guild.id, message=f'I purged the game during cleanup of old incomplete games.')
                         game.delete_game()
 
                     if game_size >= 5 and not game.is_ranked and game.date < old_120d and not game.is_completed:
@@ -307,7 +308,7 @@ class administration(commands.Cog):
                         delete_result.append(f'Deleting incomplete unranked {game_size}-player game older than 120 days. - {game.get_headline()} - {game.date}{rank_str}')
                         await game.delete_game_channels(self.bot.guilds, guild.id)
                         # await self.bot.loop.run_in_executor(None, game.delete_game)
-                        models.GameLog.create(game_id=game, guild_id=guild.id, message=f'I purged the game during cleanup of old incomplete games.')
+                        models.GameLog.write(game_id=game, guild_id=guild.id, message=f'I purged the game during cleanup of old incomplete games.')
                         game.delete_game()
 
                 delete_str = '\n'.join(delete_result)
@@ -337,7 +338,7 @@ class administration(commands.Cog):
         game.save()
 
         logger.info(f'Game {game.id} is now marked as ranked.')
-        models.GameLog.create(game_id=game, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} set game to be ranked.')
+        models.GameLog.write(game_id=game, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} set game to be ranked.')
         return await ctx.send(f'Game {game.id} is now marked as ranked.')
 
     @commands.command(usage='game_id')
@@ -360,7 +361,7 @@ class administration(commands.Cog):
         game.save()
 
         logger.info(f'Game {game.id} is now marked as unranked.')
-        models.GameLog.create(game_id=game, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} set game to be unranked.')
+        models.GameLog.write(game_id=game, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} set game to be unranked.')
         return await ctx.send(f'Game {game.id} is now marked as unranked.')
 
     @settings.in_bot_channel()
@@ -389,7 +390,7 @@ class administration(commands.Cog):
         tomorrow = (datetime.datetime.now() + datetime.timedelta(hours=24))
         game.expiration = tomorrow if game.expiration < tomorrow else game.expiration
         game.save()
-        models.GameLog.create(game_id=game, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} changed in-progress game to an open game. ({ctx.prefix}unstart)')
+        models.GameLog.write(game_id=game, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} changed in-progress game to an open game. (`{ctx.prefix}unstart`)')
 
         try:
             await ctx.send(f'Game {game.id} is now an open game and no longer in progress.')
@@ -409,55 +410,63 @@ class administration(commands.Cog):
         `[p]gamelogs` - *Mod only*: List last 50 log messages, regardless of game.
         """
 
-        # TODO: Might have issue with log entries leaking across servers. Could add a guild_id field to the log table and limit
-        # searches to ctx.guild.id. Would need a one-time command to populate guild_id on old entries
+        paginated_message_list = []
+        game_id = None
+
+        negative_parameter = re.search(r'-(\S+)', search_term) if search_term else ''
+        if negative_parameter:
+            negative_term = negative_parameter[1]
+            search_term = search_term.replace(negative_parameter[0], '').replace('  ', ' ').strip()
+        else:
+            negative_term = None
+        # print(negative_parameter)
+        # print(negative_term)
+        # print(search_term)
+
+        # negative_terms = ['joined']
+        # negative_term = '%'.join(negative_terms)
         if ctx.invoked_with == 'gamelog':
             # look up history of one game
 
-            if search_term:
-                try:
-                    game_id = int(search_term)
-                except (ValueError):
-                    game_id = None  # search_term is string, used for text search of log contents
-                else:
-                    # Numeric search term passed, if its <= 7 chars assume its a game ID and search that way
-                    if len(search_term) > 7:
-                        # if numeric string > 7 chars passed, assuming its not a game ID but will be used for a text search
-                        game_id = None
-            else:
+            if not search_term:
                 return await ctx.send(f'No search term was entered')
 
             if game_id:
-                message_list = [f'Listing all entries for game # {game_id}...']
+                title_str = f'Listing entries for game {game_id}'
+                # See log entries tied to a specific game ID
                 entries = models.GameLog.select().where(
                     (models.GameLog.game_id == game_id) & (models.GameLog.guild_id == ctx.guild.id)
                 ).order_by(-models.GameLog.message_ts)
                 for entry in entries:
-                    message_list.append(f'`{entry.message_ts.strftime("%Y-%m-%d %H:%M:%S")}` - {entry.message}')
+                    paginated_message_list.append((f'`{entry.message_ts.strftime("%Y-%m-%d %H:%M:%S")}`', entry.message))
             else:
+                # See log entries with a matching key word
                 # Keyword search will also return log entries not tied to a game or server, specifically code/name sets
-                message_list = [f'Listing the 50 most recent entries containing *{search_term}*...']
+                title_str = f'Listing the most recent entries containing *{search_term}*...'
                 entries = models.GameLog.select().where(
                     (models.GameLog.message.contains(search_term.replace(' ', '%'))) & (
                         (models.GameLog.guild_id == ctx.guild.id) | (models.GameLog.guild_id == 0)
-                    )
-                ).order_by(-models.GameLog.message_ts).limit(50)
+                    ) &
+                    (~models.GameLog.message.contains(negative_term))
+                ).order_by(-models.GameLog.message_ts).limit(500)
                 for entry in entries:
-                    message_list.append(f'`{entry.message_ts.strftime("%Y-%m-%d %H:%M:%S")}` - {entry.game_id} - {entry.message}')
+                    # game_id_str = f'__{entry.game_id}__ - ' if entry.game_id else ''
+                    paginated_message_list.append((f'`{entry.message_ts.strftime("%Y-%m-%d %H:%M:%S")}`', f'{entry.message}'))
 
         elif ctx.invoked_with == 'gamelogs' and settings.is_mod(ctx.author):
-            # List 50 more recent logged actions
+            # List most recent logged actions regardless of keyword/game
             if search_term and search_term.upper() == 'ALL':
-                message_list = [f'Listing the 50 most recent log items (across all guilds)...']
-                entries = models.GameLog.select().order_by(-models.GameLog.message_ts).limit(50)
+                title_str = f'Listing the most recent log items (across all guilds)...'
+                entries = models.GameLog.select().order_by(-models.GameLog.message_ts).limit(500)
             else:
-                message_list = [f'Listing the 50 most recent log items...']
-                entries = models.GameLog.select().where(models.GameLog.guild_id == ctx.guild.id).order_by(-models.GameLog.message_ts).limit(50)
+                title_str = f'Listing the most recent log items...'
+                entries = models.GameLog.select().where(models.GameLog.guild_id == ctx.guild.id).order_by(-models.GameLog.message_ts).limit(500)
 
             for entry in entries:
-                message_list.append(f'`{entry.message_ts.strftime("%Y-%m-%d %H:%M:%S")}` - {entry.game_id} - {entry.message}')
+                # game_id_str = f'__{entry.game_id}__ - ' if entry.game_id else ''
+                paginated_message_list.append((f'`{entry.message_ts.strftime("%Y-%m-%d %H:%M:%S")}`', f'{entry.message}'))
 
-        await utilities.buffered_send(destination=ctx, content='\n'.join(message_list))
+        await utilities.paginate(self.bot, ctx, title=title_str, message_list=paginated_message_list, page_start=0, page_end=10, page_size=10)
 
     @commands.command(usage='game_id')
     async def extend(self, ctx, game: PolyGame = None):
@@ -782,7 +791,7 @@ class administration(commands.Cog):
                                 team_kicked_count += 1
                                 team_kicked_list.append(member.mention)
 
-                            models.GameLog.create(game_id=0, guild_id=ctx.guild.id, message=f'I kicked {models.GameLog.member_string(member)} in a mass purge.')
+                            models.GameLog.write(game_id=0, guild_id=ctx.guild.id, message=f'I kicked {models.GameLog.member_string(member)} in a mass purge.')
 
         await utilities.buffered_send(destination=ctx, content=f'Kicking {total_kicked_count} inactive members. Of those, {team_kicked_count} had a team role, listed below:\n {" / ".join(team_kicked_list)}')
 
@@ -857,7 +866,7 @@ class administration(commands.Cog):
 
             await ctx.send('Migration complete!')
 
-        models.GameLog.create(game_id=0, guild_id=0, message=f'**{ctx.author.display_name}** migrated old ELO player **{old_name}** `{from_id}` to {models.GameLog.member_string(new_guild_member)}')
+        models.GameLog.write(game_id=0, guild_id=0, message=f'**{ctx.author.display_name}** migrated old ELO player **{old_name}** `{from_id}` to {models.GameLog.member_string(new_guild_member)}')
 
     @commands.command(aliases=['delplayer'])
     @commands.is_owner()

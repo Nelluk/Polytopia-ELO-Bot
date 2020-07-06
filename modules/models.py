@@ -2298,7 +2298,7 @@ class GameSide(BaseModel):
 
 
 class GameLog(BaseModel):
-    game_id = SmallIntegerField(null=False)
+    # game_id = SmallIntegerField(null=False)
     message = TextField(null=True)
     message_ts = DateTimeField(default=datetime.datetime.now)
     guild_id = BitField(unique=False, null=False, default=0)
@@ -2315,6 +2315,12 @@ class GameLog(BaseModel):
             name = member.name
             d_id = member.discord_id
         return f'**{discord.utils.escape_markdown(name)}** (`{d_id}`)'
+
+    def write(message, guild_id, game_id=0):
+        if game_id:
+            message = f'__{str(game_id)}__ - {message}'
+
+        return GameLog.create(guild_id=guild_id, message=message)
 
 
 class Lineup(BaseModel):

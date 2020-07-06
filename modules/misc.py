@@ -26,39 +26,9 @@ class misc(commands.Cog):
     @commands.is_owner()
     async def test(self, ctx, *, arg: str = None):
 
-        date_cutoff = datetime.datetime.strptime('6/30/2019', "%m/%d/%Y").date()
-
-        types = [
-            [1, 1], [2, 2], [3, 3], [4, 4], [1, 1, 1], [1, 1, 1, 1], [1, 1, 1, 1, 1], [1, 2], [1, 3], [2, 3]
-        ]
-        messages = []
-        for typ in types:
-            if ctx.invoked_with == 'tsbefore':
-                game_totals = models.GameSide.select().join(models.Game).where(
-                    (models.GameSide.position == 1) & (models.GameSide.game.size == typ) & (models.GameSide.game.date < date_cutoff)
-                ).count()
-
-                game_wins = models.GameSide.select().join(models.Game).where(
-                    (models.GameSide.position == 1) & (models.GameSide.game.size == typ) & (models.GameSide.game.date < date_cutoff) & (models.GameSide.game.winner == models.GameSide.id)
-                ).count()
-            elif ctx.invoked_with == 'tsafter':
-                game_totals = models.GameSide.select().join(models.Game).where(
-                    (models.GameSide.position == 1) & (models.GameSide.game.size == typ) & (models.GameSide.game.date > date_cutoff)
-                ).count()
-
-                game_wins = models.GameSide.select().join(models.Game).where(
-                    (models.GameSide.position == 1) & (models.GameSide.game.size == typ) & (models.GameSide.game.date > date_cutoff) & (models.GameSide.game.winner == models.GameSide.id)
-                ).count()
-            else:
-                return await ctx.send('Bzzt')
-
-            if game_totals:
-                rate = str(round(game_wins / game_totals, 3) * 100)
-            else:
-                rate = ''
-            messages.append(f'For game type {"v".join([str(n) for n in typ])}: {game_wins} home wins of {game_totals} total games  ({rate}%)')
-
-        await ctx.send('\n'.join(messages))
+        # query = Stat.update(counter=Stat.counter + 1).where(Stat.url == request.url)
+        query = models.GameLog.update(message=f'__{str(models.GameLog.game_id)}__ - {models.GameLog.message}').where(models.GameLog.game_id > 0)
+        query.execute()
 
     @commands.command(usage=None)
     @settings.in_bot_channel_strict()
@@ -220,7 +190,7 @@ class misc(commands.Cog):
 
         for game in game_list:
             logger.debug(f'Sending message to game channels for game {game.id} from pingall')
-            models.GameLog.create(game_id=game, guild_id=ctx.guild.id, message=f'{log_message} *{discord.utils.escape_markdown(clean_message)}*')
+            models.GameLog.write(game_id=game, guild_id=ctx.guild.id, message=f'{log_message} *{discord.utils.escape_markdown(clean_message)}*')
             await game.update_squad_channels(self.bot.guilds, game.guild_id, message=f'Message to all players in unfinished games for <@{target}>: *{clean_message}*')
 
     @commands.command(usage='game_id message')
@@ -309,7 +279,7 @@ class misc(commands.Cog):
 
         player_mentions = [f'<@{l.player.discord_member.discord_id}>' for l in game.lineup]
         full_message = f'Message from {ctx.author.mention} (**{ctx.author.name}**) regarding game {game.id} **{game.name}**:\n*{message}*'
-        models.GameLog.create(game_id=game, guild_id=game.guild_id, message=f'{models.GameLog.member_string(ctx.author)} pinged the game with message: *{discord.utils.escape_markdown(message)}*')
+        models.GameLog.write(game_id=game, guild_id=game.guild_id, message=f'{models.GameLog.member_string(ctx.author)} pinged the game with message: *{discord.utils.escape_markdown(message)}*')
 
         if ctx.channel.id in permitted_channels_private:
             logger.debug(f'Ping triggered in private channel {ctx.channel.id}')
