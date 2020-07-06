@@ -250,9 +250,6 @@ class administration(commands.Cog):
 
             for guild in self.bot.guilds:
                 staff_output_channel = guild.get_channel(settings.guild_setting(guild.id, 'game_request_channel'))
-                if not staff_output_channel:
-                    logger.debug(f'Could not load game_request_channel for server {guild.id} {guild.name} - skipping')
-                    continue
 
                 utilities.connect()
 
@@ -315,7 +312,11 @@ class administration(commands.Cog):
                 delete_str = '\n'.join(delete_result)
                 logger.info(f'Purging incomplete games for guild {guild.name}:\n{delete_str}')
                 if len(delete_result):
-                    await staff_output_channel.send(f'{delete_str[:1900]}\nFinished - purged {len(delete_result)} games')
+
+                    if staff_output_channel:
+                        await staff_output_channel.send(f'{delete_str[:1900]}\nFinished - purged {len(delete_result)} games')
+                    else:
+                        logger.debug(f'Could not load game_request_channel for server {guild.id} {guild.name} - performing task silently')
 
             await asyncio.sleep(sleep_cycle)
 
