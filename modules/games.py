@@ -1154,8 +1154,8 @@ class games(commands.Cog):
         example_usage = (f'Example usage:\n`{ctx.prefix}newgame "Name of Game" player1 VS player2` - Start a 1v1 game\n'
                          f'`{ctx.prefix}newgame "Name of Game" player1 player2 VS player3 player4` - Start a 2v2 game')
 
-        if settings.get_user_level(ctx) <= 1:
-            return await ctx.send(f'You cannot use this command until level 2 - complete a few more ELO games to have more permissions.\n{settings.levels_info}')
+        if settings.get_user_level(ctx) <= 2:
+            return await ctx.send(f'You are not authorized to use this command. Create and join games with `{ctx.prefix}open` / `{ctx.prefix}join`')
         if not game_name:
             return await ctx.send(f'Invalid format. {example_usage}')
         if not args:
