@@ -40,7 +40,7 @@ class administration(commands.Cog):
 
         message = ''
 
-        for guild_id, channel_id, message_id in self.bot.purgable_messages:
+        for guild_id, channel_id, message_id in reversed(self.bot.purgable_messages):
             # purge messages created by Misc.task_broadcast_newbie_message() so they arent duplicated when bot restarts
             guild = discord.utils.get(self.bot.guilds, id=guild_id)
             channel = guild.get_channel(channel_id)
