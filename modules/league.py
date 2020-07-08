@@ -353,6 +353,9 @@ class league(commands.Cog):
         await self.send_to_log_channel(ctx.guild, f'Draft created by <@{ctx.author.id}>\n'
             f'https://discord.com/channels/{ctx.guild.id}/{announcement_channel.id}/{announcement_message.id}')
 
+        if announcement_channel.id != ctx.message.channel.id:
+            await ctx.send(f'Draft announcement has been posted in the announcement channel.')
+
         draft_config['announcement_message'] = announcement_message.id
         draft_config['announcement_channel'] = announcement_message.channel.id
         draft_config['date_opened'] = str(datetime.datetime.today())
@@ -457,7 +460,7 @@ class league(commands.Cog):
         if not player:
             # Matching guild member but no Player or DiscordMember
             return await ctx.send(f'*{ctx.author.name}* was found in the server but is not registered with me. '
-                f'Players can be register themselves with `{ctx.prefix}setcode POLYTOPIA_CODE`.')
+                f'Players can register themselves with `{ctx.prefix}setcode POLYTOPIA_CODE`.')
 
         on_team, player_team = models.Player.is_in_team(guild_id=ctx.guild.id, discord_member=ctx.author)
         if on_team:

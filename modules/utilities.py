@@ -169,18 +169,21 @@ def summarize_game_list(games_query):
     return game_list
 
 
-def export_game_data():
+def export_game_data(query=None):
     import csv
     filename = 'games_export.csv'
+    connect()
     with open(filename, mode='w') as export_file:
         game_writer = csv.writer(export_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
 
         header = ['game_id', 'server', 'game_name', 'game_type', 'game_date', 'rank_unranked', 'completed_timestamp', 'side_id', 'side_name', 'player_name', 'winner', 'player_elo', 'player_elo_change', 'squad_elo', 'squad_elo_change', 'tribe']
         game_writer.writerow(header)
 
-        query = models.Lineup.select().join(models.Game).where(
-            (models.Game.is_confirmed == 1)
-        ).order_by(models.Lineup.gameside_id).order_by(models.Lineup.game_id)
+        if not query:
+            # Default to all confirmed games
+            query = models.Lineup.select().join(models.Game).where(
+                (models.Game.is_confirmed == 1)
+            ).order_by(models.Lineup.gameside_id).order_by(models.Lineup.game_id)
 
         for q in query:
             is_winner = True if q.game.winner_id == q.gameside_id else False
@@ -189,7 +192,7 @@ def export_game_data():
                    ranked_status, str(q.game.date), str(q.game.completed_ts), q.gameside_id,
                    q.gameside.name(), q.player.name, is_winner, q.elo_after_game,
                    q.elo_change_player, q.gameside.squad_id if q.gameside.squad else '', q.gameside.squad.elo if q.gameside.squad else '',
-                   q.tribe.tribe.name if q.tribe else '']
+                   q.tribe.name if q.tribe else '']
 
             game_writer.writerow(row)
 
