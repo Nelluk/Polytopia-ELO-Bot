@@ -19,6 +19,7 @@ pyvenv.cfg
 pip-selfcheck.json
 *.log*
 *.csv
+*.csv.gz
 *.json
 *test.py
 .python-version

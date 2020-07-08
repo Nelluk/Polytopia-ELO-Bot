@@ -171,9 +171,11 @@ def summarize_game_list(games_query):
 
 def export_game_data(query=None):
     import csv
-    filename = 'games_export.csv'
+    import gzip
+
+    filename = 'games_export.csv.gz'
     connect()
-    with open(filename, mode='w') as export_file:
+    with gzip.open(filename, mode='wt') as export_file:
         game_writer = csv.writer(export_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
 
         header = ['game_id', 'server', 'game_name', 'game_type', 'game_date', 'rank_unranked', 'completed_timestamp', 'side_id', 'side_name', 'player_name', 'winner', 'player_elo', 'player_elo_change', 'squad_elo', 'squad_elo_change', 'tribe']
@@ -197,6 +199,7 @@ def export_game_data(query=None):
             game_writer.writerow(row)
 
     print(f'Game data written to file {filename} in bot.py directory')
+    return filename
 
 
 async def paginate(bot, ctx, title, message_list, page_start=0, page_end=10, page_size=10):

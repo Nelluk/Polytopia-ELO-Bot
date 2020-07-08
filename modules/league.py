@@ -597,6 +597,39 @@ class league(commands.Cog):
         async with ctx.typing():
             await utilities.buffered_send(destination=ctx, content=''.join(message).replace(".", "\u200b "))
 
+    @commands.command()
+    # @settings.in_bot_channel()
+    @commands.cooldown(1, 120, commands.BucketType.channel)
+    async def league_export(self, ctx, *, arg=None):
+        """
+        Export all league games to a CSV file
+
+        Specifically includes all ranked 2v2 or 3v3 games
+        """
+
+        import io
+        query = models.Lineup.select().join(models.Game).where(
+            (models.Game.is_confirmed == 1) & (models.Game.guild_id == settings.server_ids['polychampions']) & (models.Game.is_ranked == 1) &
+            ((models.Game.size == [2, 2]) | (models.Game.size == [3, 3]))
+        ).order_by(models.Lineup.gameside_id).order_by(models.Lineup.game_id)
+
+        def async_call_export_func():
+
+            filename = utilities.export_game_data(query=query)
+            return filename
+
+        if query:
+            await ctx.send(f'Exporting {len(query)} game records. This might take a little while...')
+        else:
+            return await ctx.send(f'No matching games found.')
+
+        async with ctx.typing():
+            filename = await self.bot.loop.run_in_executor(None, async_call_export_func)
+            with open(filename, 'rb') as f:
+                file = io.BytesIO(f.read())
+            file = discord.File(file, filename=filename)
+            await ctx.send(f'Wrote to `{filename}`', file=file)
+
 
 async def auto_grad_novas(ctx, game):
     # called from post_newgame_messaging() - check if any member of the newly-started game now meets Nova graduation requirements
