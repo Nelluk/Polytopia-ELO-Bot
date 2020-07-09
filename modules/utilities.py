@@ -178,7 +178,7 @@ def export_game_data(query=None):
     with gzip.open(filename, mode='wt') as export_file:
         game_writer = csv.writer(export_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
 
-        header = ['game_id', 'server', 'game_name', 'game_type', 'game_date', 'rank_unranked', 'completed_timestamp', 'side_id', 'side_name', 'player_name', 'winner', 'player_elo', 'player_elo_change', 'squad_elo', 'squad_elo_change', 'tribe']
+        header = ['game_id', 'server', 'game_name', 'game_type', 'rank_unranked', 'game_date', 'completed_timestamp', 'side_id', 'side_name', 'player_name', 'winner', 'player_elo', 'player_elo_change', 'squad_elo', 'squad_elo_change', 'tribe']
         game_writer.writerow(header)
 
         if not query:
@@ -195,6 +195,45 @@ def export_game_data(query=None):
                    q.gameside.name(), q.player.name, is_winner, q.elo_after_game,
                    q.elo_change_player, q.gameside.squad_id if q.gameside.squad else '', q.gameside.squad.elo if q.gameside.squad else '',
                    q.tribe.name if q.tribe else '']
+
+            game_writer.writerow(row)
+
+    print(f'Game data written to file {filename} in bot.py directory')
+    return filename
+
+
+def export_game_data_brief(query):
+    import csv
+    import gzip
+    # only supports two-sided games, one winner and one loser
+
+    filename = 'games_export-brief.csv.gz'
+    connect()
+    with gzip.open(filename, mode='wt') as export_file:
+        game_writer = csv.writer(export_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+
+        header = ['game_id', 'server', 'game_name', 'game_type', 'headline', 'rank_unranked', 'game_date', 'completed_timestamp', 'winning_side', 'winning_roster', 'winning_side_elo', 'losing_side', 'losing_roster', 'losing_side_elo']
+        game_writer.writerow(header)
+
+        for game in query:
+            if len(game.size) != 2:
+                logger.info(f'Skipping export of game {game.id} - this export requires two-sided games.')
+                continue
+            if not game.is_completed or not game.is_confirmed:
+                logger.info(f'Skipping export of game {game.id} - this export completed and confirmed games.')
+                continue
+
+            losing_side = game.gamesides[0] if game.gamesides[1] == game.winner else game.gamesides[1]
+            winning_side = game.winner
+            ranked_status = 'Ranked' if game.is_ranked else 'Unranked'
+
+            winning_roster = [f'{p[0].name} {p[1]}' for p in winning_side.roster()]
+            losing_roster = [f'{p[0].name} {p[1]}' for p in losing_side.roster()]
+
+            row = [game.id, settings.guild_setting(game.guild_id, 'display_name'), game.name, game.size_string(),
+                   game.get_gamesides_string(), ranked_status, str(game.date), str(game.completed_ts),
+                   winning_side.name(), " / ".join(winning_roster), winning_side.elo_strings()[0],
+                   losing_side.name(), " / ".join(losing_roster), losing_side.elo_strings()[0]]
 
             game_writer.writerow(row)
 

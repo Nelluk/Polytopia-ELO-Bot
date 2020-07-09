@@ -608,14 +608,14 @@ class league(commands.Cog):
         """
 
         import io
-        query = models.Lineup.select().join(models.Game).where(
+        query = models.Game.select().where(
             (models.Game.is_confirmed == 1) & (models.Game.guild_id == settings.server_ids['polychampions']) & (models.Game.is_ranked == 1) &
             ((models.Game.size == [2, 2]) | (models.Game.size == [3, 3]))
-        ).order_by(models.Lineup.gameside_id).order_by(models.Lineup.game_id)
+        ).order_by(models.Game.date)
 
         def async_call_export_func():
 
-            filename = utilities.export_game_data(query=query)
+            filename = utilities.export_game_data_brief(query=query)
             return filename
 
         if query:
