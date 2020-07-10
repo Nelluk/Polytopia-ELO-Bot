@@ -399,7 +399,7 @@ class administration(commands.Cog):
         except discord.errors.NotFound:
             logger.warn('Game unstarted while in game-related channel')
 
-    @commands.command(usage='search_term', aliases=['gamelog', 'gamelogs', 'global_logs'])
+    @commands.command(usage='search_term', aliases=['gamelog', 'gamelogs', 'global_logs', 'log'])
     # @commands.cooldown(1, 20, commands.BucketType.user)
     async def logs(self, ctx, *, search_term: str = None):
         """ *Staff*: Lists or searches log entries
