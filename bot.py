@@ -182,7 +182,7 @@ if __name__ == '__main__':
         else:
             exception_str = ''.join(traceback.format_exception(etype=type(exc), value=exc, tb=exc.__traceback__))
             logger.critical(f'Ignoring exception in command {ctx.command}: {exc} {exception_str}', exc_info=True)
-            await ctx.send(f'Unhandled error: {exc}')
+            await ctx.send(f'Unhandled error (notifying <@{settings.owner_id}>): {exc}')
 
     @bot.before_invoke
     async def pre_invoke_setup(ctx):

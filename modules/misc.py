@@ -26,9 +26,8 @@ class misc(commands.Cog):
     @commands.is_owner()
     async def test(self, ctx, *, arg: str = None):
 
-        q = models.GameLog.search(keywords='Nelluk', guild_id=ctx.guild.id)
-        for gl in q:
-            print(gl.message, gl.guild_id)
+        raise discord.NotFound('foo')
+        await ctx.send('test')
 
     @commands.command(usage=None)
     @settings.in_bot_channel_strict()
