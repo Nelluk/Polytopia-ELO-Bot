@@ -834,7 +834,7 @@ class games(commands.Cog):
         player.discord_member.polytopia_id = new_id
         player.discord_member.save()
 
-        models.GameLog.write(game_id=0, guild_id=0, message=f'**{player.discord_member.name}** {models.GameLog.member_string(player.discord_member)} code {"set" if created else "updated"} to `{new_id}` {log_by_str}')
+        models.GameLog.write(game_id=0, guild_id=0, message=f'{models.GameLog.member_string(player.discord_member)} code {"set" if created else "updated"} to `{new_id}` {log_by_str}')
 
         if created:
             await ctx.send(f'Player **{player.name}** added to system with Polytopia code `{player.discord_member.polytopia_id}` and ELO **{player.elo}**\n'
