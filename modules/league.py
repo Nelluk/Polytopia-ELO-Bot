@@ -673,7 +673,7 @@ async def auto_grad_novas(ctx, game):
 
         for lineup in player.games_played():
             game = lineup.game
-            if game.notes and 'Nova Red' in game.notes and 'Nova Blue' in game.notes:
+            if game.notes and 'NOVA RED' in game.notes.upper() and 'NOVA BLUE' in game.notes.upper():
                 if not game.is_pending:
                     qualifying_games.append(str(game.id))
 
