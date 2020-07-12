@@ -33,8 +33,8 @@ class administration(commands.Cog):
                 await ctx.send('You do not have permission to use this command.')
                 return False
 
-    @commands.is_owner(aliases=['restart'])
-    @commands.command()
+    @commands.is_owner()
+    @commands.command(aliases=['restart'])
     async def quit(self, ctx):
         """ *Owner*: Close database connection and quit bot gracefully """
 

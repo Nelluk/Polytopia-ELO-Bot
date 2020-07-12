@@ -516,7 +516,8 @@ class Player(BaseModel):
         # Returns QuerySet containing players in current guild matching string. Searches against discord mention ID first, then exact discord name match,
         # then falls back to substring match on name/nick, then a lastly a substring match of polytopia ID or polytopia in-game name
 
-        p_id = string_to_user_id(str(player_string))
+        player_string = str(player_string)
+        p_id = string_to_user_id(player_string)
         if p_id:
             # lookup either on <@####> mention string or raw ID #
             query_by_id = Player.select(Player, DiscordMember).join(DiscordMember).where(
