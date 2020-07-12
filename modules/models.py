@@ -264,6 +264,61 @@ class DiscordMember(BaseModel):
 
         return (self.wins().count(), self.losses().count())
 
+    def get_polychamps_record(self):
+
+        try:
+            pc_player = Player.get_or_except(player_string=self.discord_id, guild_id=settings.server_ids['polychampions'])
+        except exceptions.NoSingleMatch:
+            return None
+
+        all_season_games = Game.select().where(
+            (Game.name.iregexp('S\\d'))  # matches S5 or PS5 or any S#
+        )
+
+        pro_season_games = Game.select().where(
+            (Game.name.iregexp('PS\\d')) | (Game.name.iregexp('S[1234]'))  # matches PS5 or S1,S2,S3,S4 (pre-junior)
+        )
+
+        junior_season_games = Game.select().where(
+            (Game.name.iregexp('JS\\d'))  # matches JS4 JS5 etc
+        )
+
+        losses = Game.search(status_filter=4, player_filter=[pc_player])
+        wins = Game.search(status_filter=3, player_filter=[pc_player])
+
+        total_win_count = Game.select(Game.id).where(
+            Game.id.in_(wins) & Game.id.in_(all_season_games) & (Game.is_ranked == 1) & (Game.is_confirmed == 1) & (Game.is_completed == 1)
+        ).count()
+
+        total_loss_count = Game.select(Game.id).where(
+            Game.id.in_(losses) & Game.id.in_(all_season_games) & (Game.is_ranked == 1) & (Game.is_confirmed == 1) & (Game.is_completed == 1)
+        ).count()
+
+        if not total_win_count and not total_loss_count:
+            return None
+
+        pro_win_count = Game.select(Game.id).where(
+            Game.id.in_(wins) & Game.id.in_(pro_season_games) & (Game.is_ranked == 1) & (Game.is_confirmed == 1) & (Game.is_completed == 1)
+        ).count()
+
+        pro_loss_count = Game.select(Game.id).where(
+            Game.id.in_(losses) & Game.id.in_(pro_season_games) & (Game.is_ranked == 1) & (Game.is_confirmed == 1) & (Game.is_completed == 1)
+        ).count()
+
+        junior_win_count = Game.select(Game.id).where(
+            Game.id.in_(wins) & Game.id.in_(junior_season_games) & (Game.is_ranked == 1) & (Game.is_confirmed == 1) & (Game.is_completed == 1)
+        ).count()
+
+        junior_loss_count = Game.select(Game.id).where(
+            Game.id.in_(losses) & Game.id.in_(junior_season_games) & (Game.is_ranked == 1) & (Game.is_confirmed == 1) & (Game.is_completed == 1)
+        ).count()
+
+        return {
+            'full_record': (total_win_count, total_loss_count),
+            'pro_record': (pro_win_count, pro_loss_count),
+            'junior_record': (junior_win_count, junior_loss_count)
+        }
+
     def games_played(self, in_days: int = None):
 
         if in_days:

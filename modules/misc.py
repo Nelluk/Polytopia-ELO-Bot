@@ -22,12 +22,27 @@ class misc(commands.Cog):
             self.bg_task = bot.loop.create_task(self.task_broadcast_newbie_message())
             self.bg_task = bot.loop.create_task(self.task_send_polychamps_invite())
 
-    @commands.command(hidden=True, aliases=['ts', 'tsbefore', 'tsafter'])
+    @commands.command(hidden=True, aliases=['ts'])
     @commands.is_owner()
     async def test(self, ctx, *, arg: str = None):
 
-        raise discord.NotFound('foo')
-        await ctx.send('test')
+        player_match = models.Player.get_or_except(player_string=ctx.author.id, guild_id=settings.server_ids['polychampions'])
+
+        print(player_match.discord_member.get_polychamps_record())
+
+        # losses = models.Game.search(status_filter=4, player_filter=[player_match])
+        # print(f'losses: {len(losses)}')
+
+        # query = models.Game.select().where(
+        #     (models.Game.name.iregexp('S[1234]'))
+        # ).order_by(models.Game.id)
+        # print(f'season games: {len(query)}')
+
+        # # query = models.Game.select().where(
+        # #     (models.Game.id.in_(losses) & models.Game.id.in_(season_games))
+        # # )
+        # for g in query:
+        #     print(f'{g.id} - {g.name}')
 
     @commands.command(usage=None)
     @settings.in_bot_channel_strict()
