@@ -26,23 +26,19 @@ class misc(commands.Cog):
     @commands.is_owner()
     async def test(self, ctx, *, arg: str = None):
 
-        player_match = models.Player.get_or_except(player_string=ctx.author.id, guild_id=settings.server_ids['polychampions'])
+        all_season_games = models.Game.select().where(
+            (models.Game.name.iregexp('S\\d'))  # matches S5 or PS5 or any S#
+        )
 
-        print(player_match.discord_member.get_polychamps_record())
+        note_season_games = models.Game.select().where(
+            (models.Game.notes.iregexp('S\\d'))  # matches S5 or PS5 or any S#
+        )
 
-        # losses = models.Game.search(status_filter=4, player_filter=[player_match])
-        # print(f'losses: {len(losses)}')
-
-        # query = models.Game.select().where(
-        #     (models.Game.name.iregexp('S[1234]'))
-        # ).order_by(models.Game.id)
-        # print(f'season games: {len(query)}')
-
-        # # query = models.Game.select().where(
-        # #     (models.Game.id.in_(losses) & models.Game.id.in_(season_games))
-        # # )
-        # for g in query:
-        #     print(f'{g.id} - {g.name}')
+        query = models.Game.select().where(
+            (models.Game.id.in_(note_season_games) & models.Game.id.not_in(all_season_games))
+        )
+        for g in query:
+            print(f'{g.id} - {g.name}')
 
     @commands.command(usage=None)
     @settings.in_bot_channel_strict()
