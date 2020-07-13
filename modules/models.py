@@ -271,46 +271,38 @@ class DiscordMember(BaseModel):
         except exceptions.NoSingleMatch:
             return None
 
-        all_season_games = Game.select().where(
-            (Game.name.iregexp('S\\d'))  # matches S5 or PS5 or any S#
-        )
-
-        pro_season_games = Game.select().where(
-            (Game.name.iregexp('PS\\d')) | (Game.name.iregexp('S[1234]'))  # matches PS5 or S1,S2,S3,S4 (pre-junior)
-        )
-
-        junior_season_games = Game.select().where(
-            (Game.name.iregexp('JS\\d'))  # matches JS4 JS5 etc
-        )
+        all_season_games = Game.polychamps_season_games(league='all')
+        pro_season_games = Game.polychamps_season_games(league='pro')
+        junior_season_games = Game.polychamps_season_games(league='junior')
 
         losses = Game.search(status_filter=4, player_filter=[pc_player])
         wins = Game.search(status_filter=3, player_filter=[pc_player])
 
         total_win_count = Game.select(Game.id).where(
-            Game.id.in_(wins) & Game.id.in_(all_season_games) & (Game.is_ranked == 1) & (Game.is_confirmed == 1) & (Game.is_completed == 1)
+            Game.id.in_(wins) & Game.id.in_(all_season_games) & (Game.is_confirmed == 1) & (Game.is_completed == 1)
         ).count()
 
         total_loss_count = Game.select(Game.id).where(
-            Game.id.in_(losses) & Game.id.in_(all_season_games) & (Game.is_ranked == 1) & (Game.is_confirmed == 1) & (Game.is_completed == 1)
+            Game.id.in_(losses) & Game.id.in_(all_season_games) & (Game.is_confirmed == 1) & (Game.is_completed == 1)
         ).count()
 
         if not total_win_count and not total_loss_count:
             return None
 
         pro_win_count = Game.select(Game.id).where(
-            Game.id.in_(wins) & Game.id.in_(pro_season_games) & (Game.is_ranked == 1) & (Game.is_confirmed == 1) & (Game.is_completed == 1)
+            Game.id.in_(wins) & Game.id.in_(pro_season_games) & (Game.is_confirmed == 1) & (Game.is_completed == 1)
         ).count()
 
         pro_loss_count = Game.select(Game.id).where(
-            Game.id.in_(losses) & Game.id.in_(pro_season_games) & (Game.is_ranked == 1) & (Game.is_confirmed == 1) & (Game.is_completed == 1)
+            Game.id.in_(losses) & Game.id.in_(pro_season_games) & (Game.is_confirmed == 1) & (Game.is_completed == 1)
         ).count()
 
         junior_win_count = Game.select(Game.id).where(
-            Game.id.in_(wins) & Game.id.in_(junior_season_games) & (Game.is_ranked == 1) & (Game.is_confirmed == 1) & (Game.is_completed == 1)
+            Game.id.in_(wins) & Game.id.in_(junior_season_games) & (Game.is_confirmed == 1) & (Game.is_completed == 1)
         ).count()
 
         junior_loss_count = Game.select(Game.id).where(
-            Game.id.in_(losses) & Game.id.in_(junior_season_games) & (Game.is_ranked == 1) & (Game.is_confirmed == 1) & (Game.is_completed == 1)
+            Game.id.in_(losses) & Game.id.in_(junior_season_games) & (Game.is_confirmed == 1) & (Game.is_completed == 1)
         ).count()
 
         return {
@@ -869,7 +861,7 @@ class Game(BaseModel):
         guild = discord.utils.get(guild_list, id=guild_id)
         last_week = (datetime.datetime.now() + datetime.timedelta(days=-7))
 
-        if self.name and ('s8' in self.name.lower() or 's6' in self.name.lower() or 's7' in self.name.lower()):
+        if self.is_season_game():
             if self.completed_ts and self.completed_ts > last_week:
                 return logger.warn(f'Skipping team channel deletion for game {self.id} {self.name} since it is a Season game concluded recently')
 
@@ -913,13 +905,13 @@ class Game(BaseModel):
                     logger.debug(f'Pinging message to channel {gameside.team_chan} in guild {side_guild}')
                     await channels.send_message_to_channel(side_guild, channel_id=gameside.team_chan, message=message)
                 else:
-                    await channels.update_game_channel_name(side_guild, channel_id=gameside.team_chan, game_id=self.id, game_name=self.name, team_name=gameside.team.name)
+                    await channels.update_game_channel_name(side_guild, channel_id=gameside.team_chan, game=self, team_name=gameside.team.name)
 
         if self.game_chan:
             if message:
                 await channels.send_message_to_channel(guild, channel_id=self.game_chan, message=message)
             else:
-                await channels.update_game_channel_name(guild, channel_id=self.game_chan, game_id=self.id, game_name=self.name, team_name=None)
+                await channels.update_game_channel_name(guild, channel_id=self.game_chan, game=self, team_name=None)
 
     async def update_announcement(self, guild, prefix):
         # Updates contents of new game announcement with updated game_embed card
@@ -2057,6 +2049,37 @@ class Game(BaseModel):
                 fully_confirmed = False
 
         return (confirmed_count, side_count, fully_confirmed)
+
+    def polychamps_season_games(league='all'):
+        # infers polychampions season games based on Game.name, something like "PS8W7 Blah Blah" or "JS8 Finals Foo"
+        # Junior seasons began with S4
+        # relies on name being set reliably
+
+        pc_ranked_games = Game.select(Game.id).where(
+            (Game.is_ranked == 1) & (Game.guild_id == settings.server_ids['polychampions'])
+        )
+
+        if league == 'all':
+            return Game.select().where(
+                Game.name.iregexp('[PJ]?S\\d') & Game.id.in_(pc_ranked_games)  # matches S5 or PS5 or any S#
+            )
+        elif league == 'pro':
+            return Game.select().where(
+                (Game.name.iregexp('PS\\d') | Game.name.iregexp('S[1234]')) & Game.id.in_(pc_ranked_games)  # matches PS5 or S3 (before juniors started)
+            )
+        elif league == 'junior':
+            return Game.select().where(
+                Game.name.iregexp('JS\\d') & Game.id.in_(pc_ranked_games)  # matches JS5
+            )
+        else:
+            return []
+
+    def is_season_game(self):
+
+        if self in Game.polychamps_season_games():
+            return True
+
+        return False
 
 
 class Squad(BaseModel):

@@ -26,19 +26,22 @@ class misc(commands.Cog):
     @commands.is_owner()
     async def test(self, ctx, *, arg: str = None):
 
-        all_season_games = models.Game.select().where(
-            (models.Game.name.iregexp('S\\d'))  # matches S5 or PS5 or any S#
-        )
-
-        note_season_games = models.Game.select().where(
-            (models.Game.notes.iregexp('S\\d'))  # matches S5 or PS5 or any S#
-        )
-
         query = models.Game.select().where(
-            (models.Game.id.in_(note_season_games) & models.Game.id.not_in(all_season_games))
+            (models.Game.name.iregexp('[PJ]?S\\d'))  # matches S5 or PS5 or any S#
         )
+
+        # note_season_games = models.Game.select().where(
+        #     (models.Game.notes.iregexp('S\\d'))  # matches S5 or PS5 or any S#
+        # )
+
+        # query = models.Game.select().where(
+        #     (models.Game.id.in_(note_season_games) & models.Game.id.not_in(all_season_games))
+        # )
+
         for g in query:
             print(f'{g.id} - {g.name}')
+
+        print(len(query))
 
     @commands.command(usage=None)
     @settings.in_bot_channel_strict()

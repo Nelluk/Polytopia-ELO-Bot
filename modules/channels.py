@@ -10,8 +10,10 @@ import logging
 logger = logging.getLogger('polybot.' + __name__)
 
 
-def generate_channel_name(game_id, game_name: str, team_name: str = None):
+def generate_channel_name(game, team_name: str = None):
     # Turns game named 'The Mountain of Fire' to something like #e41-mountain-of-fire_ronin
+    game_name = game.name
+    game_id = game.id
 
     if not game_name:
         game_name = 'No Name'
@@ -22,10 +24,8 @@ def generate_channel_name(game_id, game_name: str, team_name: str = None):
 
     game_team = f'{game_name.replace("the ","").replace("The ","")}_{team_name.replace("the ","").replace("The ","")}'.strip('_')
 
-    if 's10' in game_name.lower() or 's7' in game_name.lower() or 's8' in game_name.lower() or 's9' in game_name.lower():
+    if game.is_season_game():
         # hack to have special naming for season games, named eg 'S3W1 Mountains of Fire'. Makes channel easier to see
-        chan_name = f'{" ".join(game_team.split()).replace(" ", "-")}-e{game_id}'
-    elif game_name.upper()[:3] == 'WWN' or game_name.upper()[:2] == 'WWN':
         chan_name = f'{" ".join(game_team.split()).replace(" ", "-")}-e{game_id}'
     else:
         chan_name = f'e{game_id}-{" ".join(game_team.split()).replace(" ", "-")}'
@@ -102,7 +102,7 @@ async def create_game_channel(guild, game, player_list, team_name: str = None, u
         if wwn_category:
             chan_cat, team_cat_flag = wwn_category, False
 
-    chan_name = generate_channel_name(game_id=game.id, game_name=game.name, team_name=team_name)
+    chan_name = generate_channel_name(game=game, team_name=team_name)
     chan_members = [guild.get_member(p.discord_member.discord_id) for p in player_list]
     if None in chan_members:
         logger.error(f'At least one member of game is not found in guild {guild.name}. May be using external server and they are not in both servers?')
@@ -187,12 +187,14 @@ async def send_message_to_channel(guild, channel_id: int, message: str):
         logger.error(f'Could not send message to channel: {e}')
 
 
-async def update_game_channel_name(guild, channel_id: int, game_id: int, game_name: str, team_name: str = None):
+async def update_game_channel_name(guild, channel_id: int, game, team_name: str = None):
     chan = guild.get_channel(channel_id)
     if chan is None:
         return logger.warn(f'Channel ID {channel_id} provided for update but it could not be loaded from guild')
 
-    chan_name = generate_channel_name(game_id=game_id, game_name=game_name, team_name=team_name)
+    game_id, game_name = game.id, game.name
+
+    chan_name = generate_channel_name(game=game, team_name=team_name)
 
     if chan_name.lower() == chan.name.lower():
         return logger.debug(f'Newly-generated channel name for channel {channel_id} game {game_id} is the same - no change to channel.')
