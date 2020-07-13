@@ -463,30 +463,30 @@ class league(commands.Cog):
         )
 
         for team in poly_teams:
-            season_record = team.get_season_record(season=season)  # (win_count, loss_count, incomplete_count)
+            season_record = team.get_season_record(season=season)  # (win_count_reg, loss_count_reg, incomplete_count_reg, win_count_post, loss_count_post, incomplete_count_post)
             if not season_record:
                 logger.warn(f'No season record returned for team {team.name}')
                 continue
 
             if team.pro_league:
-                pro_standings.append((team, season_record[0], season_record[1], season_record[2]))
+                pro_standings.append((team, season_record[0], season_record[1], season_record[2], season_record[3], season_record[4], season_record[5]))
             else:
-                junior_standings.append((team, season_record[0], season_record[1], season_record[2]))
+                junior_standings.append((team, season_record[0], season_record[1], season_record[2], season_record[3], season_record[4], season_record[5]))
 
-        pro_standings = sorted(pro_standings, key=lambda x: (-x[1], x[2]))  # should sort first by wins descending then losses ascending
-        junior_standings = sorted(junior_standings, key=lambda x: (-x[1], x[2]))
+        pro_standings = sorted(pro_standings, key=lambda x: (-x[4], -x[1], x[2]))  # should sort first by post-season wins desc, then wins descending then losses ascending
+        junior_standings = sorted(junior_standings, key=lambda x: (-x[4], -x[1], x[2]))
 
         output = ['__**Pro Standings**__']
 
         for standing in pro_standings:
             team = standing[0]
-            output.append(f'{team.name} - {standing[1]} - {standing[2]} - {standing[3]}')
+            output.append(f'{team.name} - {standing[1]} - {standing[2]} - {standing[3]} POST: {standing[4]} - {standing[5]} - {standing[6]}')
 
         output.append('__**Junior Standings**__')
 
         for standing in junior_standings:
             team = standing[0]
-            output.append(f'{team.name} - {standing[1]} - {standing[2]} - {standing[3]}')
+            output.append(f'{team.name} - {standing[1]} - {standing[2]} - {standing[3]} POST: {standing[4]} - {standing[5]} - {standing[6]}')
 
         await utilities.buffered_send(destination=ctx, content='\n'.join(output))
 

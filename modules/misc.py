@@ -26,19 +26,15 @@ class misc(commands.Cog):
     @commands.is_owner()
     async def test(self, ctx, *, arg: str = None):
 
-        query = models.Game.polychamps_season_games(season=5, league='pro')
+        (full_season, regular_season, post_season) = models.Game.polychamps_season_games(season=None, league='all')
 
-        for g in query:
+        print('regular season')
+        for g in regular_season:
             print(f'{g.id} - {g.name}')
 
-        print(len(query))
-
-        query = models.Game.polychamps_season_games(season=10, league='all')
-
-        for g in query:
+        print('post season')
+        for g in post_season:
             print(f'{g.id} - {g.name}')
-
-        print(len(query))
 
     @commands.command(usage=None)
     @settings.in_bot_channel_strict()
