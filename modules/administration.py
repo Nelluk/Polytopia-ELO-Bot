@@ -341,6 +341,7 @@ class administration(commands.Cog):
 
         logger.info(f'Game {game.id} is now marked as ranked.')
         models.GameLog.write(game_id=game, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} set game to be ranked.')
+        await game.update_squad_channels(guild_list=settings.bot.guilds, guild_id=ctx.guild.id, message=f'Staff member **{ctx.author.display_name}** has set this game to be *ranked*.')
         return await ctx.send(f'Game {game.id} is now marked as ranked.')
 
     @commands.command(usage='game_id')
@@ -364,6 +365,7 @@ class administration(commands.Cog):
 
         logger.info(f'Game {game.id} is now marked as unranked.')
         models.GameLog.write(game_id=game, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} set game to be unranked.')
+        await game.update_squad_channels(guild_list=settings.bot.guilds, guild_id=ctx.guild.id, message=f'Staff member **{ctx.author.display_name}** has set this game to be *unranked*.')
         return await ctx.send(f'Game {game.id} is now marked as unranked.')
 
     @settings.in_bot_channel()

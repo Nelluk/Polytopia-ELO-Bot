@@ -346,26 +346,6 @@ config = {'default':
                       'game_request_channel': 667458314338041886,  # bot-private
                       'game_announce_channel': 667465781595996180,  # 180 elo-drafts
                       'game_channel_categories': [667458667716804609]},  # current games
-        # 274660262873661442:                           # Beta Server
-        #              {'helper_roles': ['ELO Helper', 'Bot Master', 'iOS', 'Android'],
-        #               'mod_roles': ['MOD', 'Manager'],
-        #               'display_name': 'Polytopia Beta',
-        #               'allow_uneven_teams': True,
-        #               'require_teams': False,
-        #               'allow_teams': False,
-        #               'max_team_size': 4,
-        #               'command_prefix': '$',
-        #               'include_in_global_lb': False,
-        #               'bot_channels_private': [],
-        #               'bot_channels_strict': [514473680529784853],
-        #               'bot_channels': [313387761405263873],
-        #               # 'newbie_message_channels': [396069729657421824, 413721247260868618, 418326008526143508, 418326044077064192],  # multi-discussion, friend codes NA/euro/asia
-        #               # 'ranked_game_channel': 511316081160355852,
-        #               # 'unranked_game_channel': 511906353476927498,
-        #               # 'match_challenge_channels': [511316081160355852, 511906353476927498],
-        #               'game_request_channel': None,
-        #               # 'game_announce_channel': 505523961812090900,
-        #               'game_channel_categories': []},
         598698486384295946:                           # PolyConference run by Debussi
                      {'helper_roles': ['ELO-Helper'],
                       'mod_roles': ['MOD'],
@@ -542,7 +522,6 @@ config = {'default':
                       'bot_channels': [608093784898666497, 606284456478638081],  # 497 bot-commands 081 general
                       'ranked_game_channel': None,
                       'unranked_game_channel': 608093784898666497,  # 497 bot-commands 656 staff-bot-channel 081 general
-                    # 'match_challenge_channels': [608093784898666497],  # 497 bot-commands,
                       'game_request_channel': 684944690893946972,  # $staffhelp output
                       'game_channel_categories': [618499589670043679]},  # 'ongoing games'
           }

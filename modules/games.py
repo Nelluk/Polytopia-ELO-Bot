@@ -1317,6 +1317,7 @@ class games(commands.Cog):
             return await ctx.send(f'This game has not started yet.')
 
         models.GameLog.write(game_id=winning_game, guild_id=ctx.guild.id, message=f'Win confirm logged by {models.GameLog.member_string(ctx.author)} for winner **{discord.utils.escape_markdown(winning_obj.name)}**')
+        await winning_game.update_squad_channels(guild_list=settings.bot.guilds, guild_id=ctx.guild.id, message=f'A win claim has been placed by **{ctx.author.display_name}** for winner **{winning_obj.name}**')
         if settings.is_staff(ctx):
             confirm_win = True
         else:
