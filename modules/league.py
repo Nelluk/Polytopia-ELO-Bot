@@ -451,6 +451,45 @@ class league(commands.Cog):
 
         await ctx.send(embed=embed)
 
+    @commands.command(aliases=['lbseason'])
+    @settings.in_bot_channel()
+    async def season(self, ctx, *, arg=None):
+
+        season = int(arg) if arg else None
+        pro_standings, junior_standings = [], []
+
+        poly_teams = models.Team.select().where(
+            (models.Team.guild_id == settings.server_ids['polychampions']) & (models.Team.is_hidden == 0)
+        )
+
+        for team in poly_teams:
+            season_record = team.get_season_record(season=season)  # (win_count, loss_count, incomplete_count)
+            if not season_record:
+                logger.warn(f'No season record returned for team {team.name}')
+                continue
+
+            if team.pro_league:
+                pro_standings.append((team, season_record[0], season_record[1], season_record[2]))
+            else:
+                junior_standings.append((team, season_record[0], season_record[1], season_record[2]))
+
+        pro_standings = sorted(pro_standings, key=lambda x: (-x[1], x[2]))  # should sort first by wins descending then losses ascending
+        junior_standings = sorted(junior_standings, key=lambda x: (-x[1], x[2]))
+
+        output = ['__**Pro Standings**__']
+
+        for standing in pro_standings:
+            team = standing[0]
+            output.append(f'{team.name} - {standing[1]} - {standing[2]} - {standing[3]}')
+
+        output.append('__**Junior Standings**__')
+
+        for standing in junior_standings:
+            team = standing[0]
+            output.append(f'{team.name} - {standing[1]} - {standing[2]} - {standing[3]}')
+
+        await utilities.buffered_send(destination=ctx, content='\n'.join(output))
+
     @commands.command(aliases=['nova', 'joinnovas'])
     async def novas(self, ctx, *, arg=None):
         """ Join yourself to the Novas team

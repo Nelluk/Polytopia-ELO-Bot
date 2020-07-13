@@ -34,6 +34,7 @@ class PolyGame(commands.Converter):
             raise commands.UserInputError()
         else:
             logger.debug(f'Game with ID {game_id} found.')
+            print(game.is_season_game())
             if game.guild_id != ctx.guild.id and not allow_cross_guild:
                 logger.warn('Game does not belong to same guild')
                 try:

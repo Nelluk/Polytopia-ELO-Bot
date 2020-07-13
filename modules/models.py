@@ -143,6 +143,23 @@ class Team(BaseModel):
 
         return (wins, losses)
 
+    def get_season_record(self, season=None):
+
+        if self.guild_id != settings.server_ids['polychampions'] or self.is_hidden:
+            return ()
+
+        season_games = Game.polychamps_season_games(league='all', season=season)
+
+        losses = Game.search(status_filter=4, team_filter=[self])
+        wins = Game.search(status_filter=3, team_filter=[self])
+        incomplete = Game.search(status_filter=2, team_filter=[self])
+
+        win_count = Game.select(Game.id).where(Game.id.in_(wins) & Game.id.in_(season_games)).count()
+        loss_count = Game.select(Game.id).where(Game.id.in_(losses) & Game.id.in_(season_games)).count()
+        incomplete_count = Game.select(Game.id).where(Game.id.in_(incomplete) & Game.id.in_(season_games)).count()
+
+        return (win_count, loss_count, incomplete_count)
+
 
 class DiscordMember(BaseModel):
     discord_id = BitField(unique=True, null=False)
@@ -278,32 +295,20 @@ class DiscordMember(BaseModel):
         losses = Game.search(status_filter=4, player_filter=[pc_player])
         wins = Game.search(status_filter=3, player_filter=[pc_player])
 
-        total_win_count = Game.select(Game.id).where(
-            Game.id.in_(wins) & Game.id.in_(all_season_games) & (Game.is_confirmed == 1) & (Game.is_completed == 1)
-        ).count()
+        total_win_count = Game.select(Game.id).where(Game.id.in_(wins) & Game.id.in_(all_season_games)).count()
 
-        total_loss_count = Game.select(Game.id).where(
-            Game.id.in_(losses) & Game.id.in_(all_season_games) & (Game.is_confirmed == 1) & (Game.is_completed == 1)
-        ).count()
+        total_loss_count = Game.select(Game.id).where(Game.id.in_(losses) & Game.id.in_(all_season_games)).count()
 
         if not total_win_count and not total_loss_count:
             return None
 
-        pro_win_count = Game.select(Game.id).where(
-            Game.id.in_(wins) & Game.id.in_(pro_season_games) & (Game.is_confirmed == 1) & (Game.is_completed == 1)
-        ).count()
+        pro_win_count = Game.select(Game.id).where(Game.id.in_(wins) & Game.id.in_(pro_season_games)).count()
 
-        pro_loss_count = Game.select(Game.id).where(
-            Game.id.in_(losses) & Game.id.in_(pro_season_games) & (Game.is_confirmed == 1) & (Game.is_completed == 1)
-        ).count()
+        pro_loss_count = Game.select(Game.id).where(Game.id.in_(losses) & Game.id.in_(pro_season_games)).count()
 
-        junior_win_count = Game.select(Game.id).where(
-            Game.id.in_(wins) & Game.id.in_(junior_season_games) & (Game.is_confirmed == 1) & (Game.is_completed == 1)
-        ).count()
+        junior_win_count = Game.select(Game.id).where(Game.id.in_(wins) & Game.id.in_(junior_season_games)).count()
 
-        junior_loss_count = Game.select(Game.id).where(
-            Game.id.in_(losses) & Game.id.in_(junior_season_games) & (Game.is_confirmed == 1) & (Game.is_completed == 1)
-        ).count()
+        junior_loss_count = Game.select(Game.id).where(Game.id.in_(losses) & Game.id.in_(junior_season_games)).count()
 
         return {
             'full_record': (total_win_count, total_loss_count),
@@ -2050,10 +2055,16 @@ class Game(BaseModel):
 
         return (confirmed_count, side_count, fully_confirmed)
 
-    def polychamps_season_games(league='all'):
+    def polychamps_season_games(league='all', season=None):
         # infers polychampions season games based on Game.name, something like "PS8W7 Blah Blah" or "JS8 Finals Foo"
         # Junior seasons began with S4
         # relies on name being set reliably
+        # default season=None returns all seasons (any digit character). Otherwise pass an integer representing season #
+
+        if season:
+            season_str = str(season)
+        else:
+            season_str = '\\d'
 
         pc_ranked_games = Game.select(Game.id).where(
             (Game.is_ranked == 1) & (Game.guild_id == settings.server_ids['polychampions'])
@@ -2061,25 +2072,47 @@ class Game(BaseModel):
 
         if league == 'all':
             return Game.select().where(
-                Game.name.iregexp('[PJ]?S\\d') & Game.id.in_(pc_ranked_games)  # matches S5 or PS5 or any S#
+                Game.name.iregexp(f'[PJ]?S{season_str}') & Game.id.in_(pc_ranked_games)  # matches S5 or PS5 or any S#
             )
         elif league == 'pro':
+            if not season:
+                early_season_str = 'S[1234]'  # pro seasons before S5 had no 'P' designator
+            elif season and season <= 4:
+                early_season_str = f'S{str(season)}'
+            else:
+                early_season_str = None
+
             return Game.select().where(
-                (Game.name.iregexp('PS\\d') | Game.name.iregexp('S[1234]')) & Game.id.in_(pc_ranked_games)  # matches PS5 or S3 (before juniors started)
+                (Game.name.iregexp(f'PS{season_str}') | Game.name.iregexp(early_season_str)) & Game.id.in_(pc_ranked_games)  # matches PS5 or S3 (before juniors started)
             )
         elif league == 'junior':
             return Game.select().where(
-                Game.name.iregexp('JS\\d') & Game.id.in_(pc_ranked_games)  # matches JS5
+                Game.name.iregexp(f'JS{season_str}') & Game.id.in_(pc_ranked_games)  # matches JS5
             )
         else:
             return []
 
     def is_season_game(self):
 
-        if self in Game.polychamps_season_games():
-            return True
+        # If game is a PolyChamps season game, return tuple like (5, 'P') indicating season 5, pro league (or 'J' for junior)
+        # If not, return empty tuple (which has a False boolean value)
 
-        return False
+        if self not in Game.polychamps_season_games():
+            # Making sure game is caught by the polychamps_season_games regexp first
+            return ()
+
+        m = re.match(r"([PJ]?)S(\d+)", self.name.upper())
+        if not m:
+            logger.error(f'Game {self.id} matched regexp in polychamps_season_games() but not is_season_game() - {self.name}')
+            return ()
+
+        season = int(m[2])
+        if season <= 4:
+            league = 'P'
+        else:
+            league = m[1].upper()
+
+        return (season, league)
 
 
 class Squad(BaseModel):

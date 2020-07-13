@@ -26,17 +26,14 @@ class misc(commands.Cog):
     @commands.is_owner()
     async def test(self, ctx, *, arg: str = None):
 
-        query = models.Game.select().where(
-            (models.Game.name.iregexp('[PJ]?S\\d'))  # matches S5 or PS5 or any S#
-        )
+        query = models.Game.polychamps_season_games(season=5, league='pro')
 
-        # note_season_games = models.Game.select().where(
-        #     (models.Game.notes.iregexp('S\\d'))  # matches S5 or PS5 or any S#
-        # )
+        for g in query:
+            print(f'{g.id} - {g.name}')
 
-        # query = models.Game.select().where(
-        #     (models.Game.id.in_(note_season_games) & models.Game.id.not_in(all_season_games))
-        # )
+        print(len(query))
+
+        query = models.Game.polychamps_season_games(season=10, league='all')
 
         for g in query:
             print(f'{g.id} - {g.name}')
