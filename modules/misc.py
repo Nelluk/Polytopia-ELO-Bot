@@ -26,15 +26,17 @@ class misc(commands.Cog):
     @commands.is_owner()
     async def test(self, ctx, *, arg: str = None):
 
-        (full_season, regular_season, post_season) = models.Game.polychamps_season_games(season=None, league='all')
+        import functools
+        game = models.Game.get_or_none(id=arg)
+        if not game:
+            return print('no game')
 
-        print('regular season')
-        for g in regular_season:
-            print(f'{g.id} - {g.name}')
-
-        print('post season')
-        for g in post_season:
-            print(f'{g.id} - {g.name}')
+        print(f'Loaded game {game.id}')
+        async with ctx.typing():
+            utilities.connect()
+            await self.bot.loop.run_in_executor(None, functools.partial(models.Game.recalculate_elo_since, timestamp=game.completed_ts))
+            # Allows bot to remain responsive while this large operation is running.
+            await ctx.send(f'DB has been refreshed from {game.completed_ts} onward')
 
     @commands.command(usage=None)
     @settings.in_bot_channel_strict()

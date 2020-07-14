@@ -1517,7 +1517,6 @@ class games(commands.Cog):
             async with ctx.typing():
                 await self.bot.loop.run_in_executor(None, game.delete_game)
                 # Allows bot to remain responsive while this large operation is running.
-                # Can result in funky behavior especially if another operation tries to close DB connection, but seems to still get this operation done reliably
                 await ctx.send(f'Game with ID {gid} has been deleted and team/player ELO changes have been reverted, if applicable.')
         except discord.errors.NotFound:
             logger.warn('Game deleted while in game-related channel')

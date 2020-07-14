@@ -452,7 +452,7 @@ class league(commands.Cog):
         await ctx.send(embed=embed)
 
     @commands.command(aliases=['jrseason'], usage='[season #]')
-    # @settings.in_bot_channel()
+    @settings.in_bot_channel()
     async def season(self, ctx, *, arg=None):
         """
         Display team records for one or all seasons
