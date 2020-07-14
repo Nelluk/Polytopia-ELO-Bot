@@ -467,6 +467,9 @@ class league(commands.Cog):
         season = int(arg) if arg else None
         standings = []
 
+        if season and (season == 1 or season == 2):
+            return await ctx.send(f'Records from the first two seasons (ie. the dark ages when I did not exist) are mostly lost to antiquity, but some information remains:\n'
+                f'**The Sparkies** won Season 1 and **The Jets** won season 2, and if you squint you can just make out the records below:\nhttps://i.imgur.com/L7FPr1d.png')
         if ctx.invoked_with == 'jrseason':
             pro_value = 0
             pro_str = 'Junior'
@@ -494,7 +497,7 @@ class league(commands.Cog):
 
             standings = sorted(standings, key=lambda x: (-x[4], -x[1], x[2]))  # should sort first by post-season wins desc, then wins descending then losses ascending
 
-            output = [f'__**{title}**__\n__`Regular \u200b \u200b \u200b \u200b \u200b Post-Season`__']
+            output = [f'__**{title}**__\n`Regular \u200b \u200b \u200b \u200b \u200b Post-Season`']
 
             for standing in standings:
                 team_str = f'{standing[0].emoji} {standing[0].name}\n'
