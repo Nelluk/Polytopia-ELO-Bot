@@ -451,15 +451,36 @@ class league(commands.Cog):
 
         await ctx.send(embed=embed)
 
-    @commands.command(aliases=['lbseason'])
+    @commands.command(aliases=['jrseason'], usage='[season #]')
     # @settings.in_bot_channel()
     async def season(self, ctx, *, arg=None):
+        """
+        Display team records for one or all seasons
+
+        **Examples**
+        `[p]season` Records for all seasons (Pro teams)
+        `[p]jrseason` Records for all seasons (Junior teams)
+        `[p]season 7` Records for a specific season (Pro teams)
+        `[p]jrseason 7` Records for a specific season (Junior teams)
+        """
 
         season = int(arg) if arg else None
-        pro_standings, junior_standings = [], []
+        standings = []
+
+        if ctx.invoked_with == 'jrseason':
+            pro_value = 0
+            pro_str = 'Junior'
+        else:
+            pro_value = 1
+            pro_str = 'Pro'
+
+        if arg:
+            title = f'Season {arg} {pro_str} Records'
+        else:
+            title = f'{pro_str} Records - All Seasons'
 
         poly_teams = models.Team.select().where(
-            (models.Team.guild_id == settings.server_ids['polychampions']) & (models.Team.is_hidden == 0)
+            (models.Team.guild_id == settings.server_ids['polychampions']) & (models.Team.is_hidden == 0) & (models.Team.pro_league == pro_value)
         )
 
         async with ctx.typing():
@@ -469,24 +490,13 @@ class league(commands.Cog):
                     logger.warn(f'No season record returned for team {team.name}')
                     continue
 
-                if team.pro_league:
-                    pro_standings.append((team, season_record[0], season_record[1], season_record[2], season_record[3], season_record[4], season_record[5]))
-                else:
-                    junior_standings.append((team, season_record[0], season_record[1], season_record[2], season_record[3], season_record[4], season_record[5]))
+                standings.append((team, season_record[0], season_record[1], season_record[2], season_record[3], season_record[4], season_record[5]))
 
-            pro_standings = sorted(pro_standings, key=lambda x: (-x[4], -x[1], x[2]))  # should sort first by post-season wins desc, then wins descending then losses ascending
-            junior_standings = sorted(junior_standings, key=lambda x: (-x[4], -x[1], x[2]))
+            standings = sorted(standings, key=lambda x: (-x[4], -x[1], x[2]))  # should sort first by post-season wins desc, then wins descending then losses ascending
 
-            output = ['__**Pro Standings**__\n__`Regular \u200b \u200b \u200b \u200b - Post-Season`__']
+            output = [f'__**{title}**__\n__`Regular \u200b \u200b \u200b \u200b \u200b Post-Season`__']
 
-            for standing in pro_standings:
-                team_str = f'{standing[0].emoji} {standing[0].name}\n'
-                line = f'{team_str}`{str(standing[1]) + "W":.<3} {str(standing[2]) + "L":.<3} {str(standing[3]) + "I":.<3} - {str(standing[4]) + "W":.<3} {str(standing[5]) + "L":.<3} {standing[6]}I`'
-                output.append(line.replace(".", "\u200b "))
-
-            output.append('\n__**Junior Standings**__\n__`Regular \u200b \u200b \u200b \u200b - Post-Season`__')
-
-            for standing in junior_standings:
+            for standing in standings:
                 team_str = f'{standing[0].emoji} {standing[0].name}\n'
                 line = f'{team_str}`{str(standing[1]) + "W":.<3} {str(standing[2]) + "L":.<3} {str(standing[3]) + "I":.<3} - {str(standing[4]) + "W":.<3} {str(standing[5]) + "L":.<3} {standing[6]}I`'
                 output.append(line.replace(".", "\u200b "))
