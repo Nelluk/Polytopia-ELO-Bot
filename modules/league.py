@@ -452,7 +452,7 @@ class league(commands.Cog):
         await ctx.send(embed=embed)
 
     @commands.command(aliases=['lbseason'])
-    @settings.in_bot_channel()
+    # @settings.in_bot_channel()
     async def season(self, ctx, *, arg=None):
 
         season = int(arg) if arg else None
@@ -462,31 +462,34 @@ class league(commands.Cog):
             (models.Team.guild_id == settings.server_ids['polychampions']) & (models.Team.is_hidden == 0)
         )
 
-        for team in poly_teams:
-            season_record = team.get_season_record(season=season)  # (win_count_reg, loss_count_reg, incomplete_count_reg, win_count_post, loss_count_post, incomplete_count_post)
-            if not season_record:
-                logger.warn(f'No season record returned for team {team.name}')
-                continue
+        async with ctx.typing():
+            for team in poly_teams:
+                season_record = team.get_season_record(season=season)  # (win_count_reg, loss_count_reg, incomplete_count_reg, win_count_post, loss_count_post, incomplete_count_post)
+                if not season_record:
+                    logger.warn(f'No season record returned for team {team.name}')
+                    continue
 
-            if team.pro_league:
-                pro_standings.append((team, season_record[0], season_record[1], season_record[2], season_record[3], season_record[4], season_record[5]))
-            else:
-                junior_standings.append((team, season_record[0], season_record[1], season_record[2], season_record[3], season_record[4], season_record[5]))
+                if team.pro_league:
+                    pro_standings.append((team, season_record[0], season_record[1], season_record[2], season_record[3], season_record[4], season_record[5]))
+                else:
+                    junior_standings.append((team, season_record[0], season_record[1], season_record[2], season_record[3], season_record[4], season_record[5]))
 
-        pro_standings = sorted(pro_standings, key=lambda x: (-x[4], -x[1], x[2]))  # should sort first by post-season wins desc, then wins descending then losses ascending
-        junior_standings = sorted(junior_standings, key=lambda x: (-x[4], -x[1], x[2]))
+            pro_standings = sorted(pro_standings, key=lambda x: (-x[4], -x[1], x[2]))  # should sort first by post-season wins desc, then wins descending then losses ascending
+            junior_standings = sorted(junior_standings, key=lambda x: (-x[4], -x[1], x[2]))
 
-        output = ['__**Pro Standings**__']
+            output = ['__**Pro Standings**__\n__`Regular \u200b \u200b \u200b \u200b - Post-Season`__']
 
-        for standing in pro_standings:
-            team = standing[0]
-            output.append(f'{team.name} - {standing[1]} - {standing[2]} - {standing[3]} POST: {standing[4]} - {standing[5]} - {standing[6]}')
+            for standing in pro_standings:
+                team_str = f'{standing[0].emoji} {standing[0].name}\n'
+                line = f'{team_str}`{str(standing[1]) + "W":.<3} {str(standing[2]) + "L":.<3} {str(standing[3]) + "I":.<3} - {str(standing[4]) + "W":.<3} {str(standing[5]) + "L":.<3} {standing[6]}I`'
+                output.append(line.replace(".", "\u200b "))
 
-        output.append('__**Junior Standings**__')
+            output.append('\n__**Junior Standings**__\n__`Regular \u200b \u200b \u200b \u200b - Post-Season`__')
 
-        for standing in junior_standings:
-            team = standing[0]
-            output.append(f'{team.name} - {standing[1]} - {standing[2]} - {standing[3]} POST: {standing[4]} - {standing[5]} - {standing[6]}')
+            for standing in junior_standings:
+                team_str = f'{standing[0].emoji} {standing[0].name}\n'
+                line = f'{team_str}`{str(standing[1]) + "W":.<3} {str(standing[2]) + "L":.<3} {str(standing[3]) + "I":.<3} - {str(standing[4]) + "W":.<3} {str(standing[5]) + "L":.<3} {standing[6]}I`'
+                output.append(line.replace(".", "\u200b "))
 
         await utilities.buffered_send(destination=ctx, content='\n'.join(output))
 
