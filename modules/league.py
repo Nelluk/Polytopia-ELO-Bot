@@ -464,7 +464,13 @@ class league(commands.Cog):
         `[p]jrseason 7` Records for a specific season (Junior teams)
         """
 
-        season = int(arg) if arg else None
+        season = None
+        if arg:
+            try:
+                season = int(arg)
+            except ValueError:
+                return await ctx.send(f'Invalid argument. Leave blank for all seasons or use an integer like `{ctx.prefix}{ctx.invoked_with} 8`')
+
         standings = []
 
         if season and (season == 1 or season == 2):
