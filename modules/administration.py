@@ -34,32 +34,33 @@ class administration(commands.Cog):
                 return False
 
     @commands.is_owner()
-    @commands.command(aliases=['restart'])
-    async def quit(self, ctx):
+    @commands.command(aliases=['quit'])
+    async def restart(self, ctx):
         """ *Owner*: Close database connection and quit bot gracefully """
 
-        message = ''
-
-        for guild_id, channel_id, message_id in reversed(self.bot.purgable_messages):
-            # purge messages created by Misc.task_broadcast_newbie_message() so they arent duplicated when bot restarts
-            guild = discord.utils.get(self.bot.guilds, id=guild_id)
-            channel = guild.get_channel(channel_id)
-            try:
-                message = await channel.fetch_message(message_id)
-                await message.delete()
-            except discord.DiscordException:
-                pass
+        logger.debug(f'Purging message list {self.bot.purgable_messages}')
+        async with ctx.typing():
+            for guild_id, channel_id, message_id in reversed(self.bot.purgable_messages):
+                # purge messages created by Misc.task_broadcast_newbie_message() so they arent duplicated when bot restarts
+                guild = discord.utils.get(self.bot.guilds, id=guild_id)
+                channel = guild.get_channel(channel_id)
+                try:
+                    logger.debug(f'Purging message {message_id} from channel {channel.id if channel else "NONE"}')
+                    message = await channel.fetch_message(message_id)
+                    await message.delete()
+                except discord.DiscordException:
+                    pass
 
         try:
             if models.db.close():
-                message = 'db connecton closing normally'
+                close_message = 'db connection closing normally'
             else:
-                message = 'db connection was already closed'
+                close_message = 'db connection was already closed'
 
         except peewee.PeeweeException as e:
             message = f'Error during post_invoke_cleanup db.close(): {e}'
         finally:
-            logger.info(message)
+            logger.info(close_message)
 
         await ctx.send(f'Cleaning up temporary announcement messages...')
         await asyncio.sleep(5)  # to make sure message deletes go through
