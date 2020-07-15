@@ -246,6 +246,7 @@ class misc(commands.Cog):
                 return await ctx.send('Error looking up game based on current channel - please contact the bot owner.')
             except exceptions.NoMatches:
                 ctx.command.reset_cooldown(ctx)
+                logger.debug('Could not infer game from current channel.')
                 return await ctx.send(f'Game ID was not included. {usage}')
             logger.debug(f'Inferring game {inferred_game.id} from ping command used in channel {ctx.message.channel.id}')
 
