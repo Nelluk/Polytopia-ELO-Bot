@@ -50,7 +50,7 @@ class administration(commands.Cog):
         finally:
             logger.info(close_message)
 
-        if settings.run_tasks:
+        if settings.run_tasks and self.bot.purgable_messages:
             async with ctx.typing():
                 for guild_id, channel_id, message_id in reversed(self.bot.purgable_messages):
                     # purge messages created by Misc.task_broadcast_newbie_message() so they arent duplicated when bot restarts
