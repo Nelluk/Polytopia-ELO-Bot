@@ -15,6 +15,8 @@ import re
 from itertools import groupby
 from matplotlib import pyplot as plt
 import io
+import pandas as pd
+import scipy.signal as signal
 
 logger = logging.getLogger('polybot.' + __name__)
 elo_logger = logging.getLogger('polybot.elo')
@@ -343,7 +345,72 @@ class games(commands.Cog):
             elo = team.elo_alltime if alltime else team.elo
             embed.add_field(name=f'{team.emoji} {(counter + 1):>3}. {team_name_str}\n`ELO: {elo:<5} W {wins} / L {losses}`', value='\u200b', inline=False)
 
-        await ctx.send(embed=embed)
+        fig, ax = plt.subplots(figsize = (12,8))
+
+        plt.style.use('default')
+
+        fig.suptitle('Team ELO History (Alltime)', fontsize=16)
+        fig.autofmt_xdate()
+
+        # pro teams
+        teams = [13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 220]
+
+        # junior teams
+        #teams = [98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 221]
+
+        # https://colorbrewer2.org/#type=qualitative&n=11
+        #colors = ['#a6cee3','#1f78b4','#b2df8a','#33a02c','#fb9a99','#e31a1c','#fdbf6f','#ff7f00','#cab2d6','#6a3d9a','#ffff99']
+
+        # colors from http://tsitsul.in/blog/coloropt/
+        colors = ['#ebac23','#b80058','#006e00','#00bbad','#d163e6','#b24502','#ff9287','#5954d6','#00c6f8','#878500','#00a76c','#bdbdbd']
+
+        ordered_teams_query = Team.select().where(Team.id.in_(teams)).order_by(Team.elo.desc())
+        ordered_teams = list(ordered_teams_query)
+
+        for i in range(len(ordered_teams)):
+            
+            team_id = ordered_teams[i]
+
+            team_elo_history_query = (GameSide
+                    .select(Game.completed_ts, GameSide.team_elo_after_game_alltime)
+                    .join(Game)
+                    .where((GameSide.team_id == team_id) & (GameSide.team_elo_after_game_alltime.is_null(False)))
+                    .order_by(Game.completed_ts))
+            
+            team_name = Team.get(Team.id == team_id).name
+            
+            team_elo_history = pd.DataFrame(team_elo_history_query.dicts())
+            
+            team_elo_history_resampled = team_elo_history.set_index('completed_ts').resample('D').mean().interpolate().reset_index()
+            
+            plt.plot(team_elo_history['completed_ts'], 
+                     team_elo_history['team_elo_after_game_alltime'], 
+                     'o', markersize=3, alpha=.05, color=colors[i])                
+ 
+            plt.plot(team_elo_history_resampled['completed_ts'], 
+                     signal.savgol_filter(team_elo_history_resampled['team_elo_after_game_alltime'].values, 131, 2), 
+                     '-', linewidth=2, label = team_name, color=colors[i])
+            
+        ax.yaxis.grid()
+
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.spines['left'].set_visible(False)
+
+        plt.legend(loc="best")
+
+
+        plt.savefig('graph.png', transparent=False)
+        plt.close(fig)
+
+        embed.set_image(url=f'attachment://graph.png')
+
+        with open('graph.png', 'rb') as f:
+            file = io.BytesIO(f.read())
+
+        image = discord.File(file, filename='graph.png')
+
+        await ctx.send(embed=embed, file=image)
 
     @settings.in_bot_channel_strict()
     @settings.teams_allowed()
@@ -778,7 +845,7 @@ class games(commands.Cog):
             ax.spines['right'].set_visible(False)
             ax.spines['left'].set_visible(False)
 
-            plt.legend(loc="lower left")
+            plt.legend(loc="best")
 
             plt.savefig('graph.png', transparent=False)
             plt.close(fig)
