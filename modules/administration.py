@@ -441,7 +441,7 @@ class administration(commands.Cog):
 
         entries = models.GameLog.search(keywords=search_term, negative_keyword=negative_term, guild_id=guild_id)
         for entry in entries:
-            paginated_message_list.append((f'`{entry.message_ts.strftime("%Y-%m-%d %H:%M:%S")}`', f'{entry.message}'))
+            paginated_message_list.append((f'`{entry.message_ts.strftime("%Y-%m-%d %H:%M:%S")}`', entry.message[:500]))
 
         await utilities.paginate(self.bot, ctx, title=title_str, message_list=paginated_message_list, page_start=0, page_end=10, page_size=10)
 

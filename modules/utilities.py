@@ -256,7 +256,7 @@ async def paginate(bot, ctx, title, message_list, page_start=0, page_end=10, pag
     while True:
         embed = discord.Embed(title=title)
         for entry in range(page_start, page_end):
-            embed.add_field(name=message_list[entry][0], value=message_list[entry][1], inline=False)
+            embed.add_field(name=message_list[entry][0][:256], value=message_list[entry][1][:1024], inline=False)
         if page_size < len(message_list):
             embed.set_footer(text=f'{page_start + 1} - {page_end} of {len(message_list)}')
 
