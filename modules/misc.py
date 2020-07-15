@@ -26,17 +26,8 @@ class misc(commands.Cog):
     @commands.is_owner()
     async def test(self, ctx, *, arg: str = None):
 
-        import functools
-        game = models.Game.get_or_none(id=arg)
-        if not game:
-            return print('no game')
-
-        print(f'Loaded game {game.id}')
-        async with ctx.typing():
-            utilities.connect()
-            await self.bot.loop.run_in_executor(None, functools.partial(models.Game.recalculate_elo_since, timestamp=game.completed_ts))
-            # Allows bot to remain responsive while this large operation is running.
-            await ctx.send(f'DB has been refreshed from {game.completed_ts} onward')
+        game = models.Game.get(id=int(arg))
+        print(game.is_season_game())
 
     @commands.command(usage=None)
     @settings.in_bot_channel_strict()

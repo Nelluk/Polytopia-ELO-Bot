@@ -1917,23 +1917,21 @@ class Game(BaseModel):
         # return games_with_same_number_of_sides
 
     def recalculate_elo_since(timestamp):
-        with db.atomic():
-            games = Game.select().where(
-                (Game.is_completed == 1) & (Game.is_confirmed == 1) & (Game.completed_ts >= timestamp) & (Game.winner.is_null(False)) & (Game.is_ranked == 1)
-            ).order_by(Game.completed_ts).prefetch(GameSide, Lineup)
+        games = Game.select().where(
+            (Game.is_completed == 1) & (Game.is_confirmed == 1) & (Game.completed_ts >= timestamp) & (Game.winner.is_null(False)) & (Game.is_ranked == 1)
+        ).order_by(Game.completed_ts).prefetch(GameSide, Lineup)
 
-            elo_logger.debug(f'recalculate_elo_since {timestamp}')
-            for g in games:
-                g.reverse_elo_changes()
-                g.is_completed = 0  # To have correct completed game counts for new ELO calculations
-                g.is_confirmed = 0
-                g.save()
+        elo_logger.debug(f'recalculate_elo_since {timestamp}')
+        for g in games:
+            g.reverse_elo_changes()
+            g.is_completed = 0  # To have correct completed game counts for new ELO calculations
+            g.is_confirmed = 0
+            g.save()
 
-            for g in games:
-                logger.debug(f'Recalculating game {g.id}')
-                full_game = Game.load_full_game(game_id=g.id)
-                full_game.declare_winner(winning_side=full_game.winner, confirm=True)
-            elo_logger.debug(f'recalculate_elo_since complete')
+        for g in games:
+            full_game = Game.load_full_game(game_id=g.id)
+            full_game.declare_winner(winning_side=full_game.winner, confirm=True)
+        elo_logger.debug(f'recalculate_elo_since complete')
 
     def recalculate_all_elo():
         # Reset all ELOs to 1000, reset completed game counts, and re-run Game.declare_winner() on all qualifying games
@@ -2111,6 +2109,9 @@ class Game(BaseModel):
 
         # If game is a PolyChamps season game, return tuple like (5, 'P') indicating season 5, pro league (or 'J' for junior)
         # If not, return empty tuple (which has a False boolean value)
+
+        if self.guild_id != settings.server_ids['polychampions']:
+            return ()
 
         if self not in Game.polychamps_season_games()[0]:
             # Making sure game is caught by the polychamps_season_games regexp first
