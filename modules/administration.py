@@ -39,18 +39,6 @@ class administration(commands.Cog):
         """ *Owner*: Close database connection and quit bot gracefully """
 
         logger.debug(f'Purging message list {self.bot.purgable_messages}')
-        async with ctx.typing():
-            for guild_id, channel_id, message_id in reversed(self.bot.purgable_messages):
-                # purge messages created by Misc.task_broadcast_newbie_message() so they arent duplicated when bot restarts
-                guild = discord.utils.get(self.bot.guilds, id=guild_id)
-                channel = guild.get_channel(channel_id)
-                try:
-                    logger.debug(f'Purging message {message_id} from channel {channel.id if channel else "NONE"}')
-                    message = await channel.fetch_message(message_id)
-                    await message.delete()
-                except discord.DiscordException:
-                    pass
-
         try:
             if models.db.close():
                 close_message = 'db connection closing normally'
@@ -62,8 +50,22 @@ class administration(commands.Cog):
         finally:
             logger.info(close_message)
 
-        await ctx.send(f'Cleaning up temporary announcement messages...')
-        await asyncio.sleep(5)  # to make sure message deletes go through
+        if settings.run_tasks:
+            async with ctx.typing():
+                for guild_id, channel_id, message_id in reversed(self.bot.purgable_messages):
+                    # purge messages created by Misc.task_broadcast_newbie_message() so they arent duplicated when bot restarts
+                    guild = discord.utils.get(self.bot.guilds, id=guild_id)
+                    channel = guild.get_channel(channel_id)
+                    try:
+                        logger.debug(f'Purging message {message_id} from channel {channel.id if channel else "NONE"}')
+                        message = await channel.fetch_message(message_id)
+                        await message.delete()
+                    except discord.DiscordException:
+                        pass
+
+            await ctx.send(f'Cleaning up temporary announcement messages...')
+            await asyncio.sleep(5)  # to make sure message deletes go through
+
         await ctx.send('Shutting down')
         await self.bot.close()
 
