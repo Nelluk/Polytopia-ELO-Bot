@@ -15,6 +15,8 @@ import re
 from itertools import groupby
 from matplotlib import pyplot as plt
 import io
+import pandas as pd
+import scipy.signal as signal
 
 logger = logging.getLogger('polybot.' + __name__)
 elo_logger = logging.getLogger('polybot.elo')
@@ -312,16 +314,23 @@ class games(commands.Cog):
             pro_flag = 1
             jr_string = ''
 
+        fig, ax = plt.subplots(figsize = (12,8))
+        plt.style.use('default')
+
         if arg and arg.lower()[:3] == 'all':
             # date_cutoff = datetime.date.min
             embed = discord.Embed(title=f'**Alltime {jr_string}Team Leaderboard**')
+            fig.suptitle('Team ELO History (Alltime)', fontsize=16)
             alltime = True
             sort_field = Team.elo_alltime
         else:
             # date_cutoff = datetime.datetime.strptime(settings.team_elo_reset_date, "%m/%d/%Y").date()
             embed = discord.Embed(title=f'**{jr_string}Team Leaderboard since {settings.team_elo_reset_date}**')
+            fig.suptitle('Team ELO History since ' + settings.team_elo_reset_date, fontsize=16)
             alltime = False
             sort_field = Team.elo
+
+        fig.autofmt_xdate()
 
         query = Team.select().where(
             (Team.is_hidden == 0) & (Team.guild_id == ctx.guild.id) & (Team.pro_league == pro_flag)
@@ -343,7 +352,43 @@ class games(commands.Cog):
             elo = team.elo_alltime if alltime else team.elo
             embed.add_field(name=f'{team.emoji} {(counter + 1):>3}. {team_name_str}\n`ELO: {elo:<5} W {wins} / L {losses}`', value='\u200b', inline=False)
 
-        await ctx.send(embed=embed)
+            team_elo_history_query = (GameSide
+                    .select(Game.completed_ts, (GameSide.team_elo_after_game_alltime if alltime else GameSide.team_elo_after_game).alias('elo'))
+                    .join(Game)
+                    .where((GameSide.team_id == team.id) & ((GameSide.team_elo_after_game_alltime if alltime else GameSide.team_elo_after_game).is_null(False)))
+                    .order_by(Game.completed_ts))
+            
+            team_elo_history = pd.DataFrame(team_elo_history_query.dicts())
+
+            team_elo_history_resampled = team_elo_history.set_index('completed_ts').resample('D').mean().interpolate().reset_index()
+            
+            plt.plot(team_elo_history['completed_ts'], 
+                     team_elo_history['elo'], 
+                     'o', markersize=3, alpha=.05, color=team_role.color)                
+ 
+            plt.plot(team_elo_history_resampled['completed_ts'], 
+                     signal.savgol_filter(team_elo_history_resampled['elo'].values, 131 if alltime else 61, 2), 
+                     '-', linewidth=2, label = team.name, color=team_role.color)
+
+        ax.yaxis.grid()
+
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.spines['left'].set_visible(False)
+
+        plt.legend(loc="best")
+
+        plt.savefig('graph.png', transparent=False)
+        plt.close(fig)
+
+        embed.set_image(url=f'attachment://graph.png')
+
+        with open('graph.png', 'rb') as f:
+            file = io.BytesIO(f.read())
+
+        image = discord.File(file, filename='graph.png')
+
+        await ctx.send(embed=embed, file=image)
 
     @settings.in_bot_channel_strict()
     @settings.teams_allowed()
@@ -778,7 +823,7 @@ class games(commands.Cog):
             ax.spines['right'].set_visible(False)
             ax.spines['left'].set_visible(False)
 
-            plt.legend(loc="lower left")
+            plt.legend(loc="best")
 
             plt.savefig('graph.png', transparent=False)
             plt.close(fig)
