@@ -20,7 +20,7 @@ except KeyError:
 pastebin_key = config['DEFAULT'].get('pastebin_key', None)
 
 server_ids = {'main': 283436219780825088, 'polychampions': 447883341463814144, 'test': 478571892832206869, 'beta': 274660262873661442}
-owner_id = 692805816687788122 # theoldlove
+owner_id = 272510639124250625  # Nelluk
 bot = None
 run_tasks = True  # if set as False via command line option, tasks should check this and skip
 team_elo_reset_date = '1/1/2020'
@@ -65,7 +65,7 @@ config = {'default':
                       'allow_uneven_teams': True,
                       # 'max_team_size': 6,
                       'max_team_size': 1,
-                      'command_prefix': '$',
+                      'command_prefix': '/',
                       'bot_channels_strict': [479292913080336397],
                       'bot_channels': [479292913080336397, 481558031281160212, 480078679930830849],  # 397 Bot Spam,  849 Admin Spam
                       # 'match_challenge_channels': [481558031281160212, 478571893272870913],  # 212 Testroom1
