@@ -365,11 +365,11 @@ class games(commands.Cog):
 
             plt.plot(team_elo_history['completed_ts'],
                      team_elo_history['elo'],
-                     'o', markersize=3, alpha=.05, color=team_role.color.value)
+                     'o', markersize=3, alpha=.05, color=team_role.color.to_rgb())
 
             plt.plot(team_elo_history_resampled['completed_ts'],
                      signal.savgol_filter(team_elo_history_resampled['elo'].values, 131 if alltime else 61, 2),
-                     '-', linewidth=2, label = team.name, color=team_role.color.value)
+                     '-', linewidth=2, label = team.name, color=team_role.color.to_rgb())
 
         ax.yaxis.grid()
 
