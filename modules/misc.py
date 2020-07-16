@@ -26,8 +26,8 @@ class misc(commands.Cog):
     @commands.is_owner()
     async def test(self, ctx, *, arg: str = None):
 
-        game = models.Game.get(id=int(arg))
-        print(game.is_season_game())
+        team_role = discord.utils.get(ctx.guild.roles, name="The Ronin")
+        print(team_role.color)
 
     @commands.command(usage=None)
     @settings.in_bot_channel_strict()
