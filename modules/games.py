@@ -314,7 +314,7 @@ class games(commands.Cog):
             pro_flag = 1
             jr_string = ''
 
-        fig, ax = plt.subplots(figsize = (12,8))
+        fig, ax = plt.subplots(figsize=(12, 8))
         plt.style.use('default')
 
         if arg and arg.lower()[:3] == 'all':
@@ -332,8 +332,9 @@ class games(commands.Cog):
 
         fig.autofmt_xdate()
 
+        guild_check = settings.server_ids['polychampions'] if ctx.guild.id == settings.server_ids['test'] else ctx.guild.id
         query = Team.select().where(
-            (Team.is_hidden == 0) & (Team.guild_id == ctx.guild.id) & (Team.pro_league == pro_flag)
+            (Team.is_hidden == 0) & (Team.guild_id == guild_check) & (Team.pro_league == pro_flag)
         ).order_by(-sort_field)
         for counter, team in enumerate(query):
             team_role = discord.utils.get(ctx.guild.roles, name=team.name)
