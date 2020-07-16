@@ -26,8 +26,15 @@ class misc(commands.Cog):
     @commands.is_owner()
     async def test(self, ctx, *, arg: str = None):
 
-        team_role = discord.utils.get(ctx.guild.roles, name="The Ronin")
-        print(team_role.color)
+        m = re.search(r'\b(\d{4,6})\b', arg)
+
+        if m:
+            print(m[0], m[1])
+        else:
+            print('no match')
+
+        m = re.sub(r'\b(\d{4,6})\b', r'boo\1boo', arg, count=1)
+        print(m)
 
     @commands.command(usage=None)
     @settings.in_bot_channel_strict()

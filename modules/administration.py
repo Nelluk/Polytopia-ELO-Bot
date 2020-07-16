@@ -421,6 +421,11 @@ class administration(commands.Cog):
 
         paginated_message_list = []
 
+        search_term = re.sub(r'\b(\d{4,6})\b', r'\\_\1\\_', search_term, count=1) if search_term else None
+        # Above finds a 4-6 digit number in search_term and adds escaped underscores around it
+        # This will cause it to match against the __GAMEID__ the log entries are prefixed with and not substrings from
+        # user IDs
+
         negative_parameter = re.search(r'-(\S+)', search_term) if search_term else ''
         if negative_parameter:
             negative_term = negative_parameter[1]
@@ -431,7 +436,7 @@ class administration(commands.Cog):
             negative_title_str = ''
 
         if search_term:
-            title_str = f'Searching for log entries containing *{search_term}*{negative_title_str}'
+            title_str = f'Searching for log entries containing *{search_term}*{negative_title_str}'.replace('\\_', '')
         else:
             title_str = f'All recent log entries{negative_title_str}'
 
