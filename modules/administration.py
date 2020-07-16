@@ -426,7 +426,11 @@ class administration(commands.Cog):
         # This will cause it to match against the __GAMEID__ the log entries are prefixed with and not substrings from
         # user IDs
 
+        search_term = re.sub(r'<@[!&]?([0-9]{17,21})>', '\\1', search_term) if search_term else None
+        # replace @Mentions <@272510639124250625> with just the ID 272510639124250625
+
         negative_parameter = re.search(r'-(\S+)', search_term) if search_term else ''
+        # look for the first term preceded by a - character
         if negative_parameter:
             negative_term = negative_parameter[1]
             search_term = search_term.replace(negative_parameter[0], '').replace('  ', ' ').strip()
