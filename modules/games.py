@@ -337,7 +337,6 @@ class games(commands.Cog):
         ).order_by(-sort_field)
         for counter, team in enumerate(query):
             team_role = discord.utils.get(ctx.guild.roles, name=team.name)
-            print(team_role.color)
             if not team_role:
                 logger.error(f'Could not find matching role for team {team.name}')
                 continue
@@ -359,17 +358,18 @@ class games(commands.Cog):
                     .where((GameSide.team_id == team.id) & ((GameSide.team_elo_after_game_alltime if alltime else GameSide.team_elo_after_game).is_null(False)))
                     .order_by(Game.completed_ts))
 
-            team_elo_history = pd.DataFrame(team_elo_history_query.dicts())
+            if team_elo_history_query:
+                team_elo_history = pd.DataFrame(team_elo_history_query.dicts())
 
-            team_elo_history_resampled = team_elo_history.set_index('completed_ts').resample('D').mean().interpolate().reset_index()
+                team_elo_history_resampled = team_elo_history.set_index('completed_ts').resample('D').mean().interpolate().reset_index()
 
-            plt.plot(team_elo_history['completed_ts'],
-                     team_elo_history['elo'],
-                     'o', markersize=3, alpha=.05, color=str(team_role.color))
+                plt.plot(team_elo_history['completed_ts'],
+                         team_elo_history['elo'],
+                         'o', markersize=3, alpha=.05, color=str(team_role.color))
 
-            plt.plot(team_elo_history_resampled['completed_ts'],
-                     signal.savgol_filter(team_elo_history_resampled['elo'].values, 131 if alltime else 61, 2),
-                     '-', linewidth=2, label=team.name, color=str(team_role.color))
+                plt.plot(team_elo_history_resampled['completed_ts'],
+                         signal.savgol_filter(team_elo_history_resampled['elo'].values, 131 if alltime else 61, 2),
+                         '-', linewidth=2, label=team.name, color=str(team_role.color))
 
         ax.yaxis.grid()
 
