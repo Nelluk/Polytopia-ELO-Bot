@@ -780,8 +780,6 @@ class Game(BaseModel):
     game_chan = BitField(default=None, null=True)
     size = ArrayField(SmallIntegerField, default=[0])
 
-    re_polychamps_seasongame = '[PJ]?S\\d'  # Match string like PS10
-
     def __setattr__(self, name, value):
         if name == 'name':
             value = value.strip('\"').strip('\'').strip('”').strip('“').title()[:35].strip() if value else value
@@ -2073,7 +2071,7 @@ class Game(BaseModel):
             season_str = '\\d'
 
         pc_games = Game.select(Game.id).where(
-            (Game.guild_id == settings.server_ids['polychampions'])
+            ((Game.guild_id == settings.server_ids['polychampions']) & ((Game.size == [2, 2]) | (Game.size == [3, 3])))
         )
 
         if league == 'all':
@@ -2139,8 +2137,12 @@ class Game(BaseModel):
         if self.is_season_game():
             return False
 
-        name_notes = f'{self.name} {self.notes}'
-        return bool(re.search(r'[PJ]?S\d', name_notes, flags=re.IGNORECASE))
+        if self.size == [2, 2] or self.size == [3, 3]:
+
+            name_notes = f'{self.name} {self.notes}'
+            return bool(re.search(r'[PJ]?S\d', name_notes, flags=re.IGNORECASE))
+
+        return False
 
 
 class Squad(BaseModel):

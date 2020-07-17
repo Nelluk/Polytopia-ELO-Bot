@@ -1829,10 +1829,13 @@ class games(commands.Cog):
 
 async def post_win_messaging(guild, prefix, current_chan, winning_game):
 
+    purge_message = '*This channel will be purged soon.*'
+    reminder_message = ''
     if winning_game.is_season_game():
-        purge_message = f'This channel will not be purged as it is a Season game.\nPlease use `{prefix}settribes` to log the tribes that were selected.'
-    else:
-        purge_message = '*This channel will be purged soon.*'
+        reminder_message = f'\n:bulb: Please use `{prefix}settribes` to log the tribes that were selected.'
+        purge_message = f'This channel will not be purged as it is a Season game.\n{reminder_message}'
+    elif winning_game.is_uncaught_season_game():
+        reminder_message = f'\n:bulb: This game looks like an incorrectly named **Season Game**! You might want to use `{prefix}rename` and include the season tag at the beginning.'
 
     await winning_game.update_squad_channels(guild_list=settings.bot.guilds, guild_id=guild.id, message=f'The game is over with **{winning_game.winner.name()}** victorious. {purge_message}')
     models.GameLog.write(game_id=winning_game.id, guild_id=winning_game.guild_id, message=f'Win is confirmed and ELO changes processed.')
@@ -1846,7 +1849,7 @@ async def post_win_messaging(guild, prefix, current_chan, winning_game):
             await channel.send(embed=embed)
             return await current_chan.send(f'Game concluded! See {channel.mention} for full details.')
 
-    await current_chan.send(f'Game concluded! Congrats **{winning_game.winner.name()}**. Roster: {" ".join(player_mentions)}')
+    await current_chan.send(f'Game concluded! Congrats **{winning_game.winner.name()}**. Roster: {" ".join(player_mentions)}{reminder_message}')
     await current_chan.send(embed=embed, content=content)
 
     for l in winning_game.lineup:
