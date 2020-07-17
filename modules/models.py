@@ -871,8 +871,7 @@ class Game(BaseModel):
         last_week = (datetime.datetime.now() + datetime.timedelta(days=-7))
 
         if self.is_season_game():
-            if self.completed_ts and self.completed_ts > last_week:
-                return logger.warn(f'Skipping team channel deletion for game {self.id} {self.name} since it is a Season game concluded recently')
+            return logger.debug(f'Skipping team channel deletion for game {self.id} {self.name} since it is a Season game.')
 
         if self.notes and 'NOVA RED' in self.notes.upper() and 'NOVA BLUE' in self.notes.upper():
             if self.completed_ts and self.completed_ts > last_week:

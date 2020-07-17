@@ -36,7 +36,6 @@ class PolyGame(commands.Converter):
             raise commands.UserInputError()
         else:
             logger.debug(f'Game with ID {game_id} found.')
-            print(game.is_season_game())
             if game.guild_id != ctx.guild.id and not allow_cross_guild:
                 logger.warn('Game does not belong to same guild')
                 try:
@@ -1830,7 +1829,12 @@ class games(commands.Cog):
 
 async def post_win_messaging(guild, prefix, current_chan, winning_game):
 
-    await winning_game.update_squad_channels(guild_list=settings.bot.guilds, guild_id=guild.id, message=f'The game is over with **{winning_game.winner.name()}** victorious. *This channel will be purged soon.*')
+    if winning_game.is_season_game():
+        purge_message = f'This channel will not be purged as it is a Season game.\nPlease use `{prefix}settribes` to log the tribes that were selected.'
+    else:
+        purge_message = '*This channel will be purged soon.*'
+
+    await winning_game.update_squad_channels(guild_list=settings.bot.guilds, guild_id=guild.id, message=f'The game is over with **{winning_game.winner.name()}** victorious. {purge_message}')
     models.GameLog.write(game_id=winning_game.id, guild_id=winning_game.guild_id, message=f'Win is confirmed and ELO changes processed.')
     player_mentions = [f'<@{l.player.discord_member.discord_id}>' for l in winning_game.lineup]
     embed, content = winning_game.embed(guild=guild, prefix=prefix)
