@@ -2131,16 +2131,16 @@ class Game(BaseModel):
 
         return (season, league)
 
-    # def is_uncaught_season_game(self):
+    def is_uncaught_season_game(self):
+        # Look for games that have a season tag in the notes or not at the beginning of name
+        if self.guild_id != settings.server_ids['polychampions']:
+            return False
 
-    #     if self.is_season_game():
-    #         return False
+        if self.is_season_game():
+            return False
 
-    #     if self.guild_id != settings.server_ids['polychampions']:
-    #         return False
-
-    #     name_notes = self.name +
-    #     '[PJ]?S\\d'
+        name_notes = f'{self.name} {self.notes}'
+        return bool(re.search(r'[PJ]?S\d', name_notes, flags=re.IGNORECASE))
 
 
 class Squad(BaseModel):

@@ -1868,10 +1868,13 @@ async def post_unwin_messaging(guild, prefix, current_chan, game, previously_con
 async def post_newgame_messaging(ctx, game):
 
     mentions_list = [f'<@{l.player.discord_member.discord_id}>' for l in game.lineup]
+    season, season_str = game.is_season_game(), ''
+    if season:
+        season_str = f'**{"Pro" if season[1] == "P" else "Junior"} Season {season[0]}** '
 
     embed, content = game.embed(guild=ctx.guild, prefix=ctx.prefix)
     ranked_str = 'unranked ' if not game.is_ranked else ''
-    announce_str = f'New {ranked_str}game ID **{game.id}** started! Roster: {" ".join(mentions_list)}'
+    announce_str = f'New {season_str}{ranked_str}game ID **{game.id}** started! Roster: {" ".join(mentions_list)}'
 
     if settings.guild_setting(ctx.guild.id, 'game_announce_channel'):
         channel = ctx.guild.get_channel(settings.guild_setting(ctx.guild.id, 'game_announce_channel'))
@@ -1897,6 +1900,9 @@ async def post_newgame_messaging(ctx, game):
             await game.create_game_channels(settings.bot.guilds, ctx.guild.id)
         except exceptions.MyBaseException as e:
             await ctx.send(f'Error during channel creation: {e}')
+
+    if game.is_uncaught_season_game():
+        await ctx.send(f':bulb: This game looks like an incorrectly named **Season Game**! You might want to use `{ctx.prefix}rename` and include the season tag at the beginning.')
 
     await auto_grad_novas(ctx, game)
 
