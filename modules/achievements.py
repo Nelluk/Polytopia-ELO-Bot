@@ -63,7 +63,7 @@ async def set_experience_role(discord_member):
         member = guild.get_member(discord_member.discord_id) if guild else None
 
         if not member:
-            logger.debug('Skipping, could not load both guild and its member object')
+            logger.debug(f'Skipping guild {guildmember.guild_id}, could not load both guild and its member object')
             continue
 
         role_list = []
