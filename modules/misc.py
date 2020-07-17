@@ -26,15 +26,23 @@ class misc(commands.Cog):
     @commands.is_owner()
     async def test(self, ctx, *, arg: str = None):
 
-        m = re.search(r'\b(\d{4,6})\b', arg)
+        pc_ranked_games = models.Game.select(models.Game.id).where(
+            (models.Game.is_ranked == 1) & (models.Game.guild_id == settings.server_ids['polychampions'])
+        )
 
-        if m:
-            print(m[0], m[1])
-        else:
-            print('no match')
+        official_season = models.Game.select().where(
+            models.Game.name.iregexp(f'[PJ]?S\\d') & models.Game.id.in_(pc_ranked_games)  # matches S5 or PS5 or any S#
+        )
 
-        m = re.sub(r'\b(\d{4,6})\b', r'boo\1boo', arg, count=1)
-        print(m)
+        full_season = models.Game.select().where(
+            (models.Game.name.iregexp(f'[PJ]?S\\d') | models.Game.notes.iregexp(f'[PJ]?S\\d')) & models.Game.id.not_in(official_season)  # matches S5 or PS5 or any S#
+        )
+
+        output = []
+        for g in full_season:
+            output.append(f'{g.id} - {g.name} - {g.notes}')
+
+        await utilities.buffered_send(destination=ctx, content='\n'.join(output))
 
     @commands.command(usage=None)
     @settings.in_bot_channel_strict()
