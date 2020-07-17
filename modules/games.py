@@ -245,7 +245,8 @@ class games(commands.Cog):
                 )
             return leaderboard, leaderboard_query.count()
 
-        leaderboard, leaderboard_size = await self.bot.loop.run_in_executor(None, process_leaderboard)
+        async with ctx.typing():
+            leaderboard, leaderboard_size = await self.bot.loop.run_in_executor(None, process_leaderboard)
 
         # if ctx.guild.id != settings.server_ids['polychampions']:
         #     await ctx.send('Powered by PolyChampions. League server with a team focus and competitive players.\n'

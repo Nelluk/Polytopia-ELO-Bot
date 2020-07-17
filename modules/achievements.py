@@ -63,6 +63,7 @@ async def set_experience_role(discord_member):
         member = guild.get_member(discord_member.discord_id) if guild else None
 
         if not member:
+            logger.debug('Skipping, could not load both guild and its member object')
             continue
 
         role_list = []
@@ -80,11 +81,21 @@ async def set_experience_role(discord_member):
         if discord_member.elo_max >= 1350:
             role = discord.utils.get(guild.roles, name='ELO Hero')
             role_list.append(role) if role is not None else None
+        if discord_member.elo_max >= 1500:
+            role = discord.utils.get(guild.roles, name='ELO Elite')
+            role_list.append(role) if role is not None else None
+        if discord_member.elo_max >= 1650:
+            role = discord.utils.get(guild.roles, name='ELO Master')
+            role_list.append(role) if role is not None else None
+        if discord_member.elo_max >= 1800:
+            role = discord.utils.get(guild.roles, name='ELO Titan')
+            role_list.append(role) if role is not None else None
 
         if not role:
             continue
 
         if role not in member.roles:
+            logger.debug(f'Applying new achievement role {role.name} to {member.display_name}')
             try:
                 if role not in role_list or len(role_list) > 1:
                     await member.remove_roles(*role_list)

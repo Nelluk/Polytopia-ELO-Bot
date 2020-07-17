@@ -10,7 +10,7 @@ import re
 import datetime
 import random
 from modules.games import PolyGame
-# import modules.achievements as achievements
+import modules.achievements as achievements
 
 logger = logging.getLogger('polybot.' + __name__)
 
@@ -26,23 +26,9 @@ class misc(commands.Cog):
     @commands.is_owner()
     async def test(self, ctx, *, arg: str = None):
 
-        pc_ranked_games = models.Game.select(models.Game.id).where(
-            (models.Game.is_ranked == 1) & (models.Game.guild_id == settings.server_ids['polychampions'])
-        )
-
-        official_season = models.Game.select().where(
-            models.Game.name.iregexp(f'[PJ]?S\\d') & models.Game.id.in_(pc_ranked_games)  # matches S5 or PS5 or any S#
-        )
-
-        full_season = models.Game.select().where(
-            (models.Game.name.iregexp(f'[PJ]?S\\d') | models.Game.notes.iregexp(f'[PJ]?S\\d')) & models.Game.id.not_in(official_season)  # matches S5 or PS5 or any S#
-        )
-
-        output = []
-        for g in full_season:
-            output.append(f'{g.id} - {g.name} - {g.notes}')
-
-        await utilities.buffered_send(destination=ctx, content='\n'.join(output))
+        elites = models.DiscordMember.select().where(models.DiscordMember.elo_max >= 1500)
+        for member in elites:
+            await achievements.set_experience_role(member)
 
     @commands.command(usage=None)
     @settings.in_bot_channel_strict()
