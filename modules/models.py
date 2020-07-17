@@ -2070,13 +2070,13 @@ class Game(BaseModel):
         else:
             season_str = '\\d'
 
-        pc_ranked_games = Game.select(Game.id).where(
-            (Game.is_ranked == 1) & (Game.guild_id == settings.server_ids['polychampions'])
+        pc_games = Game.select(Game.id).where(
+            (Game.guild_id == settings.server_ids['polychampions'])
         )
 
         if league == 'all':
             full_season = Game.select().where(
-                Game.name.iregexp(f'[PJ]?S{season_str}') & Game.id.in_(pc_ranked_games)  # matches S5 or PS5 or any S#
+                Game.name.iregexp(f'[PJ]?S{season_str}') & Game.id.in_(pc_games)  # matches S5 or PS5 or any S#
             )
         elif league == 'pro':
             if not season:
@@ -2087,11 +2087,11 @@ class Game(BaseModel):
                 early_season_str = None
 
             full_season = Game.select().where(
-                (Game.name.iregexp(f'PS{season_str}') | Game.name.iregexp(early_season_str)) & Game.id.in_(pc_ranked_games)  # matches PS5 or S3 (before juniors started)
+                (Game.name.iregexp(f'PS{season_str}') | Game.name.iregexp(early_season_str)) & Game.id.in_(pc_games)  # matches PS5 or S3 (before juniors started)
             )
         elif league == 'junior':
             full_season = Game.select().where(
-                Game.name.iregexp(f'JS{season_str}') & Game.id.in_(pc_ranked_games)  # matches JS5
+                Game.name.iregexp(f'JS{season_str}') & Game.id.in_(pc_games)  # matches JS5
             )
         else:
             return ([], [], [])
