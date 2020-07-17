@@ -963,7 +963,7 @@ class matchmaking(commands.Cog):
                         logger.warn(f'Error broadcasting game list: {e}')
                     else:
                         logger.info(f'Broadcast game list to channel {chan.id} in message {message.id}')
-                        self.bot.purgable_messages = self.bot.purgable_messages[:20] + [(guild.id, chan.id, message.id)]
+                        self.bot.purgable_messages = self.bot.purgable_messages[-20:] + [(guild.id, chan.id, message.id)]
 
             await asyncio.sleep(sleep_cycle)
 

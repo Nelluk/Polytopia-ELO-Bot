@@ -442,7 +442,7 @@ class misc(commands.Cog):
                 for broadcast_channel in broadcast_channels:
                     if broadcast_channel:
                         message = await broadcast_channel.send(broadcast_message, delete_after=(sleep_cycle - 5))
-                        self.bot.purgable_messages = self.bot.purgable_messages[:20] + [(guild.id, broadcast_channel.id, message.id)]
+                        self.bot.purgable_messages = self.bot.purgable_messages[-20:] + [(guild.id, broadcast_channel.id, message.id)]
 
             await asyncio.sleep(sleep_cycle)
 
