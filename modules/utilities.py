@@ -244,7 +244,7 @@ def export_game_data_brief(query):
     return filename
 
 
-def export_player_data(player_list):
+def export_player_data(player_list, member_list):
     import csv
     # only supports two-sided games, one winner and one loser
 
@@ -254,10 +254,10 @@ def export_player_data(player_list):
 
         game_writer = csv.writer(export_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
 
-        header = ['name', 'discord_id', 'team', 'elo', 'elo_max', 'global_elo', 'global_elo_max', 'local_record', 'global_record', 'games_in_last_30d', 'poly_id', 'poly_name']
+        header = ['name', 'discord_id', 'team', 'elo', 'elo_max', 'global_elo', 'global_elo_max', 'local_record', 'global_record', 'games_in_last_30d', 'poly_id', 'poly_name', 'profile_image']
         game_writer.writerow(header)
 
-        for player in player_list:
+        for player, member in zip(player_list, member_list):
 
             dm = player.discord_member
             p_record = player.get_record()
@@ -267,7 +267,7 @@ def export_player_data(player_list):
 
             row = [player.name, dm.discord_id, player.team.name if player.team else '', player.elo, player.elo_max,
                    dm.elo, dm.elo_max, f'{p_record[0]} / {p_record[1]}', f'{dm_record[0]} / {dm_record[1]}',
-                   recent_games, dm.polytopia_id, dm.polytopia_name]
+                   recent_games, dm.polytopia_id, dm.polytopia_name, member.avatar_url_as(format='png', size=512)]
 
             game_writer.writerow(row)
 

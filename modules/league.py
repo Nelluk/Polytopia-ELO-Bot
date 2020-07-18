@@ -616,7 +616,7 @@ class league(commands.Cog):
 
         player_list = []
         checked_role = None
-        player_obj_list = []
+        player_obj_list, member_obj_list = [], []
 
         for role in ctx.guild.roles:
             if role_check_name.upper() in role.name.upper():
@@ -635,6 +635,7 @@ class league(commands.Cog):
                 dm = models.DiscordMember.get(discord_id=member.id)
                 player = models.Player.get(discord_member=dm, guild_id=ctx.guild.id)
                 player_obj_list.append(player)
+                member_obj_list.append(member)
             except peewee.DoesNotExist:
                 logger.debug(f'Player {member.name} not registered.')
                 continue
@@ -666,7 +667,7 @@ class league(commands.Cog):
             import io
             def async_call_export_func():
 
-                filename = utilities.export_player_data(player_list=player_obj_list)
+                filename = utilities.export_player_data(player_list=player_obj_list, member_list=member_obj_list)
                 return filename
 
             async with ctx.typing():
