@@ -559,7 +559,7 @@ class league(commands.Cog):
         **games** - Total number of games played
         **recent** - Recent games played (14 days)
 
-        Members with the Inactive role will be skipped.
+        Members with the Inactive role will be skipped. Include `-file` in the argument for a CSV attachment.
 
         This command has some shortcuts:
         `[p]draftable` - List members with the Draftable role
@@ -567,6 +567,7 @@ class league(commands.Cog):
 
         **Examples**
         `[p]roleelo novas` - List all members with a role matching 'novas'
+        `[p]roleelo novas -file` - Load all 'nova' members into a CSV file
         `[p]roleelo elo novas` - List all members with a role matching 'novas', sorted by local elo
         `[p]draftable recent` - List all members with the Draftable role sorted by recent games
         """
@@ -576,6 +577,12 @@ class league(commands.Cog):
 
         if ctx.invoked_with in ['ble', 'bge']:
             return await ctx.send(f'The `{ctx.prefix}{ctx.invoked_with}` command has been replaced by `{ctx.prefix}roleelo`\n{usage}')
+
+        if args and '-file' in args:
+            args.remove('-file')
+            file_export = True
+        else:
+            file_export = False
 
         if args and args[0].upper() == 'G_ELO':
             sort_key = 1
@@ -609,6 +616,7 @@ class league(commands.Cog):
 
         player_list = []
         checked_role = None
+        player_obj_list = []
 
         for role in ctx.guild.roles:
             if role_check_name.upper() in role.name.upper():
@@ -626,6 +634,7 @@ class league(commands.Cog):
             try:
                 dm = models.DiscordMember.get(discord_id=member.id)
                 player = models.Player.get(discord_member=dm, guild_id=ctx.guild.id)
+                player_obj_list.append(player)
             except peewee.DoesNotExist:
                 logger.debug(f'Player {member.name} not registered.')
                 continue
@@ -644,9 +653,6 @@ class league(commands.Cog):
 
             player_list.append((message, dm.elo, player.elo, all_games, recent_games))
 
-        await ctx.send(f'Listing {len(player_list)} active members with the **{utilities.escape_role_mentions(checked_role.name)}** role (sorted by {sort_str})...')
-        # without the escape then 'everyone.name' still is a mention
-
         player_list.sort(key=lambda tup: tup[sort_key], reverse=False)     # sort the list by argument supplied
 
         message = []
@@ -654,8 +660,33 @@ class league(commands.Cog):
             # await ctx.send(grad[0])
             message.append(grad[0])
 
-        async with ctx.typing():
-            await utilities.buffered_send(destination=ctx, content=''.join(message).replace(".", "\u200b "))
+        if not player_list:
+            await ctx.send(f'No matching players found.')
+        elif file_export:
+            import io
+            def async_call_export_func():
+
+                filename = utilities.export_player_data(player_list=player_obj_list)
+                return filename
+
+            async with ctx.typing():
+                filename = await self.bot.loop.run_in_executor(None, async_call_export_func)
+                with open(filename, 'rb') as f:
+                    file = io.BytesIO(f.read())
+                file = discord.File(file, filename=filename)
+                await ctx.send(f'Players loaded into a file `{filename}`', file=file)
+        else:
+            await ctx.send(f'Listing {len(player_list)} active members with the **{utilities.escape_role_mentions(checked_role.name)}** role (sorted by {sort_str})...')
+            # without the escape then 'everyone.name' still is a mention
+
+            player_list.sort(key=lambda tup: tup[sort_key], reverse=False)     # sort the list by argument supplied
+
+            message = []
+            for grad in player_list:
+                # await ctx.send(grad[0])
+                message.append(grad[0])
+            async with ctx.typing():
+                await utilities.buffered_send(destination=ctx, content=''.join(message).replace(".", "\u200b "))
 
     @commands.command()
     # @settings.in_bot_channel()

@@ -26,9 +26,9 @@ class misc(commands.Cog):
     @commands.is_owner()
     async def test(self, ctx, *, arg: str = None):
 
-        lb = models.DiscordMember.leaderboard(date_cutoff=datetime.date.min, max_flag=True).limit(250)
-        for dm in lb:
-            print(dm.name, dm.elo, dm.elo_max)
+        players = models.Player.select().where(models.Player.id < 100)
+        p_file = utilities.export_player_data(players)
+        print(p_file)
 
     @commands.command(usage=None)
     @settings.in_bot_channel_strict()
