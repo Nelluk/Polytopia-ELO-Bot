@@ -1211,10 +1211,10 @@ class Game(BaseModel):
         return f'Game {self.id}   {full_squad_string}{game_name}'
 
     def largest_team(self):
-        return max(len(gameside.lineup) for gameside in self.gamesides)
+        return max(self.size)
 
     def smallest_team(self):
-        return min(len(gameside.lineup) for gameside in self.gamesides)
+        return min(self.size)
 
     def size_string(self):
 
