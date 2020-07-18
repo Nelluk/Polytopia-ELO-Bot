@@ -612,7 +612,7 @@ class games(commands.Cog):
             # TODO: maybe "adjusted ELO" for how big game is?
 
             if player.discord_member.elo_max > 1000:
-                misc_stats.append(('Max global ELO achieved', player.discord_member.elo_max))
+                misc_stats.append(('Max ELO achieved', f'{player.discord_member.elo_max} G \u200b - \u200b {player.elo_max} L'))
 
             favorite_tribes = player.discord_member.favorite_tribes(limit=3)
             if favorite_tribes:

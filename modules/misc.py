@@ -26,21 +26,9 @@ class misc(commands.Cog):
     @commands.is_owner()
     async def test(self, ctx, *, arg: str = None):
 
-        gs = models.GameSide.get(id=118373)
-        if gs.team_elo_after_game == 1127:
-            await ctx.send('already updated')
-        else:
-            query = models.GameSide.update(team_elo_after_game=(models.GameSide.team_elo_after_game - models.GameSide.elo_change_team))
-            await ctx.send(query.execute())
-
-            query = models.GameSide.update(team_elo_after_game_alltime=(models.GameSide.team_elo_after_game_alltime - models.GameSide.elo_change_team_alltime))
-            await ctx.send(query.execute())
-            await ctx.send('done')
-
-        # query = models.Team.update()
-        # elites = models.DiscordMember.select().where(models.DiscordMember.elo_max >= 1500)
-        # for member in elites:
-        #     await achievements.set_experience_role(member)
+        lb = models.DiscordMember.leaderboard(date_cutoff=datetime.date.min, max_flag=True).limit(250)
+        for dm in lb:
+            print(dm.name, dm.elo, dm.elo_max)
 
     @commands.command(usage=None)
     @settings.in_bot_channel_strict()

@@ -1468,6 +1468,13 @@ class Game(BaseModel):
                     team_elos_alltime = [s.team.elo_alltime if s.team else None for s in gamesides]
                     squad_elos = [s.squad.elo if s.squad else None for s in gamesides]
 
+                    # if self.size[0] == 1:
+                    #     # For a solo host game (1v1, 1v3, etc), give them an adjustment for an assumed host advantage
+                    #     # Gives them an extra 75 phantom ELO which will make their calculated chance of winning higher, thus ELO prize lower
+                    #     side_elos[0] = side_elos[0] + 75
+                    #     side_elos_discord[0] = side_elos_discord[0] + 75
+                    # tested 7/2020 - does not really have the impact i expected https://discord.com/channels/447883341463814144/471685046995255307/734036310951592017
+
                     side_win_chances = Game.get_side_win_chances(largest_side, gamesides, side_elos)
                     side_win_chances_discord = Game.get_side_win_chances(largest_side, gamesides, side_elos_discord)
 
