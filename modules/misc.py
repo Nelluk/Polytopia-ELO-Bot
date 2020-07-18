@@ -28,14 +28,14 @@ class misc(commands.Cog):
 
         gs = models.GameSide.get(id=118373)
         if gs.team_elo_after_game == 1127:
-            return print('already updated')
+            await ctx.send('already updated')
         else:
             query = models.GameSide.update(team_elo_after_game=(models.GameSide.team_elo_after_game - models.GameSide.elo_change_team))
-            print(query.execute())
+            await ctx.send(query.execute())
 
             query = models.GameSide.update(team_elo_after_game_alltime=(models.GameSide.team_elo_after_game_alltime - models.GameSide.elo_change_team_alltime))
-            print(query.execute())
-            print('done')
+            await ctx.send(query.execute())
+            await ctx.send('done')
 
         # query = models.Team.update()
         # elites = models.DiscordMember.select().where(models.DiscordMember.elo_max >= 1500)
