@@ -1501,13 +1501,13 @@ class Game(BaseModel):
                             team_elo_delta = side.team.change_elo_after_game(team_win_chances[i], is_winner)
                             side.elo_change_team = team_elo_delta
                             side.team.elo = int(side.team.elo + team_elo_delta)
-                            side.team_elo_after_game = int(side.team.elo + team_elo_delta)
+                            side.team_elo_after_game = side.team.elo
                             side.team.save()
                         if team_win_chances_alltime:
                             team_elo_delta = side.team.change_elo_after_game(team_win_chances_alltime[i], is_winner)
                             side.elo_change_team_alltime = team_elo_delta
                             side.team.elo_alltime = int(side.team.elo_alltime + team_elo_delta)
-                            side.team_elo_after_game_alltime = int(side.team.elo_alltime + team_elo_delta)
+                            side.team_elo_after_game_alltime = side.team.elo_alltime
                             side.team.save()
                         if squad_win_chances:
                             side.elo_change_squad = side.squad.change_elo_after_game(squad_win_chances[i], is_winner)

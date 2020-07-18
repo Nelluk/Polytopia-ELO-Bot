@@ -49,12 +49,11 @@ class league(commands.Cog):
     @commands.Cog.listener()
     async def on_ready(self):
         utilities.connect()
-        if self.bot.user.id == 479029527553638401:
-            # beta bot, using nelluk server to watch for messages
-            self.announcement_message = self.get_draft_config(settings.server_ids['test'])['announcement_message']
-        else:
-            # assume polychampions
-            self.announcement_message = self.get_draft_config(settings.server_ids['polychampions'])['announcement_message']
+        # assume polychampions
+        self.announcement_message = self.get_draft_config(settings.server_ids['polychampions'])['announcement_message']
+        # if self.bot.user.id == 479029527553638401:
+        #     # beta bot, using nelluk server to watch for messages
+        #     self.announcement_message = self.get_draft_config(settings.server_ids['test'])['announcement_message']
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload):

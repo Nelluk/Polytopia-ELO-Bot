@@ -10,7 +10,7 @@ import re
 import datetime
 import random
 from modules.games import PolyGame
-import modules.achievements as achievements
+# import modules.achievements as achievements
 
 logger = logging.getLogger('polybot.' + __name__)
 
@@ -26,9 +26,21 @@ class misc(commands.Cog):
     @commands.is_owner()
     async def test(self, ctx, *, arg: str = None):
 
-        elites = models.DiscordMember.select().where(models.DiscordMember.elo_max >= 1500)
-        for member in elites:
-            await achievements.set_experience_role(member)
+        gs = models.GameSide.get(id=118373)
+        if gs.team_elo_after_game == 1127:
+            return print('already updated')
+        else:
+            query = models.GameSide.update(team_elo_after_game=(models.GameSide.team_elo_after_game - models.GameSide.elo_change_team))
+            print(query.execute())
+
+            query = models.GameSide.update(team_elo_after_game_alltime=(models.GameSide.team_elo_after_game_alltime - models.GameSide.elo_change_team_alltime))
+            print(query.execute())
+            print('done')
+
+        # query = models.Team.update()
+        # elites = models.DiscordMember.select().where(models.DiscordMember.elo_max >= 1500)
+        # for member in elites:
+        #     await achievements.set_experience_role(member)
 
     @commands.command(usage=None)
     @settings.in_bot_channel_strict()
