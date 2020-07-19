@@ -553,7 +553,7 @@ class league(commands.Cog):
     async def roleelo(self, ctx, *, arg=None):
         """Prints list of players with a given role and their ELO stats
 
-        If you supply more than one word, it will try to find a matching role for every word, and provide a list for anyone with at least one role of those roles.
+        You can check more tha one role at a time by separating them with a comma.
 
         Use one of the following options as the first argument to change the sorting:
         **g_elo** - Global ELO (default)
@@ -574,7 +574,9 @@ class league(commands.Cog):
         `[p]roleelo novas -file` - Load all 'nova' members into a CSV file
         `[p]roleelo elo novas` - List all members with a role matching 'novas', sorted by local elo
         `[p]draftable recent` - List all members with the Draftable role sorted by recent games
-        `[p]roleelo crawfish ronin g_elo` - List all members with one of two roles, sorted by global elo
+        `[p]roleelo g_elo crawfish, ronin` - List all members with one of two roles, sorted by global elo
+        `[p]roleelo recent Pros` - *Shortcut* List all members with any Pro team role, sorted by recent. 'Juniors' also works.
+        `[p]roleelo League` - *Shortcut* List all members with any team role.
         """
         args = arg.split() if arg else []
         usage = (f'**Example usage:** `{ctx.prefix}roleelo Ronin`\n'
@@ -614,10 +616,6 @@ class league(commands.Cog):
             args = [draftable_role_name]
         elif ctx.invoked_with == 'freeagents':
             args = [free_agent_role_name]
-        elif ctx.invoked_with == 'pros':
-            args = [a[1][0] for a in league_teams]
-        elif ctx.invoked_with == 'juniors':
-            args = [a[1][1] for a in league_teams]
         elif ctx.invoked_with == 'roleelo':
             if not args:
                 return await ctx.send(f'No role name was supplied.\n{usage}')
@@ -625,6 +623,22 @@ class league(commands.Cog):
         player_list = []
         checked_role = None
         player_obj_list, member_obj_list = [], []
+
+        args = [a.strip().title() for a in ' '.join(args).split(',')]  # split arguments by comma
+
+        if 'Pros' in args:
+            args.remove('Pros')
+            pro_roles = [a[1][0] for a in league_teams]
+            args = args + pro_roles
+        if 'Juniors' in args:
+            args.remove('Juniors')
+            jr_roles = [a[1][1] for a in league_teams]
+            args = args + jr_roles
+        if 'League' in args:
+            args.remove('League')
+            pro_roles = [a[1][0] for a in league_teams]
+            jr_roles = [a[1][1] for a in league_teams]
+            args = args + pro_roles + jr_roles
 
         roles = [discord.utils.find(lambda r: arg.upper() in r.name.upper(), ctx.guild.roles) for arg in args]
         roles = [r for r in roles if r]  # remove Nones
