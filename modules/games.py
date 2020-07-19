@@ -690,15 +690,25 @@ class games(commands.Cog):
             for game, result in game_list:
                 embed.add_field(name=game, value=result, inline=False)
 
-            # if ctx.guild.id != settings.server_ids['polychampions']:
-            #     embed.add_field(value='Powered by **PolyChampions** - https://discord.gg/cX7Ptnv', name='\u200b', inline=False)
+            if player.discord_member.discord_id != ctx.author.id:
+                # Look up 1v1 record between ctx.author and the card target
+                try:
+                    author_player = Player.get_or_except(player_string=str(ctx.author.id), guild_id=ctx.guild.id)
+                except exceptions.MyBaseException:
+                    matchup_games = []  # author not registered
+                else:
+                    matchup_games = Game.search(player_filter=[player, author_player], size_filter=[1, 1]).limit(1)
 
-            return content_str, embed, image
+            return content_str, embed, image, matchup_games
 
         async with ctx.typing():
-            content_str, embed, image = await self.bot.loop.run_in_executor(None, async_create_player_embed)
+            content_str, embed, image, matchup_games = await self.bot.loop.run_in_executor(None, async_create_player_embed)
 
         await ctx.send(content=content_str, file=image, embed=embed)
+
+        if matchup_games:
+            series_record = matchup_games[0].series_record()
+            await ctx.send(f'Your local 1v1 record against this opponent: **{series_record[0][0].name()}** {series_record[0][1]} wins - **{series_record[1][0].name()}** {series_record[1][1]} wins')
 
     @settings.in_bot_channel()
     @settings.teams_allowed()
