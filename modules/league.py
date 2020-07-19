@@ -685,7 +685,7 @@ class league(commands.Cog):
                 with open(filename, 'rb') as f:
                     file = io.BytesIO(f.read())
                 file = discord.File(file, filename=filename)
-                await ctx.send(f'Active players sorted by {sort_str} with any of the following roles: **{"/".join([r.name for r in roles])}**\nLoaded into a file `{filename}`, sorted by {sort_str}', file=file)
+                await ctx.send(f'Active players with any of the following roles: **{"/".join([r.name for r in roles])}**\nLoaded into a file `{filename}`, sorted by {sort_str}', file=file)
         else:
             await ctx.send(f'Listing {len(player_list)} active members with any of the following roles: **{"/".join([r.name for r in roles])}** (sorted by {sort_str})...')
             # without the escape then 'everyone.name' still is a mention
