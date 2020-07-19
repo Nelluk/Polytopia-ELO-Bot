@@ -254,7 +254,7 @@ def export_player_data(player_list, member_list):
 
         game_writer = csv.writer(export_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
 
-        header = ['name', 'discord_id', 'team', 'elo', 'elo_max', 'global_elo', 'global_elo_max', 'local_record', 'global_record', 'games_in_last_30d', 'poly_id', 'poly_name', 'profile_image']
+        header = ['name', 'discord_id', 'team', 'elo', 'elo_max', 'global_elo', 'global_elo_max', 'local_record', 'global_record', 'games_in_last_14d', 'poly_id', 'poly_name', 'profile_image']
         game_writer.writerow(header)
 
         for player, member in zip(player_list, member_list):
@@ -263,7 +263,7 @@ def export_player_data(player_list, member_list):
             p_record = player.get_record()
             dm_record = dm.get_record()
 
-            recent_games = player.games_played(in_days=30).count()
+            recent_games = player.games_played(in_days=14).count()
 
             row = [player.name, dm.discord_id, player.team.name if player.team else '', player.elo, player.elo_max,
                    dm.elo, dm.elo_max, f'{p_record[0]} / {p_record[1]}', f'{dm_record[0]} / {dm_record[1]}',
