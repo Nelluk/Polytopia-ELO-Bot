@@ -19,6 +19,19 @@ draftable_role_name = 'Draftable'    # signed up for current draft
 free_agent_role_name = 'Free Agent'  # signed up for a prior draft but did not get drafted
 novas_role_name = 'The Novas'        # Umbrella newbie role that all of above should also have
 
+league_teams = [('Ronin', ['The Ronin', 'The Bandits']),
+    ('Jets', ['The Jets', 'The Cropdusters']),
+    ('Bombers', ['The Bombers', 'The Dynamite']),
+    ('Lightning', ['The Lightning', 'The Pulse']),
+    ('Cosmonauts', ['The Cosmonauts', 'The Space Cadets']),
+    ('Crawfish', ['The Crawfish', 'The Shrimps']),
+    ('Sparkies', ['The Sparkies', 'The Pups']),
+    ('Wildfire', ['The Wildfire', 'The Flames']),
+    ('Mallards', ['The Mallards', 'The Drakes']),
+    ('Plague', ['The Plague', 'The Rats']),
+    ('Dragons', ['The Dragons', 'The Narwhals'])
+]
+
 
 class league(commands.Cog):
     """
@@ -370,19 +383,6 @@ class league(commands.Cog):
     async def league_balance(self, ctx, *, arg=None):
         """ Print some stats on PolyChampions league balance
         """
-        league_teams = [('Ronin', ['The Ronin', 'The Bandits']),
-                        ('Jets', ['The Jets', 'The Cropdusters']),
-                        ('Bombers', ['The Bombers', 'The Dynamite']),
-                        ('Lightning', ['The Lightning', 'The Pulse']),
-                        ('Cosmonauts', ['The Cosmonauts', 'The Space Cadets']),
-                        ('Crawfish', ['The Crawfish', 'The Shrimps']),
-                        ('Sparkies', ['The Sparkies', 'The Pups']),
-                        ('Wildfire', ['The Wildfire', 'The Flames']),
-                        ('Mallards', ['The Mallards', 'The Drakes']),
-                        ('Plague', ['The Plague', 'The Rats']),
-                        ('Dragons', ['The Dragons', 'The Narwhals'])
-                        ]
-
         league_balance = []
         indent_str = '\u00A0\u00A0 \u00A0\u00A0 \u00A0\u00A0'
         mia_role = discord.utils.get(ctx.guild.roles, name=settings.guild_setting(ctx.guild.id, 'inactive_role'))
@@ -547,11 +547,13 @@ class league(commands.Cog):
         if newbie_role:
             await ctx.author.remove_roles(newbie_role, reason='Joining Novas')
 
-    @commands.command(aliases=['freeagents', 'draftable', 'ble', 'bge'], usage='[sort] [role name]')
+    @commands.command(aliases=['freeagents', 'draftable', 'ble', 'bge', 'pros', 'juniors'], usage='[sort] [role name list]')
     @settings.in_bot_channel_strict()
     @commands.cooldown(1, 5, commands.BucketType.channel)
     async def roleelo(self, ctx, *, arg=None):
         """Prints list of players with a given role and their ELO stats
+
+        If you supply more than one word, it will try to find a matching role for every word, and provide a list for anyone with at least one role of those roles.
 
         Use one of the following options as the first argument to change the sorting:
         **g_elo** - Global ELO (default)
@@ -564,12 +566,15 @@ class league(commands.Cog):
         This command has some shortcuts:
         `[p]draftable` - List members with the Draftable role
         `[p]freeagents` - List members with the Free Agent role
+        `[p]pros` - List members with any of the Pro Team roles
+        `[p]juniors` - List members with any of the Junior Team roles
 
         **Examples**
         `[p]roleelo novas` - List all members with a role matching 'novas'
         `[p]roleelo novas -file` - Load all 'nova' members into a CSV file
         `[p]roleelo elo novas` - List all members with a role matching 'novas', sorted by local elo
         `[p]draftable recent` - List all members with the Draftable role sorted by recent games
+        `[p]roleelo crawfish ronin g_elo` - List all members with one of two roles, sorted by global elo
         """
         args = arg.split() if arg else []
         usage = (f'**Example usage:** `{ctx.prefix}roleelo Ronin`\n'
@@ -586,31 +591,34 @@ class league(commands.Cog):
 
         if args and args[0].upper() == 'G_ELO':
             sort_key = 1
-            args = ' '.join(args[1:])
+            args = args[1:]
             sort_str = 'Global ELO'
         elif args and args[0].upper() == 'ELO':
             sort_key = 2
-            args = ' '.join(args[1:])
+            args = args[1:]
             sort_str = 'Local ELO'
         elif args and args[0].upper() == 'GAMES':
             sort_key = 3
-            args = ' '.join(args[1:])
+            args = args[1:]
             sort_str = 'total games played'
         elif args and args[0].upper() == 'RECENT':
             sort_key = 4
-            args = ' '.join(args[1:])
+            args = args[1:]
             sort_str = 'recent games played'
         else:
             sort_key = 1  # No argument supplied, use g_elo default
-            args = ' '.join(args)
+            # args = ' '.join(args)
             sort_str = 'Global ELO'
 
         if ctx.invoked_with == 'draftable':
-            role_check_name = draftable_role_name
+            args = [draftable_role_name]
         elif ctx.invoked_with == 'freeagents':
-            role_check_name = free_agent_role_name
+            args = [free_agent_role_name]
+        elif ctx.invoked_with == 'pros':
+            args = [a[1][0] for a in league_teams]
+        elif ctx.invoked_with == 'juniors':
+            args = [a[1][1] for a in league_teams]
         elif ctx.invoked_with == 'roleelo':
-            role_check_name = args
             if not args:
                 return await ctx.send(f'No role name was supplied.\n{usage}')
 
@@ -618,15 +626,16 @@ class league(commands.Cog):
         checked_role = None
         player_obj_list, member_obj_list = [], []
 
-        for role in ctx.guild.roles:
-            if role_check_name.upper() in role.name.upper():
-                checked_role = role
+        roles = [discord.utils.find(lambda r: arg.upper() in r.name.upper(), ctx.guild.roles) for arg in args]
+        roles = [r for r in roles if r]  # remove Nones
+        members = list(set(member for role in roles if role for member in role.members))
 
-        if not checked_role:
-            return await ctx.send(f'Could not load a role from the guild with the name **{role_check_name}**. Make sure the match is exact.')
+        if not roles:
+            return await ctx.send(f'Could not load roles from the guild matching **{"/".join(args)}**. This command tries to match one role per word.')
 
         inactive_role = discord.utils.get(ctx.guild.roles, name=settings.guild_setting(ctx.guild.id, 'inactive_role'))
-        for member in checked_role.members:
+        for member in members:
+            print(member.display_name)
             if inactive_role and inactive_role in member.roles and inactive_role != checked_role:
                 logger.debug(f'Skipping {member.name} since they have Inactive role')
                 continue
@@ -657,9 +666,8 @@ class league(commands.Cog):
         player_list.sort(key=lambda tup: tup[sort_key], reverse=False)     # sort the list by argument supplied
 
         message = []
-        for grad in player_list:
-            # await ctx.send(grad[0])
-            message.append(grad[0])
+        for player in player_list:
+            message.append(player[0])
 
         if not player_list:
             await ctx.send(f'No matching players found.')
@@ -677,7 +685,7 @@ class league(commands.Cog):
                 file = discord.File(file, filename=filename)
                 await ctx.send(f'Players loaded into a file `{filename}`', file=file)
         else:
-            await ctx.send(f'Listing {len(player_list)} active members with the **{utilities.escape_role_mentions(checked_role.name)}** role (sorted by {sort_str})...')
+            await ctx.send(f'Listing {len(player_list)} active members with any of the following roles: **{"/".join([r.name for r in roles])}** (sorted by {sort_str})...')
             # without the escape then 'everyone.name' still is a mention
 
             player_list.sort(key=lambda tup: tup[sort_key], reverse=False)     # sort the list by argument supplied

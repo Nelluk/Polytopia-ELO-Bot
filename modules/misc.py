@@ -24,11 +24,22 @@ class misc(commands.Cog):
 
     @commands.command(hidden=True, aliases=['ts'])
     @commands.is_owner()
-    async def test(self, ctx, *, arg: str = None):
+    async def test(self, ctx, *, args: str = None):
 
-        players = models.Player.select().where(models.Player.id < 100)
-        p_file = utilities.export_player_data(players)
-        print(p_file)
+        league_teams = [('Ronin', ['The Ronin', 'The Bandits']),
+            ('Jets', ['The Jets', 'The Cropdusters']),
+            ('Bombers', ['The Bombers', 'The Dynamite']),
+            ('Lightning', ['The Lightning', 'The Pulse']),
+            ('Cosmonauts', ['The Cosmonauts', 'The Space Cadets']),
+            ('Crawfish', ['The Crawfish', 'The Shrimps']),
+            ('Sparkies', ['The Sparkies', 'The Pups']),
+            ('Wildfire', ['The Wildfire', 'The Flames']),
+            ('Mallards', ['The Mallards', 'The Drakes']),
+            ('Plague', ['The Plague', 'The Rats']),
+            ('Dragons', ['The Dragons', 'The Narwhals'])
+        ]
+
+        print([a[1][1] for a in league_teams])
 
     @commands.command(usage=None)
     @settings.in_bot_channel_strict()
