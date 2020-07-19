@@ -635,7 +635,6 @@ class league(commands.Cog):
 
         inactive_role = discord.utils.get(ctx.guild.roles, name=settings.guild_setting(ctx.guild.id, 'inactive_role'))
         for member in members:
-            print(member.display_name)
             if inactive_role and inactive_role in member.roles and inactive_role != checked_role:
                 logger.debug(f'Skipping {member.name} since they have Inactive role')
                 continue
@@ -661,7 +660,7 @@ class league(commands.Cog):
                 f'\n\u00A0\u00A0 \u00A0\u00A0 \u00A0\u00A0 ELO:  {dm.elo} *global* / {player.elo} *local*\n'
                 f'\u00A0\u00A0 \u00A0\u00A0 \u00A0\u00A0 __W {g_wins} / L {g_losses}__ *global* \u00A0\u00A0 - \u00A0\u00A0 __W {wins} / L {losses}__ *local*\n')
 
-            player_list.append((message, dm.elo, player.elo, all_games, recent_games))
+            player_list.append((message, dm.elo, player.elo, all_games, recent_games, member, player))
 
         player_list.sort(key=lambda tup: tup[sort_key], reverse=False)     # sort the list by argument supplied
 
@@ -673,6 +672,9 @@ class league(commands.Cog):
             await ctx.send(f'No matching players found.')
         elif file_export:
             import io
+
+            player_obj_list = [p[6] for p in player_list]
+            member_obj_list = [p[5] for p in player_list]
             def async_call_export_func():
 
                 filename = utilities.export_player_data(player_list=player_obj_list, member_list=member_obj_list)
