@@ -698,6 +698,8 @@ class games(commands.Cog):
                     matchup_games = []  # author not registered
                 else:
                     matchup_games = Game.search(player_filter=[player, author_player], size_filter=[1, 1]).limit(1)
+            else:
+                matchup_games = []
 
             return content_str, embed, image, matchup_games
 
