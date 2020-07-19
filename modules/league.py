@@ -566,8 +566,6 @@ class league(commands.Cog):
         This command has some shortcuts:
         `[p]draftable` - List members with the Draftable role
         `[p]freeagents` - List members with the Free Agent role
-        `[p]pros` - List members with any of the Pro Team roles
-        `[p]juniors` - List members with any of the Junior Team roles
 
         **Examples**
         `[p]roleelo novas` - List all members with a role matching 'novas'
