@@ -1855,6 +1855,9 @@ async def post_win_messaging(guild, prefix, current_chan, winning_game):
     player_mentions = [f'<@{l.player.discord_member.discord_id}>' for l in winning_game.lineup]
     embed, content = winning_game.embed(guild=guild, prefix=prefix)
 
+    for l in winning_game.lineup:
+        await achievements.set_experience_role(l.player.discord_member)
+
     if settings.guild_setting(guild.id, 'game_announce_channel') is not None:
         channel = guild.get_channel(settings.guild_setting(guild.id, 'game_announce_channel'))
         if channel is not None:
@@ -1864,9 +1867,6 @@ async def post_win_messaging(guild, prefix, current_chan, winning_game):
 
     await current_chan.send(f'Game concluded! Congrats **{winning_game.winner.name()}**. Roster: {" ".join(player_mentions)}{reminder_message}')
     await current_chan.send(embed=embed, content=content)
-
-    for l in winning_game.lineup:
-        await achievements.set_experience_role(l.player.discord_member)
 
 
 async def post_unwin_messaging(guild, prefix, current_chan, game, previously_confirmed: bool = False):
