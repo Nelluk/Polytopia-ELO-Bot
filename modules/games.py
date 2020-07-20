@@ -1655,40 +1655,52 @@ class games(commands.Cog):
 
     @commands.command(aliases=['settribes'], usage='game_id player_name tribe_name [player2 tribe2 ... ]')
     @models.is_registered_member()
-    async def settribe(self, ctx, game: PolyGame = None, *args):
+    async def settribe(self, ctx, *, args: str = None):
         """Set tribe of players for a game
 
         **Examples**
         `[p]settribe 2055 ai-mo` - Sets your own tribe for a game you are in
+        `[p]settribe bardur` - Sets your own tribe while in a game channel
 
         **Staff usage:**
         `[p]settribe 2055 nelluk bardur` - Sets Nelluk to Bardur for game 2050
         `[p]settribe 2050 nelluk bardur rick lux anarcho none` - Sets several tribes at once. Use *none* to unset a tribe.
+        `[p]settribe nelluk bardur rick lux` - Set several tribes in bulk while in a game channel.
         """
 
-        if not game:
-            return await ctx.send(f'Game ID not provided. **Example usage:** `{ctx.prefix}{ctx.invoked_with} 1234 bardur`')
-
         if not args:
-            return await ctx.send(f'Tribe name not provided. **Example usage:** `{ctx.prefix}{ctx.invoked_with} 1234 bardur`')
+            return await ctx.send(f'No arguments provided. **Example usage:** `{ctx.prefix}{ctx.invoked_with} 1234 bardur`')
 
         if settings.get_user_level(ctx) < 4:
             perm_str = f'You only have permissions to set your own tribe. **Example usage:** `{ctx.prefix}{ctx.invoked_with} 1234 bardur`'
         else:
             perm_str = ''
 
-        if settings.get_user_level(ctx) < 4 or len(args) == 1:
-            # if non-priviledged user, force the command to be about the ctx.author
-            args = (f'<@{ctx.author.id}>', args[0])
+        arg_list = args.split()
+        game = Game.by_channel_or_arg(chan_id=ctx.channel.id, arg=arg_list[0])
 
-        if len(args) % 2 != 0:
+        if not game:
+            return await ctx.send(f'Game ID not provided. **Example usage:** `{ctx.prefix}{ctx.invoked_with} 1234 bardur`\nYou can also omit the game ID if you use the command from a game-specific channel.')
+
+        if str(game.id) == str(arg_list[0]):
+            arg_list = arg_list[1:]  # Remove game ID from list if it was used for lookup
+            if game.guild_id != ctx.guild.id:
+                return await ctx.send(f'Game {game.id} is associated with a different discord server. Use this command from that server or a game-specific channel.')
+
+        logger.debug(f'Attempting settribe for game {game.id}')
+
+        if settings.get_user_level(ctx) < 4 or len(arg_list) == 1:
+            # if non-priviledged user, force the command to be about the ctx.author
+            arg_list = [f'<@{ctx.author.id}>', arg_list[0]]
+
+        if len(arg_list) % 2 != 0:
             return await ctx.send(f'Wrong number of arguments. See `{ctx.prefix}help settribe` for usage examples.')
 
-        for i in range(0, len(args), 2):
+        for i in range(0, len(arg_list), 2):
             # iterate over args two at a time
 
-            player_name = args[i]
-            tribe_name = args[i + 1]
+            player_name = arg_list[i]
+            tribe_name = arg_list[i + 1]
 
             if tribe_name.upper() == 'NONE':
                 tribe = None
@@ -1717,6 +1729,7 @@ class games(commands.Cog):
             lineup_match.tribe = tribe
             lineup_match.save()
             await ctx.send(f'Player **{lineup_match.player.name}** assigned to tribe *{tribe.name if tribe else "None"}* in game {game.id} {tribe.emoji if tribe else ""}')
+            models.GameLog.write(game_id=game.id, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} assigned tribe of player {models.GameLog.member_string(lineup_match.player.discord_member)} to *{tribe.name if tribe else "None"}*')
 
         game = game.load_full_game()
         await game.update_announcement(guild=ctx.guild, prefix=ctx.prefix)

@@ -1877,9 +1877,41 @@ class Game(BaseModel):
         if len(query) == 0:
             raise exceptions.NoMatches(f'No matching game found for given channel')
         if len(query) > 1:
+            logger.warn(f'by_channel_id - More than one game matches channel ID {chan_id}')
             raise exceptions.TooManyMatches(f'More than game found with this associated channel')
 
         return query[0]
+
+    def by_channel_or_arg(chan_id: int = None, arg: str = None):
+
+        # given a channel_id and/or a string argument, return matching Game if channel_id is associated with a game,
+        # else return a Game if arg is a numeric game id.
+
+        if chan_id:
+            try:
+                game = Game.by_channel_id(chan_id=chan_id)
+                logger.debug(f'by_channel_or_arg found game {game.id} by chan_id {chan_id}')
+                return game
+            except exceptions.NoSingleMatch:
+                logger.debug(f'by_channel_or_arg - failed channel lookup')
+
+        if not arg:
+            logger.debug(f'by_channel_or_arg - no arg provided')
+            return None
+
+        try:
+            numeric_arg = int(arg)
+        except ValueError:
+            logger.debug(f'by_channel_or_arg - non-numeric arg provided')
+            return None
+
+        try:
+            game = Game.get_by_id(numeric_arg)
+            logger.debug(f'by_channel_or_arg found game {game.id} by arg {numeric_arg}')
+            return game
+        except peewee.DoesNotExist:
+            logger.debug(f'by_channel_or_arg - failed lookup by numeric arg')
+            return None
 
     def by_opponents(player_lists):
         # Given lists of player objects representing game sides, ie:
