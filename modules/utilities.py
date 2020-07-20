@@ -230,8 +230,8 @@ def export_game_data_brief(query):
             season_status = game.is_season_game()  # (Season, League) or ()
             season_str = str(season_status[0]) if season_status else ''
 
-            winning_roster = [f'{p[0].name} {p[1]}' for p in winning_side.roster()]
-            losing_roster = [f'{p[0].name} {p[1]}' for p in losing_side.roster()]
+            winning_roster = [f'{p[0].name} {p[1]} {p[2]}' for p in winning_side.roster()]
+            losing_roster = [f'{p[0].name} {p[1]} {p[2]}' for p in losing_side.roster()]
 
             row = [game.id, settings.guild_setting(game.guild_id, 'display_name'), season_str, game.name, game.size_string(),
                    game.get_gamesides_string(), ranked_status, str(game.date), str(game.completed_ts),
