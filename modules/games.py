@@ -1729,7 +1729,7 @@ class games(commands.Cog):
             lineup_match.tribe = tribe
             lineup_match.save()
             await ctx.send(f'Player **{lineup_match.player.name}** assigned to tribe *{tribe.name if tribe else "None"}* in game {game.id} {tribe.emoji if tribe else ""}')
-            models.GameLog.write(game_id=game.id, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} assigned tribe of player {models.GameLog.member_string(lineup_match.player.discord_member)} to *{tribe.name if tribe else "None"}*')
+            models.GameLog.write(game_id=game.id, guild_id=game.guild_id, message=f'{models.GameLog.member_string(ctx.author)} assigned tribe of player {models.GameLog.member_string(lineup_match.player.discord_member)} to *{tribe.name if tribe else "None"}*')
 
         game = game.load_full_game()
         await game.update_announcement(guild=ctx.guild, prefix=ctx.prefix)
