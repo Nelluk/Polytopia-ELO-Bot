@@ -452,6 +452,7 @@ class league(commands.Cog):
 
     @commands.command(aliases=['jrseason'], usage='[season #]')
     @settings.in_bot_channel()
+    @commands.cooldown(1, 30, commands.BucketType.channel)
     async def season(self, ctx, *, arg=None):
         """
         Display team records for one or all seasons
@@ -461,10 +462,14 @@ class league(commands.Cog):
         `[p]jrseason` Records for all seasons (Junior teams)
         `[p]season 7` Records for a specific season (Pro teams)
         `[p]jrseason 7` Records for a specific season (Junior teams)
+        `[p]season 7 games` List all games from Season 7 in summary form (very spammy)
         """
 
-        season = None
+        season, list_games = None, False
         if arg:
+            if 'games' in arg:
+                list_games = True
+                arg = arg.replace('games', '').strip()
             try:
                 season = int(arg)
             except ValueError:
@@ -492,22 +497,38 @@ class league(commands.Cog):
         )
 
         async with ctx.typing():
-            for team in poly_teams:
-                season_record = team.get_season_record(season=season)  # (win_count_reg, loss_count_reg, incomplete_count_reg, win_count_post, loss_count_post, incomplete_count_post)
-                if not season_record:
-                    logger.warn(f'No season record returned for team {team.name}')
-                    continue
+            if list_games:
+                # list all games of this season
+                if not season:
+                    return await ctx.send(f'You must specify a season to list games. **Example**: `{ctx.prefix}{ctx.invoked_with} 7 games`')
+                season_games, _, _ = models.Game.polychamps_season_games(league=pro_str.lower(), season=season)
+                season_games = season_games.order_by(models.Game.id)
+                output = [f'__**Season {season} Games**__']
+                for game in season_games:
+                    losing_side = game.gamesides[0] if game.gamesides[1] == game.winner else game.gamesides[1]
+                    winning_side = game.winner
+                    winning_roster = [f'{p[0].name} {p[1]} {p[2]}' for p in winning_side.roster()]
+                    losing_roster = [f'{p[0].name} {p[1]} {p[2]}' for p in losing_side.roster()]
+                    output_str = f'`{game.id}` *{game.name}* - **{winning_side.name()}** ({" / ".join(winning_roster)}) defeats **{losing_side.name()}** ({" / ".join(losing_roster)})'
+                    output.append(output_str)
+            else:
+                # regular standings summary
+                for team in poly_teams:
+                    season_record = team.get_season_record(season=season)  # (win_count_reg, loss_count_reg, incomplete_count_reg, win_count_post, loss_count_post, incomplete_count_post)
+                    if not season_record:
+                        logger.warn(f'No season record returned for team {team.name}')
+                        continue
 
-                standings.append((team, season_record[0], season_record[1], season_record[2], season_record[3], season_record[4], season_record[5]))
+                    standings.append((team, season_record[0], season_record[1], season_record[2], season_record[3], season_record[4], season_record[5]))
 
-            standings = sorted(standings, key=lambda x: (-x[4], -x[1], x[2]))  # should sort first by post-season wins desc, then wins descending then losses ascending
+                standings = sorted(standings, key=lambda x: (-x[4], -x[1], x[2]))  # should sort first by post-season wins desc, then wins descending then losses ascending
 
-            output = [f'__**{title}**__\n`Regular \u200b \u200b \u200b \u200b \u200b Post-Season`']
+                output = [f'__**{title}**__\n`Regular \u200b \u200b \u200b \u200b \u200b Post-Season`']
 
-            for standing in standings:
-                team_str = f'{standing[0].emoji} {standing[0].name}\n'
-                line = f'{team_str}`{str(standing[1]) + "W":.<3} {str(standing[2]) + "L":.<3} {str(standing[3]) + "I":.<3} - {str(standing[4]) + "W":.<3} {str(standing[5]) + "L":.<3} {standing[6]}I`'
-                output.append(line.replace(".", "\u200b "))
+                for standing in standings:
+                    team_str = f'{standing[0].emoji} {standing[0].name}\n'
+                    line = f'{team_str}`{str(standing[1]) + "W":.<3} {str(standing[2]) + "L":.<3} {str(standing[3]) + "I":.<3} - {str(standing[4]) + "W":.<3} {str(standing[5]) + "L":.<3} {standing[6]}I`'
+                    output.append(line.replace(".", "\u200b "))
 
         await utilities.buffered_send(destination=ctx, content='\n'.join(output))
 
