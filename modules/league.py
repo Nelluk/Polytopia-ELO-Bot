@@ -505,12 +505,18 @@ class league(commands.Cog):
                 season_games = season_games.order_by(models.Game.id)
                 output = [f'__**Season {season} Games**__']
                 for game in season_games:
-                    losing_side = game.gamesides[0] if game.gamesides[1] == game.winner else game.gamesides[1]
-                    winning_side = game.winner
-                    winning_roster = [f'{p[0].name} {p[1]} {p[2]}' for p in winning_side.roster()]
-                    losing_roster = [f'{p[0].name} {p[1]} {p[2]}' for p in losing_side.roster()]
-                    output_str = f'`{game.id}` *{game.name}* - **{winning_side.name()}** ({" / ".join(winning_roster)}) defeats **{losing_side.name()}** ({" / ".join(losing_roster)})'
-                    output.append(output_str)
+                    if game.is_confirmed:
+                        losing_side = game.gamesides[0] if game.gamesides[1] == game.winner else game.gamesides[1]
+                        winning_side = game.winner
+                        winning_roster = [f'{p[0].name} {p[1]} {p[2]}' for p in winning_side.roster()]
+                        losing_roster = [f'{p[0].name} {p[1]} {p[2]}' for p in losing_side.roster()]
+                        output_str = f'`{game.id}` *{game.name}* - **{winning_side.name()}** ({" / ".join(winning_roster)}) defeats **{losing_side.name()}** ({" / ".join(losing_roster)})'
+                        output.append(output_str)
+                    else:
+                        side1, side2 = game.gamesides[0], game.gamesides[1]
+                        side1_roster = [f'{p[0].name} {p[1]} {p[2]}' for p in side1.roster()]
+                        side2_roster = [f'{p[0].name} {p[1]} {p[2]}' for p in side2.roster()]
+                        output.append(f'`{game.id}` *{game.name}* - **{side1.name()}** ({" / ".join(side1_roster)}) currently battling **{side2.name()}** ({" / ".join(side2_roster)}) ')
             else:
                 # regular standings summary
                 for team in poly_teams:
