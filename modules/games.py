@@ -1369,7 +1369,7 @@ class games(commands.Cog):
                 return await ctx.send(f'Game with ID {winning_game.id} is already marked as completed with winner **{winning_game.winner.name()}**')
             elif winning_game.winner != winning_side:
                 (confirmed_count, side_count, _) = winning_game.confirmations_count()
-                await ctx.send(f'Warning: Unconfirmed game with ID {winning_game.id} had previously been marked with winner **{winning_game.winner.name()}**.\n'
+                await ctx.send(f':warning: Unconfirmed game with ID {winning_game.id} had previously been marked with winner **{winning_game.winner.name()}**.\n'
                     f'{confirmed_count} of {side_count} sides had confirmed.')
                 reset_confirmations_flag = True
 
@@ -1932,6 +1932,8 @@ async def post_newgame_messaging(ctx, game):
 
     if game.is_uncaught_season_game():
         await ctx.send(f':bulb: This game looks like an incorrectly named **Season Game**! You might want to use `{ctx.prefix}rename` and include the season tag at the beginning.')
+    if season and game.gamesides[0].team.is_hidden:
+        await ctx.send(f':warning: This game is marked as a **Season Game** but is not associated with a League Team. There are probably players with mixed roles on a side. I suggest you `{ctx.prefix}unstart`, fix the roles, and re-`{ctx.prefix}start`.')
 
     await auto_grad_novas(ctx, game)
 
