@@ -484,7 +484,7 @@ class league(commands.Cog):
         embed = discord.Embed(title='PolyChampions League Balance Summary')
         for team in league_balance:
             embed.add_field(name=(f'{team[1].emoji} {team[0]} ({team[3] + team[4]}) {team[2].emoji}\n{indent_str} \u00A0\u00A0 ActiveELO™: {team[6]}'
-                                  # f'- Draft Score: {team[10]} - Alt Draft Score(Top10): {team[11]} - Alt Draft Score(Top20): {team[12]}'
+                                  f' \u00A0 - \u00A0  Draft Score: {team[10]}'
                                   f'\n{indent_str} \u00A0\u00A0 Recent member-games: {team[7]}'),
                 value=(f'-{indent_str}__**{team[1].name}**__ ({team[3]}) **ELO: {team[1].elo}** (Avg: {team[8]})\n'
                        f'-{indent_str}__**{team[2].name}**__ ({team[4]}) **ELO: {team[2].elo}** (Avg: {team[9]})\n'), inline=False)
