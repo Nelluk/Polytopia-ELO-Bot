@@ -449,7 +449,7 @@ class league(commands.Cog):
                 sorted_elo_list = models.Player.discord_ids_to_elo_list(list_of_discord_ids=junior_discord_ids + pro_discord_ids, guild_id=guild_id)
                 draft_score_2 = statistics.mean(sorted_elo_list[:10])
                 draft_score_3 = statistics.mean(sorted_elo_list[:20])
-                draft_score_4 = statistics.mean(sorted_elo_list[:10] + [pro_team.elo]) + int(statistics.mean(sorted_elo_list[11:] * 0.5))
+                draft_score_4 = statistics.mean(sorted_elo_list[:10] + [pro_team.elo]) + int(statistics.mean(sorted_elo_list[11:]) * 0.5)
 
                 if draft_preference == 2:
                     draft_score = draft_score_2
