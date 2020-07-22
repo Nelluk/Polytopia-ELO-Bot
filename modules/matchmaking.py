@@ -213,8 +213,6 @@ class matchmaking(commands.Cog):
             else:
                 return await ctx.send(f'Maximum ranked team size on this server is {server_size_max}. Maximum team size for an unranked game is {server_size_max + 1}.')
 
-
-
         if required_role_args and len(required_role_args) < len(team_sizes) and required_role_args[0] not in ctx.author.roles:
             # used for a case like: $opengame 1v1 me vs @The Novas   -- puts that role on side 2 if you dont have it
             logger.debug(f'Offsetting required_role_args')
@@ -605,7 +603,7 @@ class matchmaking(commands.Cog):
             await ctx.send(f'Game {game.id} expiration has been reset to 24 hours from now')
 
     @settings.in_bot_channel()
-    @commands.command(aliases=['opengames', 'novagames'])
+    @commands.command(aliases=['opengames', 'novagames', 'nova'])
     async def games(self, ctx, *args):
         """
         List joinable open games
@@ -628,6 +626,10 @@ class matchmaking(commands.Cog):
         unranked_chan = settings.guild_setting(ctx.guild.id, 'unranked_game_channel')
         user_level = settings.get_user_level(ctx)
 
+        if ctx.invoked_with == 'nova' and args and args[0] == 'games':
+            # redirect '$nova games' to '$novagames'
+            args = args[1:]
+
         if ctx.channel.id == unranked_chan or any(arg.upper() == 'UNRANKED' for arg in args):
             ranked_filter = 0
             ranked_str = ' **unranked**'
@@ -643,7 +645,7 @@ class matchmaking(commands.Cog):
             title_str = f'Open games joined by **{ctx.author.name}**'
             game_list = models.Game.search_pending(guild_id=ctx.guild.id, player_discord_id=ctx.author.id)
 
-        elif ctx.invoked_with == 'novagames':
+        elif ctx.invoked_with == 'novagames' or ctx.invoked_with == 'nova':
             title_str = f'Current pending Nova League games\nUse `{ctx.prefix}games` to view all joinable games'
             novas_only = True
             game_list = models.Game.search_pending(status_filter=2, guild_id=ctx.guild.id, ranked_filter=ranked_filter)

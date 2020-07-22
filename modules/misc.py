@@ -22,10 +22,14 @@ class misc(commands.Cog):
             self.bg_task = bot.loop.create_task(self.task_broadcast_newbie_message())
             self.bg_task = bot.loop.create_task(self.task_send_polychamps_invite())
 
-    @commands.command(hidden=True, aliases=['ts'])
+    @commands.command(hidden=True, aliases=['ts', 'blah'])
     @commands.is_owner()
     async def test(self, ctx, *, args):
+        print('here')
+        if ctx.invoked_with == 'blah':
+            ctx.invoked_with == 'foo'
 
+        print(ctx.invoked_with)
         import shlex
         # print(shlex.quote(args))
         args = args.replace("'", "\\'")

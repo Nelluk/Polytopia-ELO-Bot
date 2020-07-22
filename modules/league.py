@@ -574,7 +574,7 @@ class league(commands.Cog):
 
         await utilities.buffered_send(destination=ctx, content='\n'.join(output))
 
-    @commands.command(aliases=['nova', 'joinnovas'])
+    @commands.command(aliases=['joinnovas'])
     async def novas(self, ctx, *, arg=None):
         """ Join yourself to the Novas team
         """
