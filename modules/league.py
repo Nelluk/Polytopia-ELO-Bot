@@ -388,59 +388,60 @@ class league(commands.Cog):
         guild_id = settings.server_ids['polychampions']
         mia_role = discord.utils.get(ctx.guild.roles, name=settings.guild_setting(guild_id, 'inactive_role'))
 
-        for team, team_roles in league_teams:
+        async with ctx.typing():
+            for team, team_roles in league_teams:
 
-            pro_role = discord.utils.get(ctx.guild.roles, name=team_roles[0])
-            junior_role = discord.utils.get(ctx.guild.roles, name=team_roles[1])
+                pro_role = discord.utils.get(ctx.guild.roles, name=team_roles[0])
+                junior_role = discord.utils.get(ctx.guild.roles, name=team_roles[1])
 
-            if not pro_role or not junior_role:
-                logger.warn(f'Could not load one team role from guild, using args: {team_roles}')
-                continue
+                if not pro_role or not junior_role:
+                    logger.warn(f'Could not load one team role from guild, using args: {team_roles}')
+                    continue
 
-            try:
-                pro_team = models.Team.get_or_except(team_roles[0], guild_id)
-                junior_team = models.Team.get_or_except(team_roles[1], guild_id)
-            except exceptions.NoSingleMatch:
-                logger.warn(f'Could not load one team from database, using args: {team_roles}')
-                continue
+                try:
+                    pro_team = models.Team.get_or_except(team_roles[0], guild_id)
+                    junior_team = models.Team.get_or_except(team_roles[1], guild_id)
+                except exceptions.NoSingleMatch:
+                    logger.warn(f'Could not load one team from database, using args: {team_roles}')
+                    continue
 
-            pro_members, junior_members, pro_discord_ids, junior_discord_ids, mia_count = [], [], [], [], 0
+                pro_members, junior_members, pro_discord_ids, junior_discord_ids, mia_count = [], [], [], [], 0
 
-            for member in pro_role.members:
-                if mia_role in member.roles:
-                    mia_count += 1
-                else:
-                    pro_members.append(member)
-                    pro_discord_ids.append(member.id)
-            for member in junior_role.members:
-                if mia_role in member.roles:
-                    mia_count += 1
-                else:
-                    junior_members.append(member)
-                    junior_discord_ids.append(member.id)
+                for member in pro_role.members:
+                    if mia_role in member.roles:
+                        mia_count += 1
+                    else:
+                        pro_members.append(member)
+                        pro_discord_ids.append(member.id)
+                for member in junior_role.members:
+                    if mia_role in member.roles:
+                        mia_count += 1
+                    else:
+                        junior_members.append(member)
+                        junior_discord_ids.append(member.id)
 
-            logger.info(team)
-            combined_elo, player_games_total = models.Player.average_elo_of_player_list(list_of_discord_ids=junior_discord_ids + pro_discord_ids, guild_id=guild_id, weighted=True)
+                logger.info(team)
+                combined_elo, player_games_total = models.Player.average_elo_of_player_list(list_of_discord_ids=junior_discord_ids + pro_discord_ids, guild_id=guild_id, weighted=True)
 
-            pro_elo, _ = models.Player.average_elo_of_player_list(list_of_discord_ids=pro_discord_ids, guild_id=guild_id, weighted=False)
-            junior_elo, _ = models.Player.average_elo_of_player_list(list_of_discord_ids=junior_discord_ids, guild_id=guild_id, weighted=False)
+                pro_elo, _ = models.Player.average_elo_of_player_list(list_of_discord_ids=pro_discord_ids, guild_id=guild_id, weighted=False)
+                junior_elo, _ = models.Player.average_elo_of_player_list(list_of_discord_ids=junior_discord_ids, guild_id=guild_id, weighted=False)
 
-            draft_score = pro_team.elo + pro_elo
-            draft_score_2 = sum(models.Player.discord_ids_to_elo_list(list_of_discord_ids=junior_discord_ids + pro_discord_ids, guild_id=guild_id)[:10])
+                draft_score = pro_team.elo + pro_elo
+                draft_score_2 = sum(models.Player.discord_ids_to_elo_list(list_of_discord_ids=junior_discord_ids + pro_discord_ids, guild_id=guild_id)[:10])
 
-            league_balance.append(
-                (team,
-                 pro_team,
-                 junior_team,
-                 len(pro_members),
-                 len(junior_members),
-                 mia_count,
-                 combined_elo,
-                 player_games_total,
-                 pro_elo,
-                 junior_elo,
-                 draft_score, draft_score_2)
-            )
+                league_balance.append(
+                    (team,
+                     pro_team,
+                     junior_team,
+                     len(pro_members),
+                     len(junior_members),
+                     mia_count,
+                     combined_elo,
+                     player_games_total,
+                     pro_elo,
+                     junior_elo,
+                     draft_score, draft_score_2)
+                )
 
         league_balance.sort(key=lambda tup: tup[11], reverse=True)     # sort by draft score
 
@@ -452,7 +453,7 @@ class league(commands.Cog):
                 value=(f'-{indent_str}__**{team[1].name}**__ ({team[3]}) **ELO: {team[1].elo}** (Avg: {team[8]})\n'
                        f'-{indent_str}__**{team[2].name}**__ ({team[4]}) **ELO: {team[2].elo}** (Avg: {team[9]})\n'), inline=False)
 
-        embed.set_footer(text='ActiveELO™ is the mean ELO of members weighted by how many games each member has played in the last 30 days.')
+        embed.set_footer(text='ActiveELO™ is the mean ELO of members weighted by how many games each member has played in the last 30 days. Draft Score is Pro Team ELO + Average ELO of Pro Team members. Alt Draft Score is the combined ELO of a team\'s top ten players, including Junior players.')
 
         await ctx.send(embed=embed)
 
