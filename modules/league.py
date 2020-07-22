@@ -316,9 +316,9 @@ class league(commands.Cog):
         You can optionally direct the announcement to a non-default channel, and add an optional message to the end of the announcement message.
 
         **Examples**
-        `[p]newdraft` Normal usage
+        `[p]newdraft` Normal usage with a generic message
         `[p]newdraft #special-channel` Direct message to a non-standard channel
-        `[p]newdraft Signups close early this week!` Add an extra message to the announcement.
+        `[p]newdraft Signups will be closing on Sunday and the draft will occur the following Sunday` Add an extra message to the announcement.
 
         """
 
@@ -424,6 +424,9 @@ class league(commands.Cog):
             pro_elo, _ = models.Player.average_elo_of_player_list(list_of_discord_ids=pro_discord_ids, guild_id=ctx.guild.id, weighted=False)
             junior_elo, _ = models.Player.average_elo_of_player_list(list_of_discord_ids=junior_discord_ids, guild_id=ctx.guild.id, weighted=False)
 
+            draft_score = pro_team.elo + pro_elo
+            draft_score_2 = sum(models.Player.discord_ids_to_elo_list(list_of_discord_ids=junior_discord_ids + pro_discord_ids, guild_id=ctx.guild.id)[:10])
+
             league_balance.append(
                 (team,
                  pro_team,
@@ -434,7 +437,8 @@ class league(commands.Cog):
                  combined_elo,
                  player_games_total,
                  pro_elo,
-                 junior_elo)
+                 junior_elo,
+                 draft_score, draft_score_2)
             )
 
         league_balance.sort(key=lambda tup: tup[6], reverse=True)     # sort by combined_elo
@@ -442,6 +446,7 @@ class league(commands.Cog):
         embed = discord.Embed(title='PolyChampions League Balance Summary')
         for team in league_balance:
             embed.add_field(name=(f'{team[1].emoji} {team[0]} ({team[3] + team[4]}) {team[2].emoji}\n{indent_str} \u00A0\u00A0 ActiveELO™: {team[6]}'
+                                  f'- Draft Score: {team[10]} - Alt Draft Score: {team[11]}'
                                   f'\n{indent_str} \u00A0\u00A0 Recent member-games: {team[7]}'),
                 value=(f'-{indent_str}__**{team[1].name}**__ ({team[3]}) **ELO: {team[1].elo}** (Avg: {team[8]})\n'
                        f'-{indent_str}__**{team[2].name}**__ ({team[4]}) **ELO: {team[2].elo}** (Avg: {team[9]})\n'), inline=False)

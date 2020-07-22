@@ -698,6 +698,14 @@ class Player(BaseModel):
 
         return q.dicts()
 
+    def discord_ids_to_elo_list(list_of_discord_ids, guild_id):
+        players = Player.select(Player, DiscordMember).join(DiscordMember).where(
+            (DiscordMember.discord_id.in_(list_of_discord_ids)) & (Player.guild_id == guild_id)
+        )
+
+        elo_list = [p.elo for p in players]
+        return elo_list.sort(reverse=True)
+
     def average_elo_of_player_list(list_of_discord_ids, guild_id, weighted=True):
 
         # Given a group of discord_ids (likely teammates) come up with an average ELO for that group, weighted by how active they are
