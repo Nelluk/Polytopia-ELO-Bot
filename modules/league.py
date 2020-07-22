@@ -383,7 +383,7 @@ class league(commands.Cog):
     async def league_balance(self, ctx, *, arg=None):
         """ Print some stats on PolyChampions league balance
 
-            Default sort is the Draft Score. Include arguments d2, d3, d4 or d5 to see alternate draft scores.
+            Default sort is the Draft Score. Include arguments d2 or d3 to see alternate draft scores.
             ie: `[p]balance d3`
         """
         import statistics
@@ -399,12 +399,6 @@ class league(commands.Cog):
         elif arg and arg == 'd3':
             draft_preference = 3
             draft_str = 'average ELO of top 20 players (Senior or Junior)'
-        elif arg and arg == 'd4':
-            draft_preference = 4
-            draft_str = 'combined ELO of top 10 players (Senior or Junior)'
-        elif arg and arg == 'd5':
-            draft_preference = 5
-            draft_str = 'combined ELO of top 20 players (Senior or Junior)'
         else:
             draft_preference = 1
             draft_str = 'Pro Team ELO + Average ELO of Pro Team members'
@@ -452,18 +446,11 @@ class league(commands.Cog):
                 sorted_elo_list = models.Player.discord_ids_to_elo_list(list_of_discord_ids=junior_discord_ids + pro_discord_ids, guild_id=guild_id)
                 draft_score_2 = statistics.mean(sorted_elo_list[:10])
                 draft_score_3 = statistics.mean(sorted_elo_list[:20])
-                draft_score_4 = sum(sorted_elo_list[:10])
-                draft_score_5 = sum(sorted_elo_list[:20])
-                # draft_score_2 = sum(models.Player.discord_ids_to_elo_list(list_of_discord_ids=junior_discord_ids + pro_discord_ids, guild_id=guild_id)[:20])
 
                 if draft_preference == 2:
                     draft_score = draft_score_2
                 elif draft_preference == 3:
                     draft_score = draft_score_3
-                elif draft_preference == 4:
-                    draft_score = draft_score_4
-                elif draft_preference == 5:
-                    draft_score = draft_score_5
 
                 league_balance.append(
                     (team,
