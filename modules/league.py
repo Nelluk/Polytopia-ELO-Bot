@@ -385,7 +385,8 @@ class league(commands.Cog):
         """
         league_balance = []
         indent_str = '\u00A0\u00A0 \u00A0\u00A0 \u00A0\u00A0'
-        mia_role = discord.utils.get(ctx.guild.roles, name=settings.guild_setting(ctx.guild.id, 'inactive_role'))
+        guild_id = settings.server_ids['polychampions']
+        mia_role = discord.utils.get(ctx.guild.roles, name=settings.guild_setting(guild_id, 'inactive_role'))
 
         for team, team_roles in league_teams:
 
@@ -397,8 +398,8 @@ class league(commands.Cog):
                 continue
 
             try:
-                pro_team = models.Team.get_or_except(team_roles[0], ctx.guild.id)
-                junior_team = models.Team.get_or_except(team_roles[1], ctx.guild.id)
+                pro_team = models.Team.get_or_except(team_roles[0], guild_id)
+                junior_team = models.Team.get_or_except(team_roles[1], guild_id)
             except exceptions.NoSingleMatch:
                 logger.warn(f'Could not load one team from database, using args: {team_roles}')
                 continue
@@ -419,13 +420,13 @@ class league(commands.Cog):
                     junior_discord_ids.append(member.id)
 
             logger.info(team)
-            combined_elo, player_games_total = models.Player.average_elo_of_player_list(list_of_discord_ids=junior_discord_ids + pro_discord_ids, guild_id=ctx.guild.id, weighted=True)
+            combined_elo, player_games_total = models.Player.average_elo_of_player_list(list_of_discord_ids=junior_discord_ids + pro_discord_ids, guild_id=guild_id, weighted=True)
 
-            pro_elo, _ = models.Player.average_elo_of_player_list(list_of_discord_ids=pro_discord_ids, guild_id=ctx.guild.id, weighted=False)
-            junior_elo, _ = models.Player.average_elo_of_player_list(list_of_discord_ids=junior_discord_ids, guild_id=ctx.guild.id, weighted=False)
+            pro_elo, _ = models.Player.average_elo_of_player_list(list_of_discord_ids=pro_discord_ids, guild_id=guild_id, weighted=False)
+            junior_elo, _ = models.Player.average_elo_of_player_list(list_of_discord_ids=junior_discord_ids, guild_id=guild_id, weighted=False)
 
             draft_score = pro_team.elo + pro_elo
-            draft_score_2 = sum(models.Player.discord_ids_to_elo_list(list_of_discord_ids=junior_discord_ids + pro_discord_ids, guild_id=ctx.guild.id)[:10])
+            draft_score_2 = sum(models.Player.discord_ids_to_elo_list(list_of_discord_ids=junior_discord_ids + pro_discord_ids, guild_id=guild_id)[:10])
 
             league_balance.append(
                 (team,
@@ -441,7 +442,7 @@ class league(commands.Cog):
                  draft_score, draft_score_2)
             )
 
-        league_balance.sort(key=lambda tup: tup[6], reverse=True)     # sort by combined_elo
+        league_balance.sort(key=lambda tup: tup[10], reverse=True)     # sort by draft score
 
         embed = discord.Embed(title='PolyChampions League Balance Summary')
         for team in league_balance:

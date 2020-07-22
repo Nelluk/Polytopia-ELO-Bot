@@ -703,8 +703,9 @@ class Player(BaseModel):
             (DiscordMember.discord_id.in_(list_of_discord_ids)) & (Player.guild_id == guild_id)
         )
 
-        elo_list = [p.elo for p in players]
-        return elo_list.sort(reverse=True)
+        elo_list = [p.elo for p in players] if players else []
+        elo_list.sort(reverse=True)
+        return elo_list
 
     def average_elo_of_player_list(list_of_discord_ids, guild_id, weighted=True):
 
