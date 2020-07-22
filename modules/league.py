@@ -431,7 +431,8 @@ class league(commands.Cog):
                 draft_score = pro_team.elo + pro_elo
 
                 sorted_elo_list = models.Player.discord_ids_to_elo_list(list_of_discord_ids=junior_discord_ids + pro_discord_ids, guild_id=guild_id)
-                draft_score_2 = statistics.mean(sorted_elo_list[:20])
+                draft_score_2 = statistics.mean(sorted_elo_list[:10])
+                draft_score_3 = statistics.mean(sorted_elo_list[:20])
                 # draft_score_2 = sum(models.Player.discord_ids_to_elo_list(list_of_discord_ids=junior_discord_ids + pro_discord_ids, guild_id=guild_id)[:20])
 
                 league_balance.append(
@@ -445,7 +446,7 @@ class league(commands.Cog):
                      player_games_total,
                      pro_elo,
                      junior_elo,
-                     draft_score, draft_score_2)
+                     draft_score, draft_score_2, draft_score_3)
                 )
 
         league_balance.sort(key=lambda tup: tup[11], reverse=True)     # sort by draft score
@@ -453,7 +454,7 @@ class league(commands.Cog):
         embed = discord.Embed(title='PolyChampions League Balance Summary')
         for team in league_balance:
             embed.add_field(name=(f'{team[1].emoji} {team[0]} ({team[3] + team[4]}) {team[2].emoji}\n{indent_str} \u00A0\u00A0 ActiveELO™: {team[6]}'
-                                  f'- Draft Score: {team[10]} - Alt Draft Score: {team[11]}'
+                                  f'- Draft Score: {team[10]} - Alt Draft Score(Top10): {team[11]} - Alt Draft Score(Top20): {team[12]}'
                                   f'\n{indent_str} \u00A0\u00A0 Recent member-games: {team[7]}'),
                 value=(f'-{indent_str}__**{team[1].name}**__ ({team[3]}) **ELO: {team[1].elo}** (Avg: {team[8]})\n'
                        f'-{indent_str}__**{team[2].name}**__ ({team[4]}) **ELO: {team[2].elo}** (Avg: {team[9]})\n'), inline=False)
