@@ -399,6 +399,9 @@ class league(commands.Cog):
         elif arg and arg == 'd3':
             draft_preference = 3
             draft_str = 'average ELO of top 20 players (Senior or Junior)'
+        elif arg and arg == 'd4':
+            draft_preference = 4
+            draft_str = 'average top 10 team players with Team ELO, plus half weight of average players 11 thru 20'
         else:
             draft_preference = 1
             draft_str = 'Pro Team ELO + Average ELO of Pro Team members'
@@ -446,11 +449,14 @@ class league(commands.Cog):
                 sorted_elo_list = models.Player.discord_ids_to_elo_list(list_of_discord_ids=junior_discord_ids + pro_discord_ids, guild_id=guild_id)
                 draft_score_2 = statistics.mean(sorted_elo_list[:10])
                 draft_score_3 = statistics.mean(sorted_elo_list[:20])
+                draft_score_4 = statistics.mean(sorted_elo_list[:10] + pro_team.elo) + int(statistics.mean(sorted_elo_list[11:] * 0.5))
 
                 if draft_preference == 2:
                     draft_score = draft_score_2
                 elif draft_preference == 3:
                     draft_score = draft_score_3
+                elif draft_preference == 4:
+                    draft_score = draft_score_4
 
                 league_balance.append(
                     (team,
