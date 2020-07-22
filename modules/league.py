@@ -383,6 +383,8 @@ class league(commands.Cog):
     async def league_balance(self, ctx, *, arg=None):
         """ Print some stats on PolyChampions league balance
         """
+        import statistics
+
         league_balance = []
         indent_str = '\u00A0\u00A0 \u00A0\u00A0 \u00A0\u00A0'
         guild_id = settings.server_ids['polychampions']
@@ -427,7 +429,10 @@ class league(commands.Cog):
                 junior_elo, _ = models.Player.average_elo_of_player_list(list_of_discord_ids=junior_discord_ids, guild_id=guild_id, weighted=False)
 
                 draft_score = pro_team.elo + pro_elo
-                draft_score_2 = sum(models.Player.discord_ids_to_elo_list(list_of_discord_ids=junior_discord_ids + pro_discord_ids, guild_id=guild_id)[:10])
+
+                sorted_elo_list = models.Player.discord_ids_to_elo_list(list_of_discord_ids=junior_discord_ids + pro_discord_ids, guild_id=guild_id)
+                draft_score_2 = statistics.mean(sorted_elo_list[:20])
+                # draft_score_2 = sum(models.Player.discord_ids_to_elo_list(list_of_discord_ids=junior_discord_ids + pro_discord_ids, guild_id=guild_id)[:20])
 
                 league_balance.append(
                     (team,
