@@ -442,7 +442,7 @@ class league(commands.Cog):
                  draft_score, draft_score_2)
             )
 
-        league_balance.sort(key=lambda tup: tup[10], reverse=True)     # sort by draft score
+        league_balance.sort(key=lambda tup: tup[11], reverse=True)     # sort by draft score
 
         embed = discord.Embed(title='PolyChampions League Balance Summary')
         for team in league_balance:
