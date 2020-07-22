@@ -379,9 +379,12 @@ class league(commands.Cog):
 
     @commands.command(aliases=['balance'])
     @settings.in_bot_channel()
-    @commands.cooldown(1, 30, commands.BucketType.channel)
+    @commands.cooldown(1, 5, commands.BucketType.channel)
     async def league_balance(self, ctx, *, arg=None):
         """ Print some stats on PolyChampions league balance
+
+            Default sort is the Draft Score. Include arguments d2, d3, d4 or d5 to see alternate draft scores.
+            ie: `[p]balance d3`
         """
         import statistics
 
@@ -389,6 +392,22 @@ class league(commands.Cog):
         indent_str = '\u00A0\u00A0 \u00A0\u00A0 \u00A0\u00A0'
         guild_id = settings.server_ids['polychampions']
         mia_role = discord.utils.get(ctx.guild.roles, name=settings.guild_setting(guild_id, 'inactive_role'))
+
+        if arg and arg == 'd2':
+            draft_preference = 2
+            draft_str = 'average ELO of top 10 players (Senior or Junior)'
+        elif arg and arg == 'd3':
+            draft_preference = 3
+            draft_str = 'average ELO of top 20 players (Senior or Junior)'
+        elif arg and arg == 'd4':
+            draft_preference = 4
+            draft_str = 'combined ELO of top 10 players (Senior or Junior)'
+        elif arg and arg == 'd5':
+            draft_preference = 5
+            draft_str = 'combined ELO of top 20 players (Senior or Junior)'
+        else:
+            draft_preference = 1
+            draft_str = 'Pro Team ELO + Average ELO of Pro Team members'
 
         async with ctx.typing():
             for team, team_roles in league_teams:
@@ -433,7 +452,18 @@ class league(commands.Cog):
                 sorted_elo_list = models.Player.discord_ids_to_elo_list(list_of_discord_ids=junior_discord_ids + pro_discord_ids, guild_id=guild_id)
                 draft_score_2 = statistics.mean(sorted_elo_list[:10])
                 draft_score_3 = statistics.mean(sorted_elo_list[:20])
+                draft_score_4 = sum(sorted_elo_list[:10])
+                draft_score_5 = sum(sorted_elo_list[:20])
                 # draft_score_2 = sum(models.Player.discord_ids_to_elo_list(list_of_discord_ids=junior_discord_ids + pro_discord_ids, guild_id=guild_id)[:20])
+
+                if draft_preference == 2:
+                    draft_score = draft_score_2
+                elif draft_preference == 3:
+                    draft_score = draft_score_3
+                elif draft_preference == 4:
+                    draft_score = draft_score_4
+                elif draft_preference == 5:
+                    draft_score = draft_score_5
 
                 league_balance.append(
                     (team,
@@ -446,20 +476,20 @@ class league(commands.Cog):
                      player_games_total,
                      pro_elo,
                      junior_elo,
-                     draft_score, draft_score_2, draft_score_3)
+                     draft_score)
                 )
 
-        league_balance.sort(key=lambda tup: tup[11], reverse=True)     # sort by draft score
+        league_balance.sort(key=lambda tup: tup[10], reverse=True)     # sort by draft score
 
         embed = discord.Embed(title='PolyChampions League Balance Summary')
         for team in league_balance:
             embed.add_field(name=(f'{team[1].emoji} {team[0]} ({team[3] + team[4]}) {team[2].emoji}\n{indent_str} \u00A0\u00A0 ActiveELO™: {team[6]}'
-                                  f'- Draft Score: {team[10]} - Alt Draft Score(Top10): {team[11]} - Alt Draft Score(Top20): {team[12]}'
+                                  # f'- Draft Score: {team[10]} - Alt Draft Score(Top10): {team[11]} - Alt Draft Score(Top20): {team[12]}'
                                   f'\n{indent_str} \u00A0\u00A0 Recent member-games: {team[7]}'),
                 value=(f'-{indent_str}__**{team[1].name}**__ ({team[3]}) **ELO: {team[1].elo}** (Avg: {team[8]})\n'
                        f'-{indent_str}__**{team[2].name}**__ ({team[4]}) **ELO: {team[2].elo}** (Avg: {team[9]})\n'), inline=False)
 
-        embed.set_footer(text='ActiveELO™ is the mean ELO of members weighted by how many games each member has played in the last 30 days. Draft Score is Pro Team ELO + Average ELO of Pro Team members. Alt Draft Score is the combined ELO of a team\'s top ten players, including Junior players.')
+        embed.set_footer(text=f'ActiveELO™ is the mean ELO of members weighted by how many games each member has played in the last 30 days. Draft Score is {draft_str}.')
 
         await ctx.send(embed=embed)
 
