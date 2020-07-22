@@ -1684,7 +1684,7 @@ class games(commands.Cog):
 
         if str(game.id) == str(arg_list[0]):
             arg_list = arg_list[1:]  # Remove game ID from list if it was used for lookup
-            if game.guild_id != ctx.guild.id:
+            if game.guild_id != ctx.guild.id and not game.uses_channel_id(ctx.channel.id):
                 return await ctx.send(f'Game {game.id} is associated with a different discord server. Use this command from that server or a game-specific channel.')
 
         logger.debug(f'Attempting settribe for game {game.id}')

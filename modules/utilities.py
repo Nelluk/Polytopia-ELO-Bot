@@ -19,6 +19,15 @@ def connect():
         return False
 
 
+def guild_role_by_name(guild, name: str, allow_partial: bool = False):
+    # match 'name' to a role in guild, ignoring case.
+
+    if allow_partial:
+        return discord.utils.find(lambda r: name.upper() in r.name.upper(), guild.roles)
+
+    return discord.utils.find(lambda r: name.upper() == r.name.upper(), guild.roles)
+
+
 async def buffered_send(destination, content, max_length=2000):
     # use to replace await ctx.send(message) if message could potentially be over the Discord limit of 2000 characters
     # will split message by \n characters and send in chunks up to max_length size

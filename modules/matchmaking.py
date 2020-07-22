@@ -10,6 +10,7 @@ import re
 import datetime
 import logging
 import asyncio
+import shlex  # for parsing $opengame arguments with quotation marks
 
 logger = logging.getLogger('polybot.' + __name__)
 
@@ -84,6 +85,7 @@ class matchmaking(commands.Cog):
 
         team_size, is_ranked = False, True
         required_role_args = []
+        required_role_message = ''
         expiration_hours_override = None
         note_args = []
 
@@ -114,7 +116,13 @@ class matchmaking(commands.Cog):
         if settings.guild_setting(ctx.guild.id, 'unranked_game_channel') and ctx.channel.id == settings.guild_setting(ctx.guild.id, 'unranked_game_channel'):
             is_ranked = False
 
-        for arg in args.split(' '):
+        args = args.replace("'", "\\'")  # Escape single quotation marks for shlex.split() parsing
+        if args.count('"') % 2 != 0:
+            return await ctx.send(':no_entry_sign: Unbalanced "quotation marks" found. Cannot parse command.')
+        # for arg in args.split(' '):
+        for arg in shlex.split(args):
+            # Keep quoted phrases together, ie 'foo foo bar "baz bat" whatever' becomes ['foo', 'foo', 'bar', 'baz bat', 'whatever']
+            print(arg)
             m = re.fullmatch(r"\d+(?:(v|vs)\d+)+", arg.lower())
             if m:
                 # arg looks like '3v3' or '1v1v1'
@@ -125,6 +133,8 @@ class matchmaking(commands.Cog):
                 if sum(team_sizes) > 12:
                     return await ctx.send(f'Invalid game size **{team_size_str}**: Games can have a maximum of 12 players.')
                 team_size = True
+                required_roles = [None] * len(team_sizes)  # [None, None, None] for a 3-sided game
+                required_role_names = [None] * len(team_sizes)
                 continue
             m = re.match(r"(\d+)ffa", arg.lower())
             if m:
@@ -137,6 +147,8 @@ class matchmaking(commands.Cog):
                 team_sizes = [1] * players
                 team_size_str = 'v'.join([str(x) for x in team_sizes])
                 team_size = True
+                required_roles = [None] * len(team_sizes)  # [None, None, None] for a 3-sided game
+                required_role_names = [None] * len(team_sizes)
                 continue
             m = re.match(r"(\d+)h", arg.lower())
             if m:
@@ -159,6 +171,14 @@ class matchmaking(commands.Cog):
                 else:
                     logger.warn(f'Detected role-like string {m[0]} in arguments but cannot match to an actual role. Skipping.')
                 continue
+            m = re.match(r"role(\d?\d?)=(.*$)", arg)
+            if m:
+                # arg looks like role=Word, role1=Two Words, role10=Some Long Role Name
+                if m[0]:
+                    # role ordering specified with an integer
+                    role_position = int(m[0]) - 1  # Convert to 0-based index
+                    if role_position < 0:
+                        return await ctx.send(f':no_entry_sign: Role position of {role_position} is invalid. Use numbers 1+ or omit numbers entirely. ')
             note_args.append(arg)
 
         if not team_size:
@@ -193,9 +213,7 @@ class matchmaking(commands.Cog):
             else:
                 return await ctx.send(f'Maximum ranked team size on this server is {server_size_max}. Maximum team size for an unranked game is {server_size_max + 1}.')
 
-        required_roles = [None] * len(team_sizes)  # [None, None, None] for a 3-sided game
-        required_role_names = [None] * len(team_sizes)
-        required_role_message = ''
+
 
         if required_role_args and len(required_role_args) < len(team_sizes) and required_role_args[0] not in ctx.author.roles:
             # used for a case like: $opengame 1v1 me vs @The Novas   -- puts that role on side 2 if you dont have it

@@ -26,9 +26,16 @@ class misc(commands.Cog):
     @commands.is_owner()
     async def test(self, ctx, *, args):
 
-        print(args)
-        print(args[0])
-        models.Game.by_channel_or_arg(ctx.channel.id, args[0])
+        import shlex
+        # print(shlex.quote(args))
+        args = args.replace("'", "\\'")
+        if args.count('"') % 2 != 0:
+            raise ValueError('Found an opening quotation mark that is not closed.')
+        for arg in shlex.split(args):
+            m = re.match(r"role(\d?\d?)=(.*$)", arg)
+            print(m)
+            if m:
+                print(m[0], m[1], m[2])
 
     @commands.command(usage=None)
     @settings.in_bot_channel_strict()

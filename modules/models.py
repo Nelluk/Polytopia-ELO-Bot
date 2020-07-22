@@ -1882,6 +1882,12 @@ class Game(BaseModel):
 
         return query[0]
 
+    def uses_channel_id(self, chan_id: int):
+        # Given a discord channel ID, return True if self is associated with that channel
+
+        game_channels = [gs.team_chan for gs in self.gamesides] + [self.game_chan]
+        return bool(chan_id in game_channels)
+
     def by_channel_or_arg(chan_id: int = None, arg: str = None):
 
         # given a channel_id and/or a string argument, return matching Game if channel_id is associated with a game,
