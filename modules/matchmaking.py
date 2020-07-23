@@ -162,6 +162,7 @@ class matchmaking(commands.Cog):
                 continue
             m = re.match(r"<@&(\d+)>", arg)
             if m:
+                # arg looks like <@&123478951> role mention
                 # replace raw role tag <@&....> with name of role, so people dont get mentioned every time note is printed
                 # also extracting roles from raw args instead of iterating over ctx.message.roles since that ordering is not reliable
                 if roles_specified_explicitly:
@@ -176,14 +177,14 @@ class matchmaking(commands.Cog):
                 continue
             m = re.match(r"role(\d?\d?)=(.*$)", arg)
             if m:
-                logger.debug(f'Explicit role argument used. Name {m[2]} and explicit position: {m[1]}')
                 # arg looks like role=Word, role1=Two Words, role10=Some Long Role Name
+                logger.debug(f'Explicit role argument used. Name {m[2]} and explicit position: {m[1]}')
                 if roles_specified_implicity:
                     return await ctx.send(f':no_entry_sign: Roles were assigned via both mention and explicit argument - use one or the other but not both.')
                 roles_specified_explicitly = True
                 if m[1]:
                     # role ordering specified with an integer
-                    role_position = int(m[0]) - 1  # Convert to 0-based index
+                    role_position = int(m[1]) - 1  # Convert to 0-based index
                     if role_position < 0:
                         return await ctx.send(f':no_entry_sign: Role position of {role_position + 1} is invalid. Use numbers 1+ or omit numbers entirely. ')
                     if role_position + 1 > len(required_roles):
@@ -199,6 +200,15 @@ class matchmaking(commands.Cog):
                     else:
                         logger.debug(f'Auto-assigning position {role_position} to explicit role.')
 
+                role = utilities.guild_role_by_name(ctx.guild, m[2], allow_partial=True)
+                if not role:
+                    return await ctx.send(f':no_entry_sign: Role name of *{m[2]}* was specified but cannot be found.')
+                logger.debug(f'Role named {role.name} {role.id} loaded')
+
+                required_roles[role_position] = role.id
+                required_role_names[role_position] = role.name
+                required_role_message += f'**Side {role_position + 1}** will be locked to players with role *{role.name}*\n'
+
             note_args.append(arg)
 
         if not team_size:
@@ -208,15 +218,6 @@ class matchmaking(commands.Cog):
         if not game_allowed:
             return await ctx.send(join_error_message)
 
-        # if settings.get_user_level(ctx) <= 1 and sum(team_sizes) > 3:
-        #     return await ctx.send(f'You can only host games with a maximum of 3 players.\n{settings.levels_info}')
-
-        # if settings.get_user_level(ctx) <= 2:
-        #     if sum(team_sizes) > 4 and is_ranked:
-        #         return await ctx.send(f'You can only host ranked games of up to 4 players. More active players have permissons to host large games.\n{settings.levels_info}')
-        #     if sum(team_sizes) > 6:
-        #         return await ctx.send(f'You can only host unranked games of up to 6 players. More active players have permissons to host large games.\n{settings.levels_info}')
-
         if not settings.guild_setting(ctx.guild.id, 'allow_uneven_teams') and not all(x == team_sizes[0] for x in team_sizes):
             return await ctx.send('Uneven team games are not allowed on this server.')
 
@@ -224,7 +225,7 @@ class matchmaking(commands.Cog):
 
         if max(team_sizes) > server_size_max:
             if settings.guild_setting(ctx.guild.id, 'allow_uneven_teams') and min(team_sizes) <= server_size_max:
-                await ctx.send('**Warning:** Team sizes are uneven.')
+                await ctx.send(':warning: Team sizes are uneven.')
             elif settings.is_mod(ctx):
                 await ctx.send('Moderator over-riding server size limits')
             elif not is_ranked and max(team_sizes) <= server_size_max + 1:
@@ -275,16 +276,16 @@ class matchmaking(commands.Cog):
             first_side, _ = opengame.first_open_side(roles=[role.id for role in ctx.author.roles])
             if not first_side:
                 if settings.get_user_level(ctx) >= 4:
-                    warning_message = f'**Warning:** All sides in this game are locked to a specific @Role - and you don\'t have any of those roles. You are not a player in this game.'
+                    warning_message = f':warning: All sides in this game are locked to a specific @Role - and you don\'t have any of those roles. You are not a player in this game.'
                     fatal_warning = False
                 else:
                     transaction.rollback()
-                    warning_message = f'**Warning:** All sides in this game are locked to a specific @Role - and you don\'t have any of those roles. Game not created.'
+                    warning_message = f':warning All sides in this game are locked to a specific @Role - and you don\'t have any of those roles. Game not created.'
                     fatal_warning = True
             else:
                 models.Lineup.create(player=host, game=opengame, gameside=first_side)
                 if first_side.position > 1:
-                    warning_message = '**Warning:** You are not joined to side 1, due to the ordering of the role restrictions. Therefore you will not be the game host.'
+                    warning_message = ':warning: You are not joined to side 1, due to the ordering of the role restrictions. Therefore you will not be the game host.'
 
         if warning_message and fatal_warning:
             # putting warning_message here because if they are await+sent inside the transaction block errors can occasionally occur - happens when async code is inside the transaction block
