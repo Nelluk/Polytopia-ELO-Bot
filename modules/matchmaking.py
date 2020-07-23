@@ -84,6 +84,7 @@ class matchmaking(commands.Cog):
         """
 
         team_size, is_ranked = False, True
+        roles_specified_implicity, roles_specified_explicitly = False, False
         required_role_args = []
         required_role_message = ''
         expiration_hours_override = None
@@ -122,7 +123,6 @@ class matchmaking(commands.Cog):
         # for arg in args.split(' '):
         for arg in shlex.split(args):
             # Keep quoted phrases together, ie 'foo foo bar "baz bat" whatever' becomes ['foo', 'foo', 'bar', 'baz bat', 'whatever']
-            print(arg)
             m = re.fullmatch(r"\d+(?:(v|vs)\d+)+", arg.lower())
             if m:
                 # arg looks like '3v3' or '1v1v1'
@@ -164,6 +164,9 @@ class matchmaking(commands.Cog):
             if m:
                 # replace raw role tag <@&....> with name of role, so people dont get mentioned every time note is printed
                 # also extracting roles from raw args instead of iterating over ctx.message.roles since that ordering is not reliable
+                if roles_specified_explicitly:
+                    return await ctx.send(f':no_entry_sign: Roles were assigned via both mention and explicit argument - use one or the other but not both.')
+                roles_specified_implicity = True
                 extracted_role = discord.utils.get(ctx.guild.roles, id=int(m[1]))
                 if extracted_role:
                     note_args.append('**@' + extracted_role.name + '**')
@@ -173,12 +176,29 @@ class matchmaking(commands.Cog):
                 continue
             m = re.match(r"role(\d?\d?)=(.*$)", arg)
             if m:
+                logger.debug(f'Explicit role argument used. Name {m[2]} and explicit position: {m[1]}')
                 # arg looks like role=Word, role1=Two Words, role10=Some Long Role Name
-                if m[0]:
+                if roles_specified_implicity:
+                    return await ctx.send(f':no_entry_sign: Roles were assigned via both mention and explicit argument - use one or the other but not both.')
+                roles_specified_explicitly = True
+                if m[1]:
                     # role ordering specified with an integer
                     role_position = int(m[0]) - 1  # Convert to 0-based index
                     if role_position < 0:
-                        return await ctx.send(f':no_entry_sign: Role position of {role_position} is invalid. Use numbers 1+ or omit numbers entirely. ')
+                        return await ctx.send(f':no_entry_sign: Role position of {role_position + 1} is invalid. Use numbers 1+ or omit numbers entirely. ')
+                    if role_position + 1 > len(required_roles):
+                        return await ctx.send(f':no_entry_sign: Role position of {role_position + 1} is invalid. The game does not have that many sides.')
+                    logger.debug(f'Position {role_position} explicitly assigned to explicit role')
+
+                else:
+                    # role ordering unspecified - look for first side with no associated role lock
+                    try:
+                        role_position = required_roles.index(None)
+                    except ValueError:
+                        return await ctx.send(f':no_entry_sign: Role name of *{m[2]}* was specified but there are not enough sides to assign it.')
+                    else:
+                        logger.debug(f'Auto-assigning position {role_position} to explicit role.')
+
             note_args.append(arg)
 
         if not team_size:
