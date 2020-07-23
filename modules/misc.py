@@ -24,22 +24,25 @@ class misc(commands.Cog):
 
     @commands.command(hidden=True, aliases=['ts', 'blah'])
     @commands.is_owner()
-    async def test(self, ctx, *, args):
-        print('here')
-        if ctx.invoked_with == 'blah':
-            ctx.invoked_with == 'foo'
-
-        print(ctx.invoked_with)
-        import shlex
-        # print(shlex.quote(args))
-        args = args.replace("'", "\\'")
-        if args.count('"') % 2 != 0:
-            raise ValueError('Found an opening quotation mark that is not closed.')
-        for arg in shlex.split(args):
-            m = re.match(r"role(\d?\d?)=(.*$)", arg)
-            print(m)
-            if m:
-                print(m[0], m[1], m[2])
+    async def test(self, ctx, *, args=None):
+        from modules.league import get_league_roles
+        team_roles, pro_roles, junior_roles = get_league_roles(ctx.guild)
+        print(team_roles, pro_roles, junior_roles)
+        league_role = discord.utils.get(ctx.guild.roles, name='League Member')
+        pro_role = discord.utils.get(ctx.guild.roles, name='Pro Player')
+        junior_role = discord.utils.get(ctx.guild.roles, name='Junior Player')
+        for role in pro_roles:
+            if role:
+                for pro_member in role.members:
+                    logger.debug(f'Applying pro/league roles to {pro_member.name}')
+                    models.GameLog.write(guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(pro_member)} is on pro team {role.name}')
+                    await pro_member.add_roles(league_role, pro_role, reason='Applying league role to existing members')
+        for role in junior_roles:
+            if role:
+                for junior_member in role.members:
+                    logger.debug(f'Applying junior/league roles to {junior_member.name}')
+                    await junior_member.add_roles(league_role, junior_role, reason='Applying league role to existing members')
+                    models.GameLog.write(guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(junior_member)} is on pro team {role.name}')
 
     @commands.command(usage=None)
     @settings.in_bot_channel_strict()
