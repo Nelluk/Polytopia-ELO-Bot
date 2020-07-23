@@ -33,6 +33,21 @@ league_teams = [('Ronin', ['The Ronin', 'The Bandits']),
 ]
 
 
+def get_league_roles(guild):
+    pro_role_names = [a[1][0] for a in league_teams]
+    junior_role_names = [a[1][1] for a in league_teams]
+    team_role_names = [a[0] for a in league_teams]
+
+    pro_roles = [discord.utils.get(guild.roles, name=r) for r in pro_role_names]
+    junior_roles = [discord.utils.get(guild.roles, name=r) for r in junior_role_names]
+    team_roles = [discord.utils.get(guild.roles, name=r) for r in team_role_names]
+
+    if None in pro_roles or None in junior_roles or None in team_roles:
+        logger.warn(f'Problem loading at least one role in get_league_roles: {pro_roles} {junior_roles} {team_roles}')
+
+    return team_roles, pro_roles, junior_roles
+
+
 class league(commands.Cog):
     """
     Commands specific to the PolyChampions league, such as drafting-related commands
@@ -163,6 +178,7 @@ class league(commands.Cog):
         await message.delete()
 
         async with channel.typing():
+            old_free_agents = free_agent_role.members.copy()
             for old_free_agent in free_agent_role.members:
                 await old_free_agent.remove_roles(free_agent_role, reason='Purging old free agents')
                 logger.debug(f'Removing free agent role from {old_free_agent.name}')
@@ -175,8 +191,10 @@ class league(commands.Cog):
 
                 await new_free_agent.remove_roles(draftable_role, reason='Purging old free agents')
                 logger.debug(f'Removing draftable role from {new_free_agent.name}')
-
-                result_message_list.append(f'Removing draftable role from and applying free agent role to {new_free_agent.name} <@{new_free_agent.id}>')
+                if new_free_agent in old_free_agents:
+                    result_message_list.append(f'Removing draftable role from and applying free agent role to {new_free_agent.name} <@{new_free_agent.id}>. They had it last week, too!')
+                else:
+                    result_message_list.append(f'Removing draftable role from and applying free agent role to {new_free_agent.name} <@{new_free_agent.id}>')
 
         await self.send_to_log_channel(member.guild, '\n'.join(result_message_list))
 
