@@ -79,9 +79,9 @@ class league(commands.Cog):
         utilities.connect()
         # assume polychampions
         self.announcement_message = self.get_draft_config(settings.server_ids['polychampions'])['announcement_message']
-        # if self.bot.user.id == 479029527553638401:
-        #     # beta bot, using nelluk server to watch for messages
-        #     self.announcement_message = self.get_draft_config(settings.server_ids['test'])['announcement_message']
+        if self.bot.user.id == 479029527553638401:
+            # beta bot, using nelluk server to watch for messages
+            self.announcement_message = self.get_draft_config(settings.server_ids['test'])['announcement_message']
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload):
@@ -175,10 +175,10 @@ class league(commands.Cog):
 
         result_message_list = [f'Draft successfully closed by <@{member.id}>']
         self.announcement_message = None
-        await message.delete()
 
         async with channel.typing():
             old_free_agents = free_agent_role.members.copy()
+            new_free_agents_count = len(draftable_role.members)
             for old_free_agent in free_agent_role.members:
                 await old_free_agent.remove_roles(free_agent_role, reason='Purging old free agents')
                 logger.debug(f'Removing free agent role from {old_free_agent.name}')
@@ -196,7 +196,17 @@ class league(commands.Cog):
                 else:
                     result_message_list.append(f'Removing draftable role from and applying free agent role to {new_free_agent.name} <@{new_free_agent.id}>')
 
+        for log_message in result_message_list:
+            models.GameLog.write(guild_id=member.guild.id, message=log_message)
         await self.send_to_log_channel(member.guild, '\n'.join(result_message_list))
+        self.delete_draft_config(member.guild.id)
+
+        try:
+            await message.clear_reactions()
+            new_message = message.content.replace(self.draft_closed_message, f'~~{self.draft_closed_message}~~') + f'\nThis draft is concluded. {new_free_agents_count} members went undrafted and became free agents.'
+            await message.edit(content=new_message)
+        except discord.DiscordException as e:
+            logger.warn(f'Could not clear reactions or edit content in concluded draft message: {e}')
 
     async def close_draft_emoji_added(self, member, channel, message):
         announce_message_link = f'https://discord.com/channels/{member.guild.id}/{channel.id}/{message.id}'
@@ -275,7 +285,7 @@ class league(commands.Cog):
                     return
                 else:
                     member_message = f'You have been removed from the next draft. You can sign back up at the announcement message:\n{announce_message_link}'
-                    log_message = f'<@{member.id}> removed their draft reaction and has lost the {draftable_role.name} role.'
+                    log_message = f'<@{member.id}> ({member.name}) removed their draft reaction and has lost the {draftable_role.name} role.'
             else:
                 return
                 # member_message = (f'You removed your signup reaction from the draft announcement, but you did not have the **{draftable_role.name}** :thinking:\n'
@@ -287,6 +297,7 @@ class league(commands.Cog):
 
         if log_message:
             await self.send_to_log_channel(member.guild, log_message)
+            models.GameLog.write(guild_id=member.guild.id, message=log_message)
         if member_message:
             try:
                 await member.send(member_message)
@@ -301,6 +312,10 @@ class league(commands.Cog):
         record, _ = models.Configuration.get_or_create(guild_id=guild_id)
         record.polychamps_draft = config_obj
         return record.save()
+
+    def delete_draft_config(self, guild_id):
+        q = models.Configuration.delete().where(models.Configuration.guild_id == guild_id)
+        return q.execute()
 
     async def send_to_log_channel(self, guild, message):
 
