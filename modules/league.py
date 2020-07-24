@@ -78,6 +78,11 @@ class league(commands.Cog):
     @commands.Cog.listener()
     async def on_member_update(self, before, after):
         # if a a team role ('The Ronin') is added or removed, set or remove related roles on member (League Member, Pro Player, Ronin, etc)
+
+        return
+        # Circumventing this currently as it is not 100% reliable. It works well if a player has a team role removed and then a new team role added,
+        # but doesn't properly take into account the common scenario of a player's team role being added and -then- the old team role being removed.
+
         if before.roles == after.roles:
             return
 
