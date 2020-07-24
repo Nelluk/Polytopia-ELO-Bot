@@ -78,8 +78,9 @@ class league(commands.Cog):
     @commands.Cog.listener()
     async def on_member_update(self, before, after):
         # if a a team role ('The Ronin') is added or removed, set or remove related roles on member (League Member, Pro Player, Ronin, etc)
+        # this update will never touch a specific junior or pro team role ('The Ronin'), partially because that would trigger further on_member_updates
 
-        return
+        # return
         # Circumventing this currently as it is not 100% reliable. It works well if a player has a team role removed and then a new team role added,
         # but doesn't properly take into account the common scenario of a player's team role being added and -then- the old team role being removed.
         # solution is probably to look at remaining roles on user, take action if they have a detectable team, and apply the correct related roles
@@ -89,57 +90,53 @@ class league(commands.Cog):
         if after.guild.id not in [settings.server_ids['polychampions'], settings.server_ids['test']]:
             return
 
-        added_role, removed_role = None, None
+        changed_role = None
         if len(after.roles) > len(before.roles):
             # assume one role added
-            added_role = [x for x in after.roles if x not in before.roles]
-            if len(added_role) != 1:
-                return logger.warn(f'Error detecting added role. before {before.roles} after {after.roles}')
-            added_role = added_role[0]
+            changed_role = [x for x in after.roles if x not in before.roles]
+            if len(changed_role) != 1:
+                return logger.debug(f'Abandoned League.on_member_update because not single added role. before {before.roles} after {after.roles}')
+            changed_role = changed_role[0]
         elif len(after.roles) < len(before.roles):
             # assume one role removed
-            removed_role = [x for x in before.roles if x not in after.roles]
-            if len(removed_role) != 1:
-                return logger.warn(f'Error detecting removed_role role. before {before.roles} after {after.roles}')
-            removed_role = removed_role[0]
+            changed_role = [x for x in before.roles if x not in after.roles]
+            if len(changed_role) != 1:
+                return logger.debug(f'Abandoned League.on_member_update because not single removed role. before {before.roles} after {after.roles}')
+            changed_role = changed_role[0]
 
         team_roles, pro_roles, junior_roles = get_league_roles(after.guild)
         league_role = discord.utils.get(after.guild.roles, name=league_role_name)
         pro_member_role = discord.utils.get(after.guild.roles, name=pro_member_role_name)
         jr_member_role = discord.utils.get(after.guild.roles, name=jr_member_role_name)
 
-        roles_to_add, roles_to_remove = [], []
-        if added_role:
-            logger.debug(f'{added_role.name} added to member {after.display_name}')
-            if added_role in pro_roles:
-                team_umbrella_role = team_roles[pro_roles.index(added_role)]
-                roles_to_add = [team_umbrella_role, pro_member_role, league_role]
-                roles_to_remove = team_roles + [jr_member_role]
-            elif added_role in junior_roles:
-                team_umbrella_role = team_roles[junior_roles.index(added_role)]
-                roles_to_add = [team_umbrella_role, jr_member_role, league_role]
-                roles_to_remove = team_roles + [pro_member_role]
-            else:
-                return
+        if changed_role not in pro_roles and changed_role not in junior_roles:
+            # role that changed isn't a specific team role
+            return
 
-            models.GameLog.write(guild_id=after.guild.id, message=f'{models.GameLog.member_string(after)} had team role **{added_role.name}** applied.')
-        elif removed_role:
-            logger.debug(f'{removed_role.name} removed from member {after.display_name}')
-            if removed_role in pro_roles or removed_role in junior_roles:
-                roles_to_remove = team_roles + [jr_member_role, pro_member_role, league_role]
-            else:
-                return
-            models.GameLog.write(guild_id=after.guild.id, message=f'{models.GameLog.member_string(after)} had team role **{removed_role.name}** removed.')
+        member_team_roles = [x for x in after.roles if x in pro_roles or x in junior_roles]
+        if len(member_team_roles) > 1:
+            return logger.debug(f'Member has more than one team role. Abandoning League.on_member_update. {member_team_roles}')
+
+        roles_to_remove = team_roles + [jr_member_role] + [pro_member_role] + [league_role]
+
+        if member_team_roles and member_team_roles[0] in pro_roles:
+            team_umbrella_role = team_roles[pro_roles.index(member_team_roles[0])]
+            roles_to_add = [team_umbrella_role, pro_member_role, league_role]
+            models.GameLog.write(guild_id=after.guild.id, message=f'{models.GameLog.member_string(after)} had pro team role **{member_team_roles[0].name}** added.')
+        elif member_team_roles and member_team_roles[0] in junior_roles:
+            team_umbrella_role = team_roles[junior_roles.index(member_team_roles[0])]
+            roles_to_add = [team_umbrella_role, jr_member_role, league_role]
+            models.GameLog.write(guild_id=after.guild.id, message=f'{models.GameLog.member_string(after)} had junior team role **{member_team_roles[0].name}** added.')
+        else:
+            roles_to_add = []  # No team role
+            models.GameLog.write(guild_id=after.guild.id, message=f'{models.GameLog.member_string(after)} had team role removed and is teamless.')
 
         member_roles = after.roles.copy()
-        if roles_to_remove:
-            member_roles = [r for r in member_roles if r not in roles_to_remove]
-            # await after.remove_roles(*[r for r in roles_to_remove if r], reason='Change in player team detected', atomic=False)
+        member_roles = [r for r in member_roles if r not in roles_to_remove]
 
         roles_to_add = [r for r in roles_to_add if r]  # remove any Nones
         if roles_to_add:
             member_roles = member_roles + roles_to_add
-            # await after.add_roles(*[r for r in roles_to_add if r], reason='Change in player team detected', atomic=False)
 
         logger.debug(f'Attempting to update member {after.display_name} role set to {member_roles}')
         # using member.edit() sets all the roles in one API call, much faster than using add_roles and remove_roles which uses one API call per role change, or two calls total if atomic=False
