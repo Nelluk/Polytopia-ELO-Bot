@@ -77,6 +77,7 @@ class league(commands.Cog):
 
     @commands.Cog.listener()
     async def on_member_update(self, before, after):
+        # if a a team role ('The Ronin') is added or removed, set or remove related roles on member (League Member, Pro Player, Ronin, etc)
         if before.roles == after.roles:
             return
 
@@ -125,10 +126,18 @@ class league(commands.Cog):
                 return
             models.GameLog.write(guild_id=after.guild.id, message=f'{models.GameLog.member_string(after)} had team role **{removed_role.name}** removed.')
 
+        member_roles = after.roles.copy()
         if roles_to_remove:
-            await after.remove_roles(*[r for r in roles_to_remove if r], reason='Change in player team detected')
+            member_roles = [r for r in member_roles if r not in roles_to_remove]
+            # await after.remove_roles(*[r for r in roles_to_remove if r], reason='Change in player team detected', atomic=False)
+
+        roles_to_add = [r for r in roles_to_add if r]  # remove any Nones
         if roles_to_add:
-            await after.add_roles(*[r for r in roles_to_add if r], reason='Change in player team detected')
+            member_roles = member_roles + roles_to_add
+            # await after.add_roles(*[r for r in roles_to_add if r], reason='Change in player team detected', atomic=False)
+
+        logger.debug(f'Attempting to update member {after.display_name} role set to {member_roles}')
+        await after.edit(roles=member_roles, reason='Detected change in team membership')
 
     @commands.Cog.listener()
     async def on_ready(self):
