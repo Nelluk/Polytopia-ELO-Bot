@@ -14,10 +14,13 @@ import typing
 logger = logging.getLogger('polybot.' + __name__)
 
 
-grad_role_name = 'Nova Grad'         # met graduation requirements and is eligible to sign up for draft
-draftable_role_name = 'Draftable'    # signed up for current draft
-free_agent_role_name = 'Free Agent'  # signed up for a prior draft but did not get drafted
-novas_role_name = 'The Novas'        # Umbrella newbie role that all of above should also have
+grad_role_name = 'Nova Grad'           # met graduation requirements and is eligible to sign up for draft
+draftable_role_name = 'Draftable'      # signed up for current draft
+free_agent_role_name = 'Free Agent'    # signed up for a prior draft but did not get drafted
+novas_role_name = 'The Novas'          # Umbrella newbie role that all of above should also have
+league_role_name = 'League Member'     # Umbrella role for all Pro+Junior members
+pro_member_role_name = 'Pro Player'    # Umbrella role for all Pro members
+jr_member_role_name = 'Junior Player'  # Umbrella role for all Junior memebrs
 
 league_teams = [('Ronin', ['The Ronin', 'The Bandits']),
     ('Jets', ['The Jets', 'The Cropdusters']),
@@ -58,8 +61,6 @@ class league(commands.Cog):
     emoji_draft_conclude = '❎'
     emoji_list = [emoji_draft_signup, emoji_draft_close, emoji_draft_conclude]
 
-    # TODO: method to get role objects and return them in a dict?
-
     draft_open_format_str = f'The draft is open for signups! {{0}}\'s can react with a {emoji_draft_signup} below to sign up. {{1}} who have not graduated have until the end of the draft signup period to meet requirements and sign up.\n\n{{2}}'
     draft_closed_message = f'The draft is closed to new signups. Mods can use the {emoji_draft_conclude} reaction after players have been drafted to clean up the remaining players and delete this message.'
 
@@ -73,6 +74,61 @@ class league(commands.Cog):
 
     async def cog_check(self, ctx):
         return ctx.guild.id == settings.server_ids['polychampions'] or ctx.guild.id == settings.server_ids['test']
+
+    @commands.Cog.listener()
+    async def on_member_update(self, before, after):
+        if before.roles == after.roles:
+            return
+
+        if after.guild.id not in [settings.server_ids['polychampions'], settings.server_ids['test']]:
+            return
+
+        added_role, removed_role = None, None
+        if len(after.roles) > len(before.roles):
+            # assume one role added
+            added_role = [x for x in after.roles if x not in before.roles]
+            if len(added_role) != 1:
+                return logger.warn(f'Error detecting added role. before {before.roles} after {after.roles}')
+            added_role = added_role[0]
+        elif len(after.roles) < len(before.roles):
+            # assume one role removed
+            removed_role = [x for x in after.roles if x not in before.roles]
+            if len(removed_role) != 1:
+                return logger.warn(f'Error detecting removed_role role. before {before.roles} after {after.roles}')
+            removed_role = removed_role[0]
+
+        team_roles, pro_roles, junior_roles = get_league_roles(after.guild)
+        league_role = discord.utils.get(after.guild.roles, name=league_role_name)
+        pro_member_role = discord.utils.get(after.guild.roles, name=pro_member_role_name)
+        jr_member_role = discord.utils.get(after.guild.roles, name=jr_member_role_name)
+
+        roles_to_add, roles_to_remove = [], []
+        if added_role:
+            logger.debug(f'{added_role.name} added to member {after.display_name}')
+            if added_role in pro_roles:
+                team_umbrella_role = team_roles[pro_roles.index(added_role)]
+                roles_to_add = [team_umbrella_role, pro_member_role, league_role]
+                roles_to_remove = team_roles + [jr_member_role]
+            elif added_role in junior_roles:
+                team_umbrella_role = team_roles[junior_roles.index(added_role)]
+                roles_to_add = [team_umbrella_role, jr_member_role, league_role]
+                roles_to_remove = team_roles + [pro_member_role]
+            else:
+                return
+
+            models.GameLog.write(guild_id=after.guild.id, message=f'{models.GameLog.member_string(after)} had team role **{added_role.name}** applied.')
+        elif removed_role:
+            logger.debug(f'{removed_role.name} removed from member {after.display_name}')
+            if removed_role in pro_roles or removed_role in junior_roles:
+                roles_to_remove = team_roles + [jr_member_role, pro_member_role, league_role]
+            else:
+                return
+            models.GameLog.write(guild_id=after.guild.id, message=f'{models.GameLog.member_string(after)} had team role **{removed_role.name}** removed.')
+
+        if roles_to_remove:
+            await after.remove_roles(*[r for r in roles_to_remove if r], reason='Change in player team detected')
+        if roles_to_add:
+            await after.add_roles(*[r for r in roles_to_add if r], reason='Change in player team detected')
 
     @commands.Cog.listener()
     async def on_ready(self):
