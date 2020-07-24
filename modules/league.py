@@ -80,10 +80,6 @@ class league(commands.Cog):
         # if a a team role ('The Ronin') is added or removed, set or remove related roles on member (League Member, Pro Player, Ronin, etc)
         # this update will never touch a specific junior or pro team role ('The Ronin'), partially because that would trigger further on_member_updates
 
-        # return
-        # Circumventing this currently as it is not 100% reliable. It works well if a player has a team role removed and then a new team role added,
-        # but doesn't properly take into account the common scenario of a player's team role being added and -then- the old team role being removed.
-        # solution is probably to look at remaining roles on user, take action if they have a detectable team, and apply the correct related roles
         if before.roles == after.roles:
             return
 

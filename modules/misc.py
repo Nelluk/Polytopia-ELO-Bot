@@ -28,21 +28,8 @@ class misc(commands.Cog):
         from modules.league import get_league_roles
         team_roles, pro_roles, junior_roles = get_league_roles(ctx.guild)
         print(team_roles, pro_roles, junior_roles)
-        league_role = discord.utils.get(ctx.guild.roles, name='League Member')
-        pro_role = discord.utils.get(ctx.guild.roles, name='Pro Player')
-        junior_role = discord.utils.get(ctx.guild.roles, name='Junior Player')
-        for role in pro_roles:
-            if role:
-                for pro_member in role.members:
-                    logger.debug(f'Applying pro/league roles to {pro_member.name}')
-                    models.GameLog.write(guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(pro_member)} is on pro team {role.name}')
-                    await pro_member.add_roles(league_role, pro_role, reason='Applying league role to existing members')
-        for role in junior_roles:
-            if role:
-                for junior_member in role.members:
-                    logger.debug(f'Applying junior/league roles to {junior_member.name}')
-                    await junior_member.add_roles(league_role, junior_role, reason='Applying league role to existing members')
-                    models.GameLog.write(guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(junior_member)} is on pro team {role.name}')
+        league_role = discord.utils.get(ctx.guild.roles, name='The Ronin')
+        await ctx.author.add_roles(league_role, reason='Test set')
 
     @commands.command(usage=None)
     @settings.in_bot_channel_strict()

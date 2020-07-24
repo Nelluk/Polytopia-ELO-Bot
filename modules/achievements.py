@@ -35,8 +35,11 @@ async def set_champion_role():
 
         try:
             for old_champion in role.members:
-                await old_champion.remove_roles(role, reason='Recurring reset of champion list')
-                logger.info(f'removing ELO Champion role from {old_champion.name}')
+                if old_champion in [local_champion_member, global_champion_member]:
+                    logger.debug(f'Skipping role removal for {old_champion.display_name} since champion is the same')
+                else:
+                    await old_champion.remove_roles(role, reason='Recurring reset of champion list')
+                    logger.info(f'removing ELO Champion role from {old_champion.name}')
 
             if local_champion_member:
                 logger.info(f'adding ELO Champion role to {local_champion_member.name}')
