@@ -81,6 +81,11 @@ class matchmaking(commands.Cog):
 
         `[p]opengame 2v2 for @The Ronin vs @The Jets`
         (Include one or more @Roles and the games sides will be locked to that specific role. For use with PolyChampions teams.)
+
+        `[p]opengame 2v2  role1="The Ronin" vs role=Jets`
+        `[p]opengame 2v2  role="The Ronin" role=Jets`
+        (Use `role=RoleName`, `role#=RoleName`, `role="Full Role Name"` as an alternate way to lock sides to a role.
+        This allows you to specify unmentionable roles as well as specify exactly which sides get which role.)
         """
 
         team_size, is_ranked = False, True
@@ -208,6 +213,8 @@ class matchmaking(commands.Cog):
                 required_roles[role_position] = role.id
                 required_role_names[role_position] = role.name
                 required_role_message += f'**Side {role_position + 1}** will be locked to players with role *{role.name}*\n'
+                note_args.append('**@' + role.name + '**')
+                continue
 
             note_args.append(arg)
 
