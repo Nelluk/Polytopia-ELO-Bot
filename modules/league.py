@@ -92,7 +92,7 @@ class league(commands.Cog):
             added_role = added_role[0]
         elif len(after.roles) < len(before.roles):
             # assume one role removed
-            removed_role = [x for x in after.roles if x not in before.roles]
+            removed_role = [x for x in before.roles if x not in after.roles]
             if len(removed_role) != 1:
                 return logger.warn(f'Error detecting removed_role role. before {before.roles} after {after.roles}')
             removed_role = removed_role[0]
