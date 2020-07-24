@@ -82,7 +82,7 @@ class league(commands.Cog):
         return
         # Circumventing this currently as it is not 100% reliable. It works well if a player has a team role removed and then a new team role added,
         # but doesn't properly take into account the common scenario of a player's team role being added and -then- the old team role being removed.
-
+        # solution is probably to look at remaining roles on user, take action if they have a detectable team, and apply the correct related roles
         if before.roles == after.roles:
             return
 
@@ -142,6 +142,7 @@ class league(commands.Cog):
             # await after.add_roles(*[r for r in roles_to_add if r], reason='Change in player team detected', atomic=False)
 
         logger.debug(f'Attempting to update member {after.display_name} role set to {member_roles}')
+        # using member.edit() sets all the roles in one API call, much faster than using add_roles and remove_roles which uses one API call per role change, or two calls total if atomic=False
         await after.edit(roles=member_roles, reason='Detected change in team membership')
 
     @commands.Cog.listener()
