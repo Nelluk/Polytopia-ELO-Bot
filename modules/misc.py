@@ -25,11 +25,7 @@ class misc(commands.Cog):
     @commands.command(hidden=True, aliases=['ts', 'blah'])
     @commands.is_owner()
     async def test(self, ctx, *, args=None):
-        from modules.league import get_league_roles
-        team_roles, pro_roles, junior_roles = get_league_roles(ctx.guild)
-        print(team_roles, pro_roles, junior_roles)
-        league_role = discord.utils.get(ctx.guild.roles, name='The Ronin')
-        await ctx.author.add_roles(league_role, reason='Test set')
+        print(ctx.channel.permissions_for(ctx.author).read_messages)
 
     @commands.command(usage=None)
     @settings.in_bot_channel_strict()
@@ -259,37 +255,50 @@ class misc(commands.Cog):
             return await ctx.send(f'You are not a player in game {game.id}')
 
         permitted_channels = settings.guild_setting(game.guild_id, 'bot_channels')
-        permitted_channels_private = []
-        if settings.guild_setting(game.guild_id, 'game_channel_categories'):
-            if game.game_chan:
-                permitted_channels = [game.game_chan] + permitted_channels
-            if game.smallest_team() > 1:
-                permitted_channels_private = [gs.team_chan for gs in game.gamesides]
-                permitted_channels = permitted_channels_private + permitted_channels
-                # allows ping command to be used in private team channels - only if there is no solo squad in the game which would mean they cant see the message
-                # this also adjusts where the @Mention is placed (sent to all team channels instead of simply in the ctx.channel)
-            elif ctx.channel.id in [gs.team_chan for gs in game.gamesides]:
-                channel_tags = [f'<#{chan_id}>' for chan_id in permitted_channels]
-                ctx.command.reset_cooldown(ctx)
-                return await ctx.send(f'This command cannot be used in this channel because there is at least one solo player without access to a team channel.\n'
-                    f'Permitted channels: {" ".join(channel_tags)}')
 
-        if ctx.channel.id not in permitted_channels and ctx.channel.id not in settings.guild_setting(game.guild_id, 'bot_channels_private'):
+        player_mentions = [f'<@{l.player.discord_member.discord_id}>' for l in game.lineup]
+        game_player_ids = [l.player.discord_member.discord_id for l in game.lineup]
+        game_members = [ctx.guild.get_member(p_id) for p_id in game_player_ids]
+        player_mentions = [f'<@{p_id}>' for p_id in game_player_ids]
+
+        game_channels = [gs.team_chan for gs in game.gamesides]
+        game_channels = [chan for chan in game_channels if chan]  # remove Nones
+
+        mention_players_in_current_channel = True  # False when done from game channel, True otherwise
+
+        if all(ctx.channel.permissions_for(member).read_messages for member in game_members if member):
+            logger.debug(f'Allowing ping since all members have read access to current channel')
+            mention_players_in_current_channel = True
+        elif ctx.channel.id in game_channels and len(game_channels) >= len(game.gamesides):
+            logger.debug(f'Allowing ping since it is within a game channel, and all sides have a game channel')
+            mention_players_in_current_channel = False
+        elif settings.is_mod(ctx) and len(game_channels) >= len(game.gamesides):
+            logger.debug(f'Allowing ping since it is from a mod and all sides have a game channel')
+            mention_players_in_current_channel = False
+        else:
+            logger.debug(f'Not allowing ping in {ctx.channel.id}')
+            if len(game_channels) >= len(game.gamesides):
+                permitted_channels = game_channels + permitted_channels
+
             channel_tags = [f'<#{chan_id}>' for chan_id in permitted_channels]
             ctx.command.reset_cooldown(ctx)
             return await ctx.send(f'This command can not be used in this channel. Permitted channels: {" ".join(channel_tags)}')
 
-        player_mentions = [f'<@{l.player.discord_member.discord_id}>' for l in game.lineup]
         full_message = f'Message from {ctx.author.mention} (**{ctx.author.name}**) regarding game {game.id} **{game.name}**:\n*{message}*'
         models.GameLog.write(game_id=game, guild_id=game.guild_id, message=f'{models.GameLog.member_string(ctx.author)} pinged the game with message: *{discord.utils.escape_markdown(message)}*')
 
-        if ctx.channel.id in permitted_channels_private:
-            logger.debug(f'Ping triggered in private channel {ctx.channel.id}')
-            await game.update_squad_channels(self.bot.guilds, game.guild_id, message=f'{full_message}\n{" ".join(player_mentions)}')
-        else:
-            logger.debug(f'Ping triggered in non-private channel {ctx.channel.id}')
-            await game.update_squad_channels(self.bot.guilds, ctx.guild.id, message=full_message)
-            await ctx.send(f'{full_message}\n{" ".join(player_mentions)}')
+        try:
+            if mention_players_in_current_channel:
+                logger.debug(f'Ping triggered in non-private channel {ctx.channel.id}')
+                await game.update_squad_channels(self.bot.guilds, ctx.guild.id, message=full_message, suppress_errors=True)
+                await ctx.send(f'{full_message}\n{" ".join(player_mentions)}')
+            else:
+                logger.debug(f'Ping triggered in private channel {ctx.channel.id}')
+                await game.update_squad_channels(self.bot.guilds, game.guild_id, message=f'{full_message}\n{" ".join(player_mentions)}', suppress_errors=False)
+                await ctx.send(f'Sending ping to game channels:\n{full_message}')
+        except exceptions.CheckFailedError as e:
+            channel_tags = [f'<#{chan_id}>' for chan_id in permitted_channels]
+            return await ctx.send(f'{e}\nTry sending `{ctx.prefix}ping` from a public channel that all members can view: {" ".join(channel_tags)}')
 
     @commands.command(hidden=True, aliases=['random_tribes', 'rtribe'], usage='game_size [-banned_tribe ...]')
     @settings.in_bot_channel()

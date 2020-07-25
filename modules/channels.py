@@ -176,15 +176,20 @@ async def delete_game_channel(guild, channel_id: int):
         logger.error(f'Could not delete channel: {e}')
 
 
-async def send_message_to_channel(guild, channel_id: int, message: str):
+async def send_message_to_channel(guild, channel_id: int, message: str, suppress_errors=True):
     chan = guild.get_channel(channel_id)
     if chan is None:
-        return logger.warn(f'Channel ID {channel_id} provided for message but it could not be loaded from guild')
+        logger.warn(f'Channel ID {channel_id} provided for message but it could not be loaded from guild')
+        if suppress_errors:
+            return
+        raise exceptions.CheckFailedError(f':no_entry_sign: Channel `{channel_id}` provided for message but it could not be loaded from guild')
 
     try:
         await chan.send(message)
     except discord.DiscordException as e:
         logger.error(f'Could not send message to channel: {e}')
+        if not suppress_errors:
+            raise exceptions.CheckFailedError(f':no_entry_sign: Problem sending message to channel <#{channel_id}> `{channel_id}`: {e}')
 
 
 async def update_game_channel_name(guild, channel_id: int, game, team_name: str = None):

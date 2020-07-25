@@ -904,7 +904,7 @@ class Game(BaseModel):
             self.game_chan = None
             self.save()
 
-    async def update_squad_channels(self, guild_list, guild_id, message: str = None):
+    async def update_squad_channels(self, guild_list, guild_id, message: str = None, suppress_errors=True):
         guild = discord.utils.get(guild_list, id=guild_id)
 
         for gameside in list(self.gamesides):
@@ -920,13 +920,13 @@ class Game(BaseModel):
                     side_guild = guild
                 if message:
                     logger.debug(f'Pinging message to channel {gameside.team_chan} in guild {side_guild}')
-                    await channels.send_message_to_channel(side_guild, channel_id=gameside.team_chan, message=message)
+                    await channels.send_message_to_channel(side_guild, channel_id=gameside.team_chan, message=message, suppress_errors=suppress_errors)
                 else:
                     await channels.update_game_channel_name(side_guild, channel_id=gameside.team_chan, game=self, team_name=gameside.team.name)
 
         if self.game_chan:
             if message:
-                await channels.send_message_to_channel(guild, channel_id=self.game_chan, message=message)
+                await channels.send_message_to_channel(guild, channel_id=self.game_chan, message=message, suppress_errors=suppress_errors)
             else:
                 await channels.update_game_channel_name(guild, channel_id=self.game_chan, game=self, team_name=None)
 
