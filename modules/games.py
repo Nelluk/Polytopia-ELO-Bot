@@ -67,6 +67,18 @@ class polygames(commands.Cog):
             self.bg_task2 = bot.loop.create_task(self.task_set_champion_role())
 
     @commands.Cog.listener()
+    async def on_guild_channel_delete(self, channel):
+        query = GameSide.update(team_chan=None).where(GameSide.team_chan == channel.id)
+        res = query.execute()
+        if res:
+            logger.debug(f'on_guild_channel_delete: detected deletion of gameside channel {channel.id} {channel.name} and removed reference from db')
+
+        query = Game.update(team_chan=None).where(GameSide.team_chan == channel.id)
+        res = query.execute(game_chan=None).where(Game.game_chan == channel.id)
+        if res:
+            logger.debug(f'on_guild_channel_delete: detected deletion of game channel {channel.id} {channel.name} and removed reference from db')
+
+    @commands.Cog.listener()
     async def on_user_update(self, before, after):
         if before.name != after.name:
             logger.debug(f'Attempting to change member discordname for {before.name} to {after.name}')
