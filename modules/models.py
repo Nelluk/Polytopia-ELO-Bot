@@ -2498,6 +2498,8 @@ class GameLog(BaseModel):
     message = TextField(null=True)
     message_ts = DateTimeField(default=datetime.datetime.now)
     guild_id = BitField(unique=False, null=False, default=0)
+    is_protected = BooleanField(default=False)
+
     # Entries will have guild_id of 0 for things like $setcode and $setname that arent guild-specific
 
     def member_string(member):
@@ -2512,11 +2514,11 @@ class GameLog(BaseModel):
             d_id = member.discord_id
         return f'**{discord.utils.escape_markdown(name)}** (`{d_id}`)'
 
-    def write(message, guild_id, game_id=0):
+    def write(message, guild_id, game_id=0, is_protected=False):
         if game_id:
             message = f'__{str(game_id)}__ - {message}'
 
-        return GameLog.create(guild_id=guild_id, message=message)
+        return GameLog.create(guild_id=guild_id, message=message, is_protected=is_protected)
 
     def search(keywords=None, negative_keyword=None, guild_id=None, limit=500):
 
