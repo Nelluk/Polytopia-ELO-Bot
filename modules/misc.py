@@ -270,12 +270,15 @@ class misc(commands.Cog):
         if all(ctx.channel.permissions_for(member).read_messages for member in game_members if member):
             logger.debug(f'Allowing ping since all members have read access to current channel')
             mention_players_in_current_channel = True
+            print(1)
         elif ctx.channel.id in game_channels and len(game_channels) >= len(game.gamesides):
             logger.debug(f'Allowing ping since it is within a game channel, and all sides have a game channel')
             mention_players_in_current_channel = False
+            print(2)
         elif settings.is_mod(ctx) and len(game_channels) >= len(game.gamesides):
             logger.debug(f'Allowing ping since it is from a mod and all sides have a game channel')
             mention_players_in_current_channel = False
+            print(3)
         else:
             logger.debug(f'Not allowing ping in {ctx.channel.id}')
             if len(game_channels) >= len(game.gamesides):
@@ -296,7 +299,8 @@ class misc(commands.Cog):
             else:
                 logger.debug(f'Ping triggered in private channel {ctx.channel.id}')
                 await game.update_squad_channels(self.bot.guilds, game.guild_id, message=f'{full_message}\n{" ".join(player_mentions)}', suppress_errors=False)
-                await ctx.send(f'Sending ping to game channels:\n{full_message}')
+                if ctx.channel.id not in game_channels:
+                    await ctx.send(f'Sending ping to game channels:\n{full_message}')
         except exceptions.CheckFailedError as e:
             channel_tags = [f'<#{chan_id}>' for chan_id in permitted_channels]
             return await ctx.send(f'{e}\nTry sending `{ctx.prefix}ping` from a public channel that all members can view: {" ".join(channel_tags)}')
