@@ -2158,6 +2158,23 @@ class Game(BaseModel):
 
         return (full_season, regular_season, post_season)
 
+    def is_league_game(self):
+        # return True if one of the teams participating in the game is a League team like Ronin, etc (is_hidden == 0)
+        # seems like I should be able to do it with one less query but could not get it to return the correct result that way
+        league_teams = Team.select().where(
+            (Team.guild_id == settings.server_ids['polychampions']) & (Team.is_hidden == 0)
+        )
+
+        team_subq = GameSide.select(GameSide.game).join(Game).where(
+            (GameSide.team.in_(league_teams)) & (GameSide.size > 1)
+        ).group_by(GameSide.game)
+
+        league_games = Game.select(Game).where(Game.id.in_(team_subq))
+
+        if self in league_games:
+            return True
+        return False
+
     def is_season_game(self):
 
         # If game is a PolyChamps season game, return tuple like (5, 'P') indicating season 5, pro league (or 'J' for junior)

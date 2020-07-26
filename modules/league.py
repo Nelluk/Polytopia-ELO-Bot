@@ -35,6 +35,8 @@ league_teams = [('Ronin', ['The Ronin', 'The Bandits']),
     ('Dragons', ['The Dragons', 'The Narwhals'])
 ]
 
+league_team_channels = []
+
 
 def get_league_roles(guild):
     pro_role_names = [a[1][0] for a in league_teams]
@@ -146,6 +148,8 @@ class league(commands.Cog):
         if self.bot.user.id == 479029527553638401:
             # beta bot, using nelluk server to watch for messages
             self.announcement_message = self.get_draft_config(settings.server_ids['test'])['announcement_message']
+
+        populate_league_team_channels()
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload):
@@ -981,6 +985,24 @@ async def auto_grad_novas(ctx, game):
             await grad_chan.send(f'{grad_announcement}')
         else:
             await ctx.send(f'{grad_announcement}')
+
+
+def populate_league_team_channels():
+    # maintain a list of channel IDs associated with PolyChamps team games
+    global league_team_channels
+    league_teams = models.Team.select(models.Team.id).where(
+        (models.Team.guild_id == settings.server_ids['polychampions']) & (models.Team.is_hidden == 0)
+    )
+    query = models.GameSide.select(models.GameSide.team_chan).join(models.Game).where(
+        (models.GameSide.team_chan.is_null(False)) &
+        (models.GameSide.game.guild_id == settings.server_ids['polychampions']) &
+        (models.GameSide.game.is_confirmed == 0) &
+        (models.GameSide.team.in_(league_teams))
+    ).tuples()
+
+    league_team_channels = [tc[0] for tc in query]
+    logger.debug(f'updating league_team_channels, len {len(league_team_channels)}')
+    return len(league_team_channels)
 
 
 def setup(bot):

@@ -7,7 +7,7 @@ import modules.achievements as achievements
 import peewee
 import modules.models as models
 from modules.models import Game, db, Player, Team, DiscordMember, Squad, GameSide, Tribe, Lineup
-from modules.league import auto_grad_novas
+from modules.league import auto_grad_novas, populate_league_team_channels
 import logging
 import datetime
 import asyncio
@@ -73,8 +73,8 @@ class polygames(commands.Cog):
         if res:
             logger.debug(f'on_guild_channel_delete: detected deletion of gameside channel {channel.id} {channel.name} and removed reference from db')
 
-        query = Game.update(team_chan=None).where(GameSide.team_chan == channel.id)
-        res = query.execute(game_chan=None).where(Game.game_chan == channel.id)
+        query = Game.update(game_chan=None).where(Game.game_chan == channel.id)
+        res = query.execute()
         if res:
             logger.debug(f'on_guild_channel_delete: detected deletion of game channel {channel.id} {channel.name} and removed reference from db')
 
@@ -1946,6 +1946,8 @@ async def post_newgame_messaging(ctx, game):
         await ctx.send(f':bulb: This game looks like an incorrectly named **Season Game**! You might want to use `{ctx.prefix}rename` and include the season tag at the beginning.')
     if season and game.gamesides[0].team.is_hidden:
         await ctx.send(f':warning: This game is marked as a **Season Game** but is not associated with a League Team. There are probably players with mixed roles on a side. I suggest you `{ctx.prefix}unstart`, fix the roles, and re-`{ctx.prefix}start`.')
+    if game.guild_id == settings.server_ids['polychampions'] and game.smallest_team() > 1:
+        populate_league_team_channels()
 
     await auto_grad_novas(ctx, game)
 

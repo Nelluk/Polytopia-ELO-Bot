@@ -25,7 +25,8 @@ class misc(commands.Cog):
     @commands.command(hidden=True, aliases=['ts', 'blah'])
     @commands.is_owner()
     async def test(self, ctx, *, args=None):
-        print(ctx.channel.permissions_for(ctx.author).read_messages)
+        games = models.Game.get(id=int(args))
+        print(games.is_league_game())
 
     @commands.command(usage=None)
     @settings.in_bot_channel_strict()
