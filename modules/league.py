@@ -78,6 +78,22 @@ class league(commands.Cog):
         return ctx.guild.id == settings.server_ids['polychampions'] or ctx.guild.id == settings.server_ids['test']
 
     @commands.Cog.listener()
+    async def on_message(self, message):
+
+        if message.channel.id not in league_team_channels or not message.attachments:
+            return
+
+        try:
+            game = models.Game.by_channel_id(chan_id=message.channel.id)
+        except exceptions.MyBaseException as e:
+            return logger.error(f'League.on_message: channel in league_team_channels but cannot load associated game by chan_id {message.channel.id} - {e}')
+
+        logger.debug(f'League.on_message: handling message in league_team_channels {message.channel.id}')
+        attachment_urls = '\n'.join([attachment.url for attachment in message.attachments])
+
+        models.GameLog.write(guild_id=message.guild.id, is_protected=True, game_id=game.id, message=f'{models.GameLog.member_string(message.author)} posted images: {attachment_urls}')
+
+    @commands.Cog.listener()
     async def on_member_update(self, before, after):
         # if a a team role ('The Ronin') is added or removed, set or remove related roles on member (League Member, Pro Player, Ronin, etc)
         # this update will never touch a specific junior or pro team role ('The Ronin'), partially because that would trigger further on_member_updates

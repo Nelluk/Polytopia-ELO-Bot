@@ -2552,7 +2552,8 @@ class GameLog(BaseModel):
         return GameLog.select().where(
             GameLog.id.in_(subq_by_guild) &
             GameLog.message.contains(keywords) &
-            ~GameLog.message.contains(negative_keyword)
+            ~GameLog.message.contains(negative_keyword) &
+            (GameLog.is_protected == 0)
         ).order_by(-GameLog.message_ts).limit(limit)
 
 
