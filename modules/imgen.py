@@ -101,7 +101,6 @@ def player_draft_card(member: discord.Member, team_role: discord.Role) -> discor
     title = f'{team_role.name.upper()} SELECT'
     player_avatar = fetch_image(str(member.avatar_url) + '?size=256')
     name = member.name.upper()
-    player_avatar.show()
     summary = get_player_summary(member)
     wordmark = Image.open('res/pc_wordmark.png')
     filename = f'{team_role.name}_selects_{member.name}.png'
