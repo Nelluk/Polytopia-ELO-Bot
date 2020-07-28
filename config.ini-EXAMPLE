@@ -1,4 +1,9 @@
 [DEFAULT]
 discord_key = YOURAPIKEYHERE
-pastebin_key = YOURAPIKEYHERE
+# private token from discord developer porter
 psql_user = nelluk
+# username for postgres database
+psql_db = polytopia
+# database name
+owner_id = 272510639124250625
+# discord user ID of bot installation owner. Above default is Nelluk.
