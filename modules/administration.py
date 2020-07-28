@@ -8,6 +8,7 @@ import modules.exceptions as exceptions
 import datetime
 import asyncio
 import discord
+import re
 from modules.games import PolyGame, post_win_messaging
 
 logger = logging.getLogger('polybot.' + __name__)
@@ -19,6 +20,7 @@ class administration(commands.Cog):
         self.bot = bot
         if settings.run_tasks:
             self.bg_task = bot.loop.create_task(self.task_confirm_auto())
+            self.bg_task2 = bot.loop.create_task(self.task_purge_incomplete())
 
     async def cog_check(self, ctx):
 
@@ -30,6 +32,77 @@ class administration(commands.Cog):
             else:
                 await ctx.send('You do not have permission to use this command.')
                 return False
+
+    @commands.is_owner()
+    @commands.command(aliases=['quit'])
+    async def restart(self, ctx):
+        """ *Owner*: Close database connection and quit bot gracefully """
+
+        logger.debug(f'Purging message list {self.bot.purgable_messages}')
+        try:
+            if models.db.close():
+                close_message = 'db connection closing normally'
+            else:
+                close_message = 'db connection was already closed'
+
+        except peewee.PeeweeException as e:
+            message = f'Error during post_invoke_cleanup db.close(): {e}'
+        finally:
+            logger.info(close_message)
+
+        if settings.run_tasks and self.bot.purgable_messages:
+            async with ctx.typing():
+                for guild_id, channel_id, message_id in reversed(self.bot.purgable_messages):
+                    # purge messages created by Misc.task_broadcast_newbie_message() so they arent duplicated when bot restarts
+                    guild = discord.utils.get(self.bot.guilds, id=guild_id)
+                    channel = guild.get_channel(channel_id)
+                    try:
+                        logger.debug(f'Purging message {message_id} from channel {channel.id if channel else "NONE"}')
+                        message = await channel.fetch_message(message_id)
+                        await message.delete()
+                    except discord.DiscordException:
+                        pass
+
+            await ctx.send(f'Cleaning up temporary announcement messages...')
+            await asyncio.sleep(4)  # to make sure message deletes go through
+
+        await ctx.send('Shutting down')
+        await self.bot.close()
+
+    @settings.is_mod_check()
+    @commands.command()
+    async def purge_game_channels(self, ctx, *, arg: str = None):
+        # TODO: Remove references to deleted channels from database.  i dont -think- having ghost references will cause any usability problems
+
+        if not settings.guild_setting(ctx.guild.id, 'game_channel_categories'):
+            return await ctx.send(f'Cannot purge - this guild has no `game_channel_categories` setting')
+
+        channels = [chan for chan in ctx.guild.channels if chan.category_id in settings.guild_setting(ctx.guild.id, 'game_channel_categories')]
+        await ctx.send(f'Returned {len(channels)} channels')
+        old_30d = (datetime.datetime.today() + datetime.timedelta(days=-30))
+
+        for chan in channels:
+            if chan.last_message_id:
+                try:
+                    messages = await chan.history(limit=5, oldest_first=False).flatten()
+                except discord.DiscordException as e:
+                    logger.error(f'Could not load channel history: {e}')
+                    continue
+                if len(messages) > 3:
+                    logger.debug(f'{chan.name} not eligible for deletion - has at least 4 messages in history')
+                    continue
+                if messages[0].created_at > old_30d:
+                    logger.debug(f'{chan.name} not eligible for deletion - has a recent message in history')
+                    continue
+                logger.warn(f'{chan.name} {chan.id} is eligible for deletion - few messages and no recent messages in history')
+                await ctx.send(f'Deleting channel **{chan.name}** - few messages and no recent messages in history')
+                try:
+                    logger.warn(f'Deleting channel {chan.name}')
+                    await chan.delete(reason='Purging game channels with inactive history')
+                except discord.DiscordException as e:
+                    logger.error(f'Could not delete channel: {e}')
+
+        await ctx.send(f'Channel cleanup complete')
 
     @commands.command(aliases=['confirmgame'], usage='game_id')
     # async def confirm(self, ctx, winning_game: PolyGame = None):
@@ -151,17 +224,102 @@ class administration(commands.Cog):
             await asyncio.sleep(8)
             logger.debug('Task running: task_confirm_auto')
 
-            with models.db:
-                for guild in self.bot.guilds:
-                    staff_output_channel = guild.get_channel(settings.guild_setting(guild.id, 'game_request_channel'))
-                    if not staff_output_channel:
-                        logger.debug(f'Could not load game_request_channel for server {guild.id} - skipping')
-                        continue
+            utilities.connect()
+            for guild in self.bot.guilds:
+                staff_output_channel = guild.get_channel(settings.guild_setting(guild.id, 'game_request_channel'))
+                if not staff_output_channel:
+                    logger.debug(f'Could not load game_request_channel for server {guild.id} - skipping')
+                    continue
 
-                    prefix = settings.guild_setting(guild.id, 'command_prefix')
-                    (unconfirmed_count, games_confirmed) = await self.confirm_auto(guild, prefix, staff_output_channel)
-                    if games_confirmed:
-                        await staff_output_channel.send(f'Autoconfirm process complete. {games_confirmed} games auto-confirmed. {unconfirmed_count - games_confirmed} games left unconfirmed.')
+                prefix = settings.guild_setting(guild.id, 'command_prefix')
+                (unconfirmed_count, games_confirmed) = await self.confirm_auto(guild, prefix, staff_output_channel)
+                if games_confirmed:
+                    await staff_output_channel.send(f'Autoconfirm process complete. {games_confirmed} games auto-confirmed. {unconfirmed_count - games_confirmed} games left unconfirmed.')
+
+            await asyncio.sleep(sleep_cycle)
+
+    async def task_purge_incomplete(self):
+        await self.bot.wait_until_ready()
+        sleep_cycle = (60 * 60 * 2)  # 2 hour cycle
+
+        while not self.bot.is_closed():
+            await asyncio.sleep(20)
+            logger.debug('Task running: task_purge_incomplete')
+
+            old_60d = (datetime.date.today() + datetime.timedelta(days=-60))
+            old_90d = (datetime.date.today() + datetime.timedelta(days=-90))
+            old_120d = (datetime.date.today() + datetime.timedelta(days=-120))
+            old_150d = (datetime.date.today() + datetime.timedelta(days=-150))
+
+            for guild in self.bot.guilds:
+                staff_output_channel = guild.get_channel(settings.guild_setting(guild.id, 'game_request_channel'))
+
+                utilities.connect()
+
+                def async_game_search():
+                    utilities.connect()
+                    query = models.Game.search(status_filter=2, guild_id=guild.id)
+                    query = list(query)  # reversing 'Incomplete' queries so oldest is at top
+                    query.reverse()
+                    return query
+
+                game_list = await self.bot.loop.run_in_executor(None, async_game_search)
+
+                delete_result = []
+                for game in game_list[:500]:
+                    game_size = len(game.lineup)
+                    rank_str = ' - *Unranked*' if not game.is_ranked else ''
+                    if game_size == 2 and game.date < old_60d and not game.is_completed:
+                        delete_result.append(f'Deleting incomplete 1v1 game older than 60 days. - {game.get_headline()} - {game.date}{rank_str}')
+                        # await self.bot.loop.run_in_executor(None, game.delete_game)
+                        models.GameLog.write(game_id=game, guild_id=guild.id, message=f'I purged the game during cleanup of old incomplete games.')
+                        game.delete_game()
+
+                    if game_size == 3 and game.date < old_90d and not game.is_completed:
+                        delete_result.append(f'Deleting incomplete 3-player game older than 90 days. - {game.get_headline()} - {game.date}{rank_str}')
+                        await game.delete_game_channels(self.bot.guilds, guild.id)
+                        # await self.bot.loop.run_in_executor(None, game.delete_game)
+                        models.GameLog.write(game_id=game, guild_id=guild.id, message=f'I purged the game during cleanup of old incomplete games.')
+                        game.delete_game()
+
+                    if game_size == 4:
+                        if game.date < old_90d and not game.is_completed and not game.is_ranked:
+                            delete_result.append(f'Deleting incomplete 4-player game older than 90 days. - {game.get_headline()} - {game.date}{rank_str}')
+                            await game.delete_game_channels(self.bot.guilds, guild.id)
+                            await self.bot.loop.run_in_executor(None, game.delete_game)
+                            models.GameLog.write(game_id=game, guild_id=guild.id, message=f'I purged the game during cleanup of old incomplete games.')
+                            game.delete_game()
+                        if game.date < old_120d and not game.is_completed and game.is_ranked:
+                            delete_result.append(f'Deleting incomplete ranked 4-player game older than 120 days. - {game.get_headline()} - {game.date}{rank_str}')
+                            await game.delete_game_channels(self.bot.guilds, guild.id)
+                            models.GameLog.write(game_id=game, guild_id=guild.id, message=f'I purged the game during cleanup of old incomplete games.')
+                            # await self.bot.loop.run_in_executor(None, game.delete_game)
+                            game.delete_game()
+
+                    if (game_size == 5 or game_size == 6) and game.is_ranked and game.date < old_150d and not game.is_completed:
+                        # Max out ranked game deletion at game_size==6
+                        delete_result.append(f'Deleting incomplete ranked {game_size}-player game older than 150 days. - {game.get_headline()} - {game.date}{rank_str}')
+                        await game.delete_game_channels(self.bot.guilds, guild.id)
+                        # await self.bot.loop.run_in_executor(None, game.delete_game)
+                        models.GameLog.write(game_id=game, guild_id=guild.id, message=f'I purged the game during cleanup of old incomplete games.')
+                        game.delete_game()
+
+                    if game_size >= 5 and not game.is_ranked and game.date < old_120d and not game.is_completed:
+                        # no cap on unranked game deletion above 120 days old
+                        delete_result.append(f'Deleting incomplete unranked {game_size}-player game older than 120 days. - {game.get_headline()} - {game.date}{rank_str}')
+                        await game.delete_game_channels(self.bot.guilds, guild.id)
+                        # await self.bot.loop.run_in_executor(None, game.delete_game)
+                        models.GameLog.write(game_id=game, guild_id=guild.id, message=f'I purged the game during cleanup of old incomplete games.')
+                        game.delete_game()
+
+                delete_str = '\n'.join(delete_result)
+                logger.info(f'Purging incomplete games for guild {guild.name}:\n{delete_str}')
+                if len(delete_result):
+
+                    if staff_output_channel:
+                        await staff_output_channel.send(f'{delete_str[:1900]}\nFinished - purged {len(delete_result)} games')
+                    else:
+                        logger.debug(f'Could not load game_request_channel for server {guild.id} {guild.name} - performing task silently')
 
             await asyncio.sleep(sleep_cycle)
 
@@ -185,6 +343,8 @@ class administration(commands.Cog):
         game.save()
 
         logger.info(f'Game {game.id} is now marked as ranked.')
+        models.GameLog.write(game_id=game, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} set game to be ranked.')
+        await game.update_squad_channels(guild_list=settings.bot.guilds, guild_id=ctx.guild.id, message=f'Staff member **{ctx.author.display_name}** has set this game to be *ranked*.')
         return await ctx.send(f'Game {game.id} is now marked as ranked.')
 
     @commands.command(usage='game_id')
@@ -207,8 +367,11 @@ class administration(commands.Cog):
         game.save()
 
         logger.info(f'Game {game.id} is now marked as unranked.')
+        models.GameLog.write(game_id=game, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} set game to be unranked.')
+        await game.update_squad_channels(guild_list=settings.bot.guilds, guild_id=ctx.guild.id, message=f'Staff member **{ctx.author.display_name}** has set this game to be *unranked*.')
         return await ctx.send(f'Game {game.id} is now marked as unranked.')
 
+    @settings.in_bot_channel()
     @commands.command(usage='game_id')
     async def unstart(self, ctx, game: PolyGame = None):
         """ *Staff*: Resets an in progress game to a pending matchmaking sesson
@@ -234,7 +397,65 @@ class administration(commands.Cog):
         tomorrow = (datetime.datetime.now() + datetime.timedelta(hours=24))
         game.expiration = tomorrow if game.expiration < tomorrow else game.expiration
         game.save()
-        return await ctx.send(f'Game {game.id} is now an open game and no longer in progress.')
+        models.GameLog.write(game_id=game, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} changed in-progress game to an open game. (`{ctx.prefix}unstart`)')
+
+        try:
+            await ctx.send(f'Game {game.id} is now an open game and no longer in progress.')
+        except discord.errors.NotFound:
+            logger.warn('Game unstarted while in game-related channel')
+
+    @commands.command(usage='search_term', aliases=['gamelog', 'gamelogs', 'global_logs', 'log'])
+    # @commands.cooldown(1, 20, commands.BucketType.user)
+    async def logs(self, ctx, *, search_term: str = None):
+        """ *Staff*: Lists or searches log entries
+
+         **Examples**
+        `[p]logs` - See all recent entries
+        `[p]logs 1234` - See all entries related to a specific game
+        `[p]logs Nelluk` - See all entries containing the term Nelluk
+        `[p]logs Nelluk join` - See all entries containing both words
+        `[p]logs Nelluk -Kamfer` - See all entries containing the first word but *not* the second word
+
+        `[p]global_logs` - *Owner only*: Search or list log entries across all bot servers
+        """
+
+        paginated_message_list = []
+
+        search_term = re.sub(r'\b(\d{4,6})\b', r'\\_\1\\_', search_term, count=1) if search_term else None
+        # Above finds a 4-6 digit number in search_term and adds escaped underscores around it
+        # This will cause it to match against the __GAMEID__ the log entries are prefixed with and not substrings from
+        # user IDs
+
+        search_term = re.sub(r'<@[!&]?([0-9]{17,21})>', '\\1', search_term) if search_term else None
+        # replace @Mentions <@272510639124250625> with just the ID 272510639124250625
+
+        negative_parameter = re.search(r'-(\S+)', search_term) if search_term else ''
+        # look for the first term preceded by a - character
+        if negative_parameter:
+            negative_term = negative_parameter[1]
+            search_term = search_term.replace(negative_parameter[0], '').replace('  ', ' ').strip()
+            negative_title_str = f'\nExcluding entries containing *{negative_term}*'
+        else:
+            negative_term = None
+            negative_title_str = ''
+
+        if search_term:
+            title_str = f'Searching for log entries containing *{search_term}*{negative_title_str}'.replace('\\_', '')
+        else:
+            title_str = f'All recent log entries{negative_title_str}'
+
+        guild_id = ctx.guild.id
+        if ctx.invoked_with == 'global_logs':
+            if ctx.author.id == settings.owner_id:
+                guild_id = None  # search globally, owner only
+            else:
+                return await ctx.send('Only the bot owner can search global logs.')
+
+        entries = models.GameLog.search(keywords=search_term, negative_keyword=negative_term, guild_id=guild_id)
+        for entry in entries:
+            paginated_message_list.append((f'`{entry.message_ts.strftime("%Y-%m-%d %H:%M:%S")}`', entry.message[:500]))
+
+        await utilities.paginate(self.bot, ctx, title=title_str, message_list=paginated_message_list, page_start=0, page_end=10, page_size=10)
 
     @commands.command(usage='game_id')
     async def extend(self, ctx, game: PolyGame = None):
@@ -283,7 +504,6 @@ class administration(commands.Cog):
     @commands.command(aliases=['team_add_junior'], usage='new_team_name')
     @settings.is_mod_check()
     @settings.teams_allowed()
-    # async def team_add(self, ctx, *args):
     async def team_add(self, ctx, *, team_name: str):
         """*Mod*: Create new server Team
         The team should have a Role with an identical name.
@@ -315,6 +535,7 @@ class administration(commands.Cog):
 
     @commands.command(usage='team_name new_emoji')
     @settings.is_mod_check()
+    @settings.teams_allowed()
     async def team_emoji(self, ctx, team_name: str, emoji):
         """*Mod*: Assign an emoji to a team
         **Example:**
@@ -386,25 +607,32 @@ class administration(commands.Cog):
     @settings.on_polychampions()
     async def deactivate_players(self, ctx):
         """*Mods*: Add Inactive role to inactive players
+
         Apply the 'Inactive' role to any player who has not been activate lately.
-        - No games started in 45 days, and does not have a protected role (Team Leadership or Mod roles)
+
+        - No games started in the last 60 days
+        - No games currently incomplete
+        - Does not have a protected role (Team Leadership or Mod roles)
         """
 
         inactive_role = discord.utils.get(ctx.guild.roles, name=settings.guild_setting(ctx.guild.id, 'inactive_role'))
         protected_roles = [discord.utils.get(ctx.guild.roles, name='Team Recruiter'), discord.utils.get(ctx.guild.roles, name='Mod'),
                            discord.utils.get(ctx.guild.roles, name='Team Leader'), discord.utils.get(ctx.guild.roles, name='Team Co-Leader')]
 
-        activity_time = (datetime.datetime.now() + datetime.timedelta(days=-45))
+        activity_time = (datetime.datetime.now() + datetime.timedelta(days=-60))
         if not inactive_role:
             return await ctx.send('Error loading Inactive role')
 
-        query = models.Player.select(models.DiscordMember.discord_id).join(models.Lineup).join(models.Game).join_from(models.Player, models.DiscordMember).where(
-            (models.Lineup.player == models.Player.id) & (models.Game.date > activity_time) & (models.Game.guild_id == ctx.guild.id)
+        active_players = models.Player.select(models.DiscordMember.discord_id).join(models.Lineup).join(models.Game).join_from(models.Player, models.DiscordMember).where(
+            (models.Lineup.player == models.Player.id) & (models.Game.guild_id == ctx.guild.id) & (
+                (models.Game.date > activity_time) | (models.Game.is_completed == 0)
+            )
         ).group_by(models.DiscordMember.discord_id).having(
             peewee.fn.COUNT(models.Lineup.id) > 0
         )
+        # players who are in an active game or any game started within 45 days
 
-        list_of_active_player_ids = [p[0] for p in query.tuples()]
+        list_of_active_player_ids = [p[0] for p in active_players.tuples()]
 
         defunct_members = []
         async with ctx.typing():
@@ -427,83 +655,7 @@ class administration(commands.Cog):
             return await ctx.send(f'No inactive members found!')
 
         members_str = ' / '.join(defunct_members)
-        if len(members_str) > 1850:
-            members_str = '(*Output truncated*)' + members_str[:1850]
-        await ctx.send(f'Found {len(defunct_members)} inactive members - *{inactive_role.name}* has been applied to each: {members_str}')
-
-    @commands.command()
-    # @settings.is_mod_check()
-    @settings.on_polychampions()
-    async def grad_novas(self, ctx, *, arg=None):
-        """*Staff*: Check Novas for graduation requirements
-        Apply the 'Free Agent' role to any Novas who meets requirements:
-        - Three ranked team games, and ranked games with members of at least three League teams
-        """
-
-        grad_count = 0
-        role = discord.utils.get(ctx.guild.roles, name='The Novas')
-        grad_role = discord.utils.get(ctx.guild.roles, name='Free Agent')
-        recruiter_role = discord.utils.get(ctx.guild.roles, name='Team Recruiter')
-        drafter_role = discord.utils.get(ctx.guild.roles, name='Drafter')
-        inactive_role = discord.utils.get(ctx.guild.roles, name=settings.guild_setting(ctx.guild.id, 'inactive_role'))
-        grad_chan = ctx.guild.get_channel(540332800927072267)  # Novas draft talk
-        if ctx.guild.id == settings.server_ids['test']:
-            role = discord.utils.get(ctx.guild.roles, name='testers')
-            grad_role = discord.utils.get(ctx.guild.roles, name='Team Leader')
-            recruiter_role = discord.utils.get(ctx.guild.roles, name='role1')
-            drafter_role = recruiter_role
-            grad_chan = ctx.guild.get_channel(479292913080336397)  # bot spam
-
-        await ctx.send(f'Auto-graduating Novas')
-        async with ctx.typing():
-            for member in role.members:
-                if inactive_role and inactive_role in member.roles:
-                    continue
-                try:
-                    dm = models.DiscordMember.get(discord_id=member.id)
-                    player = models.Player.get(discord_member=dm, guild_id=ctx.guild.id)
-                except peewee.DoesNotExist:
-                    logger.debug(f'Player {member.name} not registered.')
-                    continue
-                if grad_role in member.roles:
-                    logger.debug(f'Player {player.name} already has the graduate role.')
-                    continue
-                if player.completed_game_count() < 3:
-                    logger.debug(f'Player {player.name} has not completed enough ranked games ({player.completed_game_count()} completed).')
-                    continue
-                if player.games_played(in_days=7).count() == 0:
-                    logger.debug(f'Player {player.name} has not played in any recent games.')
-                    continue
-
-                team_game_count = 0
-                league_teams_represented, qualifying_games = [], []
-
-                for lineup in player.games_played():
-                    game = lineup.game
-                    if not game.is_ranked or game.largest_team() == 1:
-                        continue
-                    team_game_count += 1
-                    for lineup in game.lineup:
-                        if lineup.player.team not in league_teams_represented and lineup.player.team != player.team and lineup.gameside.team != player.team:
-                            league_teams_represented.append(lineup.player.team)
-                            if str(game.id) not in qualifying_games:
-                                qualifying_games.append(str(game.id))
-                if team_game_count < 3:
-                    logger.debug(f'Player {player.name} has not completed enough team games.')
-                    continue
-                if len(league_teams_represented) < 3:
-                    logger.debug(f'Player {player.name} has not played with enough league members.')
-                    continue
-
-                wins, losses = dm.get_record()
-                logger.debug(f'Player {player.name} meets qualifications: {qualifying_games}')
-                grad_count += 1
-                await member.add_roles(grad_role)
-                await grad_chan.send(f'Player {member.mention} (*Global ELO: {dm.elo} \u00A0\u00A0\u00A0\u00A0W {wins} / L {losses}*) qualifies for graduation on the basis of games: `{" ".join(qualifying_games)}`')
-            if grad_count:
-                await grad_chan.send(f'{recruiter_role.mention} the above player(s) meet the qualifications for graduation. DM {drafter_role.mention} to express interest.')
-
-            await ctx.send(f'Completed auto-grad: {grad_count} new graduates.')
+        await utilities.buffered_send(destination=ctx, content=f'Found {len(defunct_members)} inactive members - *{inactive_role.name}* has been applied to each: {members_str}')
 
     @commands.command()
     @settings.is_mod_check()
@@ -511,30 +663,96 @@ class administration(commands.Cog):
     async def kick_inactive(self, ctx, *, arg=None):
         """*Mods*: Kick players from server who don't meet activity requirements
 
-        Kicks members from server who either:
+        Kicks members from server who have the Inactive role and meet the following requirements:
         - Joined the server more than a week ago but have not registered a Poly code, or
-        - Joined more than a month ago but have played zero ELO games in the last month.
+        - Joined more than a month ago but have played zero ELO games (on *any server* in the last 60 days.
 
         If a member has any role assigned they will not be kicked, beyond this list of 'kickable' roles:
-        Inactive, The Novas, ELO Rookie, ELO Player
+        Newbie, ELO Rookie, ELO Player, Nova roles, Team roles.
 
         For example, Someone with role The Novas that has played zero games in the last month will be kicked.
+
+        Anyone with ELO Veteran, ELO Hero, etc roles with never be auto-kicked.
         """
 
-        count = 0
+        total_kicked_count, team_kicked_count = 0, 0
+        team_kicked_list = []
         last_week = (datetime.datetime.now() + datetime.timedelta(days=-7))
         last_month = (datetime.datetime.now() + datetime.timedelta(days=-30))
-        inactive_role_name = settings.guild_setting(ctx.guild.id, 'inactive_role')
-        kickable_roles = [discord.utils.get(ctx.guild.roles, name=inactive_role_name), discord.utils.get(ctx.guild.roles, name='The Novas'),
-                          discord.utils.get(ctx.guild.roles, name='ELO Rookie'), discord.utils.get(ctx.guild.roles, name='ELO Player'),
-                          discord.utils.get(ctx.guild.roles, name='@everyone')]
+        inactive_role = discord.utils.get(ctx.guild.roles, name=settings.guild_setting(ctx.guild.id, 'inactive_role'))
+        if not inactive_role:
+            logger.warn(f'Could not load Inactive role by name {settings.guild_setting(ctx.guild.id, "inactive_role")}')
+            return await ctx.send(f'Error loading Inactive role.')
+
+        kickable_role_names = [
+            settings.guild_setting(ctx.guild.id, 'inactive_role'),
+            '@everyone',
+            'The Novas',
+            'Nova Red',
+            'Nova Blue',
+            'Nova Grad',
+            'ELO Rookie',
+            'ELO Player',
+            'ELO Banned',
+            'Newbie',
+        ]
+
+        team_role_names = [
+            'The Bombers',
+            'The Dynamite',
+            'Bombers',
+            'The Cosmonauts',
+            'The Space Cadets',
+            'Cosmonauts',
+            'The Crawfish',
+            'The Shrimps',
+            'Crawfish',
+            'The Dragons',
+            'The Narwhals',
+            'Dragons',
+            'The Jets',
+            'The Cropdusters',
+            'Jets',
+            'The Lightning',
+            'The Pulse',
+            'Lightning',
+            'The Mallards',
+            'The Drakes',
+            'Mallards',
+            'The Plague',
+            'The Rats',
+            'Plague',
+            'The Ronin',
+            'The Bandits',
+            'Ronin',
+            'The Sparkies',
+            'The Pups',
+            'Sparkies',
+            'The Wildfire',
+            'The Flames',
+            'Wildfire']
+
+        kickable_roles = [discord.utils.get(ctx.guild.roles, name=n) for n in kickable_role_names]
+        team_roles = [discord.utils.get(ctx.guild.roles, name=n) for n in team_role_names]
 
         async with ctx.typing():
-            for member in ctx.guild.members:
+            for member in inactive_role.members:
                 remaining_member_roles = [x for x in member.roles if x not in kickable_roles]
-                if len(remaining_member_roles) > 0:
-                    continue  # Skip if they have any assigned roles beyond a 'purgable' role
-                logger.debug(f'Member {member.name} qualifies based on roles...')
+
+                if len(remaining_member_roles) == 0:
+                    # Member only had Kickable roles - had no team roles or anything else
+                    team_member = False
+                else:
+                    roles_without_team_roles = [x for x in remaining_member_roles if x not in team_roles]
+                    print(f'Without team: {roles_without_team_roles}')
+                    if len(roles_without_team_roles) == 0:
+                        # Kickable Inactive member with a Team role but nothing beyond that
+                        team_member = True
+                    else:
+                        logger.debug(f'Inactive member {member.name} has additional roles and will not be kicked: {roles_without_team_roles}')
+                        continue  # Member has roles being kickable_roles and team_roles
+
+                logger.debug(f'Member {member.name} qualifies for kicking based on roles. Team member? {team_member}')
                 if member.joined_at > last_week:
                     logger.debug(f'Joined in the previous week. Skipping.')
                     continue
@@ -547,71 +765,30 @@ class administration(commands.Cog):
                     if member.joined_at < last_week:
                         logger.info(f'Joined more than a week ago with no code on file. Kicking from server')
                         await member.kick(reason='No role, no code on file')
-                        count += 1
+                        total_kicked_count += 1
                     continue
                 else:
                     if member.joined_at < last_month:
-                        if dm.games_played(in_days=30):
+                        if dm.games_played(in_days=60):
                             logger.debug('Has played recent ELO game on at least one server. Skipping.')
                         else:
-                            logger.info(f'Joined more than a month ago and has played zero ELO games. Kicking from server')
-                            await member.kick(reason='No role, no ELO games in at least 30 days.')
-                            count += 1
+                            logger.info(f'Joined more than a month ago and has played zero recent ELO games. Kicking from server')
+                            await member.kick(reason='No protected roles, no ELO games in at least 60 days.')
+                            total_kicked_count += 1
+                            if team_member:
+                                await member.send(f'You have been kicked from PolyChampions as part of an automated purge of inactive players. Please be assured this is nothing personal and is merely a manifestation of Nelluk\'s irrational need for a clean player list. If you are interested in rejoining please do so: http://discord.gg/cX7Ptnv')
+                                team_kicked_count += 1
+                                team_kicked_list.append(member.mention)
 
-        await ctx.send(f'Kicking {count} members without any assigned role and have insufficient ELO history.')
+                            models.GameLog.write(game_id=0, guild_id=ctx.guild.id, message=f'I kicked {models.GameLog.member_string(member)} in a mass purge.')
 
-    @commands.command()
-    @settings.is_mod_check()
-    async def purge_incomplete(self, ctx):
-        """*Mod*: Purge old incomplete games
-        Purges up to 10 games at a time. Only incomplete 2-player games that started more than 60 days ago, or 3-player games that started more than 90 days ago.
-        """
-
-        old_60d = (datetime.date.today() + datetime.timedelta(days=-60))
-        old_90d = (datetime.date.today() + datetime.timedelta(days=-90))
-        old_120d = (datetime.date.today() + datetime.timedelta(days=-120))
-
-        def async_game_search():
-            query = models.Game.search(status_filter=2, guild_id=ctx.guild.id)
-            query = list(query)  # reversing 'Incomplete' queries so oldest is at top
-            query.reverse()
-            return query
-
-        game_list = await self.bot.loop.run_in_executor(None, async_game_search)
-
-        delete_result = []
-        for game in game_list[:500]:
-            rank_str = ' - *Unranked*' if not game.is_ranked else ''
-            if len(game.lineup) == 2 and game.date < old_60d and not game.is_completed:
-                delete_result.append(f'Deleting incomplete 1v1 game older than 60 days. - {game.get_headline()} - {game.date}{rank_str}')
-                await self.bot.loop.run_in_executor(None, game.delete_game)
-
-            if len(game.lineup) == 3 and game.date < old_90d and not game.is_completed:
-                delete_result.append(f'Deleting incomplete 3-player game older than 90 days. - {game.get_headline()} - {game.date}{rank_str}')
-                await game.delete_game_channels(self.bot.guilds, ctx.guild.id)
-                await self.bot.loop.run_in_executor(None, game.delete_game)
-
-            if len(game.lineup) == 4:
-                if game.date < old_90d and not game.is_completed and not game.is_ranked:
-                    delete_result.append(f'Deleting incomplete 4-player game older than 90 days. - {game.get_headline()} - {game.date}{rank_str}')
-                    await game.delete_game_channels(self.bot.guilds, ctx.guild.id)
-                    await self.bot.loop.run_in_executor(None, game.delete_game)
-                if game.date < old_120d and not game.is_completed and game.is_ranked:
-                    delete_result.append(f'Deleting incomplete ranked 4-player game older than 120 days. - {game.get_headline()} - {game.date}{rank_str}')
-                    await game.delete_game_channels(self.bot.guilds, ctx.guild.id)
-                    await self.bot.loop.run_in_executor(None, game.delete_game)
-
-            if len(delete_result) >= 10:
-                break  # more than ten games and the output will be truncated
-
-        delete_str = '\n'.join(delete_result)[:1900]  # max send length is 2000 chars.
-        await ctx.send(f'{delete_str}\nFinished - purged {len(delete_result)} games')
+        await utilities.buffered_send(destination=ctx, content=f'Kicking {total_kicked_count} inactive members. Of those, {team_kicked_count} had a team role, listed below:\n {" / ".join(team_kicked_list)}')
 
     @commands.command(aliases=['migrate'])
     @commands.is_owner()
     async def migrate_player(self, ctx, from_string: str, to_string: str):
         """*Owner*: Migrate games from player's old account to new account
-        Target player cannot have any games associated with their profile. Use a @Mention or raw user ID as an argument.
+        Target player cannot have any completed games associated with their profile. Use a @Mention or raw user ID as an argument.
 
         **Examples**
         [p]migrate_player @NellukOld @NellukNew
@@ -623,6 +800,7 @@ class administration(commands.Cog):
 
         try:
             old_discord_member = models.DiscordMember.select().where(models.DiscordMember.discord_id == from_id).get()
+            old_name = old_discord_member.name
         except peewee.DoesNotExist:
             return await ctx.send(f'Could not find a DiscordMember in the database matching discord id `{from_id}`')
 
@@ -632,17 +810,52 @@ class administration(commands.Cog):
 
         new_discord_member = models.DiscordMember.get_or_none(discord_id=new_guild_member.id)
         if new_discord_member:
-            return await ctx.send(f'Found a DiscordMember *{new_discord_member.name}* in the database matching discord id `{new_guild_member.id}`. Cannot migrate to an existing player! Use `{ctx.prefix}delete_player` first.')
+            # New player is already registered with the bot
+            if new_discord_member.completed_game_count(only_ranked=False) > 0:
+                return await ctx.send(f'Found a DiscordMember *{new_discord_member.name}* in the database matching discord id `{new_guild_member.id}`. Cannot migrate to an existing player with completed games!')
 
-        logger.warn(f'Migrating player profile of ID {from_id} {old_discord_member.name} to new guild member {new_guild_member.id}{new_guild_member.name}')
+            # but has no completed games - proceeding to migrate
+            logger.warn(f'Migrating player profile of ID {from_id} {old_discord_member.name} to new guild member {new_guild_member.id}{new_guild_member.name} with existing incomplete games')
 
-        await ctx.send(f'The games from DiscordMember `{from_id}` *{old_discord_member.name}* will be migrated and become associated with {new_guild_member.mention}')
+            with models.db.atomic():
+                for gm in new_discord_member.guildmembers:
+                    old_gm = models.Player.get_or_none(discord_member=old_discord_member, guild_id=gm.guild_id)
+                    if old_gm:
+                        # Both old account and new account are registered in this guild
+                        for l in gm.lineup:
+                            # cycle through new incomplete games and switch to the old player
+                            l.player = old_gm
+                            l.save()
+                    else:
+                        # New account in this guild but old account not
+                        # associate its player in this guild with the old account
+                        gm.discord_member = old_discord_member
+                        gm.save()
 
-        old_discord_member.discord_id = new_guild_member.id
-        old_discord_member.save()
-        old_discord_member.update_name(new_name=new_guild_member.name)
+                new_discord_member.delete_instance()
 
-        await ctx.send('Migration complete!')
+                # set old account with new discord ID and refresh name
+                old_discord_member.discord_id = new_guild_member.id
+                old_discord_member.save()
+                old_discord_member.update_name(new_name=new_guild_member.name)
+
+            await ctx.send('Migration complete!')
+
+        else:
+            # New player has no presence in the bot
+            logger.warn(f'Migrating player profile of ID {from_id} {old_discord_member.name} to new guild member {new_guild_member.id}{new_guild_member.name}')
+
+            await ctx.send(f'The games from DiscordMember `{from_id}` *{old_discord_member.name}* will be migrated and become associated with {new_guild_member.mention}')
+
+            with models.db.atomic():
+
+                old_discord_member.discord_id = new_guild_member.id
+                old_discord_member.save()
+                old_discord_member.update_name(new_name=new_guild_member.name)
+
+            await ctx.send('Migration complete!')
+
+        models.GameLog.write(game_id=0, guild_id=0, message=f'**{ctx.author.display_name}** migrated old ELO player **{old_name}** `{from_id}` to {models.GameLog.member_string(new_guild_member)}')
 
     @commands.command(aliases=['delplayer'])
     @commands.is_owner()
@@ -673,24 +886,10 @@ class administration(commands.Cog):
         discord_member.delete_instance()
         await ctx.send(f'Deleting DiscordMember {name} with discord ID `{player_id}` from ELO database. They have zero games associated with their profile.')
 
-    @commands.command()
-    @commands.is_owner()
-    async def recalc_elo(self, ctx):
-        """*Owner*: Recalculate ELO for all games
-        Intended to be used when a change to the ELO math is made to apply to all games retroactively
-        """
-
-        async with ctx.typing():
-            await ctx.send('Recalculating ELO for all games in database.')
-            await self.bot.loop.run_in_executor(None, models.Game.recalculate_all_elo)
-            # Allows bot to remain responsive while this large operation is running.
-        await ctx.send('Recalculation complete!')
-
     @commands.command(aliases=['dbb'])
     @commands.is_owner()
     async def backup_db(self, ctx):
         """*Owner*: Backup PSQL database to a file
-        Intended to be used when a change to the ELO math is made to apply to all games retroactively
         """
         import subprocess
         from subprocess import PIPE

@@ -9,8 +9,7 @@ import modules.exceptions as exceptions
 import re
 import datetime
 import random
-import peewee
-# from modules.games import PolyGame
+from modules.games import PolyGame
 # import modules.achievements as achievements
 
 logger = logging.getLogger('polybot.' + __name__)
@@ -23,55 +22,11 @@ class misc(commands.Cog):
             self.bg_task = bot.loop.create_task(self.task_broadcast_newbie_message())
             self.bg_task = bot.loop.create_task(self.task_send_polychamps_invite())
 
-    @commands.command(hidden=True, aliases=['ts'])
+    @commands.command(hidden=True, aliases=['ts', 'blah'])
     @commands.is_owner()
-    async def test(self, ctx, *, arg: str = None):
-
-        for chan in ctx.guild.text_channels:
-            msg = chan.last_message()
-            print(msg.created_at)
-
-    @commands.command(hidden=True, aliases=['bulk_local_elo', 'ble', 'bge'])
-    async def bulk_global_elo(self, ctx, *, args=None):
-        """
-        Given a list of players, or a single mentioned role, return that list sorted by player's global/local ELO.
-
-        `[p]bulk_global elo nelluk koric rickdaheals`
-        `[p]bulk_local_elo @Ronin`
-        """
-        if not args:
-            return await ctx.send(f'Include list of players, example: `{ctx.prefix}bge nelluk koric` - @mentions and raw user IDs are supported')
-        player_stats = []
-
-        if ctx.message.role_mentions:
-            arg_list = [str(member.id) for member in ctx.message.role_mentions[0].members]
-        else:
-            arg_list = args.split(' ')
-
-        for arg in arg_list:
-            try:
-                player_match = models.Player.get_or_except(player_string=arg, guild_id=ctx.guild.id)
-            except exceptions.NoSingleMatch:
-                await ctx.send(f'Could not match `{arg}` to a player. Specify user with @Mention or user ID.')
-                continue
-
-            if ctx.invoked_with in ['bulk_local_elo', 'ble']:
-                player_stats.append((player_match.elo, player_match))
-            else:
-                player_stats.append((player_match.discord_member.elo, player_match))
-
-        player_stats.sort(key=lambda tup: tup[0], reverse=True)     # sort the list descending by ELO
-        print(player_stats)
-
-        if ctx.invoked_with in ['bulk_local_elo', 'ble']:
-            message = '__Player name - Local ELO - Local games played__\n'
-        else:
-            message = '__Player name - Global ELO - Local games played__\n'
-
-        for player in player_stats:
-            message += f'{player[1].name} - {player[0]} - {player[1].games_played().count()}\n'
-
-        await utilities.buffered_send(destination=ctx, content=message)
+    async def test(self, ctx, *, args=None):
+        games = models.Game.get(id=int(args))
+        print(games.is_league_game())
 
     @commands.command(usage=None)
     @settings.in_bot_channel_strict()
@@ -116,8 +71,9 @@ class misc(commands.Cog):
         embed = discord.Embed(title=f'PolyELO Bot Donation Link', url='https://cash.me/$Nelluk/3')
 
         embed.add_field(name='Developer', value='Nelluk')
+        embed.add_field(name='Source code', value='https://github.com/Nelluk/Polytopia-ELO-Bot')
 
-        embed.add_field(name='Contributions', value='rickdaheals, koric, Gerenuk, theSeahorse, Octo', inline=False)
+        embed.add_field(name='Contributions', value='rickdaheals, koric, Gerenuk, alphaSeahorse, Octo, Artemis, theoldlove', inline=False)
 
         embed.set_thumbnail(url=self.bot.user.avatar_url_as(size=512))
         await ctx.send(embed=embed)
@@ -170,7 +126,8 @@ class misc(commands.Cog):
     @commands.command(hidden=True, usage='message')
     @commands.cooldown(1, 30, commands.BucketType.user)
     @settings.in_bot_channel_strict()
-    async def pingall(self, ctx, *message):
+    @models.is_registered_member()
+    async def pingall(self, ctx, *, message: str = None):
         """ Ping everyone in all of your incomplete games
 
         Not useable by all players.
@@ -182,23 +139,30 @@ class misc(commands.Cog):
         *Staff:* Send a message to everyone in another player's games
 
         """
-
         if not message:
             return await ctx.send(f'Message is required.')
 
-        m = re.match(r"<@[!]?([0-9]{17,21})>", message[0])
+        m = utilities.string_to_user_id(message.split()[0])
 
         if m:
+            logger.debug('Third party use of pingall')
             # Staff member using command on third party
             if settings.get_user_level(ctx) <= 3:
+                logger.debug('insufficient user level')
                 return await ctx.send(f'You do not have permission to use this command on another player\'s games.')
-            message = message[1:]
-            target = m[1]
+            message = ' '.join(message.split()[1:])  # remove @Mention first word of message
+            target = str(m)
+            log_message = f'{models.GameLog.member_string(ctx.author)} used pingall on behalf of player ID `{target}` with message: '
         else:
+            logger.debug('first party usage of pingall')
             # Play using command on their own games
             if settings.get_user_level(ctx) <= 2:
+                logger.debug('insufficient user level')
                 return await ctx.send(f'You do not have permission to use this command. You can ask a server staff member to use this command on your games for you.')
             target = str(ctx.author.id)
+            log_message = f'{models.GameLog.member_string(ctx.author)} used pingall with message: '
+
+        logger.debug(f'pingall target is {target}')
 
         try:
             player_match = models.Player.get_or_except(player_string=target, guild_id=ctx.guild.id)
@@ -206,211 +170,150 @@ class misc(commands.Cog):
             return await ctx.send(f'User <@{target}> is not a registered ELO player.')
 
         game_list = models.Game.search(player_filter=[player_match], status_filter=2, guild_id=ctx.guild.id)
+        logger.debug(f'{len(game_list)} incomplete games for target')
 
         list_of_players = []
         for g in game_list:
             list_of_players += [f'<@{l.player.discord_member.discord_id}>' for l in g.lineup]
 
         list_of_players = list(set(list_of_players))
-        clean_message = utilities.escape_role_mentions(' '.join(message))
+        logger.debug(f'{len(list_of_players)} unique opponents for target')
+        clean_message = utilities.escape_role_mentions(message)
         if len(list_of_players) > 100:
             await ctx.send(f'*Warning:* More than 100 unique players are addressed. Only the first 100 will be mentioned.')
         await ctx.send(f'Message to all players in unfinished games for <@{target}>: *{clean_message}*')
 
-        return await ctx.send(f'Message recipients: {" ".join(list_of_players[:100])}')
+        recipient_message = f'Message recipients: {" ".join(list_of_players[:100])}'
+        await ctx.send(recipient_message[:2000])
 
-    @commands.command(usage='game_id')
+        for game in game_list:
+            logger.debug(f'Sending message to game channels for game {game.id} from pingall')
+            models.GameLog.write(game_id=game, guild_id=ctx.guild.id, message=f'{log_message} *{discord.utils.escape_markdown(clean_message)}*')
+            await game.update_squad_channels(self.bot.guilds, game.guild_id, message=f'Message to all players in unfinished games for <@{target}>: *{clean_message}*')
+
+    @commands.command(usage='game_id message')
+    @models.is_registered_member()
     @commands.cooldown(1, 20, commands.BucketType.user)
-    async def ping(self, ctx, game_id: int = None, *, message: str = None):
+    async def ping(self, ctx, *, args=''):
         """ Ping everyone in one of your games with a message
 
          **Examples**
         `[p]ping 100 I won't be able to take my turn today` - Send a message to everyone in game 100
+        `[p]ping This game is amazing!` - You can omit the game ID if you send the command from a game-specific channel
 
         See `[p]help pingall` for a command to ping ALL incomplete games simultaneously.
 
         """
-        if not game_id:
-            ctx.command.reset_cooldown(ctx)
-            return await ctx.send(f'Game ID was not included. Example usage: `{ctx.prefix}ping 100 Here\'s a nice note for everyone in game 100.`')
 
-        if not message:
-            ctx.command.reset_cooldown(ctx)
-            return await ctx.send(f'Message was not included. Example usage: `{ctx.prefix}ping 100 Here\'s a nice note`')
+        usage = (f'**Example usage:** `{ctx.prefix}ping 100 Here\'s a nice note for everyone in game 100.`\n'
+                    'You can also omit the game ID if you use the command from a game-specific channel.')
 
         if ctx.message.attachments:
             attachment_urls = '\n'.join([attachment.url for attachment in ctx.message.attachments])
-            message += f'\n{attachment_urls}'
+            args += f'\n{attachment_urls}'
 
-        # message = discord.utils.escape_mentions(message)  # to prevent @everyone vulnerability
+        if not args:
+            ctx.command.reset_cooldown(ctx)
+            return await ctx.send(usage)
+
+        if settings.is_mod(ctx):
+            ctx.command.reset_cooldown(ctx)
+
+        args = args.split()
+        try:
+            game_id = int(args[0])
+            message = ' '.join(args[1:])
+        except ValueError:
+            game_id = None
+            message = ' '.join(args)
+
+        inferred_game = None
+        if not game_id:
+            try:
+                inferred_game = models.Game.by_channel_id(chan_id=ctx.message.channel.id)
+            except exceptions.TooManyMatches:
+                logger.error(f'More than one game with matching channel {ctx.message.channel.id}')
+                return await ctx.send('Error looking up game based on current channel - please contact the bot owner.')
+            except exceptions.NoMatches:
+                ctx.command.reset_cooldown(ctx)
+                logger.debug('Could not infer game from current channel.')
+                return await ctx.send(f'Game ID was not included. {usage}')
+            logger.debug(f'Inferring game {inferred_game.id} from ping command used in channel {ctx.message.channel.id}')
+
+        if not message:
+            ctx.command.reset_cooldown(ctx)
+            return await ctx.send(f'Message was not included. {usage}')
+
         message = utilities.escape_role_mentions(message)
 
-        try:
-            game = models.Game.get(id=int(game_id))
-        except ValueError:
-            return await ctx.send(f'Invalid game ID "{game_id}".')
-        except peewee.DoesNotExist:
-            return await ctx.send(f'Game with ID {game_id} cannot be found.')
+        if inferred_game:
+            game = inferred_game
+        else:
+            game = await PolyGame().convert(ctx, int(game_id), allow_cross_guild=True)
 
         if not game.player(discord_id=ctx.author.id) and not settings.is_staff(ctx):
             ctx.command.reset_cooldown(ctx)
             return await ctx.send(f'You are not a player in game {game.id}')
 
         permitted_channels = settings.guild_setting(game.guild_id, 'bot_channels')
-        permitted_channels_private = []
-        if settings.guild_setting(game.guild_id, 'game_channel_categories'):
-            if game.game_chan:
-                permitted_channels = [game.game_chan] + permitted_channels
-            if game.smallest_team() > 1:
-                permitted_channels_private = [gs.team_chan for gs in game.gamesides]
-                permitted_channels = permitted_channels_private + permitted_channels
-                # allows ping command to be used in private team channels - only if there is no solo squad in the game which would mean they cant see the message
-                # this also adjusts where the @Mention is placed (sent to all team channels instead of simply in the ctx.channel)
-            elif ctx.channel.id in [gs.team_chan for gs in game.gamesides]:
-                channel_tags = [f'<#{chan_id}>' for chan_id in permitted_channels]
-                ctx.command.reset_cooldown(ctx)
-                return await ctx.send(f'This command cannot be used in this channel because there is at least one solo player without access to a team channel.\n'
-                    f'Permitted channels: {" ".join(channel_tags)}')
+        if game.game_chan:
+            permitted_channels.append(game.game_chan)
 
-        if ctx.channel.id not in permitted_channels and ctx.channel.id not in settings.guild_setting(game.guild_id, 'bot_channels_private'):
+        player_mentions = [f'<@{l.player.discord_member.discord_id}>' for l in game.lineup]
+        game_player_ids = [l.player.discord_member.discord_id for l in game.lineup]
+        game_members = [ctx.guild.get_member(p_id) for p_id in game_player_ids]
+        player_mentions = [f'<@{p_id}>' for p_id in game_player_ids]
+
+        game_channels = [gs.team_chan for gs in game.gamesides]
+        game_channels = [chan for chan in game_channels if chan]  # remove Nones
+
+        mention_players_in_current_channel = True  # False when done from game channel, True otherwise
+
+        if None not in game_members and all(ctx.channel.permissions_for(member).read_messages for member in game_members):
+            logger.debug(f'Allowing ping since all members have read access to current channel')
+            mention_players_in_current_channel = True
+            print(1)
+            # this case may behave unexpectedly if the channel is public and in central server, but a member has left the server
+            # the second case should cover that
+        elif ctx.channel.id in permitted_channels:
+            logger.debug(f'Allowing ping since it is a bot channel or central game channel')
+            mention_players_in_current_channel = True
+            print('1.5')
+        elif ctx.channel.id in game_channels and len(game_channels) >= len(game.gamesides):
+            logger.debug(f'Allowing ping since it is within a game channel, and all sides have a game channel')
+            mention_players_in_current_channel = False
+            print(2)
+        elif settings.is_mod(ctx) and len(game_channels) >= len(game.gamesides):
+            logger.debug(f'Allowing ping since it is from a mod and all sides have a game channel')
+            mention_players_in_current_channel = False
+            print(3)
+        else:
+            logger.debug(f'Not allowing ping in {ctx.channel.id}')
+            if len(game_channels) >= len(game.gamesides):
+                permitted_channels = game_channels + permitted_channels
+
             channel_tags = [f'<#{chan_id}>' for chan_id in permitted_channels]
             ctx.command.reset_cooldown(ctx)
             return await ctx.send(f'This command can not be used in this channel. Permitted channels: {" ".join(channel_tags)}')
 
-        player_mentions = [f'<@{l.player.discord_member.discord_id}>' for l in game.lineup]
         full_message = f'Message from {ctx.author.mention} (**{ctx.author.name}**) regarding game {game.id} **{game.name}**:\n*{message}*'
+        models.GameLog.write(game_id=game, guild_id=game.guild_id, message=f'{models.GameLog.member_string(ctx.author)} pinged the game with message: *{discord.utils.escape_markdown(message)}*')
 
-        if ctx.channel.id in permitted_channels_private:
-            logger.debug(f'Ping triggered in private channel {ctx.channel.id}')
-            await game.update_squad_channels(self.bot.guilds, game.guild_id, message=f'{full_message}\n{" ".join(player_mentions)}')
-        else:
-            logger.debug(f'Ping triggered in non-private channel {ctx.channel.id}')
-            await game.update_squad_channels(self.bot.guilds, ctx.guild.id, message=full_message)
-            await ctx.send(f'{full_message}\n{" ".join(player_mentions)}')
+        try:
+            if mention_players_in_current_channel:
+                logger.debug(f'Ping triggered in non-private channel {ctx.channel.id}')
+                await game.update_squad_channels(self.bot.guilds, ctx.guild.id, message=full_message, suppress_errors=True)
+                await ctx.send(f'{full_message}\n{" ".join(player_mentions)}')
+            else:
+                logger.debug(f'Ping triggered in private channel {ctx.channel.id}')
+                await game.update_squad_channels(self.bot.guilds, game.guild_id, message=f'{full_message}\n{" ".join(player_mentions)}', suppress_errors=False)
+                if ctx.channel.id not in game_channels:
+                    await ctx.send(f'Sending ping to game channels:\n{full_message}')
+        except exceptions.CheckFailedError as e:
+            channel_tags = [f'<#{chan_id}>' for chan_id in permitted_channels]
+            return await ctx.send(f'{e}\nTry sending `{ctx.prefix}ping` from a public channel that all members can view: {" ".join(channel_tags)}')
 
-    @commands.command(aliases=['balance'])
-    @commands.cooldown(1, 30, commands.BucketType.channel)
-    @settings.on_polychampions()
-    async def league_balance(self, ctx, *, arg=None):
-        league_teams = [('Ronin', ['The Ronin', 'The Bandits']),
-                        ('Jets', ['The Jets', 'The Cropdusters']),
-                        ('Bombers', ['The Bombers', 'The Dynamite']),
-                        ('Lightning', ['The Lightning', 'The Pulse']),
-                        ('Cosmonauts', ['The Cosmonauts', 'The Space Cadets']),
-                        ('Crawfish', ['The Crawfish', 'The Shrimps']),
-                        ('Sparkies', ['The Sparkies', 'The Pups']),
-                        ('Wildfire', ['The Wildfire', 'The Flames']),
-                        ('Mallards', ['The Mallards', 'The Drakes']),
-                        ('Plague', ['The Plague', 'The Rats']),
-                        ('Dragons', ['The Dragons', 'The Narwhals'])]
-
-        league_balance = []
-        indent_str = '\u00A0\u00A0 \u00A0\u00A0 \u00A0\u00A0'
-        mia_role = discord.utils.get(ctx.guild.roles, name=settings.guild_setting(ctx.guild.id, 'inactive_role'))
-
-        for team, team_roles in league_teams:
-
-            pro_role = discord.utils.get(ctx.guild.roles, name=team_roles[0])
-            junior_role = discord.utils.get(ctx.guild.roles, name=team_roles[1])
-
-            if not pro_role or not junior_role:
-                logger.warn(f'Could not load one team role from guild, using args: {team_roles}')
-                continue
-
-            try:
-                pro_team = models.Team.get_or_except(team_roles[0], ctx.guild.id)
-                junior_team = models.Team.get_or_except(team_roles[1], ctx.guild.id)
-            except exceptions.NoSingleMatch:
-                logger.warn(f'Could not load one team from database, using args: {team_roles}')
-                continue
-
-            pro_members, junior_members, pro_discord_ids, junior_discord_ids, mia_count = [], [], [], [], 0
-
-            for member in pro_role.members:
-                if mia_role in member.roles:
-                    mia_count += 1
-                else:
-                    pro_members.append(member)
-                    pro_discord_ids.append(member.id)
-            for member in junior_role.members:
-                if mia_role in member.roles:
-                    mia_count += 1
-                else:
-                    junior_members.append(member)
-                    junior_discord_ids.append(member.id)
-
-            logger.info(team)
-            combined_elo, player_games_total = models.Player.weighted_elo_of_player_list(list_of_discord_ids=junior_discord_ids + pro_discord_ids, guild_id=ctx.guild.id)
-
-            league_balance.append(
-                (team,
-                 pro_team,
-                 junior_team,
-                 len(pro_members),
-                 len(junior_members),
-                 mia_count,
-                 # pro_elo,
-                 # junior_elo,
-                 combined_elo,
-                 player_games_total)
-            )
-
-        league_balance.sort(key=lambda tup: tup[6], reverse=True)     # sort by combined_elo
-
-        embed = discord.Embed(title='PolyChampions League Balance Summary')
-        for team in league_balance:
-            embed.add_field(name=(f'{team[1].emoji} {team[0]} ({team[3] + team[4]}) {team[2].emoji}\n{indent_str} \u00A0\u00A0 ActiveELO™: {team[6]}'
-                                  f'\n{indent_str} \u00A0\u00A0 Recent member-games: {team[7]}'),
-                value=(f'-{indent_str}__**{team[1].name}**__ ({team[3]}) **ELO: {team[1].elo}**\n'
-                       f'-{indent_str}__**{team[2].name}**__ ({team[4]}) **ELO: {team[2].elo}**\n'), inline=False)
-
-        embed.set_footer(text='ActiveELO™ is the mean ELO of members weighted by how many games each member has played in the last 30 days.')
-
-        await ctx.send(embed=embed)
-
-    @commands.command(aliases=['undrafted'])
-    @commands.cooldown(1, 30, commands.BucketType.channel)
-    @settings.on_polychampions()
-    async def undrafted_novas(self, ctx, *, arg=None):
-        """Prints list of Novas who meet graduation requirements but have not been drafted
-        """
-        grad_list = []
-        grad_role = discord.utils.get(ctx.guild.roles, name='Free Agent')
-        inactive_role = discord.utils.get(ctx.guild.roles, name=settings.guild_setting(ctx.guild.id, 'inactive_role'))
-        # recruiter_role = discord.utils.get(ctx.guild.roles, name='Team Recruiter')
-        if ctx.guild.id == settings.server_ids['test']:
-            grad_role = discord.utils.get(ctx.guild.roles, name='Team Leader')
-
-        for member in grad_role.members:
-            if inactive_role and inactive_role in member.roles:
-                logger.debug(f'Skipping {member.name} since they have Inactive role')
-                continue
-            try:
-                dm = models.DiscordMember.get(discord_id=member.id)
-                player = models.Player.get(discord_member=dm, guild_id=ctx.guild.id)
-            except peewee.DoesNotExist:
-                logger.debug(f'Player {member.name} not registered.')
-                continue
-
-            g_wins, g_losses = dm.get_record()
-            wins, losses = player.get_record()
-            recent_games = dm.games_played(in_days=14).count()
-            all_games = dm.games_played().count()
-
-            message = (f'**{player.name}**'
-                f'\n\u00A0\u00A0 \u00A0\u00A0 \u00A0\u00A0 {recent_games} games played in last 14 days, {all_games} all-time'
-                f'\n\u00A0\u00A0 \u00A0\u00A0 \u00A0\u00A0 ELO:  {dm.elo} *global* / {player.elo} *local*\n'
-                f'\u00A0\u00A0 \u00A0\u00A0 \u00A0\u00A0 __W {g_wins} / L {g_losses}__ *global* \u00A0\u00A0 - \u00A0\u00A0 __W {wins} / L {losses}__ *local*\n')
-
-            grad_list.append((message, all_games))
-
-        await ctx.send(f'Listing {len(grad_list)} active members with the **{grad_role.name}** role...')
-
-        grad_list.sort(key=lambda tup: tup[1], reverse=False)     # sort the list ascending by num games played
-        for grad in grad_list:
-            await ctx.send(grad[0])
-
-    @commands.command(aliases=['random_tribes', 'rtribe'], usage='game_size [-banned_tribe ...]')
+    @commands.command(hidden=True, aliases=['random_tribes', 'rtribe'], usage='game_size [-banned_tribe ...]')
     @settings.in_bot_channel()
     async def rtribes(self, ctx, size='1v1', *args):
         """Show a random tribe combination for a given game size.
@@ -491,6 +394,7 @@ class misc(commands.Cog):
             if not guild:
                 logger.warn('Could not load guild via server_id')
                 break
+            utilities.connect()
             dms = models.DiscordMember.members_not_on_polychamps()
             logger.info(f'{len(dms)} discordmember results')
             for dm in dms:
@@ -526,7 +430,7 @@ class misc(commands.Cog):
     async def task_broadcast_newbie_message(self):
         await self.bot.wait_until_ready()
         while not self.bot.is_closed():
-            sleep_cycle = (60 * 60 * 2)
+            sleep_cycle = (60 * 60 * 3)
             await asyncio.sleep(10)
 
             for guild in self.bot.guilds:
@@ -535,29 +439,19 @@ class misc(commands.Cog):
                     continue
 
                 prefix = settings.guild_setting(guild.id, 'command_prefix')
-                ranked_chan = settings.guild_setting(guild.id, 'ranked_game_channel')
-                unranked_chan = settings.guild_setting(guild.id, 'unranked_game_channel')
-                # bot_spam_chan = settings.guild_setting(guild.id, 'bot_channels_strict')[0]
+                # ranked_chan = settings.guild_setting(guild.id, 'ranked_game_channel')
+                # unranked_chan = settings.guild_setting(guild.id, 'unranked_game_channel')
+                bot_spam_chan = settings.guild_setting(guild.id, 'bot_channels_strict')[0]
                 elo_guide_channel = 533391050014720040
 
-                broadcast_message = ('I am here to help improve Polytopia multiplayer with matchmaking and leaderboards!\n'
-                    f'To **register your code** with me, type __`{prefix}setcode YOURCODEHERE`__')
-
-                if ranked_chan:
-                    broadcast_message += (f'\n\nTo find **ranked** games that count for the leaderboard, join <#{ranked_chan}>. '
-                        f'Type __`{prefix}opengames`__ to see what games are available to join. '
-                        f'To host your own game, try __`{prefix}opengame 1v1`__ to host a 1v1 duel. '
-                        'I will alert you once someone else has joined, and then you will add your opponent\'s friend code and create the game in Polytopia.')
-
-                if unranked_chan:
-                    broadcast_message += (f'\n\nYou can also find unranked games - use the same commands as above in <#{unranked_chan}>. '
-                        'Start here if you are new to Polytopia multiplayer.')
-
-                broadcast_message += f'\n\nFor full information go read <#{elo_guide_channel}>.'
+                broadcast_message = (f'To register for ELO leaderboards and matchmaking use the command __`{prefix}setcode YOURCODEHERE`__')
+                broadcast_message += f'\nTo get started with joining an open game, go to <#{bot_spam_chan}> and type __`{prefix}games`__'
+                broadcast_message += f'\nFor full information go read <#{elo_guide_channel}>.'
 
                 for broadcast_channel in broadcast_channels:
                     if broadcast_channel:
-                        await broadcast_channel.send(broadcast_message, delete_after=(sleep_cycle - 5))
+                        message = await broadcast_channel.send(broadcast_message, delete_after=(sleep_cycle - 5))
+                        self.bot.purgable_messages = self.bot.purgable_messages[-20:] + [(guild.id, broadcast_channel.id, message.id)]
 
             await asyncio.sleep(sleep_cycle)
 

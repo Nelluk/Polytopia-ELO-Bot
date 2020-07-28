@@ -10,8 +10,10 @@ import logging
 logger = logging.getLogger('polybot.' + __name__)
 
 
-def generate_channel_name(game_id, game_name: str, team_name: str = None):
+def generate_channel_name(game, team_name: str = None):
     # Turns game named 'The Mountain of Fire' to something like #e41-mountain-of-fire_ronin
+    game_name = game.name
+    game_id = game.id
 
     if not game_name:
         game_name = 'No Name'
@@ -22,10 +24,8 @@ def generate_channel_name(game_id, game_name: str, team_name: str = None):
 
     game_team = f'{game_name.replace("the ","").replace("The ","")}_{team_name.replace("the ","").replace("The ","")}'.strip('_')
 
-    if 's5' in game_name.lower() or 's6' in game_name.lower():
+    if game.is_season_game():
         # hack to have special naming for season games, named eg 'S3W1 Mountains of Fire'. Makes channel easier to see
-        chan_name = f'{" ".join(game_team.split()).replace(" ", "-")}-e{game_id}'
-    elif game_name.upper()[:3] == 'WWN' or game_name.upper()[:2] == 'WWN':
         chan_name = f'{" ".join(game_team.split()).replace(" ", "-")}-e{game_id}'
     else:
         chan_name = f'e{game_id}-{" ".join(game_team.split()).replace(" ", "-")}'
@@ -44,19 +44,28 @@ def get_channel_category(guild, team_name: str = None, using_team_server_flag: b
 
     if team_name:
         team_name_lc = team_name.lower().replace('the', '').strip()  # The Ronin > ronin
-        # first seek a channel named something like 'Polychamps Ronin Games', fallback to any category with 'Ronin' in the name.
+        # first seek a category named something like 'Polychamps Ronin Games', fallback to any category with 'Ronin' in the name.
         for cat in guild.categories:
             if 'polychamp' in cat.name.lower() and team_name_lc in cat.name.lower():
                 logger.debug(f'Using {cat.id} - {cat.name} as a team channel category')
+                if len(cat.channels) >= 50:
+                    logger.warn(f'Chosen category is full - falling back')
+                    continue
                 return cat, True
         for cat in guild.categories:
             if team_name_lc in cat.name.lower():
                 logger.debug(f'Using {cat.id} - {cat.name} as a team channel category')
+                if len(cat.channels) >= 50:
+                    logger.warn(f'Chosen category is full - falling back')
+                    continue
                 return cat, True
         if team_name in list_of_generic_team_names and using_team_server_flag:
             for cat in guild.categories:
                 if 'polychamp' in cat.name.lower() and 'other' in cat.name.lower():
                     logger.debug(f'Mixed team - Using {cat.id} - {cat.name} as a team channel category')
+                    if len(cat.channels) >= 50:
+                        logger.warn(f'Chosen category is full - falling back')
+                        continue
                     return cat, True
 
     # No team category found - using default category. ie. intermingled home/away games or channel for entire game
@@ -93,26 +102,21 @@ async def create_game_channel(guild, game, player_list, team_name: str = None, u
         if wwn_category:
             chan_cat, team_cat_flag = wwn_category, False
 
-    chan_name = generate_channel_name(game_id=game.id, game_name=game.name, team_name=team_name)
+    chan_name = generate_channel_name(game=game, team_name=team_name)
     chan_members = [guild.get_member(p.discord_member.discord_id) for p in player_list]
     if None in chan_members:
         logger.error(f'At least one member of game is not found in guild {guild.name}. May be using external server and they are not in both servers?')
         chan_members = [member for member in chan_members if member]
 
-    if team_cat_flag or using_team_server_flag:
-        # Channel is going into team-specific category, so let its permissions sync
-        chan_permissions = None
-    else:
-        # Both chans going into a central ELO Games category. Give them special permissions so only game players can see chan
-
-        chan_permissions = {}
-        perm = discord.PermissionOverwrite(read_messages=True, add_reactions=True, send_messages=True, attach_files=True, manage_messages=True)
-
-        for m in chan_members + [guild.me]:
-            chan_permissions[m] = perm
-
+    chan_permissions = chan_cat.overwrites
+    if not team_cat_flag and not using_team_server_flag:
+        # Both chans going into a central ELO Games category. Set a default permissions to ensure it isnt world-readable
         chan_permissions[guild.default_role] = discord.PermissionOverwrite(read_messages=False)
 
+    perm = discord.PermissionOverwrite(read_messages=True, add_reactions=True, send_messages=True, attach_files=True, manage_messages=True)
+
+    for m in chan_members + [guild.me]:
+        chan_permissions[m] = perm
     try:
         new_chan = await guild.create_text_channel(name=chan_name, overwrites=chan_permissions, category=chan_cat, reason='ELO Game chan')
     except (discord.errors.Forbidden, discord.errors.HTTPException) as e:
@@ -159,9 +163,12 @@ async def greet_game_channel(guild, chan, roster_names, game, player_list, full_
 
 async def delete_game_channel(guild, channel_id: int):
 
-    chan = guild.get_channel(channel_id)
-    if chan is None:
-        return logger.warn(f'Channel ID {channel_id} provided for deletion but it could not be loaded from guild')
+    try:
+        chan = await settings.bot.fetch_channel(channel_id)
+    except discord.DiscordException as e:
+        logger.warn(f'Could not retrieve channel with id {channel_id}: {e}')
+        return
+
     try:
         logger.warn(f'Deleting channel {chan.name}')
         await chan.delete(reason='Game concluded')
@@ -169,23 +176,30 @@ async def delete_game_channel(guild, channel_id: int):
         logger.error(f'Could not delete channel: {e}')
 
 
-async def send_message_to_channel(guild, channel_id: int, message: str):
+async def send_message_to_channel(guild, channel_id: int, message: str, suppress_errors=True):
     chan = guild.get_channel(channel_id)
     if chan is None:
-        return logger.warn(f'Channel ID {channel_id} provided for message but it could not be loaded from guild')
+        logger.warn(f'Channel ID {channel_id} provided for message but it could not be loaded from guild')
+        if suppress_errors:
+            return
+        raise exceptions.CheckFailedError(f':no_entry_sign: Channel `{channel_id}` provided for message but it could not be loaded from guild')
 
     try:
         await chan.send(message)
     except discord.DiscordException as e:
-        logger.error(f'Could not delete channel: {e}')
+        logger.error(f'Could not send message to channel: {e}')
+        if not suppress_errors:
+            raise exceptions.CheckFailedError(f':no_entry_sign: Problem sending message to channel <#{channel_id}> `{channel_id}`: {e}')
 
 
-async def update_game_channel_name(guild, channel_id: int, game_id: int, game_name: str, team_name: str = None):
+async def update_game_channel_name(guild, channel_id: int, game, team_name: str = None):
     chan = guild.get_channel(channel_id)
     if chan is None:
         return logger.warn(f'Channel ID {channel_id} provided for update but it could not be loaded from guild')
 
-    chan_name = generate_channel_name(game_id=game_id, game_name=game_name, team_name=team_name)
+    game_id, game_name = game.id, game.name
+
+    chan_name = generate_channel_name(game=game, team_name=team_name)
 
     if chan_name.lower() == chan.name.lower():
         return logger.debug(f'Newly-generated channel name for channel {channel_id} game {game_id} is the same - no change to channel.')
@@ -194,6 +208,9 @@ async def update_game_channel_name(guild, channel_id: int, game_id: int, game_na
         await chan.edit(name=chan_name, reason='Game renamed')
         logger.info(f'Renamed channel for game {game_id} to {chan_name}')
     except discord.DiscordException as e:
-        logger.error(f'Could not delete channel: {e}')
+        logger.error(f'Could not edit channel: {e}')
 
-    await chan.send(f'This game has been renamed to *{game_name}*.')
+    try:
+        await chan.send(f'This game has been renamed to *{game_name}*.')
+    except discord.DiscordException as e:
+        logger.error(f'Could not send to channel: {e}')

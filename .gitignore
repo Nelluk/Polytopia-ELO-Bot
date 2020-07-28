@@ -13,13 +13,19 @@
 *.sql*
 
 config.ini
+server_settings.py
 
 *.sublime*
 pyvenv.cfg
 pip-selfcheck.json
 *.log*
 *.csv
+*.csv.gz
 *.json
 *test.py
 .python-version
 TODO.txt
+*.png
+*.DS_Store
+.DS_Store
+graph.png

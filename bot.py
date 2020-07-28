@@ -85,30 +85,39 @@ def main():
         settings.run_tasks = False
 
     logger.info('Resetting Discord ID ban list')
-    models.DiscordMember.update(is_banned=False).execute()
-    if settings.discord_id_ban_list:
-        query = models.DiscordMember.update(is_banned=True).where(
-            (models.DiscordMember.discord_id.in_(settings.discord_id_ban_list))
-        )
-        logger.info(f'{query.execute()} discord IDs are banned')
+    with models.db:
+        models.DiscordMember.update(is_banned=False).execute()
+        if settings.discord_id_ban_list:
+            query = models.DiscordMember.update(is_banned=True).where(
+                (models.DiscordMember.discord_id.in_(settings.discord_id_ban_list))
+            )
+            logger.info(f'{query.execute()} discord IDs are banned')
 
-    if settings.poly_id_ban_list:
-        query = models.DiscordMember.update(is_banned=True).where(
-            (models.DiscordMember.polytopia_id.in_(settings.poly_id_ban_list))
-        )
-        logger.info(f'{query.execute()} polytopia IDs are banned')
+        if settings.poly_id_ban_list:
+            query = models.DiscordMember.update(is_banned=True).where(
+                (models.DiscordMember.polytopia_id.in_(settings.poly_id_ban_list))
+            )
+            logger.info(f'{query.execute()} polytopia IDs are banned')
 
 
 def get_prefix(bot, message):
     # Guild-specific command prefixes
     if message.guild and message.guild.id in settings.config:
         # Current guild is allowed
+        set_prefix = settings.guild_setting(message.guild.id, "command_prefix")
+        if not set_prefix:
+            logger.error(f'No prefix found in settings! Guild: {message.guild.id} {message.guild.name}')
+            return 'fakeprefix'
+
+        # temp debug log to try to fix NoneType errors related to prefixes
+        # logger.debug(f'Found prefix setting {settings.guild_setting(message.guild.id, "command_prefix")} for guild {message.guild.id}')
         return commands.when_mentioned_or(settings.guild_setting(message.guild.id, 'command_prefix'))(bot, message)
     else:
         if message.guild:
-            logging.error(f'Message received not from allowed guild. ID {message.guild.id }')
+            logger.error(f'Message received not from allowed guild. ID {message.guild.id }')
         # probably a PM
-        return None
+        logger.warn(f'returning None prefix for received PM. Author: {message.author.name}')
+        return 'fakeprefix'
 
 
 if __name__ == '__main__':
@@ -117,6 +126,7 @@ if __name__ == '__main__':
 
     bot = commands.Bot(command_prefix=get_prefix, owner_id=settings.owner_id)
     settings.bot = bot
+    bot.purgable_messages = []  # auto-deleting messages to get cleaned up by Administraton.quit  (guild, channel, message) tuple list
 
     cooldown = commands.CooldownMapping.from_cooldown(6, 30.0, commands.BucketType.user)
 
@@ -172,25 +182,14 @@ if __name__ == '__main__':
         else:
             exception_str = ''.join(traceback.format_exception(etype=type(exc), value=exc, tb=exc.__traceback__))
             logger.critical(f'Ignoring exception in command {ctx.command}: {exc} {exception_str}', exc_info=True)
-            await ctx.send(f'Unhandled error: {exc}')
+            await ctx.send(f'Unhandled error (notifying <@{settings.owner_id}>): {exc}')
 
     @bot.before_invoke
     async def pre_invoke_setup(ctx):
-        models.db.connect(reuse_if_open=True)
+        utilities.connect()
         logger.debug(f'Command invoked: {ctx.message.clean_content}. By {ctx.message.author.name} in {ctx.channel.id} {ctx.channel.name} on {ctx.guild.name}')
 
-    # @bot.after_invoke
-    # async def post_invoke_cleanup(ctx):
-    #     try:
-    #         models.db.close()
-    #     except peewee.PeeweeException as e:
-    #         print(f'Error during post_invoke_cleanup db.close(): {e}')
-    #         logger.warn(f'Error during post_invoke_cleanup db.close(): {e}')
-    #         pass
-
-    initial_extensions = ['modules.games', 'modules.help', 'modules.matchmaking', 'modules.administration', 'modules.misc']
-    initial_extensions = ['modules.games', 'modules.customhelp', 'modules.matchmaking', 'modules.administration', 'modules.misc']
-    # initial_extensions = ['modules.games', 'modules.masarykbothelp', 'modules.matchmaking', 'modules.administration', 'modules.misc']
+    initial_extensions = ['modules.games', 'modules.customhelp', 'modules.matchmaking', 'modules.administration', 'modules.misc', 'modules.league']
     for extension in initial_extensions:
         bot.load_extension(extension)
 

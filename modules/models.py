@@ -1,5 +1,6 @@
 import datetime
 import discord
+from discord.ext import commands
 import re
 # import psycopg2
 from psycopg2.errors import DuplicateObject
@@ -7,6 +8,7 @@ from peewee import *
 from playhouse.postgres_ext import *
 import modules.exceptions as exceptions
 # from modules import utilities
+# import modules.utilities as utilities
 from modules import channels
 import statistics
 import settings
@@ -15,16 +17,55 @@ import logging
 logger = logging.getLogger('polybot.' + __name__)
 elo_logger = logging.getLogger('polybot.elo')
 
-db = PostgresqlDatabase(settings.psql_db, user=settings.psql_user)
+db = PostgresqlExtDatabase(settings.psql_db, autorollback=True, user=settings.psql_user, autoconnect=False)
 
 
 def tomorrow():
     return (datetime.datetime.now() + datetime.timedelta(hours=24)).strftime("%Y-%m-%d %H:%M:%S")
 
 
+def string_to_user_id(input):
+    # copied from Utilities - probably a better way to structure this but currently importing utilities creates circular import
+
+    # given a user @Mention or a raw user ID, returns just the raw user ID (does not validate the ID itself, but does sanity check length)
+    match = re.match(r'([0-9]{15,21})$', input) or re.match(r'<@!?([0-9]+)>$', input)
+    # regexp is from https://github.com/Rapptz/discord.py/blob/02397306b2ed76b3bc42b2b28e8672e839bdeaf5/discord/ext/commands/converter.py#L117
+
+    try:
+        return int(match.group(1))
+    except (ValueError, AttributeError):
+        return None
+
+
+def is_registered_member():
+    async def predicate(ctx):
+        db.connect(reuse_if_open=True)
+        member_match = DiscordMember.select(DiscordMember.discord_id).where(
+            (DiscordMember.discord_id == ctx.author.id)
+        ).count()
+
+        if member_match:
+            return True
+        if ctx.invoked_with == 'help' and ctx.command.name != 'help':
+            return False
+        else:
+            await ctx.send(f'This command requires bot registration first. Type __`{ctx.prefix}setcode YOURCODEHERE`__ to get started.')
+        return False
+    return commands.check(predicate)
+
+
 class BaseModel(Model):
     class Meta:
         database = db
+
+
+class Configuration(BaseModel):
+    def draft_config_defaults():
+        return {'announcement_message': None, 'announcement_channel': None,
+                'draft_open': False, 'date_opened': None, 'added_message': ''}
+
+    polychamps_draft = BinaryJSONField(null=True, default=draft_config_defaults())
+    guild_id = BitField(unique=True, null=False)
 
 
 class Team(BaseModel):
@@ -101,6 +142,27 @@ class Team(BaseModel):
         ).count()
 
         return (wins, losses)
+
+    def get_season_record(self, season=None):
+
+        if self.guild_id != settings.server_ids['polychampions'] or self.is_hidden:
+            return ()
+
+        full_season_games, regular_season_games, post_season_games = Game.polychamps_season_games(league='all', season=season)
+
+        losses = Game.search(status_filter=4, team_filter=[self])
+        wins = Game.search(status_filter=3, team_filter=[self])
+        incomplete = Game.search(status_filter=2, team_filter=[self])
+
+        win_count_reg = Game.select(Game.id).where(Game.id.in_(wins) & Game.id.in_(regular_season_games)).count()
+        loss_count_reg = Game.select(Game.id).where(Game.id.in_(losses) & Game.id.in_(regular_season_games)).count()
+        incomplete_count_reg = Game.select(Game.id).where(Game.id.in_(incomplete) & Game.id.in_(regular_season_games)).count()
+
+        win_count_post = Game.select(Game.id).where(Game.id.in_(wins) & Game.id.in_(post_season_games)).count()
+        loss_count_post = Game.select(Game.id).where(Game.id.in_(losses) & Game.id.in_(post_season_games)).count()
+        incomplete_count_post = Game.select(Game.id).where(Game.id.in_(incomplete) & Game.id.in_(post_season_games)).count()
+
+        return (win_count_reg, loss_count_reg, incomplete_count_reg, win_count_post, loss_count_post, incomplete_count_post)
 
 
 class DiscordMember(BaseModel):
@@ -223,6 +285,41 @@ class DiscordMember(BaseModel):
 
         return (self.wins().count(), self.losses().count())
 
+    def get_polychamps_record(self):
+
+        try:
+            pc_player = Player.get_or_except(player_string=self.discord_id, guild_id=settings.server_ids['polychampions'])
+        except exceptions.NoSingleMatch:
+            return None
+
+        all_season_games = Game.polychamps_season_games(league='all')[0]
+        pro_season_games = Game.polychamps_season_games(league='pro')[0]
+        junior_season_games = Game.polychamps_season_games(league='junior')[0]
+
+        losses = Game.search(status_filter=4, player_filter=[pc_player])
+        wins = Game.search(status_filter=3, player_filter=[pc_player])
+
+        total_win_count = Game.select(Game.id).where(Game.id.in_(wins) & Game.id.in_(all_season_games)).count()
+
+        total_loss_count = Game.select(Game.id).where(Game.id.in_(losses) & Game.id.in_(all_season_games)).count()
+
+        if not total_win_count and not total_loss_count:
+            return None
+
+        pro_win_count = Game.select(Game.id).where(Game.id.in_(wins) & Game.id.in_(pro_season_games)).count()
+
+        pro_loss_count = Game.select(Game.id).where(Game.id.in_(losses) & Game.id.in_(pro_season_games)).count()
+
+        junior_win_count = Game.select(Game.id).where(Game.id.in_(wins) & Game.id.in_(junior_season_games)).count()
+
+        junior_loss_count = Game.select(Game.id).where(Game.id.in_(losses) & Game.id.in_(junior_season_games)).count()
+
+        return {
+            'full_record': (total_win_count, total_loss_count),
+            'pro_record': (pro_win_count, pro_loss_count),
+            'junior_record': (junior_win_count, junior_loss_count)
+        }
+
     def games_played(self, in_days: int = None):
 
         if in_days:
@@ -325,7 +422,12 @@ class Player(BaseModel):
     is_banned = BooleanField(default=False)
 
     def generate_display_name(self=None, player_name=None, player_nick=None):
+
+        player_name = discord.utils.escape_markdown(discord.utils.escape_mentions(player_name), as_needed=True)
+
         if player_nick:
+            player_nick = discord.utils.escape_markdown(discord.utils.escape_mentions(player_nick), as_needed=True)
+
             if player_name in player_nick:
                 display_name = player_nick
             else:
@@ -415,11 +517,9 @@ class Player(BaseModel):
         # Returns QuerySet containing players in current guild matching string. Searches against discord mention ID first, then exact discord name match,
         # then falls back to substring match on name/nick, then a lastly a substring match of polytopia ID or polytopia in-game name
 
-        try:
-            p_id = int(player_string.strip('<>!@'))
-        except ValueError:
-            pass
-        else:
+        player_string = str(player_string)
+        p_id = string_to_user_id(player_string)
+        if p_id:
             # lookup either on <@####> mention string or raw ID #
             query_by_id = Player.select(Player, DiscordMember).join(DiscordMember).where(
                 (DiscordMember.discord_id == p_id) & (Player.guild_id == guild_id)
@@ -598,7 +698,16 @@ class Player(BaseModel):
 
         return q.dicts()
 
-    def weighted_elo_of_player_list(list_of_discord_ids, guild_id):
+    def discord_ids_to_elo_list(list_of_discord_ids, guild_id):
+        players = Player.select(Player, DiscordMember).join(DiscordMember).where(
+            (DiscordMember.discord_id.in_(list_of_discord_ids)) & (Player.guild_id == guild_id)
+        )
+
+        elo_list = [p.elo for p in players] if players else []
+        elo_list.sort(reverse=True)
+        return elo_list
+
+    def average_elo_of_player_list(list_of_discord_ids, guild_id, weighted=True):
 
         # Given a group of discord_ids (likely teammates) come up with an average ELO for that group, weighted by how active they are
         # ie if a team has two players and the guy with 1500 elo plays a lot and the guy with 1000 elo plays not at all, 1500 will be the weighted median elo
@@ -607,33 +716,26 @@ class Player(BaseModel):
         )
 
         elo_list = []
-        # elo_list1, elo_list2, elo_list3 = [], [], []
         player_games = 0
+
         for p in players:
             logger.debug(f'START {p.name}')
             games_played = p.games_played(in_days=30, min_players=2).count()
             logger.debug(f'Games played with minimum size side 2: {games_played}')
 
-            player_elos = [p.elo] * games_played
-            elo_list = elo_list + player_elos
+            # player_elos = [p.elo] * games_played
+            # elo_list = elo_list + player_elos
             player_games += games_played
 
-            max_weighted_games = min(games_played, 10)
-
-            # if p.elo < 1000:
-            #     max_weighted_games = min(games_played, 3)
-            # elif p.elo < 1100:
-            #     max_weighted_games = min(games_played, 5)
-            # elif p.elo < 1200:
-            #     max_weighted_games = min(games_played, 7)
-            # elif p.elo < 1300:
-            #     max_weighted_games = min(games_played, 10)
-            # else:
-            #     max_weighted_games = min(games_played, 20)
-
-            elo_list = elo_list + [p.elo] * max_weighted_games
+            if weighted:
+                max_weighted_games = min(games_played, 10)
+                elo_list = elo_list + [p.elo] * max_weighted_games
+            else:
+                # Straight average of player elo scores with no weighting
+                elo_list.append(p.elo)
 
         if elo_list:
+            logger.debug(f'elo_list: {elo_list}')
 
             return int(statistics.mean(elo_list)), player_games
 
@@ -674,7 +776,7 @@ class Game(BaseModel):
     announcement_message = BitField(default=None, null=True)
     announcement_channel = BitField(default=None, null=True)
     date = DateField(default=datetime.datetime.today)
-    completed_ts = DateTimeField(null=True, default=None)  # set when game is confirmed and ELO is calculated
+    completed_ts = DateTimeField(null=True, default=None)  # set when game is confirmed and ELO is calculated (the first time, preserved for subsequent recalcs)
     win_claimed_ts = DateTimeField(null=True, default=None)  # set when win is claimed, used to check old unconfirmed wins
     name = TextField(null=True)
     winner = DeferredForeignKey('GameSide', null=True, on_delete='RESTRICT')
@@ -682,9 +784,10 @@ class Game(BaseModel):
     host = ForeignKeyField(Player, null=True, backref='hosting', on_delete='SET NULL')
     expiration = DateTimeField(null=True, default=tomorrow)  # For pending/matchmaking status
     notes = TextField(null=True)
-    is_pending = BooleanField(default=False)
+    is_pending = BooleanField(default=False)  # True == open, unstarted game
     is_ranked = BooleanField(default=True)
     game_chan = BitField(default=None, null=True)
+    size = ArrayField(SmallIntegerField, default=[0])
 
     def __setattr__(self, name, value):
         if name == 'name':
@@ -695,6 +798,7 @@ class Game(BaseModel):
         guild = discord.utils.get(guild_list, id=guild_id)
         game_roster, side_external_servers = [], []
         ordered_side_list = list(self.ordered_side_list())
+        error_message = ''
 
         for s in ordered_side_list:
             lineup_list = s.ordered_player_list()
@@ -726,7 +830,7 @@ class Game(BaseModel):
             # if self.name.upper()[:3] == 'LR1' and guild_id == settings.server_ids['polychampions']:
             if self.name.upper()[:3] == 'LR1':
                 side_guild = discord.utils.get(guild_list, id=625819621748113408)  # override - sending game channels to Rex server for his event
-                using_team_server_flag = False
+                using_team_server_flag = False  # I think i had this line set to False counterintuitively to handle permissions setting better - to sync to individual players
                 guild = side_guild
                 logger.info('Using external server for game channels - LR1 event.')
             #
@@ -735,13 +839,26 @@ class Game(BaseModel):
             player_list = [l.player for l in gameside.ordered_player_list()]
             if len(player_list) < 2:
                 continue
-            if len(guild.text_channels) > 475 and len(player_list) < 3:
-                raise exceptions.MyBaseException('Server has nearly reached the maximum number of channels: skipping channel creation for this game.')
+            if (len(guild.text_channels) > 440 and  # Give server some breathing room for non-game channels
+                   len(player_list) < 3 and  # Large-team chans still get created
+                   not using_team_server_flag and  # if on external server, skip check
+                   not self.name.upper()[:3] == 'LR1' and  # temp hack for LigaRex games which use external server but not flag):
+                   gameside.required_role_id not in [696841367103602768, 696841359616901150]):  # skip check for game chans locked to Nova Blue or Nova Red
+
+                # TODO: maybe, have different thresholds, ie start skipping NOva or 3-player channels or full-game channels is server is at a higher mark like 475
+
+                error_message = 'Server has nearly reached the maximum number of channels: skipping channel creation for this game.'
+                logger.warn('Skipping channel creation for a team due to server exceeding 425 channels')
+                continue
             chan = await channels.create_game_channel(side_guild, game=self, team_name=gameside.team.name, player_list=player_list, using_team_server_flag=using_team_server_flag)
             if chan:
                 gameside.team_chan = chan.id
                 if side_guild.id != guild_id:
                     gameside.team_chan_external_server = side_guild.id
+                else:
+                    gameside.team_chan_external_server = None
+                    # Making sure this is set to None for the edge case of a restarted game that previously had been on a team server
+                    # and now no longer needs to be
                 gameside.save()
 
                 await channels.greet_game_channel(side_guild, chan=chan, player_list=player_list, roster_names=roster_names, game=self, full_game=False)
@@ -755,16 +872,19 @@ class Game(BaseModel):
                 self.save()
                 await channels.greet_game_channel(guild, chan=chan, player_list=player_list, roster_names=roster_names, game=self, full_game=True)
 
+        if error_message:
+            raise exceptions.MyBaseException('Server has nearly reached the maximum number of channels: skipping 2-player team channel creation for this game.')
+
     async def delete_game_channels(self, guild_list, guild_id):
         guild = discord.utils.get(guild_list, id=guild_id)
+        last_week = (datetime.datetime.now() + datetime.timedelta(days=-7))
 
-        if self.name and ('s5' in self.name.lower() or 's6' in self.name.lower() or 's7' in self.name.lower()):
-            last_week = (datetime.datetime.now() + datetime.timedelta(days=-7))
+        if self.is_season_game():
+            return logger.debug(f'Skipping team channel deletion for game {self.id} {self.name} since it is a Season game.')
+
+        if self.notes and 'NOVA RED' in self.notes.upper() and 'NOVA BLUE' in self.notes.upper():
             if self.completed_ts and self.completed_ts > last_week:
-                return logger.warn(f'Skipping team channel deletion for game {self.id} {self.name} since it is a Season game concluded recently')
-
-        if self.name and self.name.upper()[:3] == 'LR1':
-            return logger.warn(f'Skipping team channel deletion for game {self.id} {self.name} since it is a protected LigaRex event game (Sept 2019 event)')
+                return logger.warn(f'Skipping team channel deletion for game {self.id} {self.name} since it is a Nova League game concluded recently')
 
         for gameside in self.gamesides:
             if gameside.team_chan:
@@ -784,9 +904,8 @@ class Game(BaseModel):
             self.game_chan = None
             self.save()
 
-    async def update_squad_channels(self, guild_list, guild_id, message: str = None):
+    async def update_squad_channels(self, guild_list, guild_id, message: str = None, suppress_errors=True):
         guild = discord.utils.get(guild_list, id=guild_id)
-        game_chan = self.game_chan  # loading early here trying to avoid InterfaceError
 
         for gameside in list(self.gamesides):
             if gameside.team_chan:
@@ -801,15 +920,15 @@ class Game(BaseModel):
                     side_guild = guild
                 if message:
                     logger.debug(f'Pinging message to channel {gameside.team_chan} in guild {side_guild}')
-                    await channels.send_message_to_channel(side_guild, channel_id=gameside.team_chan, message=message)
+                    await channels.send_message_to_channel(side_guild, channel_id=gameside.team_chan, message=message, suppress_errors=suppress_errors)
                 else:
-                    await channels.update_game_channel_name(side_guild, channel_id=gameside.team_chan, game_id=self.id, game_name=self.name, team_name=gameside.team.name)
+                    await channels.update_game_channel_name(side_guild, channel_id=gameside.team_chan, game=self, team_name=gameside.team.name)
 
-        if game_chan:
+        if self.game_chan:
             if message:
-                await channels.send_message_to_channel(guild, channel_id=game_chan, message=message)
+                await channels.send_message_to_channel(guild, channel_id=self.game_chan, message=message, suppress_errors=suppress_errors)
             else:
-                await channels.update_game_channel_name(guild, channel_id=game_chan, game_id=self.id, game_name=self.name, team_name=None)
+                await channels.update_game_channel_name(guild, channel_id=self.game_chan, game=self, team_name=None)
 
     async def update_announcement(self, guild, prefix):
         # Updates contents of new game announcement with updated game_embed card
@@ -822,13 +941,13 @@ class Game(BaseModel):
 
         try:
             message = await channel.fetch_message(self.announcement_message)
-        except (discord.errors.Forbidden, discord.errors.NotFound, discord.errors.HTTPException):
+        except discord.DiscordException:
             return logger.warn('Couldn\'t get message in update_announacement')
 
         try:
             embed, content = self.embed(guild=guild, prefix=prefix)
             await message.edit(embed=embed, content=content)
-        except discord.errors.HTTPException:
+        except discord.DiscordException:
             return logger.warn('Couldn\'t update message in update_announacement')
 
     def is_hosted_by(self, discord_id: int):
@@ -1101,27 +1220,16 @@ class Game(BaseModel):
         return f'Game {self.id}   {full_squad_string}{game_name}'
 
     def largest_team(self):
-        return max(len(gameside.lineup) for gameside in self.gamesides)
+        return max(self.size)
 
     def smallest_team(self):
-        return min(len(gameside.lineup) for gameside in self.gamesides)
+        return min(self.size)
 
     def size_string(self):
 
-        gamesides = self.ordered_side_list()
-
-        if self.is_pending:
-            # use capacity for matchmaking strings
-            if max(s.size for s in gamesides) == 1 and len(gamesides) > 2:
-                return 'FFA'
-            else:
-                return 'v'.join(str(s.size) for s in gamesides)
-
-        # this might be superfluous, combined Match and Game functions together
-        if self.largest_team() == 1 and len(self.gamesides) > 2:
+        if max(self.size) == 1 and len(self.size) > 2:
             return 'FFA'
-        else:
-            return 'v'.join(str(len(s.lineup)) for s in gamesides)
+        return 'v'.join([str(s) for s in self.size])
 
     def load_full_game(game_id: int):
         # Returns a single Game object with all related tables pre-fetched. or None
@@ -1206,7 +1314,8 @@ class Game(BaseModel):
         with db.atomic():
             newgame = Game.create(name=name,
                                   guild_id=guild_id,
-                                  is_ranked=is_ranked)
+                                  is_ranked=is_ranked,
+                                  size=[len(g) for g in discord_groups])
 
             side_position = 1
             for team_group, allied_team, discord_group in zip(teams_for_each_discord_member, list_of_final_teams, discord_groups):
@@ -1244,6 +1353,7 @@ class Game(BaseModel):
             lineup.player.save()
             lineup.elo_change_player = 0
             lineup.elo_after_game = None
+            lineup.elo_after_game_global = None
             if lineup.elo_change_discordmember:
                 lineup.player.discord_member.elo += lineup.elo_change_discordmember * -1
                 lineup.player.discord_member.save()
@@ -1266,6 +1376,8 @@ class Game(BaseModel):
                 gameside.team.save()
                 gameside.elo_change_team_alltime = 0
 
+            gameside.team_elo_after_game = None
+            gameside.team_elo_after_game_alltime = None
             gameside.save()
 
     def delete_game(self):
@@ -1333,6 +1445,7 @@ class Game(BaseModel):
         return win_chance_list
 
     def declare_winner(self, winning_side: 'GameSide', confirm: bool):
+        logger.debug(f'Running declare_winner for game {self.id}')
 
         if winning_side.game != self:
             raise exceptions.CheckFailedError(f'GameSide id {winning_side.id} did not play in this game')
@@ -1344,6 +1457,10 @@ class Game(BaseModel):
 
         with db.atomic():
             if confirm is True:
+                if self.is_confirmed:
+                    # Without this check, possible for a race condition in which two $win commands are issued near-simultaneously and ELO changes are double counted
+                    raise exceptions.CheckFailedError(f'Cannot process win. This may happen if this game is closed by multiple people at the same time.')
+
                 if not self.completed_ts:
                     self.completed_ts = datetime.datetime.now()  # will be preserved if ELO is re-calculated after initial win.
 
@@ -1359,6 +1476,13 @@ class Game(BaseModel):
                     team_elos = [s.team.elo if s.team else None for s in gamesides]
                     team_elos_alltime = [s.team.elo_alltime if s.team else None for s in gamesides]
                     squad_elos = [s.squad.elo if s.squad else None for s in gamesides]
+
+                    # if self.size[0] == 1:
+                    #     # For a solo host game (1v1, 1v3, etc), give them an adjustment for an assumed host advantage
+                    #     # Gives them an extra 75 phantom ELO which will make their calculated chance of winning higher, thus ELO prize lower
+                    #     side_elos[0] = side_elos[0] + 75
+                    #     side_elos_discord[0] = side_elos_discord[0] + 75
+                    # tested 7/2020 - does not really have the impact i expected https://discord.com/channels/447883341463814144/471685046995255307/734036310951592017
 
                     side_win_chances = Game.get_side_win_chances(largest_side, gamesides, side_elos)
                     side_win_chances_discord = Game.get_side_win_chances(largest_side, gamesides, side_elos_discord)
@@ -1393,11 +1517,13 @@ class Game(BaseModel):
                             team_elo_delta = side.team.change_elo_after_game(team_win_chances[i], is_winner)
                             side.elo_change_team = team_elo_delta
                             side.team.elo = int(side.team.elo + team_elo_delta)
+                            side.team_elo_after_game = side.team.elo
                             side.team.save()
                         if team_win_chances_alltime:
                             team_elo_delta = side.team.change_elo_after_game(team_win_chances_alltime[i], is_winner)
                             side.elo_change_team_alltime = team_elo_delta
                             side.team.elo_alltime = int(side.team.elo_alltime + team_elo_delta)
+                            side.team_elo_after_game_alltime = side.team.elo_alltime
                             side.team.save()
                         if squad_win_chances:
                             side.elo_change_squad = side.squad.change_elo_after_game(squad_win_chances[i], is_winner)
@@ -1425,11 +1551,8 @@ class Game(BaseModel):
     def player(self, player: Player = None, discord_id: int = None, name: str = None):
         # return game.lineup, based on either Player object or discord_id. else None if player did not play in this game.
 
-        if name:
-            try:
-                discord_id = int(str(name).strip('<>!@'))
-            except ValueError:
-                pass
+        if name and not discord_id:
+            discord_id = string_to_user_id(name)
 
         if player:
             discord_id = player.discord_member.discord_id
@@ -1447,7 +1570,7 @@ class Game(BaseModel):
         return None
 
     def capacity(self):
-        return (len(self.lineup), sum(s.size for s in self.gamesides))
+        return (len(self.lineup), sum(s for s in self.size))
 
     def list_gameside_membership(self):
         sidenames = []
@@ -1472,15 +1595,12 @@ class Game(BaseModel):
 
         for gameside in gamesides:
             if len(gameside.lineup) == 1:
-                try:
-                    p_id = int(name.strip('<>!@'))
-                except ValueError:
-                    pass
-                else:
+
+                p_id = string_to_user_id(name)
+                if p_id and p_id == gameside.lineup[0].player.discord_member.discord_id:
                     # name is a <@PlayerMention> or raw player_id
                     # compare to single squad player's discord ID
-                    if p_id == gameside.lineup[0].player.discord_member.discord_id:
-                        return (gameside.lineup[0].player, gameside)
+                    return (gameside.lineup[0].player, gameside)
 
                 # Compare to single gamesides player's name
                 if name.lower() in gameside.lineup[0].player.name.lower():
@@ -1501,7 +1621,7 @@ class Game(BaseModel):
             names_str = '\n'.join(self.list_gameside_membership())
             raise exceptions.NoMatches(f'No sides found with name **{name}** in game {self.id}. Sides in this game are:\n{names_str}')
         else:
-            raise exceptions.TooManyMatches(f'{len(matches)} matches found for "{name}" in game {self.id}.')
+            raise exceptions.TooManyMatches(f'{len(matches)} matches found for "{name}" in game {self.id}. Be more specific or use a @Mention.')
 
     def elo_requirements(self):
 
@@ -1615,13 +1735,14 @@ class Game(BaseModel):
                 -(fn.SUM(GameSide.size) - fn.COUNT(Lineup.id))
             ).prefetch(GameSide, Lineup, Player)
 
-    def search(player_filter=None, team_filter=None, title_filter=None, status_filter: int = 0, guild_id: int = None):
+    def search(player_filter=None, team_filter=None, title_filter=None, status_filter: int = 0, guild_id: int = None, size_filter=None):
         # Returns Games by almost any combination of player/team participation, and game status
         # player_filter/team_filter should be a [List, of, Player/Team, objects] (or ID #s)
         # status_filter:
         # 0 = all games, 1 = completed games, 2 = incomplete games
         # 3 = wins, 4 = losses (only for first player in player_list or, if empty, first team in team list)
         # 5 = unconfirmed wins
+        # size filter: array of ints, eg [3, 2] will return games that are 3v2. Ordering matters (will not return 2v3)
 
         confirmed_filter, completed_filter, pending_filter = [0, 1], [0, 1], [0, 1]
 
@@ -1642,6 +1763,11 @@ class Game(BaseModel):
             guild_filter = Game.select(Game.id).where(Game.guild_id == guild_id)
         else:
             guild_filter = Game.select(Game.id)
+
+        if size_filter:
+            size_query = Game.select(Game.id).where(Game.size == size_filter)
+        else:
+            size_query = Game.select(Game.id)
 
         if team_filter:
             team_subq = GameSide.select(GameSide.game).join(Game).where(
@@ -1713,6 +1839,8 @@ class Game(BaseModel):
             ) & (
                 Game.id.in_(guild_filter)
             ) & (
+                Game.id.in_(size_query)
+            ) & (
                 Game.is_pending.in_(pending_filter))
         ).order_by(-Game.completed_ts, -Game.date)
 
@@ -1746,6 +1874,59 @@ class Game(BaseModel):
         if s2_wins > s1_wins:
             return ((gamesides[1], s2_wins), (gamesides[0], s1_wins))
         return ((gamesides[0], s1_wins), (gamesides[1], s2_wins))
+
+    def by_channel_id(chan_id: int):
+        # Given a discord channel id (such as 722725679443214347) return a Game that uses that channel as its gameside or game channel ID
+        # Raise exception if no match or more than one match
+
+        query = Game.select().join(GameSide, on=(GameSide.game == Game.id)).where(
+            (GameSide.team_chan == int(chan_id)) | (Game.game_chan == int(chan_id))
+        ).distinct()
+
+        if len(query) == 0:
+            raise exceptions.NoMatches(f'No matching game found for given channel')
+        if len(query) > 1:
+            logger.warn(f'by_channel_id - More than one game matches channel ID {chan_id}')
+            raise exceptions.TooManyMatches(f'More than game found with this associated channel')
+
+        return query[0]
+
+    def uses_channel_id(self, chan_id: int):
+        # Given a discord channel ID, return True if self is associated with that channel
+
+        game_channels = [gs.team_chan for gs in self.gamesides] + [self.game_chan]
+        return bool(chan_id in game_channels)
+
+    def by_channel_or_arg(chan_id: int = None, arg: str = None):
+
+        # given a channel_id and/or a string argument, return matching Game if channel_id is associated with a game,
+        # else return a Game if arg is a numeric game id.
+
+        if chan_id:
+            try:
+                game = Game.by_channel_id(chan_id=chan_id)
+                logger.debug(f'by_channel_or_arg found game {game.id} by chan_id {chan_id}')
+                return game
+            except exceptions.NoSingleMatch:
+                logger.debug(f'by_channel_or_arg - failed channel lookup')
+
+        if not arg:
+            logger.debug(f'by_channel_or_arg - no arg provided')
+            return None
+
+        try:
+            numeric_arg = int(arg)
+        except ValueError:
+            logger.debug(f'by_channel_or_arg - non-numeric arg provided')
+            return None
+
+        try:
+            game = Game.get_by_id(numeric_arg)
+            logger.debug(f'by_channel_or_arg found game {game.id} by arg {numeric_arg}')
+            return game
+        except peewee.DoesNotExist:
+            logger.debug(f'by_channel_or_arg - failed lookup by numeric arg')
+            return None
 
     def by_opponents(player_lists):
         # Given lists of player objects representing game sides, ie:
@@ -1797,6 +1978,7 @@ class Game(BaseModel):
         for g in games:
             g.reverse_elo_changes()
             g.is_completed = 0  # To have correct completed game counts for new ELO calculations
+            g.is_confirmed = 0
             g.save()
 
         for g in games:
@@ -1816,12 +1998,12 @@ class Game(BaseModel):
             DiscordMember.update(elo=1000, elo_max=1000).execute()
             Squad.update(elo=1000).execute()
 
-            Game.update(is_completed=0).where(
-                (Game.is_confirmed == 1) & (Game.winner.is_null(False)) & (Game.is_ranked == 1)
+            Game.update(is_completed=0, is_confirmed=0).where(
+                (Game.is_confirmed == 1) & (Game.winner.is_null(False)) & (Game.is_ranked == 1) & (Game.completed_ts.is_null(False))
             ).execute()  # Resets completed game counts for players/squads/team ELO bonuses
 
             games = Game.select().where(
-                (Game.is_completed == 0) & (Game.is_confirmed == 1) & (Game.winner.is_null(False)) & (Game.is_ranked == 1)
+                (Game.is_completed == 0) & (Game.completed_ts.is_null(False)) & (Game.winner.is_null(False)) & (Game.is_ranked == 1)
             ).order_by(Game.completed_ts)
 
             for game in games:
@@ -1833,13 +2015,17 @@ class Game(BaseModel):
     def first_open_side(self, roles):
 
         # first check to see if there are any sides with a role ID that the user has (ie Team Ronin role ID)
+        # returns Side, bool(role_locked_sides)
+        # Side will be the first open side that can be joined, or None
+        # bool(role_locked_sides) is True if the game contains a side that is role locked to one of the given roles, regardless of capacity
+
         role_locked_sides = GameSide.select().where(
             (GameSide.game == self) & (GameSide.required_role_id.in_(roles))
         ).order_by(GameSide.position).prefetch(Lineup)
 
         for side in role_locked_sides:
             if len(side.lineup) < side.size:
-                return side
+                return side, True
 
         # else just use the first side with no role requirement
         sides = GameSide.select().where(
@@ -1848,8 +2034,8 @@ class Game(BaseModel):
 
         for side in sides:
             if len(side.lineup) < side.size:
-                return side
-        return None
+                return side, bool(role_locked_sides)
+        return None, bool(role_locked_sides)
 
     def get_side(self, lookup):
         # lookup can be a side number/position (integer) or side name
@@ -1926,6 +2112,109 @@ class Game(BaseModel):
 
         return (confirmed_count, side_count, fully_confirmed)
 
+    def polychamps_season_games(league='all', season=None):
+        # infers polychampions season games based on Game.name, something like "PS8W7 Blah Blah" or "JS8 Finals Foo"
+        # Junior seasons began with S4
+        # relies on name being set reliably
+        # default season=None returns all seasons (any digit character). Otherwise pass an integer representing season #
+        # Returns three lists: ([All season games], [Regular season games], [Post season games])
+
+        if season:
+            season_str = str(season)
+        else:
+            season_str = '\\d'
+
+        pc_games = Game.select(Game.id).where(
+            ((Game.guild_id == settings.server_ids['polychampions']) & ((Game.size == [2, 2]) | (Game.size == [3, 3])))
+        )
+
+        if league == 'all':
+            full_season = Game.select().where(
+                Game.name.iregexp(f'[PJ]?S{season_str}') & Game.id.in_(pc_games)  # matches S5 or PS5 or any S#
+            )
+        elif league == 'pro':
+            if not season:
+                early_season_str = 'S[1234]'  # pro seasons before S5 had no 'P' designator
+            elif season and season <= 4:
+                early_season_str = f'S{str(season)}'
+            else:
+                early_season_str = None
+
+            full_season = Game.select().where(
+                (Game.name.iregexp(f'PS{season_str}') | Game.name.iregexp(early_season_str)) & Game.id.in_(pc_games)  # matches PS5 or S3 (before juniors started)
+            )
+        elif league == 'junior':
+            full_season = Game.select().where(
+                Game.name.iregexp(f'JS{season_str}') & Game.id.in_(pc_games)  # matches JS5
+            )
+        else:
+            return ([], [], [])
+
+        playoff_filter = Game.select(Game.id).where(Game.name.contains('FINAL') | Game.name.contains('SEMI'))
+
+        regular_season = Game.select().where(Game.id.in_(full_season) & ~Game.id.in_(playoff_filter))
+
+        post_season = Game.select().where(Game.id.in_(full_season) & Game.id.in_(playoff_filter))
+
+        return (full_season, regular_season, post_season)
+
+    def is_league_game(self):
+        # return True if one of the teams participating in the game is a League team like Ronin, etc (is_hidden == 0)
+        # seems like I should be able to do it with one less query but could not get it to return the correct result that way
+        league_teams = Team.select().where(
+            (Team.guild_id == settings.server_ids['polychampions']) & (Team.is_hidden == 0)
+        )
+
+        team_subq = GameSide.select(GameSide.game).join(Game).where(
+            (GameSide.team.in_(league_teams)) & (GameSide.size > 1)
+        ).group_by(GameSide.game)
+
+        league_games = Game.select(Game).where(Game.id.in_(team_subq))
+
+        if self in league_games:
+            return True
+        return False
+
+    def is_season_game(self):
+
+        # If game is a PolyChamps season game, return tuple like (5, 'P') indicating season 5, pro league (or 'J' for junior)
+        # If not, return empty tuple (which has a False boolean value)
+
+        if self.guild_id != settings.server_ids['polychampions']:
+            return ()
+
+        if self not in Game.polychamps_season_games()[0]:
+            # Making sure game is caught by the polychamps_season_games regexp first
+            return ()
+
+        m = re.match(r"([PJ]?)S(\d+)", self.name.upper())
+        if not m:
+            logger.error(f'Game {self.id} matched regexp in polychamps_season_games() but not is_season_game() - {self.name}')
+            return ()
+
+        season = int(m[2])
+        if season <= 4:
+            league = 'P'
+        else:
+            league = m[1].upper()
+
+        return (season, league)
+
+    def is_uncaught_season_game(self):
+        # Look for games that have a season tag in the notes or not at the beginning of name
+        if self.guild_id != settings.server_ids['polychampions']:
+            return False
+
+        if self.is_season_game():
+            return False
+
+        if self.size == [2, 2] or self.size == [3, 3]:
+
+            name_notes = f'{self.name} {self.notes}'
+            return bool(re.search(r'[PJ]?S\d', name_notes, flags=re.IGNORECASE))
+
+        return False
+
 
 class Squad(BaseModel):
     elo = SmallIntegerField(default=1000)
@@ -1968,7 +2257,7 @@ class Squad(BaseModel):
 
         return elo_delta
 
-    def subq_squads_by_size(min_size: int=2, exact=False):
+    def subq_squads_by_size(min_size: int = 2, exact=False):
 
         if exact:
             # Squads with exactly min_size number of members
@@ -1981,7 +2270,7 @@ class Squad(BaseModel):
             SquadMember.squad
         ).having(fn.COUNT('*') >= min_size)
 
-    def subq_squads_with_completed_games(min_games: int=1):
+    def subq_squads_with_completed_games(min_games: int = 1):
         # Defaults to squads who have completed more than 0 games
 
         if min_games <= 0:
@@ -2093,6 +2382,8 @@ class GameSide(BaseModel):
     elo_change_squad = SmallIntegerField(default=0)
     elo_change_team = SmallIntegerField(default=0)
     elo_change_team_alltime = SmallIntegerField(default=0)
+    team_elo_after_game = SmallIntegerField(default=None, null=True)  # snapshot of what team elo was after game concluded
+    team_elo_after_game_alltime = SmallIntegerField(default=None, null=True)  # snapshot of what alltime team elo was after game concluded
     team_chan = BitField(default=None, null=True)
     sidename = TextField(null=True)  # for pending open games/matchmaking
     size = SmallIntegerField(null=False, default=1)
@@ -2220,6 +2511,52 @@ class GameSide(BaseModel):
         return player_list
 
 
+class GameLog(BaseModel):
+    message = TextField(null=True)
+    message_ts = DateTimeField(default=datetime.datetime.now)
+    guild_id = BitField(unique=False, null=False, default=0)
+    is_protected = BooleanField(default=False)
+
+    # Entries will have guild_id of 0 for things like $setcode and $setname that arent guild-specific
+
+    def member_string(member):
+
+        try:
+            # discord.Member API object
+            name = member.display_name
+            d_id = member.id
+        except AttributeError:
+            # local discordmember database entry
+            name = member.name
+            d_id = member.discord_id
+        return f'**{discord.utils.escape_markdown(name)}** (`{d_id}`)'
+
+    def write(message, guild_id, game_id=0, is_protected=False):
+        if game_id:
+            message = f'__{str(game_id)}__ - {message}'
+
+        return GameLog.create(guild_id=guild_id, message=message, is_protected=is_protected)
+
+    def search(keywords=None, negative_keyword=None, guild_id=None, limit=500):
+
+        if not keywords:
+            keywords = '%'  # Wildcard/return all matches
+        else:
+            keywords = keywords.replace(' ', '%')  # match multiple words with ALL
+
+        if guild_id:
+            subq_by_guild = GameLog.select(GameLog.id).where((GameLog.guild_id == guild_id) | (GameLog.guild_id == 0))
+        else:
+            subq_by_guild = GameLog.select(GameLog.id)
+
+        return GameLog.select().where(
+            GameLog.id.in_(subq_by_guild) &
+            GameLog.message.contains(keywords) &
+            ~GameLog.message.contains(negative_keyword) &
+            (GameLog.is_protected == 0)
+        ).order_by(-GameLog.message_ts).limit(limit)
+
+
 class Lineup(BaseModel):
     tribe = ForeignKeyField(Tribe, null=True, on_delete='SET NULL')
     game = ForeignKeyField(Game, null=False, backref='lineup', on_delete='CASCADE')
@@ -2228,6 +2565,7 @@ class Lineup(BaseModel):
     elo_change_player = SmallIntegerField(default=0)
     elo_change_discordmember = SmallIntegerField(default=0)
     elo_after_game = SmallIntegerField(default=None, null=True)  # snapshot of what elo was after game concluded
+    elo_after_game_global = SmallIntegerField(default=None, null=True)  # snapshot of what global (discordmember) elo was after game concluded
 
     def change_elo_after_game(self, chance_of_winning: float, is_winner: bool, by_discord_member: bool = False):
         # Average(Away Side Elo) is compared to Average(Home_Side_Elo) for calculation - ie all members on a side will have the same elo_delta
@@ -2276,6 +2614,7 @@ class Lineup(BaseModel):
                 if self.player.discord_member.elo > self.player.discord_member.elo_max:
                     self.player.discord_member.elo_max = self.player.discord_member.elo
                 self.elo_change_discordmember = elo_delta
+                self.elo_after_game_global = int(elo + elo_delta)
                 self.player.discord_member.save()
                 self.save()
             else:
@@ -2297,12 +2636,15 @@ class Lineup(BaseModel):
             return ''
 
 
-with db:
-    db.create_tables([Team, DiscordMember, Game, Player, Tribe, Squad, GameSide, SquadMember, Lineup])
+with db.connection_context():
+    db.create_tables([Configuration, Team, DiscordMember, Game, Player, Tribe, Squad, GameSide, SquadMember, Lineup, GameLog])
     # Only creates missing tables so should be safe to run each time
+
     try:
         # Creates deferred FK http://docs.peewee-orm.com/en/latest/peewee/models.html#circular-foreign-key-dependencies
         Game._schema.create_foreign_key(Game.winner)
     except (ProgrammingError, DuplicateObject):
         pass
         # Will throw one of above exceptions if foreign key already exists - exception depends on which version of psycopg2 is running
+        # if exception is caught inside a transaction then the transaction will be rolled back (create_tables reverted),
+        # so using the connection_context() and this section is not run using any transactions

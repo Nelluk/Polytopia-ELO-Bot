@@ -5,23 +5,30 @@ import settings
 import modules.exceptions as exceptions
 import modules.achievements as achievements
 import peewee
+import modules.models as models
 from modules.models import Game, db, Player, Team, DiscordMember, Squad, GameSide, Tribe, Lineup
+from modules.league import auto_grad_novas, populate_league_team_channels
 import logging
 import datetime
 import asyncio
 import re
 from itertools import groupby
+from matplotlib import pyplot as plt
+import io
+import pandas as pd
+import scipy.signal as signal
 
 logger = logging.getLogger('polybot.' + __name__)
 elo_logger = logging.getLogger('polybot.elo')
 
 
 class PolyGame(commands.Converter):
-    async def convert(self, ctx, game_id):
+    async def convert(self, ctx, game_id, allow_cross_guild=False):
 
+        utilities.connect()
         try:
             game = Game.get(id=int(game_id))
-        except ValueError:
+        except (ValueError, peewee.DataError):
             await ctx.send(f'Invalid game ID "{game_id}".')
             raise commands.UserInputError()
         except peewee.DoesNotExist:
@@ -29,7 +36,7 @@ class PolyGame(commands.Converter):
             raise commands.UserInputError()
         else:
             logger.debug(f'Game with ID {game_id} found.')
-            if game.guild_id != ctx.guild.id:
+            if game.guild_id != ctx.guild.id and not allow_cross_guild:
                 logger.warn('Game does not belong to same guild')
                 try:
                     server_name = settings.guild_setting(guild_id=game.guild_id, setting_name='display_name')
@@ -41,12 +48,17 @@ class PolyGame(commands.Converter):
                 else:
                     game_name = f'*{game.name}*' if game.name and game.name.strip() else ''
                     game_summary_str = f'\n`{(str(game.date))}` - {game.size_string()} - {game.get_gamesides_string(include_emoji=False)} - {game_name} - {game.get_game_status_string()}'
+
+                if not game.is_pending:
+                    embed, _ = game.embed(guild=ctx.guild, prefix=ctx.prefix)
+                    await ctx.send(embed=embed)
+
                 await ctx.send(f'Game with ID {game_id} is associated with a different Discord server: __{server_name}__.{game_summary_str}')
                 raise commands.UserInputError()
             return game
 
 
-class elo_games(commands.Cog):
+class polygames(commands.Cog):
 
     def __init__(self, bot):
         self.bot = bot
@@ -55,10 +67,23 @@ class elo_games(commands.Cog):
             self.bg_task2 = bot.loop.create_task(self.task_set_champion_role())
 
     @commands.Cog.listener()
+    async def on_guild_channel_delete(self, channel):
+        query = GameSide.update(team_chan=None).where(GameSide.team_chan == channel.id)
+        res = query.execute()
+        if res:
+            logger.debug(f'on_guild_channel_delete: detected deletion of gameside channel {channel.id} {channel.name} and removed reference from db')
+
+        query = Game.update(game_chan=None).where(Game.game_chan == channel.id)
+        res = query.execute()
+        if res:
+            logger.debug(f'on_guild_channel_delete: detected deletion of game channel {channel.id} {channel.name} and removed reference from db')
+
+    @commands.Cog.listener()
     async def on_user_update(self, before, after):
         if before.name != after.name:
-            logger.debug(f'Attempting to change member discordname for {before.name}({before.nick}) to {after.name}({after.nick})')
+            logger.debug(f'Attempting to change member discordname for {before.name} to {after.name}')
             # update Discord Member Name, and update display name for each Guild/Player they share with the bot
+            utilities.connect()
             try:
                 discord_member = DiscordMember.select().where(DiscordMember.discord_id == after.id).get()
             except peewee.DoesNotExist:
@@ -73,6 +98,7 @@ class elo_games(commands.Cog):
 
         banned_role = discord.utils.get(before.guild.roles, name='ELO Banned')
         if banned_role not in before.roles and banned_role in after.roles:
+            utilities.connect()
             try:
                 player = player_query.get()
             except peewee.DoesNotExist:
@@ -80,8 +106,10 @@ class elo_games(commands.Cog):
             player.is_banned = True
             player.save()
             logger.info(f'ELO Ban added for player {player.id} {player.name}')
+            models.GameLog.write(game_id=0, guild_id=after.guild.id, message=f'{models.GameLog.member_string(after)} had *ELO Banned* role applied.')
 
         if banned_role in before.roles and banned_role not in after.roles:
+            utilities.connect()
             try:
                 player = player_query.get()
             except peewee.DoesNotExist:
@@ -89,6 +117,26 @@ class elo_games(commands.Cog):
             player.is_banned = False
             player.save()
             logger.info(f'ELO Ban removed for player {player.id} {player.name}')
+            models.GameLog.write(game_id=0, guild_id=after.guild.id, message=f'{models.GameLog.member_string(after)} had *ELO Banned* role removed.')
+
+        inactive_role = discord.utils.get(before.guild.roles, name=settings.guild_setting(before.guild.id, 'inactive_role'))
+        if inactive_role not in before.roles and inactive_role in after.roles:
+            utilities.connect()
+            try:
+                player = player_query.get()
+            except peewee.DoesNotExist:
+                return
+            logger.info(f'Inactive role added for player {player.id} {player.name}')
+            models.GameLog.write(game_id=0, guild_id=after.guild.id, message=f'{models.GameLog.member_string(after)} had *{inactive_role.name}* role applied.')
+
+        if inactive_role in before.roles and inactive_role not in after.roles:
+            utilities.connect()
+            try:
+                player = player_query.get()
+            except peewee.DoesNotExist:
+                return
+            logger.info(f'Inactive removed for player {player.id} {player.name}')
+            models.GameLog.write(game_id=0, guild_id=after.guild.id, message=f'{models.GameLog.member_string(after)} had *{inactive_role.name}* role removed.')
 
         # Updates display name in DB if user changes their discord name or guild nick
         if before.nick == after.nick and before.name == after.name:
@@ -96,16 +144,16 @@ class elo_games(commands.Cog):
 
         if before.nick != after.nick:
             logger.debug(f'Attempting to change member nick for {before.name}({before.nick}) to {after.name}({after.nick})')
+            utilities.connect()
             # update nick in guild's Player record
             try:
                 player = player_query.get()
             except peewee.DoesNotExist:
                 return
-            player.generate_display_name(player_name=utilities.escape_role_mentions(after.name), player_nick=utilities.escape_role_mentions(after.nick))
+            player.generate_display_name(player_name=after.name, player_nick=after.nick)
 
     @commands.command(aliases=['reqgame', 'helpstaff'], hidden=True)
     @commands.cooldown(2, 30, commands.BucketType.user)
-    @settings.on_polychampions()
     async def staffhelp(self, ctx, *, message: str = None):
         """
         Send staff updates/fixes for an ELO game
@@ -128,7 +176,11 @@ class elo_games(commands.Cog):
             ctx.command.reset_cooldown(ctx)
             return await ctx.send(f'You must supply a help request, ie: `{ctx.prefix}staffhelp Game 51, restarted with name "Sweet New Game Name"`')
 
-        await channel.send(f'{ctx.message.author} submitted: {ctx.message.clean_content}')
+        helper_role_name = settings.guild_setting(ctx.guild.id, 'helper_roles')[0]
+        helper_role = discord.utils.get(ctx.guild.roles, name=helper_role_name)
+        helper_role_str = f'{helper_role.mention}' if helper_role else 'server staff'
+
+        await channel.send(f'Attention {helper_role_str} - {ctx.message.author} submitted: {ctx.message.clean_content}')
 
     @commands.command(hidden=True, brief='Sends staff details on a League game', usage='Week 2 game vs Mallards started called "Oceans of Fire"')
     @settings.on_polychampions()
@@ -164,13 +216,18 @@ class elo_games(commands.Cog):
         `[p]lb` - Default local leaderboard
         `[p]lb global` - Global leaderboard
         `[p]lb max` - Local leaderboard for maximum historic ELO
+        `[p]lb alltime` - Local leaderboard all time (by default, players are removed if they do not play for 90 days)
         `[p]lb global max` - Leaderboard of maximum historic *global* ELO
+
+        `[p]lbrecent` - Most active players of the last 30 days
+        `[p]lbactivealltime` - Most active players of all time
         """
 
         leaderboard = []
         max_flag, global_flag = False, False
         target_model = Player
         lb_title = 'Individual Leaderboard'
+        date_cutoff = settings.date_cutoff
 
         if ctx.invoked_with == 'lbglobal' or ctx.invoked_with == 'lbg':
             filters = filters + 'GLOBAL'
@@ -180,12 +237,17 @@ class elo_games(commands.Cog):
             lb_title = 'Global Leaderboard'
             target_model = DiscordMember
 
+        if 'ALLTIME' in filters.upper():
+            lb_title += ' - Alltime'
+            date_cutoff = datetime.date.min
+
         if 'MAX' in filters.upper():
             max_flag = True  # leaderboard ranked by player.max_elo
             lb_title += ' - Maximum ELO Achieved'
 
         def process_leaderboard():
-            leaderboard_query = target_model.leaderboard(date_cutoff=settings.date_cutoff, guild_id=ctx.guild.id, max_flag=max_flag)
+            utilities.connect()
+            leaderboard_query = target_model.leaderboard(date_cutoff=date_cutoff, guild_id=ctx.guild.id, max_flag=max_flag)
 
             for counter, player in enumerate(leaderboard_query[:2000]):
                 wins, losses = player.get_record()
@@ -195,7 +257,8 @@ class elo_games(commands.Cog):
                 )
             return leaderboard, leaderboard_query.count()
 
-        leaderboard, leaderboard_size = await self.bot.loop.run_in_executor(None, process_leaderboard)
+        async with ctx.typing():
+            leaderboard, leaderboard_size = await self.bot.loop.run_in_executor(None, process_leaderboard)
 
         # if ctx.guild.id != settings.server_ids['polychampions']:
         #     await ctx.send('Powered by PolyChampions. League server with a team focus and competitive players.\n'
@@ -204,7 +267,7 @@ class elo_games(commands.Cog):
         await utilities.paginate(self.bot, ctx, title=f'**{lb_title}**\n{leaderboard_size} ranked players', message_list=leaderboard, page_start=0, page_end=10, page_size=10)
 
     @settings.in_bot_channel_strict()
-    @commands.command(aliases=['recent', 'active', 'lbactivealltime'])
+    @commands.command(aliases=['recent', 'active', 'lbactivealltime'], hidden=True)
     @commands.cooldown(2, 30, commands.BucketType.channel)
     async def lbrecent(self, ctx):
         """ Display most active recent players"""
@@ -263,19 +326,27 @@ class elo_games(commands.Cog):
             pro_flag = 1
             jr_string = ''
 
+        fig, ax = plt.subplots(figsize=(12, 8))
+        plt.style.use('default')
+
         if arg and arg.lower()[:3] == 'all':
             # date_cutoff = datetime.date.min
             embed = discord.Embed(title=f'**Alltime {jr_string}Team Leaderboard**')
+            fig.suptitle('Team ELO History (Alltime)', fontsize=16)
             alltime = True
             sort_field = Team.elo_alltime
         else:
             # date_cutoff = datetime.datetime.strptime(settings.team_elo_reset_date, "%m/%d/%Y").date()
             embed = discord.Embed(title=f'**{jr_string}Team Leaderboard since {settings.team_elo_reset_date}**')
+            fig.suptitle('Team ELO History since ' + settings.team_elo_reset_date, fontsize=16)
             alltime = False
             sort_field = Team.elo
 
+        fig.autofmt_xdate()
+
+        guild_check = settings.server_ids['polychampions'] if ctx.guild.id == settings.server_ids['test'] else ctx.guild.id
         query = Team.select().where(
-            (Team.is_hidden == 0) & (Team.guild_id == ctx.guild.id) & (Team.pro_league == pro_flag)
+            (Team.is_hidden == 0) & (Team.guild_id == guild_check) & (Team.pro_league == pro_flag)
         ).order_by(-sort_field)
         for counter, team in enumerate(query):
             team_role = discord.utils.get(ctx.guild.roles, name=team.name)
@@ -294,14 +365,54 @@ class elo_games(commands.Cog):
             elo = team.elo_alltime if alltime else team.elo
             embed.add_field(name=f'{team.emoji} {(counter + 1):>3}. {team_name_str}\n`ELO: {elo:<5} W {wins} / L {losses}`', value='\u200b', inline=False)
 
-        await ctx.send(embed=embed)
+            team_elo_history_query = (GameSide
+                    .select(Game.completed_ts, (GameSide.team_elo_after_game_alltime if alltime else GameSide.team_elo_after_game).alias('elo'))
+                    .join(Game)
+                    .where((GameSide.team_id == team.id) & ((GameSide.team_elo_after_game_alltime if alltime else GameSide.team_elo_after_game).is_null(False)))
+                    .order_by(Game.completed_ts))
+
+            if team_elo_history_query:
+                team_elo_history = pd.DataFrame(team_elo_history_query.dicts())
+
+                team_elo_history_resampled = team_elo_history.set_index('completed_ts').resample('D').mean().interpolate().reset_index()
+
+                plt.plot(team_elo_history['completed_ts'],
+                         team_elo_history['elo'],
+                         'o', markersize=3, alpha=.05, color=str(team_role.color))
+
+                plt.plot(team_elo_history_resampled['completed_ts'],
+                         signal.savgol_filter(team_elo_history_resampled['elo'].values, 131 if alltime else 61, 2),
+                         '-', linewidth=2, label=team.name, color=str(team_role.color))
+
+        ax.yaxis.grid()
+
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.spines['left'].set_visible(False)
+
+        plt.legend(loc="best")
+
+        plt.savefig('graph.png', transparent=False)
+        plt.close(fig)
+
+        embed.set_image(url=f'attachment://graph.png')
+
+        with open('graph.png', 'rb') as f:
+            file = io.BytesIO(f.read())
+
+        image = discord.File(file, filename='graph.png')
+
+        await ctx.send(embed=embed, file=image)
 
     @settings.in_bot_channel_strict()
     @settings.teams_allowed()
     @commands.command(aliases=['squadlb'])
     @commands.cooldown(2, 30, commands.BucketType.channel)
     async def lbsquad(self, ctx):
-        """Display squad leaderboard"""
+        """Display squad leaderboard
+
+        A squad is any combination of players that have completed at least two games together.
+        """
 
         leaderboard = []
         squads = Squad.leaderboard(date_cutoff=settings.date_cutoff, guild_id=ctx.guild.id)
@@ -321,6 +432,9 @@ class elo_games(commands.Cog):
     @commands.command(brief='Find squads or see details on a squad', usage='player1 [player2] [player3]', aliases=['squads'])
     async def squad(self, ctx, *args):
         """Find squads with specific players, or see details on a squad
+
+        A squad is any combination of players that have completed at least two games together.
+
         **Examples:**
         `[p]squad 5` - details on squad 5
         `[p]squad Nelluk` - squads containing Nelluk
@@ -411,14 +525,20 @@ class elo_games(commands.Cog):
         player_mention = ' '.join(args_list)
         player_mention_safe = utilities.escape_role_mentions(player_mention)
 
+        guild_matches = await utilities.get_guild_member(ctx, player_mention)
+        if len(guild_matches) == 1:
+            # If there is one exact match from active guild members, use their precise member ID to pull up the player
+            # Helps in a scenario where there are two existing players in the DB with the same name, but only one is actively on the server
+            player_mention = str(guild_matches[0].id)
+
         player_results = Player.string_matches(player_string=player_mention, guild_id=ctx.guild.id)
+
         if len(player_results) > 1:
             p_names = [p.name for p in player_results]
             p_names_str = '**, **'.join(p_names[:10])
             return await ctx.send(f'Found {len(player_results)} players matching *{player_mention_safe}*. Be more specific or use an @Mention.\nFound: **{p_names_str}**')
         elif len(player_results) == 0:
             # No Player matches - check for guild membership
-            guild_matches = await utilities.get_guild_member(ctx, player_mention)
             if len(guild_matches) > 1:
                 p_names = [p.display_name for p in guild_matches]
                 p_names_str = '**, **'.join(p_names[:10])
@@ -430,16 +550,22 @@ class elo_games(commands.Cog):
             if not player:
                 # Matching guild member but no Player or DiscordMember
                 return await ctx.send(f'*{player_mention_safe}* was found in the server but is not registered with me. '
-                    f'Players can be register themselves with  `{ctx.prefix}setcode YOUR_POLYCODE`.')
+                    f'Players can register themselves with  `{ctx.prefix}setcode YOUR_POLYCODE`.')
+            # if still running here that means there was a DiscordMember match not in current guild, and upserted into guild
         else:
             player = player_results[0]
 
         def async_create_player_embed():
+            utilities.connect()
             wins, losses = player.get_record()
             rank, lb_length = player.leaderboard_rank(settings.date_cutoff)
 
             wins_g, losses_g = player.discord_member.get_record()
             rank_g, lb_length_g = player.discord_member.leaderboard_rank(settings.date_cutoff)
+
+            polychamps_record = player.discord_member.get_polychamps_record()
+
+            image = None
 
             if rank is None:
                 rank_str = 'Unranked'
@@ -477,6 +603,12 @@ class elo_games(commands.Cog):
                 offset_str = f'UTC+{player.discord_member.timezone_offset}' if player.discord_member.timezone_offset > 0 else f'UTC{player.discord_member.timezone_offset}'
                 embed.add_field(value=offset_str, name='Timezone Offset', inline=True)
 
+            if polychamps_record:
+                pc_record_str = f'Pro Games: {polychamps_record["pro_record"][0]}W / {polychamps_record["pro_record"][1]}L'
+                if polychamps_record["junior_record"][0] or polychamps_record["junior_record"][1]:
+                    pc_record_str += f'\nJunior Games: {polychamps_record["junior_record"][0]}W / {polychamps_record["junior_record"][1]}L'
+                embed.add_field(value=pc_record_str, name='PolyChampions Record', inline=True)
+
             misc_stats = []
             (winning_streak, losing_streak, v2_count, v3_count, duel_wins, duel_losses, wins_as_host, ranked_games_played) = player.discord_member.advanced_stats()
             if winning_streak or losing_streak:
@@ -492,7 +624,7 @@ class elo_games(commands.Cog):
             # TODO: maybe "adjusted ELO" for how big game is?
 
             if player.discord_member.elo_max > 1000:
-                misc_stats.append(('Max global ELO achieved', player.discord_member.elo_max))
+                misc_stats.append(('Max ELO achieved', f'{player.discord_member.elo_max} G \u200b - \u200b {player.elo_max} L'))
 
             favorite_tribes = player.discord_member.favorite_tribes(limit=3)
             if favorite_tribes:
@@ -504,6 +636,59 @@ class elo_games(commands.Cog):
 
             if misc_stats:
                 embed.add_field(name='__Miscellaneous Global Stats__', value='\n'.join(misc_stats), inline=False)
+
+            global_elo_history_query = (Player
+                .select(Game.completed_ts, Lineup.elo_after_game_global)
+                .join(Lineup)
+                .join(Game)
+                .where((Player.discord_member_id == player.discord_member_id) & (Lineup.elo_after_game_global.is_null(False)))
+                .order_by(Game.completed_ts))
+
+            global_elo_history_dates = [l.completed_ts for l in global_elo_history_query.objects()]
+
+            if global_elo_history_dates:
+                local_elo_history_query = (Lineup
+                    .select(Game.completed_ts, Lineup.elo_after_game)
+                    .join(Game)
+                    .where((Lineup.player_id == player.id) & (Lineup.elo_after_game.is_null(False))))
+
+                local_elo_history_dates = [l.completed_ts for l in local_elo_history_query.objects()]
+                local_elo_history_elos = [l.elo_after_game for l in local_elo_history_query.objects()]
+
+                global_elo_history_elos = [l.elo_after_game_global for l in global_elo_history_query.objects()]
+
+                try:
+                    server_name = settings.guild_setting(guild_id=player.guild_id, setting_name='display_name')
+                except exceptions.CheckFailedError:
+                    server_name = settings.guild_setting(guild_id=None, setting_name='display_name')
+
+                plt.style.use('default')
+
+                plt.switch_backend('Agg')
+
+                fig, ax = plt.subplots()
+                fig.suptitle('ELO History (' + server_name + ')', fontsize=16)
+                fig.autofmt_xdate()
+
+                plt.plot(local_elo_history_dates, local_elo_history_elos, 'o', markersize=3, label=server_name)
+                plt.plot(global_elo_history_dates, global_elo_history_elos, 'o', markersize=3, label='Global')
+
+                ax.yaxis.grid()
+                ax.spines['top'].set_visible(False)
+                ax.spines['right'].set_visible(False)
+                ax.spines['left'].set_visible(False)
+
+                plt.legend(loc="lower right")
+
+                plt.savefig('graph.png', transparent=False)
+                plt.close(fig)
+
+                embed.set_image(url=f'attachment://graph.png')
+
+                with open('graph.png', 'rb') as f:
+                    file = io.BytesIO(f.read())
+
+                image = discord.File(file, filename='graph.png')
 
             games_list = Game.search(player_filter=[player])
             if not games_list:
@@ -517,13 +702,27 @@ class elo_games(commands.Cog):
             for game, result in game_list:
                 embed.add_field(name=game, value=result, inline=False)
 
-            # if ctx.guild.id != settings.server_ids['polychampions']:
-            #     embed.add_field(value='Powered by **PolyChampions** - https://discord.gg/cX7Ptnv', name='\u200b', inline=False)
+            if player.discord_member.discord_id != ctx.author.id:
+                # Look up 1v1 record between ctx.author and the card target
+                try:
+                    author_player = Player.get_or_except(player_string=str(ctx.author.id), guild_id=ctx.guild.id)
+                except exceptions.MyBaseException:
+                    matchup_games = []  # author not registered
+                else:
+                    matchup_games = Game.search(player_filter=[player, author_player], size_filter=[1, 1]).limit(1)
+            else:
+                matchup_games = []
 
-            return content_str, embed
+            return content_str, embed, image, matchup_games
 
-        content_str, embed = await self.bot.loop.run_in_executor(None, async_create_player_embed)
-        await ctx.send(content=content_str, embed=embed)
+        async with ctx.typing():
+            content_str, embed, image, matchup_games = await self.bot.loop.run_in_executor(None, async_create_player_embed)
+
+        await ctx.send(content=content_str, file=image, embed=embed)
+
+        if matchup_games:
+            series_record = matchup_games[0].series_record()
+            await ctx.send(f'Your local 1v1 record against this opponent: **{series_record[0][0].name()}** {series_record[0][1]} wins - **{series_record[1][0].name()}** {series_record[1][1]} wins')
 
     @settings.in_bot_channel()
     @settings.teams_allowed()
@@ -556,6 +755,7 @@ class elo_games(commands.Cog):
         coleader_role = discord.utils.get(ctx.guild.roles, name='Team Co-Leader')
         member_stats = []
         leaders_list, coleaders_list = [], []
+        image = None
 
         wins, losses = team.get_record(alltime=False)
         embed.add_field(name='Results', value=f'ELO: {team.elo}   Wins {wins} / Losses {losses}', inline=False)
@@ -613,7 +813,55 @@ class elo_games(commands.Cog):
         for game, result in game_list:
             embed.add_field(name=game, value=result)
 
-        await ctx.send(embed=embed)
+        alltime_team_elo_history_query = (GameSide
+                .select(Game.completed_ts, GameSide.team_elo_after_game_alltime)
+                .join(Game)
+                .where((GameSide.team_id == team.id) & (GameSide.team_elo_after_game_alltime.is_null(False)))
+                .order_by(Game.completed_ts))
+
+        alltime_team_elo_history_dates = [l.completed_ts for l in alltime_team_elo_history_query.objects()]
+
+        if alltime_team_elo_history_dates:
+            alltime_team_elo_history_elos = [l.team_elo_after_game_alltime for l in alltime_team_elo_history_query.objects()]
+
+            team_elo_history_query = (GameSide
+                .select(Game.completed_ts, GameSide.team_elo_after_game)
+                .join(Game)
+                .where((GameSide.team_id == team.id) & (GameSide.team_elo_after_game.is_null(False)))
+                .order_by(Game.completed_ts))
+
+            team_elo_history_dates = [l.completed_ts for l in team_elo_history_query.objects()]
+            team_elo_history_elos = [l.team_elo_after_game for l in team_elo_history_query.objects()]
+
+            plt.style.use('default')
+
+            plt.switch_backend('Agg')
+
+            fig, ax = plt.subplots()
+            fig.suptitle('ELO History (' + team.name + ')', fontsize=16)
+            fig.autofmt_xdate()
+
+            plt.plot(team_elo_history_dates, team_elo_history_elos, 'o', markersize=3, label = f'Since {settings.team_elo_reset_date}')
+            plt.plot(alltime_team_elo_history_dates, alltime_team_elo_history_elos, 'o', markersize=3, label = 'Alltime')
+
+            ax.yaxis.grid()
+            ax.spines['top'].set_visible(False)
+            ax.spines['right'].set_visible(False)
+            ax.spines['left'].set_visible(False)
+
+            plt.legend(loc="best")
+
+            plt.savefig('graph.png', transparent=False)
+            plt.close(fig)
+
+            embed.set_image(url=f'attachment://graph.png')
+
+            with open('graph.png', 'rb') as f:
+                file = io.BytesIO(f.read())
+
+            image = discord.File(file, filename='graph.png')
+
+        await ctx.send(file=image, embed=embed)
 
     @commands.command(brief='Sets a Polytopia game code and registers user with the bot', usage='[user] polytopia_code')
     async def setcode(self, ctx, *args):
@@ -628,6 +876,7 @@ class elo_games(commands.Cog):
         if len(args) == 1:      # User setting code for themselves. No special permissions required.
             target_discord_member = ctx.message.author
             new_id = args[0]
+            log_by_str = ''
 
         elif len(args) == 2:    # User changing another user's code. Helper permissions required.
 
@@ -642,6 +891,8 @@ class elo_games(commands.Cog):
                 return await ctx.send(f'Found {len(guild_matches)} server members matching *{args[0]}*. Try specifying with an @Mention')
             target_discord_member = guild_matches[0]
             new_id = args[1]
+            log_by_str = f' by {models.GameLog.member_string(ctx.author)}'
+
         else:
             # Unexpected input
             await ctx.send(f'Wrong number of arguments. Use `{ctx.prefix}setcode YOURCODEHERE`')
@@ -663,11 +914,12 @@ class elo_games(commands.Cog):
         player.discord_member.polytopia_id = new_id
         player.discord_member.save()
 
+        models.GameLog.write(game_id=0, guild_id=0, message=f'{models.GameLog.member_string(player.discord_member)} code {"set" if created else "updated"} to `{new_id}` {log_by_str}')
+
         if created:
             await ctx.send(f'Player **{player.name}** added to system with Polytopia code `{player.discord_member.polytopia_id}` and ELO **{player.elo}**\n'
-                f'Optionally also set your Polytopia ingame name with `{ctx.prefix}setname YOUR_INGAME_NAME` as well as your timezone using '
-                f'`{ctx.prefix}settime YOUR_TIMEZONE_OFFSET` (eg. `UTC-5` for Eastern Standard Time)\n'
-                f'To find games to join use the `{ctx.prefix}opengames` command.')
+                f'If your in-game name is different than your discord name, let the bot know with `{ctx.prefix}setname YOUR_INGAME_NAME`\n'
+                f'To find games to join use the `{ctx.prefix}games` command.')
         else:
             await ctx.send(f'Player **{player.name}** updated in system with Polytopia code `{player.discord_member.polytopia_id}`.')
 
@@ -723,6 +975,7 @@ class elo_games(commands.Cog):
                 f'Register your own code with `{ctx.prefix}setcode YOURCODEHERE`')
 
     @commands.command(aliases=['codes'], usage='game_id')
+    @models.is_registered_member()
     async def getcodes(self, ctx, *, game: PolyGame = None):
         """Print all player codes associated with a game ID
         The codes will be printed on separate line for ease of copying, and in the order that players should be added to the game.
@@ -765,27 +1018,36 @@ class elo_games(commands.Cog):
                 await ctx.send(poly_id if poly_id else '*No code registered*')
 
     @commands.command(brief='Set in-game name', usage='new_name')
+    @models.is_registered_member()
     async def setname(self, ctx, *args):
         """Sets your own in-game name, or lets staff set a player's in-game name
         When this is set, people can find you by the in-game name with the `[p]player` command.
         **Examples:**
         `[p]setname PolyChamp` - Set your own in-game name to *PolyChamp*
-        `[p]setname Nelluk PolyChamp` - Lets staff set in-game name of Nelluk to *PolyChamp*
+        `[p]setname @Nelluk PolyChamp` - Lets staff set in-game name of Nelluk to *PolyChamp*
         """
 
-        if len(args) == 1:
-            # User setting code for themselves. No special permissions required.
-            target_string = f'<@{ctx.author.id}>'
-            new_name = args[0]
-        elif len(args) == 2:
-            # User changing another user's code. Admin permissions required.
+        if not args:
+            return await ctx.send(f'bzzt')
+
+        m = utilities.string_to_user_id(args[0])
+
+        if m:
+            logger.debug('Third party use of setname')
+            # Staff member using command on third party
             if settings.is_staff(ctx) is False:
-                return await ctx.send(f'You do not have permission to trigger this command. Set your own in-game name with `{ctx.prefix}setname "My In-Game Name"`  *(Quotes required if more than one word)*')
-            target_string = args[0]
-            new_name = args[1]
+                logger.debug('insufficient user level')
+                return await ctx.send(f'You do not have permission to set another player\'s name.')
+            new_name = ' '.join(args[1:])
+            target_string = str(m)
+            log_by_str = f' by {models.GameLog.member_string(ctx.author)}'
         else:
-            # Unexpected input
-            return await ctx.send(f'Wrong number of arguments. Use `{ctx.prefix}setname my_polytopia_name`. Use "quotation marks" if the name is more than one word.')
+            # Play using command on their own games
+            new_name = ' '.join(args)
+            target_string = str(ctx.author.id)
+            log_by_str = ''
+
+        logger.debug(f'setname target is {target_string} with name {new_name}')
 
         try:
             player_target = Player.get_or_except(target_string, ctx.guild.id)
@@ -801,9 +1063,12 @@ class elo_games(commands.Cog):
         new_name = discord.utils.escape_mentions(new_name)
         player_target.discord_member.polytopia_name = new_name
         player_target.discord_member.save()
+
+        models.GameLog.write(game_id=0, guild_id=0, message=f'{models.GameLog.member_string(player_target.discord_member)} name set to *{new_name}* {log_by_str}')
         await ctx.send(f'Player **{player_target.name}** updated in system with Polytopia name **{new_name}**.')
 
     @commands.command(brief='Set player time zone', usage='UTC±#')
+    @models.is_registered_member()
     async def settime(self, ctx, *args):
         """Sets your own timezone, or lets staff set a player's timezone
         This will be shown on your `[p]player` profile and can be used to order large games for faster player.
@@ -863,8 +1128,11 @@ class elo_games(commands.Cog):
         # async def game(self, ctx, game: PolyGame = None):
 
         """See details on a specific game ID
+
+        If you use something other than a numeric game ID with this command, it is assumed you are trying to use `allgames`, which allows you to search games by player, game name, result, or team. See `[p]help allgames`
+
         **Examples**:
-        `[p]game 51` - See details on game # 51.
+        `[p]game 1251` - See details on game # 1251.
         """
         if not game_search:
             return await ctx.send(f'Game ID number must be supplied, example: __`{ctx.prefix}game 1250`__')
@@ -879,13 +1147,13 @@ class elo_games(commands.Cog):
             return await ctx.invoke(self.bot.get_command('allgames'), args=game_search)
 
         # Converting manually here to handle case of user passing a game name so info can be redirected to games() command
-        game_converter = PolyGame()
-        game = await game_converter.convert(ctx, game_search)
+        game = await PolyGame().convert(ctx, game_search)
 
         embed, content = game.embed(guild=ctx.guild, prefix=ctx.prefix)
         return await ctx.send(embed=embed, content=content)
 
     @settings.in_bot_channel_strict()
+    @models.is_registered_member()
     @commands.command(usage='player1 player2 ... ')
     async def allgames(self, ctx, *, args=None):
         """Search for games by participants or game name
@@ -895,6 +1163,7 @@ class elo_games(commands.Cog):
         `[p]allgames OCEANS OF FIRE` - Search by title - words in all caps are used to search title/notes.
         `[p]allgames Nelluk OCEANS` - See games that included player Nelluk and the word *OCEANS* in the game name or game notes.
         `[p]allgames Jets`
+        `[p]allgames Nelluk 2v2` - Show all 2v2 games including Nelluk
         `[p]allgames Jets Ronin` - See games between those two teams
         `[p]allgames Nelluk rickdaheals frodakcin Jets Ronin` - See games in which three players and two teams were all involved
 
@@ -906,6 +1175,7 @@ class elo_games(commands.Cog):
         await self.game_search(ctx=ctx, mode='ALLGAMES', arg_list=target_list)
 
     @settings.in_bot_channel_strict()
+    @models.is_registered_member()
     @commands.command(aliases=['complete', 'completed'], hidden=False)
     async def incomplete(self, ctx, *, args=None):
         """List incomplete games for you or other players - also `[p]complete`
@@ -916,6 +1186,8 @@ class elo_games(commands.Cog):
         `[p]incomplete Nelluk anarchoRex` - Lists all incomplete games with both players
         `[p]incomplete Nelluk Jets` - Lists all incomplete games for Nelluk that include team Jets
         `[p]incomplete Ronin Jets` - Lists all incomplete games that include teams Ronin and Jets
+
+        You can also include a game size such as *2v2* to limit by size.
         """
         target_list = args.split() if args else []
         if ctx.invoked_with.upper() in ['COMPLETED', 'COMPLETE']:
@@ -924,6 +1196,7 @@ class elo_games(commands.Cog):
             await self.game_search(ctx=ctx, mode='INCOMPLETE', arg_list=target_list)
 
     @settings.in_bot_channel_strict()
+    @models.is_registered_member()
     @commands.command(aliases=['losses', 'loss'], hidden=False)
     async def wins(self, ctx, *, args=None):
         """List games that you or others have won - also `[p]losses`
@@ -934,6 +1207,8 @@ class elo_games(commands.Cog):
         `[p]wins Nelluk anarchoRex` - Lists all games for both players, in which the first player is the winner
         `[p]wins Nelluk frodakcin Jets` - Lists all wins for Nelluk in which player frodakcin and team Jets participated
         `[p]wins Ronin Jets` - Lists all wins for team Ronin in which team Jets participated
+
+        You can also include a game size such as *2v2* to limit by size.
         """
         target_list = args.split() if args else []
         if ctx.invoked_with.upper() in ['LOSS', 'LOSSES']:
@@ -942,6 +1217,7 @@ class elo_games(commands.Cog):
             await self.game_search(ctx=ctx, mode='WINS', arg_list=target_list)
 
     @settings.in_bot_channel()
+    @models.is_registered_member()
     @commands.command(usage='"Name of Game" player1 player2 vs player3 player4', aliases=['newgameunranked'])
     # @settings.is_user_check()
     async def newgame(self, ctx, game_name: str = None, *args):
@@ -958,8 +1234,8 @@ class elo_games(commands.Cog):
         example_usage = (f'Example usage:\n`{ctx.prefix}newgame "Name of Game" player1 VS player2` - Start a 1v1 game\n'
                          f'`{ctx.prefix}newgame "Name of Game" player1 player2 VS player3 player4` - Start a 2v2 game')
 
-        if settings.get_user_level(ctx) <= 1:
-            return await ctx.send(f'You cannot use this command until level 2 - complete a few more ELO games to have more permissions.\n{settings.levels_info}')
+        if settings.get_user_level(ctx) <= 2:
+            return await ctx.send(f'You are not authorized to use this command. Create and join games with `{ctx.prefix}open` / `{ctx.prefix}join`')
         if not game_name:
             return await ctx.send(f'Invalid format. {example_usage}')
         if not args:
@@ -1055,25 +1331,26 @@ class elo_games(commands.Cog):
                     newgame.save()
                 else:
                     logger.error('Could not add host for newgame')
-            except peewee.PeeweeException as e:
+            except (peewee.PeeweeException, exceptions.CheckFailedError) as e:
                 logger.error(f'Error creating new game: {e}')
+                await ctx.send(f'Error creating new game: {e}')
                 newgame = None
 
         if newgame:
+            models.GameLog.write(game_id=newgame, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} created game with `{ctx.invoked_with}` command with name *{discord.utils.escape_markdown(newgame.name)}*')
             await post_newgame_messaging(ctx, game=newgame)
 
     @settings.in_bot_channel()
+    @models.is_registered_member()
     @commands.command(usage='game_id winner_name', aliases=['lose'])
     async def win(self, ctx, winning_game: PolyGame = None, *, winning_side_name: str = None):
         """
         Declare winner of an existing game
 
-        The win must be confirmed by a losing player or server staff.
+        The win will be finalized when multiple players confirm the winner, or after approximately 24 hours if no other players confirm.
 
-        __Best Practice__:
-        1. Declare that you've won a game - `[p]win 2050 myname`
-        2. Post a screenshot showing that you are the only human player left
-        3. Wait for either a losing player to confirm, or for staff to check for unconfirmed games with screenshot evidence.
+        If declaring your own victory it can be good practice to post a screenshot indicating that you are the last human player remaining,
+        in case there is a later dispute over the outcome.
 
         **Examples:**
         `[p]win 2050 Home` - Declare *Home* team winner of game 2050
@@ -1104,13 +1381,15 @@ class elo_games(commands.Cog):
                 return await ctx.send(f'Game with ID {winning_game.id} is already marked as completed with winner **{winning_game.winner.name()}**')
             elif winning_game.winner != winning_side:
                 (confirmed_count, side_count, _) = winning_game.confirmations_count()
-                await ctx.send(f'Warning: Unconfirmed game with ID {winning_game.id} had previously been marked with winner **{winning_game.winner.name()}**.\n'
+                await ctx.send(f':warning: Unconfirmed game with ID {winning_game.id} had previously been marked with winner **{winning_game.winner.name()}**.\n'
                     f'{confirmed_count} of {side_count} sides had confirmed.')
                 reset_confirmations_flag = True
 
         if winning_game.is_pending:
             return await ctx.send(f'This game has not started yet.')
 
+        models.GameLog.write(game_id=winning_game, guild_id=ctx.guild.id, message=f'Win confirm logged by {models.GameLog.member_string(ctx.author)} for winner **{discord.utils.escape_markdown(winning_obj.name)}**')
+        await winning_game.update_squad_channels(guild_list=settings.bot.guilds, guild_id=ctx.guild.id, message=f'A win claim has been placed by **{ctx.author.display_name}** for winner **{winning_obj.name}**')
         if settings.is_staff(ctx):
             confirm_win = True
         else:
@@ -1156,20 +1435,24 @@ class elo_games(commands.Cog):
                         f'If this win was claimed falsely please ping a **@{helper_role}** to contest, or you can cancel your claim with the command `{ctx.prefix}unwin {winning_game.id}`.\n'
                         f'*Game lineup*: {" ".join(player_mentions)}')
 
-        winning_game.declare_winner(winning_side=winning_side, confirm=confirm_win)
+        try:
+            winning_game.declare_winner(winning_side=winning_side, confirm=confirm_win)
+        except exceptions.CheckFailedError as e:
+            await ctx.send(f'*Error*: {e}')
+        else:
+            if confirm_win:
+                # Cleanup game channels and announce winners
+                # try/except block is attempt at a bandaid where sometimes an InterfaceError/Cursor Closed exception would hit here, probably due to issues with async code
 
-        if confirm_win:
-            # Cleanup game channels and announce winners
-            # try/except block is attempt at a bandaid where sometimes an InterfaceError/Cursor Closed exception would hit here, probably due to issues with async code
-
-            try:
-                await post_win_messaging(ctx.guild, ctx.prefix, ctx.channel, winning_game)
-            except peewee.PeeweeException as e:
-                logger.error(f'Error during win command triggering post_win_messaging - trying to reopen and run again: {e}')
-                db.connect(reuse_if_open=True)
-                await post_win_messaging(ctx.guild, ctx.prefix, ctx.channel, winning_game)
+                try:
+                    await post_win_messaging(ctx.guild, ctx.prefix, ctx.channel, winning_game)
+                except peewee.PeeweeException as e:
+                    logger.error(f'Error during win command triggering post_win_messaging - trying to reopen and run again: {e}')
+                    db.connect(reuse_if_open=True)
+                    await post_win_messaging(ctx.guild, ctx.prefix, ctx.channel, winning_game)
 
     @settings.in_bot_channel()
+    @models.is_registered_member()
     @commands.command(usage='game_id')
     async def unwin(self, ctx, game: PolyGame = None):
         """Reset a completed game to incomplete
@@ -1189,14 +1472,14 @@ class elo_games(commands.Cog):
             return await ctx.send(f'No matching game was found.')
 
         if game.is_pending:
-                return await ctx.send(f'Game {game.id} is marked as *pending / not started*. This command cannot be used.')
+            return await ctx.send(f'Game {game.id} is marked as *pending / not started*. This command cannot be used.')
         if not game.is_completed:
-                return await ctx.send(f'Game {game.id} is marked as *Incomplete*. This command cannot be used.')
+            return await ctx.send(f'Game {game.id} is marked as *Incomplete*. This command cannot be used.')
 
         if settings.is_staff(ctx):
             # Staff usage: reset any game to Incomplete state
             game.confirmations_reset()
-
+            models.GameLog.write(game_id=game, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} staffer used unwin command.')
             if game.is_completed and game.is_confirmed:
                 elo_logger.debug(f'unwin game {game.id}')
                 async with ctx.typing():
@@ -1244,6 +1527,7 @@ class elo_games(commands.Cog):
 
             if author_side == game.winner:
                 logger.debug(f'Player {ctx.author.name} is removing their own win claim on game {game.id}')
+                models.GameLog.write(game_id=game, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} removes their self-win claim and confirmations have reset.')
                 game.confirmations_reset()
                 game.completed_ts = None
                 game.is_completed = False
@@ -1254,6 +1538,7 @@ class elo_games(commands.Cog):
             else:
                 # author removing win claim for a game pointing at another side as the winner
                 logger.debug(f'Player {ctx.author.name} is removing win claim on game {game.id}')
+                models.GameLog.write(game_id=game, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} removed their confirmation of the game winner.')
                 author_side.win_confirmed = False
                 author_side.save()
 
@@ -1263,6 +1548,7 @@ class elo_games(commands.Cog):
                     f'{confirmed_count} of {side_count} sides are marked as confirming.')
 
     @settings.in_bot_channel()
+    @models.is_registered_member()
     @commands.command(usage='game_id', aliases=['delete_game', 'delgame', 'delmatch', 'deletegame'])
     async def delete(self, ctx, game: PolyGame = None):
         """Deletes a game
@@ -1281,6 +1567,7 @@ class elo_games(commands.Cog):
             if not is_hosted_by and not settings.is_staff(ctx):
                 host_name = f' **{host.name}**' if host else ''
                 return await ctx.send(f'Only the game host{host_name} or server staff can do this.')
+            models.GameLog.write(game_id=game, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} deleted the game.')
             game.delete_game()
             return await ctx.send(f'Deleting open game {game.id}')
 
@@ -1295,31 +1582,56 @@ class elo_games(commands.Cog):
             await game.update_announcement(guild=ctx.guild, prefix=ctx.prefix)
 
         await game.delete_game_channels(self.bot.guilds, ctx.guild.id)
-
+        models.GameLog.write(game_id=game, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} deleted the game.')
+        gid = game.id
         try:
             async with ctx.typing():
-                gid = game.id
                 await self.bot.loop.run_in_executor(None, game.delete_game)
                 # Allows bot to remain responsive while this large operation is running.
-                # Can result in funky behavior especially if another operation tries to close DB connection, but seems to still get this operation done reliably
                 await ctx.send(f'Game with ID {gid} has been deleted and team/player ELO changes have been reverted, if applicable.')
         except discord.errors.NotFound:
             logger.warn('Game deleted while in game-related channel')
-            gid = game.id
             await self.bot.loop.run_in_executor(None, game.delete_game)
 
-    @settings.in_bot_channel()
-    @commands.command(aliases=['namegame', 'gamename'], usage='game_id "New Name"')
-    async def rename(self, ctx, game: PolyGame = None, *args):
+    @commands.command(usage='game_id "New Name"')
+    @models.is_registered_member()
+    async def rename(self, ctx, *args):
         """Renames an existing game (due to restarts)
 
-        You can rename a game for which you are the host
+        You can rename a game for which you are the host. You can omit the game ID if you use the command in a game-specific channel.
         **Example:**
         `[p]rename 25 Mountains of Fire`
         """
 
-        if not game and not args:
-            return await ctx.send(f'Game ID not provided. Usage: __`{ctx.prefix}rename GAME_ID New Name`__')
+        usage = (f'**Example usage:** `{ctx.prefix}rename 100 New Game Name`\n'
+                    'You can also omit the game ID if you use the command from a game-specific channel.')
+        if not args:
+            return await ctx.send(usage)
+        try:
+            game_id = int(args[0])
+            new_game_name = ' '.join(args[1:])
+        except ValueError:
+            game_id = None
+            new_game_name = ' '.join(args)
+
+        inferred_game = None
+        try:
+            inferred_game = Game.by_channel_id(chan_id=ctx.message.channel.id)
+        except exceptions.TooManyMatches:
+            logger.error(f'More than one game with matching channel {ctx.message.channel.id}')
+            return await ctx.send('Error looking up game based on current channel - please contact the bot owner.')
+        except exceptions.NoMatches:
+            if game_id:
+                game = await PolyGame().convert(ctx, int(game_id), allow_cross_guild=False)
+                if ctx.channel.id not in settings.guild_setting(ctx.guild.id, 'bot_channels'):
+                    return await ctx.send(f'This command must be used in a bot spam channel or in a game-specific channel.')
+            else:
+                ctx.command.reset_cooldown(ctx)
+                return await ctx.send(f'Game ID was not included and this does not appear to be a game-specific channel.\n{usage}')
+        else:
+            game = inferred_game
+            logger.debug(f'Inferring game {inferred_game.id} from rename command used in channel {ctx.message.channel.id}')
+
         if game.is_pending:
             return await ctx.send(f'This game has not started yet.')
 
@@ -1328,7 +1640,6 @@ class elo_games(commands.Cog):
             # host_name = f' **{host.name}**' if host else ''
             return await ctx.send(f'Only the game creator **{game.creating_player().name}** or server staff can do this.')
 
-        new_game_name = ' '.join(args)
         if new_game_name and not utilities.is_valid_poly_gamename(input=new_game_name):
             if settings.get_user_level(ctx) <= 2:
                 return await ctx.send('That name looks made up. :thinking: You need to manually create the game __in Polytopia__, come back and input the name of the new game you made.\n'
@@ -1338,10 +1649,16 @@ class elo_games(commands.Cog):
         old_game_name = game.name
         game.name = new_game_name
 
+        game_guild = discord.utils.get(self.bot.guilds, id=game.guild_id)
+        if not game_guild:
+            logger.error(f'Error attempting in rename command for game {game.id} - could not load guild {game.guild_id}')
+            return await ctx.send('Error loading guild associated with this game. Please contact the bot owner.')
+
         game.save()
 
-        await game.update_squad_channels(self.bot.guilds, ctx.guild.id)
-        await game.update_announcement(guild=ctx.guild, prefix=ctx.prefix)
+        await game.update_squad_channels(self.bot.guilds, game_guild.id)
+        await game.update_announcement(guild=game_guild, prefix=ctx.prefix)
+        models.GameLog.write(game_id=game, guild_id=game.guild_id, message=f'{models.GameLog.member_string(ctx.author)} renamed the game to *{discord.utils.escape_markdown(new_game_name)}*')
 
         new_game_name = game.name if game.name else 'None'
         old_game_name = old_game_name if old_game_name else 'None'
@@ -1349,42 +1666,53 @@ class elo_games(commands.Cog):
         await ctx.send(f'Game ID {game.id} has been renamed to "**{new_game_name}**" from "**{old_game_name}**"')
 
     @commands.command(aliases=['settribes'], usage='game_id player_name tribe_name [player2 tribe2 ... ]')
-    async def settribe(self, ctx, game: PolyGame = None, *args):
+    @models.is_registered_member()
+    async def settribe(self, ctx, *, args: str = None):
         """Set tribe of players for a game
 
         **Examples**
         `[p]settribe 2055 ai-mo` - Sets your own tribe for a game you are in
+        `[p]settribe bardur` - Sets your own tribe while in a game channel
 
         **Staff usage:**
         `[p]settribe 2055 nelluk bardur` - Sets Nelluk to Bardur for game 2050
         `[p]settribe 2050 nelluk bardur rick lux anarcho none` - Sets several tribes at once. Use *none* to unset a tribe.
+        `[p]settribe nelluk bardur rick lux` - Set several tribes in bulk while in a game channel.
         """
 
-        if not game:
-            return await ctx.send(f'Game ID not provided. **Example usage:** `{ctx.prefix}{ctx.invoked_with} 1234 bardur`')
-
         if not args:
-            return await ctx.send(f'Tribe name not provided. **Example usage:** `{ctx.prefix}{ctx.invoked_with} 1234 bardur`')
+            return await ctx.send(f'No arguments provided. **Example usage:** `{ctx.prefix}{ctx.invoked_with} 1234 bardur`')
 
         if settings.get_user_level(ctx) < 4:
             perm_str = f'You only have permissions to set your own tribe. **Example usage:** `{ctx.prefix}{ctx.invoked_with} 1234 bardur`'
         else:
             perm_str = ''
 
-        if settings.get_user_level(ctx) < 4 or len(args) == 1:
+        arg_list = args.split()
+        game = Game.by_channel_or_arg(chan_id=ctx.channel.id, arg=arg_list[0])
+
+        if not game:
+            return await ctx.send(f'Game ID not provided. **Example usage:** `{ctx.prefix}{ctx.invoked_with} 1234 bardur`\nYou can also omit the game ID if you use the command from a game-specific channel.')
+
+        if str(game.id) == str(arg_list[0]):
+            arg_list = arg_list[1:]  # Remove game ID from list if it was used for lookup
+            if game.guild_id != ctx.guild.id and not game.uses_channel_id(ctx.channel.id):
+                return await ctx.send(f'Game {game.id} is associated with a different discord server. Use this command from that server or a game-specific channel.')
+
+        logger.debug(f'Attempting settribe for game {game.id}')
+
+        if settings.get_user_level(ctx) < 4 or len(arg_list) == 1:
             # if non-priviledged user, force the command to be about the ctx.author
-            args = (f'<@{ctx.author.id}>', args[0])
+            arg_list = [f'<@{ctx.author.id}>', arg_list[0]]
 
-        print(args)
-
-        if len(args) % 2 != 0:
+        if len(arg_list) % 2 != 0:
             return await ctx.send(f'Wrong number of arguments. See `{ctx.prefix}help settribe` for usage examples.')
 
-        for i in range(0, len(args), 2):
+        for i in range(0, len(arg_list), 2):
             # iterate over args two at a time
 
-            player_name = args[i]
-            tribe_name = args[i + 1]
+            player_name = arg_list[i]
+            tribe_name = arg_list[i + 1]
 
             if tribe_name.upper() == 'NONE':
                 tribe = None
@@ -1413,6 +1741,7 @@ class elo_games(commands.Cog):
             lineup_match.tribe = tribe
             lineup_match.save()
             await ctx.send(f'Player **{lineup_match.player.name}** assigned to tribe *{tribe.name if tribe else "None"}* in game {game.id} {tribe.emoji if tribe else ""}')
+            models.GameLog.write(game_id=game.id, guild_id=game.guild_id, message=f'{models.GameLog.member_string(ctx.author)} assigned tribe of player {models.GameLog.member_string(lineup_match.player.discord_member)} to *{tribe.name if tribe else "None"}*')
 
         game = game.load_full_game()
         await game.update_announcement(guild=ctx.guild, prefix=ctx.prefix)
@@ -1440,10 +1769,13 @@ class elo_games(commands.Cog):
             results_str = f'All {status_str}s'
 
             def async_game_search():
+                utilities.connect()
                 query = Game.search(status_filter=status_filter, guild_id=ctx.guild.id)
                 if status_filter == 2:
                     query = list(query)  # reversing 'Incomplete' queries so oldest is at top
                     query.reverse()
+                logger.debug(f'Searching games, status filter: {status_filter}')
+                logger.debug(f'Returned {len(query)} results')
                 list_name = f'All {status_str}s ({len(query)})'
                 game_list = utilities.summarize_game_list(query[:500])
                 return game_list, list_name
@@ -1453,6 +1785,16 @@ class elo_games(commands.Cog):
             if not target_list:
                 # Target is person issuing command
                 target_list.append(str(ctx.author.id))
+
+            team_size_str, team_sizes = '', []
+            for arg in target_list:
+                m = re.fullmatch(r"\d+(?:(v|vs)\d+)+", arg.lower())
+                if m:
+                    # arg looks like '3v3' or '1v1v1'
+                    team_size_str = m[0]
+                    team_sizes = [int(x) for x in arg.lower().split(m[1])]
+                    target_list.remove(arg)
+                    continue
 
             results_title = []
 
@@ -1466,13 +1808,18 @@ class elo_games(commands.Cog):
             if remaining_args:
                 remaining_args = [utilities.escape_role_mentions(x) for x in remaining_args]
                 results_title.append(f'Included in name: *{"* *".join(remaining_args)}*')
+            if team_size_str:
+                results_title.append(f'Game size: *{team_size_str}*')
 
             results_str = '\n'.join(results_title)
             if not results_title:
                 results_str = 'No filters applied'
 
             def async_game_search():
-                query = Game.search(status_filter=status_filter, player_filter=player_matches, team_filter=team_matches, title_filter=remaining_args, guild_id=ctx.guild.id)
+                utilities.connect()
+                query = Game.search(status_filter=status_filter, player_filter=player_matches, team_filter=team_matches, title_filter=remaining_args, guild_id=ctx.guild.id, size_filter=team_sizes)
+                logger.debug(f'Searching games, status filter: {status_filter}, player_filter: {player_matches}, team_filter: {team_matches}, title_filter: {remaining_args}')
+                logger.debug(f'Returned {len(query)} results')
                 game_list = utilities.summarize_game_list(query[:500])
                 list_name = f'{len(query)} {status_str}{"s" if len(query) != 1 else ""}\n{results_str}'
                 return game_list, list_name
@@ -1492,6 +1839,7 @@ class elo_games(commands.Cog):
             logger.debug('Task running: task_purge_game_channels')
             yesterday = (datetime.datetime.now() + datetime.timedelta(hours=-24))
 
+            utilities.connect()
             old_games = Game.select().join(GameSide, on=(GameSide.game == Game.id)).where(
                 (Game.is_confirmed == 1) & (Game.completed_ts < yesterday) &
                 ((GameSide.team_chan.is_null(False)) | (Game.game_chan.is_null(False)))
@@ -1511,6 +1859,7 @@ class elo_games(commands.Cog):
 
             await asyncio.sleep(7)
             logger.debug('Task running: task_set_champion_role')
+            utilities.connect()
             await achievements.set_champion_role()
 
             await asyncio.sleep(60 * 60 * 2)
@@ -1518,12 +1867,21 @@ class elo_games(commands.Cog):
 
 async def post_win_messaging(guild, prefix, current_chan, winning_game):
 
-    await winning_game.update_squad_channels(guild_list=settings.bot.guilds, guild_id=guild.id, message=f'The game is over with **{winning_game.winner.name()}** victorious. *This channel will be purged soon.*')
+    purge_message = '*This channel will be purged soon.*'
+    reminder_message = ''
+    if winning_game.is_season_game():
+        reminder_message = f'\n:bulb: Please use `{prefix}settribes` to log the tribes that were selected.'
+        purge_message = f'This channel will not be purged as it is a Season game.\n{reminder_message}'
+    elif winning_game.is_uncaught_season_game():
+        reminder_message = f'\n:bulb: This game looks like an incorrectly named **Season Game**! You might want to use `{prefix}rename` and include the season tag at the beginning.'
+
+    await winning_game.update_squad_channels(guild_list=settings.bot.guilds, guild_id=guild.id, message=f'The game is over with **{winning_game.winner.name()}** victorious. {purge_message}')
+    models.GameLog.write(game_id=winning_game.id, guild_id=winning_game.guild_id, message=f'Win is confirmed and ELO changes processed.')
     player_mentions = [f'<@{l.player.discord_member.discord_id}>' for l in winning_game.lineup]
     embed, content = winning_game.embed(guild=guild, prefix=prefix)
 
     for l in winning_game.lineup:
-                await achievements.set_experience_role(l.player.discord_member)
+        await achievements.set_experience_role(l.player.discord_member)
 
     if settings.guild_setting(guild.id, 'game_announce_channel') is not None:
         channel = guild.get_channel(settings.guild_setting(guild.id, 'game_announce_channel'))
@@ -1532,18 +1890,18 @@ async def post_win_messaging(guild, prefix, current_chan, winning_game):
             await channel.send(embed=embed)
             return await current_chan.send(f'Game concluded! See {channel.mention} for full details.')
 
-    await current_chan.send(f'Game concluded! Congrats **{winning_game.winner.name()}**. Roster: {" ".join(player_mentions)}')
+    await current_chan.send(f'Game concluded! Congrats **{winning_game.winner.name()}**. Roster: {" ".join(player_mentions)}{reminder_message}')
     await current_chan.send(embed=embed, content=content)
 
 
-async def post_unwin_messaging(guild, prefix, current_chan, game, previously_confirmed: bool=False):
+async def post_unwin_messaging(guild, prefix, current_chan, game, previously_confirmed: bool = False):
 
     await game.update_squad_channels(guild_list=settings.bot.guilds, guild_id=guild.id, message=f'The game has reset to *Incomplete* status.')
     player_mentions = [f'<@{l.player.discord_member.discord_id}>' for l in game.lineup]
 
     if previously_confirmed:
         for l in game.lineup:
-                    await achievements.set_experience_role(l.player.discord_member)
+            await achievements.set_experience_role(l.player.discord_member)
 
     await current_chan.send(f'Game reset to *Incomplete*. Previously claimed win has been canceled.  Notifying game roster: {" ".join(player_mentions)}')
 
@@ -1551,21 +1909,30 @@ async def post_unwin_messaging(guild, prefix, current_chan, game, previously_con
 async def post_newgame_messaging(ctx, game):
 
     mentions_list = [f'<@{l.player.discord_member.discord_id}>' for l in game.lineup]
+    season, season_str = game.is_season_game(), ''
+    if season:
+        season_str = f'**{"Pro" if season[1] == "P" else "Junior"} Season {season[0]}** '
 
     embed, content = game.embed(guild=ctx.guild, prefix=ctx.prefix)
     ranked_str = 'unranked ' if not game.is_ranked else ''
+    announce_str = f'New {season_str}{ranked_str}game ID **{game.id}** started! Roster: {" ".join(mentions_list)}'
 
-    if settings.guild_setting(ctx.guild.id, 'game_announce_channel') is not None:
+    if settings.guild_setting(ctx.guild.id, 'game_announce_channel'):
         channel = ctx.guild.get_channel(settings.guild_setting(ctx.guild.id, 'game_announce_channel'))
-        if channel is not None:
-            await channel.send(f'New {ranked_str}game ID **{game.id}** started! Roster: {" ".join(mentions_list)}')
+        if channel:
+            await channel.send(f'{announce_str}')
             announcement = await channel.send(embed=embed, content=content)
             await ctx.send(f'New {ranked_str}game ID **{game.id}** started! See {channel.mention} for full details.')
             game.announcement_message = announcement.id
             game.announcement_channel = announcement.channel.id
             game.save()
+        else:
+            await ctx.send(embed=embed, content=content)
+            await ctx.send(f'Error loading game announcement channel from server settings. Please inform the bot owner.')
+            logger.error(f'Could not load game_announce_channel channel for guild {ctx.guild.id}')
+
     else:
-        await ctx.send(f'New {ranked_str}game ID {game.id} started! Roster: {" ".join(mentions_list)}')
+        await ctx.send(f'{announce_str}')
         await ctx.send(embed=embed, content=content)
 
     if settings.guild_setting(ctx.guild.id, 'game_channel_categories'):
@@ -1574,6 +1941,15 @@ async def post_newgame_messaging(ctx, game):
             await game.create_game_channels(settings.bot.guilds, ctx.guild.id)
         except exceptions.MyBaseException as e:
             await ctx.send(f'Error during channel creation: {e}')
+
+    if game.is_uncaught_season_game():
+        await ctx.send(f':bulb: This game looks like an incorrectly named **Season Game**! You might want to use `{ctx.prefix}rename` and include the season tag at the beginning.')
+    if season and game.gamesides[0].team.is_hidden:
+        await ctx.send(f':warning: This game is marked as a **Season Game** but is not associated with a League Team. There are probably players with mixed roles on a side. I suggest you `{ctx.prefix}unstart`, fix the roles, and re-`{ctx.prefix}start`.')
+    if game.guild_id == settings.server_ids['polychampions'] and game.smallest_team() > 1:
+        populate_league_team_channels()
+
+    await auto_grad_novas(ctx, game)
 
 
 def parse_players_and_teams(input_list, guild_id: int):
@@ -1603,5 +1979,5 @@ def parse_players_and_teams(input_list, guild_id: int):
 
 
 def setup(bot):
-    bot.add_cog(elo_games(bot))
+    bot.add_cog(polygames(bot))
     # bot.load_extension('modules.games')

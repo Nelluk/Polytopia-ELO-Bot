@@ -1,5 +1,8 @@
 # git+https://github.com/Rapptz/discord.py@3f06f247c039a23948e7bb0014ea31db533b4ba2
 # discord.py rewrite branch prior to breaking changes in February/March
-peewee~=3.9.0
-psycopg2-binary~=2.8.0
-discord.py~=1.2
+peewee==3.*
+psycopg2-binary~=2.8
+discord.py~=1.3
+matplotlib~=3.2
+pandas~=1.0
+scipy~=1.5
