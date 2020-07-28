@@ -65,6 +65,8 @@ def paste_image(
     width = int(start_w / factor)
     # resize and paste the image
     image = image.resize((width, height))
+    if image.mode != 'RGBA':
+        image.putalpha(255)
     base.paste(image, (left, top), image)
 
 
