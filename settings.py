@@ -13,8 +13,9 @@ try:
     discord_key = config['DEFAULT']['discord_key']
     psql_user = config['DEFAULT']['psql_user']
     psql_db = config['DEFAULT']['psql_db']
+    owner_id = int(config['DEFAULT']['owner_id'])
 except KeyError:
-    logger.error('Error finding a required setting (discord_key / psql_user / psql_db) in config.ini file')
+    logger.error('Error finding a required setting (discord_key / psql_user / psql_db / owner_id) in config.ini file')
     exit(0)
 
 pastebin_key = config['DEFAULT'].get('pastebin_key', None)
@@ -22,7 +23,6 @@ pastebin_key = config['DEFAULT'].get('pastebin_key', None)
 server_ids = {'main': 283436219780825088, 'polychampions': 447883341463814144, 'test': 478571892832206869, 'beta': 274660262873661442}
 # server_ids = {'main': 283436219780825088, 'polychampions': 478571892832206869, 'test': 478571892832206869, 'beta': 274660262873661442}
 
-owner_id = 272510639124250625  # Nelluk
 bot = None
 run_tasks = True  # if set as False via command line option, tasks should check this and skip
 team_elo_reset_date = '1/1/2020'
@@ -680,7 +680,6 @@ def is_staff(ctx, user=None):
 def is_mod(ctx_or_member, user=None):
     # if member passed as first arg, checks to see if member is a mod of the guild they are a member of
     # if ctx is passed, will check second arg user as a mod, or check ctx.member as a mod
-
     if type(ctx_or_member).__name__ == 'Context':
         user = ctx_or_member.author if not user else user
         guild = ctx_or_member.guild
