@@ -65,6 +65,8 @@ def paste_image(
     width = int(start_w / factor)
     # resize and paste the image
     image = image.resize((width, height))
+    if image.mode != 'RGBA':
+        image.putalpha(255)
     base.paste(image, (left, top), image)
 
 
@@ -96,7 +98,7 @@ def player_draft_card(
         member: discord.Member, team_role: discord.Role) -> discord.File:
     """Generate a player draft card image."""
     # get the relevant images and strings
-    team = Team.get_by_name(team_role.name, member.guild.id)
+    team = Team.get_by_name(team_role.name, member.guild.id)[0]
     team_logo = fetch_image(team.image_url)
     team_colour = str(team_role.colour)
     title = f'{team_role.name.upper()} SELECT'

@@ -1,3 +1,7 @@
+# virtual enviroment
+
+venv/*
+
 # Python bytecode:
 *.py[co]
 
