@@ -93,7 +93,7 @@ def rectangle(
 
 
 def player_draft_card(
-        member: discord.Member, team_role: discord.Role) -> BytesIO:
+        member: discord.Member, team_role: discord.Role) -> discord.File:
     """Generate a player draft card image."""
     # get the relevant images and strings
     team = Team.get_by_name(team_role.name, member.guild.id)
