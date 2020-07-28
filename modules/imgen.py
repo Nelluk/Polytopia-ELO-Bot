@@ -65,7 +65,7 @@ def paste_image(
     width = int(start_w / factor)
     # resize and paste the image
     image = image.resize((width, height))
-    base.paste(image, (left, top), image)
+    base.paste(image, (left, top))
 
 
 def generate_gradient(
