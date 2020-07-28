@@ -65,13 +65,9 @@ def paste_image(
     width = int(start_w / factor)
     # resize and paste the image
     image = image.resize((width, height))
-<<<<<<< HEAD
     if image.mode != 'RGBA':
         image.putalpha(255)
     base.paste(image, (left, top), image)
-=======
-    base.paste(image, (left, top))
->>>>>>> 9ec249d0811e131b4eccc13c4e4d9a75432a7abb
 
 
 def generate_gradient(
@@ -98,12 +94,8 @@ def rectangle(
     image.paste(layer, (0, 0), mask)
 
 
-<<<<<<< HEAD
 def player_draft_card(
         member: discord.Member, team_role: discord.Role) -> discord.File:
-=======
-def player_draft_card(member: discord.Member, team_role: discord.Role) -> discord.File:
->>>>>>> 9ec249d0811e131b4eccc13c4e4d9a75432a7abb
     """Generate a player draft card image."""
     # get the relevant images and strings
     team = Team.get_by_name(team_role.name, member.guild.id)[0]
