@@ -94,7 +94,8 @@ def rectangle(
     image.paste(layer, (0, 0), mask)
 
 
-def player_draft_card(member: discord.Member, team_role: discord.Role) -> discord.File:
+def player_draft_card(
+        member: discord.Member, team_role: discord.Role) -> discord.File:
     """Generate a player draft card image."""
     # get the relevant images and strings
     team = Team.get_by_name(team_role.name, member.guild.id)[0]
