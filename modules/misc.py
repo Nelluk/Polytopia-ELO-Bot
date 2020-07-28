@@ -269,7 +269,7 @@ class misc(commands.Cog):
 
         mention_players_in_current_channel = True  # False when done from game channel, True otherwise
 
-        if all(ctx.channel.permissions_for(member).read_messages for member in game_members):
+        if None not in game_members and all(ctx.channel.permissions_for(member).read_messages for member in game_members):
             logger.debug(f'Allowing ping since all members have read access to current channel')
             mention_players_in_current_channel = True
             print(1)
