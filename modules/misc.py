@@ -256,6 +256,8 @@ class misc(commands.Cog):
             return await ctx.send(f'You are not a player in game {game.id}')
 
         permitted_channels = settings.guild_setting(game.guild_id, 'bot_channels')
+        if game.game_chan:
+            permitted_channels.append(game.game_chan)
 
         player_mentions = [f'<@{l.player.discord_member.discord_id}>' for l in game.lineup]
         game_player_ids = [l.player.discord_member.discord_id for l in game.lineup]
@@ -267,10 +269,16 @@ class misc(commands.Cog):
 
         mention_players_in_current_channel = True  # False when done from game channel, True otherwise
 
-        if all(ctx.channel.permissions_for(member).read_messages for member in game_members if member):
+        if all(ctx.channel.permissions_for(member).read_messages for member in game_members):
             logger.debug(f'Allowing ping since all members have read access to current channel')
             mention_players_in_current_channel = True
             print(1)
+            # this case may behave unexpectedly if the channel is public and in central server, but a member has left the server
+            # the second case should cover that
+        elif ctx.channel.id in permitted_channels:
+            logger.debug(f'Allowing ping since it is a bot channel or central game channel')
+            mention_players_in_current_channel = True
+            print('1.5')
         elif ctx.channel.id in game_channels and len(game_channels) >= len(game.gamesides):
             logger.debug(f'Allowing ping since it is within a game channel, and all sides have a game channel')
             mention_players_in_current_channel = False
