@@ -727,7 +727,7 @@ class league(commands.Cog):
         if newbie_role:
             await ctx.author.remove_roles(newbie_role, reason='Joining Novas')
 
-    @commands.command(aliases=['freeagents', 'draftable', 'ble', 'bge', 'pros', 'juniors'], usage='[sort] [role name list]')
+    @commands.command(aliases=['freeagents', 'draftable', 'ble', 'bge'], usage='[sort] [role name list]')
     @settings.in_bot_channel_strict()
     @commands.cooldown(1, 5, commands.BucketType.channel)
     async def roleelo(self, ctx, *, arg=None):
