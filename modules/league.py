@@ -10,6 +10,7 @@ import modules.exceptions as exceptions
 import datetime
 import peewee
 import typing
+import modules.imgen as imgen
 
 logger = logging.getLogger('polybot.' + __name__)
 
@@ -726,6 +727,15 @@ class league(commands.Cog):
 
         if newbie_role:
             await ctx.author.remove_roles(newbie_role, reason='Joining Novas')
+
+    @commands.command(hidden=True)
+    # @commands.is_owner()
+    async def draftgrad(self, ctx, *, args=None):
+        role = discord.utils.get(ctx.guild.roles, name='The Ronin')
+        member = ctx.author
+        fs = imgen.player_draft_card(member, role)
+
+        await ctx.send(file=fs)
 
     @commands.command(aliases=['freeagents', 'draftable', 'ble', 'bge'], usage='[sort] [role name list]')
     @settings.in_bot_channel_strict()
