@@ -1,6 +1,6 @@
 # Polytopia-ELO-Bot
 A discord bot for the game Polytopia, to enable matchmaking and leaderboards.
-Requires Python 3.7+, Postgres, probably will only install properly on a Unix-like OS.
+Requires Python 3.6+, Postgres, probably will only install properly on a Unix-like OS.
 
 Create an application and application bot account at the Discord developer portal: https://discord.com/developers/applications
 
