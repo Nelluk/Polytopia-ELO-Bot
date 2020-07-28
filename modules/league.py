@@ -752,7 +752,7 @@ class league(commands.Cog):
         `[p]roleelo novas -file` - Load all 'nova' members into a CSV file
         `[p]roleelo elo novas` - List all members with a role matching 'novas', sorted by local elo
         `[p]draftable recent` - List all members with the Draftable role sorted by recent games
-        `[p]roleelo g_elo crawfish, ronin` - List all members with one of two roles, sorted by global elo
+        `[p]roleelo g_elo crawfish, ronin` - List all members with any of two roles, sorted by global elo
         `[p]roleelo recent Pros` - *Shortcut* List all members with any Pro team role, sorted by recent. 'Juniors' also works.
         `[p]roleelo League` - *Shortcut* List all members with any team role.
         """
