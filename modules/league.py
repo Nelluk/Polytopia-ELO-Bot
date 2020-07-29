@@ -730,6 +730,7 @@ class league(commands.Cog):
 
     @commands.command(hidden=True)
     # @commands.is_owner()
+    @settings.in_bot_channel_strict()
     async def draftgrad(self, ctx, *, args=None):
         role = discord.utils.get(ctx.guild.roles, name='The Ronin')
         member = ctx.author
