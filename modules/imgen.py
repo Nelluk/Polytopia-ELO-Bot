@@ -15,7 +15,7 @@ def fetch_image(url: str) -> Image:
 def get_player_summary(member: discord.Member) -> str:
     """Get a summary for a player."""
 
-    player = Player.get_or_except(player_str=member.id, guild_id=member.guild.id)
+    player = Player.get_or_except(player_string=member.id, guild_id=member.guild.id)
     local_wins, local_losses = player.get_record()
     local_elo = player.elo
     global_wins, global_losses = player.discord_member.get_record()
@@ -87,13 +87,14 @@ def rectangle(
     image.paste(layer, (0, 0), mask)
 
 
-def player_draft_card(member: discord.Member, team_role: discord.Role) -> discord.File:
+def player_draft_card(member: discord.Member, team_role: discord.Role, selecting_string: str = None) -> discord.File:
     """Generate a player draft card image."""
     # get the relevant images and strings
     team = Team.get_or_except(team_name=team_role.name, guild_id=member.guild.id)
     team_logo = fetch_image(team.image_url)
     team_colour = str(team_role.colour)
-    title = f'{team_role.name.upper()} SELECT'
+    selecting_string = selecting_string if selecting_string else team.name
+    title = f'{selecting_string.upper()} SELECT'
     player_avatar = fetch_image(str(member.avatar_url) + '?size=256')
     name = member.name.upper()
     summary = get_player_summary(member)
