@@ -729,11 +729,38 @@ class league(commands.Cog):
             await ctx.author.remove_roles(newbie_role, reason='Joining Novas')
 
     @commands.command(hidden=True)
-    # @commands.is_owner()
-    async def draftgrad(self, ctx, *, args=None):
-        role = discord.utils.get(ctx.guild.roles, name='The Ronin')
-        member = ctx.author
-        fs = imgen.player_draft_card(member, role)
+    @settings.is_mod_check()
+    @settings.in_bot_channel_strict()
+    async def draft(self, ctx, *, args=None):
+        args = args.split() if args else []
+        usage = (f'**Example usage:** `{ctx.prefix}draft @Nelluk Ronin`')
+
+        if len(args) < 2:
+            return await ctx.send(f'Insufficient arguments.\n{usage}')
+        draftee = ctx.guild.get_member(utilities.string_to_user_id(args[0]))
+        if not draftee:
+            return await ctx.send(f'Could not find server member from **{args[0]}**\n{usage}')
+
+        try:
+            team = models.Team.get_or_except(team_name=' '.join(args[1:]), guild_id=ctx.guild.id)
+        except exceptions.NoSingleMatch as e:
+            return await ctx.send(f'Error looking up team: {e}\n{usage}')
+
+        team_roles, pro_roles, junior_roles = get_league_roles(ctx.guild)
+
+        draft_team_role = utilities.guild_role_by_name(ctx.guild, name=team.name, allow_partial=False)
+        if not draft_team_role:
+            return await ctx.send(f'Found matching team but no matching role with name *{team.name}*!')
+
+        if draft_team_role in pro_roles:
+            team_umbrella_role = team_roles[pro_roles.index(draft_team_role)]
+        elif draft_team_role in junior_roles:
+            team_umbrella_role = team_roles[junior_roles.index(draft_team_role)]
+        else:
+            return await ctx.send(f'Found matching team and role but `league_teams` is misconfigured. Notify <@{settings.owner_id}>.')
+
+        selecting_string = team_umbrella_role.name if team_umbrella_role else draft_team_role.name
+        fs = imgen.player_draft_card(member=draftee, team_role=draft_team_role, selecting_string=selecting_string)
 
         await ctx.send(file=fs)
 
