@@ -29,7 +29,7 @@ def get_player_summary(member: discord.Member) -> str:
     global_elo = player.discord_member.elo
     return (
         f'LOCAL\n  {local_elo} ELO\n  {local_wins} W / {local_losses} L\n'
-        f'GLOBAL\n  {global_elo} ELO\n  {local_wins} W / {local_losses} L'
+        f'GLOBAL\n  {global_elo} ELO\n  {global_wins} W / {global_losses} L'
     )
 
 
