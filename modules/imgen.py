@@ -72,7 +72,8 @@ def generate_gradient(
     mask_data = []
     for y in range(height):
         for x in range(width):
-            mask_data.append(int(255 * ((x + y) / (height + width))))
+            # mask_data.append(int(255 * ((x + y) / (height + width))))
+            mask_data.append(int(75 * ((x + y) / (height + width))))
     mask.putdata(mask_data)
     base.paste(top, (0, 0), mask)
     return base
@@ -110,7 +111,8 @@ def player_draft_card(
         get_text_width(name, 40) + 298,
         600
     )
-    im = generate_gradient('#4e459d', '#b03045', width, 400)
+    # im = generate_gradient('#4e459d', '#b03045', width, 400)
+    im = generate_gradient(str(team_role.color), '#FFFFFF', width, 400)
     rectangle(im, 0, 0, width, 90, team_colour)
     draw_text(im, title, left=120, top=15, size=50)
     draw_text(im, name, left=293, top=95, size=40)
