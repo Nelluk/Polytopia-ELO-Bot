@@ -755,7 +755,7 @@ class league(commands.Cog):
         if draft_team_role in pro_roles:
             team_umbrella_role = team_roles[pro_roles.index(draft_team_role)]
         elif draft_team_role in junior_roles:
-            team_umbrella_role = team_roles[pro_roles.index(draft_team_role)]
+            team_umbrella_role = team_roles[junior_roles.index(draft_team_role)]
         else:
             return await ctx.send(f'Found matching team and role but `league_teams` is misconfigured. Notify <@{settings.owner_id}>.')
 
