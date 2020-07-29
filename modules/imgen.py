@@ -87,7 +87,9 @@ def rectangle(
     image.paste(layer, (0, 0), mask)
 
 
-def player_draft_card(member: discord.Member, team_role: discord.Role, selecting_string: str = None) -> discord.File:
+def player_draft_card(
+        member: discord.Member, team_role: discord.Role,
+        selecting_string: str = None) -> discord.File:
     """Generate a player draft card image."""
     # get the relevant images and strings
     team = Team.get_or_except(team_name=team_role.name, guild_id=member.guild.id)
@@ -95,7 +97,9 @@ def player_draft_card(member: discord.Member, team_role: discord.Role, selecting
     team_colour = str(team_role.colour)
     selecting_string = selecting_string if selecting_string else team.name
     title = f'{selecting_string.upper()} SELECT'
-    player_avatar = fetch_image(str(member.avatar_url) + '?size=256')
+    player_avatar = fetch_image(str(member.avatar_url_as(
+        format='png', size=256
+    )))
     name = member.name.upper()
     summary = get_player_summary(member)
     wordmark = Image.open('res/pc_wordmark.png')
