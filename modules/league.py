@@ -105,28 +105,18 @@ class league(commands.Cog):
         if after.guild.id not in [settings.server_ids['polychampions'], settings.server_ids['test']]:
             return
 
-        changed_role = None
-        if len(after.roles) > len(before.roles):
-            # assume one role added
-            changed_role = [x for x in after.roles if x not in before.roles]
-            if len(changed_role) != 1:
-                return logger.debug(f'Abandoned League.on_member_update because not single added role. before {before.roles} after {after.roles}')
-            changed_role = changed_role[0]
-        elif len(after.roles) < len(before.roles):
-            # assume one role removed
-            changed_role = [x for x in before.roles if x not in after.roles]
-            if len(changed_role) != 1:
-                return logger.debug(f'Abandoned League.on_member_update because not single removed role. before {before.roles} after {after.roles}')
-            changed_role = changed_role[0]
+        changed_roles = set([x for x in after.roles if x not in before.roles] + [x for x in before.roles if x not in after.roles])
 
         team_roles, pro_roles, junior_roles = get_league_roles(after.guild)
         league_role = discord.utils.get(after.guild.roles, name=league_role_name)
         pro_member_role = discord.utils.get(after.guild.roles, name=pro_member_role_name)
         jr_member_role = discord.utils.get(after.guild.roles, name=jr_member_role_name)
+        player, team = None, None
 
-        if changed_role not in pro_roles and changed_role not in junior_roles:
-            # role that changed isn't a specific team role
+        if not any([x in pro_roles + junior_roles for x in changed_roles]):
             return
+
+        # If we get here, at least one Team role was added or removed from the member
 
         member_team_roles = [x for x in after.roles if x in pro_roles or x in junior_roles]
         if len(member_team_roles) > 1:
@@ -134,17 +124,26 @@ class league(commands.Cog):
 
         roles_to_remove = team_roles + [jr_member_role] + [pro_member_role] + [league_role]
 
-        if member_team_roles and member_team_roles[0] in pro_roles:
-            team_umbrella_role = team_roles[pro_roles.index(member_team_roles[0])]
-            roles_to_add = [team_umbrella_role, pro_member_role, league_role]
-            models.GameLog.write(guild_id=after.guild.id, message=f'{models.GameLog.member_string(after)} had pro team role **{member_team_roles[0].name}** added.')
-        elif member_team_roles and member_team_roles[0] in junior_roles:
-            team_umbrella_role = team_roles[junior_roles.index(member_team_roles[0])]
-            roles_to_add = [team_umbrella_role, jr_member_role, league_role]
-            models.GameLog.write(guild_id=after.guild.id, message=f'{models.GameLog.member_string(after)} had junior team role **{member_team_roles[0].name}** added.')
+        if member_team_roles:
+            try:
+                player = models.Player.get_or_except(player_string=after.id, guild_id=after.guild.id)
+                team = models.Team.get_or_except(team_name=member_team_roles[0].name, guild_id=after.guild.id)
+                player.team = team
+                player.save()
+            except exceptions.NoSingleMatch as e:
+                logger.warn(f'League.on_member_update: could not load Player or Team for changing league member {after.display_name} - {changed_roles}: {e}')
+
+            if member_team_roles[0] in pro_roles:
+                team_umbrella_role = team_roles[pro_roles.index(member_team_roles[0])]
+                roles_to_add = [team_umbrella_role, pro_member_role, league_role]
+                log_message = f'{models.GameLog.member_string(after)} had pro team role **{member_team_roles[0].name}** added.'
+            elif member_team_roles[0] in junior_roles:
+                team_umbrella_role = team_roles[junior_roles.index(member_team_roles[0])]
+                roles_to_add = [team_umbrella_role, jr_member_role, league_role]
+                log_message = f'{models.GameLog.member_string(after)} had junior team role **{member_team_roles[0].name}** added.'
         else:
             roles_to_add = []  # No team role
-            models.GameLog.write(guild_id=after.guild.id, message=f'{models.GameLog.member_string(after)} had team role removed and is teamless.')
+            log_message = f'{models.GameLog.member_string(after)} had team role removed and is teamless.'
 
         member_roles = after.roles.copy()
         member_roles = [r for r in member_roles if r not in roles_to_remove]
@@ -156,6 +155,9 @@ class league(commands.Cog):
         logger.debug(f'Attempting to update member {after.display_name} role set to {member_roles}')
         # using member.edit() sets all the roles in one API call, much faster than using add_roles and remove_roles which uses one API call per role change, or two calls total if atomic=False
         await after.edit(roles=member_roles, reason='Detected change in team membership')
+
+        await self.send_to_log_channel(after.guild, log_message)
+        models.GameLog.write(guild_id=after.guild.id, message=log_message)
 
     @commands.Cog.listener()
     async def on_ready(self):
