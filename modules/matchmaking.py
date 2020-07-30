@@ -674,7 +674,13 @@ class matchmaking(commands.Cog):
             game_list = models.Game.search_pending(guild_id=ctx.guild.id, player_discord_id=ctx.author.id)
 
         elif ctx.invoked_with == 'novagames' or ctx.invoked_with == 'nova':
-            title_str = f'Current pending Nova League games\nUse `{ctx.prefix}games` to view all joinable games'
+            if len(args) > 0 and args[0].upper() == 'ALL':
+                filter_unjoinable = False
+                title_str = f'Current pending Nova games\nUse `{ctx.prefix}games` for all joinable games.'
+            else:
+                title_str = f'Current joinable Nova games\nUse `{ctx.prefix}novagames all` to view all Nova Games or `{ctx.prefix}games` for all joinable games.'
+                filter_unjoinable = True
+
             novas_only = True
             game_list = models.Game.search_pending(status_filter=2, guild_id=ctx.guild.id, ranked_filter=ranked_filter)
 
@@ -737,7 +743,7 @@ class matchmaking(commands.Cog):
             gamelist_fields.append((f'`{f"{game.id}":<8}{host_name:<40} {game.size_string():<7} {capacity_str:<7} {expiration:>5}`',
                 f'{ranked_str}{notes_str}\n \u200b'))
 
-        if filter_unjoinable and unjoinable_count:
+        if filter_unjoinable and unjoinable_count and not novas_only:
             if unjoinable_count == 1:
                 title_str = title_str + f'\n1 game that you cannot join was filtered. See `{ctx.prefix}{ctx.invoked_with} all` for an unfiltered list.'
             else:
@@ -745,7 +751,7 @@ class matchmaking(commands.Cog):
 
         title_str_full = title_str + f'\nUse __`{ctx.prefix}join ID`__ to join one or __`{ctx.prefix}game ID`__ for more details.'
 
-        self.bot.loop.create_task(utilities.paginate(self.bot, ctx, title=title_str_full, message_list=gamelist_fields, page_start=0, page_end=15, page_size=15))
+        self.bot.loop.create_task(utilities.paginate(self.bot, ctx, title=title_str_full[:255], message_list=gamelist_fields, page_start=0, page_end=15, page_size=15))
         # paginator done as a task because otherwise it will not let the waitlist message send until after pagination is complete (20+ seconds)
 
         # Alert user if a game they are hosting OR should be creating is waiting to be created
