@@ -105,20 +105,18 @@ class league(commands.Cog):
         if after.guild.id not in [settings.server_ids['polychampions'], settings.server_ids['test']]:
             return
 
-        changed_roles = set([x for x in after.roles if x not in before.roles] + [x for x in before.roles if x not in after.roles])
-
         team_roles, pro_roles, junior_roles = get_league_roles(after.guild)
         league_role = discord.utils.get(after.guild.roles, name=league_role_name)
         pro_member_role = discord.utils.get(after.guild.roles, name=pro_member_role_name)
         jr_member_role = discord.utils.get(after.guild.roles, name=jr_member_role_name)
         player, team = None, None
 
-        if not any([x in pro_roles + junior_roles for x in changed_roles]):
+        before_member_team_roles = [x for x in before.roles if x in pro_roles or x in junior_roles]
+        member_team_roles = [x for x in after.roles if x in pro_roles or x in junior_roles]
+
+        if before_member_team_roles == member_team_roles:
             return
 
-        # If we get here, at least one Team role was added or removed from the member
-
-        member_team_roles = [x for x in after.roles if x in pro_roles or x in junior_roles]
         if len(member_team_roles) > 1:
             return logger.debug(f'Member has more than one team role. Abandoning League.on_member_update. {member_team_roles}')
 
@@ -131,7 +129,7 @@ class league(commands.Cog):
                 player.team = team
                 player.save()
             except exceptions.NoSingleMatch as e:
-                logger.warn(f'League.on_member_update: could not load Player or Team for changing league member {after.display_name} - {changed_roles}: {e}')
+                logger.warn(f'League.on_member_update: could not load Player or Team for changing league member {after.display_name}: {e}')
 
             if member_team_roles[0] in pro_roles:
                 team_umbrella_role = team_roles[pro_roles.index(member_team_roles[0])]
