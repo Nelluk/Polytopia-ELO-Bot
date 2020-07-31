@@ -245,6 +245,7 @@ def in_bot_channel():
                 pass
             else:
                 channel_tags = [f'<#{chan_id}>' for chan_id in guild_setting(ctx.guild.id, 'bot_channels')]
+                logger.debug(f'in_bot_channel: {channel_tags} {guild_setting(ctx.guild.id, "bot_channels")}')
                 await ctx.send(f'This command can only be used in a designated ELO bot channel. Try: {" ".join(channel_tags)}')
             return False
     return commands.check(predicate)
