@@ -60,7 +60,7 @@ discord_id_ban_list = [
     359831073737146369,  # Epi
     427018182310756352,  # Freeze
     386549614964244481,  # logs#4361
-    313427349775450112,  # SouthPenguinJay#3692
+    # 313427349775450112,  # SouthPenguinJay#3692
     616737820261875721,  # CoolGuyNotFoolGuy#0498 troll who blatantly lied about game confirmations
     735809555837091861,  # XaeroXD8401  points cheater
 ]
@@ -75,7 +75,7 @@ poly_id_ban_list = [
     '8ZWg85d9PlogdY1H',  # Stupid#7043
     'R5NregRkLycUsq7C',  # Just7609
     '9x85fWIxxkLyOMem',  # logs#4361
-    'JU1Zb9jGO4H1I4Ls',  # SouthPenguinJay#3692
+    # 'JU1Zb9jGO4H1I4Ls',  # SouthPenguinJay#3692
     'MhJJohJENaeBUz7H',  # CoolGuyNotFoolGuy#0498
     '20aih8HH5IcromHX',  # XaeroXD8401
 ]
