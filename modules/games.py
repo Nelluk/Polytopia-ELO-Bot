@@ -508,15 +508,14 @@ class polygames(commands.Cog):
 
     @settings.in_bot_channel()
     @commands.command(brief='See details on a player', usage='player_name', aliases=['elo', 'rank'])
-    async def player(self, ctx, *args):
+    async def player(self, ctx, *, args=None):
         """See your own player card or the card of another player
         This also will find results based on a game-code or in-game name, if set.
         **Examples**
         `[p]player` - See your own player card
         `[p]player Nelluk` - See Nelluk's card
         """
-
-        args_list = list(args)
+        args_list = args.split() if args else []
         if len(args_list) == 0:
             # Player looking for info on themselves
             args_list.append(f'<@{ctx.author.id}>')
