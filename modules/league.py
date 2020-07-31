@@ -416,7 +416,7 @@ class league(commands.Cog):
     async def newdraft(self, ctx, channel_override: typing.Optional[discord.TextChannel], *, added_message: str = ''):
 
         """
-        Post a new draft signup announcement
+        *Mod:* Post a new draft signup announcement
 
         Will post a default draft signup announcement into a default announcement channel.
 
@@ -728,10 +728,17 @@ class league(commands.Cog):
         if newbie_role:
             await ctx.author.remove_roles(newbie_role, reason='Joining Novas')
 
-    @commands.command(hidden=True)
+    @commands.command(usage='@Draftee TeamName')
     @settings.is_mod_check()
     @settings.in_bot_channel_strict()
     async def draft(self, ctx, *, args=None):
+        """
+        *Mod:* Generate a draft announcement image
+        Currently will not alter any roles or do anything other than display an image.
+
+        **Examples**
+        `[p]draft` @Nelluk Ronin
+        """
         args = args.split() if args else []
         usage = (f'**Example usage:** `{ctx.prefix}draft @Nelluk Ronin`')
 
@@ -739,7 +746,7 @@ class league(commands.Cog):
             return await ctx.send(f'Insufficient arguments.\n{usage}')
         draftee = ctx.guild.get_member(utilities.string_to_user_id(args[0]))
         if not draftee:
-            return await ctx.send(f'Could not find server member from **{args[0]}**\n{usage}')
+            return await ctx.send(f'Could not find server member from **{args[0]}**. Make sure to use a @Mention.\n{usage}')
 
         try:
             team = models.Team.get_or_except(team_name=' '.join(args[1:]), guild_id=ctx.guild.id)

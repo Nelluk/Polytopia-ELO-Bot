@@ -840,8 +840,8 @@ class polygames(commands.Cog):
             fig.suptitle('ELO History (' + team.name + ')', fontsize=16)
             fig.autofmt_xdate()
 
-            plt.plot(team_elo_history_dates, team_elo_history_elos, 'o', markersize=3, label = f'Since {settings.team_elo_reset_date}')
-            plt.plot(alltime_team_elo_history_dates, alltime_team_elo_history_elos, 'o', markersize=3, label = 'Alltime')
+            plt.plot(team_elo_history_dates, team_elo_history_elos, 'o', markersize=3, label=f'Since {settings.team_elo_reset_date}')
+            plt.plot(alltime_team_elo_history_dates, alltime_team_elo_history_elos, 'o', markersize=3, label='Alltime')
 
             ax.yaxis.grid()
             ax.spines['top'].set_visible(False)
