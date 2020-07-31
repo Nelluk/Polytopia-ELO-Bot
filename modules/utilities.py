@@ -43,6 +43,16 @@ async def buffered_send(destination, content, max_length=2000):
         await destination.send(page)
 
 
+async def send_to_log_channel(self, guild, message):
+
+    logger.debug(f'Sending log message to game_request_channel: {message}')
+    staff_output_channel = guild.get_channel(settings.guild_setting(guild.id, 'game_request_channel'))
+    if not staff_output_channel:
+        logger.warn(f'Could not load game_request_channel for server {guild.id} - skipping')
+    else:
+        await buffered_send(destination=staff_output_channel, content=message)
+
+
 def escape_role_mentions(input: str):
     # like escape_mentions but allow user mentions. disallows everyone/here/role
 

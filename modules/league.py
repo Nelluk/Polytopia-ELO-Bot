@@ -154,7 +154,7 @@ class league(commands.Cog):
         # using member.edit() sets all the roles in one API call, much faster than using add_roles and remove_roles which uses one API call per role change, or two calls total if atomic=False
         await after.edit(roles=member_roles, reason='Detected change in team membership')
 
-        await self.send_to_log_channel(after.guild, log_message)
+        await utilities.send_to_log_channel(after.guild, log_message)
         models.GameLog.write(guild_id=after.guild.id, message=log_message)
 
     @commands.Cog.listener()
@@ -283,7 +283,7 @@ class league(commands.Cog):
 
         for log_message in result_message_list:
             models.GameLog.write(guild_id=member.guild.id, message=log_message)
-        await self.send_to_log_channel(member.guild, '\n'.join(result_message_list))
+        await utilities.send_to_log_channel(member.guild, '\n'.join(result_message_list))
         self.delete_draft_config(member.guild.id)
 
         try:
@@ -320,7 +320,7 @@ class league(commands.Cog):
             draft_config['draft_open'] = True
 
         self.save_draft_config(member.guild.id, draft_config)
-        await self.send_to_log_channel(member.guild, log_message)
+        await utilities.send_to_log_channel(member.guild, log_message)
         try:
             await message.edit(content=new_message)
         except discord.DiscordException as e:
@@ -381,7 +381,7 @@ class league(commands.Cog):
                 # if it has a nearly-same timestamp
 
         if log_message:
-            await self.send_to_log_channel(member.guild, log_message)
+            await utilities.send_to_log_channel(member.guild, log_message)
             models.GameLog.write(guild_id=member.guild.id, message=log_message)
         if member_message:
             try:
@@ -401,15 +401,6 @@ class league(commands.Cog):
     def delete_draft_config(self, guild_id):
         q = models.Configuration.delete().where(models.Configuration.guild_id == guild_id)
         return q.execute()
-
-    async def send_to_log_channel(self, guild, message):
-
-        logger.debug(f'Sending log message to game_request_channel: {message}')
-        staff_output_channel = guild.get_channel(settings.guild_setting(guild.id, 'game_request_channel'))
-        if not staff_output_channel:
-            logger.warn(f'Could not load game_request_channel for server {guild.id} - skipping')
-        else:
-            await utilities.buffered_send(destination=staff_output_channel, content=message)
 
     @commands.command(aliases=['ds'], usage=None)
     @settings.is_mod_check()
@@ -480,7 +471,7 @@ class league(commands.Cog):
         await announcement_message.add_reaction(self.emoji_draft_close)
         await announcement_message.add_reaction(self.emoji_draft_conclude)
 
-        await self.send_to_log_channel(ctx.guild, f'Draft created by <@{ctx.author.id}>\n'
+        await utilities.send_to_log_channel(ctx.guild, f'Draft created by <@{ctx.author.id}>\n'
             f'https://discord.com/channels/{ctx.guild.id}/{announcement_channel.id}/{announcement_message.id}')
 
         if announcement_channel.id != ctx.message.channel.id:
@@ -978,9 +969,6 @@ async def auto_grad_novas(ctx, game):
 
     role = discord.utils.get(ctx.guild.roles, name=novas_role_name)
     grad_role = discord.utils.get(ctx.guild.roles, name=grad_role_name)
-    grad_chan = ctx.guild.get_channel(540332800927072267)  # Novas draft talk
-    if ctx.guild.id == settings.server_ids['test']:
-        grad_chan = ctx.guild.get_channel(479292913080336397)  # bot spam
 
     if not role or not grad_role:
         logger.warn(f'Could not load required roles to complete auto_grad_novas')
@@ -1041,10 +1029,9 @@ async def auto_grad_novas(ctx, game):
         grad_announcement = (f'Player {member.mention} (*Global ELO: {dm.elo} \u00A0\u00A0\u00A0\u00A0W {wins} / L {losses}*) '
                 f'has met the qualifications and is now a **{grad_role.name}**\n'
                 f'{announce_str}')
-        if grad_chan:
-            await grad_chan.send(f'{grad_announcement}')
-        else:
-            await ctx.send(f'{grad_announcement}')
+
+        await ctx.send(grad_announcement)
+        await utilities.send_to_log_channel(ctx.guild, grad_announcement)
 
 
 def populate_league_team_channels():
