@@ -721,7 +721,7 @@ class league(commands.Cog):
 
     @commands.command(usage='@Draftee TeamName')
     @settings.is_mod_check()
-    @settings.in_bot_channel_strict()
+    # @settings.in_bot_channel_strict()
     async def draft(self, ctx, *, args=None):
         """
         *Mod:* Generate a draft announcement image
