@@ -90,7 +90,7 @@ date_cutoff = datetime.datetime.today() - datetime.timedelta(days=90)  # Players
 
 
 def get_setting(setting_name):
-    return config['default'][setting_name]
+    return config['default'][setting_name].copy()
 
 
 def guild_setting(guild_id: int, setting_name: str):
@@ -106,12 +106,12 @@ def guild_setting(guild_id: int, setting_name: str):
             # return config['default'][setting_name]
 
         try:
-            return settings_obj[setting_name]
+            return settings_obj[setting_name].copy()
         except KeyError:
-            return config['default'][setting_name]
+            return config['default'][setting_name].copy()
 
     else:
-        return config['default'][setting_name]
+        return config['default'][setting_name].copy()
 
 
 def servers_included_in_global_lb():
