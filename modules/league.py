@@ -10,6 +10,7 @@ import modules.exceptions as exceptions
 import datetime
 import peewee
 import typing
+import random
 import modules.imgen as imgen
 
 logger = logging.getLogger('polybot.' + __name__)
@@ -37,6 +38,7 @@ league_teams = [('Ronin', ['The Ronin', 'The Bandits']),
 ]
 
 league_team_channels = []
+next_nova_newbie = 'Nova Red'  # Alternates between Red/Blue. Seeded randomly by Cog.on_ready()
 
 
 def get_league_roles(guild):
@@ -167,6 +169,8 @@ class league(commands.Cog):
             self.announcement_message = self.get_draft_config(settings.server_ids['test'])['announcement_message']
 
         populate_league_team_channels()
+        global next_nova_newbie
+        next_nova_newbie = random.choice(['Nova Red', 'Nova Blue'])
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload):
@@ -709,13 +713,15 @@ class league(commands.Cog):
         # TODO: team numbers may be inflated due to inactive members. Can either count up only player recency, or easier but less effective way
         # would be to have $deactivate remove novas roles and make them rejoin if they come back
 
-        if len(red_role.members) > len(blue_role.members):
+        global next_nova_newbie
+        if next_nova_newbie == 'Nova Blue':
             await ctx.author.add_roles(blue_role, novas_role, reason='Joining Nova Blue')
             await ctx.send(f'Congrats, you are now a member of the **Nova Blue** team! To join the fight go to a bot channel and type `{ctx.prefix}novagames`')
+            next_nova_newbie = 'Nova Red'
         else:
             await ctx.author.add_roles(red_role, novas_role, reason='Joining Nova Red')
             await ctx.send(f'Congrats, you are now a member of the **Nova Red** team! To join the fight go to a bot channel and type `{ctx.prefix}novagames`')
-
+            next_nova_newbie = 'Nova Blue'
         if newbie_role:
             await ctx.author.remove_roles(newbie_role, reason='Joining Novas')
 
