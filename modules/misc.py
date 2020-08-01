@@ -260,7 +260,7 @@ class misc(commands.Cog):
             ctx.command.reset_cooldown(ctx)
             return await ctx.send(f'You are not a player in game {game.id}')
 
-        permitted_channels = settings.guild_setting(game.guild_id, 'bot_channels')
+        permitted_channels = settings.guild_setting(game.guild_id, 'bot_channels').copy()
         if game.game_chan:
             permitted_channels.append(game.game_chan)
 
