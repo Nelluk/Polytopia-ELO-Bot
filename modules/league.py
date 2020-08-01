@@ -496,7 +496,7 @@ class league(commands.Cog):
     async def league_balance(self, ctx, *, arg=None):
         """ Print some stats on PolyChampions league balance
 
-            Default sort is the Draft Score. Include arguments d2 or d3 to see alternate draft scores.
+            Default sort is the Draft Score. Include arguments d2 or d3 or d4 to see alternate draft scores.
             ie: `[p]balance d3`
         """
         import statistics
@@ -507,8 +507,8 @@ class league(commands.Cog):
         mia_role = discord.utils.get(ctx.guild.roles, name=settings.guild_setting(guild_id, 'inactive_role'))
 
         if arg and arg == 'd2':
-            draft_preference = 2
-            draft_str = 'average ELO of top 10 players (Senior or Junior)'
+            draft_preference = 1
+            draft_str = 'Pro Team ELO + Average ELO of Pro Team members'
         elif arg and arg == 'd3':
             draft_preference = 3
             draft_str = 'average ELO of top 20 players (Senior or Junior)'
@@ -516,8 +516,8 @@ class league(commands.Cog):
             draft_preference = 4
             draft_str = 'average top 10 team players with Team ELO, plus half weight of average players 11 thru 20'
         else:
-            draft_preference = 1
-            draft_str = 'Pro Team ELO + Average ELO of Pro Team members'
+            draft_preference = 2  # made draft_preference 2 the new default
+            draft_str = 'combined ELO of top 10 players (Senior or Junior)'
 
         async with ctx.typing():
             for team, team_roles in league_teams:
@@ -560,7 +560,7 @@ class league(commands.Cog):
                 draft_score = pro_team.elo + pro_elo
 
                 sorted_elo_list = models.Player.discord_ids_to_elo_list(list_of_discord_ids=junior_discord_ids + pro_discord_ids, guild_id=guild_id)
-                draft_score_2 = statistics.mean(sorted_elo_list[:10])
+                draft_score_2 = sum(sorted_elo_list[:10])
                 draft_score_3 = statistics.mean(sorted_elo_list[:20])
                 draft_score_4 = statistics.mean(sorted_elo_list[:10] + [pro_team.elo]) + int(statistics.mean(sorted_elo_list[11:]) * 0.5)
 
