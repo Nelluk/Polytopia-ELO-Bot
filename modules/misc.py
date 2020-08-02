@@ -10,7 +10,7 @@ import re
 import datetime
 import random
 from modules.games import PolyGame
-import modules.imgen as imgen
+# import modules.imgen as imgen
 # import modules.achievements as achievements
 
 logger = logging.getLogger('polybot.' + __name__)
@@ -26,11 +26,9 @@ class misc(commands.Cog):
     @commands.command(hidden=True, aliases=['ts', 'blah'])
     @commands.is_owner()
     async def test(self, ctx, *, args=None):
-        role = discord.utils.get(ctx.guild.roles, name='The Ronin')
-        member = ctx.author
-        fs = imgen.player_draft_card(member, role)
-
-        await ctx.send(file=fs)
+        lb = models.DiscordMember.leaderboard(date_cutoff=datetime.date.min, max_flag=True).limit(250)
+        for dm in lb:
+            print(dm.name, dm.elo, dm.elo_max)
 
     @commands.command(usage=None)
     @settings.in_bot_channel_strict()

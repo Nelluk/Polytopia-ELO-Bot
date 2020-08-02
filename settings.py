@@ -28,6 +28,7 @@ config = server_settings.server_list  # list of allowed servers and server-level
 bot = None
 run_tasks = True  # if set as False via command line option, tasks should check this and skip
 team_elo_reset_date = '1/1/2020'
+elo_calc_v2_date = datetime.date(2020, 8, 2)  # tweaked elo calc Aug 2, 2020
 
 # bot invite URL https://discordapp.com/oauth2/authorize?client_id=484067640302764042&scope=bot
 # bot invite URL for beta bot https://discordapp.com/oauth2/authorize?client_id=479029527553638401&scope=bot

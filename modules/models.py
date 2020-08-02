@@ -1408,7 +1408,7 @@ class Game(BaseModel):
             if recalculate:
                 Game.recalculate_elo_since(timestamp=since)
 
-    def get_side_win_chances(largest_team: int, gameside_list, gameside_elo_list):
+    def get_side_win_chances(largest_team: int, gameside_list, gameside_elo_list, calc_version: int = 1):
         n = len(gameside_list)
 
         # Adjust team elos when the amount of players on each team
@@ -1418,7 +1418,7 @@ class Game(BaseModel):
         for s, elo in zip(gameside_list, gameside_elo_list):
             missing_players = largest_team - len(s.lineup)
             avg_opponent_elos = int(round((sum_raw_elo - elo) / (n - 1)))
-            adj_side_elo = s.adjusted_elo(missing_players, elo, avg_opponent_elos)
+            adj_side_elo = s.adjusted_elo(missing_players, elo, avg_opponent_elos, calc_version)
             adjusted_side_elo.append(adj_side_elo)
 
         # Compute proper win chances when there are more than 2 teams,
@@ -1469,7 +1469,8 @@ class Game(BaseModel):
                     # run elo calculations for player, discordmember, team, squad
 
                     largest_side = self.largest_team()
-                    gamesides = list(self.gamesides)
+                    # gamesides = list(self.gamesides)
+                    gamesides = list(self.ordered_side_list())
 
                     side_elos = [s.average_elo() for s in gamesides]
                     side_elos_discord = [s.average_elo(by_discord_member=True) for s in gamesides]
@@ -1477,25 +1478,31 @@ class Game(BaseModel):
                     team_elos_alltime = [s.team.elo_alltime if s.team else None for s in gamesides]
                     squad_elos = [s.squad.elo if s.squad else None for s in gamesides]
 
-                    # if self.size[0] == 1:
-                    #     # For a solo host game (1v1, 1v3, etc), give them an adjustment for an assumed host advantage
-                    #     # Gives them an extra 75 phantom ELO which will make their calculated chance of winning higher, thus ELO prize lower
-                    #     side_elos[0] = side_elos[0] + 75
-                    #     side_elos_discord[0] = side_elos_discord[0] + 75
-                    # tested 7/2020 - does not really have the impact i expected https://discord.com/channels/447883341463814144/471685046995255307/734036310951592017
+                    if self.date >= settings.elo_calc_v2_date:
+                        # added two adjustments for games starting 8/2/20:
+                        # 50 elo point host advantage for 1-player host sides (1 v X)
+                        # smaller handicap for uneven sides in GameSide.adjusted_elo()
+                        calc_version = 2
+                        if self.size[0] == 1:
+                            # For a solo host game (1v1, 1v3, etc), give them an adjustment for an assumed host advantage
+                            # Gives them an extra 50 phantom ELO which will make their calculated chance of winning higher, thus ELO prize lower
+                            side_elos[0] = side_elos[0] + 50
+                            side_elos_discord[0] = side_elos_discord[0] + 50
+                    else:
+                        calc_version = 1
 
-                    side_win_chances = Game.get_side_win_chances(largest_side, gamesides, side_elos)
-                    side_win_chances_discord = Game.get_side_win_chances(largest_side, gamesides, side_elos_discord)
+                    side_win_chances = Game.get_side_win_chances(largest_side, gamesides, side_elos, calc_version)
+                    side_win_chances_discord = Game.get_side_win_chances(largest_side, gamesides, side_elos_discord, calc_version)
 
                     if smallest_side > 1:
                         if None not in team_elos:
-                            team_win_chances = Game.get_side_win_chances(largest_side, gamesides, team_elos)
-                            team_win_chances_alltime = Game.get_side_win_chances(largest_side, gamesides, team_elos_alltime)
+                            team_win_chances = Game.get_side_win_chances(largest_side, gamesides, team_elos, calc_version)
+                            team_win_chances_alltime = Game.get_side_win_chances(largest_side, gamesides, team_elos_alltime, calc_version)
                         else:
                             team_win_chances, team_win_chances_alltime = None, None
 
                         if None not in squad_elos:
-                            squad_win_chances = Game.get_side_win_chances(largest_side, gamesides, squad_elos)
+                            squad_win_chances = Game.get_side_win_chances(largest_side, gamesides, squad_elos, calc_version)
                         else:
                             squad_win_chances = None
                     else:
@@ -2440,12 +2447,21 @@ class GameSide(BaseModel):
 
         return int(round(sum(elo_list) / len(elo_list)))
 
-    def adjusted_elo(self, missing_players: int, own_elo: int, opponent_elos: int):
+    def adjusted_elo(self, missing_players: int, own_elo: int, opponent_elos: int, calc_version: int = 1):
         # If teams have imbalanced size, adjust win% based on a
         # function of the team's elos involved, e.g.
         # 1v2  [1400] vs [1100, 1100] adjusts to represent 50% win
         # (compared to 58.8% for 1v1v1 for the 1400 player)
-        handicap = 200  # the elo difference for a 50% 1v2 chance
+
+        if calc_version == 1:
+            handicap = 200  # the elo difference for a 50% 1v2 chance
+            # with a 200 handicap the calc will give you a pretend player with 200 less elo as a partner to balance out the team
+            # ie in a [1200] vs [1000, 1000] it will give the first side a fake 1000 elo player - 50% chance of 1200 player winning
+            # that scenario.
+        else:
+            handicap = 100
+            # changed handicap to 100 8/1/2020, indicating that unbalanced games are easier for the smaller side than previous assumed.
+            # ie a [1200] vs [1000, 1000] game should be more like 60% chance to win for the host, not 50%
         handicap_elo = handicap * 2 + max(own_elo - opponent_elos - handicap, 0)
         size = len(self.lineup)
 
@@ -2602,8 +2618,8 @@ class Lineup(BaseModel):
         elo_bonus = int(abs(elo_delta) * elo_boost)
         elo_delta += elo_bonus
 
-        elo_logger.debug(f'game: {self.game.id}, {"discordmember" if by_discord_member else "player"}, {self.player.name[:15]}, '
-            f'elo: {elo}, CoW: {chance_of_winning}, elo_delta: {elo_delta}, new_elo: {int(elo + elo_delta)}')
+        # elo_logger.debug(f'game: {self.game.id}, {"discordmember" if by_discord_member else "player"}, {self.player.name[:15]}, '
+        # f'elo: {elo}, CoW: {chance_of_winning}, elo_delta: {elo_delta}, new_elo: {int(elo + elo_delta)}')
 
         # logger.debug(f'Player {self.player.id} chance of winning: {chance_of_winning} game {self.game.id},'
         #     f'elo_delta {elo_delta}, current_player_elo {self.player.elo}, new_player_elo {int(self.player.elo + elo_delta)}')
