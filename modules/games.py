@@ -794,7 +794,7 @@ class polygames(commands.Cog):
             members_str = "\n".join(members_sorted) if len(members_sorted) > 0 else '\u200b'
             embed.description = f'**Members({len(member_stats)})**\n{header_str}\n{members_str}'[:2048]
         else:
-            await ctx.send(f'Warning: No matching discord role "{team.name}" could be found. Player membership cannot be detected.')
+            await ctx.send(f':no_entry_sign: No matching discord role "{team.name}" could be found. Player membership cannot be detected.')
 
         if leaders_list:
             embed.add_field(name='**Team Leader**', value=', '.join(leaders_list), inline=True)
@@ -928,7 +928,7 @@ class polygames(commands.Cog):
             helper_role = discord.utils.get(ctx.guild.roles, name=helper_role_name)
             helper_role_str = f'someone with the {helper_role.mention} role' if helper_role else 'server staff'
             p_names = [f'<@{p.discord_id}> ({p.name})' for p in players_with_id]
-            await ctx.send(f'**Warning:** This polytopia code is already entered in the database. '
+            await ctx.send(f':warning: This polytopia code is already entered in the database. '
                 f'If you need help using this bot please contact {helper_role_str} or <@{settings.owner_id}>.\nDuplicated players: {", ".join(p_names)}')
 
     @commands.command(aliases=['code'], usage='player_name')
@@ -1247,7 +1247,7 @@ class polygames(commands.Cog):
             if settings.get_user_level(ctx) <= 2:
                 return await ctx.send('That name looks made up. :thinking: You need to manually create the game __in Polytopia__, come back and input the name of the new game you made.\n'
                     f'You can use `{ctx.prefix}code NAME` to get the code of each player in this game.')
-            await ctx.send(f'*Warning:* That game name looks made up - you are allowed to override due to your user level.')
+            await ctx.send(f':warning: That game name looks made up - you are allowed to override due to your user level.')
 
         if len(args) == 1:
             args_list = [str(ctx.author.id), 'vs', args[0]]
@@ -1274,7 +1274,7 @@ class polygames(commands.Cog):
             if settings.is_mod(ctx):
                 await ctx.send('Moderator over-riding server size limits')
             elif settings.guild_setting(ctx.guild.id, 'allow_uneven_teams') and smallest_team <= settings.guild_setting(ctx.guild.id, 'max_team_size'):
-                await ctx.send('Warning: Team sizes are uneven.')
+                await ctx.send(':warning: Team sizes are uneven.')
             else:
                 return await ctx.send(f'This server has a maximum team size of {settings.guild_setting(ctx.guild.id, "max_team_size")}. For full functionality with support for up to 5-player team games and league play check out PolyChampions.')
 
@@ -1311,7 +1311,7 @@ class polygames(commands.Cog):
         n = len(discord_groups[0])
         if not all(len(g) == n for g in discord_groups):
             if settings.guild_setting(ctx.guild.id, 'allow_uneven_teams'):
-                await ctx.send('**Warning:** Teams are not the same size. This is allowed but may not be what you want.')
+                await ctx.send(':warning: Teams are not the same size. This is allowed but may not be what you want.')
             else:
                 return await ctx.send('Teams are not the same size. This is not allowed on this server. Game not created.')
 
@@ -1643,7 +1643,7 @@ class polygames(commands.Cog):
             if settings.get_user_level(ctx) <= 2:
                 return await ctx.send('That name looks made up. :thinking: You need to manually create the game __in Polytopia__, come back and input the name of the new game you made.\n'
                     f'You can use `{ctx.prefix}code NAME` to get the code of each player in this game.')
-            await ctx.send(f'*Warning:* That game name looks made up - you are allowed to override due to your user level.')
+            await ctx.send(f':warning: That game name looks made up - you are allowed to override due to your user level.')
 
         old_game_name = game.name
         game.name = new_game_name
@@ -1939,7 +1939,7 @@ async def post_newgame_messaging(ctx, game):
             # await game.create_game_channels(ctx.guild)
             await game.create_game_channels(settings.bot.guilds, ctx.guild.id)
         except exceptions.MyBaseException as e:
-            await ctx.send(f'Error during channel creation: {e}')
+            await ctx.send(f':warning: {e}')
 
     if game.is_uncaught_season_game():
         await ctx.send(f':bulb: This game looks like an incorrectly named **Season Game**! You might want to use `{ctx.prefix}rename` and include the season tag at the beginning.')
