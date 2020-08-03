@@ -531,7 +531,7 @@ class administration(commands.Cog):
             return await ctx.send('That team already exists!')
 
         await ctx.send(f'{pro_str}Team {team_name} created! Starting ELO: {team.elo}. Players with a Discord Role exactly matching \"{team_name}\" will be considered team members. '
-                f'You can now set the team flair with `{ctx.prefix}`team_emoji and `{ctx.prefix}team_image`.')
+                f'You can now set the team flair with `{ctx.prefix}team_emoji` and `{ctx.prefix}team_image`.')
 
     @commands.command(usage='team_name new_emoji')
     @settings.is_mod_check()
@@ -541,7 +541,7 @@ class administration(commands.Cog):
         **Example:**
         `[p]team_emoji Amazeballs :my_fancy_emoji:`
         """
-
+        print(emoji)
         if len(emoji) != 1 and ('<:' not in emoji):
             return await ctx.send('Valid emoji not detected. Example: `{}team_emoji name :my_custom_emoji:`'.format(ctx.prefix))
 

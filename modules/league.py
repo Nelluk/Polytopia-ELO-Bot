@@ -348,7 +348,7 @@ class league(commands.Cog):
                     logger.error(f'Could not add draftable role in signup_emoji_clicked: {e}')
                     return
                 else:
-                    member_message = f'You are now signed up for the next draft. If you would like to remove yourself, just remove the reaction you just placed.\n{announce_message_link}'
+                    member_message = f'You are now signed up for the next draft. If you would like to remove yourself, just remove the reaction you just placed.\nAlthough you may have a preference on which team drafts you, be aware that you may be chosen by **any** team.\n{announce_message_link}'
                     log_message = f'<@{member.id}> ({member.name}) reacted to the draft and received the {draftable_role.name} role.'
             else:
                 # Ineligible signup - either draft is closed or member does not have grad_role
