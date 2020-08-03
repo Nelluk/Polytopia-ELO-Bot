@@ -282,7 +282,7 @@ def export_player_data(player_list, member_list):
             p_record = player.get_record()
             dm_record = dm.get_record()
 
-            recent_games = player.games_played(in_days=14).count()
+            recent_games = dm.games_played(in_days=14).count()
 
             row = [player.name, dm.discord_id, player.team.name if player.team else '', player.elo, player.elo_max,
                    dm.elo, dm.elo_max, f'{p_record[0]} / {p_record[1]}', f'{dm_record[0]} / {dm_record[1]}',
