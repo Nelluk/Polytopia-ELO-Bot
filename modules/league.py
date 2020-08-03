@@ -840,7 +840,6 @@ class league(commands.Cog):
                 return await ctx.send(f'No role name was supplied.\n{usage}')
 
         player_list = []
-        checked_role = None
         player_obj_list, member_obj_list = [], []
 
         args = [a.strip().title() for a in ' '.join(args).split(',')]  # split arguments by comma
@@ -868,7 +867,7 @@ class league(commands.Cog):
 
         inactive_role = discord.utils.get(ctx.guild.roles, name=settings.guild_setting(ctx.guild.id, 'inactive_role'))
         for member in members:
-            if inactive_role and inactive_role in member.roles and inactive_role != checked_role:
+            if inactive_role and inactive_role in member.roles and inactive_role not in roles:
                 logger.debug(f'Skipping {member.name} since they have Inactive role')
                 continue
 
