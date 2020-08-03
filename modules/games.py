@@ -1016,7 +1016,7 @@ class polygames(commands.Cog):
                 poly_id = dm_obj.polytopia_id
                 await ctx.send(poly_id if poly_id else '*No code registered*')
 
-    @commands.command(brief='Set in-game name', usage='new_name')
+    @commands.command(brief='Set in-game name', usage='new_name', aliases=['steamname'])
     @models.is_registered_member()
     async def setname(self, ctx, *args):
         """Sets your own in-game name, or lets staff set a player's in-game name
@@ -1024,10 +1024,13 @@ class polygames(commands.Cog):
         **Examples:**
         `[p]setname PolyChamp` - Set your own in-game name to *PolyChamp*
         `[p]setname @Nelluk PolyChamp` - Lets staff set in-game name of Nelluk to *PolyChamp*
+
+        Use `steamname` instead of `setname` to set a Steam user-id.
         """
 
+        usage = f'**Usage:** `{ctx.prefix}{ctx.invoked_with} My In-game Name'
         if not args:
-            return await ctx.send(f'bzzt')
+            return await ctx.send(usage)
 
         m = utilities.string_to_user_id(args[0])
 
@@ -1060,11 +1063,18 @@ class polygames(commands.Cog):
             return await ctx.send(f'Found more than one matches for a player with **{target_string}**. Be more specific or use an @Mention.\nExample usage: `{ctx.prefix}setname @Player in_game_name`')
 
         new_name = discord.utils.escape_mentions(new_name)
-        player_target.discord_member.polytopia_name = new_name
+
+        if ctx.invoked_with == 'steamname':
+            steam_str = 'Steam'
+            player_target.discord_member.name_steam = new_name
+        else:
+            steam_str = ''
+            player_target.discord_member.name_steam = new_name
+
         player_target.discord_member.save()
 
-        models.GameLog.write(game_id=0, guild_id=0, message=f'{models.GameLog.member_string(player_target.discord_member)} name set to *{new_name}* {log_by_str}')
-        await ctx.send(f'Player **{player_target.name}** updated in system with Polytopia name **{new_name}**.')
+        models.GameLog.write(game_id=0, guild_id=0, message=f'{models.GameLog.member_string(player_target.discord_member)} {steam_str} name set to *{new_name}* {log_by_str}')
+        await ctx.send(f'Player **{player_target.name}** updated in system with {steam_str} Polytopia name **{new_name}**.')
 
     @commands.command(brief='Set player time zone', usage='UTC±#')
     @models.is_registered_member()

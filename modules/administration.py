@@ -536,12 +536,14 @@ class administration(commands.Cog):
     @commands.command(usage='team_name new_emoji')
     @settings.is_mod_check()
     @settings.teams_allowed()
-    async def team_emoji(self, ctx, team_name: str, emoji):
+    async def team_emoji(self, ctx, team_name: str, emoji: str):
         """*Mod*: Assign an emoji to a team
         **Example:**
         `[p]team_emoji Amazeballs :my_fancy_emoji:`
         """
-        print(emoji)
+
+        # Bug: does not handle a unicode emoji argument. Tried to fix using PartialEmojiConverter but that doesn't work either
+        # for now just added unicode emoji to database directly. would probably need some fancy regex to detect unicode emoji
         if len(emoji) != 1 and ('<:' not in emoji):
             return await ctx.send('Valid emoji not detected. Example: `{}team_emoji name :my_custom_emoji:`'.format(ctx.prefix))
 

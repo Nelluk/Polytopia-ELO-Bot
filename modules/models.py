@@ -168,6 +168,7 @@ class Team(BaseModel):
 class DiscordMember(BaseModel):
     discord_id = BitField(unique=True, null=False)
     name = TextField(unique=False)
+    name_steam = TextField(null=True)
     elo = SmallIntegerField(default=1000)
     elo_max = SmallIntegerField(default=1000)
     polytopia_id = TextField(null=True)
@@ -770,7 +771,6 @@ class Tribe(BaseModel):
 
 
 class Game(BaseModel):
-    name = TextField(null=True)
     is_completed = BooleanField(default=False)
     is_confirmed = BooleanField(default=False)
     announcement_message = BitField(default=None, null=True)
@@ -788,6 +788,7 @@ class Game(BaseModel):
     is_ranked = BooleanField(default=True)
     game_chan = BitField(default=None, null=True)
     size = ArrayField(SmallIntegerField, default=[0])
+    is_mobile = BooleanField(default=True)
 
     def __setattr__(self, name, value):
         if name == 'name':
