@@ -839,11 +839,12 @@ class Game(BaseModel):
             player_list = [l.player for l in gameside.ordered_player_list()]
             if len(player_list) < 2:
                 continue
+            team_name = gameside.team.name if gameside.team else ''
             if (len(guild.text_channels) > 440 and  # Give server some breathing room for non-game channels
                    len(player_list) < 3 and  # Large-team chans still get created
                    not using_team_server_flag and  # if on external server, skip check
                    not self.name.upper()[:3] == 'LR1' and  # temp hack for LigaRex games which use external server but not flag):
-                   gameside.required_role_id not in [696841367103602768, 696841359616901150]):  # skip check for game chans locked to Nova Blue or Nova Red
+                   'Nova' not in team_name):  # skip check for game chans locked to Nova Blue or Nova Red
 
                 # TODO: maybe, have different thresholds, ie start skipping NOva or 3-player channels or full-game channels is server is at a higher mark like 475
 
@@ -877,13 +878,13 @@ class Game(BaseModel):
 
     async def delete_game_channels(self, guild_list, guild_id):
         guild = discord.utils.get(guild_list, id=guild_id)
-        last_week = (datetime.datetime.now() + datetime.timedelta(days=-7))
+        old_4d = (datetime.datetime.now() + datetime.timedelta(days=-4))
 
         if self.is_season_game():
             return logger.debug(f'Skipping team channel deletion for game {self.id} {self.name} since it is a Season game.')
 
         if self.notes and 'NOVA RED' in self.notes.upper() and 'NOVA BLUE' in self.notes.upper():
-            if self.completed_ts and self.completed_ts > last_week:
+            if self.completed_ts and self.completed_ts > old_4d:
                 return logger.warn(f'Skipping team channel deletion for game {self.id} {self.name} since it is a Nova League game concluded recently')
 
         for gameside in self.gamesides:
