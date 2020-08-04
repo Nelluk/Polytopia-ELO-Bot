@@ -1674,7 +1674,7 @@ class Game(BaseModel):
 
         return q
 
-    def search_pending(status_filter: int = 0, ranked_filter: int = 2, guild_id: int = None, player_discord_id: int = None, host_discord_id: int = None):
+    def search_pending(status_filter: int = 0, ranked_filter: int = 2, guild_id: int = None, player_discord_id: int = None, host_discord_id: int = None, platform_filter: int = 2):
         # status_filter
         # 0 = all open games
         # 1 = full games / waiting to start
@@ -1683,8 +1683,13 @@ class Game(BaseModel):
         # 0 = unranked (is_ranked == False)
         # 1 = ranked (is_ranked == True)
         # 2 = any
+        # platform_filter
+        # 0 = desktop (is_mobile == False)
+        # 1 = mobile (is_mobile == True)
+        # 2 = any
 
         ranked_filter = [0, 1] if ranked_filter == 2 else [ranked_filter]  # [0] or [1]
+        platform_filter = [0, 1] if platform_filter == 2 else [platform_filter]
 
         if guild_id:
             guild_filter = Game.select(Game.id).where(Game.guild_id == guild_id)
@@ -1720,7 +1725,8 @@ class Game(BaseModel):
                 (Game.id.in_(guild_filter)) &
                 (Game.id.in_(player_filter)) &
                 (Game.id.in_(host_filter)) &
-                (Game.is_ranked.in_(ranked_filter))
+                (Game.is_ranked.in_(ranked_filter)) &
+                (Game.is_mobile.in_(platform_filter))
             )
             return q.prefetch(GameSide, Lineup, Player)
 
@@ -1732,7 +1738,8 @@ class Game(BaseModel):
                 (Game.id.in_(guild_filter)) &
                 (Game.id.in_(player_filter)) &
                 (Game.id.in_(host_filter)) &
-                (Game.is_ranked.in_(ranked_filter))
+                (Game.is_ranked.in_(ranked_filter)) &
+                (Game.is_mobile.in_(platform_filter))
             ).order_by(-Game.id).prefetch(GameSide, Lineup, Player)
 
         else:
@@ -1745,7 +1752,8 @@ class Game(BaseModel):
                 (Game.id.in_(guild_filter)) &
                 (Game.id.in_(player_filter)) &
                 (Game.id.in_(host_filter)) &
-                (Game.is_ranked.in_(ranked_filter))
+                (Game.is_ranked.in_(ranked_filter)) &
+                (Game.is_mobile.in_(platform_filter))
             ).group_by(Game.id).order_by(
                 -(fn.SUM(GameSide.size) - fn.COUNT(Lineup.id))
             ).prefetch(GameSide, Lineup, Player)

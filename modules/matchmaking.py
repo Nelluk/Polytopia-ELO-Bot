@@ -654,10 +654,13 @@ class matchmaking(commands.Cog):
         models.Game.purge_expired_games()
 
         ranked_filter, ranked_str = 2, ''
+        platform_filter = 2  # mobile==1. 0 is desktop and 2 is any
+        platform_str = ''
         filter_unjoinable, novas_only = False, False
         unjoinable_count = 0
         ranked_chan = settings.guild_setting(ctx.guild.id, 'ranked_game_channel')
         unranked_chan = settings.guild_setting(ctx.guild.id, 'unranked_game_channel')
+        steam_chan = settings.guild_setting(ctx.guild.id, 'steam_game_channel')
         user_level = settings.get_user_level(ctx)
 
         if ctx.invoked_with == 'nova' and args and args[0] == 'games':
@@ -670,6 +673,9 @@ class matchmaking(commands.Cog):
         elif ctx.channel.id == ranked_chan or any(arg.upper() == 'RANKED' for arg in args):
             ranked_filter = 1
             ranked_str = ' **ranked**'
+        elif ctx.channel.id == steam_chan or any(arg.upper() == 'STEAM' for arg in args):
+            platform_filter = 0
+            platform_str = ' **Steam**'
 
         if len(args) > 0 and args[0].upper() == 'WAITING':
             title_str = f'Open{ranked_str} games waiting to start'
@@ -698,8 +704,8 @@ class matchmaking(commands.Cog):
                 filter_str = ' joinable'
                 filter_unjoinable = True
 
-            title_str = f'Current{filter_str}{ranked_str} open games with available spots'
-            game_list = models.Game.search_pending(status_filter=2, guild_id=ctx.guild.id, ranked_filter=ranked_filter)
+            title_str = f'Current{filter_str}{ranked_str}{platform_str} open games with available spots'
+            game_list = models.Game.search_pending(status_filter=2, guild_id=ctx.guild.id, ranked_filter=ranked_filter, platform_filter=platform_filter)
 
         gamelist_fields = [(f'`{"ID":<8}{"Host":<40} {"Type":<7} {"Capacity":<7} {"Exp":>4}` ', '\u200b')]
 
@@ -733,6 +739,14 @@ class matchmaking(commands.Cog):
                     if player.elo < min_elo or player.elo > max_elo or player.discord_member.elo < min_elo_g or player.discord_member.elo > max_elo_g:
                         unjoinable_count += 1
                         continue
+                    if game.is_mobile:
+                        if not player.discord_member.polytopia_id:
+                            unjoinable_count += 1
+                            continue
+                    else:
+                        if not player.discord_member.name_steam:
+                            unjoinable_count += 1
+                            continue
 
             if (novas_only and not game.notes) or (novas_only and game.notes and 'NOVA' not in game.notes.upper()):
                 # skip all non-nova league template games, (will also include anything with "nova" in the game notes)
