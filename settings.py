@@ -22,7 +22,7 @@ except KeyError:
 pastebin_key = config['DEFAULT'].get('pastebin_key', None)
 
 server_ids = server_settings.server_shortcut_ids
-# server_ids = {'main': 283436219780825088, 'polychampions': 478571892832206869, 'test': 478571892832206869, 'beta': 274660262873661442}
+# server_ids = {'main': 283436219780825088, 'polychampions': 447883341463814144, 'test': 478571892832206869, 'beta': 274660262873661442}
 
 config = server_settings.server_list  # list of allowed servers and server-level settings
 bot = None

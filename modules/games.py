@@ -876,8 +876,20 @@ class polygames(commands.Cog):
         Also use `[p]steamname` and `[p]setname` for setting Steam or mobile account names.
         """
 
+        if ctx.invoked_with == 'setcode':
+            code_type = 'Polytopia Player ID'
+            code_example = 'YOURCODEHERE'
+            db_field = DiscordMember.polytopia_id
+        elif ctx.invoked_with == 'steamname':
+            code_type = 'Steam username'
+            code_example = 'Your Steam Name'
+            db_field = DiscordMember.name_steam
+        elif ctx.invoked_with == 'setname':
+            code_type = 'mobile username'
+            code_example = 'Your Mobile Name'
+            db_field = DiscordMember.polytopia_name
         if not args:
-            return await ctx.send(f'**Usage:** `{ctx.prefix}{ctx.invoked_with} Your In-Game Name`\nUse `{ctx.prefix}code` to quickly display your own code and in-game name.')
+            return await ctx.send(f'**Usage:** `{ctx.prefix}{ctx.invoked_with} {code_example}`\nUse `{ctx.prefix}code` to quickly display your own code and in-game name.')
 
         m = utilities.string_to_user_id(args[0])
         if m:
@@ -918,20 +930,20 @@ class polygames(commands.Cog):
                                         team=team_list[0])
         if ctx.invoked_with == 'setcode':
             player.discord_member.polytopia_id = new_id
-            register_str = f'Polytopia code `{player.discord_member.polytopia_id}`'
-            warning_str = f':warning: Also set your mobile in-game name with `{ctx.prefix}setname YOUR_INGAME_NAME` - This will be required soon.\n'
+            register_str = f'{code_type} `{player.discord_member.polytopia_id}`'
+            warning_str = f':warning: Also set your mobile in-game name with `{ctx.prefix}setname Your Mobile Name` - This will be required soon.\n'
         elif ctx.invoked_with == 'steamname':
             player.discord_member.name_steam = discord.utils.escape_mentions(new_id) if new_id else None
-            register_str = f'Steam name `{player.discord_member.name_steam}`'
+            register_str = f'{code_type} `{player.discord_member.name_steam}`'
             warning_str = ''
         elif ctx.invoked_with == 'setname':
             player.discord_member.polytopia_name = discord.utils.escape_mentions(new_id) if new_id else None
-            register_str = f'mobile name `{player.discord_member.polytopia_name}`'
+            register_str = f'{code_type} `{player.discord_member.polytopia_name}`'
             warning_str = ''
 
         player.discord_member.save()
 
-        models.GameLog.write(game_id=0, guild_id=0, message=f'{models.GameLog.member_string(player.discord_member)} code {"set" if created else "updated"} to `{new_id}` {log_by_str}')
+        models.GameLog.write(game_id=0, guild_id=0, message=f'{models.GameLog.member_string(player.discord_member)} {code_type} {"set" if created else "updated"} to `{new_id}` {log_by_str}')
 
         if created:
             await ctx.send(f'Player **{player.name}** added to system with {register_str} and ELO **{player.elo}**\n{warning_str}'
@@ -939,7 +951,7 @@ class polygames(commands.Cog):
         else:
             await ctx.send(f'Player **{player.name}** updated in system with {register_str}.')
 
-        players_with_id = DiscordMember.select().where(DiscordMember.polytopia_id == new_id)
+        players_with_id = DiscordMember.select().where(db_field ** new_id)
         if players_with_id.count() > 1 and new_id:
             helper_role_name = settings.guild_setting(ctx.guild.id, 'helper_roles')[0]
             helper_role = discord.utils.get(ctx.guild.roles, name=helper_role_name)
