@@ -913,10 +913,10 @@ class polygames(commands.Cog):
                                         team=team_list[0])
         if ctx.invoked_with == 'setcode':
             player.discord_member.polytopia_id = new_id
-            register_str = f'Polytopia code `{player.discord_member.polytopia_name}`'
+            register_str = f'Polytopia code `{player.discord_member.polytopia_id}`'
         elif ctx.invoked_with == 'steamname':
             player.discord_member.name_steam = discord.utils.escape_mentions(new_id)
-            register_str = f'Steam name `{player.discord_member.polytopia_name}`'
+            register_str = f'Steam name `{player.discord_member.name_steam}`'
         elif ctx.invoked_with == 'setname':
             player.discord_member.polytopia_name = discord.utils.escape_mentions(new_id)
             register_str = f'mobile name `{player.discord_member.polytopia_name}`'
