@@ -915,10 +915,10 @@ class polygames(commands.Cog):
             player.discord_member.polytopia_id = new_id
             register_str = f'Polytopia code `{player.discord_member.polytopia_id}`'
         elif ctx.invoked_with == 'steamname':
-            player.discord_member.name_steam = discord.utils.escape_mentions(new_id)
+            player.discord_member.name_steam = discord.utils.escape_mentions(new_id) if new_id else None
             register_str = f'Steam name `{player.discord_member.name_steam}`'
         elif ctx.invoked_with == 'setname':
-            player.discord_member.polytopia_name = discord.utils.escape_mentions(new_id)
+            player.discord_member.polytopia_name = discord.utils.escape_mentions(new_id) if new_id else None
             register_str = f'mobile name `{player.discord_member.polytopia_name}`'
 
         player.discord_member.save()
