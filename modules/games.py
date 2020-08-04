@@ -930,7 +930,7 @@ class polygames(commands.Cog):
                 f'If your in-game name is different than your discord name, let the bot know with `{ctx.prefix}setname YOUR_INGAME_NAME`\n'
                 f'To find games to join use the `{ctx.prefix}games` command.')
         else:
-            await ctx.send(f'Player **{player.name}** updated in system with Polytopia code `{player.discord_member.polytopia_id}`.')
+            await ctx.send(f'Player **{player.name}** updated in system with {register_str}.')
 
         players_with_id = DiscordMember.select().where(DiscordMember.polytopia_id == new_id)
         if players_with_id.count() > 1 and new_id:
