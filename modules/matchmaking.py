@@ -54,7 +54,7 @@ class matchmaking(commands.Cog):
 
     @settings.in_bot_channel()
     @models.is_registered_member()
-    @commands.command(aliases=['openmatch', 'open'], usage='size expiration rules')
+    @commands.command(aliases=['openmatch', 'open', 'opensteam'], usage='size expiration rules')
     async def opengame(self, ctx, *, args=None):
 
         """
@@ -88,7 +88,7 @@ class matchmaking(commands.Cog):
         This allows you to specify a role without a mention, as well as specify exactly which sides get which role.)
         """
 
-        team_size, is_ranked = False, True
+        team_size, is_ranked, is_mobile = False, True, True
         roles_specified_implicity, roles_specified_explicitly = False, False
         required_role_args = []
         required_role_message = ''
@@ -121,6 +121,9 @@ class matchmaking(commands.Cog):
 
         if settings.guild_setting(ctx.guild.id, 'unranked_game_channel') and ctx.channel.id == settings.guild_setting(ctx.guild.id, 'unranked_game_channel'):
             is_ranked = False
+
+        if (settings.guild_setting(ctx.guild.id, 'steam_game_channel') and ctx.channel.id == settings.guild_setting(ctx.guild.id, 'steam_game_channel')) or ctx.invoked_with == 'opensteam':
+            is_mobile = False
 
         args = args.replace("'", "\\'")  # Escape single quotation marks for shlex.split() parsing
         if args.count('"') % 2 != 0:
@@ -276,7 +279,7 @@ class matchmaking(commands.Cog):
             host.team = player_team
             host.save()
 
-            opengame = models.Game.create(host=host, expiration=expiration_timestamp, notes=game_notes, guild_id=ctx.guild.id, is_pending=True, is_ranked=is_ranked, size=team_sizes)
+            opengame = models.Game.create(host=host, expiration=expiration_timestamp, notes=game_notes, guild_id=ctx.guild.id, is_pending=True, is_ranked=is_ranked, size=team_sizes, is_mobile=is_mobile)
             for count, size in enumerate(team_sizes):
                 models.GameSide.create(game=opengame, size=size, position=count + 1, required_role_id=required_roles[count], sidename=required_role_names[count])
 
@@ -301,7 +304,7 @@ class matchmaking(commands.Cog):
             await ctx.send(warning_message)
 
         models.GameLog.write(game_id=opengame, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} opened new {team_size_str} game. Notes: *{discord.utils.escape_markdown(notes_str)}*')
-        await ctx.send(f'Starting new {"unranked " if not is_ranked else ""}open game ID {opengame.id}. Size: {team_size_str}. Expiration: {expiration_hours} hours.\nNotes: *{notes_str}*\n'
+        await ctx.send(f'Starting new {"__Steam__ " if not is_mobile else ""}{"unranked " if not is_ranked else ""}open game ID {opengame.id}. Size: {team_size_str}. Expiration: {expiration_hours} hours.\nNotes: *{notes_str}*\n'
             f'Other players can join this game with `{ctx.prefix}join {opengame.id}`.')
 
     @settings.in_bot_channel()
@@ -441,8 +444,11 @@ class matchmaking(commands.Cog):
             return await ctx.send(f'*{guild_matches[0].name}* was found in the server but is not registered with me. '
                 f'Players can register themselves with `{ctx.prefix}setcode POLYTOPIA_CODE`.')
 
-        if not player.discord_member.polytopia_id:
+        if not player.discord_member.polytopia_id and game.is_mobile:
             return await ctx.send(f'**{player.name}** does not have a Polytopia game code on file. Use `{ctx.prefix}setcode` to set one.')
+
+        if not game.is_mobile and not player.discord_member.name_steam:
+            return await ctx.send(f'**{player.name}** does not have a Steam username on file and this is a Steam game {game.platform_emoji()}. Use `{ctx.prefix}steamname` to set one.')
 
         if inactive_role and inactive_role in guild_matches[0].roles:
             return await ctx.send(f'**{player.name}** has the inactive role *{inactive_role.name}* - cannot join them to a game until the role is removed. The role will be removed if they use the `{ctx.prefix}join` command themselves.')

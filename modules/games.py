@@ -591,6 +591,8 @@ class polygames(commands.Cog):
                 embed.add_field(name='**Last-known Team**', value=team_str)
             if player.discord_member.polytopia_name:
                 embed.add_field(name='Polytopia Game Name', value=player.discord_member.polytopia_name)
+            if player.discord_member.name_steam:
+                embed.add_field(name='Steam Name', value=player.discord_member.name_steam)
             if player.discord_member.polytopia_id:
                 embed.add_field(name='Polytopia ID', value=player.discord_member.polytopia_id)
                 content_str = player.discord_member.polytopia_id
@@ -862,7 +864,7 @@ class polygames(commands.Cog):
 
         await ctx.send(file=image, embed=embed)
 
-    @commands.command(brief='Sets a Polytopia game code and registers user with the bot', usage='[user] polytopia_code')
+    @commands.command(brief='Sets a Polytopia account name and registers user with the bot', usage='[user] polytopia_code', aliases=['steamname', 'setname'])
     async def setcode(self, ctx, *args):
         """
         Sets your own Polytopia code, or allows a staff member to set a player's code. This also will register the player with the bot if not already.
@@ -872,34 +874,33 @@ class polygames(commands.Cog):
         `[p]setcode Nelluk none` - Server staff can delete a code if it is invalid for some reason
         """
 
-        if len(args) == 1:      # User setting code for themselves. No special permissions required.
-            target_discord_member = ctx.message.author
-            new_id = args[0]
+        m = utilities.string_to_user_id(args[0])
+        if m:
+            logger.debug(f'Third party use of {ctx.invoked_with}')
+            # Staff member using command on third party
+            if settings.is_staff(ctx) is False:
+                logger.debug('insufficient user level')
+                return await ctx.send(f'You do not have permission to set another player\'s name or code.')
+            new_id = ' '.join(args[1:])
+            target_string = str(m)
+            log_by_str = f' by {models.GameLog.member_string(ctx.author)}'
+        else:
+            # Player using command on their own games
+            new_id = ' '.join(args)
+            target_string = str(ctx.author.id)
             log_by_str = ''
 
-        elif len(args) == 2:    # User changing another user's code. Helper permissions required.
-
-            if settings.is_staff(ctx) is False:
-                return await ctx.send(f'You only have permission to set your own code. To do that use `{ctx.prefix}setcode YOURCODEHERE`')
-
-            # Try to find matching guild/server member
-            guild_matches = await utilities.get_guild_member(ctx, args[0])
-            if len(guild_matches) == 0:
-                return await ctx.send(f'Could not find any server member matching *{args[0]}*. Try specifying with an @Mention')
-            elif len(guild_matches) > 1:
-                return await ctx.send(f'Found {len(guild_matches)} server members matching *{args[0]}*. Try specifying with an @Mention')
-            target_discord_member = guild_matches[0]
-            new_id = args[1]
-            log_by_str = f' by {models.GameLog.member_string(ctx.author)}'
-
-        else:
-            # Unexpected input
-            await ctx.send(f'Wrong number of arguments. Use `{ctx.prefix}setcode YOURCODEHERE`')
-            return
+        # Try to find matching guild/server member
+        guild_matches = await utilities.get_guild_member(ctx, target_string)
+        if len(guild_matches) == 0:
+            return await ctx.send(f'Could not find any server member matching *{args[0]}*. Try specifying with an @Mention')
+        elif len(guild_matches) > 1:
+            return await ctx.send(f'Found {len(guild_matches)} server members matching *{args[0]}*. Try specifying with an @Mention')
+        target_discord_member = guild_matches[0]
 
         if new_id.lower() == 'none' and settings.is_staff(ctx):
             new_id = None
-        elif len(new_id) != 16 or new_id.isalnum() is False:
+        elif (len(new_id) != 16 or new_id.isalnum() is False) and ctx.invoked_with == 'setcode':
             # Very basic polytopia code sanity checking. Making sure it is 16-character alphanumeric.
             return await ctx.send(f'Polytopia code `{new_id}` does not appear to be a valid code. Copy your unique code from the **Profile** tab of the **Polytopia app**.')
 
@@ -910,13 +911,22 @@ class polygames(commands.Cog):
                                         discord_nick=target_discord_member.nick,
                                         guild_id=ctx.guild.id,
                                         team=team_list[0])
-        player.discord_member.polytopia_id = new_id
+        if ctx.invoked_with == 'setcode':
+            player.discord_member.polytopia_id = new_id
+            register_str = f'Polytopia code `{player.discord_member.polytopia_name}`'
+        elif ctx.invoked_with == 'steamname':
+            player.discord_member.name_steam = discord.utils.escape_mentions(new_id)
+            register_str = f'Steam name `{player.discord_member.polytopia_name}`'
+        elif ctx.invoked_with == 'setname':
+            player.discord_member.polytopia_name = discord.utils.escape_mentions(new_id)
+            register_str = f'mobile name `{player.discord_member.polytopia_name}`'
+
         player.discord_member.save()
 
         models.GameLog.write(game_id=0, guild_id=0, message=f'{models.GameLog.member_string(player.discord_member)} code {"set" if created else "updated"} to `{new_id}` {log_by_str}')
 
         if created:
-            await ctx.send(f'Player **{player.name}** added to system with Polytopia code `{player.discord_member.polytopia_id}` and ELO **{player.elo}**\n'
+            await ctx.send(f'Player **{player.name}** added to system with {register_str} and ELO **{player.elo}**\n'
                 f'If your in-game name is different than your discord name, let the bot know with `{ctx.prefix}setname YOUR_INGAME_NAME`\n'
                 f'To find games to join use the `{ctx.prefix}games` command.')
         else:
@@ -962,16 +972,18 @@ class polygames(commands.Cog):
 
         discord_member = DiscordMember.get_or_none(discord_id=target_discord_member.id)
 
-        if discord_member and discord_member.polytopia_id:
+        if discord_member:
             if discord_member.polytopia_name and discord_member.polytopia_name.lower() != discord_member.name.lower():
                 in_game_name_str = f' (In-game name: **{discord_member.polytopia_name}**)'
             else:
                 in_game_name_str = ''
+            if discord_member.name_steam:
+                in_game_name_str += f' (Steam name: **{discord_member.name_steam}**)'
             await ctx.send(f'Code for **{discord_member.name}**{in_game_name_str}:')
             return await ctx.send(discord_member.polytopia_id)
         else:
-            return await ctx.send(f'Member **{target_discord_member.name}** has no code on file.\n'
-                f'Register your own code with `{ctx.prefix}setcode YOURCODEHERE`')
+            return await ctx.send(f'Member **{target_discord_member.name}** is not registered.\n'
+                f'Register your own code or in-game name with `{ctx.prefix}setcode YOURCODEHERE` or `{ctx.prefix}steamname STEAM NAME HERE`')
 
     @commands.command(aliases=['codes'], usage='game_id')
     @models.is_registered_member()
@@ -997,10 +1009,16 @@ class polygames(commands.Cog):
         async with ctx.typing():
             for p in ordered_player_list:
                 dm_obj = p['player'].discord_member
-                if dm_obj.polytopia_name and dm_obj.polytopia_name.lower() != p['player'].name.lower():
-                    in_game_name_str = f' (In-game name: **{dm_obj.polytopia_name}**)'
+                if game.is_mobile:
+                    if dm_obj.polytopia_name and dm_obj.polytopia_name.lower() != p['player'].name.lower():
+                        in_game_name_str = f' (In-game name: **{dm_obj.polytopia_name}**)'
+                    else:
+                        in_game_name_str = ''
                 else:
-                    in_game_name_str = ''
+                    if dm_obj.name_steam:
+                        in_game_name_str = f' (Steam name: **{dm_obj.name_steam}**)'
+                    else:
+                        in_game_name_str = ' (*Steam name not set*)'
 
                 if first_loop:
                     # header_str combined with first player's name in order to reduce number of ctx.send() that are done.
@@ -1014,23 +1032,24 @@ class polygames(commands.Cog):
                         tz_str = ''
                     await ctx.send(f'**{p["player"].name}**{in_game_name_str} {tz_str}')
                 poly_id = dm_obj.polytopia_id
-                await ctx.send(poly_id if poly_id else '*No code registered*')
+                if game.is_mobile:
+                    await ctx.send(poly_id if poly_id else '*No code registered*')
 
-    @commands.command(brief='Set in-game name', usage='new_name', aliases=['steamname'])
-    @models.is_registered_member()
-    async def setname(self, ctx, *args):
-        """Sets your own in-game name, or lets staff set a player's in-game name
-        When this is set, people can find you by the in-game name with the `[p]player` command.
-        **Examples:**
-        `[p]setname PolyChamp` - Set your own in-game name to *PolyChamp*
-        `[p]setname @Nelluk PolyChamp` - Lets staff set in-game name of Nelluk to *PolyChamp*
+    # @commands.command(brief='Set in-game name', usage='new_name', aliases=['steamname'])
+    # # @models.is_registered_member()
+    # async def setname(self, ctx, *args):
+    #     """Sets your own in-game name, or lets staff set a player's in-game name
+    #     When this is set, people can find you by the in-game name with the `[p]player` command.
+    #     **Examples:**
+    #     `[p]setname PolyChamp` - Set your own in-game name to *PolyChamp*
+    #     `[p]setname @Nelluk PolyChamp` - Lets staff set in-game name of Nelluk to *PolyChamp*
 
-        Use `steamname` instead of `setname` to set a Steam user-id.
-        """
+    #     Use `steamname` instead of `setname` to set a Steam user-id.
+    #     """
 
-        usage = f'**Usage:** `{ctx.prefix}{ctx.invoked_with} My In-game Name'
-        if not args:
-            return await ctx.send(usage)
+    #     usage = f'**Usage:** `{ctx.prefix}{ctx.invoked_with} My In-game Name`'
+    #     if not args:
+    #         return await ctx.send(usage)
 
         m = utilities.string_to_user_id(args[0])
 
@@ -1049,32 +1068,39 @@ class polygames(commands.Cog):
             target_string = str(ctx.author.id)
             log_by_str = ''
 
-        logger.debug(f'setname target is {target_string} with name {new_name}')
+    #     logger.debug(f'setname target is {target_string} with name {new_name}')
 
-        try:
-            player_target = Player.get_or_except(target_string, ctx.guild.id)
-        except exceptions.NoMatches:
-            if len(args) == 1:
-                error_msg = f'You have no Polytopia friend code on file. A Polytopia friend code must be registered first with `{ctx.prefix}setcode YOUR_POLYCODE`'
-            else:
-                error_msg = f'Could not find a registered player matching **{target_string}**. A Polytopia friend code must be registered first with `{ctx.prefix}setcode`\nExample usage: `{ctx.prefix}setname @Player in_game_name`'
-            return await ctx.send(error_msg)
-        except exceptions.TooManyMatches:
-            return await ctx.send(f'Found more than one matches for a player with **{target_string}**. Be more specific or use an @Mention.\nExample usage: `{ctx.prefix}setname @Player in_game_name`')
+    #     try:
+    #         player_target = Player.get_or_except(target_string, ctx.guild.id)
+    #     except exceptions.NoMatches:
+    #         if len(args) == 1:
+    #             error_msg = f'You have no Polytopia friend code on file. A Polytopia friend code must be registered first with `{ctx.prefix}setcode YOUR_POLYCODE`'
+    #         else:
+    #             error_msg = f'Could not find a registered player matching **{target_string}**. A Polytopia friend code must be registered first with `{ctx.prefix}setcode`\nExample usage: `{ctx.prefix}setname @Player in_game_name`'
+    #         return await ctx.send(error_msg)
+    #     except exceptions.TooManyMatches:
+    #         return await ctx.send(f'Found more than one matches for a player with **{target_string}**. Be more specific or use an @Mention.\nExample usage: `{ctx.prefix}setname @Player in_game_name`')
 
-        new_name = discord.utils.escape_mentions(new_name)
+    #     player, created = Player.upsert(discord_id=target_discord_member.id,
+    #                                     discord_name=target_discord_member.name,
+    #                                     discord_nick=target_discord_member.nick,
+    #                                     guild_id=ctx.guild.id,
+    #                                     team=team_list[0])
+    #     player.discord_member.polytopia_id = new_id
+    #     player.discord_member.save()
+    #     new_name = None if new_name.upper() == 'NONE' else discord.utils.escape_mentions(new_name)
 
-        if ctx.invoked_with == 'steamname':
-            steam_str = 'Steam'
-            player_target.discord_member.name_steam = new_name
-        else:
-            steam_str = ''
-            player_target.discord_member.name_steam = new_name
+    #     if ctx.invoked_with == 'steamname':
+    #         steam_str = 'Steam'
+    #         player_target.discord_member.name_steam = new_name
+    #     else:
+    #         steam_str = ''
+    #         player_target.discord_member.name_steam = new_name
 
-        player_target.discord_member.save()
+    #     player_target.discord_member.save()
 
-        models.GameLog.write(game_id=0, guild_id=0, message=f'{models.GameLog.member_string(player_target.discord_member)} {steam_str} name set to *{new_name}* {log_by_str}')
-        await ctx.send(f'Player **{player_target.name}** updated in system with {steam_str} Polytopia name **{new_name}**.')
+    #     models.GameLog.write(game_id=0, guild_id=0, message=f'{models.GameLog.member_string(player_target.discord_member)} {steam_str} name set to *{new_name}* {log_by_str}')
+    #     await ctx.send(f'Player **{player_target.name}** updated in system with {steam_str} Polytopia name **{new_name}**.')
 
     @commands.command(brief='Set player time zone', usage='UTC±#')
     @models.is_registered_member()
