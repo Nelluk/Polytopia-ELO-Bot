@@ -826,17 +826,6 @@ class Game(BaseModel):
                 side_guild = guild  # use current guild (ctx.guild)
                 using_team_server_flag = False
 
-            ###
-            # Below is temp hack to send Rex event game channels to a specific server for LigaRex event
-            # if self.name.upper()[:3] == 'LR1' and guild_id == settings.server_ids['polychampions']:
-            if self.name.upper()[:3] == 'LR1':
-                side_guild = discord.utils.get(guild_list, id=625819621748113408)  # override - sending game channels to Rex server for his event
-                using_team_server_flag = False  # I think i had this line set to False counterintuitively to handle permissions setting better - to sync to individual players
-                guild = side_guild
-                logger.info('Using external server for game channels - LR1 event.')
-            #
-            ###
-
             player_list = [l.player for l in gameside.ordered_player_list()]
             if len(player_list) < 2:
                 continue
@@ -844,7 +833,6 @@ class Game(BaseModel):
             if (len(guild.text_channels) > 440 and  # Give server some breathing room for non-game channels
                    len(player_list) < 3 and  # Large-team chans still get created
                    not using_team_server_flag and  # if on external server, skip check
-                   not self.name.upper()[:3] == 'LR1' and  # temp hack for LigaRex games which use external server but not flag):
                    'Nova' not in team_name):  # skip check for game chans locked to Nova Blue or Nova Red
 
                 # TODO: maybe, have different thresholds, ie start skipping NOva or 3-player channels or full-game channels is server is at a higher mark like 475

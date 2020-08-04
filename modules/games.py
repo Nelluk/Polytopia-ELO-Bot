@@ -876,6 +876,9 @@ class polygames(commands.Cog):
         Also use `[p]steamname` and `[p]setname` for setting Steam or mobile account names.
         """
 
+        if not args:
+            return await ctx.send(f'**Usage:** `{ctx.prefix}{ctx.invoked_with} Your In-Game Name`\nUse `{ctx.prefix}code` to quickly display your own code and in-game name.')
+
         m = utilities.string_to_user_id(args[0])
         if m:
             logger.debug(f'Third party use of {ctx.invoked_with}')
