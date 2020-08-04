@@ -62,6 +62,8 @@ class matchmaking(commands.Cog):
         Expiration can be between 1H - 96H
         Size examples: 1v1, 2v2, 1v1v1v1v1, 3v3v3, 1v3
 
+        Use `opensteam` to specify that a new game is for Steam - otherwise the game will be assumed for mobile platform.
+
         **Examples:**
         `[p]opengame 1v1`
 
@@ -649,7 +651,7 @@ class matchmaking(commands.Cog):
         `[p]opengames waiting` - Lists open games that are full but not yet started
         `[p]opengames all` - List all open games with open space, even games you cannot join due to restrictions
         `[p]opengames me` - List unstarted opengames that you have joined
-        You can also add keywords **ranked** or **unranked** to filter by those types of games.
+        You can also add keywords **ranked** or **unranked** or **steam** to filter by those types of games.
         """
         models.Game.purge_expired_games()
 
