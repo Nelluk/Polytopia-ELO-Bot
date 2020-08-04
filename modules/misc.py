@@ -298,7 +298,13 @@ class misc(commands.Cog):
 
             channel_tags = [f'<#{chan_id}>' for chan_id in permitted_channels]
             ctx.command.reset_cooldown(ctx)
-            return await ctx.send(f'This command can not be used in this channel. Permitted channels: {" ".join(channel_tags)}')
+
+            if len(game_channels) < len(game.gamesides):
+                error_str = 'Not all sides have access to a private channel. '
+            else:
+                error_str = ''
+
+            return await ctx.send(f'This command can not be used in this channel. {error_str}Permitted channels: {" ".join(channel_tags)}')
 
         full_message = f'Message from {ctx.author.mention} (**{ctx.author.name}**) regarding game {game.id} **{game.name}**:\n*{message}*'
         models.GameLog.write(game_id=game, guild_id=game.guild_id, message=f'{models.GameLog.member_string(ctx.author)} pinged the game with message: *{discord.utils.escape_markdown(message)}*')
