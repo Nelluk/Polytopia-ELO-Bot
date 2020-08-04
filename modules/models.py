@@ -1026,6 +1026,9 @@ class Game(BaseModel):
     def ordered_side_list(self):
         return GameSide.select().where(GameSide.game == self).order_by(GameSide.position)
 
+    def platform_emoji(self):
+        return '' if self.is_mobile else '🖥'
+
     def embed(self, guild, prefix):
         if self.is_pending:
             return self.embed_pending_game(prefix)
@@ -1117,13 +1120,13 @@ class Game(BaseModel):
         else:
             completed_str = ''
 
-        embed.set_footer(text=f'{status_str} - Created {str(self.date)}{completed_str}{host_str}')
+        embed.set_footer(text=f'{self.platform_emoji()} {status_str} - Created {str(self.date)}{completed_str}{host_str}')
 
         return embed, embed_content
 
     def embed_pending_game(self, prefix):
         ranked_str = 'Unranked ' if not self.is_ranked else ''
-        title_str = f'**{ranked_str}Open Game {self.id}**\n{self.size_string()}'
+        title_str = f'**{ranked_str}Open Game {self.id}** {self.platform_emoji()}\n{self.size_string()}'
         if self.host:
             title_str += f' *hosted by* {self.host.name}'
 
@@ -1160,6 +1163,8 @@ class Game(BaseModel):
         embed.add_field(name='Expires in', value=f'{expiration_str}', inline=True)
         embed.add_field(name='Notes', value=notes_str, inline=False)
         embed.add_field(name='\u200b', value='\u200b', inline=False)
+        # embed.set_author(name=title_str)
+        # embed.set_thumbnail(url="https://icons-for-free.com/iconfiles/png/512/mobile+phone+multimedia+phone+smartphone+icon-1320168217591317840.png")
 
         for side in self.ordered_side_list():
             side_name = ': **' + side.sidename + '**' if side.sidename else ''
@@ -1178,7 +1183,6 @@ class Game(BaseModel):
             player_str = '\u200b' if not player_list else '\n'.join(player_list)
 
             embed.add_field(name=f'__Side {side.position}__{side_name} *({side_capacity[0]}/{side_capacity[1]})*', value=player_str[:1024], inline=False)
-
         return embed, content_str
 
     def get_gamesides_string(self, include_emoji=True):

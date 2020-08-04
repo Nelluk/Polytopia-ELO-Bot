@@ -741,7 +741,7 @@ class matchmaking(commands.Cog):
             creating_player = game.creating_player()
             host_name = creating_player.name[:35] if creating_player else '<Vacant>'
             gamelist_fields.append((f'`{f"{game.id}":<8}{host_name:<40} {game.size_string():<7} {capacity_str:<7} {expiration:>5}`',
-                f'{ranked_str}{notes_str}\n \u200b'))
+                f'{game.platform_emoji()}{ranked_str}{notes_str}\n \u200b'))
 
         if filter_unjoinable and unjoinable_count and not novas_only:
             if unjoinable_count == 1:

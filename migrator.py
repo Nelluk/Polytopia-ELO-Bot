@@ -79,7 +79,7 @@ migrate(
     # migrator.add_column('gameside', 'team_elo_after_game', team_elo_after_game),
     # migrator.add_column('gameside', 'team_elo_after_game_alltime', team_elo_after_game_alltime)
     # migrator.add_column('gamelog', 'is_protected', is_protected),
-    migrator.add_column('discordmember', 'name_steam', name_steam)
+    migrator.add_column('discordmember', 'name_steam', name_steam),
     migrator.add_column('game', 'is_mobile', is_mobile)
     # migrator.drop_column('gamelog', 'game_id'),
     # migrator.alter_column_type('gamelog', 'game_id', ForeignKeyField(Game))

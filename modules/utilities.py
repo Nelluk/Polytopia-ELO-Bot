@@ -180,9 +180,10 @@ def summarize_game_list(games_query):
                 status_str = f'**WINNER:** {game.winner.name()}'
 
         rank_str = 'Unranked - ' if not game.is_ranked else ''
+        platform_str = '' if game.is_mobile else f'{game.platform_emoji()} - '
         game_list.append((
             f'{game.get_headline()}'[:255],
-            f'{(str(game.date))} - {rank_str}{game.size_string()} - {status_str}'
+            f'{(str(game.date))} - {platform_str}{rank_str}{game.size_string()} - {status_str}'
         ))
         # logger.debug(f'Parsed game {game_list[-1]}')
     return game_list
