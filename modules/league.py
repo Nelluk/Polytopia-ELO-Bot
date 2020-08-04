@@ -34,7 +34,8 @@ league_teams = [('Ronin', ['The Ronin', 'The Bandits']),
     ('Wildfire', ['The Wildfire', 'The Flames']),
     ('Mallards', ['The Mallards', 'The Drakes']),
     ('Plague', ['The Plague', 'The Rats']),
-    ('Dragons', ['The Dragons', 'The Narwhals'])
+    ('Dragons', ['The Dragons', 'The Narwhals']),
+    ('Jalapenos', ['', 'The Jalapenos'])
 ]
 
 league_team_channels = []
