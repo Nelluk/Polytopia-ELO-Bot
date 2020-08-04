@@ -1051,23 +1051,6 @@ class polygames(commands.Cog):
     #     if not args:
     #         return await ctx.send(usage)
 
-        m = utilities.string_to_user_id(args[0])
-
-        if m:
-            logger.debug('Third party use of setname')
-            # Staff member using command on third party
-            if settings.is_staff(ctx) is False:
-                logger.debug('insufficient user level')
-                return await ctx.send(f'You do not have permission to set another player\'s name.')
-            new_name = ' '.join(args[1:])
-            target_string = str(m)
-            log_by_str = f' by {models.GameLog.member_string(ctx.author)}'
-        else:
-            # Play using command on their own games
-            new_name = ' '.join(args)
-            target_string = str(ctx.author.id)
-            log_by_str = ''
-
     #     logger.debug(f'setname target is {target_string} with name {new_name}')
 
     #     try:
