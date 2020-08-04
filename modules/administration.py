@@ -873,7 +873,6 @@ class administration(commands.Cog):
         player_id = utilities.string_to_user_id(args)
         if not player_id:
             return await ctx.send(f'Could not parse a discord ID. Usage: `{ctx.prefix}{ctx.invoked_with} [<@Mention> / <Raw ID>]`')
-        print(player_id)
 
         discord_member = models.DiscordMember.get_or_none(discord_id=player_id)
         if not discord_member:

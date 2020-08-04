@@ -916,20 +916,22 @@ class polygames(commands.Cog):
         if ctx.invoked_with == 'setcode':
             player.discord_member.polytopia_id = new_id
             register_str = f'Polytopia code `{player.discord_member.polytopia_id}`'
+            warning_str = f':warning: Also set your mobile in-game name with `{ctx.prefix}setname YOUR_INGAME_NAME` - This will be required soon.\n'
         elif ctx.invoked_with == 'steamname':
             player.discord_member.name_steam = discord.utils.escape_mentions(new_id) if new_id else None
             register_str = f'Steam name `{player.discord_member.name_steam}`'
+            warning_str = ''
         elif ctx.invoked_with == 'setname':
             player.discord_member.polytopia_name = discord.utils.escape_mentions(new_id) if new_id else None
             register_str = f'mobile name `{player.discord_member.polytopia_name}`'
+            warning_str = ''
 
         player.discord_member.save()
 
         models.GameLog.write(game_id=0, guild_id=0, message=f'{models.GameLog.member_string(player.discord_member)} code {"set" if created else "updated"} to `{new_id}` {log_by_str}')
 
         if created:
-            await ctx.send(f'Player **{player.name}** added to system with {register_str} and ELO **{player.elo}**\n'
-                f'If your in-game name is different than your discord name, let the bot know with `{ctx.prefix}setname YOUR_INGAME_NAME`\n'
+            await ctx.send(f'Player **{player.name}** added to system with {register_str} and ELO **{player.elo}**\n{warning_str}'
                 f'To find games to join use the `{ctx.prefix}games` command.')
         else:
             await ctx.send(f'Player **{player.name}** updated in system with {register_str}.')
