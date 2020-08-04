@@ -870,8 +870,10 @@ class polygames(commands.Cog):
         Sets your own Polytopia code, or allows a staff member to set a player's code. This also will register the player with the bot if not already.
         **Examples:**
         `[p]setcode YOUR_POLY_GAME_CODE`
-        `[p]setcode Nelluk YOUR_POLY_GAME_CODE`
-        `[p]setcode Nelluk none` - Server staff can delete a code if it is invalid for some reason
+        `[p]setcode @Nelluk YOUR_POLY_GAME_CODE`
+        `[p]setcode @Nelluk none` - Server staff can delete a code if it is invalid for some reason
+
+        Also use `[p]steamname` and `[p]setname` for setting Steam or mobile account names.
         """
 
         m = utilities.string_to_user_id(args[0])
