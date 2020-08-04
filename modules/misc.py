@@ -462,12 +462,12 @@ class misc(commands.Cog):
     async def task_broadcast_newbie_steam_message(self):
         await self.bot.wait_until_ready()
         while not self.bot.is_closed():
-            sleep_cycle = (60 * 60 * 3)
+            sleep_cycle = (60 * 60 * 6)
             await asyncio.sleep(10)
 
             for guild in self.bot.guilds:
-                broadcast_channels = [guild.get_channel(chan) for chan in settings.guild_setting(guild.id, 'steam_game_channel')]
-                if not broadcast_channels:
+                broadcast_channel = guild.get_channel(settings.guild_setting(guild.id, 'steam_game_channel'))
+                if not broadcast_channel:
                     continue
 
                 prefix = settings.guild_setting(guild.id, 'command_prefix')
@@ -477,10 +477,8 @@ class misc(commands.Cog):
                 broadcast_message += f'\nTo get started with joining an open game, type __`{prefix}games`__ or open your own with __`{prefix}opensteam`__'
                 broadcast_message += f'\nFor full information go read <#{elo_guide_channel}>.'
 
-                for broadcast_channel in broadcast_channels:
-                    if broadcast_channel:
-                        message = await broadcast_channel.send(broadcast_message, delete_after=(sleep_cycle - 5))
-                        self.bot.purgable_messages = self.bot.purgable_messages[-20:] + [(guild.id, broadcast_channel.id, message.id)]
+                message = await broadcast_channel.send(broadcast_message, delete_after=(sleep_cycle - 5))
+                self.bot.purgable_messages = self.bot.purgable_messages[-20:] + [(guild.id, broadcast_channel.id, message.id)]
 
             await asyncio.sleep(sleep_cycle)
 
