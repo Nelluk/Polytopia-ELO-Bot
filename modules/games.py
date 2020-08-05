@@ -999,7 +999,7 @@ class polygames(commands.Cog):
             if discord_member.name_steam:
                 in_game_name_str += f' (Steam name: **{discord_member.name_steam}**)'
             await ctx.send(f'Code for **{discord_member.name}**{in_game_name_str}:')
-            return await ctx.send(discord_member.polytopia_id)
+            return await ctx.send(discord_member.polytopia_id or 'None set')
         else:
             return await ctx.send(f'Member **{target_discord_member.name}** is not registered.\n'
                 f'Register your own code or in-game name with `{ctx.prefix}setcode YOURCODEHERE` or `{ctx.prefix}steamname STEAM NAME HERE`')
