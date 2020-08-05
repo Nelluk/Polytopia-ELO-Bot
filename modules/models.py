@@ -49,7 +49,7 @@ def is_registered_member():
         if ctx.invoked_with == 'help' and ctx.command.name != 'help':
             return False
         else:
-            await ctx.send(f'This command requires bot registration first. Type __`{ctx.prefix}setcode YOURCODEHERE`__ to get started.')
+            await ctx.send(f'This command requires bot registration first. Type __`{ctx.prefix}setcode YOURCODEHERE`__ or  __`{ctx.prefix}steamname Your Steam Username`__ to get started.')
         return False
     return commands.check(predicate)
 
