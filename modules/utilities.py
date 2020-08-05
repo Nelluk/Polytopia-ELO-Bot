@@ -158,11 +158,11 @@ def summarize_game_list(games_query, player_discord_id: int = None):
     # Turns a list/query-result of several games (or GameSide) into a List of Tuples that can be sent to the pagination function
     # ie. [('Game 330   :nauseated_face: DrippyIsGod vs Nelluk :spy: Mountain Of Songs', '2018-10-05 - 1v1 - WINNER: Nelluk')]
     game_list = []
-    channel_link = ''
 
     # for counter, game in enumerate(games_query):
     # for game in peewee.prefetch(games_query, models.GameSide):
     for game in games_query:
+        channel_link = ''
         if isinstance(game, models.GameSide):
             game = game.game  # In case a list of GameSide is passed instead of a list of Games
 
