@@ -402,7 +402,7 @@ class misc(commands.Cog):
             logger.info('Running task task_send_polychamps_invite')
             guild = discord.utils.get(self.bot.guilds, id=settings.server_ids['main'])
             if not guild:
-                logger.warn('Could not load guild via server_id')
+                logger.warning('Could not load guild via server_id')
                 break
             utilities.connect()
             dms = models.DiscordMember.members_not_on_polychamps()
@@ -431,7 +431,7 @@ class misc(commands.Cog):
                 try:
                     await guild_member.send(message)
                 except discord.DiscordException as e:
-                    logger.warn(f'Error DMing member: {e}')
+                    logger.warning(f'Error DMing member: {e}')
                 else:
                     dm.date_polychamps_invite_sent = datetime.datetime.today()
                     dm.save()

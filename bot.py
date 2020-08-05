@@ -116,7 +116,7 @@ def get_prefix(bot, message):
         if message.guild:
             logger.error(f'Message received not from allowed guild. ID {message.guild.id }')
         # probably a PM
-        logger.warn(f'returning None prefix for received PM. Author: {message.author.name}')
+        logger.warning(f'returning None prefix for received PM. Author: {message.author.name}')
         return 'fakeprefix'
 
 
@@ -153,7 +153,7 @@ if __name__ == '__main__':
         retry_after = bucket.update_rate_limit()
         if retry_after:
             await ctx.send('You\'re on cooldown. Slow down those commands!')
-            logger.warn(f'Cooldown limit reached for user {ctx.author.id}')
+            logger.warning(f'Cooldown limit reached for user {ctx.author.id}')
             return False
 
         # not on cooldown
@@ -173,7 +173,7 @@ if __name__ == '__main__':
 
         # Anything in ignored will return and prevent anything happening.
         if isinstance(exc, ignored):
-            logger.warn(f'Exception on ignored list raised in {ctx.command}. {exc}')
+            logger.warning(f'Exception on ignored list raised in {ctx.command}. {exc}')
             return
 
         if isinstance(exc, commands.CommandOnCooldown):

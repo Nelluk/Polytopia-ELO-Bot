@@ -37,7 +37,7 @@ class PolyGame(commands.Converter):
         else:
             logger.debug(f'Game with ID {game_id} found.')
             if game.guild_id != ctx.guild.id and not allow_cross_guild:
-                logger.warn('Game does not belong to same guild')
+                logger.warning('Game does not belong to same guild')
                 try:
                     server_name = settings.guild_setting(guild_id=game.guild_id, setting_name='display_name')
                 except exceptions.CheckFailedError:
@@ -1627,7 +1627,7 @@ class polygames(commands.Cog):
                 # Allows bot to remain responsive while this large operation is running.
                 await ctx.send(f'Game with ID {gid} has been deleted and team/player ELO changes have been reverted, if applicable.')
         except discord.errors.NotFound:
-            logger.warn('Game deleted while in game-related channel')
+            logger.warning('Game deleted while in game-related channel')
             await self.bot.loop.run_in_executor(None, game.delete_game)
 
     @commands.command(usage='game_id "New Name"')

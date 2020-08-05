@@ -94,10 +94,10 @@ class administration(commands.Cog):
                 if messages[0].created_at > old_30d:
                     logger.debug(f'{chan.name} not eligible for deletion - has a recent message in history')
                     continue
-                logger.warn(f'{chan.name} {chan.id} is eligible for deletion - few messages and no recent messages in history')
+                logger.warning(f'{chan.name} {chan.id} is eligible for deletion - few messages and no recent messages in history')
                 await ctx.send(f'Deleting channel **{chan.name}** - few messages and no recent messages in history')
                 try:
-                    logger.warn(f'Deleting channel {chan.name}')
+                    logger.warning(f'Deleting channel {chan.name}')
                     await chan.delete(reason='Purging game channels with inactive history')
                 except discord.DiscordException as e:
                     logger.error(f'Could not delete channel: {e}')
@@ -402,7 +402,7 @@ class administration(commands.Cog):
         try:
             await ctx.send(f'Game {game.id} is now an open game and no longer in progress.')
         except discord.errors.NotFound:
-            logger.warn('Game unstarted while in game-related channel')
+            logger.warning('Game unstarted while in game-related channel')
 
     @commands.command(usage='search_term', aliases=['gamelog', 'gamelogs', 'global_logs', 'log'])
     # @commands.cooldown(1, 20, commands.BucketType.user)
@@ -683,7 +683,7 @@ class administration(commands.Cog):
         last_month = (datetime.datetime.now() + datetime.timedelta(days=-30))
         inactive_role = discord.utils.get(ctx.guild.roles, name=settings.guild_setting(ctx.guild.id, 'inactive_role'))
         if not inactive_role:
-            logger.warn(f'Could not load Inactive role by name {settings.guild_setting(ctx.guild.id, "inactive_role")}')
+            logger.warning(f'Could not load Inactive role by name {settings.guild_setting(ctx.guild.id, "inactive_role")}')
             return await ctx.send(f'Error loading Inactive role.')
 
         kickable_role_names = [
@@ -817,7 +817,7 @@ class administration(commands.Cog):
                 return await ctx.send(f'Found a DiscordMember *{new_discord_member.name}* in the database matching discord id `{new_guild_member.id}`. Cannot migrate to an existing player with completed games!')
 
             # but has no completed games - proceeding to migrate
-            logger.warn(f'Migrating player profile of ID {from_id} {old_discord_member.name} to new guild member {new_guild_member.id}{new_guild_member.name} with existing incomplete games')
+            logger.warning(f'Migrating player profile of ID {from_id} {old_discord_member.name} to new guild member {new_guild_member.id}{new_guild_member.name} with existing incomplete games')
 
             with models.db.atomic():
                 for gm in new_discord_member.guildmembers:
@@ -845,7 +845,7 @@ class administration(commands.Cog):
 
         else:
             # New player has no presence in the bot
-            logger.warn(f'Migrating player profile of ID {from_id} {old_discord_member.name} to new guild member {new_guild_member.id}{new_guild_member.name}')
+            logger.warning(f'Migrating player profile of ID {from_id} {old_discord_member.name} to new guild member {new_guild_member.id}{new_guild_member.name}')
 
             await ctx.send(f'The games from DiscordMember `{from_id}` *{old_discord_member.name}* will be migrated and become associated with {new_guild_member.mention}')
 

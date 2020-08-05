@@ -48,7 +48,7 @@ async def send_to_log_channel(guild, message):
     logger.debug(f'Sending log message to game_request_channel: {message}')
     staff_output_channel = guild.get_channel(settings.guild_setting(guild.id, 'game_request_channel'))
     if not staff_output_channel:
-        logger.warn(f'Could not load game_request_channel for server {guild.id} - skipping')
+        logger.warning(f'Could not load game_request_channel for server {guild.id} - skipping')
     else:
         await buffered_send(destination=staff_output_channel, content=message)
 
@@ -324,7 +324,7 @@ async def paginate(bot, ctx, title, message_list, page_start=0, page_end=10, pag
             try:
                 await reaction.remove(user)
             except (discord.ext.commands.errors.CommandInvokeError, discord.errors.Forbidden):
-                logger.warn('Unable to remove message reaction due to insufficient permissions. Giving bot \'Manage Messages\' permission will improve usability.')
+                logger.warning('Unable to remove message reaction due to insufficient permissions. Giving bot \'Manage Messages\' permission will improve usability.')
             await sent_message.edit(embed=embed)
 
         def check(reaction, user):
@@ -343,7 +343,7 @@ async def paginate(bot, ctx, title, message_list, page_start=0, page_end=10, pag
             try:
                 await sent_message.clear_reactions()
             except (discord.ext.commands.errors.CommandInvokeError, discord.errors.Forbidden):
-                logger.warn('Unable to clear message reaction due to insufficient permissions. Giving bot \'Manage Messages\' permission will improve usability.')
+                logger.warning('Unable to clear message reaction due to insufficient permissions. Giving bot \'Manage Messages\' permission will improve usability.')
             finally:
                 break
         else:

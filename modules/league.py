@@ -52,7 +52,7 @@ def get_league_roles(guild):
     team_roles = [discord.utils.get(guild.roles, name=r) for r in team_role_names]
 
     if None in pro_roles or None in junior_roles or None in team_roles:
-        logger.warn(f'Problem loading at least one role in get_league_roles: {pro_roles} {junior_roles} {team_roles}')
+        logger.warning(f'Problem loading at least one role in get_league_roles: {pro_roles} {junior_roles} {team_roles}')
 
     return team_roles, pro_roles, junior_roles
 
@@ -132,7 +132,7 @@ class league(commands.Cog):
                 player.team = team
                 player.save()
             except exceptions.NoSingleMatch as e:
-                logger.warn(f'League.on_member_update: could not load Player or Team for changing league member {after.display_name}: {e}')
+                logger.warning(f'League.on_member_update: could not load Player or Team for changing league member {after.display_name}: {e}')
 
             if member_team_roles[0] in pro_roles:
                 team_umbrella_role = team_roles[pro_roles.index(member_team_roles[0])]
@@ -237,7 +237,7 @@ class league(commands.Cog):
             await message.remove_reaction(self.emoji_draft_conclude, member)
             logger.debug(f'Removing {self.emoji_draft_conclude} reaction placed by {member.name} on message {message.id}')
         except discord.DiscordException as e:
-            logger.warn(f'Unable to remove reaction in conclude_draft_emoji_added(): {e}')
+            logger.warning(f'Unable to remove reaction in conclude_draft_emoji_added(): {e}')
 
         if not settings.is_mod(member):
             return
@@ -296,7 +296,7 @@ class league(commands.Cog):
             new_message = message.content.replace(self.draft_closed_message, f'~~{self.draft_closed_message}~~') + f'\nThis draft is concluded. {new_free_agents_count} members went undrafted and became free agents.'
             await message.edit(content=new_message)
         except discord.DiscordException as e:
-            logger.warn(f'Could not clear reactions or edit content in concluded draft message: {e}')
+            logger.warning(f'Could not clear reactions or edit content in concluded draft message: {e}')
 
     async def close_draft_emoji_added(self, member, channel, message):
         announce_message_link = f'https://discord.com/channels/{member.guild.id}/{channel.id}/{message.id}'
@@ -308,7 +308,7 @@ class league(commands.Cog):
             await message.remove_reaction(self.emoji_draft_close, member)
             logger.debug(f'Removing {self.emoji_draft_close} reaction placed by {member.name} on message {message.id}')
         except discord.DiscordException as e:
-            logger.warn(f'Unable to remove reaction in close_draft_emoji_added(): {e}')
+            logger.warning(f'Unable to remove reaction in close_draft_emoji_added(): {e}')
 
         if not settings.is_mod(member):
             return
@@ -357,7 +357,7 @@ class league(commands.Cog):
                     await message.remove_reaction(self.emoji_draft_signup, member)
                     logger.debug(f'Removing {self.emoji_draft_signup} reaction placed by {member.name} on message {message.id}')
                 except discord.DiscordException as e:
-                    logger.warn(f'Unable to remove irrelevant reaction in signup_emoji_clicked(): {e}')
+                    logger.warning(f'Unable to remove irrelevant reaction in signup_emoji_clicked(): {e}')
                 if not draft_opened:
                     member_message = 'The draft has been closed to new signups - your signup has been rejected.'
                     logger.debug(f'{member.id}> reacted to the draft but was rejected since it is closed.')
@@ -392,7 +392,7 @@ class league(commands.Cog):
             try:
                 await member.send(member_message)
             except discord.DiscordException as e:
-                logger.warn(f'Could not message member in signup_emoji_clicked: {e}')
+                logger.warning(f'Could not message member in signup_emoji_clicked: {e}')
 
     def get_draft_config(self, guild_id):
         record, _ = models.Configuration.get_or_create(guild_id=guild_id)
@@ -464,7 +464,7 @@ class league(commands.Cog):
             except discord.NotFound:
                 pass  # Message no longer exists - assume deleted and create a fresh draft message
             except discord.DiscordException as e:
-                logger.warn(f'Error loading existing draft announcement message in newdraft command: {e}')
+                logger.warning(f'Error loading existing draft announcement message in newdraft command: {e}')
 
         grad_role = discord.utils.get(ctx.guild.roles, name=grad_role_name)
         novas_role = discord.utils.get(ctx.guild.roles, name=novas_role_name)
@@ -527,14 +527,14 @@ class league(commands.Cog):
                 junior_role = discord.utils.get(ctx.guild.roles, name=team_roles[1])
 
                 if not pro_role or not junior_role:
-                    logger.warn(f'Could not load one team role from guild, using args: {team_roles}')
+                    logger.warning(f'Could not load one team role from guild, using args: {team_roles}')
                     continue
 
                 try:
                     pro_team = models.Team.get_or_except(team_roles[0], guild_id)
                     junior_team = models.Team.get_or_except(team_roles[1], guild_id)
                 except exceptions.NoSingleMatch:
-                    logger.warn(f'Could not load one team from database, using args: {team_roles}')
+                    logger.warning(f'Could not load one team from database, using args: {team_roles}')
                     continue
 
                 pro_members, junior_members, pro_discord_ids, junior_discord_ids, mia_count = [], [], [], [], 0
@@ -672,7 +672,7 @@ class league(commands.Cog):
                 for team in poly_teams:
                     season_record = team.get_season_record(season=season)  # (win_count_reg, loss_count_reg, incomplete_count_reg, win_count_post, loss_count_post, incomplete_count_post)
                     if not season_record:
-                        logger.warn(f'No season record returned for team {team.name}')
+                        logger.warning(f'No season record returned for team {team.name}')
                         continue
 
                     standings.append((team, season_record[0], season_record[1], season_record[2], season_record[3], season_record[4], season_record[5]))
@@ -977,14 +977,14 @@ async def auto_grad_novas(ctx, game):
     grad_role = discord.utils.get(ctx.guild.roles, name=grad_role_name)
 
     if not role or not grad_role:
-        logger.warn(f'Could not load required roles to complete auto_grad_novas')
+        logger.warning(f'Could not load required roles to complete auto_grad_novas')
         return
 
     player_id_list = [l.player.discord_member.discord_id for l in game.lineup]
     for player_id in player_id_list:
         member = ctx.guild.get_member(player_id)
         if not member:
-            logger.warn(f'Could not load guild member matching discord_id {player_id} for game {game.id} in auto_grad_novas')
+            logger.warning(f'Could not load guild member matching discord_id {player_id} for game {game.id} in auto_grad_novas')
             continue
 
         if role not in member.roles or grad_role in member.roles:
@@ -996,7 +996,7 @@ async def auto_grad_novas(ctx, game):
             dm = models.DiscordMember.get(discord_id=member.id)
             player = models.Player.get(discord_member=dm, guild_id=ctx.guild.id)
         except peewee.DoesNotExist:
-            logger.warn(f'Player {member.name} not registered.')
+            logger.warning(f'Player {member.name} not registered.')
             continue
 
         qualifying_games = []
@@ -1030,7 +1030,7 @@ async def auto_grad_novas(ctx, game):
             except discord.NotFound:
                 pass  # Draft signup message no longer exists - assume its been deleted intentionally and closed
             except discord.DiscordException as e:
-                logger.warn(f'Error loading existing draft announcement message in auto_grad_novas: {e}')
+                logger.warning(f'Error loading existing draft announcement message in auto_grad_novas: {e}')
 
         grad_announcement = (f'Player {member.mention} (*Global ELO: {dm.elo} \u00A0\u00A0\u00A0\u00A0W {wins} / L {losses}*) '
                 f'has met the qualifications and is now a **{grad_role.name}**\n'

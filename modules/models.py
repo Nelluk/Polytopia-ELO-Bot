@@ -755,7 +755,7 @@ class Tribe(BaseModel):
         tribe_name_match = Tribe.select().where(Tribe.name.startswith(name))
 
         if tribe_name_match.count() == 0:
-            logger.warn(f'No Tribe could be matched to {name}')
+            logger.warning(f'No Tribe could be matched to {name}')
             return None
         return tribe_name_match[0]
 
@@ -838,7 +838,7 @@ class Game(BaseModel):
                 # TODO: maybe, have different thresholds, ie start skipping NOva or 3-player channels or full-game channels is server is at a higher mark like 475
 
                 error_message = 'Server has nearly reached the maximum number of channels: skipping channel creation for this game.'
-                logger.warn('Skipping channel creation for a team due to server exceeding 425 channels')
+                logger.warning('Skipping channel creation for a team due to server exceeding 425 channels')
                 continue
             chan = await channels.create_game_channel(side_guild, game=self, team_name=gameside.team.name, player_list=player_list, using_team_server_flag=using_team_server_flag)
             if chan:
@@ -874,14 +874,14 @@ class Game(BaseModel):
 
         if self.notes and 'NOVA RED' in self.notes.upper() and 'NOVA BLUE' in self.notes.upper():
             if self.completed_ts and self.completed_ts > old_4d:
-                return logger.warn(f'Skipping team channel deletion for game {self.id} {self.name} since it is a Nova League game concluded recently')
+                return logger.warning(f'Skipping team channel deletion for game {self.id} {self.name} since it is a Nova League game concluded recently')
 
         for gameside in self.gamesides:
             if gameside.team_chan:
                 if gameside.team_chan_external_server:
                     side_guild = discord.utils.get(guild_list, id=gameside.team_chan_external_server)
                     if not side_guild:
-                        logger.warn(f'Could not load guild where external team channel is located, gameside ID {gameside.id} guild {gameside.team_chan_external_server}')
+                        logger.warning(f'Could not load guild where external team channel is located, gameside ID {gameside.id} guild {gameside.team_chan_external_server}')
                         continue
                 else:
                     side_guild = guild
@@ -902,7 +902,7 @@ class Game(BaseModel):
                 if gameside.team_chan_external_server:
                     side_guild = discord.utils.get(guild_list, id=gameside.team_chan_external_server)
                     if not side_guild:
-                        logger.warn(f'Could not load guild where external team channel is located, gameside ID {gameside.id} guild {gameside.team_chan_external_server}')
+                        logger.warning(f'Could not load guild where external team channel is located, gameside ID {gameside.id} guild {gameside.team_chan_external_server}')
                         continue
                     logger.debug(f'Using guild {side_guild} for side_guild')
                 else:
@@ -927,18 +927,18 @@ class Game(BaseModel):
             return
         channel = guild.get_channel(self.announcement_channel)
         if channel is None:
-            return logger.warn('Couldn\'t get channel in update_announacement')
+            return logger.warning('Couldn\'t get channel in update_announacement')
 
         try:
             message = await channel.fetch_message(self.announcement_message)
         except discord.DiscordException:
-            return logger.warn('Couldn\'t get message in update_announacement')
+            return logger.warning('Couldn\'t get message in update_announacement')
 
         try:
             embed, content = self.embed(guild=guild, prefix=prefix)
             await message.edit(embed=embed, content=content)
         except discord.DiscordException:
-            return logger.warn('Couldn\'t update message in update_announacement')
+            return logger.warning('Couldn\'t update message in update_announacement')
 
     def is_hosted_by(self, discord_id: int):
 
@@ -1897,7 +1897,7 @@ class Game(BaseModel):
         if len(query) == 0:
             raise exceptions.NoMatches(f'No matching game found for given channel')
         if len(query) > 1:
-            logger.warn(f'by_channel_id - More than one game matches channel ID {chan_id}')
+            logger.warning(f'by_channel_id - More than one game matches channel ID {chan_id}')
             raise exceptions.TooManyMatches(f'More than game found with this associated channel')
 
         return query[0]
@@ -2000,7 +2000,7 @@ class Game(BaseModel):
     def recalculate_all_elo():
         # Reset all ELOs to 1000, reset completed game counts, and re-run Game.declare_winner() on all qualifying games
 
-        logger.warn('Resetting and recalculating all ELO')
+        logger.warning('Resetting and recalculating all ELO')
         elo_logger.info(f'recalculate_all_elo')
 
         with db.atomic():

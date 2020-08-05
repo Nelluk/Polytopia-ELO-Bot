@@ -102,7 +102,7 @@ def guild_setting(guild_id: int, setting_name: str):
         try:
             settings_obj = config[guild_id]
         except KeyError:
-            logger.warn(f'Unknown guild id {guild_id} requested for setting name {setting_name}.')
+            logger.warning(f'Unknown guild id {guild_id} requested for setting name {setting_name}.')
             raise exceptions.CheckFailedError('Unauthorized: This guild is not in the config.ini file.')
             # return config['default'][setting_name]
 
