@@ -154,10 +154,11 @@ def get_matching_roles(discord_member, list_of_role_names):
     return set(member_roles).intersection(list_of_role_names)
 
 
-def summarize_game_list(games_query):
+def summarize_game_list(games_query, player_discord_id: int = None):
     # Turns a list/query-result of several games (or GameSide) into a List of Tuples that can be sent to the pagination function
     # ie. [('Game 330   :nauseated_face: DrippyIsGod vs Nelluk :spy: Mountain Of Songs', '2018-10-05 - 1v1 - WINNER: Nelluk')]
     game_list = []
+    channel_link = ''
 
     # for counter, game in enumerate(games_query):
     # for game in peewee.prefetch(games_query, models.GameSide):
@@ -181,9 +182,15 @@ def summarize_game_list(games_query):
 
         rank_str = 'Unranked - ' if not game.is_ranked else ''
         platform_str = '' if game.is_mobile else f'{game.platform_emoji()} - '
+
+        if player_discord_id:
+            _, gameside = game.has_player(discord_id=player_discord_id)
+            if gameside and gameside.team_chan:
+                channel_link = f'\n<#{gameside.team_chan}>'
+
         game_list.append((
             f'{game.get_headline()}'[:255],
-            f'{(str(game.date))} - {platform_str}{rank_str}{game.size_string()} - {status_str}'
+            f'{(str(game.date))} - {platform_str}{rank_str}{game.size_string()} - {status_str}{channel_link}'
         ))
         # logger.debug(f'Parsed game {game_list[-1]}')
     return game_list

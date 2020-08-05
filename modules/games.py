@@ -1787,6 +1787,7 @@ class polygames(commands.Cog):
 
         target_list = [arg.replace('"', '') for arg in arg_list]  # should enable it to handle "multi word" args
         target_list = [i for i in target_list if len(i) > 2]  # strip 1-2 character arguments that match too easily to random players
+        player_discord_id = None  # Filled by author.id if command is just bare $incomplete - list will include channel links
 
         if mode.upper() == 'ALLGAMES':
             status_filter, status_str = 0, 'game'
@@ -1822,6 +1823,8 @@ class polygames(commands.Cog):
             if not target_list:
                 # Target is person issuing command
                 target_list.append(str(ctx.author.id))
+                if mode.upper() == 'INCOMPLETE':
+                    player_discord_id = ctx.author.id
 
             team_size_str, team_sizes = '', []
             for arg in target_list:
@@ -1857,7 +1860,7 @@ class polygames(commands.Cog):
                 query = Game.search(status_filter=status_filter, player_filter=player_matches, team_filter=team_matches, title_filter=remaining_args, guild_id=ctx.guild.id, size_filter=team_sizes)
                 logger.debug(f'Searching games, status filter: {status_filter}, player_filter: {player_matches}, team_filter: {team_matches}, title_filter: {remaining_args}')
                 logger.debug(f'Returned {len(query)} results')
-                game_list = utilities.summarize_game_list(query[:500])
+                game_list = utilities.summarize_game_list(query[:500], player_discord_id=player_discord_id)
                 list_name = f'{len(query)} {status_str}{"s" if len(query) != 1 else ""}\n{results_str}'
                 return game_list, list_name
 
