@@ -526,6 +526,9 @@ class matchmaking(commands.Cog):
         if players < capacity and side.position == 1 and joining_member == ctx.author:
             await ctx.send(':bulb: Since you are joining **side 1**, you will be the host of this game and will be notified when it is full. It will be your responsibility to create the game in Polytopia.')
 
+        if game.is_mobile and not player.discord_member.polytopia_name:
+            await ctx.send(f':warning: Use `{ctx.prefix}setname Your Mobile Name` to set your in-game name. This will replace your friend code in the near future.')
+
         # Alert user if they have >1 games ready to start
         waitlist_hosting = [f'{g.id}' for g in models.Game.search_pending(status_filter=1, guild_id=ctx.guild.id, host_discord_id=ctx.author.id)]
         waitlist_creating = [f'{g.game}' for g in models.Game.waiting_for_creator(creator_discord_id=ctx.author.id)]
