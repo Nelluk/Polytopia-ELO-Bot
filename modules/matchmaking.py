@@ -523,7 +523,7 @@ class matchmaking(commands.Cog):
         embed, content = game.embed(guild=ctx.guild, prefix=ctx.prefix)
         await ctx.send(embed=embed, content=content)
 
-        if players < capacity and side.position == 1 and joining_member == ctx.author:
+        if players < capacity and side.position == 1 and joining_member == ctx.author and settings.get_user_level(ctx) <= 1:
             await ctx.send(':bulb: Since you are joining **side 1**, you will be the host of this game and will be notified when it is full. It will be your responsibility to create the game in Polytopia.')
 
         if game.is_mobile and not player.discord_member.polytopia_name:
