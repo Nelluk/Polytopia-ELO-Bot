@@ -1912,6 +1912,7 @@ class Game(BaseModel):
 
         # given a channel_id and/or a string argument, return matching Game if channel_id is associated with a game,
         # else return a Game if arg is a numeric game id.
+        # raise exception if invalid argument or no game found
 
         if chan_id:
             try:
@@ -1923,21 +1924,24 @@ class Game(BaseModel):
 
         if not arg:
             logger.debug(f'by_channel_or_arg - no arg provided')
-            return None
+            if chan_id:
+                raise exceptions.NoMatches(f'No game found related to the current channel.')
+            else:
+                raise ValueError('No argument supplied to search for channel.')
 
         try:
             numeric_arg = int(arg)
         except ValueError:
-            logger.debug(f'by_channel_or_arg - non-numeric arg provided')
-            return None
+            logger.debug(f'by_channel_or_arg - non-numeric arg {arg} provided')
+            raise ValueError(f'Non-numeric game ID *{arg}* is invalid.')
 
         try:
             game = Game.get_by_id(numeric_arg)
             logger.debug(f'by_channel_or_arg found game {game.id} by arg {numeric_arg}')
             return game
-        except peewee.DoesNotExist:
+        except DoesNotExist:
             logger.debug(f'by_channel_or_arg - failed lookup by numeric arg')
-            return None
+            raise exceptions.NoMatches(f'No game found matching game ID `{int(arg)}`.')
 
     def by_opponents(player_lists):
         # Given lists of player objects representing game sides, ie:

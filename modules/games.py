@@ -1726,10 +1726,11 @@ class polygames(commands.Cog):
             perm_str = ''
 
         arg_list = args.split()
-        game = Game.by_channel_or_arg(chan_id=ctx.channel.id, arg=arg_list[0])
 
-        if not game:
-            return await ctx.send(f'Game ID not provided. **Example usage:** `{ctx.prefix}{ctx.invoked_with} 1234 bardur`\nYou can also omit the game ID if you use the command from a game-specific channel.')
+        try:
+            game = Game.by_channel_or_arg(chan_id=ctx.channel.id, arg=arg_list[0])
+        except (ValueError, exceptions.MyBaseException) as e:
+            return await ctx.send(f'{e}\n**Example usage:** `{ctx.prefix}{ctx.invoked_with} 1234 bardur`\nYou can also omit the game ID if you use the command from a game-specific channel.')
 
         if str(game.id) == str(arg_list[0]):
             arg_list = arg_list[1:]  # Remove game ID from list if it was used for lookup
