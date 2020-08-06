@@ -27,9 +27,8 @@ class misc(commands.Cog):
     @commands.command(hidden=True, aliases=['ts', 'blah'])
     @commands.is_owner()
     async def test(self, ctx, *, args=None):
-        lb = models.DiscordMember.leaderboard(date_cutoff=datetime.date.min, max_flag=True).limit(250)
-        for dm in lb:
-            print(dm.name, dm.elo, dm.elo_max)
+        am = discord.AllowedMentions(users=False)
+        await ctx.send(f'Hello, {ctx.author.mention}!', allowed_mentions=discord.AllowedMentions(users=False))
 
     @commands.command(usage=None)
     @settings.in_bot_channel_strict()

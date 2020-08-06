@@ -127,7 +127,7 @@ class matchmaking(commands.Cog):
         if (settings.guild_setting(ctx.guild.id, 'steam_game_channel') and ctx.channel.id == settings.guild_setting(ctx.guild.id, 'steam_game_channel')) or ctx.invoked_with == 'opensteam':
             is_mobile = False
 
-        args = args.replace("'", "\\'")  # Escape single quotation marks for shlex.split() parsing
+        args = args.replace("'", "\\'").replace("“", "\"").replace("”", "\"")  # Escape single quotation marks for shlex.split() parsing
         if args.count('"') % 2 != 0:
             return await ctx.send(':no_entry_sign: Unbalanced "quotation marks" found. Cannot parse command.')
         # for arg in args.split(' '):
