@@ -97,7 +97,7 @@ class administration(commands.Cog):
         common_game_channels = [gc[0] for gc in common_game_channels]
 
         potential_channels = set(category_channels + common_game_channels + game_side_channels)
-        channels = [chan for chan in ctx.guild.channels if chan.category_id in potential_channels]
+        channels = [chan for chan in ctx.guild.channels if chan.id in potential_channels]
 
         await ctx.send(f'Returned {len(channels)} channels')
         return
