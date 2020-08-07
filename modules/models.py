@@ -865,7 +865,7 @@ class Game(BaseModel):
         if error_message:
             raise exceptions.MyBaseException('Server has nearly reached the maximum number of channels: skipping 2-player team channel creation for this game.')
 
-    async def delete_game_channels(self, guild_list, guild_id):
+    async def delete_game_channels(self, guild_list, guild_id, channel_id_to_delete: int = None):
         guild = discord.utils.get(guild_list, id=guild_id)
         old_4d = (datetime.datetime.now() + datetime.timedelta(days=-4))
 
@@ -878,6 +878,8 @@ class Game(BaseModel):
 
         for gameside in self.gamesides:
             if gameside.team_chan:
+                if channel_id_to_delete and gameside.team_chan != channel_id_to_delete:
+                    continue
                 if gameside.team_chan_external_server:
                     side_guild = discord.utils.get(guild_list, id=gameside.team_chan_external_server)
                     if not side_guild:
@@ -890,6 +892,8 @@ class Game(BaseModel):
                 gameside.save()
 
         if self.game_chan:
+            if channel_id_to_delete and self.game_chan != channel_id_to_delete:
+                return
             await channels.delete_game_channel(guild, channel_id=self.game_chan)
             self.game_chan = None
             self.save()

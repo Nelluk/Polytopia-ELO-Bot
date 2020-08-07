@@ -97,14 +97,39 @@ class administration(commands.Cog):
         common_game_channels = [gc[0] for gc in common_game_channels]
 
         potential_channels = set(category_channels + common_game_channels + game_side_channels)
-        print(len(potential_channels))
         channels = [chan for chan in ctx.guild.channels if chan.id in potential_channels]
 
         await ctx.send(f'Returned {len(channels)} channels (of {len(potential_channels)} potential channels)')
-        return
+
         old_30d = (datetime.datetime.today() + datetime.timedelta(days=-30))
 
+        async def delete_channel(channel, game=None):
+            logger.warning(f'Deleting channel {chan.name}')
+            if not game:
+                try:
+                    logger.debug('Deleting channel with no associated game')
+                    # await chan.delete(reason='Purging game channels with inactive history')
+                except discord.DiscordException as e:
+                    logger.error(f'Could not delete channel: {e}')
+            else:
+                models.GameLog.write(game_id=game, guild_id=ctx.guild.id, message=f'Game channel *{channel.name}* deleted during purge of unused or unneeded channels.')
+                # await game.delete_game_channels(self.bot.guilds, channel.guild.id, channel_id_to_delete=channel.id)
+
         for chan in channels:
+            try:
+                game = models.Game.by_channel_id(chan_id=chan.id)
+            except exceptions.MyBaseException:
+                logger.debug(f'Channel {chan.name} {chan.id} has no associated game. deleting.')
+                await ctx.send(f'Deleting channel **{chan.name}** - it has no associated game in the database')
+                await delete_channel(chan)
+                continue
+
+            if chan.id in common_game_channels and len(ctx.guild.channels) > 425:
+                logger.debug(f'Channel {chan.name} {chan.id} is a common game channel, being purged since server is too full.')
+                await ctx.send(f'Deleting channel **{chan.name}** - it is a common game channel, being purged since server is too full.')
+                await delete_channel(chan, game)
+                await game.update_squad_channels(self.bot.guilds, game.guild_id, message=f'The central game channel for this game has been purged to free up room on the server (test code - no channel purged)')
+                continue
             if chan.last_message_id:
                 try:
                     messages = await chan.history(limit=5, oldest_first=False).flatten()
@@ -119,11 +144,12 @@ class administration(commands.Cog):
                     continue
                 logger.warning(f'{chan.name} {chan.id} is eligible for deletion - few messages and no recent messages in history')
                 await ctx.send(f'Deleting channel **{chan.name}** - few messages and no recent messages in history')
-                try:
-                    logger.warning(f'Deleting channel {chan.name}')
-                    await chan.delete(reason='Purging game channels with inactive history')
-                except discord.DiscordException as e:
-                    logger.error(f'Could not delete channel: {e}')
+                await delete_channel(chan, game)
+                models.GameLog.write(game_id=game, guild_id=ctx.guild.id, message=f'Game channel *{chan.name}* deleted during purge of unused or unneeded channels.')
+            else:
+                logger.debug(f'Channel {chan.name} {chan.id} has no last_message_id. deleting.')
+                await delete_channel(chan, game)
+                continue
 
         await ctx.send(f'Channel cleanup complete')
 
