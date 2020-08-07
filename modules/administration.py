@@ -74,6 +74,8 @@ class administration(commands.Cog):
     async def purge_game_channels(self, ctx, *, arg: str = None):
 
         purged_channels = 0
+        current_number_of_channels = len(ctx.guild.channels)
+
         if not settings.guild_setting(ctx.guild.id, 'game_channel_categories'):
             return await ctx.send(f'Cannot purge - this guild has no `game_channel_categories` setting')
 
@@ -129,7 +131,7 @@ class administration(commands.Cog):
                     await delete_channel(chan)
                     continue
 
-                if chan.id in common_game_channels and len(ctx.guild.channels) > 425:
+                if chan.id in common_game_channels and current_number_of_channels > 425:
                     logger.debug(f'Channel {chan.name} {chan.id} is a common game channel, being purged since server is too full.')
                     await ctx.send(f'Deleting channel **{chan.name}** - it is a common game channel, being purged since server is too full.')
                     await delete_channel(chan, game)
