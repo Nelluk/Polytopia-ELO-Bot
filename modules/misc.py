@@ -32,7 +32,7 @@ class misc(commands.Cog):
 
         gcs = models.Game.select(models.Game.game_chan).where(
             (models.Game.is_completed == 0) &
-            (models.Game.guild_id == 283436219780825088) &
+            (models.Game.guild_id == ctx.guild.id) &
             (models.Game.game_chan > 0)
         ).tuples()
 
@@ -43,7 +43,7 @@ class misc(commands.Cog):
 
         gscs = models.GameSide.select(models.GameSide.team_chan).join(models.Game).where(
             (models.Game.is_completed == 0) &
-            (models.Game.guild_id == 283436219780825088) &
+            (models.Game.guild_id == ctx.guild.id) &
             (models.Game.game_chan > 0) &
             (models.GameSide.team_chan > 0) &
             (models.GameSide.team_chan_external_server.is_null(True))
