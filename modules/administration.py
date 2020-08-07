@@ -72,8 +72,8 @@ class administration(commands.Cog):
     @settings.is_mod_check()
     @commands.command()
     async def purge_game_channels(self, ctx, *, arg: str = None):
-        # TODO: Remove references to deleted channels from database.  i dont -think- having ghost references will cause any usability problems
 
+        purged_channels = 0
         if not settings.guild_setting(ctx.guild.id, 'game_channel_categories'):
             return await ctx.send(f'Cannot purge - this guild has no `game_channel_categories` setting')
 
@@ -104,19 +104,23 @@ class administration(commands.Cog):
         old_30d = (datetime.datetime.today() + datetime.timedelta(days=-30))
 
         async def delete_channel(channel, game=None):
+            nonlocal purged_channels
             logger.warning(f'Deleting channel {chan.name}')
             if not game:
                 try:
                     logger.debug('Deleting channel with no associated game')
-                    # await chan.delete(reason='Purging game channels with inactive history')
+                    await chan.delete(reason='Purging game channels with inactive history')
+                    purged_channels += 1
                 except discord.DiscordException as e:
                     logger.error(f'Could not delete channel: {e}')
             else:
                 models.GameLog.write(game_id=game, guild_id=ctx.guild.id, message=f'Game channel *{channel.name}* deleted during purge of unused or unneeded channels.')
-                # await game.delete_game_channels(self.bot.guilds, channel.guild.id, channel_id_to_delete=channel.id)
+                await game.delete_game_channels(self.bot.guilds, channel.guild.id, channel_id_to_delete=channel.id)
+                purged_channels += 1
 
         async with ctx.typing():
             for chan in channels:
+                logger.debug(f'Evaluating channel {chan.name} {chan.id} for deletion.')
                 try:
                     game = models.Game.by_channel_id(chan_id=chan.id)
                 except exceptions.MyBaseException:
@@ -152,7 +156,7 @@ class administration(commands.Cog):
                     await delete_channel(chan, game)
                     continue
 
-        await ctx.send(f'Channel cleanup complete')
+        await ctx.send(f'Channel cleanup complete. {purged_channels} channels purged.')
 
     @commands.command(aliases=['confirmgame'], usage='game_id')
     # async def confirm(self, ctx, winning_game: PolyGame = None):
