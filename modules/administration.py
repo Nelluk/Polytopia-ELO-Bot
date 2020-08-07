@@ -135,7 +135,7 @@ class administration(commands.Cog):
                     logger.debug(f'Channel {chan.name} {chan.id} is a common game channel, being purged since server is too full.')
                     await ctx.send(f'Deleting channel **{chan.name}** - it is a common game channel, being purged since server is too full.')
                     await delete_channel(chan, game)
-                    await game.update_squad_channels(self.bot.guilds, game.guild_id, message=f'The central game channel for this game has been purged to free up room on the server (test code - no channel purged)')
+                    await game.update_squad_channels(self.bot.guilds, game.guild_id, message=f'The central game channel for this game has been purged to free up room on the server')
                     continue
                 if chan.last_message_id:
                     try:
