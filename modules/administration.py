@@ -77,8 +77,30 @@ class administration(commands.Cog):
         if not settings.guild_setting(ctx.guild.id, 'game_channel_categories'):
             return await ctx.send(f'Cannot purge - this guild has no `game_channel_categories` setting')
 
-        channels = [chan for chan in ctx.guild.channels if chan.category_id in settings.guild_setting(ctx.guild.id, 'game_channel_categories')]
+        category_channels = [chan.id for chan in ctx.guild.channels if chan.category_id in settings.guild_setting(ctx.guild.id, 'game_channel_categories')]
+
+        common_game_channels = models.Game.select(models.Game.game_chan).where(
+            (models.Game.is_completed == 0) &
+            (models.Game.guild_id == 283436219780825088) &
+            (models.Game.game_chan > 0)
+        ).tuples()
+
+        game_side_channels = models.GameSide.select(models.GameSide.team_chan).join(models.Game).where(
+            (models.Game.is_completed == 0) &
+            (models.Game.guild_id == 283436219780825088) &
+            (models.Game.game_chan > 0) &
+            (models.GameSide.team_chan > 0) &
+            (models.GameSide.team_chan_external_server.is_null(True))
+        ).tuples()
+
+        game_side_channels = [gc[0] for gc in game_side_channels]
+        common_game_channels = [gc[0] for gc in common_game_channels]
+
+        potential_channels = set(category_channels + common_game_channels + game_side_channels)
+        channels = [chan for chan in ctx.guild.channels if chan.category_id in potential_channels]
+
         await ctx.send(f'Returned {len(channels)} channels')
+        return
         old_30d = (datetime.datetime.today() + datetime.timedelta(days=-30))
 
         for chan in channels:
