@@ -486,7 +486,7 @@ class matchmaking(commands.Cog):
 
         if player.elo < min_elo or player.elo > max_elo:
             if not game.is_hosted_by(ctx.author.id)[0] and not settings.is_mod(ctx):
-                return await ctx.send(f'This game has an ELO restriction of {min_elo} - {max_elo} and **{player.name}** has an ELO of **{player.elo}**. Cannot join! :cry:')
+                return await ctx.send(f'This game has an ELO restriction of {min_elo} - {max_elo} and **{player.name}** has an ELO of **{player.elo}**. Cannot join! :cry: Use `{ctx.prefix}games` to list games you *can* join.')
             await ctx.send(f'This game has an ELO restriction of {min_elo} - {max_elo}. Bypassing because you are game host or a mod.')
 
         if player.discord_member.elo < min_elo_g or player.discord_member.elo > max_elo_g:

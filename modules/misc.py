@@ -27,8 +27,8 @@ class misc(commands.Cog):
     @commands.command(hidden=True, aliases=['ts', 'blah'])
     @commands.is_owner()
     async def test(self, ctx, *, args=None):
-        am = discord.AllowedMentions(users=False)
-        await ctx.send(f'Hello, {ctx.author.mention}!', allowed_mentions=discord.AllowedMentions(users=False))
+        am = discord.AllowedMentions(users=None)
+        await ctx.send(f'Hello, {ctx.author.mention}!', allowed_mentions=am)
 
     @commands.command(usage=None)
     @settings.in_bot_channel_strict()
@@ -40,7 +40,7 @@ class misc(commands.Cog):
         """
         bot_desc = ('This bot is designed to improve Polytopia multiplayer by filling in gaps in two areas: competitive leaderboards, and matchmaking.\n'
                     # 'Its primary home is [PolyChampions](https://discord.gg/cX7Ptnv), a server focused on team play organized into a league.\n'
-                    f'To register as a player with the bot use __`{ctx.prefix}setcode YOURPOLYCODEHERE`__')
+                    f'To register as a player with the bot use __`{ctx.prefix}setname Mobile User Name`__ or  __`{ctx.prefix}steamname Steam User Name`__')
 
         embed = discord.Embed(title=f'PolyELO Bot Donation Link', url='https://cash.me/$Nelluk/3', description=bot_desc)
 
