@@ -966,8 +966,14 @@ class polygames(commands.Cog):
         elif len(guild_matches) > 1:
             player_matches = Player.string_matches(player_string=player_string, guild_id=ctx.guild.id)
             if len(player_matches) == 1:
-                await ctx.send(f'Found {len(guild_matches)} server members matching *{player_string_safe}*, but only **{player_matches[0].name}** is registered.')
-                return await ctx.send(player_matches[0].discord_member.polytopia_id)
+                if player_matches[0].discord_member.polytopia_name:
+                    in_game_name_str = f' (In-game name: **{player_matches[0].discord_member.polytopia_name}**)'
+                else:
+                    in_game_name_str = ''
+                if player_matches[0].discord_member.name_steam:
+                    in_game_name_str += f' (Steam name: **{player_matches[0].discord_member.name_steam}**)'
+                await ctx.send(f'Found {len(guild_matches)} server members matching *{player_string_safe}*, but only **{player_matches[0].name}** {in_game_name_str} is registered.')
+                return await ctx.send(player_matches[0].discord_member.polytopia_id or 'No mobile code set')
 
             return await ctx.send(f'Found {len(guild_matches)} server members matching *{player_string_safe}*. Try specifying with an @Mention or more characters.')
         target_discord_member = guild_matches[0]
@@ -975,7 +981,7 @@ class polygames(commands.Cog):
         discord_member = DiscordMember.get_or_none(discord_id=target_discord_member.id)
 
         if discord_member:
-            if discord_member.polytopia_name and discord_member.polytopia_name.lower() != discord_member.name.lower():
+            if discord_member.polytopia_name:
                 in_game_name_str = f' (In-game name: **{discord_member.polytopia_name}**)'
             else:
                 in_game_name_str = ''
