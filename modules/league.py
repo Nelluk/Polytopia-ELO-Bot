@@ -795,8 +795,6 @@ class league(commands.Cog):
         `[p]roleelo elo novas` - List all members with a role matching 'novas', sorted by local elo
         `[p]draftable recent` - List all members with the Draftable role sorted by recent games
         `[p]roleelo g_elo crawfish, ronin` - List all members with any of two roles, sorted by global elo
-        `[p]roleelo recent Pros` - *Shortcut* List all members with any Pro team role, sorted by recent. 'Juniors' also works.
-        `[p]roleelo League` - *Shortcut* List all members with any team role.
         """
         args = arg.split() if arg else []
         usage = (f'**Example usage:** `{ctx.prefix}roleelo Ronin`\n'
@@ -844,20 +842,6 @@ class league(commands.Cog):
         player_obj_list, member_obj_list = [], []
 
         args = [a.strip().title() for a in ' '.join(args).split(',')]  # split arguments by comma
-
-        if 'Pros' in args:
-            args.remove('Pros')
-            pro_roles = [a[1][0] for a in league_teams]
-            args = args + pro_roles
-        if 'Juniors' in args:
-            args.remove('Juniors')
-            jr_roles = [a[1][1] for a in league_teams]
-            args = args + jr_roles
-        if 'League' in args:
-            args.remove('League')
-            pro_roles = [a[1][0] for a in league_teams]
-            jr_roles = [a[1][1] for a in league_teams]
-            args = args + pro_roles + jr_roles
 
         roles = [discord.utils.find(lambda r: arg.upper() in r.name.upper(), ctx.guild.roles) for arg in args]
         roles = [r for r in roles if r]  # remove Nones
