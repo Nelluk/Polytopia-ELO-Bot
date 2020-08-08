@@ -961,7 +961,7 @@ class league(commands.Cog):
             with open(filename, 'rb') as f:
                 file = io.BytesIO(f.read())
             file = discord.File(file, filename=filename)
-            await ctx.send(f'Wrote to `{filename}`', file=file)
+            await ctx.send(f'{ctx.author.mention}, your export is complete. Wrote to `{filename}`', file=file)
 
 
 async def auto_grad_novas(ctx, game):
