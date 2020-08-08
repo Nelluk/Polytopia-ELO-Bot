@@ -81,6 +81,7 @@ class matchmaking(commands.Cog):
         `[p]opengame 1v1 For @Nelluk only`
         (Include one or more @Mentions in notes and only those people will be permitted to join.)
 
+        <START POLYCHAMPS>
         `[p]opengame 2v2 for @The Ronin vs @The Jets`
         (Include one or more @Roles and the games sides will be locked to that specific role. For use with PolyChampions teams.)
 

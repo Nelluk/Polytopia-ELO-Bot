@@ -182,23 +182,6 @@ class polygames(commands.Cog):
 
         await channel.send(f'Attention {helper_role_str} - {ctx.message.author} submitted: {ctx.message.clean_content}')
 
-    @commands.command(hidden=True, brief='Sends staff details on a League game', usage='Week 2 game vs Mallards started called "Oceans of Fire"')
-    @settings.on_polychampions()
-    @commands.cooldown(2, 30, commands.BucketType.user)
-    async def seasongame(self, ctx, *, message: str = None):
-        """
-        Teams should use this to notify staff of important events with their League games: names of started games, restarts, substitutions, winners.
-        """
-        if not message:
-            ctx.command.reset_cooldown(ctx)
-            return await ctx.send(f'You must supply a help request, ie: `{ctx.prefix}seasongame Week 2 game Ronin vs Jets started "Fields of Fire"`')
-
-        # Ping AnarchoRex and send output to #season-drafts when team leaders send in game info
-        channel = ctx.guild.get_channel(447902433964851210)
-        helper_role = discord.utils.get(ctx.guild.roles, name='Season Helper')
-        await channel.send(f'{ctx.message.author} submitted season game INFO <@&{helper_role.id}> <@451212023124983809>: {ctx.message.clean_content}')
-        await ctx.send('Request has been logged')
-
     @settings.in_bot_channel_strict()
     @commands.command(aliases=['leaderboard', 'leaderboards', 'lbglobal', 'lbg'])
     @commands.cooldown(2, 30, commands.BucketType.channel)
