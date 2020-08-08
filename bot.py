@@ -123,8 +123,8 @@ def get_prefix(bot, message):
 if __name__ == '__main__':
 
     main()
-
-    bot = commands.Bot(command_prefix=get_prefix, owner_id=settings.owner_id)
+    am = discord.AllowedMentions(everyone=False)
+    bot = commands.Bot(command_prefix=get_prefix, owner_id=settings.owner_id, allowed_mentions=am)
     settings.bot = bot
     bot.purgable_messages = []  # auto-deleting messages to get cleaned up by Administraton.quit  (guild, channel, message) tuple list
 
