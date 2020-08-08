@@ -592,45 +592,52 @@ class administration(commands.Cog):
     @commands.command(usage='team_name new_emoji')
     @settings.is_mod_check()
     @settings.teams_allowed()
-    async def team_emoji(self, ctx, team_name: str, emoji: str):
+    async def team_emoji(self, ctx, team_name: str, emoji: str = None):
         """*Mod*: Assign an emoji to a team
         **Example:**
-        `[p]team_emoji Amazeballs :my_fancy_emoji:`
+        `[p]team_emoji Ronin :my_fancy_emoji:` - Set new emoji. Currently requires a custom emoji.
+        `[p]team_emoji Ronin` - Display currently saved emoji
         """
 
         # Bug: does not handle a unicode emoji argument. Tried to fix using PartialEmojiConverter but that doesn't work either
         # for now just added unicode emoji to database directly. would probably need some fancy regex to detect unicode emoji
-        if len(emoji) != 1 and ('<:' not in emoji):
-            return await ctx.send('Valid emoji not detected. Example: `{}team_emoji name :my_custom_emoji:`'.format(ctx.prefix))
-
-        matching_teams = models.Team.get_by_name(team_name, ctx.guild.id)
-        if len(matching_teams) != 1:
-            return await ctx.send('Can\'t find matching team or too many matches. Example: `{}team_emoji name :my_custom_emoji:`'.format(ctx.prefix))
-
-        team = matching_teams[0]
-        team.emoji = emoji
-        team.save()
-
-        await ctx.send('Team {0.name} updated with new emoji: {0.emoji}'.format(team))
-
-    @commands.command(usage='team_name image_url')
-    @settings.is_mod_check()
-    @settings.teams_allowed()
-    async def team_image(self, ctx, team_name: str, image_url):
-        """*Mod*: Set a team's logo image
-
-        **Example:**
-        `[p]team_image Amazeballs http://www.path.to/image.png`
-        """
-
-        if 'http' not in image_url:
-            return await ctx.send(f'Valid image url not detected. Example usage: `{ctx.prefix}team_image name http://url_to_image.png`')
-            # This is a very dumb check to make sure user is passing a URL and not a random string. Assumes mod can figure it out from there.
+        if emoji and len(emoji) != 1 and ('<:' not in emoji):
+            return await ctx.send(f'Valid emoji not detected. Example: `{ctx.prefix}team_emoji name :my_custom_emoji:`')
 
         try:
             team = models.Team.get_or_except(team_name, ctx.guild.id)
         except exceptions.NoSingleMatch as ex:
             return await ctx.send(f'{ex}\nExample: `{ctx.prefix}team_emoji name :my_custom_emoji:`')
+
+        if not emoji:
+            return await ctx.send(f'Emoji for team **{team.name}**: {team.emoji}')
+
+        team.emoji = emoji
+        team.save()
+
+        await ctx.send(f'Team **{team.name}** updated with new emoji: {team.emoji}')
+
+    @commands.command(usage='team_name image_url')
+    @settings.is_mod_check()
+    @settings.teams_allowed()
+    async def team_image(self, ctx, team_name: str, image_url: str = None):
+        """*Mod*: Set a team's logo image
+
+        **Example:**
+        `[p]team_image Ronin http://www.path.to/image.png`
+        `[p]team_image Ronin` - Display currently saved image
+        """
+        try:
+            team = models.Team.get_or_except(team_name, ctx.guild.id)
+        except exceptions.NoSingleMatch as ex:
+            return await ctx.send(f'{ex}\nExample: `{ctx.prefix}team_emoji name :my_custom_emoji:`')
+
+        if not image_url:
+            return await ctx.send(f'Image for team **{team.name}**: <{team.image_url}>')
+
+        if 'http' not in image_url:
+            return await ctx.send(f'Valid image url not detected. Example usage: `{ctx.prefix}team_image name http://url_to_image.png`')
+            # This is a very dumb check to make sure user is passing a URL and not a random string. Assumes mod can figure it out from there.
 
         team.image_url = image_url
         team.save()
