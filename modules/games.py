@@ -848,7 +848,7 @@ class polygames(commands.Cog):
         await ctx.send(file=image, embed=embed)
 
     @commands.command(brief='Sets a Polytopia account name and registers user with the bot', usage='[user] polytopia_code', aliases=['steamname', 'setname'])
-    async def setcode(self, ctx, *args):
+    async def setcode(self, ctx, *, args=None):
         """
         Sets your own Polytopia code, or allows a staff member to set a player's code. This also will register the player with the bot if not already.
         **Examples:**
@@ -858,7 +858,7 @@ class polygames(commands.Cog):
 
         Also use `[p]steamname` and `[p]setname` for setting Steam or mobile account names.
         """
-
+        args = args.split() if args else []
         if ctx.invoked_with == 'setcode':
             code_type = 'Polytopia Player ID'
             code_example = 'YOURCODEHERE'
