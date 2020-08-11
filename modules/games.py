@@ -1422,7 +1422,7 @@ class polygames(commands.Cog):
             confirm_win = True
         else:
             has_player, author_side = winning_game.has_player(discord_id=ctx.author.id)
-            helper_role = settings.guild_setting(ctx.guild.id, 'helper_roles')[0]
+            # helper_role = settings.guild_setting(ctx.guild.id, 'helper_roles')[0]
 
             if not has_player:
                 return await ctx.send(f'You were not a participant in this game.')
@@ -1450,7 +1450,7 @@ class polygames(commands.Cog):
                     conf_str = 'Your confirmation has been logged. ' if new_confirmation else ''
                     await ctx.send(f'{conf_str}**Game {winning_game.id}** *{winning_game.name}* is pending confirmation: {confirmed_count} of {side_count} sides have confirmed.\n'
                         f'Participants in the game should use the command __`{ctx.prefix}win {winning_game.id} {printed_side_name}`__ to confirm the victory.\n'
-                        f'Please post a screenshot of your victory in case there is a dispute. If this win was claimed in error please ping a **@{helper_role}**, '
+                        f'Please post a screenshot of your victory in case there is a dispute. If this win was claimed in error please use the `{ctx.prefix}staffhelp` command., '
                         f'or you can cancel your claim with the command `{ctx.prefix}unwin {winning_game.id}`')
                 else:
                     winning_game.win_claimed_ts = datetime.datetime.now()
@@ -1460,7 +1460,7 @@ class polygames(commands.Cog):
                     await ctx.send(f'**Game {winning_game.id}** *{winning_game.name}* concluded pending confirmation of winner **{winning_obj.name}**\n'
                         f'To confirm, have opponents use the command __`{ctx.prefix}win {winning_game.id} {printed_side_name}`__\n'
                         f'If opponents do not dispute the win then the game will be confirmed automatically after a period of time.\n'
-                        f'If this win was claimed falsely please ping a **@{helper_role}** to contest, or you can cancel your claim with the command `{ctx.prefix}unwin {winning_game.id}`.\n'
+                        f'If this win was claimed falsely please use the `{ctx.prefix}staffhelp` command to contest, or you can cancel your claim with the command `{ctx.prefix}unwin {winning_game.id}`.\n'
                         f'*Game lineup*: {" ".join(player_mentions)}')
 
         try:
