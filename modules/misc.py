@@ -376,7 +376,7 @@ class misc(commands.Cog):
         # helper_role_str = f'{helper_role.mention}' if helper_role else 'server staff'
         helper_role_str = 'server_staff'
 
-        if ctx.channel.guild.id == ctx.guild.id:
+        if ctx.channel.guild.id == guild_id:
             chan_str = f'({ctx.channel.name})'
         else:
             chan_str = f'({ctx.channel.name} on __{ctx.guild.name}__)'
