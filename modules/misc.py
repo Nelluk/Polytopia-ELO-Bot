@@ -381,6 +381,8 @@ class misc(commands.Cog):
             embed, content = related_game.embed(guild=guild, prefix=ctx.prefix)
             await channel.send(embed=embed, content=content)
 
+        await ctx.send(f'Your message has been sent to server staff. Please wait patiently or send additional information on your issue.')
+
     @commands.command(hidden=True, aliases=['random_tribes', 'rtribe'], usage='game_size [-banned_tribe ...]')
     @settings.in_bot_channel()
     async def rtribes(self, ctx, size='1v1', *args):
