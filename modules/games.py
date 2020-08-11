@@ -1845,8 +1845,6 @@ class polygames(commands.Cog):
             if not target_list:
                 # Target is person issuing command
                 target_list.append(str(ctx.author.id))
-                if mode.upper() == 'INCOMPLETE':
-                    player_discord_id = ctx.author.id
 
             team_size_str, team_sizes = '', []
             for arg in target_list:
@@ -1862,6 +1860,10 @@ class polygames(commands.Cog):
 
             player_matches, team_matches, remaining_args = parse_players_and_teams(target_list, ctx.guild.id)
             p_names, t_names = [p.name for p in player_matches], [t.name for t in team_matches]
+
+            if mode.upper() == 'INCOMPLETE' and len(player_matches) == 1:
+                # show gameside channel links for one-player target of #incomplete command
+                player_discord_id = player_matches[0].discord_member.discord_id
 
             if p_names:
                 results_title.append(f'Including players: *{"* & *".join(p_names)}*')
