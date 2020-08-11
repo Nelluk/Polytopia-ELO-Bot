@@ -1021,7 +1021,7 @@ class Game(BaseModel):
     def platform_emoji(self):
         return '' if self.is_mobile else '🖥'
 
-    def embed(self, guild, prefix):
+    def embed(self, prefix, guild=None):
         if self.is_pending:
             return self.embed_pending_game(prefix)
         ranked_str = '' if self.is_ranked else 'Unranked — '
@@ -1033,7 +1033,7 @@ class Game(BaseModel):
             embed.title = (embed.title + f'\n\nWINNER: {self.winner.name()}')[:255]
 
             # Set embed image (profile picture or team logo)
-            if len(self.winner.lineup) == 1:
+            if len(self.winner.lineup) == 1 and guild:
                 # Winner is individual player
                 winning_discord_member = guild.get_member(self.winner.lineup[0].player.discord_member.discord_id)
                 if winning_discord_member is not None:

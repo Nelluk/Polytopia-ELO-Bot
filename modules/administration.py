@@ -559,7 +559,7 @@ class administration(commands.Cog):
 
     @commands.command(aliases=['team_add_junior'], usage='new_team_name')
     @settings.is_mod_check()
-    @settings.teams_allowed()
+    @settings.guild_has_setting(setting_name='allow_teams')
     async def team_add(self, ctx, *, team_name: str):
         """*Mod*: Create new server Team
         The team should have a Role with an identical name.
@@ -591,7 +591,7 @@ class administration(commands.Cog):
 
     @commands.command(usage='team_name new_emoji')
     @settings.is_mod_check()
-    @settings.teams_allowed()
+    @settings.guild_has_setting(setting_name='allow_teams')
     async def team_emoji(self, ctx, team_name: str, emoji: str = None):
         """*Mod*: Assign an emoji to a team
         **Example:**
@@ -619,7 +619,7 @@ class administration(commands.Cog):
 
     @commands.command(usage='team_name image_url')
     @settings.is_mod_check()
-    @settings.teams_allowed()
+    @settings.guild_has_setting(setting_name='allow_teams')
     async def team_image(self, ctx, team_name: str, image_url: str = None):
         """*Mod*: Set a team's logo image
 
@@ -647,7 +647,7 @@ class administration(commands.Cog):
 
     @commands.command(usage='old_name new_name')
     @settings.is_mod_check()
-    @settings.teams_allowed()
+    @settings.guild_has_setting(setting_name='allow_teams')
     async def team_name(self, ctx, old_team_name: str, new_team_name: str):
         """*Mod*: Change a team's name
         The team should have a Role with an identical name.

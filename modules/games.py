@@ -184,36 +184,6 @@ class polygames(commands.Cog):
                 return
             player.generate_display_name(player_name=after.name, player_nick=after.nick)
 
-    @commands.command(aliases=['reqgame', 'helpstaff'], hidden=True)
-    @commands.cooldown(2, 30, commands.BucketType.user)
-    async def staffhelp(self, ctx, *, message: str = None):
-        """
-        Send staff updates/fixes for an ELO game
-        Teams should use this to notify staff of important events with their standard ELO games:
-        restarts, substitutions, tribe choices
-
-        Use `[p]seasongame` if the game is a League/Season game.
-        **Example:**
-        `[p]staffhelp Game 250 renamed to Fields of Fire`
-        `[p]staffhelp Game 250 tribe choices: nelluk ai-mo, koric bardur.`
-        """
-        # Used so that users can submit game information to staff - bot will relay the text in the command to a specific channel.
-        # Staff would then take action and create games. Also use this to notify staff of winners or name changes
-        channel = ctx.guild.get_channel(settings.guild_setting(ctx.guild.id, 'game_request_channel'))
-        if not channel:
-            ctx.command.reset_cooldown(ctx)
-            return await ctx.send(f'This server has not been configured for `{ctx.prefix}staffhelp` requests. You will need to ping a staff member.')
-
-        if not message:
-            ctx.command.reset_cooldown(ctx)
-            return await ctx.send(f'You must supply a help request, ie: `{ctx.prefix}staffhelp Game 51, restarted with name "Sweet New Game Name"`')
-
-        helper_role_name = settings.guild_setting(ctx.guild.id, 'helper_roles')[0]
-        helper_role = discord.utils.get(ctx.guild.roles, name=helper_role_name)
-        helper_role_str = f'{helper_role.mention}' if helper_role else 'server staff'
-
-        await channel.send(f'Attention {helper_role_str} - {ctx.message.author} submitted: {ctx.message.clean_content}')
-
     @settings.in_bot_channel_strict()
     @commands.command(aliases=['leaderboard', 'leaderboards', 'lbglobal', 'lbg'])
     @commands.cooldown(2, 30, commands.BucketType.channel)
@@ -322,7 +292,7 @@ class polygames(commands.Cog):
         await utilities.paginate(self.bot, ctx, title=title, message_list=leaderboard, page_start=0, page_end=10, page_size=10)
 
     @settings.in_bot_channel_strict()
-    @settings.teams_allowed()
+    @settings.guild_has_setting(setting_name='allow_teams')
     @commands.command(aliases=['teamlb', 'lbteamjr'])
     @commands.cooldown(2, 30, commands.BucketType.channel)
     async def lbteam(self, ctx, *, arg: str = None):
@@ -420,7 +390,7 @@ class polygames(commands.Cog):
         await ctx.send(embed=embed, file=image)
 
     @settings.in_bot_channel_strict()
-    @settings.teams_allowed()
+    @settings.guild_has_setting(setting_name='allow_teams')
     @commands.command(aliases=['squadlb'])
     @commands.cooldown(2, 30, commands.BucketType.channel)
     async def lbsquad(self, ctx):
@@ -443,7 +413,7 @@ class polygames(commands.Cog):
         await utilities.paginate(self.bot, ctx, title='**Squad Leaderboards**', message_list=leaderboard, page_start=0, page_end=10, page_size=10)
 
     @settings.in_bot_channel()
-    @settings.teams_allowed()
+    @settings.guild_has_setting(setting_name='allow_teams')
     @commands.command(brief='Find squads or see details on a squad', usage='player1 [player2] [player3]', aliases=['squads'])
     async def squad(self, ctx, *args):
         """Find squads with specific players, or see details on a squad
@@ -741,7 +711,7 @@ class polygames(commands.Cog):
             await ctx.send(f'Your local 1v1 record against this opponent: **{series_record[0][0].name()}** {series_record[0][1]} wins - **{series_record[1][0].name()}** {series_record[1][1]} wins')
 
     @settings.in_bot_channel()
-    @settings.teams_allowed()
+    @settings.guild_has_setting(setting_name='allow_teams')
     @commands.command(usage='team_name')
     async def team(self, ctx, *, team_string: str = None):
         """See details on a team

@@ -328,6 +328,59 @@ class misc(commands.Cog):
             channel_tags = [f'<#{chan_id}>' for chan_id in permitted_channels]
             return await ctx.send(f'{e}\nTry sending `{ctx.prefix}ping` from a public channel that all members can view: {" ".join(channel_tags)}')
 
+    @commands.command(aliases=['helpstaff'], hidden=False)
+    @commands.cooldown(2, 30, commands.BucketType.user)
+    # @settings.guild_has_setting(setting_name='staff_help_channel')
+    async def staffhelp(self, ctx, *, message: str = ''):
+        """
+        Get staff help on bot usage or game disputes
+
+        The message will be relayed to a staff channel and someone should assist you shortly.
+        You can attach screenshots or links to the message.
+
+        **Example:**
+        `[p]staffhelp Game 42500 was claimed incorrectly`
+        `[p]staffhelp Game 42500 Does this screenshot show a restartable spawn?`
+        """
+
+        potential_game_id = re.search(r'\d{4,6}', message)
+        game_id_search = potential_game_id[0] if potential_game_id else None
+        try:
+            related_game = models.Game.by_channel_or_arg(chan_id=ctx.channel.id, arg=game_id_search)
+            guild_id = related_game.guild_id
+            # Send game embed summary if message includes a numeric ID of a game or command is used in a game channel
+        except (ValueError, exceptions.MyBaseException):
+            related_game = None
+            guild_id = ctx.guild.id
+
+        guild = discord.utils.get(self.bot.guilds, id=guild_id)
+        if guild:
+            channel = guild.get_channel(settings.guild_setting(guild_id, 'staff_help_channel'))
+        else:
+            channel = None
+
+        if not channel:
+            ctx.command.reset_cooldown(ctx)
+            return await ctx.send(f'Cannot load staff channel. You will need to ping a staff member.')
+
+        if ctx.message.attachments:
+            attachment_urls = '\n'.join([attachment.url for attachment in ctx.message.attachments])
+            message += f'\n{attachment_urls}'
+
+        if not message:
+            ctx.command.reset_cooldown(ctx)
+            return await ctx.send(f'You must supply a help request, ie: `{ctx.prefix}{ctx.invoked_with} Game 42500 Does this screenshot show a restartable spawn?`')
+
+        helper_role_name = settings.guild_setting(ctx.guild.id, 'helper_roles')[0]
+        helper_role = discord.utils.get(ctx.guild.roles, name=helper_role_name)
+        helper_role_str = f'{helper_role.mention}' if helper_role else 'server staff'
+
+        await channel.send(f'Attention {helper_role_str} - {ctx.author.mention} ({ctx.author.name}) asked for help from channel <#{ctx.channel.id}>:\n{message}')
+
+        if related_game:
+            embed, content = related_game.embed(guild=guild, prefix=ctx.prefix)
+            await channel.send(embed=embed, content=content)
+
     @commands.command(hidden=True, aliases=['random_tribes', 'rtribe'], usage='game_size [-banned_tribe ...]')
     @settings.in_bot_channel()
     async def rtribes(self, ctx, size='1v1', *args):

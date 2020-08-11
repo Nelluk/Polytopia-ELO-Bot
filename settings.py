@@ -225,10 +225,10 @@ def on_polychampions():
     return commands.check(predicate)
 
 
-def teams_allowed():
+def guild_has_setting(setting_name: str):
 
     def predicate(ctx):
-        return guild_setting(ctx.guild.id, 'allow_teams')
+        return bool(guild_setting(ctx.guild.id, setting_name))
     return commands.check(predicate)
 
 
