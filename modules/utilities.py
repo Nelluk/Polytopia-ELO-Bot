@@ -45,10 +45,10 @@ async def buffered_send(destination, content, max_length=2000):
 
 async def send_to_log_channel(guild, message):
 
-    logger.debug(f'Sending log message to game_request_channel: {message}')
-    staff_output_channel = guild.get_channel(settings.guild_setting(guild.id, 'game_request_channel'))
+    logger.debug(f'Sending log message to log_channel: {message}')
+    staff_output_channel = guild.get_channel(settings.guild_setting(guild.id, 'log_channel'))
     if not staff_output_channel:
-        logger.warning(f'Could not load game_request_channel for server {guild.id} - skipping')
+        logger.warning(f'Could not load log_channel for server {guild.id} - skipping')
     else:
         await buffered_send(destination=staff_output_channel, content=message)
 

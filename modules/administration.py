@@ -282,9 +282,9 @@ class administration(commands.Cog):
 
             utilities.connect()
             for guild in self.bot.guilds:
-                staff_output_channel = guild.get_channel(settings.guild_setting(guild.id, 'game_request_channel'))
+                staff_output_channel = guild.get_channel(settings.guild_setting(guild.id, 'log_channel'))
                 if not staff_output_channel:
-                    logger.debug(f'Could not load game_request_channel for server {guild.id} - skipping')
+                    logger.debug(f'Could not load log_channel for server {guild.id} - skipping')
                     continue
 
                 prefix = settings.guild_setting(guild.id, 'command_prefix')
@@ -308,7 +308,7 @@ class administration(commands.Cog):
             old_150d = (datetime.date.today() + datetime.timedelta(days=-150))
 
             for guild in self.bot.guilds:
-                staff_output_channel = guild.get_channel(settings.guild_setting(guild.id, 'game_request_channel'))
+                staff_output_channel = guild.get_channel(settings.guild_setting(guild.id, 'log_channel'))
 
                 utilities.connect()
 
@@ -375,7 +375,7 @@ class administration(commands.Cog):
                     if staff_output_channel:
                         await staff_output_channel.send(f'{delete_str[:1900]}\nFinished - purged {len(delete_result)} games')
                     else:
-                        logger.debug(f'Could not load game_request_channel for server {guild.id} {guild.name} - performing task silently')
+                        logger.debug(f'Could not load log_channel for server {guild.id} {guild.name} - performing task silently')
 
             await asyncio.sleep(sleep_cycle)
 

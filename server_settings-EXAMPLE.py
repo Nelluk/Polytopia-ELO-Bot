@@ -33,7 +33,8 @@ server_list = {'default':
                       'match_challenge_channels': [],  # opengames list broadcast on repeat
                       'ranked_game_channel': None,
                       'unranked_game_channel': None,
-                      'game_request_channel': None,
+                      'steam_game_channel': None,
+                      'log_channel': None,  # output of auto-game confirmation, must be set to have auto-confirm work
                       'game_announce_channel': None,
                       'game_channel_categories': []},
         478571892832206869:                           # Nelluk Test Server (discord server ID)
@@ -48,7 +49,7 @@ server_list = {'default':
                       'command_prefix': '/',
                       'bot_channels_strict': [479292913080336397],
                       'bot_channels': [479292913080336397, 481558031281160212, 480078679930830849],  # 397 Bot Spam,  849 Admin Spam
-                      'game_request_channel': 480078679930830849,
+                      'log_channel': 480078679930830849,
                       'game_channel_categories': [493149162238640161, 493149183155503105]},
         447883341463814144:                           # Polychampions
                      {'helper_roles': ['Mod', 'Helper', 'ELO-Helper', 'Team Leader', 'Nova Coordinator'],
@@ -71,7 +72,7 @@ server_list = {'default':
                       'ranked_game_channel': None,
                       'unranked_game_channel': None,
                       'match_challenge_channels': [],
-                      'game_request_channel': 448116504563810305,  # just-bot-things
+                      'log_channel': 448116504563810305,  # just-bot-things
                       'game_announce_channel': 487302138704429087,  # elo-drafts
                       'game_channel_categories': [488421911529914368, 514141474229846018, 519131761733795841, 550414365044637712, 563717211362164736, 568093671912636420, 574669105752440842, 689093537131790388]},  # elo-games-i, ii, iii, iv, v, vi, vii, viii
         283436219780825088:                           # Main Server
@@ -95,7 +96,7 @@ server_list = {'default':
                       'ranked_game_channel': 511316081160355852,
                       'unranked_game_channel': 511906353476927498,
                       'match_challenge_channels': [511316081160355852, 511906353476927498],
-                      'game_request_channel': 418175357137453058,
+                      'log_channel': 418175357137453058,
                       'game_announce_channel': 505523961812090900,
                       'game_channel_categories': [546527176380645395, 551747728548298758, 551748058690617354, 560104969580183562, 590592163751002124, 598599707148943361, 628288610235449364, 628288644729405452]}
 }
