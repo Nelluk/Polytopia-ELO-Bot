@@ -371,11 +371,16 @@ class misc(commands.Cog):
             ctx.command.reset_cooldown(ctx)
             return await ctx.send(f'You must supply a help request, ie: `{ctx.prefix}{ctx.invoked_with} Game 42500 Does this screenshot show a restartable spawn?`')
 
-        helper_role_name = settings.guild_setting(guild_id, 'helper_roles')[0]
-        helper_role = discord.utils.get(guild.roles, name=helper_role_name)
-        helper_role_str = f'{helper_role.mention}' if helper_role else 'server staff'
+        # helper_role_name = settings.guild_setting(guild_id, 'helper_roles')[0]
+        # helper_role = discord.utils.get(guild.roles, name=helper_role_name)
+        # helper_role_str = f'{helper_role.mention}' if helper_role else 'server staff'
+        helper_role_str = 'server_staff'
 
-        await channel.send(f'Attention {helper_role_str} - {ctx.author.mention} ({ctx.author.name}) asked for help from channel <#{ctx.channel.id}>:\n{message}')
+        if ctx.channel.guild.id == ctx.guild.id:
+            chan_str = f'({ctx.channel.name})'
+        else:
+            chan_str = f'({ctx.channel.name} on __{ctx.guild.name}__)'
+        await channel.send(f'Attention {helper_role_str} - {ctx.author.mention} ({ctx.author.name}) asked for help from channel <#{ctx.channel.id}> {chan_str}:\n{message}')
 
         if related_game:
             embed, content = related_game.embed(guild=guild, prefix=ctx.prefix)
