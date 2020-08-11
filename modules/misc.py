@@ -374,7 +374,7 @@ class misc(commands.Cog):
         # helper_role_name = settings.guild_setting(guild_id, 'helper_roles')[0]
         # helper_role = discord.utils.get(guild.roles, name=helper_role_name)
         # helper_role_str = f'{helper_role.mention}' if helper_role else 'server staff'
-        helper_role_str = 'server_staff'
+        helper_role_str = 'server staff'
 
         if ctx.channel.guild.id == guild_id:
             chan_str = f'({ctx.channel.name})'
