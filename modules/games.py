@@ -79,6 +79,16 @@ class polygames(commands.Cog):
             logger.debug(f'on_guild_channel_delete: detected deletion of game channel {channel.id} {channel.name} and removed reference from db')
 
     @commands.Cog.listener()
+    async def on_member_join(member):
+        player, upserted = models.Player.get_by_discord_id(discord_id=member.id, discord_name=member.name, discord_nick=member.nick, guild_id=member.guild.id)
+        if player:
+            if upserted:
+                return logger.debug(f'on_member_join: {member.display_name} joined guild {member.guild.name} and Player was upserted as an existing DiscordMember.')
+            return logger.debug(f'on_member_join: {member.display_name} re-joined guild {member.guild.name} and has an existing Player entry.')
+        else:
+            return logger.debug(f'on_member_join: {member.display_name} joined guild {member.guild.name} but does not have an existing DiscordMember record.')
+
+    @commands.Cog.listener()
     async def on_user_update(self, before, after):
         if before.name != after.name:
             logger.debug(f'Attempting to change member discordname for {before.name} to {after.name}')
