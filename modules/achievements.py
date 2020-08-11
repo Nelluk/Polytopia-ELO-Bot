@@ -5,6 +5,7 @@ import logging
 import modules.models as models
 import settings
 import peewee
+import utilities
 logger = logging.getLogger('polybot.' + __name__)
 
 
@@ -21,6 +22,7 @@ async def set_champion_role():
     global_champion = models.DiscordMember.leaderboard(date_cutoff=settings.date_cutoff, guild_id=None, max_flag=False).limit(1).get()
 
     for guild in settings.bot.guilds:
+        log_message = ''
         logger.info(f'Attempting champion set for guild {guild.name}')
         role = discord.utils.get(guild.roles, name='ELO Champion')
         if not role:
@@ -39,25 +41,29 @@ async def set_champion_role():
                     logger.debug(f'Skipping role removal for {old_champion.display_name} since champion is the same')
                 else:
                     await old_champion.remove_roles(role, reason='Recurring reset of champion list')
-                    models.GameLog.write(guild_id=old_champion.guild.id, message=f'{models.GameLog.member_string(local_champion_member)} lost **ELO Champion** role.')
+                    log_message += f'{models.GameLog.member_string(local_champion_member)} lost **ELO Champion** role.\n'
                     logger.info(f'removing ELO Champion role from {old_champion.name}')
 
             if local_champion_member:
                 logger.info(f'adding ELO Champion role to {local_champion_member.name}')
                 await local_champion_member.add_roles(role, reason='Local champion')
-                models.GameLog.write(guild_id=local_champion_member.guild.id, message=f'{models.GameLog.member_string(local_champion_member)} given role for local **ELO Champion**')
+                log_message += f'{models.GameLog.member_string(local_champion_member)} given role for local **ELO Champion**\n'
             else:
                 logger.warn(f'Couldnt find local champion {local_champion} in guild {guild.name}!')
 
             if global_champion_member:
                 logger.info(f'adding ELO Champion role to {global_champion_member.name}')
                 await global_champion_member.add_roles(role, reason='Global champion')
-                models.GameLog.write(guild_id=global_champion_member.guild.id, message=f'{models.GameLog.member_string(global_champion_member)} given role for global **ELO Champion**')
+                log_message += f'{models.GameLog.member_string(global_champion_member)} given role for global **ELO Champion**\n'
             else:
                 logger.warn(f'Couldnt find global champion {global_champion.name} in guild {guild.name}!')
         except discord.DiscordException as e:
             logger.warn(f'Error during set_champion_role for guild {guild.id}: {e}')
             continue
+
+        if log_message:
+            await utilities.send_to_log_channel(guild, log_message)
+            models.GameLog.write(guild_id=guild.id, message=log_message)
 
 
 async def set_experience_role(discord_member):
