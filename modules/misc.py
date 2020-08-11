@@ -27,35 +27,14 @@ class misc(commands.Cog):
     @commands.command(hidden=True, aliases=['ts', 'blah'])
     @commands.is_owner()
     async def test(self, ctx, *, args=None):
-        # am = discord.AllowedMentions(users=None)
-        # await ctx.send(f'Hello, {ctx.author.mention}!', allowed_mentions=am)
+        leaving_player = models.Player.get_or_except(player_string=ctx.author.id, guild_id=ctx.guild.id)
 
-        gcs = models.Game.select(models.Game.game_chan).where(
-            (models.Game.is_completed == 0) &
-            (models.Game.guild_id == ctx.guild.id) &
-            (models.Game.game_chan > 0)
-        ).tuples()
+        pending_lineups = models.Lineup.select().join(models.Game).where(
+            (models.Lineup.game.is_pending == 1) & (models.Lineup.player == leaving_player)
+        )
 
-        print(gcs)
-
-        for gc in gcs:
-            print(gc)
-
-        gscs = models.GameSide.select(models.GameSide.team_chan).join(models.Game).where(
-            (models.Game.is_completed == 0) &
-            (models.Game.guild_id == ctx.guild.id) &
-            (models.Game.game_chan > 0) &
-            (models.GameSide.team_chan > 0) &
-            (models.GameSide.team_chan_external_server.is_null(True))
-        ).tuples()
-
-        print(gscs)
-
-        for gc in gscs:
-            print(gc)
-
-        chan_list = [gc[0] for gc in gcs] + [gc[0] for gc in gscs]
-        print(chan_list)
+        q = models.Lineup.delete().where(models.Lineup.id.in_(pending_lineups))
+        print(q.execute())
 
     @commands.command(usage=None)
     @settings.in_bot_channel_strict()

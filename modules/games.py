@@ -79,7 +79,7 @@ class polygames(commands.Cog):
             logger.debug(f'on_guild_channel_delete: detected deletion of game channel {channel.id} {channel.name} and removed reference from db')
 
     @commands.Cog.listener()
-    async def on_member_join(member):
+    async def on_member_join(self, member):
         player, upserted = models.Player.get_by_discord_id(discord_id=member.id, discord_name=member.name, discord_nick=member.nick, guild_id=member.guild.id)
         if player:
             if upserted:
@@ -87,6 +87,28 @@ class polygames(commands.Cog):
             return logger.debug(f'on_member_join: {member.display_name} re-joined guild {member.guild.name} and has an existing Player entry.')
         else:
             return logger.debug(f'on_member_join: {member.display_name} joined guild {member.guild.name} but does not have an existing DiscordMember record.')
+
+    @commands.Cog.listener()
+    async def on_member_remove(self, member):
+
+        try:
+            leaving_player = Player.get_or_except(player_string=member.id, guild_id=member.guild.id)
+        except exceptions.NoSingleMatch:
+            return
+
+        pending_lineups = Lineup.select().join(Game).where(
+            (Lineup.game.is_pending == 1) & (Lineup.player == leaving_player)
+        )
+
+        if not pending_lineups:
+            return
+
+        for l in pending_lineups:
+            models.GameLog.write(game_id=l.game.id, guild_id=member.guild.id, message=f'{models.GameLog.member_string(member)} left the game while leaving the server.')
+
+        q = Lineup.delete().where(models.Lineup.id.in_(pending_lineups))
+
+        logger.info(f'Existing ELO player {member.display_name} {member.id} left guild {member.guild.name} - deleted Lineup records for {q.execute()} pending games.')
 
     @commands.Cog.listener()
     async def on_user_update(self, before, after):

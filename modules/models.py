@@ -525,7 +525,7 @@ class Player(BaseModel):
             query_by_id = Player.select(Player, DiscordMember).join(DiscordMember).where(
                 (DiscordMember.discord_id == p_id) & (Player.guild_id == guild_id)
             )
-            if query_by_id.count() > 0:
+            if len(query_by_id) > 0:
                 return query_by_id
 
         if len(player_string.split('#', 1)[0]) > 2:
@@ -539,7 +539,7 @@ class Player(BaseModel):
             (DiscordMember.name ** discord_str) & (Player.guild_id == guild_id)  # ** is case-insensitive
         )
 
-        if name_exact_match.count() == 1:
+        if len(name_exact_match) == 1:
             # String matches DiscordUser.name exactly
             return name_exact_match
 
@@ -549,7 +549,7 @@ class Player(BaseModel):
             ((Player.nick.contains(player_string)) | (DiscordMember.name.contains(discord_str))) & (Player.guild_id == guild_id)
         ).group_by(Lineup.player).order_by(-SQL('games_played'))
 
-        if name_substring_match.count() > 0:
+        if len(name_substring_match) > 0:
             return [l.player for l in name_substring_match]
 
         if include_poly_info:
@@ -569,7 +569,7 @@ class Player(BaseModel):
         if len(results) > 1:
             raise exceptions.TooManyMatches(f'More than one matching player was found for "{player_string}"')
 
-        logger.debug(f'get_or_except matched string {player_string} to player {results[0].id} {results[0].name} - team {results[0].team}')
+        logger.debug(f'get_or_except matched string {player_string} to player {results[0].id} {results[0].name} - team {results[0].team_id}')
         return results[0]
 
     def get_by_discord_id(discord_id: int, guild_id: int, discord_nick: str = None, discord_name: str = None):
