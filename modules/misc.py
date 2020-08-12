@@ -380,7 +380,7 @@ class misc(commands.Cog):
             chan_str = f'({ctx.channel.name})'
         else:
             chan_str = f'({ctx.channel.name} on __{ctx.guild.name}__)'
-        await channel.send(f'Attention {helper_role_str} - {ctx.author.mention} ({ctx.author.name}) asked for help from channel <#{ctx.channel.id}> {chan_str}:\n{message}')
+        await channel.send(f'Attention {helper_role_str} - {ctx.author.mention} ({ctx.author.name}) asked for help from channel <#{ctx.channel.id}> {chan_str}:\n{ctx.message.jump_url}\n{message}')
 
         if related_game:
             embed, content = related_game.embed(guild=guild, prefix=ctx.prefix)
