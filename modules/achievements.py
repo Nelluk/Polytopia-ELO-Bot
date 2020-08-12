@@ -45,16 +45,18 @@ async def set_champion_role():
                     logger.info(f'removing ELO Champion role from {old_champion.name}')
 
             if local_champion_member:
-                logger.info(f'adding ELO Champion role to {local_champion_member.name}')
-                await local_champion_member.add_roles(role, reason='Local champion')
-                log_message += f'{models.GameLog.member_string(local_champion_member)} given role for local **ELO Champion**\n'
+                if local_champion_member not in role.member:
+                    logger.info(f'adding ELO Champion role to {local_champion_member.name}')
+                    await local_champion_member.add_roles(role, reason='Local champion')
+                    log_message += f'{models.GameLog.member_string(local_champion_member)} given role for local **ELO Champion**\n'
             else:
                 logger.warn(f'Couldnt find local champion {local_champion} in guild {guild.name}!')
 
             if global_champion_member:
-                logger.info(f'adding ELO Champion role to {global_champion_member.name}')
-                await global_champion_member.add_roles(role, reason='Global champion')
-                log_message += f'{models.GameLog.member_string(global_champion_member)} given role for global **ELO Champion**\n'
+                if global_champion_member not in role.member:
+                    logger.info(f'adding ELO Champion role to {global_champion_member.name}')
+                    await global_champion_member.add_roles(role, reason='Global champion')
+                    log_message += f'{models.GameLog.member_string(global_champion_member)} given role for global **ELO Champion**\n'
             else:
                 logger.warn(f'Couldnt find global champion {global_champion.name} in guild {guild.name}!')
         except discord.DiscordException as e:
