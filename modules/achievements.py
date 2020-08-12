@@ -5,7 +5,7 @@ import logging
 import modules.models as models
 import settings
 import peewee
-import utilities
+import modules.utilities as utilities
 logger = logging.getLogger('polybot.' + __name__)
 
 
