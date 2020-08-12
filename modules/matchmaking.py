@@ -94,6 +94,7 @@ class matchmaking(commands.Cog):
         team_size, is_ranked, is_mobile = False, True, True
         roles_specified_implicity, roles_specified_explicitly = False, False
         required_role_args = []
+        required_roles = []
         required_role_message = ''
         expiration_hours_override = None
         note_args = []
