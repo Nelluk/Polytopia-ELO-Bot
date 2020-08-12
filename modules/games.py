@@ -4,6 +4,7 @@ import modules.utilities as utilities
 import settings
 import modules.exceptions as exceptions
 import modules.achievements as achievements
+from modules import channels
 import peewee
 import modules.models as models
 from modules.models import Game, db, Player, Team, DiscordMember, Squad, GameSide, Tribe, Lineup
@@ -93,10 +94,48 @@ class polygames(commands.Cog):
         player, upserted = models.Player.get_by_discord_id(discord_id=member.id, discord_name=member.name, discord_nick=member.nick, guild_id=member.guild.id)
         if player:
             if upserted:
-                return logger.debug(f'on_member_join: {member.display_name} joined guild {member.guild.name} and Player was upserted as an existing DiscordMember.')
-            return logger.debug(f'on_member_join: {member.display_name} re-joined guild {member.guild.name} and has an existing Player entry.')
+                logger.debug(f'on_member_join: {member.display_name} joined guild {member.guild.name} and Player was upserted as an existing DiscordMember.')
+            logger.debug(f'on_member_join: {member.display_name} re-joined guild {member.guild.name} and has an existing Player entry.')
         else:
             return logger.debug(f'on_member_join: {member.display_name} joined guild {member.guild.name} but does not have an existing DiscordMember record.')
+
+        # add re-joining player back to any relevant game channels
+
+        pending_lineups_with_side_channels = Lineup.select().join(GameSide).join(Game).where(
+            (Game.is_completed == 0) & (Lineup.player == player) & (GameSide.team_chan > 0) &
+            ((GameSide.team_chan_external_server == member.guild.id) | (Game.guild_id == member.guild.id))
+        )
+
+        pending_lineups_with_game_channels = Lineup.select().join(Game).where(
+            (Game.is_completed == 0) & (Lineup.player == player) & (Game.game_chan > 0) & (Game.guild_id == member.guild.id)
+        )
+
+        async def fix_channel_perm(channel, member):
+            try:
+                await channels.add_member_to_channel(channel, member)
+                logger.info(f'Re-adding {member.display_name} to channel {channel.id} {channel.name}')
+                await channel.send(f'{member.mention} has been added back to this channel after rejoining the server. :partying_face:')
+            except (discord.errors.Forbidden, discord.errors.HTTPException) as e:
+                logger.warn(f'Tried to re-add {member.display_name} to channel {channel.id} {channel.name} but got error: {e}')
+
+        for lineup in pending_lineups_with_side_channels:
+            gs = lineup.gameside
+            guild_id = gs.team_chan_external_server or gs.game.guild_id
+            guild = discord.utils.get(self.bot.guilds, id=guild_id)
+            channel = guild.get_channel(gs.team_chan) if guild else None
+            if not channel:
+                continue
+
+            await fix_channel_perm(channel, member)
+
+        for lineup in pending_lineups_with_game_channels:
+
+            guild = discord.utils.get(self.bot.guilds, id=lineup.game.guild_id)
+            channel = guild.get_channel(lineup.game.game_chan) if guild else None
+            if not channel:
+                continue
+
+            await fix_channel_perm(channel, member)
 
     @commands.Cog.listener()
     async def on_member_remove(self, member):

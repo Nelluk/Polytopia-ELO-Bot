@@ -132,6 +132,15 @@ async def create_game_channel(guild, game, player_list, team_name: str = None, u
     return new_chan
 
 
+async def add_member_to_channel(channel, member):
+    # Specifically add one given DiscordMember to a channel's permission overwrites
+    # used when a player rejoins a server with games pending to get re-added to the channels
+    overwrites = channel.overwrites
+    overwrites[member] = discord.PermissionOverwrite(read_messages=True, add_reactions=True, send_messages=True, attach_files=True, manage_messages=True)
+
+    await channel.edit(overwrites=overwrites)
+
+
 async def greet_game_channel(guild, chan, roster_names, game, player_list, full_game: bool = False):
 
     chan_mentions = [f'<@{p.discord_member.discord_id}>' for p in player_list]
