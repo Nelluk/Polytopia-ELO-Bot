@@ -837,7 +837,7 @@ class Game(BaseModel):
 
                 # TODO: maybe, have different thresholds, ie start skipping NOva or 3-player channels or full-game channels is server is at a higher mark like 475
 
-                error_message = 'Server has nearly reached the maximum number of channels: skipping channel creation for this game.'
+                error_message = 'Server has nearly reached the maximum number of channels: skipping  2-player team channel channel creation for this game.'
                 logger.warning('Skipping channel creation for a team due to server exceeding 425 channels')
                 continue
             chan = await channels.create_game_channel(side_guild, game=self, team_name=gameside.team.name, player_list=player_list, using_team_server_flag=using_team_server_flag)
@@ -853,7 +853,10 @@ class Game(BaseModel):
 
                 await channels.greet_game_channel(side_guild, chan=chan, player_list=player_list, roster_names=roster_names, game=self, full_game=False)
 
-        if (len(ordered_side_list) > 2 and len(self.lineup) > 5) or len(ordered_side_list) > 3:
+        if (len(guild.text_channels) < 425 and
+                ((len(ordered_side_list) > 2 and len(self.lineup) > 5) or
+                                len(ordered_side_list) > 3)):
+
             # create game channel for larger games - 4+ sides, or 3+ sides with 6+ players
             player_list = [l.player for l in self.lineup]
             chan = await channels.create_game_channel(guild, game=self, team_name=None, player_list=player_list)
