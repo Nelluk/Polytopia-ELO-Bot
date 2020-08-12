@@ -67,6 +67,16 @@ class polygames(commands.Cog):
             self.bg_task2 = bot.loop.create_task(self.task_set_champion_role())
 
     @commands.Cog.listener()
+    async def on_message(self, message):
+        if message.author == self.bot.user:
+            return
+
+        if message.role_mentions and discord.utils.get(message.role_mentions, name='ELO-Helper'):
+            prefix = settings.guild_setting(message.guild.id, 'command_prefix')
+            await message.channel.send(f'{message.author.mention}, to receive staff help please use the `{prefix}staffhelp` command, '
+                'and include information about your issue including game ID.')
+
+    @commands.Cog.listener()
     async def on_guild_channel_delete(self, channel):
         query = GameSide.update(team_chan=None).where(GameSide.team_chan == channel.id)
         res = query.execute()
