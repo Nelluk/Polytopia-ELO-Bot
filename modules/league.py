@@ -769,13 +769,15 @@ class league(commands.Cog):
 
         await ctx.send(file=fs)
 
-    @commands.command(aliases=['freeagents', 'draftable', 'ble', 'bge'], usage='[sort] [role name list]')
+    @commands.command(aliases=['freeagents', 'draftable', 'ble', 'bge', 'roleeloany'], usage='[sort] [role name list]')
     @settings.in_bot_channel_strict()
     @commands.cooldown(1, 5, commands.BucketType.channel)
     async def roleelo(self, ctx, *, arg=None):
         """Prints list of players with a given role and their ELO stats
 
         You can check more tha one role at a time by separating them with a comma.
+        By default will return members with ALL of the specified roles.
+        Use `[p]roleeloany` to list members with ANY of the roles.
 
         Use one of the following options as the first argument to change the sorting:
         **g_elo** - Global ELO (default)
@@ -783,7 +785,8 @@ class league(commands.Cog):
         **games** - Total number of games played
         **recent** - Recent games played (14 days)
 
-        Members with the Inactive role will be skipped. Include `-file` in the argument for a CSV attachment.
+        Members with the Inactive role will be skipped unless it is explicitly listed.
+        Include `-file` in the argument for a CSV attachment.
 
         This command has some shortcuts:
         `[p]draftable` - List members with the Draftable role
@@ -845,7 +848,13 @@ class league(commands.Cog):
 
         roles = [discord.utils.find(lambda r: arg.upper() in r.name.upper(), ctx.guild.roles) for arg in args]
         roles = [r for r in roles if r]  # remove Nones
-        members = list(set(member for role in roles if role for member in role.members))
+
+        if ctx.invoked_with == 'roleeloany':
+            members = list(set(member for role in roles if role for member in role.members))
+            method = 'any'
+        else:
+            members = [member for member in ctx.guild.members if all(role in member.roles for role in roles)]
+            method = 'all'
 
         if not roles:
             return await ctx.send(f'Could not load roles from the guild matching **{"/".join(args)}**. This command tries to match one role per word.')
@@ -902,9 +911,9 @@ class league(commands.Cog):
                 with open(filename, 'rb') as f:
                     file = io.BytesIO(f.read())
                 file = discord.File(file, filename=filename)
-                await ctx.send(f'Exporting {len(player_list)} active players with any of the following roles: **{"/".join([r.name for r in roles])}**\nLoaded into a file `{filename}`, sorted by {sort_str}', file=file)
+                await ctx.send(f'Exporting {len(player_list)} active players with {method} of the following roles: **{"/".join([r.name for r in roles])}**\nLoaded into a file `{filename}`, sorted by {sort_str}', file=file)
         else:
-            await ctx.send(f'Listing {len(player_list)} active members with any of the following roles: **{"/".join([r.name for r in roles])}** (sorted by {sort_str})...')
+            await ctx.send(f'Listing {len(player_list)} active members with {method} of the following roles: **{"/".join([r.name for r in roles])}** (sorted by {sort_str})...')
             # without the escape then 'everyone.name' still is a mention
 
             message = []
