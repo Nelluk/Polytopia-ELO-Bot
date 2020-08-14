@@ -5,6 +5,7 @@ import modules.utilities as utilities
 import settings
 import modules.exceptions as exceptions
 from modules.games import post_newgame_messaging
+from modules.league import broadcast_team_game_to_server
 import peewee
 import re
 import datetime
@@ -180,7 +181,7 @@ class matchmaking(commands.Cog):
                 if roles_specified_explicitly:
                     return await ctx.send(f':no_entry_sign: Roles were assigned via both mention and explicit argument - use one or the other but not both.')
                 roles_specified_implicity = True
-                extracted_role = discord.utils.get(ctx.guild.roles, id=int(m[1]))
+                extracted_role = ctx.guild.get_role(int(m[1]))
                 if extracted_role:
                     note_args.append('**@' + extracted_role.name + '**')
                     required_role_args.append(extracted_role)
@@ -310,6 +311,8 @@ class matchmaking(commands.Cog):
         models.GameLog.write(game_id=opengame, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} opened new {team_size_str} game. Notes: *{discord.utils.escape_markdown(notes_str)}*')
         await ctx.send(f'Starting new {"__Steam__ " if not is_mobile else ""}{"unranked " if not is_ranked else ""}open game ID {opengame.id}. Size: {team_size_str}. Expiration: {expiration_hours} hours.\nNotes: *{notes_str}*\n'
             f'Other players can join this game with `{ctx.prefix}join {opengame.id}`.')
+
+        await broadcast_team_game_to_server(ctx, opengame)
 
     @settings.in_bot_channel()
     @commands.command(aliases=['matchside', 'sidename'], usage='match_id side_number Side Name', hidden=True)
@@ -976,7 +979,7 @@ class matchmaking(commands.Cog):
                             role_lock_id = role_locks[count]
                             role_lock_name = None
                             if role_lock_id:
-                                role_lock = discord.utils.get(guild.roles, id=role_lock_id)
+                                role_lock = guild.get_role(role_lock_id)
                                 if not role_lock:
                                     logger.warning(f'Lock to role {role_lock_id} was specified, but that role is not found in guild {guild.id} {guild.name}')
                                     role_lock_id = None

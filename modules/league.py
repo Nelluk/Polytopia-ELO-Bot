@@ -957,13 +957,62 @@ class league(commands.Cog):
             await ctx.send(f'{ctx.author.mention}, your export is complete. Wrote to `{filename}`', file=file)
 
 
+async def broadcast_team_game_to_server(ctx, game):
+    # When a PolyChamps game is created with a role-lock matching a league team, it will broadcast a message about the game
+    # to that team's server, if it has a league_game_announce_channel channel configured.
+
+    if ctx.guild.id not in [settings.server_ids['polychampions'], settings.server_ids['test']]:
+        return
+
+    role_locks = [gs.required_role_id for gs in game.gamesides if gs.required_role_id]
+    roles = [ctx.guild.get_role(r_id) for r_id in role_locks if ctx.guild.get_role(r_id)]
+
+    if not roles:
+        return
+
+    pro_role_names = [a[1][0] for a in league_teams]
+    junior_role_names = [a[1][1] for a in league_teams]
+    team_role_names = [a[0] for a in league_teams]
+
+    for role in roles:
+        if role.name in pro_role_names:
+            team_name = role.name
+            game_type = 'Pro Team'
+        elif role.name in junior_role_names:
+            team_name = role.name
+            game_type = 'Junior Team'
+        elif role.name in team_role_names:
+            # Umbrella name like Ronin/Jets
+            game_type = 'Full Team (Pros *and* Juniors)'
+            if pro_role_names[team_role_names.index(role.name)]:
+                team_name = pro_role_names[team_role_names.index(role.name)]
+            else:
+                # For junior-only teams
+                team_name = junior_role_names[team_role_names.index(role.name)]
+        else:
+            logger.debug(f'broadcast_team_game_to_server: no team name found to match role {role.name}')
+            continue
+
+        try:
+            team = models.Team.get_or_except(team_name=team_name, guild_id=ctx.guild.id)
+        except exceptions.NoSingleMatch:
+            logger.warning(f'broadcast_team_game_to_server: valid team name found to match role {role.name} but no database match')
+            continue
+
+        team_server = discord.utils.get(settings.bot.guilds, id=team.external_server)
+        team_channel = team_server.get_channel(settings.guild_setting(team_server.id, 'league_game_announce_channel')) if team_server else None
+        if not team_channel:
+            logger.warning(f'broadcast_team_game_to_server: could not load guild or announce channel for {team.name}')
+            continue
+        notes_str = f'\nNotes: *{game.notes}*' if game.notes else ''
+        await team_channel.send(f'New PolyChampions game `{game.id}` for {game_type} created by {game.host.name}\n{game.size_string()} {game.get_headline()}{notes_str}\n{ctx.message.jump_url}')
+        logger.debug(f'broadcast_team_game_to_server - sending message to channel {team_channel.name} on server {team_server.name}')
+
+
 async def auto_grad_novas(ctx, game):
     # called from post_newgame_messaging() - check if any member of the newly-started game now meets Nova graduation requirements
 
-    if ctx.guild.id == settings.server_ids['polychampions'] or ctx.guild.id == settings.server_ids['test']:
-        pass
-    else:
-        logger.debug(f'Ignoring auto_grad_novas for game {game.id}')
+    if ctx.guild.id not in [settings.server_ids['polychampions'], settings.server_ids['test']]:
         return
 
     role = discord.utils.get(ctx.guild.roles, name=novas_role_name)
