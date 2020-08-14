@@ -372,62 +372,24 @@ class matchmaking(commands.Cog):
 
         if not game:
             return await ctx.send(f'No game ID provided. Use `{ctx.prefix}opengames` to list open games you can join.\n{syntax}')
-        if not game.is_pending:
-            return await ctx.send(f'The game has already started and can no longer be joined.')
-
-        waitlist_hosting = [f'{g.id}' for g in models.Game.search_pending(status_filter=1, guild_id=ctx.guild.id, host_discord_id=ctx.author.id)]
-        waitlist_creating = [f'{g.game}' for g in models.Game.waiting_for_creator(creator_discord_id=ctx.author.id)]
-        waitlist = set(waitlist_hosting + waitlist_creating)
-
-        if len(waitlist) > 2 and settings.get_user_level(ctx.author) < 3:
-            # Prevent newer players from having a big backlog of games needing to start and then joining more games
-            return await ctx.send(f'You are the host of {len(waitlist)} games that are waiting to start. You cannot join new games until that is complete. Game IDs: **{", ".join(waitlist)}**\n'
-                f'Type __`{ctx.prefix}game IDNUM`__ for more details, ie `{ctx.prefix}game {(waitlist_hosting + waitlist_creating)[0]}`\n'
-                f'You must create each game in Polytopia and invite the other players using their friend codes, and then use the `{ctx.prefix}start` command in this bot.')
-
-        inactive_role = discord.utils.get(ctx.guild.roles, name=settings.guild_setting(ctx.guild.id, 'inactive_role'))
-        if inactive_role and inactive_role in ctx.author.roles:
-            await ctx.author.remove_roles(inactive_role, reason='Player joined a game so should no longer be inactive')
-            return await ctx.send(f'You have the inactive role **{inactive_role.name}**. Removing it since you seem to be active! :smiling_face_with_3_hearts: Just use the `{ctx.prefix}{ctx.invoked_with}` command one more time.')
 
         if len(args) == 0:
             # ctx.author is joining a game, no side given
             target = f'<@{ctx.author.id}>'
-            log_by_str = ''
-            (side, has_role_locked_side), side_open = game.first_open_side(roles=[role.id for role in ctx.author.roles]), True
-
-            if not side:
-                players, capacity = game.capacity()
-                if players < capacity:
-                    if has_role_locked_side:
-                        return await ctx.send(f'Game {game.id} is limited to specific roles, and your eligible side is **full**. See details with `{ctx.prefix}game {game.id}`')
-                    return await ctx.send(f'Game {game.id} is limited to specific roles. You are not allowed to join. See details with`{ctx.prefix}game {game.id}`')
-                return await ctx.send(f'Game {game.id} is completely full!')
-
+            side_arg = None
         elif len(args) == 1:
             # ctx.author is joining a match, with a side specified
             target = f'<@{ctx.author.id}>'
-            log_by_str = ''
-            side, side_open = game.get_side(lookup=args[0])
-
-            if not side:
-                return await ctx.send(f'Could not find side with "{args[0]}" in game {game.id}. You can use a side number or name if available.\n{syntax}')
-
+            side_arg = args[0]
         elif len(args) == 2:
             # author is putting a third party into this match
-            log_by_str = f'(Command issued by {models.GameLog.member_string(ctx.author)})'
             if settings.get_user_level(ctx.author) < 4:
                 return await ctx.send('You do not have permissions to add another person to a game. Tell them to use the command:\n'
                     f'`{ctx.prefix}join {game.id} {args[1]}` to join themselves.')
             target = args[0]
-            side, side_open = game.get_side(lookup=args[1])
-            if not side:
-                return await ctx.send(f'Could not find side with "{args[1]}" in game {game.id}. You can use a side number or name if available.\n{syntax}')
+            side_arg = args[1]
         else:
             return await ctx.send(f'Invalid usage.\n{syntax}')
-
-        if not side_open:
-            return await ctx.send(f'That side of game {game.id} is already full. See `{ctx.prefix}game {game.id}` for details.')
 
         guild_matches = await utilities.get_guild_member(ctx, target)
         if len(guild_matches) > 1:
@@ -437,79 +399,12 @@ class matchmaking(commands.Cog):
         else:
             joining_member = guild_matches[0]
 
-        on_team, player_team = models.Player.is_in_team(guild_id=ctx.guild.id, discord_member=joining_member)
-        if settings.guild_setting(ctx.guild.id, 'require_teams') and not on_team:
-            return await ctx.send(f'**{joining_member.name}** must join a Team in order to participate in games on this server.')
+        join_success, lineup, message_list = await game.join(member=joining_member, side_arg=side_arg, author_member=ctx.author)
+        message_str = '\n'.join(message_list)
 
-        if side.required_role_id and not discord.utils.get(joining_member.roles, id=side.required_role_id):
-            if settings.get_user_level(ctx.author) >= 5:
-                await ctx.send(f'Side {side.position} of game {game.id} is limited to players with the **@{side.sidename}** role. *Overriding restriction due to staff privileges.*')
-            else:
-                return await ctx.send(f'Side {side.position} of game {game.id} is limited to players with the **@{side.sidename}** role. You are not allowed to join.')
+        if not join_success:
+            return await ctx.send(f':no_entry_sign: Could not join game:\n{message_str}')
 
-        player, _ = models.Player.get_by_discord_id(discord_id=joining_member.id, discord_name=joining_member.name, discord_nick=joining_member.nick, guild_id=ctx.guild.id)
-        if not player:
-            # Matching guild member but no Player or DiscordMember
-            return await ctx.send(f'*{joining_member.name}* was found in the server but is not registered with me. '
-                f'Players can register themselves with `{ctx.prefix}setcode POLYTOPIA_CODE`.')
-
-        if not player.discord_member.polytopia_id and game.is_mobile:
-            return await ctx.send(f'**{player.name}** does not have a Polytopia game code on file. Use `{ctx.prefix}setcode` to set one.')
-
-        if not game.is_mobile and not player.discord_member.name_steam:
-            return await ctx.send(f'**{player.name}** does not have a Steam username on file and this is a Steam game {game.platform_emoji()}. Use `{ctx.prefix}steamname` to set one.')
-
-        if inactive_role and inactive_role in joining_member.roles:
-            return await ctx.send(f'**{player.name}** has the inactive role *{inactive_role.name}* - cannot join them to a game until the role is removed. The role will be removed if they use the `{ctx.prefix}join` command themselves.')
-
-        if player.is_banned or player.discord_member.is_banned:
-            if settings.is_mod(ctx.author):
-                await ctx.send(f'**{player.name}** has been **ELO Banned** -- *moderator over-ride* :thinking:')
-            else:
-                return await ctx.send(f'**{player.name}** has been **ELO Banned** and cannot join any new games. :cry:')
-
-        if game.has_player(player)[0]:
-            return await ctx.send(f'**{player.name}** is already in game {game.id}. If you are trying to change sides, use `{ctx.prefix}leave {game.id}` first.')
-
-        if game.is_hosted_by(player.discord_member.discord_id)[0] and side.position != 1:
-            await ctx.send('**Warning:** Since you are not joining side 1 you will not be the game creator.')
-
-        _, game_size = game.capacity()
-        game_allowed, join_error_message = settings.can_user_join_game(user_level=settings.get_user_level(ctx.author), game_size=game_size, is_ranked=game.is_ranked, is_host=False)
-        if not game_allowed:
-            return await ctx.send(join_error_message)
-
-        notes = game.notes if game.notes else ''
-        (min_elo, max_elo, min_elo_g, max_elo_g) = game.elo_requirements()
-
-        if player.elo < min_elo or player.elo > max_elo:
-            if not game.is_hosted_by(ctx.author.id)[0] and not settings.is_mod(ctx.author):
-                return await ctx.send(f'This game has an ELO restriction of {min_elo} - {max_elo} and **{player.name}** has an ELO of **{player.elo}**. Cannot join! :cry: Use `{ctx.prefix}games` to list games you *can* join.')
-            await ctx.send(f'This game has an ELO restriction of {min_elo} - {max_elo}. Bypassing because you are game host or a mod.')
-
-        if player.discord_member.elo < min_elo_g or player.discord_member.elo > max_elo_g:
-            if not game.is_hosted_by(ctx.author.id)[0] and not settings.is_mod(ctx.author):
-                return await ctx.send(f'This game has a global ELO restriction of {min_elo_g} - {max_elo_g} and **{player.name}** has a global ELO of **{player.discord_member.elo}**. Cannot join! :cry:')
-            await ctx.send(f'This game has an ELO restriction of {min_elo_g} - {max_elo_g}. Bypassing because you are game host or a mod.')
-
-        # list of ID strings that are allowed to join game, e.g. ['272510639124250625', '481527584107003904']
-        player_restricted_list = re.findall(r'<@!?(\d+)>', notes)
-
-        if player_restricted_list and str(joining_member.id) not in player_restricted_list and (len(player_restricted_list) >= game_size - 1):
-            # checking length of player_restricted_list compared to game capacity.. only using restriction if capacity is at least game_size - 1
-            # if its game_size - 1, assuming that the host is the 'other' person
-            # this isnt really ideal.. could have some games where the restriction should be honored but people are allowed to join.. but better than making the lock too restrictive
-            return await ctx.send(f'Game {game.id} is limited to specific players. You are not allowed to join. See game notes for details: `{ctx.prefix}game {game.id}`')
-
-        logger.info(f'Checks passed. Joining player {joining_member.id} to side {side.position} of game {game.id}')
-
-        with models.db.atomic():
-            models.Lineup.create(player=player, game=game, gameside=side)
-            player.team = player_team  # update player record with detected team in case its changed since last game.
-            logger.debug(f'Associating team {player_team} with player {player.id} {player.name}')
-            player.save()
-        await ctx.send(f'Joining {joining_member.mention} to side {side.position} of game {game.id}')
-        models.GameLog.write(game_id=game, guild_id=ctx.guild.id, message=f'Side {side.position} joined by {models.GameLog.member_string(player.discord_member)} {log_by_str}')
         players, capacity = game.capacity()
         if players >= capacity:
             creating_player = game.creating_player()
@@ -520,12 +415,7 @@ class matchmaking(commands.Cog):
 
         embed, content = game.embed(guild=ctx.guild, prefix=ctx.prefix)
         await ctx.send(embed=embed, content=content)
-
-        if players < capacity and side.position == 1 and joining_member == ctx.author and settings.get_user_level(ctx.author) <= 1:
-            await ctx.send(':bulb: Since you are joining **side 1**, you will be the host of this game and will be notified when it is full. It will be your responsibility to create the game in Polytopia.')
-
-        if game.is_mobile and not player.discord_member.polytopia_name:
-            await ctx.send(f':warning: Use `{ctx.prefix}setname Your Mobile Name` to set your in-game name. This will replace your friend code in the near future.')
+        await ctx.send(message_str)
 
         # Alert user if they have >1 games ready to start
         waitlist_hosting = [f'{g.id}' for g in models.Game.search_pending(status_filter=1, guild_id=ctx.guild.id, host_discord_id=ctx.author.id)]

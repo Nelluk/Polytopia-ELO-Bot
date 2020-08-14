@@ -225,7 +225,7 @@ def in_bot_channel():
     async def predicate(ctx):
         if guild_setting(ctx.guild.id, 'bot_channels') is None:
             return True
-        if is_mod(ctx):
+        if is_mod(ctx.author):
             return True
         if ctx.message.channel.id in guild_setting(ctx.guild.id, 'bot_channels') + guild_setting(ctx.guild.id, 'bot_channels_private'):
             return True
@@ -249,7 +249,7 @@ async def is_bot_channel_strict(ctx):
             chan_list = guild_setting(ctx.guild.id, 'bot_channels')
     else:
         chan_list = guild_setting(ctx.guild.id, 'bot_channels_strict')
-    if is_mod(ctx):
+    if is_mod(ctx.author):
         return True
     if ctx.message.channel.id in chan_list + guild_setting(ctx.guild.id, 'bot_channels_private'):
         return True

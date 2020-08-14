@@ -2071,7 +2071,8 @@ class Game(BaseModel):
         author_member = member if not author_member else author_member
         message_list = []
         inactive_role = discord.utils.get(member.guild.roles, name=settings.guild_setting(member.guild.id, 'inactive_role'))
-        log_by_str = f'(Command issued by {models.GameLog.member_string(author_member)})' if author_member != member else ''
+        log_by_str = f'(Command issued by {GameLog.member_string(author_member)})' if author_member != member else ''
+        players, capacity = self.capacity()
 
         if not self.is_pending:
             return (False, None, [f'The game has already started and can no longer be joined.'])
@@ -2125,21 +2126,20 @@ class Game(BaseModel):
                 return (False, None, [f'That side of game {self.id} is already full. See `{prefix}game {self.id}` for details.'])
         else:
             # find first open side
-            (side, has_role_locked_side) = game.first_open_side(roles=[role.id for role in member.roles])
+            (side, has_role_locked_side) = self.first_open_side(roles=[role.id for role in member.roles])
 
             if not side:
-                players, capacity = self.capacity()
                 if players < capacity:
                     if has_role_locked_side:
-                        return (False, None, [f'Game {game.id} is limited to specific roles, and your eligible side is **full**. See details with `{prefix}game {self.id}`'])
-                    return (False, None, [f'Game {game.id} is limited to specific roles. You are not allowed to join. See details with`{prefix}game {self.id}`'])
+                        return (False, None, [f'Game {self.id} is limited to specific roles, and your eligible side is **full**. See details with `{prefix}game {self.id}`'])
+                    return (False, None, [f'Game {self.id} is limited to specific roles. You are not allowed to join. See details with`{prefix}game {self.id}`'])
                 return (False, None, [f'Game {self.id} is completely full!'])
 
         if side.required_role_id and not discord.utils.get(member.roles, id=side.required_role_id):
             if settings.get_user_level(author_member) >= 5:
-                message_list.append(f'Side {side.position} of game {game.id} is limited to players with the **@{side.sidename}** role. *Overriding restriction due to staff privileges.*')
+                message_list.append(f'Side {side.position} of game {self.id} is limited to players with the **@{side.sidename}** role. *Overriding restriction due to staff privileges.*')
             else:
-                return (False, None, [f'Side {side.position} of game {game.id} is limited to players with the **@{side.sidename}** role. You are not allowed to join.'])
+                return (False, None, [f'Side {side.position} of game {self.id} is limited to players with the **@{side.sidename}** role. You are not allowed to join.'])
 
         if self.has_player(player)[0]:
             return (False, None, [f'**{player.name}** is already in game {self.id}. If you are trying to change sides, use `{prefix}leave {self.id}` first.'])
@@ -2147,8 +2147,7 @@ class Game(BaseModel):
         if self.is_hosted_by(player.discord_member.discord_id)[0] and side.position != 1:
             message_list.append(':bulb: Since you are not joining side 1 you will not be the game creator.')
 
-        _, game_size = self.capacity()
-        game_allowed, join_error_message = settings.can_user_join_game(user_level=settings.get_user_level(author_member), game_size=game_size, is_ranked=game.is_ranked, is_host=False)
+        game_allowed, join_error_message = settings.can_user_join_game(user_level=settings.get_user_level(author_member), game_size=capacity, is_ranked=self.is_ranked, is_host=False)
         if not game_allowed:
             return (False, None, [join_error_message])
 
@@ -2160,7 +2159,7 @@ class Game(BaseModel):
             message_list.append(f'This game has an ELO restriction of {min_elo} - {max_elo}. Bypassing because you are game host or a mod.')
 
         if player.discord_member.elo < min_elo_g or player.discord_member.elo > max_elo_g:
-            if not game.is_hosted_by(author_member.id)[0] and not settings.is_mod(author_member):
+            if not self.is_hosted_by(author_member.id)[0] and not settings.is_mod(author_member):
                 return (False, None, [f'This game has a global ELO restriction of {min_elo_g} - {max_elo_g} and **{player.name}** has a global ELO of **{player.discord_member.elo}**. Cannot join! :cry:'])
             message_list.append(f'This game has a global ELO restriction of {min_elo_g} - {max_elo_g}. Bypassing because you are game host or a mod.')
 
@@ -2177,15 +2176,20 @@ class Game(BaseModel):
         logger.info(f'Checks passed. Joining player {member.id} {member.display_name} to side {side.position} of game {self.id}')
 
         with db.atomic():
-            Lineup.create(player=player, game=self, gameside=side)
+            lineup = Lineup.create(player=player, game=self, gameside=side)
             player.team = player_team  # update player record with detected team in case its changed since last game.
             player.save()
         message_list.append(f'Joining {member.mention} to side {side.position} of game {self.id}')
-        GameLog.write(game_id=self, guild_id=member.guild.id, message=f'Side {side.position} joined by {models.GameLog.member_string(player.discord_member)} {log_by_str}')
+        GameLog.write(game_id=self, guild_id=member.guild.id, message=f'Side {side.position} joined by {GameLog.member_string(player.discord_member)} {log_by_str}')
 
         if players + 1 < capacity and self.creating_player() == player and member == author_member and settings.get_user_level(member) <= 1:
             message_list.append(':bulb: Since you are joining **side 1**, you will be the host of this game and will be notified when it is full. It will be your responsibility to create the game in Polytopia. '
                 f'You can specify a non-host side to join; see `{prefix}help join` in a bot channel.')
+
+        if self.is_mobile and not player.discord_member.polytopia_name:
+            message_list.append(f':warning: Use `{prefix}setname Your Mobile Name` to set your in-game name. This will replace your friend code in the near future.')
+
+        return (True, lineup, message_list)
 
     def get_side(self, lookup):
         # lookup can be a side number/position (integer) or side name
