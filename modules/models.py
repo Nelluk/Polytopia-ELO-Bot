@@ -2142,7 +2142,8 @@ class Game(BaseModel):
                 return (False, None, [f'Side {side.position} of game {self.id} is limited to players with the **@{side.sidename}** role. You are not allowed to join.'])
 
         if self.has_player(player)[0]:
-            return (False, None, [f'**{player.name}** is already in game {self.id}. If you are trying to change sides, use `{prefix}leave {self.id}` first.'])
+            leave_kick_str = f'`{prefix}leave {self.id}`' if author_member == member else f'`{prefix}kick {self.id} {member.name}`'
+            return (False, None, [f'**{player.name}** is already in game {self.id}. If you are trying to change sides, use {leave_kick_str} first.'])
 
         if self.is_hosted_by(player.discord_member.discord_id)[0] and side.position != 1:
             message_list.append(':bulb: Since you are not joining side 1 you will not be the game creator.')
