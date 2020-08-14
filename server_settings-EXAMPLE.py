@@ -36,7 +36,6 @@ server_list = {'default':
                       'steam_game_channel': None,
                       'log_channel': None,  # output of auto-game confirmation, must be set to have auto-confirm work
                       'game_announce_channel': None,
-                      'league_game_announce_channel': None,  # Announce relevant PolyChamps games
                       'staff_help_channel': None,  # optional staff-only channel to view user help requests
                       'game_channel_categories': []},
         478571892832206869:                           # Nelluk Test Server (discord server ID)

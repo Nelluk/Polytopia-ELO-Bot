@@ -1000,7 +1000,8 @@ async def broadcast_team_game_to_server(ctx, game):
             continue
 
         team_server = discord.utils.get(settings.bot.guilds, id=team.external_server)
-        team_channel = team_server.get_channel(settings.guild_setting(team_server.id, 'league_game_announce_channel')) if team_server else None
+        team_channel = discord.utils.get(team_server.text_channels, name='polychamps-game-announcements') if team_server else None
+
         if not team_channel:
             logger.warning(f'broadcast_team_game_to_server: could not load guild or announce channel for {team.name}')
             continue
