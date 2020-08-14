@@ -156,7 +156,7 @@ class misc(commands.Cog):
         if m:
             logger.debug('Third party use of pingall')
             # Staff member using command on third party
-            if settings.get_user_level(ctx) <= 3:
+            if settings.get_user_level(ctx.author) <= 3:
                 logger.debug('insufficient user level')
                 return await ctx.send(f'You do not have permission to use this command on another player\'s games.')
             message = ' '.join(message.split()[1:])  # remove @Mention first word of message
@@ -165,7 +165,7 @@ class misc(commands.Cog):
         else:
             logger.debug('first party usage of pingall')
             # Play using command on their own games
-            if settings.get_user_level(ctx) <= 2:
+            if settings.get_user_level(ctx.author) <= 2:
                 logger.debug('insufficient user level')
                 return await ctx.send(f'You do not have permission to use this command. You can ask a server staff member to use this command on your games for you.')
             target = str(ctx.author.id)
@@ -225,7 +225,7 @@ class misc(commands.Cog):
             ctx.command.reset_cooldown(ctx)
             return await ctx.send(usage)
 
-        if settings.is_mod(ctx):
+        if settings.is_mod(ctx.author):
             ctx.command.reset_cooldown(ctx)
 
         args = args.split()
@@ -260,7 +260,7 @@ class misc(commands.Cog):
         else:
             game = await PolyGame().convert(ctx, int(game_id), allow_cross_guild=True)
 
-        if not game.player(discord_id=ctx.author.id) and not settings.is_staff(ctx):
+        if not game.player(discord_id=ctx.author.id) and not settings.is_staff(ctx.author):
             ctx.command.reset_cooldown(ctx)
             return await ctx.send(f'You are not a player in game {game.id}')
 
@@ -292,7 +292,7 @@ class misc(commands.Cog):
             logger.debug(f'Allowing ping since it is within a game channel, and all sides have a game channel')
             mention_players_in_current_channel = False
             print(2)
-        elif settings.is_mod(ctx) and len(game_channels) >= len(game.gamesides):
+        elif settings.is_mod(ctx.author) and len(game_channels) >= len(game.gamesides):
             logger.debug(f'Allowing ping since it is from a mod and all sides have a game channel')
             mention_players_in_current_channel = False
             print(3)

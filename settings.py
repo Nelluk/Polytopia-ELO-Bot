@@ -130,22 +130,21 @@ levels_info = ('***Level 1*** - *Join ranked games up to 3 players, unranked gam
                '***Level 3*** - *No restrictions on games* (__Complete 10 games to attain, ranked or unranked__)\n')
 
 
-def get_user_level(ctx, user=None):
-    user = ctx.author if not user else user
+def get_user_level(member):
 
-    if user.id == owner_id:
+    if member.id == owner_id:
         return 7
-    if is_mod(ctx, user=user):
+    if is_mod(member):
         return 6
-    if is_staff(ctx, user=user):
+    if is_staff(member):
         return 5
-    if get_matching_roles(user, guild_setting(ctx.guild.id, 'user_roles_level_4')):
+    if get_matching_roles(member, guild_setting(member.guild.id, 'user_roles_level_4')):
         return 4  # advanced matchmaking abilities (leave own match, join others to match). can use settribes in bulk
-    if get_matching_roles(user, guild_setting(ctx.guild.id, 'user_roles_level_3')):
+    if get_matching_roles(member, guild_setting(member.guild.id, 'user_roles_level_3')):
         return 3  # host/join any
-    if get_matching_roles(user, guild_setting(ctx.guild.id, 'user_roles_level_2')):
+    if get_matching_roles(member, guild_setting(member.guild.id, 'user_roles_level_2')):
         return 2  # join ranked games up to 6p, unranked up to 12p
-    if get_matching_roles(user, guild_setting(ctx.guild.id, 'user_roles_level_1')):
+    if get_matching_roles(member, guild_setting(member.guild.id, 'user_roles_level_1')):
         return 1  # join ranked games up to 3p, unranked up to 6p. no hosting
     return 0
 
@@ -171,34 +170,24 @@ def can_user_join_game(user_level: int, game_size: int, is_ranked: bool = True, 
     return True, None  # Game allowed
 
 
-def is_staff(ctx, user=None):
-    user = ctx.author if not user else user
+def is_staff(member):
 
-    if user.id == owner_id:
+    if member.id == owner_id:
         return True
-    helper_roles = guild_setting(ctx.guild.id, 'helper_roles')
-    mod_roles = guild_setting(ctx.guild.id, 'mod_roles')
+    helper_roles = guild_setting(member.guild.id, 'helper_roles')
+    mod_roles = guild_setting(member.guild.id, 'mod_roles')
 
-    target_match = get_matching_roles(user, helper_roles + mod_roles)
+    target_match = get_matching_roles(member, helper_roles + mod_roles)
     return len(target_match) > 0
 
 
-def is_mod(ctx_or_member, user=None):
-    # if member passed as first arg, checks to see if member is a mod of the guild they are a member of
-    # if ctx is passed, will check second arg user as a mod, or check ctx.member as a mod
-    if type(ctx_or_member).__name__ == 'Context':
-        user = ctx_or_member.author if not user else user
-        guild = ctx_or_member.guild
-    else:
-        # Assuming Member object passed
-        user = ctx_or_member
-        guild = user.guild
+def is_mod(member):
 
-    if user.id == owner_id:
+    if member.id == owner_id:
         return True
-    mod_roles = guild_setting(guild.id, 'mod_roles')
+    mod_roles = guild_setting(member.guild.id, 'mod_roles')
 
-    target_match = get_matching_roles(user, mod_roles)
+    target_match = get_matching_roles(member, mod_roles)
     return len(target_match) > 0
 
 
@@ -206,7 +195,7 @@ def is_staff_check():
     # restrict commands to is_staff with syntax like @settings.is_staff_check()
 
     def predicate(ctx):
-        return is_staff(ctx)
+        return is_staff(ctx.author)
     return commands.check(predicate)
 
 
@@ -214,7 +203,7 @@ def is_mod_check():
     # restrict commands to is_staff with syntax like @settings.is_mod_check()
 
     def predicate(ctx):
-        return is_mod(ctx)
+        return is_mod(ctx.author)
     return commands.check(predicate)
 
 

@@ -117,8 +117,8 @@ class matchmaking(commands.Cog):
         if settings.guild_setting(ctx.guild.id, 'require_teams') and not on_team:
             return await ctx.send(f'You must join a Team in order to participate in games on this server.')
 
-        max_open = max(1, settings.get_user_level(ctx) * 3)
-        if settings.get_user_level(ctx) > 5:
+        max_open = max(1, settings.get_user_level(ctx.author) * 3)
+        if settings.get_user_level(ctx.author) > 5:
             max_open = 75
 
         if models.Game.select().where((models.Game.host == host) & (models.Game.is_pending == 1)).count() > max_open:
@@ -229,7 +229,7 @@ class matchmaking(commands.Cog):
         if not team_size:
             return await ctx.send(f'Game size is required. Include argument like *1v1* to specify size')
 
-        game_allowed, join_error_message = settings.can_user_join_game(user_level=settings.get_user_level(ctx), game_size=sum(team_sizes), is_ranked=is_ranked, is_host=True)
+        game_allowed, join_error_message = settings.can_user_join_game(user_level=settings.get_user_level(ctx.author), game_size=sum(team_sizes), is_ranked=is_ranked, is_host=True)
         if not game_allowed:
             return await ctx.send(join_error_message)
 
@@ -241,7 +241,7 @@ class matchmaking(commands.Cog):
         if max(team_sizes) > server_size_max:
             if settings.guild_setting(ctx.guild.id, 'allow_uneven_teams') and min(team_sizes) <= server_size_max:
                 await ctx.send(':warning: Team sizes are uneven.')
-            elif settings.is_mod(ctx):
+            elif settings.is_mod(ctx.author):
                 await ctx.send('Moderator over-riding server size limits')
             elif not is_ranked and max(team_sizes) <= server_size_max + 1:
                 # Arbitrary rule, unranked games can go +1 from server_size_max
@@ -290,7 +290,7 @@ class matchmaking(commands.Cog):
 
             first_side, _ = opengame.first_open_side(roles=[role.id for role in ctx.author.roles])
             if not first_side:
-                if settings.get_user_level(ctx) >= 4:
+                if settings.get_user_level(ctx.author) >= 4:
                     warning_message = f':warning: All sides in this game are locked to a specific @Role - and you don\'t have any of those roles. You are not a player in this game.'
                     fatal_warning = False
                 else:
@@ -327,7 +327,7 @@ class matchmaking(commands.Cog):
 
         if not game.is_pending:
             return await ctx.send(f'The game has already started and can no longer be changed.')
-        if not game.is_hosted_by(ctx.author.id)[0] and not settings.is_staff(ctx):
+        if not game.is_hosted_by(ctx.author.id)[0] and not settings.is_staff(ctx.author):
             return await ctx.send(f'Only the game host or server staff can do this.')
 
         # TODO: Have this command also allow side re-ordering
@@ -367,7 +367,7 @@ class matchmaking(commands.Cog):
         """
         syntax = f'**Example usage**:\n__`{ctx.prefix}join 1025`__ - Join game 1025\n__`{ctx.prefix}join 1025 2`__ - Join game 1025, side 2'
 
-        if settings.get_user_level(ctx) >= 4:
+        if settings.get_user_level(ctx.author) >= 4:
             syntax += f'\n__`{ctx.prefix}join 1025 Nelluk 2`__ - Add a third party to side 2 of your open game. Side must be specified.'
 
         if not game:
@@ -379,7 +379,7 @@ class matchmaking(commands.Cog):
         waitlist_creating = [f'{g.game}' for g in models.Game.waiting_for_creator(creator_discord_id=ctx.author.id)]
         waitlist = set(waitlist_hosting + waitlist_creating)
 
-        if len(waitlist) > 2 and settings.get_user_level(ctx) < 3:
+        if len(waitlist) > 2 and settings.get_user_level(ctx.author) < 3:
             # Prevent newer players from having a big backlog of games needing to start and then joining more games
             return await ctx.send(f'You are the host of {len(waitlist)} games that are waiting to start. You cannot join new games until that is complete. Game IDs: **{", ".join(waitlist)}**\n'
                 f'Type __`{ctx.prefix}game IDNUM`__ for more details, ie `{ctx.prefix}game {(waitlist_hosting + waitlist_creating)[0]}`\n'
@@ -416,7 +416,7 @@ class matchmaking(commands.Cog):
         elif len(args) == 2:
             # author is putting a third party into this match
             log_by_str = f'(Command issued by {models.GameLog.member_string(ctx.author)})'
-            if settings.get_user_level(ctx) < 4:
+            if settings.get_user_level(ctx.author) < 4:
                 return await ctx.send('You do not have permissions to add another person to a game. Tell them to use the command:\n'
                     f'`{ctx.prefix}join {game.id} {args[1]}` to join themselves.')
             target = args[0]
@@ -442,7 +442,7 @@ class matchmaking(commands.Cog):
             return await ctx.send(f'**{joining_member.name}** must join a Team in order to participate in games on this server.')
 
         if side.required_role_id and not discord.utils.get(joining_member.roles, id=side.required_role_id):
-            if settings.get_user_level(ctx) >= 5:
+            if settings.get_user_level(ctx.author) >= 5:
                 await ctx.send(f'Side {side.position} of game {game.id} is limited to players with the **@{side.sidename}** role. *Overriding restriction due to staff privileges.*')
             else:
                 return await ctx.send(f'Side {side.position} of game {game.id} is limited to players with the **@{side.sidename}** role. You are not allowed to join.')
@@ -463,7 +463,7 @@ class matchmaking(commands.Cog):
             return await ctx.send(f'**{player.name}** has the inactive role *{inactive_role.name}* - cannot join them to a game until the role is removed. The role will be removed if they use the `{ctx.prefix}join` command themselves.')
 
         if player.is_banned or player.discord_member.is_banned:
-            if settings.is_mod(ctx):
+            if settings.is_mod(ctx.author):
                 await ctx.send(f'**{player.name}** has been **ELO Banned** -- *moderator over-ride* :thinking:')
             else:
                 return await ctx.send(f'**{player.name}** has been **ELO Banned** and cannot join any new games. :cry:')
@@ -475,27 +475,20 @@ class matchmaking(commands.Cog):
             await ctx.send('**Warning:** Since you are not joining side 1 you will not be the game creator.')
 
         _, game_size = game.capacity()
-        game_allowed, join_error_message = settings.can_user_join_game(user_level=settings.get_user_level(ctx), game_size=game_size, is_ranked=game.is_ranked, is_host=False)
+        game_allowed, join_error_message = settings.can_user_join_game(user_level=settings.get_user_level(ctx.author), game_size=game_size, is_ranked=game.is_ranked, is_host=False)
         if not game_allowed:
             return await ctx.send(join_error_message)
-
-        # if settings.get_user_level(ctx) <= 1:
-        #     if (game.is_ranked and game_size) > 3 or (not game.is_ranked and game_size > 6):
-        #         return await ctx.send(f'You are a restricted user (*level 1*) - complete a few more ELO games to have more permissions.\n{settings.levels_info}')
-        # elif settings.get_user_level(ctx) <= 2:
-        #     if (game.is_ranked and game_size) > 6 or (not game.is_ranked and game_size > 12):
-        #         return await ctx.send(f'You are a restricted user (*level 2*) - complete a few more ELO games to have more permissions.\n{settings.levels_info}')
 
         notes = game.notes if game.notes else ''
         (min_elo, max_elo, min_elo_g, max_elo_g) = game.elo_requirements()
 
         if player.elo < min_elo or player.elo > max_elo:
-            if not game.is_hosted_by(ctx.author.id)[0] and not settings.is_mod(ctx):
+            if not game.is_hosted_by(ctx.author.id)[0] and not settings.is_mod(ctx.author):
                 return await ctx.send(f'This game has an ELO restriction of {min_elo} - {max_elo} and **{player.name}** has an ELO of **{player.elo}**. Cannot join! :cry: Use `{ctx.prefix}games` to list games you *can* join.')
             await ctx.send(f'This game has an ELO restriction of {min_elo} - {max_elo}. Bypassing because you are game host or a mod.')
 
         if player.discord_member.elo < min_elo_g or player.discord_member.elo > max_elo_g:
-            if not game.is_hosted_by(ctx.author.id)[0] and not settings.is_mod(ctx):
+            if not game.is_hosted_by(ctx.author.id)[0] and not settings.is_mod(ctx.author):
                 return await ctx.send(f'This game has a global ELO restriction of {min_elo_g} - {max_elo_g} and **{player.name}** has a global ELO of **{player.discord_member.elo}**. Cannot join! :cry:')
             await ctx.send(f'This game has an ELO restriction of {min_elo_g} - {max_elo_g}. Bypassing because you are game host or a mod.')
 
@@ -528,7 +521,7 @@ class matchmaking(commands.Cog):
         embed, content = game.embed(guild=ctx.guild, prefix=ctx.prefix)
         await ctx.send(embed=embed, content=content)
 
-        if players < capacity and side.position == 1 and joining_member == ctx.author and settings.get_user_level(ctx) <= 1:
+        if players < capacity and side.position == 1 and joining_member == ctx.author and settings.get_user_level(ctx.author) <= 1:
             await ctx.send(':bulb: Since you are joining **side 1**, you will be the host of this game and will be notified when it is full. It will be your responsibility to create the game in Polytopia.')
 
         if game.is_mobile and not player.discord_member.polytopia_name:
@@ -559,7 +552,7 @@ class matchmaking(commands.Cog):
 
         if game.is_hosted_by(ctx.author.id)[0]:
 
-            if settings.get_user_level(ctx) < 4:
+            if settings.get_user_level(ctx.author) < 4:
                 return await ctx.send('You do not have permissions to leave your own match.\n'
                     f'If you want to delete use `{ctx.prefix}delete {game.id}`')
 
@@ -592,7 +585,7 @@ class matchmaking(commands.Cog):
         if not notes:
             return await ctx.send(f'Include new note or *none* to delete existing note. Usage: `{ctx.prefix}{ctx.invoked_with} {game.id} These are my new notes`')
 
-        if not game.is_hosted_by(ctx.author.id)[0] and not settings.is_staff(ctx):
+        if not game.is_hosted_by(ctx.author.id)[0] and not settings.is_staff(ctx.author):
             return await ctx.send(f'Only the game host or server staff can do this.')
 
         if notes.lower() == 'none':
@@ -600,7 +593,7 @@ class matchmaking(commands.Cog):
 
         if game.is_completed:
             return await ctx.send('This game is completed and notes cannot be edited.')
-        elif not game.is_pending and not settings.is_staff(ctx):
+        elif not game.is_pending and not settings.is_staff(ctx.author):
             return await ctx.send(f'Only server staff can edit notes of an in-progress game.')
 
         game.notes = notes[:150] if notes else None
@@ -624,7 +617,7 @@ class matchmaking(commands.Cog):
         `[p]kick 25 koric`
         """
         is_hosted_by, host = game.is_hosted_by(ctx.author.id)
-        if not is_hosted_by and not settings.is_staff(ctx):
+        if not is_hosted_by and not settings.is_staff(ctx.author):
             host_name = f' **{host.name}**' if host else ''
             helper_role = settings.guild_setting(ctx.guild.id, 'helper_roles')[0]
 
@@ -676,7 +669,7 @@ class matchmaking(commands.Cog):
         ranked_chan = settings.guild_setting(ctx.guild.id, 'ranked_game_channel')
         unranked_chan = settings.guild_setting(ctx.guild.id, 'unranked_game_channel')
         steam_chan = settings.guild_setting(ctx.guild.id, 'steam_game_channel')
-        user_level = settings.get_user_level(ctx)
+        user_level = settings.get_user_level(ctx.author)
 
         if ctx.invoked_with == 'nova' and args and args[0] == 'games':
             # redirect '$nova games' to '$novagames'
@@ -819,7 +812,7 @@ class matchmaking(commands.Cog):
             return await ctx.send(f'No game ID provided. Use `{ctx.prefix}opengames me` to list open games you have waiting to start.\n{syntax}')
 
         is_hosted_by, host = game.is_hosted_by(ctx.author.id)
-        if not is_hosted_by and not settings.is_staff(ctx) and not game.is_created_by(ctx.author.id):
+        if not is_hosted_by and not settings.is_staff(ctx.author) and not game.is_created_by(ctx.author.id):
             creating_player = game.creating_player()
             helper_role = settings.guild_setting(ctx.guild.id, 'helper_roles')[0]
 
@@ -839,7 +832,7 @@ class matchmaking(commands.Cog):
             return await ctx.send(f'Game name is required. The game must be created **in Polytopia** first to get the correct name.\n{syntax}')
 
         if not utilities.is_valid_poly_gamename(input=name):
-            if settings.get_user_level(ctx) <= 2:
+            if settings.get_user_level(ctx.author) <= 2:
                 return await ctx.send('That name looks made up. :thinking: You need to manually create the game __in Polytopia__, come back and input the name of the new game you made.\n'
                     f'You can use `{ctx.prefix}codes {game.id}` to get the code of each player in this game in an easy-to-copy format.')
             await ctx.send(f'*Warning:* That game name looks made up - you are allowed to override due to your user level.')

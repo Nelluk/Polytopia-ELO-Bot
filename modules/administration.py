@@ -24,7 +24,7 @@ class administration(commands.Cog):
 
     async def cog_check(self, ctx):
 
-        if settings.is_staff(ctx):
+        if settings.is_staff(ctx.author):
             return True
         else:
             if ctx.invoked_with == 'help' and ctx.command.name != 'help':

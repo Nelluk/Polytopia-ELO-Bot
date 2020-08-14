@@ -929,7 +929,7 @@ class polygames(commands.Cog):
         if m:
             logger.debug(f'Third party use of {ctx.invoked_with}')
             # Staff member using command on third party
-            if settings.is_staff(ctx) is False:
+            if settings.is_staff(ctx.author) is False:
                 logger.debug('insufficient user level')
                 return await ctx.send(f'You do not have permission to set another player\'s name or code.')
             new_id = ' '.join(args[1:])
@@ -949,7 +949,7 @@ class polygames(commands.Cog):
             return await ctx.send(f'Found {len(guild_matches)} server members matching *{args[0]}*. Try specifying with an @Mention')
         target_discord_member = guild_matches[0]
 
-        if new_id.lower() == 'none' and settings.is_staff(ctx):
+        if new_id.lower() == 'none' and settings.is_staff(ctx.author):
             new_id = None
         elif (len(new_id) != 16 or new_id.isalnum() is False) and ctx.invoked_with == 'setcode':
             # Very basic polytopia code sanity checking. Making sure it is 16-character alphanumeric.
@@ -1167,7 +1167,7 @@ class polygames(commands.Cog):
                 # catching the case of someone doing '$settime UTC +5'
                 target_string = f'<@{ctx.author.id}>'
                 tz_string = (args[0] + args[1]).replace(' ', '')
-            elif settings.is_staff(ctx) is False:
+            elif settings.is_staff(ctx.author) is False:
                 return await ctx.send('You do not have permission to trigger this command.')
             else:
                 target_string = args[0]
@@ -1311,7 +1311,7 @@ class polygames(commands.Cog):
         example_usage = (f'Example usage:\n`{ctx.prefix}newgame "Name of Game" player1 VS player2` - Start a 1v1 game\n'
                          f'`{ctx.prefix}newgame "Name of Game" player1 player2 VS player3 player4` - Start a 2v2 game')
 
-        if settings.get_user_level(ctx) <= 2:
+        if settings.get_user_level(ctx.author) <= 2:
             return await ctx.send(f'You are not authorized to use this command. Create and join games with `{ctx.prefix}open` / `{ctx.prefix}join`')
         if not game_name:
             return await ctx.send(f'Invalid format. {example_usage}')
@@ -1322,7 +1322,7 @@ class polygames(commands.Cog):
             return await ctx.send(f'Invalid game name. Make sure to use "quotation marks" around the full game name.\n{example_usage}')
 
         if not utilities.is_valid_poly_gamename(input=game_name):
-            if settings.get_user_level(ctx) <= 2:
+            if settings.get_user_level(ctx.author) <= 2:
                 return await ctx.send('That name looks made up. :thinking: You need to manually create the game __in Polytopia__, come back and input the name of the new game you made.\n'
                     f'You can use `{ctx.prefix}code NAME` to get the code of each player in this game.')
             await ctx.send(f':warning: That game name looks made up - you are allowed to override due to your user level.')
@@ -1342,14 +1342,14 @@ class polygames(commands.Cog):
         if len(player_groups) < 2:
             return await ctx.send(f'Invalid format. {example_usage}')
 
-        game_allowed, join_error_message = settings.can_user_join_game(user_level=settings.get_user_level(ctx), game_size=total_players, is_ranked=ranked_flag, is_host=True)
+        game_allowed, join_error_message = settings.can_user_join_game(user_level=settings.get_user_level(ctx.author), game_size=total_players, is_ranked=ranked_flag, is_host=True)
         if not game_allowed:
             return await ctx.send(join_error_message)
 
         if total_players > 12:
             return await ctx.send(f'You cannot have more than twelve players.')
         if biggest_team > settings.guild_setting(ctx.guild.id, 'max_team_size'):
-            if settings.is_mod(ctx):
+            if settings.is_mod(ctx.author):
                 await ctx.send('Moderator over-riding server size limits')
             elif settings.guild_setting(ctx.guild.id, 'allow_uneven_teams') and smallest_team <= settings.guild_setting(ctx.guild.id, 'max_team_size'):
                 await ctx.send(':warning: Team sizes are uneven.')
@@ -1369,7 +1369,7 @@ class polygames(commands.Cog):
                     return await ctx.send(f'More than one server matches found for "**{p}**". Try being more specific or using an @Mention.')
 
                 if guild_matches[0].id in settings.discord_id_ban_list or discord.utils.get(guild_matches[0].roles, name='ELO Banned'):
-                    if settings.is_mod(ctx):
+                    if settings.is_mod(ctx.author):
                         await ctx.send(f'**{guild_matches[0].name}** has been **ELO Banned** -- *moderator over-ride* :thinking:')
                     else:
                         return await ctx.send(f'**{guild_matches[0].name}** has been **ELO Banned** and cannot join any new games. :cry:')
@@ -1393,7 +1393,7 @@ class polygames(commands.Cog):
             else:
                 return await ctx.send('Teams are not the same size. This is not allowed on this server. Game not created.')
 
-        if not author_found and not settings.is_staff(ctx):
+        if not author_found and not settings.is_staff(ctx.author):
             # TODO: possibly allow this in PolyChampions (rickdaheals likes to do this)
             return await ctx.send('You can\'t create a game that you are not a participant in.')
 
@@ -1467,7 +1467,7 @@ class polygames(commands.Cog):
 
         models.GameLog.write(game_id=winning_game, guild_id=ctx.guild.id, message=f'Win confirm logged by {models.GameLog.member_string(ctx.author)} for winner **{discord.utils.escape_markdown(winning_obj.name)}**')
         await winning_game.update_squad_channels(guild_list=settings.bot.guilds, guild_id=ctx.guild.id, message=f'A win claim has been placed by **{ctx.author.display_name}** for winner **{winning_obj.name}**')
-        if settings.is_staff(ctx):
+        if settings.is_staff(ctx.author):
             confirm_win = True
         else:
             has_player, author_side = winning_game.has_player(discord_id=ctx.author.id)
@@ -1553,7 +1553,7 @@ class polygames(commands.Cog):
         if not game.is_completed:
             return await ctx.send(f'Game {game.id} is marked as *Incomplete*. This command cannot be used.')
 
-        if settings.is_staff(ctx):
+        if settings.is_staff(ctx.author):
             # Staff usage: reset any game to Incomplete state
             game.confirmations_reset()
             models.GameLog.write(game_id=game, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} staffer used unwin command.')
@@ -1641,14 +1641,14 @@ class polygames(commands.Cog):
 
         if game.is_pending:
             is_hosted_by, host = game.is_hosted_by(ctx.author.id)
-            if not is_hosted_by and not settings.is_staff(ctx):
+            if not is_hosted_by and not settings.is_staff(ctx.author):
                 host_name = f' **{host.name}**' if host else ''
                 return await ctx.send(f'Only the game host{host_name} or server staff can do this.')
             models.GameLog.write(game_id=game, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} deleted the game.')
             game.delete_game()
             return await ctx.send(f'Deleting open game {game.id}')
 
-        if not settings.is_mod(ctx):
+        if not settings.is_mod(ctx.author):
             return await ctx.send('Only server mods can delete completed or in-progress games.')
 
         if game.winner and game.is_confirmed and game.is_ranked:
@@ -1713,12 +1713,12 @@ class polygames(commands.Cog):
             return await ctx.send(f'This game has not started yet.')
 
         is_hosted_by, host = game.is_hosted_by(ctx.author.id)
-        if not is_hosted_by and not settings.is_staff(ctx) and not game.is_created_by(discord_id=ctx.author.id):
+        if not is_hosted_by and not settings.is_staff(ctx.author) and not game.is_created_by(discord_id=ctx.author.id):
             # host_name = f' **{host.name}**' if host else ''
             return await ctx.send(f'Only the game creator **{game.creating_player().name}** or server staff can do this.')
 
         if new_game_name and not utilities.is_valid_poly_gamename(input=new_game_name):
-            if settings.get_user_level(ctx) <= 2:
+            if settings.get_user_level(ctx.author) <= 2:
                 return await ctx.send('That name looks made up. :thinking: You need to manually create the game __in Polytopia__, come back and input the name of the new game you made.\n'
                     f'You can use `{ctx.prefix}code NAME` to get the code of each player in this game.')
             await ctx.send(f':warning: That game name looks made up - you are allowed to override due to your user level.')
@@ -1760,7 +1760,7 @@ class polygames(commands.Cog):
         if not args:
             return await ctx.send(f'No arguments provided. **Example usage:** `{ctx.prefix}{ctx.invoked_with} 1234 bardur`')
 
-        if settings.get_user_level(ctx) < 4:
+        if settings.get_user_level(ctx.author) < 4:
             perm_str = f'You only have permissions to set your own tribe. **Example usage:** `{ctx.prefix}{ctx.invoked_with} 1234 bardur`'
         else:
             perm_str = ''
@@ -1779,7 +1779,7 @@ class polygames(commands.Cog):
 
         logger.debug(f'Attempting settribe for game {game.id}')
 
-        if settings.get_user_level(ctx) < 4 or len(arg_list) == 1:
+        if settings.get_user_level(ctx.author) < 4 or len(arg_list) == 1:
             # if non-priviledged user, force the command to be about the ctx.author
             arg_list = [f'<@{ctx.author.id}>', arg_list[0]]
 
