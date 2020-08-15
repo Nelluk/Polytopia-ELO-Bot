@@ -54,7 +54,7 @@ class administration(commands.Cog):
             async with ctx.typing():
                 for guild_id, channel_id, message_id in reversed(self.bot.purgable_messages):
                     # purge messages created by Misc.task_broadcast_newbie_message() so they arent duplicated when bot restarts
-                    guild = discord.utils.get(self.bot.guilds, id=guild_id)
+                    guild = self.bot.get_guild(guild_id)
                     channel = guild.get_channel(channel_id)
                     try:
                         logger.debug(f'Purging message {message_id} from channel {channel.id if channel else "NONE"}')

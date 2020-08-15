@@ -78,10 +78,6 @@ class matchmaking(commands.Cog):
     async def on_message(self, message):
         # Add ⚔️ join emoji to valid messages
 
-        # if message.author == self.bot.user:
-        #     # keeping this commented out will make bot auto-add the reaction to its own qualifying messages
-        #     return
-
         game_id, game = self.is_joingame_message(message.content)
         if not game_id or not game or not game.is_pending:
             return
@@ -98,7 +94,7 @@ class matchmaking(commands.Cog):
         if payload.user_id == self.bot.user.id:
             return
 
-        guild = discord.utils.get(self.bot.guilds, id=payload.guild_id)
+        guild = self.bot.get_guild(payload.guild_id)
         member = guild.get_member(payload.user_id)
         channel = member.guild.get_channel(payload.channel_id)
         message = await channel.fetch_message(payload.message_id) if channel else None
@@ -163,7 +159,7 @@ class matchmaking(commands.Cog):
         else:
             # guild does not match game guild. check to see if its a valid external server (PolyChamps teams)
             valid_external_servers = models.Team.related_external_severs(game.guild_id)
-            guild = discord.utils.get(self.bot.guilds, id=game.guild_id)
+            guild = self.bot.get_guild(game.guild_id)
             if not guild:
                 return logger.warning(f'Matchmaking on_raw_reaction_add: could not load server {game.guild_id}')
             if payload.member.guild.id in valid_external_servers:
@@ -960,7 +956,7 @@ class matchmaking(commands.Cog):
             full_games = models.Game.search_pending(status_filter=1, ranked_filter=1)
             logger.debug(f'Starting task_dm_game_creators on {len(full_games)} games')
             for game in full_games:
-                guild = discord.utils.get(self.bot.guilds, id=game.guild_id)
+                guild = self.bot.get_guild(game.guild_id)
                 creating_player = game.creating_player()
                 # TOOD: only trigger if game is <23hours til expiration
                 if not guild:
@@ -1015,7 +1011,7 @@ class matchmaking(commands.Cog):
 
                 if not matching_lobby:
                     logger.info(f'creating new lobby {lobby}')
-                    guild = discord.utils.get(self.bot.guilds, id=lobby['guild'])
+                    guild = self.bot.get_guild(lobby['guild'])
                     if not guild:
                         logger.warning(f'Bot not a member of guild {lobby["guild"]}')
                         continue

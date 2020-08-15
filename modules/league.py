@@ -213,7 +213,7 @@ class league(commands.Cog):
         if payload.user_id == self.bot.user.id:
             return
 
-        guild = discord.utils.get(self.bot.guilds, id=payload.guild_id)
+        guild = self.bot.get_guild(payload.guild_id)
         member = guild.get_member(payload.user_id)
         channel = guild.get_channel(payload.channel_id)
         message = await channel.fetch_message(payload.message_id)
@@ -998,7 +998,7 @@ async def broadcast_team_game_to_server(ctx, game):
             logger.warning(f'broadcast_team_game_to_server: valid team name found to match role {role.name} but no database match')
             continue
 
-        team_server = discord.utils.get(settings.bot.guilds, id=team.external_server)
+        team_server = settings.bot.get_guild(team.external_server)
         team_channel = discord.utils.get(team_server.text_channels, name='polychamps-game-announcements') if team_server else None
 
         if settings.bot.user.id == 479029527553638401:

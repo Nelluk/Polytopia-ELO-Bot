@@ -30,8 +30,16 @@ class misc(commands.Cog):
         a = ctx.channel.permissions_for(ctx.guild.me).read_messages
         print(a)
 
-        chan = self.bot.get_channel(744161305446973440)
+        chan = self.bot.get_channel(595222111031656467)
         print(chan.name)
+
+        # channel = member.guild.get_channel(payload.channel_id)
+        message = await chan.fetch_message(595222276333371392) if chan else None
+        print(message.content)
+
+        pfx = await self.bot.get_prefix(message)
+
+        print(pfx)
 
     @commands.command(usage=None)
     @settings.in_bot_channel_strict()
@@ -350,7 +358,7 @@ class misc(commands.Cog):
             related_game = None
             guild_id = ctx.guild.id
 
-        guild = discord.utils.get(self.bot.guilds, id=guild_id)
+        guild = self.bot.get_guild(guild_id)
         if guild:
             channel = guild.get_channel(settings.guild_setting(guild_id, 'staff_help_channel'))
         else:
@@ -462,7 +470,7 @@ class misc(commands.Cog):
             sleep_cycle = (60 * 60 * 6)
             await asyncio.sleep(30)
             logger.info('Running task task_send_polychamps_invite')
-            guild = discord.utils.get(self.bot.guilds, id=settings.server_ids['main'])
+            guild = self.bot.get_guild(settings.server_ids['main'])
             if not guild:
                 logger.warning('Could not load guild via server_id')
                 break

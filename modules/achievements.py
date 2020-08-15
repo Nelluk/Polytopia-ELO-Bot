@@ -73,7 +73,7 @@ async def set_experience_role(discord_member):
     completed_games = discord_member.completed_game_count(only_ranked=False)
 
     for guildmember in list(discord_member.guildmembers):
-        guild = discord.utils.get(settings.bot.guilds, id=guildmember.guild_id)
+        guild = settings.bot.get_guild(guildmember.guild_id)
         member = guild.get_member(discord_member.discord_id) if guild else None
 
         if not member:

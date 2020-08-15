@@ -121,7 +121,7 @@ class polygames(commands.Cog):
         for lineup in pending_lineups_with_side_channels:
             gs = lineup.gameside
             guild_id = gs.team_chan_external_server or gs.game.guild_id
-            guild = discord.utils.get(self.bot.guilds, id=guild_id)
+            guild = self.bot.get_guild(guild_id)
             channel = guild.get_channel(gs.team_chan) if guild else None
             if not channel:
                 continue
@@ -130,7 +130,7 @@ class polygames(commands.Cog):
 
         for lineup in pending_lineups_with_game_channels:
 
-            guild = discord.utils.get(self.bot.guilds, id=lineup.game.guild_id)
+            guild = self.bot.get_guild(lineup.game.guild_id)
             channel = guild.get_channel(lineup.game.game_chan) if guild else None
             if not channel:
                 continue
@@ -1726,7 +1726,7 @@ class polygames(commands.Cog):
         old_game_name = game.name
         game.name = new_game_name
 
-        game_guild = discord.utils.get(self.bot.guilds, id=game.guild_id)
+        game_guild = self.bot.get_guild(game.guild_id)
         if not game_guild:
             logger.error(f'Error attempting in rename command for game {game.id} - could not load guild {game.guild_id}')
             return await ctx.send('Error loading guild associated with this game. Please contact the bot owner.')
@@ -1930,7 +1930,7 @@ class polygames(commands.Cog):
 
             logger.info(f'running task_purge_game_channels on {len(old_games)} games')
             for game in old_games:
-                guild = discord.utils.get(self.bot.guilds, id=game.guild_id)
+                guild = self.bot.get_guild(game.guild_id)
                 if guild:
                     await game.delete_game_channels(self.bot.guilds, game.guild_id)
 
