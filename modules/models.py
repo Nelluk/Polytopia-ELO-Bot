@@ -2068,7 +2068,7 @@ class Game(BaseModel):
                 return side, bool(role_locked_sides)
         return None, bool(role_locked_sides)
 
-    async def join(self, member, side_arg=None, author_member=None):
+    async def join(self, member, side_arg=None, author_member=None, log_note=''):
         # Try to join a guild member to a game. Performs various sanity checks on if join is allowed.
         # Returns (successful_join: bool, LineupObject=None, MessageList[str])
         # ie for a successful join:  (True, Lineup, ['Please set your in-game name', 'You will be the host since you are joining side 1'`])
@@ -2091,6 +2091,10 @@ class Game(BaseModel):
             # No Player or DiscordMember
             return (False, None, [f'*{member.name}* was found in the server but is not registered with me. '
                 f'Players can register themselves with `{prefix}setcode` or `{prefix}setname for Mobile, or `{prefix}steamname` for Steam/Desktop.'])
+
+        if self.has_player(player)[0]:
+            leave_kick_str = f'`{prefix}leave {self.id}`' if author_member == member else f'`{prefix}kick {self.id} {member.name}`'
+            return (False, None, [f'**{player.name}** is already in game {self.id}. If you are trying to change sides, use {leave_kick_str} first.'])
 
         if player.is_banned or player.discord_member.is_banned:
             if settings.is_mod(author_member):
@@ -2150,10 +2154,6 @@ class Game(BaseModel):
             else:
                 return (False, None, [f'Side {side.position} of game {self.id} is limited to players with the **@{side.sidename}** role. You are not allowed to join.'])
 
-        if self.has_player(player)[0]:
-            leave_kick_str = f'`{prefix}leave {self.id}`' if author_member == member else f'`{prefix}kick {self.id} {member.name}`'
-            return (False, None, [f'**{player.name}** is already in game {self.id}. If you are trying to change sides, use {leave_kick_str} first.'])
-
         if self.is_hosted_by(player.discord_member.discord_id)[0] and side.position != 1:
             message_list.append(':bulb: Since you are not joining side 1 you will not be the game creator.')
 
@@ -2177,7 +2177,7 @@ class Game(BaseModel):
         notes = self.notes if self.notes else ''
         player_restricted_list = re.findall(r'<@!?(\d+)>', notes)
 
-        if player_restricted_list and str(member.id) not in player_restricted_list and (len(player_restricted_list) >= game_size - 1):
+        if player_restricted_list and str(member.id) not in player_restricted_list and (len(player_restricted_list) >= capacity - 1):
             # checking length of player_restricted_list compared to game capacity.. only using restriction if capacity is at least game_size - 1
             # if its game_size - 1, assuming that the host is the 'other' person
             # this isnt really ideal.. could have some games where the restriction should be honored but people are allowed to join.. but better than making the lock too restrictive
@@ -2190,7 +2190,7 @@ class Game(BaseModel):
             player.team = player_team  # update player record with detected team in case its changed since last game.
             player.save()
         message_list.append(f'Joining {member.mention} to side {side.position} of game {self.id}')
-        GameLog.write(game_id=self, guild_id=member.guild.id, message=f'Side {side.position} joined by {GameLog.member_string(player.discord_member)} {log_by_str}')
+        GameLog.write(game_id=self, guild_id=member.guild.id, message=f'Side {side.position} joined by {GameLog.member_string(player.discord_member)} {log_by_str} {log_note}')
 
         if players + 1 < capacity and self.creating_player() == player and member == author_member and settings.get_user_level(member) <= 1:
             message_list.append(':bulb: Since you are joining **side 1**, you will be the host of this game and will be notified when it is full. It will be your responsibility to create the game in Polytopia. '

@@ -1001,11 +1001,15 @@ async def broadcast_team_game_to_server(ctx, game):
         team_server = discord.utils.get(settings.bot.guilds, id=team.external_server)
         team_channel = discord.utils.get(team_server.text_channels, name='polychamps-game-announcements') if team_server else None
 
+        if settings.bot.user.id == 479029527553638401:
+            team_channel = discord.utils.get(team_server.text_channels, name='beta-bot-tests') if team_server else None
+
         if not team_channel:
             logger.warning(f'broadcast_team_game_to_server: could not load guild or announce channel for {team.name}')
             continue
         notes_str = f'\nNotes: *{game.notes}*' if game.notes else ''
-        await team_channel.send(f'New PolyChampions game `{game.id}` for {game_type} created by {game.host.name}\n{game.size_string()} {game.get_headline()}{notes_str}\n{ctx.message.jump_url}')
+        joingame_str = f'Join game {game.id} by reacting with {settings.emoji_join_game}.'
+        await team_channel.send(f'New PolyChampions game `{game.id}` for {game_type} created by {game.host.name}\n{game.size_string()} {game.get_headline()}{notes_str}\n{ctx.message.jump_url}\n{joingame_str}')
         logger.debug(f'broadcast_team_game_to_server - sending message to channel {team_channel.name} on server {team_server.name}')
 
 

@@ -46,6 +46,10 @@ class matchmaking(commands.Cog):
     Host open and find open games.
     """
 
+    join_reactions = {}  # Annoyingly, fill with timestamps of users placing their reactions.
+    # Required to distinguish a user removing their own reaction from the bot quickly removing an invalid reaction
+    # entry will be gameid_userid: timestamp, ie {52400_479029527553638401: datetime.datetime(2020, 8, 15, 8, 9, 37, 183360)}
+
     def __init__(self, bot):
         self.bot = bot
         if settings.run_tasks:
@@ -60,15 +64,30 @@ class matchmaking(commands.Cog):
         # Game might be None if id is not valid
         # return None, None if not valid
 
-        m = re.match(r'Join (\d{4,6})', message)
+        m = settings.re_join_game.search(message.lower())
+
         if not m:
             return (None, None)
 
         game_id = int(m[1])
-
         game = models.Game.get_or_none(id=game_id)
 
         return (game_id, game)
+
+    @commands.Cog.listener()
+    async def on_message(self, message):
+        # Add ⚔️ join emoji to valid messages
+
+        # if message.author == self.bot.user:
+        #     # keeping this commented out will make bot auto-add the reaction to its own qualifying messages
+        #     return
+
+        game_id, game = self.is_joingame_message(message.content)
+        if not game_id or not game or not game.is_pending:
+            return
+        if message.guild.id == game.guild_id or message.guild.id in models.Team.related_external_severs(game.guild_id):
+            # current guild is compatible with game guild (either same guild or a related external server)
+            await message.add_reaction(settings.emoji_join_game)
 
     @commands.Cog.listener()
     async def on_raw_reaction_remove(self, payload):
@@ -93,6 +112,10 @@ class matchmaking(commands.Cog):
 
         logger.debug(f'Matchmaking on_raw_reaction_add: Joingame emoji removed from a Join Game message by {member.display_name}. Game ID {game_id}. Game loaded? {"yes" if game else "no"}')
 
+        lineup = game.player(discord_id=member.id)
+        if not lineup:
+            return await member.send(f'You are not a member of game {game.id}')
+
         if game.is_hosted_by(member.id)[0]:
 
             if settings.get_user_level(member) < 4:
@@ -104,10 +127,6 @@ class matchmaking(commands.Cog):
 
         if not game.is_pending:
             return await member.send(f'Game {game.id} has already started and cannot be left.')
-
-        lineup = game.player(discord_id=member.id)
-        if not lineup:
-            return await member.send(f'You are not a member of game {game.id}')
 
         models.GameLog.write(game_id=game, guild_id=member.guild.id, message=f'{models.GameLog.member_string(member)} left the game (via reaction).')
         lineup.delete_instance()
@@ -133,7 +152,6 @@ class matchmaking(commands.Cog):
             return  # Message being reacted to is not parsed as a Join Game message
 
         logger.debug(f'Matchmaking on_raw_reaction_add: Joingame emoji added to a Join Game message by {payload.member.display_name}. Game ID {game_id}. Game loaded? {"yes" if game else "no"}')
-
         if not game:
             await payload.member.send(f'{payload.member.mention}, it looks like you tried to join game {game_id}, but a game with that ID does not exist. Maybe it was deleted?')
             return await message.remove_reaction(payload.emoji.name, payload.member)
@@ -167,14 +185,14 @@ class matchmaking(commands.Cog):
             await payload.member.send(f'{payload.member.mention}, it looks like you tried to join game {game_id}, but __{guild.name}__ does not have game_announce_channel configured. Joining via reaction is disabled. You will need to use the `join` command in a bot channel.')
             return await message.remove_reaction(payload.emoji.name, payload.member)
 
-        join_success, lineup, message_list = await game.join(member=joining_member, side_arg=None, author_member=joining_member)
+        join_success, lineup, message_list = await game.join(member=joining_member, side_arg=None, author_member=joining_member, log_note='(via reaction)')
         message_str = '\n'.join(message_list)
 
         if not join_success:
             logger.debug(f'Join by reaction failed: {message_str}')
-            await joining_member.send(f':no_entry_sign: Could not join game:\n{message_str}')
             if 'already in game' not in message_str:
-                return await message.remove_reaction(payload.emoji.name, payload.member)
+                await message.remove_reaction(payload.emoji.name, payload.member)
+            return await joining_member.send(f':no_entry_sign: Could not join game:\n{message_str}')
 
         prefix = settings.guild_setting(guild.id, 'command_prefix')
         embed, content = game.embed(guild=guild, prefix=prefix)
@@ -460,9 +478,10 @@ class matchmaking(commands.Cog):
         if warning_message:
             await ctx.send(warning_message)
 
+        joingame_str = f'join game {opengame.id} by reacting with {settings.emoji_join_game}.'
         models.GameLog.write(game_id=opengame, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} opened new {team_size_str} game. Notes: *{discord.utils.escape_markdown(notes_str)}*')
         await ctx.send(f'Starting new {"__Steam__ " if not is_mobile else ""}{"unranked " if not is_ranked else ""}open game ID {opengame.id}. Size: {team_size_str}. Expiration: {expiration_hours} hours.\nNotes: *{notes_str}*\n'
-            f'Other players can join this game with `{ctx.prefix}join {opengame.id}`.')
+            f'Other players can join this game with `{ctx.prefix}join {opengame.id}` or {joingame_str}.')
 
         await broadcast_team_game_to_server(ctx, opengame)
 

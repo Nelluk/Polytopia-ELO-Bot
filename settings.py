@@ -4,6 +4,7 @@ import datetime
 import server_settings
 from discord.ext import commands
 # import discord
+import re
 import configparser
 logger = logging.getLogger('polybot.' + __name__)
 
@@ -29,7 +30,10 @@ bot = None
 run_tasks = True  # if set as False via command line option, tasks should check this and skip
 team_elo_reset_date = '1/1/2020'
 elo_calc_v2_date = datetime.date(2020, 8, 2)  # tweaked elo calc Aug 2, 2020
+
 emoji_join_game = '⚔️'
+re_join_game = re.compile(fr'join game (\d{{4,6}}) by reacting with {emoji_join_game}')
+# Have to do weird double {{braces}} to mix f-strings and raw strings, https://stackoverflow.com/a/45527907/1281743
 
 # bot invite URL https://discordapp.com/oauth2/authorize?client_id=484067640302764042&scope=bot
 # bot invite URL for beta bot https://discordapp.com/oauth2/authorize?client_id=479029527553638401&scope=bot

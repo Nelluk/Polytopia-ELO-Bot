@@ -74,7 +74,7 @@ class administration(commands.Cog):
     async def purge_game_channels(self, ctx, *, arg: str = None):
 
         purged_channels = 0
-        current_number_of_channels = len(ctx.guild.channels)
+        current_number_of_channels = len(ctx.guild.text_channels)
 
         if not settings.guild_setting(ctx.guild.id, 'game_channel_categories'):
             return await ctx.send(f'Cannot purge - this guild has no `game_channel_categories` setting')
