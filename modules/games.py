@@ -119,10 +119,8 @@ class polygames(commands.Cog):
                 logger.warn(f'Tried to re-add {member.display_name} to channel {channel.id} {channel.name} but got error: {e}')
 
         for lineup in pending_lineups_with_side_channels:
-            gs = lineup.gameside
-            guild_id = gs.team_chan_external_server or gs.game.guild_id
-            guild = self.bot.get_guild(guild_id)
-            channel = guild.get_channel(gs.team_chan) if guild else None
+
+            channel = self.bot.get_channel(lineup.gameside.team_chan)
             if not channel:
                 continue
 
@@ -130,8 +128,7 @@ class polygames(commands.Cog):
 
         for lineup in pending_lineups_with_game_channels:
 
-            guild = self.bot.get_guild(lineup.game.guild_id)
-            channel = guild.get_channel(lineup.game.game_chan) if guild else None
+            channel = self.bot.get_channel(lineup.game.game_chan)
             if not channel:
                 continue
 
