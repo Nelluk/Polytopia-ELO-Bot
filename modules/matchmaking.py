@@ -53,6 +53,158 @@ class matchmaking(commands.Cog):
             self.bg_task2 = bot.loop.create_task(self.task_dm_game_creators())
             self.bg_task3 = bot.loop.create_task(self.task_create_empty_matchmaking_lobbies())
 
+    def is_joingame_message(self, message: str):
+        # If message is of a given format (currently 'Join GAMEID' at start of message), load game by ID
+        # return (parsed_id: int, Game Object) if message is valid
+        # ie (52600, Game(id=52600)) or (52600, None)
+        # Game might be None if id is not valid
+        # return None, None if not valid
+
+        m = re.match(r'Join (\d{4,6})', message)
+        if not m:
+            return (None, None)
+
+        game_id = int(m[1])
+
+        game = models.Game.get_or_none(id=game_id)
+
+        return (game_id, game)
+
+    @commands.Cog.listener()
+    async def on_raw_reaction_remove(self, payload):
+
+        if payload.emoji.name != settings.emoji_join_game:
+            return
+
+        if payload.user_id == self.bot.user.id:
+            return
+
+        guild = discord.utils.get(self.bot.guilds, id=payload.guild_id)
+        member = guild.get_member(payload.user_id)
+        channel = member.guild.get_channel(payload.channel_id)
+        message = await channel.fetch_message(payload.message_id) if channel else None
+        if not message:
+            return
+
+        game_id, game = self.is_joingame_message(message.content)
+
+        if not game_id:
+            return  # Message being reacted to is not parsed as a Join Game message
+
+        logger.debug(f'Matchmaking on_raw_reaction_add: Joingame emoji removed from a Join Game message by {member.display_name}. Game ID {game_id}. Game loaded? {"yes" if game else "no"}')
+
+        if game.is_hosted_by(member.id)[0]:
+
+            if settings.get_user_level(member) < 4:
+                return await member.send('You do not have permissions to leave your own match.\n'
+                    f'If you want to delete use the `delete` command in a bot channel.')
+
+            await member.send(f'**Warning:** You are leaving your own game. You will still be the host. '
+                f'If you want to delete use the `delete` command in a bot channel.')
+
+        if not game.is_pending:
+            return await member.send(f'Game {game.id} has already started and cannot be left.')
+
+        lineup = game.player(discord_id=member.id)
+        if not lineup:
+            return await member.send(f'You are not a member of game {game.id}')
+
+        models.GameLog.write(game_id=game, guild_id=member.guild.id, message=f'{models.GameLog.member_string(member)} left the game (via reaction).')
+        lineup.delete_instance()
+        await member.send(f'Removing you from game {game.id}.')
+
+    @commands.Cog.listener()
+    async def on_raw_reaction_add(self, payload):
+
+        if payload.emoji.name != settings.emoji_join_game:
+            return
+
+        if payload.user_id == self.bot.user.id:
+            return
+
+        channel = payload.member.guild.get_channel(payload.channel_id)
+        message = await channel.fetch_message(payload.message_id) if channel else None
+        if not message:
+            return
+
+        game_id, game = self.is_joingame_message(message.content)
+
+        if not game_id:
+            return  # Message being reacted to is not parsed as a Join Game message
+
+        logger.debug(f'Matchmaking on_raw_reaction_add: Joingame emoji added to a Join Game message by {payload.member.display_name}. Game ID {game_id}. Game loaded? {"yes" if game else "no"}')
+
+        if not game:
+            await payload.member.send(f'{payload.member.mention}, it looks like you tried to join game {game_id}, but a game with that ID does not exist. Maybe it was deleted?')
+            return await message.remove_reaction(payload.emoji.name, payload.member)
+
+        if payload.member.guild.id == game.guild_id:
+            # reaction in same guild as game is associated with
+            guild = payload.member.guild
+            joining_member = payload.member
+        else:
+            # guild does not match game guild. check to see if its a valid external server (PolyChamps teams)
+            valid_external_servers = models.Team.related_external_severs(game.guild_id)
+            guild = discord.utils.get(self.bot.guilds, id=game.guild_id)
+            if not guild:
+                return logger.warning(f'Matchmaking on_raw_reaction_add: could not load server {game.guild_id}')
+            if payload.member.guild.id in valid_external_servers:
+                logger.debug(f'Matchmaking on_raw_reaction_add: Join reacted from external server {payload.member.guild.name} from game server {guild.name} ')
+                joining_member = guild.get_member(payload.member.id)
+                if not joining_member:
+                    logger.warning(f'{payload.member.guild.name} is not found as a member of game guild.')
+                    await payload.member.send(f'{payload.member.mention}, it looks like you tried to join game {game_id}, but it is associated with another server: __{guild.name}__, and you are not a member of that server. ')
+                    return await message.remove_reaction(payload.emoji.name, payload.member)
+
+            else:
+                await payload.member.send(f'{payload.member.mention}, it looks like you tried to join game {game_id}, but it is associated with another server: __{guild.name}__ ')
+                return await message.remove_reaction(payload.emoji.name, payload.member)
+
+        announce_channel_id = settings.guild_setting(guild.id, 'game_announce_channel')
+        announce_channel = guild.get_channel(announce_channel_id) if announce_channel_id else None
+        if not announce_channel:
+            logger.warning(f'Guild {guild.id} {guild.name} does not have game_announce_channel configured')
+            await payload.member.send(f'{payload.member.mention}, it looks like you tried to join game {game_id}, but __{guild.name}__ does not have game_announce_channel configured. Joining via reaction is disabled. You will need to use the `join` command in a bot channel.')
+            return await message.remove_reaction(payload.emoji.name, payload.member)
+
+        join_success, lineup, message_list = await game.join(member=joining_member, side_arg=None, author_member=joining_member)
+        message_str = '\n'.join(message_list)
+
+        if not join_success:
+            logger.debug(f'Join by reaction failed: {message_str}')
+            await joining_member.send(f':no_entry_sign: Could not join game:\n{message_str}')
+            if 'already in game' not in message_str:
+                return await message.remove_reaction(payload.emoji.name, payload.member)
+
+        prefix = settings.guild_setting(guild.id, 'command_prefix')
+        embed, content = game.embed(guild=guild, prefix=prefix)
+        content = f'{content}\n' if content else ''
+
+        players, capacity = game.capacity()
+        if players >= capacity:
+            creating_player = game.creating_player()
+            announce_message = f'Game {game.id} is now full and <@{creating_player.discord_member.discord_id}> should create the game in Polytopia.'
+
+            if game.host and game.host != creating_player:
+                announce_message += f'\nMatchmaking host <@{game.host.discord_member.discord_id}> is not the game creator.'
+
+            await announce_channel.send(embed=embed, content=f'{content}{announce_message}')
+
+        # Alert user if they have >1 games ready to start
+        waitlist_hosting = [f'{g.id}' for g in models.Game.search_pending(status_filter=1, guild_id=guild.id, host_discord_id=joining_member.id)]
+        waitlist_creating = [f'{g.game}' for g in models.Game.waiting_for_creator(creator_discord_id=joining_member.id)]
+        waitlist = set(waitlist_hosting + waitlist_creating)
+
+        if len(waitlist) > 1:
+            start_str = f'Type __`{prefix}game IDNUM`__ for more details, ie `{prefix}game {(waitlist_hosting + waitlist_creating)[0]}`'
+            message_list.append(f':warning: You have full games waiting to start: **{", ".join(waitlist)}**\n{start_str}')
+
+        message_list.append(f':bulb: I do not respond to PM commands. You will need to use a bot command channel in the appropriate server.')
+        message_str = '\n'.join(message_list)
+
+        logger.debug(f'Join by reaction success: {message_str}')
+        return await joining_member.send(embed=embed, content=f'{message_str}')
+
     @settings.in_bot_channel()
     @models.is_registered_member()
     @commands.command(aliases=['openmatch', 'open', 'opensteam'], usage='size expiration rules')

@@ -65,7 +65,7 @@ class league(commands.Cog):
     emoji_draft_signup = '🔆'
     emoji_draft_close = '⏯'
     emoji_draft_conclude = '❎'
-    emoji_list = [emoji_draft_signup, emoji_draft_close, emoji_draft_conclude]
+    emoji_draft_list = [emoji_draft_signup, emoji_draft_close, emoji_draft_conclude]
 
     draft_open_format_str = f'The draft is open for signups! {{0}}\'s can react with a {emoji_draft_signup} below to sign up. {{1}} who have not graduated have until the end of the draft signup period to meet requirements and sign up.\n\n{{2}}'
     draft_closed_message = f'The draft is closed to new signups. Mods can use the {emoji_draft_conclude} reaction after players have been drafted to clean up the remaining players and delete this message.'
@@ -176,7 +176,6 @@ class league(commands.Cog):
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload):
         # Monitors all reactions being added to all messages, looking for reactions added to relevant league announcement messages
-
         if payload.message_id != self.announcement_message:
             return
 
@@ -186,7 +185,7 @@ class league(commands.Cog):
         channel = payload.member.guild.get_channel(payload.channel_id)
         message = await channel.fetch_message(payload.message_id)
 
-        if payload.emoji.name not in self.emoji_list:
+        if payload.emoji.name not in self.emoji_draft_list:
             # Irrelevant reaction was added to relevant message. Clear it off.
             removal_emoji = self.bot.get_emoji(payload.emoji.id) if payload.emoji.id else payload.emoji.name
 
@@ -219,7 +218,7 @@ class league(commands.Cog):
         channel = guild.get_channel(payload.channel_id)
         message = await channel.fetch_message(payload.message_id)
 
-        if payload.emoji.name not in self.emoji_list:
+        if payload.emoji.name not in self.emoji_draft_list:
             # Irrelevant reaction was removed
             pass
         if payload.emoji.name == self.emoji_draft_signup:

@@ -164,6 +164,15 @@ class Team(BaseModel):
 
         return (win_count_reg, loss_count_reg, incomplete_count_reg, win_count_post, loss_count_post, incomplete_count_post)
 
+    def related_external_severs(guild_id: int):
+        # return a list of external server IDs from a given guild_id
+        # basically used to list all PolyChampions league server IDs
+
+        query = Team.select().where(
+            (Team.guild_id == guild_id) & (Team.external_server > 0)
+        )
+        return list(set([team.external_server for team in query]))
+
 
 class DiscordMember(BaseModel):
     discord_id = BitField(unique=True, null=False)
