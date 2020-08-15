@@ -58,7 +58,7 @@ class matchmaking(commands.Cog):
             self.bg_task3 = bot.loop.create_task(self.task_create_empty_matchmaking_lobbies())
 
     def is_joingame_message(self, message: str):
-        # If message is of a given format (currently 'Join GAMEID' at start of message), load game by ID
+        # If message is of a given format (currently 'join game GAMEID by reacting with ⚔️' inside message), load game by ID
         # return (parsed_id: int, Game Object) if message is valid
         # ie (52600, Game(id=52600)) or (52600, None)
         # Game might be None if id is not valid
@@ -478,10 +478,9 @@ class matchmaking(commands.Cog):
         if warning_message:
             await ctx.send(warning_message)
 
-        joingame_str = f'join game {opengame.id} by reacting with {settings.emoji_join_game}.'
         models.GameLog.write(game_id=opengame, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} opened new {team_size_str} game. Notes: *{discord.utils.escape_markdown(notes_str)}*')
         await ctx.send(f'Starting new {"__Steam__ " if not is_mobile else ""}{"unranked " if not is_ranked else ""}open game ID {opengame.id}. Size: {team_size_str}. Expiration: {expiration_hours} hours.\nNotes: *{notes_str}*\n'
-            f'Other players can join this game with `{ctx.prefix}join {opengame.id}` or {joingame_str}.')
+            f'Other players can join this game with `{ctx.prefix}join {opengame.id}` or {opengame.reaction_join_string().lower()}.')
 
         await broadcast_team_game_to_server(ctx, opengame)
 

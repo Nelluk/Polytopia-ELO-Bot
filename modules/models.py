@@ -956,6 +956,9 @@ class Game(BaseModel):
         except discord.DiscordException:
             return logger.warning('Couldn\'t update message in update_announacement')
 
+    def reaction_join_string(self):
+        return f'Join game {self.id} by reacting with {settings.emoji_join_game}' if self.is_pending else ''
+
     def is_hosted_by(self, discord_id: int):
 
         if not self.host:
@@ -1162,6 +1165,8 @@ class Game(BaseModel):
                         f'\nFriend codes can be copied easily with the command __`{prefix}codes {self.id}`__'
                         f'{draft_order_str}')
                 status_str = 'Full - Waiting to start'
+        else:
+            content_str = self.reaction_join_string()
 
         embed.add_field(name='Status', value=status_str, inline=True)
         embed.add_field(name='Expires in', value=f'{expiration_str}', inline=True)

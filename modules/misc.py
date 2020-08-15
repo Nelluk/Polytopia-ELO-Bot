@@ -27,14 +27,11 @@ class misc(commands.Cog):
     @commands.command(hidden=True, aliases=['ts', 'blah'])
     @commands.is_owner()
     async def test(self, ctx, *, args=None):
-        leaving_player = models.Player.get_or_except(player_string=ctx.author.id, guild_id=ctx.guild.id)
+        a = ctx.channel.permissions_for(ctx.guild.me).read_messages
+        print(a)
 
-        pending_lineups = models.Lineup.select().join(models.Game).where(
-            (models.Lineup.game.is_pending == 1) & (models.Lineup.player == leaving_player)
-        )
-
-        q = models.Lineup.delete().where(models.Lineup.id.in_(pending_lineups))
-        print(q.execute())
+        chan = self.bot.get_channel(744161305446973440)
+        print(chan.name)
 
     @commands.command(usage=None)
     @settings.in_bot_channel_strict()
