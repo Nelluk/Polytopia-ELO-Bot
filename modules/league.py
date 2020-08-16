@@ -880,7 +880,7 @@ class league(commands.Cog):
 
             # TODO: Mention players without pinging them once discord.py 1.4 is out https://discordpy.readthedocs.io/en/latest/api.html#discord.TextChannel.send
 
-            message = (f'**{player.name}**'
+            message = (f' <@{dm.discord_id}> **{player.name}**'
                 f'\n\u00A0\u00A0 \u00A0\u00A0 \u00A0\u00A0 {recent_games} games played in last 14 days, {all_games} all-time'
                 f'\n\u00A0\u00A0 \u00A0\u00A0 \u00A0\u00A0 ELO:  {dm.elo} *global* / {player.elo} *local*\n'
                 f'\u00A0\u00A0 \u00A0\u00A0 \u00A0\u00A0 __W {g_wins} / L {g_losses}__ *global* \u00A0\u00A0 - \u00A0\u00A0 __W {wins} / L {losses}__ *local*\n')
@@ -913,14 +913,14 @@ class league(commands.Cog):
                 await ctx.send(f'Exporting {len(player_list)} active players with {method} of the following roles: **{"/".join([r.name for r in roles])}**\nLoaded into a file `{filename}`, sorted by {sort_str}', file=file)
         else:
             await ctx.send(f'Listing {len(player_list)} active members with {method} of the following roles: **{"/".join([r.name for r in roles])}** (sorted by {sort_str})...')
-            # without the escape then 'everyone.name' still is a mention
 
             message = []
-            for grad in player_list:
-                # await ctx.send(grad[0])
-                message.append(grad[0])
+            am = discord.AllowedMentions(everyone=False, users=False, roles=False)
+            for player in player_list:
+                message.append(player[0])
             async with ctx.typing():
-                await utilities.buffered_send(destination=ctx, content=''.join(message).replace(".", "\u200b "))
+
+                await utilities.buffered_send(destination=ctx, content=''.join(message).replace(".", "\u200b "), allowed_mentions=am)
 
     @commands.command()
     # @settings.in_bot_channel()

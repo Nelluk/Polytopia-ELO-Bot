@@ -28,7 +28,7 @@ def guild_role_by_name(guild, name: str, allow_partial: bool = False):
     return discord.utils.find(lambda r: name.upper() == r.name.upper(), guild.roles)
 
 
-async def buffered_send(destination, content, max_length=2000):
+async def buffered_send(destination, content, max_length=2000, allowed_mentions=None):
     # use to replace await ctx.send(message) if message could potentially be over the Discord limit of 2000 characters
     # will split message by \n characters and send in chunks up to max_length size
 
@@ -40,7 +40,7 @@ async def buffered_send(destination, content, max_length=2000):
         paginator.add_line(line)
 
     for page in paginator.pages:
-        await destination.send(page)
+        await destination.send(page, allowed_mentions=allowed_mentions)
 
 
 async def send_to_log_channel(guild, message):
