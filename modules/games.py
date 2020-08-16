@@ -1343,7 +1343,7 @@ class polygames(commands.Cog):
         if not game_allowed:
             return await ctx.send(join_error_message)
 
-        if total_players > 12:
+        if total_players > 15:
             return await ctx.send(f'You cannot have more than twelve players.')
         if biggest_team > settings.guild_setting(ctx.guild.id, 'max_team_size'):
             if settings.is_mod(ctx.author):

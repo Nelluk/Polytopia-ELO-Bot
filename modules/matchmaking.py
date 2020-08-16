@@ -322,7 +322,7 @@ class matchmaking(commands.Cog):
                 team_sizes = [int(x) for x in arg.lower().split(m[1])]  # split on 'vs' or 'v'; whichever the regexp detects
                 if min(team_sizes) < 1:
                     return await ctx.send(f'Invalid game size **{team_size_str}**: Each side must have at least 1 player.')
-                if sum(team_sizes) > 12:
+                if sum(team_sizes) > 15:
                     return await ctx.send(f'Invalid game size **{team_size_str}**: Games can have a maximum of 12 players.')
                 team_size = True
                 required_roles = [None] * len(team_sizes)  # [None, None, None] for a 3-sided game
@@ -334,7 +334,7 @@ class matchmaking(commands.Cog):
                 players = int(m[1])
                 if players < 2:
                     return await ctx.send(f'Invalid game size **{arg}**: There must be at least 2 sides.')
-                if players > 12:
+                if players > 15:
                     return await ctx.send(f'Invalid game size **{arg}**: Games can have a maximum of 12 players.')
                 team_sizes = [1] * players
                 team_size_str = 'v'.join([str(x) for x in team_sizes])
