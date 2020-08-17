@@ -408,6 +408,12 @@ class matchmaking(commands.Cog):
         if not team_size:
             return await ctx.send(f'Game size is required. Include argument like *1v1* to specify size')
 
+        if not host.discord_member.polytopia_id and is_mobile:
+            return await ctx.send(f'**{host.name}** does not have a mobile game code on file. Use `{ctx.prefix}setcode` to set one, or try `{ctx.prefix}opensteam` for a Steam game.')
+
+        if not is_mobile and not host.discord_member.name_steam:
+            return await ctx.send(f'**{host.name}** does not have a Steam username on file and this is a Steam game {self.platform_emoji()}. Use `{ctx.prefix}steamname` to set one, or try `{ctx.prefix}opengame` for a Mobile game.')
+
         game_allowed, join_error_message = settings.can_user_join_game(user_level=settings.get_user_level(ctx.author), game_size=sum(team_sizes), is_ranked=is_ranked, is_host=True)
         if not game_allowed:
             return await ctx.send(join_error_message)
