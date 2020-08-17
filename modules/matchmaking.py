@@ -193,10 +193,10 @@ class matchmaking(commands.Cog):
                 await feedback_destination.send(f'{payload.member.mention}, it looks like you tried to join game {game_id}, but it is associated with another server: __{guild.name}__ ')
                 return await message.remove_reaction(payload.emoji.name, payload.member)
 
-        join_success, lineup, message_list = await game.join(member=joining_member, side_arg=None, author_member=joining_member, log_note='(via reaction)')
+        lineup, message_list = await game.join(member=joining_member, side_arg=None, author_member=joining_member, log_note='(via reaction)')
         message_str = '\n'.join(message_list)
 
-        if not join_success:
+        if not lineup:
             logger.debug(f'Join by reaction failed: {message_str}')
             if 'already in game' not in message_str:
                 await message.remove_reaction(payload.emoji.name, payload.member)
@@ -584,10 +584,10 @@ class matchmaking(commands.Cog):
         else:
             joining_member = guild_matches[0]
 
-        join_success, lineup, message_list = await game.join(member=joining_member, side_arg=side_arg, author_member=ctx.author)
+        lineup, message_list = await game.join(member=joining_member, side_arg=side_arg, author_member=ctx.author)
         message_str = '\n'.join(message_list)
 
-        if not join_success:
+        if not lineup:
             return await ctx.send(f':no_entry_sign: Could not join game:\n{message_str}')
 
         players, capacity = game.capacity()
