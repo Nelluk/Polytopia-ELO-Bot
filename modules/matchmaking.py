@@ -335,7 +335,7 @@ class matchmaking(commands.Cog):
                 if players < 2:
                     return await ctx.send(f'Invalid game size **{arg}**: There must be at least 2 sides.')
                 if players > 15:
-                    return await ctx.send(f'Invalid game size **{arg}**: Games can have a maximum of 12 players.')
+                    return await ctx.send(f'Invalid game size **{arg}**: Games can have a maximum of 15 players.')
                 team_sizes = [1] * players
                 team_size_str = 'v'.join([str(x) for x in team_sizes])
                 team_size = True
@@ -412,7 +412,7 @@ class matchmaking(commands.Cog):
             return await ctx.send(f'**{host.name}** does not have a mobile game code on file. Use `{ctx.prefix}setcode` to set one, or try `{ctx.prefix}opensteam` for a Steam game.')
 
         if not is_mobile and not host.discord_member.name_steam:
-            return await ctx.send(f'**{host.name}** does not have a Steam username on file and this is a Steam game {self.platform_emoji()}. Use `{ctx.prefix}steamname` to set one, or try `{ctx.prefix}opengame` for a Mobile game.')
+            return await ctx.send(f'**{host.name}** does not have a Steam username on file and this is a Steam game 🖥. Use `{ctx.prefix}steamname` to set one, or try `{ctx.prefix}opengame` for a Mobile game.')
 
         game_allowed, join_error_message = settings.can_user_join_game(user_level=settings.get_user_level(ctx.author), game_size=sum(team_sizes), is_ranked=is_ranked, is_host=True)
         if not game_allowed:
