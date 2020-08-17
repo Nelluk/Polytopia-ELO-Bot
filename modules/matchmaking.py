@@ -46,8 +46,8 @@ class matchmaking(commands.Cog):
     Host open and find open games.
     """
 
-    ignorable_join_reactions = {}  # Set of entries indicating reactions that, if removed, should be ignored.
-    # an entry will be str(message.id)_str(member.id)
+    ignorable_join_reactions = set()  # Set of entries indicating reactions that, if removed, should be ignored.
+    # an entry will be (message_id, user_id)
     # keys are added here when a join reaction is placed, and removed if the join reaction is valid.
 
     def __init__(self, bot):
@@ -93,6 +93,10 @@ class matchmaking(commands.Cog):
 
         if payload.user_id == self.bot.user.id:
             return
+
+        if f'{payload.message_id}_{payload.user_id}' in self.ignorable_join_reactions:
+            logger.debug('Ignoring reaction removal due to ignorable_join_reactions')
+            return self.ignorable_join_reactions.discard((payload.message_id, payload.user_id))
 
         guild = self.bot.get_guild(payload.guild_id)
         member = guild.get_member(payload.user_id)
@@ -152,6 +156,8 @@ class matchmaking(commands.Cog):
         if not game_id:
             return  # Message being reacted to is not parsed as a Join Game message
 
+        self.ignorable_join_reactions.add((payload.message_id, payload.user_id))
+
         logger.debug(f'Matchmaking on_raw_reaction_add: Joingame emoji added to a Join Game message by {payload.member.display_name}. Game ID {game_id}. Game loaded? {"yes" if game else "no"}')
 
         if channel.name == 'polychamps-game-announcements':
@@ -198,9 +204,12 @@ class matchmaking(commands.Cog):
 
         if not lineup:
             logger.debug(f'Join by reaction failed: {message_str}')
-            if 'already in game' not in message_str:
+            if 'already in game' in message_str:
+                self.ignorable_join_reactions.discard((payload.message_id, payload.user_id))
+                return await feedback_destination.send(f':warning: {joining_member.mention}:\n{message_str}')
+            else:
                 await message.remove_reaction(payload.emoji.name, payload.member)
-            return await feedback_destination.send(f':no_entry_sign: {joining_member.mention} could not join game:\n{message_str}')
+                return await feedback_destination.send(f':no_entry_sign: {joining_member.mention} could not join game:\n{message_str}')
 
         prefix = settings.guild_setting(guild.id, 'command_prefix')
         embed, content = game.embed(guild=guild, prefix=prefix)
@@ -230,6 +239,7 @@ class matchmaking(commands.Cog):
         message_str = '\n'.join(message_list)
 
         logger.debug(f'Join by reaction success: {message_str}')
+        self.ignorable_join_reactions.discard((payload.message_id, payload.user_id))
         return await feedback_destination.send(embed=embed, content=f'{message_str}')
 
     @settings.in_bot_channel()
