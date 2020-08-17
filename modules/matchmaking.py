@@ -600,6 +600,7 @@ class matchmaking(commands.Cog):
         if not lineup:
             return await ctx.send(f':no_entry_sign: Could not join game:\n{message_str}')
 
+        embed, content = game.embed(guild=ctx.guild, prefix=ctx.prefix)
         players, capacity = game.capacity()
         if players >= capacity:
             creating_player = game.creating_player()
@@ -607,9 +608,9 @@ class matchmaking(commands.Cog):
 
             if game.host and game.host != creating_player:
                 await ctx.send(f'Matchmaking host <@{game.host.discord_member.discord_id}> is not the game creator.')
-
-        embed, content = game.embed(guild=ctx.guild, prefix=ctx.prefix)
-        await ctx.send(embed=embed, content=content)
+            await ctx.send(embed=embed, content=content)
+        else:
+            await ctx.send(embed=embed)
         await ctx.send(message_str)
 
         # Alert user if they have >1 games ready to start
