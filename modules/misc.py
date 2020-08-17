@@ -27,19 +27,17 @@ class misc(commands.Cog):
     @commands.command(hidden=True, aliases=['ts', 'blah'])
     @commands.is_owner()
     async def test(self, ctx, *, args=None):
-        a = ctx.channel.permissions_for(ctx.guild.me).read_messages
-        print(a)
-
-        chan = self.bot.get_channel(595222111031656467)
-        print(chan.name)
-
-        # channel = member.guild.get_channel(payload.channel_id)
-        message = await chan.fetch_message(595222276333371392) if chan else None
-        print(message.content)
-
-        pfx = await self.bot.get_prefix(message)
-
-        print(pfx)
+        team_servers = models.Team.related_external_severs(ctx.guild.id)
+        for server in team_servers:
+            guild = self.bot.get_guild(server)
+            if not guild:
+                await ctx.send(f'no guild for id {server}')
+                continue
+            team_channel = discord.utils.get(guild.text_channels, name='polychamps-game-announcements')
+            if team_channel:
+                await ctx.send(f'Channel found for {guild.name} <#{team_channel.id}>')
+                continue
+            await ctx.send(f'No channel found for {guild.name}')
 
     @commands.command(usage=None)
     @settings.in_bot_channel_strict()
