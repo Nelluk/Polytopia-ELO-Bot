@@ -2713,6 +2713,7 @@ class GameLog(BaseModel):
         if game_id:
             message = f'__{str(game_id)}__ - {message}'
 
+        logger.debug(f'Writing gamelog for game_id {game_id} and guild_id {guild_id}\n{message}')
         return GameLog.create(guild_id=guild_id, message=message, is_protected=is_protected)
 
     def search(keywords=None, negative_keyword=None, guild_id=None, limit=500):
