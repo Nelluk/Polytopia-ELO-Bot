@@ -46,9 +46,9 @@ class matchmaking(commands.Cog):
     Host open and find open games.
     """
 
-    join_reactions = {}  # Annoyingly, fill with timestamps of users placing their reactions.
-    # Required to distinguish a user removing their own reaction from the bot quickly removing an invalid reaction
-    # entry will be gameid_userid: timestamp, ie {52400_479029527553638401: datetime.datetime(2020, 8, 15, 8, 9, 37, 183360)}
+    ignorable_join_reactions = {}  # Set of entries indicating reactions that, if removed, should be ignored.
+    # an entry will be str(message.id)_str(member.id)
+    # keys are added here when a join reaction is placed, and removed if the join reaction is valid.
 
     def __init__(self, bot):
         self.bot = bot
