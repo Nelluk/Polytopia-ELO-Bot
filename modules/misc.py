@@ -35,7 +35,14 @@ class misc(commands.Cog):
                 continue
             team_channel = discord.utils.get(guild.text_channels, name='polychamps-game-announcements')
             if team_channel:
-                await ctx.send(f'Channel found for {guild.name} <#{team_channel.id}>')
+                message = f'Channel found for {guild.name} <#{team_channel.id}>'
+                if not team_channel.permissions_for(ctx.guild.me).add_reactions:
+                    message += ' - No add reactions!'
+                if not team_channel.permissions_for(ctx.guild.me).send_messages:
+                    message += ' - No send messages!'
+                if not team_channel.permissions_for(ctx.guild.me).manage_messages:
+                    message += ' - No manage messages!'
+                await ctx.send(message)
                 continue
             await ctx.send(f'No channel found for {guild.name}')
 
