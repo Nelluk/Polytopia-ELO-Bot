@@ -77,7 +77,6 @@ class matchmaking(commands.Cog):
     @commands.Cog.listener()
     async def on_message(self, message):
         # Add ⚔️ join emoji to valid messages
-
         game_id, game = self.is_joingame_message(message.content)
         if not game_id or not game or not game.is_pending:
             return
@@ -793,7 +792,9 @@ class matchmaking(commands.Cog):
 
         elif len(args) > 0 and args[0].upper() == 'ME':
             title_str = f'Open games joined by **{ctx.author.name}**'
-            game_list = models.Game.search_pending(guild_id=ctx.guild.id, player_discord_id=ctx.author.id)
+            joined_list = models.Game.search_pending(guild_id=ctx.guild.id, player_discord_id=ctx.author.id)
+            hosting_list = models.Game.search_pending(status_filter=0, guild_id=ctx.guild.id, host_discord_id=ctx.author.id)
+            game_list = list(set(joined_list + hosting_list))
 
         elif ctx.invoked_with == 'novagames' or ctx.invoked_with == 'nova':
             if len(args) > 0 and args[0].upper() == 'ALL':
