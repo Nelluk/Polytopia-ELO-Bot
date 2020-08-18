@@ -1014,8 +1014,14 @@ async def broadcast_team_game_to_server(ctx, game):
             join_str = game.reaction_join_string()
         else:
             join_str = ':warning: *Missing add reactions permission*'
-        await team_channel.send(f'New PolyChampions game `{game.id}` for {game_type} created by {game.host.name}\n{game.size_string()} {game.get_headline()}{notes_str}\n{ctx.message.jump_url}\n{join_str}.')
-        logger.debug(f'broadcast_team_game_to_server - sending message to channel {team_channel.name} on server {team_server.name}')
+
+        message_content = f'New PolyChampions game `{game.id}` for {game_type} created by {game.host.name}\n{game.size_string()} {game.get_headline()}{notes_str}\n{ctx.message.jump_url}\n{join_str}.'
+        try:
+            message = await team_channel.send(message_content)
+            models.TeamServerBroadcastMessage.create(game=game, channel_id=team_channel.id, message_id=message.id)
+        except discord.DiscordException as e:
+            logger.warning(f'Could not send broadcast message: {e}')
+        logger.debug(f'broadcast_team_game_to_server - sending message to channel {team_channel.name} on server {team_server.name}\n{message_content}')
 
 
 async def auto_grad_novas(ctx, game):

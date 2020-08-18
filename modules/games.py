@@ -1641,6 +1641,7 @@ class polygames(commands.Cog):
             if not is_hosted_by and not settings.is_staff(ctx.author):
                 host_name = f' **{host.name}**' if host else ''
                 return await ctx.send(f'Only the game host{host_name} or server staff can do this.')
+            await models.TeamServerBroadcastMessages.update_as_game_deleted(game)
             models.GameLog.write(game_id=game, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} deleted the game.')
             game.delete_game()
             return await ctx.send(f'Deleting open game {game.id}')
@@ -1660,7 +1661,7 @@ class polygames(commands.Cog):
         gid = game.id
         try:
             async with ctx.typing():
-                await self.bot.loop.run_in_executor(None, game.delete_game)
+                # await self.bot.loop.run_in_executor(None, game.delete_game)
                 # Allows bot to remain responsive while this large operation is running.
                 await ctx.send(f'Game with ID {gid} has been deleted and team/player ELO changes have been reverted, if applicable.')
         except discord.errors.NotFound:

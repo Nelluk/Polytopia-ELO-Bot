@@ -105,6 +105,14 @@ class matchmaking(commands.Cog):
         if not message:
             return
 
+        if message.author.id == 479029527553638401 and self.bot.user.id != 479029527553638401:
+            # have beta bot ignore non-beta messages and production bot ignore beta messages
+            return
+
+        if self.bot.user.id == 479029527553638401 and message.author.id != 479029527553638401:
+            # have beta bot ignore non-beta messages and production bot ignore beta messages
+            return
+
         game_id, game = self.is_joingame_message(message.content)
 
         if not game_id:
@@ -149,6 +157,14 @@ class matchmaking(commands.Cog):
         channel = payload.member.guild.get_channel(payload.channel_id)
         message = await channel.fetch_message(payload.message_id) if channel else None
         if not message:
+            return
+
+        if message.author.id == 479029527553638401 and self.bot.user.id != 479029527553638401:
+            # have beta bot ignore non-beta messages and production bot ignore beta messages
+            return
+
+        if self.bot.user.id == 479029527553638401 and message.author.id != 479029527553638401:
+            # have beta bot ignore non-beta messages and production bot ignore beta messages
             return
 
         game_id, game = self.is_joingame_message(message.content)
@@ -975,6 +991,7 @@ class matchmaking(commands.Cog):
 
         logger.info(f'Game {game.id} closed and being tracked for ELO')
         models.GameLog.write(game_id=game, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} started game with name *{discord.utils.escape_markdown(game.name)}*')
+        await models.TeamServerBroadcastMessage.update_as_game_started(game)
         await post_newgame_messaging(ctx, game=game)
 
     async def task_dm_game_creators(self):
