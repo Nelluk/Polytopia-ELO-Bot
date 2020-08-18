@@ -1641,7 +1641,7 @@ class polygames(commands.Cog):
             if not is_hosted_by and not settings.is_staff(ctx.author):
                 host_name = f' **{host.name}**' if host else ''
                 return await ctx.send(f'Only the game host{host_name} or server staff can do this.')
-            await models.TeamServerBroadcastMessages.update_as_game_deleted(game)
+            await models.TeamServerBroadcastMessage.update_as_game_deleted(game)
             models.GameLog.write(game_id=game, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} deleted the game.')
             game.delete_game()
             return await ctx.send(f'Deleting open game {game.id}')
