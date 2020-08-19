@@ -613,7 +613,11 @@ class matchmaking(commands.Cog):
         message_str = '\n'.join(message_list)
 
         if not lineup:
-            return await ctx.send(f':no_entry_sign: Could not join game:\n{message_str}')
+            logger.debug('join via command failed')
+            if 'already in game' in message_str:
+                return await ctx.send(f':warning: {message_str}')
+            else:
+                return await ctx.send(f':no_entry_sign: Could not join game:\n{message_str}')
 
         embed, content = game.embed(guild=ctx.guild, prefix=ctx.prefix)
         players, capacity = game.capacity()
