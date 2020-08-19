@@ -244,7 +244,7 @@ class league(commands.Cog):
         free_agent_role = discord.utils.get(member.guild.roles, name=free_agent_role_name)
         draftable_role = discord.utils.get(member.guild.roles, name=draftable_role_name)
 
-        confirm_message = await channel.send(f'<@{member.id}>, react below to confirm the conclusion of the current draft. '
+        confirm_message = await channel.send(f'{member.mention}, react below to confirm the conclusion of the current draft. '
             f'{len(free_agent_role.members)} members will lose the **{free_agent_role_name}** role and {len(draftable_role.members)} members with the **{draftable_role_name}** role will lose that role and become the current crop with the **{free_agent_role_name}** role.\n'
             '*If you do not react within 30 seconds the draft will remain open.*', delete_after=35)
         await confirm_message.add_reaction('✅')
@@ -262,7 +262,7 @@ class league(commands.Cog):
             logger.debug(f'No reaction to confirmation message.')
             return
 
-        result_message_list = [f'Draft successfully closed by <@{member.id}>']
+        result_message_list = [f'Draft successfully closed by {member.mention}']
         self.announcement_message = None
 
         async with channel.typing():
@@ -272,7 +272,7 @@ class league(commands.Cog):
                 await old_free_agent.remove_roles(free_agent_role, reason='Purging old free agents')
                 logger.debug(f'Removing free agent role from {old_free_agent.name}')
 
-                result_message_list.append(f'Removing free agent role from {old_free_agent.name} <@{old_free_agent.id}>')
+                result_message_list.append(f'Removing free agent role from {old_free_agent.name} {old_free_agent.mention}')
 
             for new_free_agent in draftable_role.members:
                 await new_free_agent.add_roles(free_agent_role, reason='New crop of free agents')
@@ -281,9 +281,9 @@ class league(commands.Cog):
                 await new_free_agent.remove_roles(draftable_role, reason='Purging old free agents')
                 logger.debug(f'Removing draftable role from {new_free_agent.name}')
                 if new_free_agent in old_free_agents:
-                    result_message_list.append(f'Removing draftable role from and applying free agent role to {new_free_agent.name} <@{new_free_agent.id}>. They had it last week, too!')
+                    result_message_list.append(f'Removing draftable role from and applying free agent role to {new_free_agent.name} {new_free_agent.mention}. They had it last week, too!')
                 else:
-                    result_message_list.append(f'Removing draftable role from and applying free agent role to {new_free_agent.name} <@{new_free_agent.id}>')
+                    result_message_list.append(f'Removing draftable role from and applying free agent role to {new_free_agent.name} {new_free_agent.mention}')
 
         for log_message in result_message_list:
             models.GameLog.write(guild_id=member.guild.id, message=log_message)
@@ -316,11 +316,11 @@ class league(commands.Cog):
 
         if draft_config['draft_open']:
             new_message = f'~~{message.content}~~\n{self.draft_closed_message}'
-            log_message = f'Draft status closed by <@{member.id}>'
+            log_message = f'Draft status closed by {member.mention}'
             draft_config['draft_open'] = False
         else:
             new_message = self.draft_open_format_str.format(grad_role.mention, novas_role.mention, draft_config['draft_message'])
-            log_message = f'Draft status opened by <@{member.id}>'
+            log_message = f'Draft status opened by {member.mention}'
             draft_config['draft_open'] = True
 
         self.save_draft_config(member.guild.id, draft_config)
@@ -349,7 +349,7 @@ class league(commands.Cog):
                     return
                 else:
                     member_message = f'You are now signed up for the next draft. If you would like to remove yourself, just remove the reaction you just placed.\nAlthough you may have a preference on which team drafts you, be aware that you may be chosen by **any** team. You must make a good faith effort to play and integrate with that team to avoid a penalty for poor sportsmanship.\n{announce_message_link}'
-                    log_message = f'<@{member.id}> ({member.name}) reacted to the draft and received the {draftable_role.name} role.'
+                    log_message = f'{member.mention} ({member.name}) reacted to the draft and received the {draftable_role.name} role.'
             else:
                 # Ineligible signup - either draft is closed or member does not have grad_role
                 try:
@@ -374,7 +374,7 @@ class league(commands.Cog):
                     return
                 else:
                     member_message = f'You have been removed from the next draft. You can sign back up at the announcement message:\n{announce_message_link}'
-                    log_message = f'<@{member.id}> ({member.name}) removed their draft reaction and has lost the {draftable_role.name} role.'
+                    log_message = f'{member.mention} ({member.name}) removed their draft reaction and has lost the {draftable_role.name} role.'
             else:
                 return
                 # member_message = (f'You removed your signup reaction from the draft announcement, but you did not have the **{draftable_role.name}** :thinking:\n'
@@ -475,7 +475,7 @@ class league(commands.Cog):
         await announcement_message.add_reaction(self.emoji_draft_close)
         await announcement_message.add_reaction(self.emoji_draft_conclude)
 
-        await utilities.send_to_log_channel(ctx.guild, f'Draft created by <@{ctx.author.id}>\n'
+        await utilities.send_to_log_channel(ctx.guild, f'Draft created by {ctx.author.mention}\n'
             f'https://discord.com/channels/{ctx.guild.id}/{announcement_channel.id}/{announcement_message.id}')
 
         if announcement_channel.id != ctx.message.channel.id:
@@ -880,7 +880,7 @@ class league(commands.Cog):
 
             # TODO: Mention players without pinging them once discord.py 1.4 is out https://discordpy.readthedocs.io/en/latest/api.html#discord.TextChannel.send
 
-            message = (f' <@{dm.discord_id}> **{player.name}**'
+            message = (f' {dm.mention()} **{player.name}**'
                 f'\n\u00A0\u00A0 \u00A0\u00A0 \u00A0\u00A0 {recent_games} games played in last 14 days, {all_games} all-time'
                 f'\n\u00A0\u00A0 \u00A0\u00A0 \u00A0\u00A0 ELO:  {dm.elo} *global* / {player.elo} *local*\n'
                 f'\u00A0\u00A0 \u00A0\u00A0 \u00A0\u00A0 __W {g_wins} / L {g_losses}__ *global* \u00A0\u00A0 - \u00A0\u00A0 __W {wins} / L {losses}__ *local*\n')

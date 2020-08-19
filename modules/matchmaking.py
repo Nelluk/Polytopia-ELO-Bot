@@ -233,10 +233,10 @@ class matchmaking(commands.Cog):
         players, capacity = game.capacity()
         if players >= capacity:
             creating_player = game.creating_player()
-            announce_message = f'Game {game.id} is now full and <@{creating_player.discord_member.discord_id}> should create the game in Polytopia.'
+            announce_message = f'Game {game.id} is now full and {creating_player.discord_member.mention()} should create the game in Polytopia.'
 
             if game.host and game.host != creating_player:
-                announce_message += f'\nMatchmaking host <@{game.host.discord_member.discord_id}> is not the game creator.'
+                announce_message += f'\nMatchmaking host {game.host.discord_member.mention()} is not the game creator.'
 
             await announce_channel.send(embed=embed, content=f'{content}{announce_message}')
 
@@ -623,10 +623,10 @@ class matchmaking(commands.Cog):
         players, capacity = game.capacity()
         if players >= capacity:
             creating_player = game.creating_player()
-            await ctx.send(f'Game {game.id} is now full and <@{creating_player.discord_member.discord_id}> should create the game in Polytopia.')
+            await ctx.send(f'Game {game.id} is now full and {creating_player.mention()} should create the game in Polytopia.')
 
             if game.host and game.host != creating_player:
-                await ctx.send(f'Matchmaking host <@{game.host.discord_member.discord_id}> is not the game creator.')
+                await ctx.send(f'Matchmaking host {game.host.discord_member.mention()} is not the game creator.')
             await ctx.send(embed=embed, content=content)
         else:
             await ctx.send(embed=embed)

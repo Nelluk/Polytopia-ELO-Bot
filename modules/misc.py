@@ -27,6 +27,12 @@ class misc(commands.Cog):
     @commands.command(hidden=True, aliases=['ts', 'blah'])
     @commands.is_owner()
     async def test(self, ctx, *, args=None):
+        game = models.Game.get(id=50000)
+        await ctx.send(game.mentions())
+
+    @commands.command(hidden=True)
+    @commands.is_owner()
+    async def tshealth(self, ctx, *, args=None):
         team_servers = models.Team.related_external_severs(ctx.guild.id)
         for server in team_servers:
             guild = self.bot.get_guild(server)
@@ -194,7 +200,7 @@ class misc(commands.Cog):
 
         list_of_players = []
         for g in game_list:
-            list_of_players += [f'<@{l.player.discord_member.discord_id}>' for l in g.lineup]
+            list_of_players += g.mentions()
 
         list_of_players = list(set(list_of_players))
         logger.debug(f'{len(list_of_players)} unique opponents for target')
@@ -279,7 +285,6 @@ class misc(commands.Cog):
         if game.game_chan:
             permitted_channels.append(game.game_chan)
 
-        player_mentions = [f'<@{l.player.discord_member.discord_id}>' for l in game.lineup]
         game_player_ids = [l.player.discord_member.discord_id for l in game.lineup]
         game_members = [ctx.guild.get_member(p_id) for p_id in game_player_ids]
         player_mentions = [f'<@{p_id}>' for p_id in game_player_ids]

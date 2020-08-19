@@ -1502,12 +1502,11 @@ class polygames(commands.Cog):
                     winning_game.win_claimed_ts = datetime.datetime.now()
                     winning_game.save()
                     # first time this win has been claimed - ping lineup instructions
-                    player_mentions = [f'<@{l.player.discord_member.discord_id}>' for l in winning_game.lineup]
                     await ctx.send(f'**Game {winning_game.id}** *{winning_game.name}* concluded pending confirmation of winner **{winning_obj.name}**\n'
                         f'To confirm, have opponents use the command __`{ctx.prefix}win {winning_game.id} {printed_side_name}`__\n'
                         f'If opponents do not dispute the win then the game will be confirmed automatically after a period of time.\n'
                         f'If this win was claimed falsely please use the `{ctx.prefix}staffhelp` command to contest, or you can cancel your claim with the command `{ctx.prefix}unwin {winning_game.id}`.\n'
-                        f'*Game lineup*: {" ".join(player_mentions)}')
+                        f'*Game lineup*: {" ".join(winning_game.mentions())}')
 
         try:
             winning_game.declare_winner(winning_side=winning_side, confirm=confirm_win)
@@ -1958,7 +1957,6 @@ async def post_win_messaging(guild, prefix, current_chan, winning_game):
 
     await winning_game.update_squad_channels(guild_list=settings.bot.guilds, guild_id=guild.id, message=f'The game is over with **{winning_game.winner.name()}** victorious. {purge_message}')
     models.GameLog.write(game_id=winning_game.id, guild_id=winning_game.guild_id, message=f'Win is confirmed and ELO changes processed.')
-    player_mentions = [f'<@{l.player.discord_member.discord_id}>' for l in winning_game.lineup]
     embed, content = winning_game.embed(guild=guild, prefix=prefix)
 
     for l in winning_game.lineup:
@@ -1967,36 +1965,34 @@ async def post_win_messaging(guild, prefix, current_chan, winning_game):
     if settings.guild_setting(guild.id, 'game_announce_channel') is not None:
         channel = guild.get_channel(settings.guild_setting(guild.id, 'game_announce_channel'))
         if channel is not None:
-            await channel.send(f'Game concluded! Congrats **{winning_game.winner.name()}**. Roster: {" ".join(player_mentions)}')
+            await channel.send(f'Game concluded! Congrats **{winning_game.winner.name()}**. Roster: {" ".join(winning_game.mentions())}')
             await channel.send(embed=embed)
             return await current_chan.send(f'Game concluded! See {channel.mention} for full details.')
 
-    await current_chan.send(f'Game concluded! Congrats **{winning_game.winner.name()}**. Roster: {" ".join(player_mentions)}{reminder_message}')
+    await current_chan.send(f'Game concluded! Congrats **{winning_game.winner.name()}**. Roster: {" ".join(winning_game.mentions())}{reminder_message}')
     await current_chan.send(embed=embed, content=content)
 
 
 async def post_unwin_messaging(guild, prefix, current_chan, game, previously_confirmed: bool = False):
 
     await game.update_squad_channels(guild_list=settings.bot.guilds, guild_id=guild.id, message=f'The game has reset to *Incomplete* status.')
-    player_mentions = [f'<@{l.player.discord_member.discord_id}>' for l in game.lineup]
 
     if previously_confirmed:
         for l in game.lineup:
             await achievements.set_experience_role(l.player.discord_member)
 
-    await current_chan.send(f'Game reset to *Incomplete*. Previously claimed win has been canceled.  Notifying game roster: {" ".join(player_mentions)}')
+    await current_chan.send(f'Game reset to *Incomplete*. Previously claimed win has been canceled.  Notifying game roster: {" ".join(game.mentions())}')
 
 
 async def post_newgame_messaging(ctx, game):
 
-    mentions_list = [f'<@{l.player.discord_member.discord_id}>' for l in game.lineup]
     season, season_str = game.is_season_game(), ''
     if season:
         season_str = f'**{"Pro" if season[1] == "P" else "Junior"} Season {season[0]}** '
 
     embed, content = game.embed(guild=ctx.guild, prefix=ctx.prefix)
     ranked_str = 'unranked ' if not game.is_ranked else ''
-    announce_str = f'New {season_str}{ranked_str}game ID **{game.id}** started! Roster: {" ".join(mentions_list)}'
+    announce_str = f'New {season_str}{ranked_str}game ID **{game.id}** started! Roster: {" ".join(game.mentions())}'
 
     if settings.guild_setting(ctx.guild.id, 'game_announce_channel'):
         channel = ctx.guild.get_channel(settings.guild_setting(ctx.guild.id, 'game_announce_channel'))

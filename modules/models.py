@@ -187,6 +187,9 @@ class DiscordMember(BaseModel):
     timezone_offset = SmallIntegerField(default=None, null=True)
     date_polychamps_invite_sent = DateField(default=None, null=True)
 
+    def mention(self):
+        return f'<@{self.discord_id}>'
+
     def advanced_stats(self):
 
         server_list = settings.servers_included_in_global_lb()
@@ -431,6 +434,9 @@ class Player(BaseModel):
     elo_max = SmallIntegerField(default=1000)
     trophies = ArrayField(CharField, null=True)
     is_banned = BooleanField(default=False)
+
+    def mention(self):
+        return self.discord_member.mention()
 
     def generate_display_name(self=None, player_name=None, player_nick=None):
 
@@ -1648,6 +1654,13 @@ class Game(BaseModel):
         else:
             raise exceptions.TooManyMatches(f'{len(matches)} matches found for "{name}" in game {self.id}. Be more specific or use a @Mention.')
 
+    def mentions(self):
+        # return a single flat list of mentions. equivalent to:
+        # [f'<@{l.player.discord_member.discord_id}>' for l in game.lineup]
+        # except lineup and side ordering is preserved
+        side_mentions = [side.mentions() for side in list(self.ordered_side_list())]
+        return [mention for side in side_mentions for mention in side]
+
     def elo_requirements(self):
 
         min_elo, max_elo = 0, 3000
@@ -2688,6 +2701,9 @@ class GameSide(BaseModel):
             player_list.append(l)
 
         return player_list
+
+    def mentions(self):
+        return [l.player.mention() for l in self.ordered_player_list()]
 
 
 class GameLog(BaseModel):
