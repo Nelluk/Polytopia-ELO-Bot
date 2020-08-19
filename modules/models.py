@@ -963,6 +963,28 @@ class Game(BaseModel):
         except discord.DiscordException:
             return logger.warning('Couldn\'t update message in update_announacement')
 
+    async def update_external_broadcasts(self, deleted=False):
+        for broadcast in game.broadcasts:
+
+            message = await broadcast.fetch_message()
+            if not message:
+                broadcast.delete_instance()
+                continue
+
+            try:
+                if deleted:
+                    # update messages to reflect game has been deleted
+                    await message.edit(content=f'~~{message.content}~~\n(This game has been deleted/)')
+                    await message.clear_reactions()
+                else:
+                    # update messages to reflect game has started
+                    await message.edit(content=f'~~{message.content}~~\n(This game has started and can no longer be joined.)')
+                    await message.remove_reaction(settings.emoji_join_game, message.guild.me)
+            except discord.DiscordException as e:
+                logger.warn(f'update_external_broadcasts(): could not edit {broadcast.channel_id}/{broadcast.message_id}\n{e}')
+
+            broadcast.delete_instance()
+
     def reaction_join_string(self):
         return f'Join game {self.id} by reacting with {settings.emoji_join_game}' if self.is_pending else ''
 
@@ -2849,38 +2871,6 @@ class TeamServerBroadcastMessage(BaseModel):
             return None
         logger.debug(f'TeamServerBroadcastMessage.fetch_message(): processing message {message.id} in channel {channel.name} guild {message.guild.name}')
         return message
-
-    async def update_as_game_deleted(game):
-        for broadcast in game.broadcasts:
-
-            message = await broadcast.fetch_message()
-            if not message:
-                broadcast.delete_instance()
-                continue
-
-            try:
-                await message.edit(content=f'~~{message.content}~~\n(This game has been deleted/)')
-                await message.clear_reactions()
-            except discord.DiscordException as e:
-                logger.warn(f'TeamServerBroadcastMessage.update_as_game_deleted(): could not edit {broadcast.channel_id}/{broadcast.message_id}\n{e}')
-
-            broadcast.delete_instance()
-
-    async def update_as_game_started(game):
-        for broadcast in game.broadcasts:
-
-            message = await broadcast.fetch_message()
-            if not message:
-                broadcast.delete_instance()
-                continue
-
-            try:
-                await message.edit(content=f'~~{message.content}~~\n(This game has started and can no longer be joined.)')
-                await message.remove_reaction(settings.emoji_join_game, message.guild.me)
-            except discord.DiscordException as e:
-                logger.warn(f'TeamServerBroadcastMessage.update_as_game_started(): could not edit {broadcast.channel_id}/{broadcast.message_id}\n{e}')
-
-            broadcast.delete_instance()
 
 
 with db.connection_context():

@@ -1640,10 +1640,16 @@ class polygames(commands.Cog):
             if not is_hosted_by and not settings.is_staff(ctx.author):
                 host_name = f' **{host.name}**' if host else ''
                 return await ctx.send(f'Only the game host{host_name} or server staff can do this.')
-            await models.TeamServerBroadcastMessage.update_as_game_deleted(game)
-            models.GameLog.write(game_id=game, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} deleted the game.')
+
+            players, capacity = game.capacity()
+            if players >= capacity:
+                filled_str = 'full'
+            else:
+                filled_str = 'unfilled'
+            await game.update_external_broadcasts(deleted=True)
+            models.GameLog.write(game_id=game, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} deleted the {filled_str} pending game.')
             game.delete_game()
-            return await ctx.send(f'Deleting open game {game.id}')
+            return await ctx.send(f'Deleting {filled_str} open game {game.id}\nNotifying players: {" ".join(game.mentions())}')
 
         if not settings.is_mod(ctx.author):
             return await ctx.send('Only server mods can delete completed or in-progress games.')
@@ -1662,7 +1668,7 @@ class polygames(commands.Cog):
             async with ctx.typing():
                 # await self.bot.loop.run_in_executor(None, game.delete_game)
                 # Allows bot to remain responsive while this large operation is running.
-                await ctx.send(f'Game with ID {gid} has been deleted and team/player ELO changes have been reverted, if applicable.')
+                await ctx.send(f'Game with ID {gid} has been deleted and team/player ELO changes have been reverted, if applicable.\nNotifying players: {" ".join(game.mentions())}')
         except discord.errors.NotFound:
             logger.warning('Game deleted while in game-related channel')
             await self.bot.loop.run_in_executor(None, game.delete_game)
