@@ -1635,6 +1635,7 @@ class polygames(commands.Cog):
         if not game:
             return await ctx.send(f'Game ID not provided. Usage: __`{ctx.prefix}delete GAME_ID`__')
 
+        mention_list = game.mentions()
         if game.is_pending:
             is_hosted_by, host = game.is_hosted_by(ctx.author.id)
             if not is_hosted_by and not settings.is_staff(ctx.author):
@@ -1646,7 +1647,7 @@ class polygames(commands.Cog):
                 filled_str = 'full'
             else:
                 filled_str = 'unfilled'
-            mention_list = game.mentions()
+
             await game.update_external_broadcasts(deleted=True)
             models.GameLog.write(game_id=game, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} deleted the {filled_str} pending game.')
             await ctx.send(f'Deleting {filled_str} open game {game.id}\nNotifying players: {" ".join(mention_list)}')
