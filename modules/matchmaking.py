@@ -1158,7 +1158,7 @@ class matchmaking(commands.Cog):
 
             await asyncio.sleep(sleep_cycle)
 
-    @tasks.loop(seconds=10.0)
+    @tasks.loop(seconds=30.0)
     async def task_purge_expired_games(self):
         await self.bot.wait_until_ready()
         purge_deadline = (datetime.datetime.now() + datetime.timedelta(days=-3))
