@@ -1015,7 +1015,12 @@ async def broadcast_team_game_to_server(ctx, game):
         else:
             join_str = ':warning: *Missing add reactions permission*'
 
-        message_content = f'New PolyChampions game `{game.id}` for {game_type} created by {game.host.name}\n{game.size_string()} {game.get_headline()}{notes_str}\n{ctx.message.jump_url}\n{join_str}.'
+        message_content = f'New PolyChampions game `{game.id}` for {game_type} created by {game.host.name}\n{game.size_string()} {game.get_headline()}{notes_str}\n{ctx.message.jump_url}'
+        if game.is_uncaught_season_game():
+            message_content += f'\n(*This appears to be a **Season Game** so join reactions are disabled.*)'
+        else:
+            message_content += f'\n{join_str}.'
+
         try:
             message = await team_channel.send(message_content)
             models.TeamServerBroadcastMessage.create(game=game, channel_id=team_channel.id, message_id=message.id)
