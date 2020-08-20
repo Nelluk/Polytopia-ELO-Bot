@@ -1646,10 +1646,11 @@ class polygames(commands.Cog):
                 filled_str = 'full'
             else:
                 filled_str = 'unfilled'
+            mention_list = game.mentions()
             await game.update_external_broadcasts(deleted=True)
             models.GameLog.write(game_id=game, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} deleted the {filled_str} pending game.')
-            game.delete_game()
-            return await ctx.send(f'Deleting {filled_str} open game {game.id}\nNotifying players: {" ".join(game.mentions())}')
+            await ctx.send(f'Deleting {filled_str} open game {game.id}\nNotifying players: {" ".join(mention_list)}')
+            return game.delete_game()
 
         if not settings.is_mod(ctx.author):
             return await ctx.send('Only server mods can delete completed or in-progress games.')
@@ -1666,9 +1667,9 @@ class polygames(commands.Cog):
         gid = game.id
         try:
             async with ctx.typing():
-                # await self.bot.loop.run_in_executor(None, game.delete_game)
+                await self.bot.loop.run_in_executor(None, game.delete_game)
                 # Allows bot to remain responsive while this large operation is running.
-                await ctx.send(f'Game with ID {gid} has been deleted and team/player ELO changes have been reverted, if applicable.\nNotifying players: {" ".join(game.mentions())}')
+                await ctx.send(f'Game with ID {gid} has been deleted and team/player ELO changes have been reverted, if applicable.\nNotifying players: {" ".join(mention_list)}')
         except discord.errors.NotFound:
             logger.warning('Game deleted while in game-related channel')
             await self.bot.loop.run_in_executor(None, game.delete_game)

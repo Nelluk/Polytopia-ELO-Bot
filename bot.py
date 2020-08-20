@@ -123,6 +123,7 @@ def get_prefix(bot, message):
 if __name__ == '__main__':
 
     main()
+    utilities.connect()
     am = discord.AllowedMentions(everyone=False)
     bot = commands.Bot(command_prefix=get_prefix,
                        owner_id=settings.owner_id,

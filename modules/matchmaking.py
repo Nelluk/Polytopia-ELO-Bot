@@ -1158,16 +1158,18 @@ class matchmaking(commands.Cog):
 
             await asyncio.sleep(sleep_cycle)
 
-    @tasks.loop(seconds=30.0)
+    @tasks.loop(seconds=10.0)
     async def task_purge_expired_games(self):
         await self.bot.wait_until_ready()
         purge_deadline = (datetime.datetime.now() + datetime.timedelta(days=-3))
         for guild in self.bot.guilds:
-            channel = set.bot.get_channel(settings.guild_setting(guild.id, 'game_announce_channel'))
+            logger.debug(f'Running task_purge_expired_games for guild {guild.name}')
+            channel = self.bot.get_channel(settings.guild_setting(guild.id, 'game_announce_channel'))
 
             old_expired_games = models.Game.select().where(
                 (models.Game.expiration < purge_deadline) & (models.Game.is_pending == 1) & (models.Game.guild_id == guild.id)
             )
+            # full expired games get another 3 days to be started
 
             expired_but_not_full = models.Game.select().where(
                 (models.Game.expiration < datetime.datetime.now()) & (models.Game.id.in_(models.Game.subq_open_games_with_capacity(guild_id=guild.id))) & (models.Game.is_pending == 1)
@@ -1175,22 +1177,32 @@ class matchmaking(commands.Cog):
 
             for game in set(old_expired_games + expired_but_not_full):
                 await game.update_external_broadcasts(deleted=True)
-                creating_member = game.creating_player().discord_member
+                creating_player = game.creating_player()
+                creating_member = creating_player.discord_member if creating_player else None
+                players, capacity = game.capacity()
                 mention_str = f'Notifying players: {" ".join(game.mentions())}'
-                if game.host and game.host.discord_member != creating_member:
-                    mention_str += f' and host {game.host.mention()}'
+                if game.host and game.host != creating_player:
+                    host_str = f'(Matchmaking host {game.host.mention()})'
+                else:
+                    host_str = ''
 
-                try:
-                    if game in old_expired_games:
-                        models.GameLog.write(game_id=game, guild_id=guild.id, message=f'Bot purged a {"ranked" if game.is_ranked else ""} full pending game because {models.GameLog.member_string(creating_member)} did not start it.')
-                        if channel:
-                            await channel.send(f'Purging expired game {game.id}. This game was full but {creating_member.mention()} never `start`-ed it. :rage:\nNotifying players: {mention_str}')
-                    else:
-                        models.GameLog.write(game_id=game, guild_id=guild.id, message=f'Bot purged a {"ranked" if game.is_ranked else ""} pending game hosted by {models.GameLog.member_string(creating_member)} because it did not fill in time.')
-                        if channel:
-                            await channel.send(f'Purging expired game {game.id}. This game did not fill prior to expiration.\nNotifying players: {mention_str}')
-                except discord.DiscordException as e:
-                    logger.warn(f'could not send in task_purge_expired_games: {e}')
+                if not players:
+                    log_str = f'Bot purged an empty pending game.'
+                    announce_str = ''
+                elif players >= capacity:
+                    log_str = f'Bot purged a {"ranked" if game.is_ranked else ""} full pending game because {models.GameLog.member_string(creating_member)} did not start it.'
+                    announce_str = f'Purging expired game {game.id}. This game was full but {creating_member.mention()} never `start`-ed it. :rage:\n{mention_str} {host_str}'
+                else:
+                    hosted_by_str = f'hosted by {models.GameLog.member_string(creating_member)}' if creating_member else ''
+                    log_str = f'Bot purged a {"ranked" if game.is_ranked else ""} pending game {hosted_by_str} because it did not fill in time.'
+                    announce_str = f'Purging expired game {game.id}. This game did not fill prior to expiration.\n{mention_str} {host_str}'
+
+                models.GameLog.write(game_id=game, guild_id=guild.id, message=log_str)
+                if channel and announce_str:
+                    try:
+                        await channel.send(announce_str)
+                    except discord.DiscordException as e:
+                        logger.warning(f'could not send in task_purge_expired_games: {e}')
 
                 game.delete_game()
 

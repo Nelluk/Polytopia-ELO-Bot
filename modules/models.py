@@ -964,7 +964,8 @@ class Game(BaseModel):
             return logger.warning('Couldn\'t update message in update_announacement')
 
     async def update_external_broadcasts(self, deleted=False):
-        for broadcast in game.broadcasts:
+        # update announcement messges sent to external team servers when game is deleted or starts
+        for broadcast in self.broadcasts:
 
             message = await broadcast.fetch_message()
             if not message:
