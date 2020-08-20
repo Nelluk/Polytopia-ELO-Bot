@@ -975,7 +975,7 @@ class Game(BaseModel):
             try:
                 if deleted:
                     # update messages to reflect game has been deleted
-                    await message.edit(content=f'~~{message.content}~~\n(This game has been deleted/)')
+                    await message.edit(content=f'~~{message.content}~~\n(This game has been deleted and can no longer be joined.)')
                     await message.clear_reactions()
                 else:
                     # update messages to reflect game has started
