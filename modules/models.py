@@ -2866,7 +2866,11 @@ class TeamServerBroadcastMessage(BaseModel):
 
     async def fetch_message(self):
         channel = settings.bot.get_channel(self.channel_id)
-        message = await channel.fetch_message(self.message_id) if channel else None
+        try:
+            message = await channel.fetch_message(self.message_id) if channel else None
+        except discord.DiscordException:
+            message = None
+
         if not message:
             logger.warn(f'TeamServerBroadcastMessage.fetch_message(): could not load {self.channel_id}/{self.message_id}')
             return None
