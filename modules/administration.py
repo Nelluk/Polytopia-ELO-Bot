@@ -841,7 +841,7 @@ class administration(commands.Cog):
                             await member.kick(reason='No protected roles, no ELO games in at least 60 days.')
                             total_kicked_count += 1
                             if team_member:
-                                await member.send(f'You have been kicked from PolyChampions as part of an automated purge of inactive players. Please be assured this is nothing personal and is merely a manifestation of Nelluk\'s irrational need for a clean player list. If you are interested in rejoining please do so: http://discord.gg/cX7Ptnv')
+                                await member.send(f'You have been kicked from PolyChampions as part of an automated purge of inactive players. Please be assured this is nothing personal and is merely a manifestation of Nelluk\'s irrational need for a clean player list. If you are interested in rejoining please do so: https://discord.gg/YcvBheS')
                                 team_kicked_count += 1
                                 team_kicked_list.append(member.mention)
 

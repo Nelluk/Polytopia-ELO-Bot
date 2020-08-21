@@ -62,7 +62,7 @@ class misc(commands.Cog):
         Type `[p]guide` for an overview of what this bot is for and how to use it.
         """
         bot_desc = ('This bot is designed to improve Polytopia multiplayer by filling in gaps in two areas: competitive leaderboards, and matchmaking.\n'
-                    # 'Its primary home is [PolyChampions](https://discord.gg/cX7Ptnv), a server focused on team play organized into a league.\n'
+                    # 'Its primary home is [PolyChampions](https://discord.gg/YcvBheSv), a server focused on team play organized into a league.\n'
                     f'To register as a player with the bot use __`{ctx.prefix}setname Mobile User Name`__ or  __`{ctx.prefix}steamname Steam User Name`__')
 
         embed = discord.Embed(title=f'PolyELO Bot Donation Link', url='https://cash.me/$Nelluk/3', description=bot_desc)
@@ -470,53 +470,6 @@ class misc(commands.Cog):
             team_away.append(new_away)
 
         await ctx.send(f'Home Team: {" / ".join(team_home)}\nAway Team: {" / ".join(team_away)}')
-
-    async def task_send_polychamps_invite(self):
-        await self.bot.wait_until_ready()
-
-        message = ('You have met the qualifications to be invited to the **PolyChampions** discord server! '
-                   'PolyChampions is a competitive Polytopia server organized into a league, with a focus on team (2v2 and 3v3) games.'
-                   '\n To join use this invite link: https://discord.gg/cX7Ptnv')
-        while not self.bot.is_closed():
-            sleep_cycle = (60 * 60 * 6)
-            await asyncio.sleep(30)
-            logger.info('Running task task_send_polychamps_invite')
-            guild = self.bot.get_guild(settings.server_ids['main'])
-            if not guild:
-                logger.warning('Could not load guild via server_id')
-                break
-            utilities.connect()
-            dms = models.DiscordMember.members_not_on_polychamps()
-            logger.info(f'{len(dms)} discordmember results')
-            for dm in dms:
-                wins_count, losses_count = dm.wins().count(), dm.losses().count()
-                if wins_count < 5:
-                    logger.debug(f'Skipping {dm.name} - insufficient winning games')
-                    continue
-                if dm.games_played(in_days=15).count() < 1:
-                    logger.debug(f'Skipping {dm.name} - insufficient recent games')
-                    continue
-                if dm.elo_max > 1150:
-                    logger.debug(f'{dm.name} qualifies due to higher ELO > 1150')
-                elif wins_count > losses_count:
-                    logger.debug(f'{dm.name} qualifies due to positive win ratio')
-                else:
-                    logger.debug(f'Skipping {dm.name} - ELO or W/L record insufficient')
-                    continue
-
-                logger.debug(f'Sending invite to {dm.name}')
-                guild_member = guild.get_member(dm.discord_id)
-                if not guild_member:
-                    logger.debug(f'Could not load {dm.name} from guild {guild.id}')
-                    continue
-                try:
-                    await guild_member.send(message)
-                except discord.DiscordException as e:
-                    logger.warning(f'Error DMing member: {e}')
-                else:
-                    dm.date_polychamps_invite_sent = datetime.datetime.today()
-                    dm.save()
-            await asyncio.sleep(sleep_cycle)
 
     async def task_broadcast_newbie_message(self):
         await self.bot.wait_until_ready()
