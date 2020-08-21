@@ -21,7 +21,6 @@ class misc(commands.Cog):
         self.bot = bot
         if settings.run_tasks:
             self.bg_task = bot.loop.create_task(self.task_broadcast_newbie_message())
-            self.bg_task2 = bot.loop.create_task(self.task_send_polychamps_invite())
             self.bg_task3 = bot.loop.create_task(self.task_broadcast_newbie_steam_message())
 
     @commands.command(hidden=True, aliases=['ts', 'blah'])
