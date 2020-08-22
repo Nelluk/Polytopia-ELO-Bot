@@ -167,7 +167,7 @@ class polygames(commands.Cog):
             except peewee.DoesNotExist:
                 return
             discord_member.update_name(new_name=utilities.escape_role_mentions(after.name))
-            models.GameLog.write(game_id=0, guild_id=0, message=f'{models.GameLog.member_string(after)} changed username from "{before.name}"" to "{after.name}"')
+            models.GameLog.write(game_id=0, guild_id=0, message=f'{models.GameLog.member_string(after)} changed username from "{before.name} to "{after.name}"')
 
     @commands.Cog.listener()
     async def on_member_update(self, before, after):
@@ -230,7 +230,7 @@ class polygames(commands.Cog):
             except peewee.DoesNotExist:
                 return
             player.generate_display_name(player_name=after.name, player_nick=after.nick)
-            models.GameLog.write(game_id=0, guild_id=after.guild.id, message=f'{models.GameLog.member_string(after)} had changed nickname from "{before.nick}"" to "{after.nick}"')
+            models.GameLog.write(game_id=0, guild_id=after.guild.id, message=f'{models.GameLog.member_string(after)} had changed nickname from "{before.nick}" to "{after.nick}"')
 
     @settings.in_bot_channel_strict()
     @commands.command(aliases=['leaderboard', 'leaderboards', 'lbglobal', 'lbg'])
