@@ -2147,7 +2147,7 @@ class Game(BaseModel):
 
         if player.is_banned or player.discord_member.is_banned:
             if settings.is_mod(author_member):
-                message_linst.append(f'**{player.name}** has been **ELO Banned** -- *moderator over-ride* :thinking:')
+                message_list.append(f'**{player.name}** has been **ELO Banned** -- *moderator over-ride* :thinking:')
             else:
                 return (None, [f'**{player.name}** has been **ELO Banned** and cannot join any new games. :cry:'])
 
