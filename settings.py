@@ -88,6 +88,7 @@ poly_id_ban_list = [
     # 'JU1Zb9jGO4H1I4Ls',  # SouthPenguinJay#3692
     'MhJJohJENaeBUz7H',  # CoolGuyNotFoolGuy#0498
     '20aih8HH5IcromHX',  # XaeroXD8401
+    'U4x51BhGC2kGp5rv',  # lil'omen 746795654994722901 and Atlas 456142908303867935
 ]
 
 
