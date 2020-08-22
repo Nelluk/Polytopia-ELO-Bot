@@ -154,7 +154,7 @@ class misc(commands.Cog):
         embed.add_field(value='\u200b', name=stats_2[:256], inline=False)
         await ctx.send(embed=embed)
 
-    @commands.command(hidden=True, usage='message')
+    @commands.command(hidden=True, usage='message', aliases=['pingmobile', 'pingsteam'])
     @commands.cooldown(1, 30, commands.BucketType.user)
     @settings.in_bot_channel_strict()
     @models.is_registered_member()
@@ -162,12 +162,15 @@ class misc(commands.Cog):
         """ Ping everyone in all of your incomplete games
 
         Not useable by all players.
+        You can use `pingsteam` to only ping players in your Steam platform games,
+        or `pingmobile` to only ping players in your Mobile games.
 
          **Examples**
         `[p]pingall My phone died and I will make all turns tomorrow`
         Send a message to everyone in all of your incomplete games
         `[p]pingall @Glouc3stershire Glouc is in Tahiti and will play again tomorrow`
         *Staff:* Send a message to everyone in another player's games
+        `[p]pingmobile My phone died but I'm still taking turns on Steam!`
 
         """
         if not message:
@@ -176,7 +179,7 @@ class misc(commands.Cog):
         m = utilities.string_to_user_id(message.split()[0])
 
         if m:
-            logger.debug('Third party use of pingall')
+            logger.debug(f'Third party use of {ctx.invoked_with}')
             # Staff member using command on third party
             if settings.get_user_level(ctx.author) <= 3:
                 logger.debug('insufficient user level')
@@ -191,16 +194,26 @@ class misc(commands.Cog):
                 logger.debug('insufficient user level')
                 return await ctx.send(f'You do not have permission to use this command. You can ask a server staff member to use this command on your games for you.')
             target = str(ctx.author.id)
-            log_message = f'{models.GameLog.member_string(ctx.author)} used pingall with message: '
-
-        logger.debug(f'pingall target is {target}')
+            log_message = f'{models.GameLog.member_string(ctx.author)} used {ctx.invoked_with} with message: '
 
         try:
             player_match = models.Player.get_or_except(player_string=target, guild_id=ctx.guild.id)
         except exceptions.NoSingleMatch:
             return await ctx.send(f'User <@{target}> is not a registered ELO player.')
 
-        game_list = models.Game.search(player_filter=[player_match], status_filter=2, guild_id=ctx.guild.id)
+        if ctx.invoked_with == 'pingall':
+            platform_filter = 2
+            title_str = 'Message to all players in unfinished games'
+        elif ctx.invoked_with == 'pingmobile':
+            platform_filter = 1
+            title_str = 'Message to players in unfinished mobile games'
+        elif ctx.invoked_with == 'pingsteam':
+            platform_filter = 0
+            title_str = 'Message to players in unfinished Steam games'
+        else:
+            raise ValueError(f'{ctx.invoked_with} is not a handled alias for this command')
+
+        game_list = models.Game.search(player_filter=[player_match], status_filter=2, guild_id=ctx.guild.id, platform_filter=platform_filter)
         logger.debug(f'{len(game_list)} incomplete games for target')
 
         list_of_players = []
@@ -212,15 +225,15 @@ class misc(commands.Cog):
         clean_message = utilities.escape_role_mentions(message)
         if len(list_of_players) > 100:
             await ctx.send(f'*Warning:* More than 100 unique players are addressed. Only the first 100 will be mentioned.')
-        await ctx.send(f'Message to all players in unfinished games for <@{target}>: *{clean_message}*')
+        await ctx.send(f'{title_str} for <@{target}>: *{clean_message}*')
 
         recipient_message = f'Message recipients: {" ".join(list_of_players[:100])}'
         await ctx.send(recipient_message[:2000])
 
         for game in game_list:
-            logger.debug(f'Sending message to game channels for game {game.id} from pingall')
+            logger.debug(f'Sending message to game channels for game {game.id} from {ctx.invoked_with}')
             models.GameLog.write(game_id=game, guild_id=ctx.guild.id, message=f'{log_message} *{discord.utils.escape_markdown(clean_message)}*')
-            await game.update_squad_channels(self.bot.guilds, game.guild_id, message=f'Message to all players in unfinished games for <@{target}>: *{clean_message}*')
+            await game.update_squad_channels(self.bot.guilds, game.guild_id, message=f'{title_str} for <@{target}>: *{clean_message}*')
 
     @commands.command(usage='game_id message')
     @models.is_registered_member()
