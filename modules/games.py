@@ -1294,7 +1294,7 @@ class polygames(commands.Cog):
 
     @settings.in_bot_channel()
     @models.is_registered_member()
-    @commands.command(usage='"Name of Game" player1 player2 vs player3 player4', aliases=['newgameunranked'])
+    @commands.command(usage='"Name of Game" player1 player2 vs player3 player4', aliases=['newgameunranked', 'newsteamgame', 'newsteamgameunranked'])
     # @settings.is_user_check()
     async def newgame(self, ctx, game_name: str = None, *args):
         """Adds an existing game to the bot for tracking
@@ -1305,8 +1305,11 @@ class polygames(commands.Cog):
         `[p]newgame "Name of Game" nelluk frodakcin vs bakalol ben` - Sets up a 2v2 game
 
         Use `[p]newgameunranked` to create the game as unranked
+        Use `[p]newsteamgame` or `[p]newsteamgameunranked` to specify Steam platform.
         """
-        ranked_flag = False if ctx.invoked_with == 'newgameunranked' else True
+        ranked_flag = False if ctx.invoked_with in ['newgameunranked', 'newsteamgameunranked'] else True
+        is_mobile = True if ctx.invoked_with in ['newgame', 'newgameunranked'] else False
+
         example_usage = (f'Example usage:\n`{ctx.prefix}newgame "Name of Game" player1 VS player2` - Start a 1v1 game\n'
                          f'`{ctx.prefix}newgame "Name of Game" player1 player2 VS player3 player4` - Start a 2v2 game')
 
@@ -1400,7 +1403,7 @@ class polygames(commands.Cog):
 
         with db.atomic():
             try:
-                newgame = Game.create_game(discord_groups, name=game_name, is_ranked=ranked_flag, guild_id=ctx.guild.id, require_teams=settings.guild_setting(ctx.guild.id, 'require_teams'))
+                newgame = Game.create_game(discord_groups, name=game_name, is_ranked=ranked_flag, guild_id=ctx.guild.id, is_mobile=is_mobile, require_teams=settings.guild_setting(ctx.guild.id, 'require_teams'))
                 host_player, _ = Player.get_by_discord_id(discord_id=ctx.author.id, guild_id=ctx.guild.id)
                 if host_player:
                     newgame.host = host_player
@@ -2002,7 +2005,8 @@ async def post_newgame_messaging(ctx, game):
 
     embed, content = game.embed(guild=ctx.guild, prefix=ctx.prefix)
     ranked_str = 'unranked ' if not game.is_ranked else ''
-    announce_str = f'New {season_str}{ranked_str}game ID **{game.id}** started! Roster: {" ".join(game.mentions())}'
+    platform_str = '' if game.is_mobile else 'Steam '
+    announce_str = f'New {season_str}{ranked_str}{platform_str}game ID **{game.id}** started! Roster: {" ".join(game.mentions())}'
 
     if settings.guild_setting(ctx.guild.id, 'game_announce_channel'):
         channel = ctx.guild.get_channel(settings.guild_setting(ctx.guild.id, 'game_announce_channel'))
