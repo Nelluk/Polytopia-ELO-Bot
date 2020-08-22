@@ -26,8 +26,14 @@ class misc(commands.Cog):
     @commands.command(hidden=True, aliases=['ts', 'blah'])
     @commands.is_owner()
     async def test(self, ctx, *, args=None):
-        game = models.Game.get(id=50000)
-        await ctx.send(game.mentions())
+        bot_members = models.DiscordMember.select().where(
+            models.DiscordMember.discord_id.in_([settings.bot_id, settings.bot_id_beta])
+        )
+        print(len(bot_members))
+        bot_update1 = models.Player.update(elo=0, elo_max=0).where(models.Player.discord_member_id.in_(bot_members))
+        bot_update2 = models.DiscordMember.update(elo=0, elo_max=0).where(models.DiscordMember.id.in_(bot_members))
+        await ctx.send(f'Updating {bot_update1.execute()} bot Player records with 0 elo and {bot_update2.execute()} bot DiscordMember records with 0 elo.')
+        # DiscordMember.update(elo=1000, elo_max=1000).execute()
 
     @commands.command(hidden=True)
     @commands.is_owner()

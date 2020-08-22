@@ -24,6 +24,8 @@ pastebin_key = config['DEFAULT'].get('pastebin_key', None)
 
 server_ids = server_settings.server_shortcut_ids
 # server_ids = {'main': 283436219780825088, 'polychampions': 447883341463814144, 'test': 478571892832206869, 'beta': 274660262873661442}
+bot_id_beta = 479029527553638401
+bot_id = 484067640302764042
 
 config = server_settings.server_list  # list of allowed servers and server-level settings
 bot = None
@@ -69,6 +71,8 @@ discord_id_ban_list = [
     # 313427349775450112,  # SouthPenguinJay#3692
     616737820261875721,  # CoolGuyNotFoolGuy#0498 troll who blatantly lied about game confirmations
     735809555837091861,  # XaeroXD8401  points cheater
+    484067640302764042,  # polyelo himself
+    479029527553638401,  # polyelo beta herself
 ]
 
 poly_id_ban_list = [
