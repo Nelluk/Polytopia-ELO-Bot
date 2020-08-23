@@ -1687,7 +1687,8 @@ class polygames(commands.Cog):
 
         You can rename a game for which you are the host. You can omit the game ID if you use the command in a game-specific channel.
         **Example:**
-        `[p]rename 25 Mountains of Fire`
+        `[p]rename 52000 Mountains of Fire`
+        `[p]rename 52000 None` - Remove a game's name. Required elevated permissions.
         """
 
         usage = (f'**Example usage:** `{ctx.prefix}rename 100 New Game Name`\n'
@@ -1722,11 +1723,16 @@ class polygames(commands.Cog):
         if game.is_pending:
             return await ctx.send(f'This game has not started yet.')
 
+        if not new_game_name:
+            return await ctx.send(usage)
+        if new_game_name.upper() == 'NONE':
+            if settings.get_user_level(ctx.author) <= 3:
+                return await ctx.send(f'You do not have permissions to delete a game name.')
+            new_game_name = None
         is_hosted_by, host = game.is_hosted_by(ctx.author.id)
         if not is_hosted_by and not settings.is_staff(ctx.author) and not game.is_created_by(discord_id=ctx.author.id):
             # host_name = f' **{host.name}**' if host else ''
             return await ctx.send(f'Only the game creator **{game.creating_player().name}** or server staff can do this.')
-
         if new_game_name and not utilities.is_valid_poly_gamename(input=new_game_name):
             if settings.get_user_level(ctx.author) <= 2:
                 return await ctx.send('That name looks made up. :thinking: You need to manually create the game __in Polytopia__, come back and input the name of the new game you made.\n'
@@ -1735,17 +1741,15 @@ class polygames(commands.Cog):
 
         old_game_name = game.name
         game.name = new_game_name
-
         game_guild = self.bot.get_guild(game.guild_id)
         if not game_guild:
             logger.error(f'Error attempting in rename command for game {game.id} - could not load guild {game.guild_id}')
             return await ctx.send('Error loading guild associated with this game. Please contact the bot owner.')
 
         game.save()
-
         await game.update_squad_channels(self.bot.guilds, game_guild.id)
         await game.update_announcement(guild=game_guild, prefix=ctx.prefix)
-        models.GameLog.write(game_id=game, guild_id=game.guild_id, message=f'{models.GameLog.member_string(ctx.author)} renamed the game to *{discord.utils.escape_markdown(new_game_name)}*')
+        models.GameLog.write(game_id=game, guild_id=game.guild_id, message=f'{models.GameLog.member_string(ctx.author)} renamed the game to *{discord.utils.escape_markdown(str(new_game_name))}*')
 
         new_game_name = game.name if game.name else 'None'
         old_game_name = old_game_name if old_game_name else 'None'
