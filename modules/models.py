@@ -1360,7 +1360,7 @@ class Game(BaseModel):
         logger.debug(f'pregame_check returning {teams_for_each_discord_member} // {list_of_final_teams}')
         return (teams_for_each_discord_member, list_of_final_teams)
 
-    def create_game(discord_groups, guild_id, name: str = None, require_teams: bool = False, is_ranked: bool = True):
+    def create_game(discord_groups, guild_id, name: str = None, require_teams: bool = False, is_ranked: bool = True, is_mobile: bool = True):
         # discord_groups = list of lists [[d1, d2, d3], [d4, d5, d6]]. each item being a discord.Member object
 
         teams_for_each_discord_member, list_of_final_teams = Game.pregame_check(discord_groups, guild_id, require_teams)
@@ -1370,6 +1370,7 @@ class Game(BaseModel):
             newgame = Game.create(name=name,
                                   guild_id=guild_id,
                                   is_ranked=is_ranked,
+                                  is_mobile=is_mobile,
                                   size=[len(g) for g in discord_groups])
 
             side_position = 1
@@ -1812,7 +1813,7 @@ class Game(BaseModel):
                 -(fn.SUM(GameSide.size) - fn.COUNT(Lineup.id))
             ).prefetch(GameSide, Lineup, Player)
 
-    def search(player_filter=None, team_filter=None, title_filter=None, status_filter: int = 0, guild_id: int = None, size_filter=None):
+    def search(player_filter=None, team_filter=None, title_filter=None, status_filter: int = 0, guild_id: int = None, size_filter=None, platform_filter: int = 2):
         # Returns Games by almost any combination of player/team participation, and game status
         # player_filter/team_filter should be a [List, of, Player/Team, objects] (or ID #s)
         # status_filter:
@@ -1820,8 +1821,13 @@ class Game(BaseModel):
         # 3 = wins, 4 = losses (only for first player in player_list or, if empty, first team in team list)
         # 5 = unconfirmed wins
         # size filter: array of ints, eg [3, 2] will return games that are 3v2. Ordering matters (will not return 2v3)
+        # platform_filter
+        # 0 = desktop (is_mobile == False)
+        # 1 = mobile (is_mobile == True)
+        # 2 = any
 
         confirmed_filter, completed_filter, pending_filter = [0, 1], [0, 1], [0, 1]
+        platform_filter = [0, 1] if platform_filter == 2 else [platform_filter]
 
         if status_filter == 1:
             # completed games
@@ -1917,6 +1923,8 @@ class Game(BaseModel):
                 Game.id.in_(guild_filter)
             ) & (
                 Game.id.in_(size_query)
+            ) & (
+                Game.is_mobile.in_(platform_filter)
             ) & (
                 Game.is_pending.in_(pending_filter))
         ).order_by(-Game.completed_ts, -Game.date)
