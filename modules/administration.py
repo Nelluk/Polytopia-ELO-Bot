@@ -401,7 +401,7 @@ class administration(commands.Cog):
         logger.info(f'Game {game.id} is now marked as ranked.')
         models.GameLog.write(game_id=game, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} set game to be ranked.')
         await game.update_squad_channels(guild_list=settings.bot.guilds, guild_id=ctx.guild.id, message=f'Staff member **{ctx.author.display_name}** has set this game to be *ranked*.')
-        return await ctx.send(f'Game {game.id} is now marked as ranked.')
+        return await ctx.send(f'Game {game.id} is now marked as ranked.\nNotifying players: {" ".join(game.mentions())}')
 
     @commands.command(usage='game_id')
     async def rankunset(self, ctx, game: PolyGame = None):
@@ -425,7 +425,7 @@ class administration(commands.Cog):
         logger.info(f'Game {game.id} is now marked as unranked.')
         models.GameLog.write(game_id=game, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} set game to be unranked.')
         await game.update_squad_channels(guild_list=settings.bot.guilds, guild_id=ctx.guild.id, message=f'Staff member **{ctx.author.display_name}** has set this game to be *unranked*.')
-        return await ctx.send(f'Game {game.id} is now marked as unranked.')
+        return await ctx.send(f'Game {game.id} is now marked as unranked.\nNotifying players: {" ".join(game.mentions())}')
 
     @settings.in_bot_channel()
     @commands.command(usage='game_id')
@@ -443,6 +443,9 @@ class administration(commands.Cog):
         if game.is_pending:
             return await ctx.send(f'Game {game.id} is already a pending matchmaking session.')
 
+        if game.uses_channel_id(ctx.channel.id):
+            return await ctx.send(f':warning: This command must be used from a channel that is not related to the game.')
+
         if game.announcement_message:
             game.name = f'~~{game.name}~~ GAME CANCELLED'
             await game.update_announcement(guild=ctx.guild, prefix=ctx.prefix)
@@ -455,10 +458,7 @@ class administration(commands.Cog):
         game.save()
         models.GameLog.write(game_id=game, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} changed in-progress game to an open game. (`{ctx.prefix}unstart`)')
 
-        try:
-            await ctx.send(f'Game {game.id} is now an open game and no longer in progress.')
-        except discord.errors.NotFound:
-            logger.warning('Game unstarted while in game-related channel')
+        await ctx.send(f'Game {game.id} is now an open game and no longer in progress.\nNotifying players: {" ".join(game.mentions())}')
 
     @commands.command(usage='search_term', aliases=['gamelog', 'gamelogs', 'global_logs', 'log'])
     # @commands.cooldown(1, 20, commands.BucketType.user)

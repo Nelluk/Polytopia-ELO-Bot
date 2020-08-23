@@ -1076,7 +1076,7 @@ class matchmaking(commands.Cog):
                                                       guild_id=lobby['guild'], is_pending=True,
                                                       is_ranked=lobby['ranked'], expiration=expiration_timestamp, size=lobby['size'])
                         notes_str = f'*{discord.utils.escape_markdown(opengame.notes)}*' if opengame.notes else ''
-                        models.GameLog.write(game_id=opengame, guild_id=guild.id, message=f'I created an {"unranked" is not lobby["ranked"] else ""} empty {lobby["size_str"]} lobby. {notes_str}')
+                        models.GameLog.write(game_id=opengame, guild_id=guild.id, message=f'I created an {"unranked" if not lobby["ranked"] else ""} empty {lobby["size_str"]} lobby. {notes_str}')
                         for count, size in enumerate(lobby['size']):
                             role_lock_id = role_locks[count]
                             role_lock_name = None
