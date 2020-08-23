@@ -812,10 +812,11 @@ class Game(BaseModel):
         return super().__setattr__(name, value)
 
     async def create_game_channels(self, guild_list, guild_id):
+        logger.debug(f'in create_game_channels for game {self.id}')
         guild = discord.utils.get(guild_list, id=guild_id)
         game_roster, side_external_servers = [], []
         ordered_side_list = list(self.ordered_side_list())
-        error_message = ''
+        skipping_team_chans, skipping_central_chan = False, False
 
         for s in ordered_side_list:
             lineup_list = s.ordered_player_list()
@@ -853,7 +854,7 @@ class Game(BaseModel):
 
                 # TODO: maybe, have different thresholds, ie start skipping NOva or 3-player channels or full-game channels is server is at a higher mark like 475
 
-                error_message = 'Server has nearly reached the maximum number of channels: skipping  2-player team channel channel creation for this game.'
+                skipping_team_chans = True
                 logger.warning('Skipping channel creation for a team due to server exceeding 425 channels')
                 continue
             chan = await channels.create_game_channel(side_guild, game=self, team_name=gameside.team.name, player_list=player_list, using_team_server_flag=using_team_server_flag)
@@ -869,20 +870,27 @@ class Game(BaseModel):
 
                 await channels.greet_game_channel(side_guild, chan=chan, player_list=player_list, roster_names=roster_names, game=self, full_game=False)
 
-        if (len(guild.text_channels) < 425 and
-                ((len(ordered_side_list) > 2 and len(self.lineup) > 5) or
-                                len(ordered_side_list) > 3)):
-
+        if (len(ordered_side_list) > 2 and len(self.lineup) > 5) or len(ordered_side_list) > 3:
             # create game channel for larger games - 4+ sides, or 3+ sides with 6+ players
-            player_list = [l.player for l in self.lineup]
-            chan = await channels.create_game_channel(guild, game=self, team_name=None, player_list=player_list)
-            if chan:
-                self.game_chan = chan.id
-                self.save()
-                await channels.greet_game_channel(guild, chan=chan, player_list=player_list, roster_names=roster_names, game=self, full_game=True)
+            if len(guild.text_channels) < 425:
+                player_list = [l.player for l in self.lineup]
+                chan = await channels.create_game_channel(guild, game=self, team_name=None, player_list=player_list)
+                if chan:
+                    self.game_chan = chan.id
+                    self.save()
+                    await channels.greet_game_channel(guild, chan=chan, player_list=player_list, roster_names=roster_names, game=self, full_game=True)
+            else:
+                skipping_central_chan = True
+                logger.warning('skipping central game channel creation due to server capacity')
 
-        if error_message:
-            raise exceptions.MyBaseException('Server has nearly reached the maximum number of channels: skipping 2-player team channel creation for this game.')
+        if skipping_central_chan and skipping_team_chans:
+            raise exceptions.MyBaseException(f'Skipping 2-player team channels and central game channel creation. Server is at {len(guild.text_channels)}/500 channels.')
+        elif skipping_central_chan:
+            raise exceptions.MyBaseException(f'Skipping central game channel creation. Server is at {len(guild.text_channels)}/500 channels.')
+        elif skipping_team_chans:
+            raise exceptions.MyBaseException(f'Skipping 2-player team channels creation. Server is at {len(guild.text_channels)}/500 channels.')
+        else:
+            return
 
     async def delete_game_channels(self, guild_list, guild_id, channel_id_to_delete: int = None):
         guild = discord.utils.get(guild_list, id=guild_id)
