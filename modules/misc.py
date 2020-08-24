@@ -401,7 +401,7 @@ class misc(commands.Cog):
             attachment_urls = '\n'.join([attachment.url for attachment in ctx.message.attachments])
             message += f'\n{attachment_urls}'
 
-        if not message:
+        if not message or len(message) < 7:
             ctx.command.reset_cooldown(ctx)
             return await ctx.send(f'You must supply a help request, ie: `{ctx.prefix}{ctx.invoked_with} Game 42500 Does this screenshot show a restartable spawn?`')
 
