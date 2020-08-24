@@ -441,14 +441,25 @@ class polygames(commands.Cog):
     @settings.guild_has_setting(setting_name='allow_teams')
     @commands.command(aliases=['squadlb'])
     @commands.cooldown(2, 30, commands.BucketType.channel)
-    async def lbsquad(self, ctx):
+    async def lbsquad(self, ctx, *, filters: str = ''):
         """Display squad leaderboard
 
         A squad is any combination of players that have completed at least two games together.
+
+        **Examples:**
+        `[p]lbsquad` - Current leaderboard. Squads who have not played a game in 90 days are not included.
+        `[p]lbsquad alltime` - Alltime leaderboard.
         """
 
         leaderboard = []
-        squads = Squad.leaderboard(date_cutoff=settings.date_cutoff, guild_id=ctx.guild.id)
+        lb_title = 'Squad Leaderboard'
+        date_cutoff = settings.date_cutoff
+
+        if 'ALLTIME' in filters.upper():
+            lb_title += ' - Alltime'
+            date_cutoff = datetime.date.min
+
+        squads = Squad.leaderboard(date_cutoff=date_cutoff, guild_id=ctx.guild.id)
         for counter, sq in enumerate(squads[:200]):
             wins, losses = sq.get_record()
             squad_members = sq.get_members()
@@ -458,7 +469,7 @@ class polygames(commands.Cog):
             leaderboard.append(
                 (f'{(counter + 1):>3}. {emoji_string}{squad_names}', f'`#{sq.id} (ELO: {sq.elo:4}) W {wins} / L {losses}`')
             )
-        await utilities.paginate(self.bot, ctx, title='**Squad Leaderboards**', message_list=leaderboard, page_start=0, page_end=10, page_size=10)
+        await utilities.paginate(self.bot, ctx, title=f'**{lb_title}**', message_list=leaderboard, page_start=0, page_end=10, page_size=10)
 
     @settings.in_bot_channel()
     @settings.guild_has_setting(setting_name='allow_teams')
@@ -471,7 +482,7 @@ class polygames(commands.Cog):
         **Examples:**
         `[p]squad 5` - details on squad 5
         `[p]squad Nelluk` - squads containing Nelluk
-        `[p]squad Nelluk frodakcin` - squad containing both players
+        `[p]squad Nelluk jd` - squad containing both players
         """
         if not args:
             return await ctx.send(f'Use `{ctx.prefix}{ctx.invoked_with} player [player2]` to search for squads by membership, or `{ctx.prefix}lbsquad` for the squad leaderboard.')
