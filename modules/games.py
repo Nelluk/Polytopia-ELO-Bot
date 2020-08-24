@@ -495,7 +495,7 @@ class polygames(commands.Cog):
         args = args.split() if args else []
         usage = f'**Example**: `{ctx.prefix}{ctx.invoked_with} 500 The Super Cool Squad`'
         if not args:
-            return await ctx.send(usage)
+            return await ctx.send(f'No squad ID number supplied. You can use `{ctx.prefix}squad` or `{ctx.prefix}lbsquad` to look up squad IDs.\n{usage}')
 
         try:
             # Argument is an int, so show squad by ID
@@ -503,7 +503,7 @@ class polygames(commands.Cog):
             squad = Squad.get(id=squad_id)
             new_squad_name = discord.utils.escape_markdown(' '.join(args[1:])[:50])
         except ValueError:
-            return await ctx.send(f'No squad ID number supplied. You can use `{ctx.prefix}squad` to look up squad IDs.\n{usage}')
+            return await ctx.send(f'No squad ID number supplied. You can use `{ctx.prefix}squad` or `{ctx.prefix}lbsquad` to look up squad IDs.\n{usage}')
         except peewee.DoesNotExist:
             return await ctx.send(f'Squad with ID {squad_id} cannot be found.')
 
