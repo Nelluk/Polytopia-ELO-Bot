@@ -508,6 +508,10 @@ class polygames(commands.Cog):
             return await ctx.send(f'Squad with ID {squad_id} cannot be found.')
 
         logger.debug(f'Loaded squad {squad.id} for squadname command')
+
+        if squad.guild_id != ctx.guild.id:
+            return await ctx.send(f'Squad with ID {squad_id} is affiliated with a different Discord server.')
+
         if not squad.has_player(discord_id=ctx.author.id) and not settings.is_staff(ctx.author):
             return await ctx.send(f'A squad name can only be set by server staff or a member of that squad.')
 
@@ -551,8 +555,7 @@ class polygames(commands.Cog):
             squad_id = None
             # Args is not an int, which means search by game name
         except peewee.DoesNotExist:
-            await ctx.send('Squad with ID {} cannot be found.'.format(squad_id))
-            return
+            return await ctx.send(f'Squad with ID {squad_id} cannot be found.')
 
         if squad_id is None:
             # Search by player names
@@ -573,14 +576,18 @@ class polygames(commands.Cog):
                 for squadside in squad_list[:50]:
                     squad = squadside.squad
                     wins, losses = squad.get_record()
+                    squad_name_str = f'{squad.name}\n' if squad.name else ' - '
                     squadlist.append(
-                        (f'`#{squad.id:>3}` - {" / ".join(squad.get_names()):40}', f'`(ELO: {squad.elo}) W {wins} / L {losses}`')
+                        (f'`#{squad.id:>3}`{squad_name_str}{" / ".join(squad.get_names()):40}', f'`(ELO: {squad.elo}) W {wins} / L {losses}`')
                     )
                 await utilities.paginate(self.bot, ctx, title=f'Found {len(squad_list)} matches. Try `{ctx.prefix}squad #`:', message_list=squadlist, page_start=0, page_end=10, page_size=10)
                 return
 
             # Exact matching squad found by player name
             squad = squad_list[0].squad
+
+        if squad.guild_id != ctx.guild.id:
+            return await ctx.send(f'Squad with ID {squad_id} is affiliated with a different Discord server.')
 
         wins, losses = squad.get_record()
         rank, lb_length = squad.leaderboard_rank(settings.date_cutoff)
