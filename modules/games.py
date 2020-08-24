@@ -507,6 +507,7 @@ class polygames(commands.Cog):
         except peewee.DoesNotExist:
             return await ctx.send(f'Squad with ID {squad_id} cannot be found.')
 
+        logger.debug(f'Loaded squad {squad.id} for squadname command')
         if not squad.has_player(discord_id=ctx.author.id) and not settings.is_staff(ctx.author):
             return await ctx.send(f'A squad name can only be set by server staff or a member of that squad.')
 

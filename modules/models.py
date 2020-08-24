@@ -2609,6 +2609,7 @@ class Squad(BaseModel):
 
         for player in self.get_members():
             if player.discord_member.discord_id == int(discord_id):
+                logger.debug(f'Found player with id {discord_id} in squad {self.id}')
                 return True
         return False
 
