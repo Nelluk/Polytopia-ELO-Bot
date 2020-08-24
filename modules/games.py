@@ -523,6 +523,7 @@ class polygames(commands.Cog):
         squad.name = new_squad_name
         squad.save()
 
+        models.GameLog.write(game_id=0, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} set squadname of squad {squad.id} to {new_squad_name}')
         await ctx.send(f'Squad name for {squad.id} set to {new_squad_name_str}.')
 
     @settings.in_bot_channel()
