@@ -2448,6 +2448,7 @@ class Game(BaseModel):
 class Squad(BaseModel):
     elo = SmallIntegerField(default=1000)
     guild_id = BitField(unique=False, null=False)
+    name = TextField(null=False, default='')
 
     def upsert(player_list, guild_id: int):
 
