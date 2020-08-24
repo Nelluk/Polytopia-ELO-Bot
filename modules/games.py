@@ -459,17 +459,24 @@ class polygames(commands.Cog):
             lb_title += ' - Alltime'
             date_cutoff = datetime.date.min
 
-        squads = Squad.leaderboard(date_cutoff=date_cutoff, guild_id=ctx.guild.id)
-        for counter, sq in enumerate(squads[:200]):
-            wins, losses = sq.get_record()
-            squad_members = sq.get_members()
-            emoji_list = [p.team.emoji for p in squad_members if p.team is not None]
-            emoji_string = ' '.join(emoji_list)
-            squad_names = ' / '.join(sq.get_names())
-            leaderboard.append(
-                (f'{(counter + 1):>3}. {emoji_string}{squad_names}', f'`#{sq.id} (ELO: {sq.elo:4}) W {wins} / L {losses}`')
-            )
-        await utilities.paginate(self.bot, ctx, title=f'**{lb_title}**', message_list=leaderboard, page_start=0, page_end=10, page_size=10)
+        def process_leaderboard():
+            utilities.connect()
+            squads = Squad.leaderboard(date_cutoff=date_cutoff, guild_id=ctx.guild.id)
+            for counter, sq in enumerate(squads[:500]):
+                wins, losses = sq.get_record()
+                squad_members = sq.get_members()
+                emoji_list = [p.team.emoji for p in squad_members if p.team is not None]
+                emoji_string = ' '.join(emoji_list)
+                squad_names = ' / '.join(sq.get_names())
+                leaderboard.append(
+                    (f'{(counter + 1):>3}. {emoji_string}{squad_names}', f'`#{sq.id} (ELO: {sq.elo:4}) W {wins} / L {losses}`')
+                )
+            return leaderboard, squads.count()
+
+        async with ctx.typing():
+            leaderboard, leaderboard_size = await self.bot.loop.run_in_executor(None, process_leaderboard)
+
+        await utilities.paginate(self.bot, ctx, title=f'**{lb_title}**\n{leaderboard_size} ranked squads', message_list=leaderboard, page_start=0, page_end=10, page_size=10)
 
     @settings.in_bot_channel()
     @settings.guild_has_setting(setting_name='allow_teams')
