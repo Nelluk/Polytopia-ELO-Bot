@@ -440,11 +440,12 @@ class polygames(commands.Cog):
     @settings.in_bot_channel_strict()
     @settings.guild_has_setting(setting_name='allow_teams')
     @commands.command(aliases=['squadlb'])
-    @commands.cooldown(2, 30, commands.BucketType.channel)
+    @commands.cooldown(2, 20, commands.BucketType.channel)
     async def lbsquad(self, ctx, *, filters: str = ''):
         """Display squad leaderboard
 
         A squad is any combination of players that have completed at least two games together.
+        To set a squad name see `[p]help squadname`
 
         **Examples:**
         `[p]lbsquad` - Current leaderboard. Squads who have not played a game in 90 days are not included.
@@ -467,9 +468,11 @@ class polygames(commands.Cog):
                 squad_members = sq.get_members()
                 emoji_list = [p.team.emoji for p in squad_members if p.team is not None]
                 emoji_string = ' '.join(emoji_list)
-                squad_names = ' / '.join(sq.get_names())
+                squad_member_names = ' / '.join(sq.get_names())
+                squad_name_str = f'{sq.name}\n' if sq.name else ''
+
                 leaderboard.append(
-                    (f'{(counter + 1):>3}. {emoji_string}{squad_names}', f'`#{sq.id} (ELO: {sq.elo:4}) W {wins} / L {losses}`')
+                    (f'{(counter + 1):>3}. {squad_name_str}{emoji_string}{squad_member_names}', f'`#{sq.id} (ELO: {sq.elo:4}) W {wins} / L {losses}`')
                 )
             return leaderboard, squads.count()
 
@@ -480,11 +483,56 @@ class polygames(commands.Cog):
 
     @settings.in_bot_channel()
     @settings.guild_has_setting(setting_name='allow_teams')
+    @commands.command(brief='Set a squad name', usage='squad_id New Squad Name', hidden=True)
+    async def squadname(self, ctx, *, args=None):
+        """Set a name for your squad
+
+        **Examples:**
+        `[p]squadname 5 The Desperados` - Set a name for squad 5
+        `[p]squadname 5 None` - Delete an existing name
+        """
+
+        args = args.split() if args else []
+        usage = f'**Example**: `{ctx.prefix}{ctx.invoked_with} 500 The Super Cool Squad`'
+        if not args:
+            return await ctx.send(usage)
+
+        try:
+            # Argument is an int, so show squad by ID
+            squad_id = int(args[0])
+            squad = Squad.get(id=squad_id)
+            new_squad_name = discord.utils.escape_markdown(' '.join(args[1:])[:50])
+        except ValueError:
+            return await ctx.send(f'No squad ID number supplied. You can use `{ctx.prefix}squad` to look up squad IDs.\n{usage}')
+        except peewee.DoesNotExist:
+            return await ctx.send(f'Squad with ID {squad_id} cannot be found.')
+
+        if not squad.has_player(discord_id=ctx.author.id) and not settings.is_staff(ctx.author):
+            return await ctx.send(f'A squad name can only be set by server staff or a member of that squad.')
+
+        old_squad_name = squad.name if squad.name else f'`None`'
+        if not new_squad_name:
+            return await ctx.send(f'No name given. The current name is *{old_squad_name}*\n{usage}')
+
+        if new_squad_name.upper() == 'NONE':
+            new_squad_name = ''
+            new_squad_name_str = '`None`'
+        else:
+            new_squad_name_str = f'*{new_squad_name}*'
+
+        squad.name = new_squad_name
+        squad.save()
+
+        await ctx.send(f'Squad name for {squad.id} set to {new_squad_name_str}.')
+
+    @settings.in_bot_channel()
+    @settings.guild_has_setting(setting_name='allow_teams')
     @commands.command(brief='Find squads or see details on a squad', usage='player1 [player2] [player3]', aliases=['squads'])
     async def squad(self, ctx, *args):
         """Find squads with specific players, or see details on a squad
 
         A squad is any combination of players that have completed at least two games together.
+        To set a squad name see `[p]help squadname`
 
         **Examples:**
         `[p]squad 5` - details on squad 5
@@ -542,7 +590,8 @@ class polygames(commands.Cog):
 
         names_with_emoji = [f'{p.team.emoji} **{p.name}**' if p.team is not None else f'**{p.name}**' for p in squad.get_members()]
 
-        embed = discord.Embed(title=f'Squad card for Squad {squad.id}', description=f'{"  /  ".join(names_with_emoji)}'[:256])
+        squad_name_str = f'\n*{squad.name}*' if squad.name else ''
+        embed = discord.Embed(title=f'Squad card for Squad {squad.id}{squad_name_str}', description=f'{"  /  ".join(names_with_emoji)}'[:256])
         embed.add_field(name='Results', value=f'ELO: {squad.elo},  W {wins} / L {losses}', inline=True)
         embed.add_field(name='Ranking', value=rank_str, inline=True)
         recent_games = GameSide.select(Game).join(Game).where(

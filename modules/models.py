@@ -2598,6 +2598,20 @@ class Squad(BaseModel):
         member_names = [member.player.name for member in self.squadmembers]
         return member_names
 
+    def has_player(self, player: Player = None, discord_id: int = None):
+        # check if player (or discord_id) is a member of this Squad
+
+        if player:
+            discord_id = player.discord_member.discord_id
+
+        if not discord_id:
+            return False
+
+        for player in self.get_members():
+            if player.discord_member.discord_id == int(discord_id):
+                return True
+        return False
+
 
 class SquadMember(BaseModel):
     player = ForeignKeyField(Player, null=False, on_delete='CASCADE')
