@@ -303,7 +303,10 @@ class polygames(commands.Cog):
     @commands.command(aliases=['recent', 'active', 'lbactivealltime'], hidden=True)
     @commands.cooldown(2, 30, commands.BucketType.channel)
     async def lbrecent(self, ctx):
-        """ Display most active recent players"""
+        """ Display most active recent players
+
+        Alternative command is `[p]lbactivealltime`
+        """
         last_month = (datetime.datetime.now() + datetime.timedelta(days=-30))
 
         leaderboard = []

@@ -105,12 +105,12 @@ class matchmaking(commands.Cog):
         if not message:
             return
 
-        if message.author.id == 479029527553638401 and self.bot.user.id != 479029527553638401:
-            # have beta bot ignore non-beta messages and production bot ignore beta messages
+        if message.author.id == settings.bot_id_beta and self.bot.user.id != settings.bot_id_beta:
+            # have production bot ignore messages from beta bot
             return
 
-        if self.bot.user.id == 479029527553638401 and message.author.id != 479029527553638401:
-            # have beta bot ignore non-beta messages and production bot ignore beta messages
+        if self.bot.user.id == settings.bot_id_beta and message.author.id != settings.bot_id_beta:
+            # have beta bot ignore messages that are not from it
             return
 
         game_id, game = self.is_joingame_message(message.content)

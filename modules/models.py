@@ -2621,7 +2621,7 @@ class SquadMember(BaseModel):
 
 class GameSide(BaseModel):
     game = ForeignKeyField(Game, null=False, backref='gamesides', on_delete='CASCADE')
-    squad = ForeignKeyField(Squad, null=True, backref='gamesides', on_delete='CASCADE')
+    squad = ForeignKeyField(Squad, null=True, backref='gamesides', on_delete='SET NULL')
     team = ForeignKeyField(Team, null=True, backref='gamesides', on_delete='RESTRICT')
     required_role_id = BitField(default=None, null=True)
     elo_change_squad = SmallIntegerField(default=0)
