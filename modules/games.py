@@ -576,7 +576,7 @@ class polygames(commands.Cog):
                 for squadside in squad_list[:50]:
                     squad = squadside.squad
                     wins, losses = squad.get_record()
-                    squad_name_str = f'{squad.name}\n' if squad.name else ' - '
+                    squad_name_str = f' - *{squad.name}*\n' if squad.name else ' - '
                     squadlist.append(
                         (f'`#{squad.id:>3}`{squad_name_str}{" / ".join(squad.get_names()):40}', f'`(ELO: {squad.elo}) W {wins} / L {losses}`')
                     )
