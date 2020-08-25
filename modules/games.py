@@ -600,7 +600,7 @@ class polygames(commands.Cog):
         names_with_emoji = [f'{p.team.emoji} **{p.name}**' if p.team is not None else f'**{p.name}**' for p in squad.get_members()]
 
         squad_name_str = f'\n*{squad.name}*' if squad.name else ''
-        embed = discord.Embed(title=f'Squad card for Squad {squad.id}{squad_name_str}', description=f'{"  /  ".join(names_with_emoji)}'[:256])
+        embed = discord.Embed(title=f'Squad card for Squad {squad.id}{squad_name_str}', description=f'{"  /  ".join(names_with_emoji)}'[:2048])
         embed.add_field(name='Results', value=f'ELO: {squad.elo},  W {wins} / L {losses}', inline=True)
         embed.add_field(name='Ranking', value=rank_str, inline=True)
         recent_games = GameSide.select(Game).join(Game).where(
