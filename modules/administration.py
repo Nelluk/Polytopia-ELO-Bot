@@ -37,7 +37,7 @@ class administration(commands.Cog):
     @commands.command(aliases=['quit'])
     async def restart(self, ctx):
         """ *Owner*: Close database connection and quit bot gracefully """
-
+        settings.maintenance_mode = True
         logger.debug(f'Purging message list {self.bot.purgable_messages}')
         try:
             if models.db.close():

@@ -198,6 +198,14 @@ if __name__ == '__main__':
         bot.load_extension(extension)
 
     @bot.event
+    async def on_message(message):
+        if settings.maintenance_mode:
+            if message.content and message.content.startswith(tuple(get_prefix(bot, message))):
+                logger.debug('Ignoring messages while settings.maintenance_mode is set to True')
+        else:
+            await bot.process_commands(message)
+
+    @bot.event
     async def on_ready():
         """http://discordpy.readthedocs.io/en/rewrite/api.html#discord.on_ready"""
 

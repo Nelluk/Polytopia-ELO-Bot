@@ -30,6 +30,7 @@ bot_id = 484067640302764042
 config = server_settings.server_list  # list of allowed servers and server-level settings
 bot = None
 run_tasks = True  # if set as False via command line option, tasks should check this and skip
+maintenance_mode = False  # if set as True bot will respond to all commands with a maintenance mode message
 team_elo_reset_date = '1/1/2020'
 elo_calc_v2_date = datetime.date(2020, 8, 2)  # tweaked elo calc Aug 2, 2020
 
