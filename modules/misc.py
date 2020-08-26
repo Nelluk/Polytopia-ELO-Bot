@@ -419,7 +419,11 @@ class misc(commands.Cog):
         if related_game:
             embed, content = related_game.embed(guild=guild, prefix=ctx.prefix)
             await channel.send(embed=embed, content=content)
+            game_id = related_game.id
+        else:
+            game_id = 0
 
+        models.GameLog.write(game_id=game_id, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} requested staffhelp: *{message}*')
         await ctx.send(f'Your message has been sent to server staff. Please wait patiently or send additional information on your issue.')
 
     @commands.command(hidden=True, aliases=['random_tribes', 'rtribe'], usage='game_size [-banned_tribe ...]')
