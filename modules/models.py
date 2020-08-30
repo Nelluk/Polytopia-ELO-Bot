@@ -2657,10 +2657,10 @@ class GameSide(BaseModel):
         # ('1200 +30', '1300')
 
         if self.team:
-            team_elo_str = str(self.elo_change_team) if self.elo_change_team != 0 else ''
-            if self.elo_change_team > 0:
+            team_elo_str = str(self.elo_change_team_alltime) if self.elo_change_team_alltime != 0 else ''
+            if self.elo_change_team_alltime > 0:
                 team_elo_str = '+' + team_elo_str
-            team_elo_str = f'({self.team.elo} {team_elo_str})'
+            team_elo_str = f'({self.team_elo_after_game_alltime} {team_elo_str})'
         else:
             team_elo_str = None
 
