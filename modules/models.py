@@ -2145,6 +2145,7 @@ class Game(BaseModel):
         author_member = member if not author_member else author_member
         message_list = []
         inactive_role = discord.utils.get(member.guild.roles, name=settings.guild_setting(member.guild.id, 'inactive_role'))
+        # season_inactive_role = discord.utils.get(member.guild.roles, name='Season Inactive')
         log_by_str = f'(Command issued by {GameLog.member_string(author_member)})' if author_member != member else ''
         players, capacity = self.capacity()
 
@@ -2179,6 +2180,11 @@ class Game(BaseModel):
                 message_list.append(f'You have the inactive role **{inactive_role.name}**. Removing it since you seem to be active! :smiling_face_with_3_hearts:')
             else:
                 return (None, [f'**{player.name}** has the inactive role *{inactive_role.name}* - cannot join them to a game until the role is removed. The role will be removed if they use the `{prefix}join` command themselves.'])
+
+        # if season_inactive_role and season_inactive_role in member.roles:
+            # if self.is_uncaught_season_game():
+                # logger.info('Detected member with season_inactive_role joining a potential season game')
+                # return (None, [f'**{player.name}** has the season inactive role *{season_inactive_role.name}* and this game appears to be a *Season Game*'])
 
         waitlist_hosting = [f'{g.id}' for g in Game.search_pending(status_filter=1, guild_id=member.guild.id, host_discord_id=member.id)]
         waitlist_creating = [f'{g.game}' for g in Game.waiting_for_creator(creator_discord_id=member.id)]

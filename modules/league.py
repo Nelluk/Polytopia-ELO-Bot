@@ -490,47 +490,50 @@ class league(commands.Cog):
         self.announcement_message = announcement_message.id
         self.save_draft_config(ctx.guild.id, draft_config)
 
-    @commands.command(aliases=['balance'])
+    @commands.command(aliases=['league_balance'])
     @settings.in_bot_channel()
     @commands.cooldown(1, 5, commands.BucketType.channel)
-    async def league_balance(self, ctx, *, arg=None):
+    async def balance(self, ctx, *, arg=None):
         """ Print some stats on PolyChampions league balance
 
             Default sort is the Draft Score. Include arguments d2 or d3 or d4 to see alternate draft scores.
             ie: `[p]balance d3`
         """
-        import statistics
+        # import statistics
 
         league_balance = []
         indent_str = '\u00A0\u00A0 \u00A0\u00A0 \u00A0\u00A0'
         guild_id = settings.server_ids['polychampions']
         mia_role = discord.utils.get(ctx.guild.roles, name=settings.guild_setting(guild_id, 'inactive_role'))
+        # season_inactive_role = discord.utils.get(ctx.guild.roles, name='Season Inactive')
 
-        if arg and arg == 'd2':
-            draft_preference = 1
-            draft_str = 'Pro Team ELO + Average ELO of Pro Team members'
-        elif arg and arg == 'd3':
-            draft_preference = 3
-            draft_str = 'average ELO of top 20 players (Senior or Junior)'
-        elif arg and arg == 'd4':
-            draft_preference = 4
-            draft_str = 'average top 10 team players with Team ELO, plus half weight of average players 11 thru 20'
-        else:
-            draft_preference = 2  # made draft_preference 2 the new default
-            draft_str = 'combined ELO of top 10 players (Senior or Junior)'
+        draft_str = 'combined ELO of top 10 players (Senior or Junior)'
 
         async with ctx.typing():
             for team, team_roles in league_teams:
 
                 pro_role = discord.utils.get(ctx.guild.roles, name=team_roles[0])
                 junior_role = discord.utils.get(ctx.guild.roles, name=team_roles[1])
+                junior_only_handicap = False  # Set to true for teams with a junior team but no pro team (Jalapenos)
 
-                if not pro_role or not junior_role:
-                    logger.warning(f'Could not load one team role from guild, using args: {team_roles}')
+                if pro_role:
+                    pro_role_members = pro_role.members
+                else:
+                    logger.debug(f'Could not load pro role matching {team_roles[0]}')
+                    pro_role_members = []
+                if junior_role:
+                    junior_role_members = junior_role.members
+                    if not pro_role:
+                        junior_only_handicap = True
+                else:
+                    logger.warning(f'Could not load junior role matching {team_roles[1]} - skipping loop')
                     continue
 
                 try:
-                    pro_team = models.Team.get_or_except(team_roles[0], guild_id)
+                    if junior_only_handicap:
+                        pro_team = None
+                    else:
+                        pro_team = models.Team.get_or_except(team_roles[0], guild_id)
                     junior_team = models.Team.get_or_except(team_roles[1], guild_id)
                 except exceptions.NoSingleMatch:
                     logger.warning(f'Could not load one team from database, using args: {team_roles}')
@@ -538,13 +541,13 @@ class league(commands.Cog):
 
                 pro_members, junior_members, pro_discord_ids, junior_discord_ids, mia_count = [], [], [], [], 0
 
-                for member in pro_role.members:
+                for member in pro_role_members:
                     if mia_role in member.roles:
                         mia_count += 1
                     else:
                         pro_members.append(member)
                         pro_discord_ids.append(member.id)
-                for member in junior_role.members:
+                for member in junior_role_members:
                     if mia_role in member.roles:
                         mia_count += 1
                     else:
@@ -557,43 +560,42 @@ class league(commands.Cog):
                 pro_elo, _ = models.Player.average_elo_of_player_list(list_of_discord_ids=pro_discord_ids, guild_id=guild_id, weighted=False)
                 junior_elo, _ = models.Player.average_elo_of_player_list(list_of_discord_ids=junior_discord_ids, guild_id=guild_id, weighted=False)
 
-                draft_score = pro_team.elo + pro_elo
-
                 sorted_elo_list = models.Player.discord_ids_to_elo_list(list_of_discord_ids=junior_discord_ids + pro_discord_ids, guild_id=guild_id)
-                draft_score_2 = sum(sorted_elo_list[:10])
-                draft_score_3 = statistics.mean(sorted_elo_list[:20])
-                draft_score_4 = statistics.mean(sorted_elo_list[:10] + [pro_team.elo]) + int(statistics.mean(sorted_elo_list[11:]) * 0.5)
-
-                if draft_preference == 2:
-                    draft_score = draft_score_2
-                elif draft_preference == 3:
-                    draft_score = draft_score_3
-                elif draft_preference == 4:
-                    draft_score = draft_score_4
+                draft_score = sum(sorted_elo_list[:10])
 
                 league_balance.append(
-                    (team,
-                     pro_team,
-                     junior_team,
-                     len(pro_members),
-                     len(junior_members),
-                     mia_count,
-                     combined_elo,
-                     player_games_total,
-                     pro_elo,
-                     junior_elo,
-                     draft_score)
+                    (team,  # 0
+                     pro_team,  # 1
+                     junior_team,  # 2
+                     len(pro_members),  # 3
+                     len(junior_members),  # 4
+                     mia_count,  # 5
+                     combined_elo,  # 6
+                     player_games_total,  # 7
+                     pro_elo,  # 8
+                     junior_elo,  # 9
+                     draft_score)  # 10
                 )
 
         league_balance.sort(key=lambda tup: tup[10], reverse=True)     # sort by draft score
 
         embed = discord.Embed(title='PolyChampions League Balance Summary')
         for team in league_balance:
-            embed.add_field(name=(f'{team[1].emoji} {team[0]} ({team[3] + team[4]}) {team[2].emoji}\n{indent_str} \u00A0\u00A0 ActiveELO™: {team[6]}'
+            if pro_team:
+                # normal pro+junior entry
+                field_name = (f'{team[1].emoji} {team[0]} ({team[3] + team[4]}) {team[2].emoji}\n{indent_str} \u00A0\u00A0 ActiveELO™: {team[6]}'
                                   f' \u00A0 - \u00A0  Draft Score: {team[10]}'
-                                  f'\n{indent_str} \u00A0\u00A0 Recent member-games: {team[7]}'),
-                value=(f'-{indent_str}__**{team[1].name}**__ ({team[3]}) **ELO: {team[1].elo}** (Avg: {team[8]})\n'
-                       f'-{indent_str}__**{team[2].name}**__ ({team[4]}) **ELO: {team[2].elo}** (Avg: {team[9]})\n'), inline=False)
+                                  f'\n{indent_str} \u00A0\u00A0 Recent member-games: {team[7]}')
+                field_value = (f'-{indent_str}__**{team[1].name}**__ ({team[3]}) **ELO: {team[1].elo}** (Avg: {team[8]})\n'
+                       f'-{indent_str}__**{team[2].name}**__ ({team[4]}) **ELO: {team[2].elo}** (Avg: {team[9]})\n')
+            else:
+                # junior only entry
+                field_name = (f'{team[0]} ({team[3] + team[4]}) {team[2].emoji}\n{indent_str} \u00A0\u00A0 ActiveELO™: {team[6]}'
+                                  f' \u00A0 - \u00A0  Draft Score: {team[10]}'
+                                  f'\n{indent_str} \u00A0\u00A0 Recent member-games: {team[7]}')
+                field_value = (f'-{indent_str}__**{team[2].name}**__ ({team[4]}) **ELO: {team[2].elo}** (Avg: {team[9]})\n')
+
+            embed.add_field(name=field_name, value=field_value, inline=False)
 
         embed.set_footer(text=f'ActiveELO™ is the mean ELO of members weighted by how many games each member has played in the last 30 days. Draft Score is {draft_str}.')
 
