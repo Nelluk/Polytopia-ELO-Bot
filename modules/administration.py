@@ -64,7 +64,7 @@ class administration(commands.Cog):
                         pass
 
             await ctx.send(f'Cleaning up temporary announcement messages...')
-            await asyncio.sleep(4)  # to make sure message deletes go through
+            await asyncio.sleep(3)  # to make sure message deletes go through
 
         await ctx.send('Shutting down')
         await self.bot.close()
