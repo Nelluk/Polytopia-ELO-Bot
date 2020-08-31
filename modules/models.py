@@ -736,9 +736,7 @@ class Player(BaseModel):
         player_games = 0
 
         for p in players:
-            logger.debug(f'START {p.name}')
             games_played = p.games_played(in_days=30, min_players=2).count()
-            logger.debug(f'Games played with minimum size side 2: {games_played}')
 
             # player_elos = [p.elo] * games_played
             # elo_list = elo_list + player_elos
@@ -752,8 +750,6 @@ class Player(BaseModel):
                 elo_list.append(p.elo)
 
         if elo_list:
-            logger.debug(f'elo_list: {elo_list}')
-
             return int(statistics.mean(elo_list)), player_games
 
         return 0, 0

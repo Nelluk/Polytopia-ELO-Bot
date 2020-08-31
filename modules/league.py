@@ -555,7 +555,6 @@ class league(commands.Cog):
                         junior_members.append(member)
                         junior_discord_ids.append(member.id)
 
-                logger.info(team)
                 combined_elo, player_games_total = models.Player.average_elo_of_player_list(list_of_discord_ids=junior_discord_ids + pro_discord_ids, guild_id=guild_id, weighted=True)
 
                 pro_elo, _ = models.Player.average_elo_of_player_list(list_of_discord_ids=pro_discord_ids, guild_id=guild_id, weighted=False)
