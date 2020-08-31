@@ -641,7 +641,7 @@ class Player(BaseModel):
             (Lineup.player == self) & (GameSide.size >= min_players)
         )
 
-        logger.debug(f'Player {self.name} min_players: {min_players} - {len(subq_games_with_minimum_side_size)}')
+        # logger.debug(f'Player {self.name} min_players: {min_players} - {len(subq_games_with_minimum_side_size)}')
 
         return Game.select().where(
             ((Game.date > date_cutoff) | (Game.completed_ts > date_cutoff)) &
