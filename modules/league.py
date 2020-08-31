@@ -541,6 +541,7 @@ class league(commands.Cog):
 
                 pro_members, junior_members, pro_discord_ids, junior_discord_ids, mia_count = [], [], [], [], 0
 
+                logger.debug(f'Processing team matching {team_roles[0]} {team_roles[1]}')
                 for member in pro_role_members:
                     if mia_role in member.roles:
                         mia_count += 1
@@ -562,9 +563,11 @@ class league(commands.Cog):
 
                 sorted_elo_list = models.Player.discord_ids_to_elo_list(list_of_discord_ids=junior_discord_ids + pro_discord_ids, guild_id=guild_id)
                 draft_score = sum(sorted_elo_list[:10])
+                logger.debug(f'sorted_elo_list: {sorted_elo_list}')
                 if junior_only_handicap:
+                    logger.debug('Applying 20% junior_only_handicap')
                     draft_score = int(draft_score * 1.2)
-
+                logger.debug(f'draft_score: {draft_score}')
                 league_balance.append(
                     (team,  # 0
                      pro_team,  # 1
