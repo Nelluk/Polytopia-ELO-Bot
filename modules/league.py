@@ -562,6 +562,8 @@ class league(commands.Cog):
 
                 sorted_elo_list = models.Player.discord_ids_to_elo_list(list_of_discord_ids=junior_discord_ids + pro_discord_ids, guild_id=guild_id)
                 draft_score = sum(sorted_elo_list[:10])
+                if junior_only_handicap:
+                    draft_score = int(draft_score * 1.2)
 
                 league_balance.append(
                     (team,  # 0
