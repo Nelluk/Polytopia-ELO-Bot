@@ -592,7 +592,7 @@ class league(commands.Cog):
                        f'-{indent_str}__**{team[2].name}**__ ({team[4]}) **ELO: {team[2].elo}** (Avg: {team[9]})\n')
             else:
                 # junior only entry
-                field_name = (f'{team[0]} ({team[3] + team[4]}) {team[2].emoji}\n{indent_str} \u00A0\u00A0 ActiveELO™: {team[6]}'
+                field_name = (f'{team[2].emoji} {team[0]} ({team[3] + team[4]}) {team[2].emoji}\n{indent_str} \u00A0\u00A0 ActiveELO™: {team[6]}'
                                   f' \u00A0 - \u00A0  Draft Score: {team[10]}'
                                   f'\n{indent_str} \u00A0\u00A0 Recent member-games: {team[7]}')
                 field_value = (f'-{indent_str}__**{team[2].name}**__ ({team[4]}) **ELO: {team[2].elo}** (Avg: {team[9]})\n')
