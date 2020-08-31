@@ -583,7 +583,7 @@ class league(commands.Cog):
 
         embed = discord.Embed(title='PolyChampions League Balance Summary')
         for team in league_balance:
-            if pro_team:
+            if team[1]:
                 # normal pro+junior entry
                 field_name = (f'{team[1].emoji} {team[0]} ({team[3] + team[4]}) {team[2].emoji}\n{indent_str} \u00A0\u00A0 ActiveELO™: {team[6]}'
                                   f' \u00A0 - \u00A0  Draft Score: {team[10]}'
