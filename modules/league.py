@@ -992,6 +992,10 @@ class league(commands.Cog):
                 logger.debug(f'Skipping {dm.name} - ELO or W/L record insufficient')
                 continue
 
+            if not dm.polytopia_id and not dm.polytopia_name:
+                logger.debug(f'Skipping {dm.name} - no mobile code or name')
+                continue
+
             logger.debug(f'Sending invite to {dm.name}')
             guild_member = guild.get_member(dm.discord_id)
             if not guild_member:
