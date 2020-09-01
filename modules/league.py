@@ -862,7 +862,7 @@ class league(commands.Cog):
             method = 'all'
 
         if not roles:
-            return await ctx.send(f'Could not load roles from the guild matching **{"/".join(args)}**. This command tries to match one role per word.')
+            return await ctx.send(f'Could not load roles from the guild matching **{"/".join(args)}**. Multiple roles should be separated by a comma.')
 
         inactive_role = discord.utils.get(ctx.guild.roles, name=settings.guild_setting(ctx.guild.id, 'inactive_role'))
         for member in members:
