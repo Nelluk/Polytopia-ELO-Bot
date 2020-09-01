@@ -1790,7 +1790,6 @@ class polygames(commands.Cog):
         except exceptions.NoMatches:
             if game_id:
                 game = await PolyGame().convert(ctx, int(game_id), allow_cross_guild=False)
-                # if ctx.channel.id not in settings.guild_setting(ctx.guild.id, 'bot_channels'):
                 if not await settings.is_bot_channel_strict(ctx):
                     return await ctx.send(f'This command must be used in a bot spam channel or in a game-specific channel.')
             else:
