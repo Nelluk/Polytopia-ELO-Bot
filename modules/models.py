@@ -834,7 +834,7 @@ class Game(BaseModel):
             if side_external_server and discord.utils.get(guild_list, id=side_external_server):
                 side_guild = discord.utils.get(guild_list, id=side_external_server)  # use team-specific external server
                 using_team_server_flag = True
-                logger.debug('using external guild to create team channel')
+                logger.debug(f'using external guild {side_guild.name} to create team channel')
             else:
                 side_guild = guild  # use current guild (ctx.guild)
                 using_team_server_flag = False
