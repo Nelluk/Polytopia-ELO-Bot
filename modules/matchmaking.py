@@ -94,7 +94,7 @@ class matchmaking(commands.Cog):
         if payload.user_id == self.bot.user.id:
             return
 
-        if f'{payload.message_id}_{payload.user_id}' in self.ignorable_join_reactions:
+        if (payload.message_id, payload.user_id) in self.ignorable_join_reactions:
             logger.debug('Ignoring reaction removal due to ignorable_join_reactions')
             return self.ignorable_join_reactions.discard((payload.message_id, payload.user_id))
 

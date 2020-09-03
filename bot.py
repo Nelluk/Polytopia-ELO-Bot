@@ -203,6 +203,7 @@ if __name__ == '__main__':
             if message.content and message.content.startswith(tuple(get_prefix(bot, message))):
                 logger.debug('Ignoring messages while settings.maintenance_mode is set to True')
         else:
+            # it is possible to modify the content of a message here before processing, ie replace curly quotes in message.content with straight quotes
             await bot.process_commands(message)
 
     @bot.event
