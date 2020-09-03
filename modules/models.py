@@ -1821,6 +1821,7 @@ class Game(BaseModel):
         # 0 = desktop (is_mobile == False)
         # 1 = mobile (is_mobile == True)
         # 2 = any
+        # title_filter should be a [list, of, words] to search for in game notes or title. using iregexp (case insensitive). ordering doesn't matter
 
         confirmed_filter, completed_filter, pending_filter = [0, 1], [0, 1], [0, 1]
         platform_filter = [0, 1] if platform_filter == 2 else [platform_filter]
@@ -1867,8 +1868,14 @@ class Game(BaseModel):
             player_subq = Game.select(Game.id)
 
         if title_filter:
+
+            strip_regexp = re.compile('[^1-9a-zA-Z ]')  # strip out everything except alphanumerics and spaces
+            clean_search_terms = strip_regexp.sub('', ' '.join(title_filter)).split()
+            search_regexp = '^' + ''.join([f'(?=.*{arg})' for arg in clean_search_terms]) + '.+'
+            # https://stackoverflow.com/questions/24656131/regex-for-existence-of-some-words-whose-order-doesnt-matter
+
             title_subq = Game.select(Game.id).where(
-                (Game.name.contains('%'.join(title_filter))) | (Game.notes.contains('%'.join(title_filter)))
+                (Game.notes.iregexp(search_regexp)) | (Game.name.iregexp(search_regexp))
             )
         else:
             title_subq = Game.select(Game.id)

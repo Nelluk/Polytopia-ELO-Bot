@@ -1341,6 +1341,7 @@ class polygames(commands.Cog):
         `[p]incomplete Nelluk anarchoRex` - Lists all incomplete games with both players
         `[p]incomplete Nelluk Jets` - Lists all incomplete games for Nelluk that include team Jets
         `[p]incomplete Ronin Jets` - Lists all incomplete games that include teams Ronin and Jets
+        `[p]incomplete RONIN` - Search by title - words in all caps are used to search title/notes.
 
         You can also include a game size such as *2v2* to limit by size.
         """
@@ -1983,7 +1984,7 @@ class polygames(commands.Cog):
                 results_title.append(f'Including teams: *{"* & *".join(t_names)}*')
             if remaining_args:
                 remaining_args = [utilities.escape_role_mentions(x) for x in remaining_args]
-                results_title.append(f'Included in name: *{"* *".join(remaining_args)}*')
+                results_title.append(f'Included in name/notes: *{"* *".join(remaining_args)}*')
             if team_size_str:
                 results_title.append(f'Game size: *{team_size_str}*')
 
