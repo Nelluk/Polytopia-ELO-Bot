@@ -83,13 +83,14 @@ def get_umbrella_team_role(team_name: str):
 
 def get_team_leadership(team_role):
 
+    umbrella_role = get_umbrella_team_role(team_role.name)
     leaders, coleaders, recruiters = [], [], []
 
     leader_role = utilities.guild_role_by_name(team_role.guild, name='Team Leader', allow_partial=False)
     coleader_role = utilities.guild_role_by_name(team_role.guild, name='Team Co-Leader', allow_partial=False)
     recruiter_role = utilities.guild_role_by_name(team_role.guild, name='Team Recruiter', allow_partial=False)
 
-    for member in team_role.members:
+    for member in umbrella_role.members:
         if leader_role in member.roles:
             leaders.append(member)
         if coleader_role in member.roles:
