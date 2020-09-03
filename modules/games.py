@@ -874,9 +874,9 @@ class polygames(commands.Cog):
         embed.add_field(name='Results', value=f'ELO: {team.elo}   Wins {wins} / Losses {losses}', inline=False)
 
         if team_role:
-            leadership = get_team_leadership(team_role)
-            logger.debug(leadership)
-            print(leadership)
+            # leadership = get_team_leadership(team_role)
+            # logger.debug(leadership)
+            # print(leadership)
             if completed_flag:
                 header_str = '__Player - ELO - Ranking - Completed Games__'
             else:

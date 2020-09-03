@@ -62,7 +62,7 @@ def get_league_roles(guild=None):
 
 def get_umbrella_team_role(team_name: str):
     # given a team name like 'The Ronin' return the correspondng 'umbrella' team role object (Ronin)
-
+    print(league_guild)
     if not league_guild:
         raise exceptions.CheckFailedError('PolyChampions guild not loaded in `league.py`')
 
@@ -219,6 +219,7 @@ class league(commands.Cog):
 
         global league_guild
         league_guild = self.bot.get_guild(settings.server_ids['polychampions']) or self.bot.get_guild(settings.server_ids['test'])
+        print(league_guild)
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload):
