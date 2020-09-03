@@ -40,9 +40,12 @@ league_teams = [('Ronin', ['The Ronin', 'The Bandits']),
 
 league_team_channels = []
 next_nova_newbie = 'Nova Red'  # Alternates between Red/Blue. Seeded randomly by Cog.on_ready()
+league_guild = None  # set in on_ready - either polychamps or test server
 
 
-def get_league_roles(guild):
+def get_league_roles(guild=None):
+
+    guild = league_guild if not guild else guild
     pro_role_names = [a[1][0] for a in league_teams]
     junior_role_names = [a[1][1] for a in league_teams]
     team_role_names = [a[0] for a in league_teams]
@@ -55,6 +58,46 @@ def get_league_roles(guild):
         logger.warning(f'Problem loading at least one role in get_league_roles: {pro_roles} {junior_roles} {team_roles}')
 
     return team_roles, pro_roles, junior_roles
+
+
+def get_umbrella_team_role(team_name: str):
+    # given a team name like 'The Ronin' return the correspondng 'umbrella' team role object (Ronin)
+
+    if not league_guild:
+        raise exceptions.CheckFailedError('PolyChampions guild not loaded in `league.py`')
+
+    target_team_role = utilities.guild_role_by_name(league_guild, name=team_name, allow_partial=False)
+    if not target_team_role:
+        raise ValueError(f'No matching role found for team name "{team_name}"')
+
+    team_roles, pro_roles, junior_roles = get_league_roles()
+
+    if target_team_role in pro_roles:
+        team_umbrella_role = team_roles[pro_roles.index(target_team_role)]
+    elif target_team_role in junior_roles:
+        team_umbrella_role = team_roles[junior_roles.index(target_team_role)]
+    else:
+        raise exceptions.CheckFailedError(f'Unexpected error in get_umbrella_team_role for input "{team_name}')
+
+    return team_umbrella_role
+
+def get_team_leadership(team_role):
+
+    leaders, coleaders, recruiters = [], [], []
+
+    leader_role = utilities.guild_role_by_name(team_role.guild, name='Team Leader', allow_partial=False)
+    coleader_role = utilities.guild_role_by_name(team_role.guild, name='Team Co-Leader', allow_partial=False)
+    recruiter_role = utilities.guild_role_by_name(team_role.guild, name='Team Recruiter', allow_partial=False)
+
+    for member in team_role.members:
+        if leader_role in member.roles:
+            leaders.append(member)
+        if coleader_role in member.roles:
+            coleaders.append(member)
+        if recruiter_role in member.roles:
+            recruiters.append(member)
+
+    return {'leaders': leaders, 'coleaders': coleaders, 'recruiters': recruiters}
 
 
 class league(commands.Cog):
@@ -172,6 +215,9 @@ class league(commands.Cog):
         populate_league_team_channels()
         global next_nova_newbie
         next_nova_newbie = random.choice(['Nova Red', 'Nova Blue'])
+
+        global league_guild
+        league_guild = self.bot.get_guild(settings.server_ids['polychampions']) or self.bot.get_guild(settings.server_ids['test'])
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload):

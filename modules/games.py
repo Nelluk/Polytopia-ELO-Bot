@@ -8,7 +8,7 @@ from modules import channels
 import peewee
 import modules.models as models
 from modules.models import Game, db, Player, Team, DiscordMember, Squad, GameSide, Tribe, Lineup
-from modules.league import auto_grad_novas, populate_league_team_channels
+from modules.league import auto_grad_novas, populate_league_team_channels, get_team_leadership
 import logging
 import datetime
 import asyncio
@@ -874,6 +874,9 @@ class polygames(commands.Cog):
         embed.add_field(name='Results', value=f'ELO: {team.elo}   Wins {wins} / Losses {losses}', inline=False)
 
         if team_role:
+            leadership = get_team_leadership(team_role)
+            logger.debug(leadership)
+            print(leadership)
             if completed_flag:
                 header_str = '__Player - ELO - Ranking - Completed Games__'
             else:
