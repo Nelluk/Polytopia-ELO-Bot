@@ -874,40 +874,41 @@ class polygames(commands.Cog):
         embed.add_field(name='Results', value=f'ELO: {team.elo}   Wins {wins} / Losses {losses}', inline=False)
 
         if team_role:
-            leaders_list, coleaders_list, recruiters_list = get_team_leadership(team_role)
-            leaders_list = [member.name for member in leaders_list]
-            coleaders_list = [member.name for member in coleaders_list]
-            recruiters_list = [member.name for member in recruiters_list]
+            async with ctx.typing():
+                leaders_list, coleaders_list, recruiters_list = get_team_leadership(team_role)
+                leaders_list = [member.mention for member in leaders_list]
+                coleaders_list = [member.mention for member in coleaders_list]
+                recruiters_list = [member.mention for member in recruiters_list]
 
-            if completed_flag:
-                header_str = '__Player - ELO - Ranking - Completed Games__'
-            else:
-                header_str = '__Player - ELO - Ranking - Recent Games__'
-            for member in team_role.members:
-                if mia_role and mia_role in member.roles:
-                    continue
-                    # skip members tagged @MIA
-
-                # Create a list of members - pull ELO score from database if they are registered, or with 0 ELO if they are not
-                p = Player.string_matches(player_string=str(member.id), guild_id=ctx.guild.id)
-                if len(p) == 0:
-                    member_stats.append((member.name, 0, f'`{member.name[:23]:.<25}{"-":.<8}{"-":.<6}{"-":.<4}`'))
+                if completed_flag:
+                    header_str = '__Player - ELO - Ranking - Completed Games__'
                 else:
-                    wins, losses = p[0].get_record()
-                    lb_rank = p[0].leaderboard_rank(date_cutoff=settings.date_cutoff)[0]
-                    rank_str = f'#{lb_rank}' if lb_rank else '-'
-                    if completed_flag:
-                        games_played = p[0].completed_game_count()
+                    header_str = '__Player - ELO - Ranking - Recent Games__'
+                for member in team_role.members:
+                    if mia_role and mia_role in member.roles:
+                        continue
+                        # skip members tagged @MIA
+
+                    # Create a list of members - pull ELO score from database if they are registered, or with 0 ELO if they are not
+                    p = Player.string_matches(player_string=str(member.id), guild_id=ctx.guild.id)
+                    if len(p) == 0:
+                        member_stats.append((member.name, 0, f'`{member.name[:23]:.<25}{"-":.<8}{"-":.<6}{"-":.<4}`'))
                     else:
-                        games_played = p[0].games_played(in_days=30).count()
-                    member_stats.append(({p[0].discord_member.name}, games_played, f'`{p[0].discord_member.name[:23]:.<25}{p[0].elo:.<8}{rank_str:.<6}{games_played:.<4}`'))
+                        wins, losses = p[0].get_record()
+                        lb_rank = p[0].leaderboard_rank(date_cutoff=settings.date_cutoff)[0]
+                        rank_str = f'#{lb_rank}' if lb_rank else '-'
+                        if completed_flag:
+                            games_played = p[0].completed_game_count()
+                        else:
+                            games_played = p[0].games_played(in_days=30).count()
+                        member_stats.append(({p[0].discord_member.name}, games_played, f'`{p[0].discord_member.name[:23]:.<25}{p[0].elo:.<8}{rank_str:.<6}{games_played:.<4}`'))
 
-            member_stats.sort(key=lambda tup: tup[1], reverse=True)     # sort the list descending by recent games played
-            members_sorted = [str(x[2].replace(".", "\u200b ")) for x in member_stats[:28]]    # create list of strings like 'Nelluk  1277 #3  21'.
-            # replacing '.' with "\u200b " (alternated zero width space with a normal space) so discord wont strip spaces
+                member_stats.sort(key=lambda tup: tup[1], reverse=True)     # sort the list descending by recent games played
+                members_sorted = [str(x[2].replace(".", "\u200b ")) for x in member_stats[:28]]    # create list of strings like 'Nelluk  1277 #3  21'.
+                # replacing '.' with "\u200b " (alternated zero width space with a normal space) so discord wont strip spaces
 
-            members_str = "\n".join(members_sorted) if len(members_sorted) > 0 else '\u200b'
-            embed.description = f'**Members({len(member_stats)})**\n{header_str}\n{members_str}'[:2048]
+                members_str = "\n".join(members_sorted) if len(members_sorted) > 0 else '\u200b'
+                embed.description = f'**Members({len(member_stats)})**\n{header_str}\n{members_str}'[:2048]
         else:
             await ctx.send(f':no_entry_sign: No matching discord role "{team.name}" could be found. Player membership cannot be detected.')
 
