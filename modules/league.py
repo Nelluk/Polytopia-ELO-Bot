@@ -41,6 +41,7 @@ league_teams = [('Ronin', ['The Ronin', 'The Bandits']),
 league_team_channels = []
 next_nova_newbie = 'Nova Red'  # Alternates between Red/Blue. Seeded randomly by Cog.on_ready()
 league_guild = None  # set in on_ready - either polychamps or test server
+print('here')
 
 
 def get_league_roles(guild=None):
@@ -549,6 +550,8 @@ class league(commands.Cog):
         """
         # import statistics
 
+        leadership = get_team_leadership(discord.utils.get(ctx.guild.roles, name='The Ronin'))
+        print(leadership)
         league_balance = []
         indent_str = '\u00A0\u00A0 \u00A0\u00A0 \u00A0\u00A0'
         guild_id = settings.server_ids['polychampions']
