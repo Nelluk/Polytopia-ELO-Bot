@@ -864,19 +864,21 @@ class polygames(commands.Cog):
         embed = discord.Embed(title=f'Team card for **{team.name}** {team.emoji}')
         team_role = discord.utils.get(ctx.guild.roles, name=team.name)
         mia_role = discord.utils.get(ctx.guild.roles, name=settings.guild_setting(ctx.guild.id, 'inactive_role'))
-        leader_role = discord.utils.get(ctx.guild.roles, name='Team Leader')
-        coleader_role = discord.utils.get(ctx.guild.roles, name='Team Co-Leader')
+        # leader_role = discord.utils.get(ctx.guild.roles, name='Team Leader')
+        # coleader_role = discord.utils.get(ctx.guild.roles, name='Team Co-Leader')
         member_stats = []
-        leaders_list, coleaders_list = [], []
+        leaders_list, coleaders_list, recruiters_list = [], [], []
         image = None
 
         wins, losses = team.get_record(alltime=False)
         embed.add_field(name='Results', value=f'ELO: {team.elo}   Wins {wins} / Losses {losses}', inline=False)
 
         if team_role:
-            leadership = get_team_leadership(team_role)
-            logger.debug(leadership)
-            print(leadership)
+            leaders_list, coleaders_list, recruiters_list = get_team_leadership(team_role)
+            leaders_list = [member.name for member in leaders_list]
+            coleaders_list = [member.name for member in coleaders_list]
+            recruiters_list = [member.name for member in recruiters_list]
+
             if completed_flag:
                 header_str = '__Player - ELO - Ranking - Completed Games__'
             else:
@@ -885,10 +887,6 @@ class polygames(commands.Cog):
                 if mia_role and mia_role in member.roles:
                     continue
                     # skip members tagged @MIA
-                if leader_role and leader_role in member.roles:
-                    leaders_list.append(member.name)
-                if coleader_role and coleader_role in member.roles:
-                    coleaders_list.append(member.name)
 
                 # Create a list of members - pull ELO score from database if they are registered, or with 0 ELO if they are not
                 p = Player.string_matches(player_string=str(member.id), guild_id=ctx.guild.id)
@@ -917,6 +915,8 @@ class polygames(commands.Cog):
             embed.add_field(name='**Team Leader**', value=', '.join(leaders_list), inline=True)
         if coleaders_list:
             embed.add_field(name='**Team Co-Leaders**', value=', '.join(coleaders_list), inline=True)
+        if recruiters_list:
+            embed.add_field(name='**Team Recruiters**', value=', '.join(recruiters_list), inline=True)
         if team.image_url:
             embed.set_thumbnail(url=team.image_url)
 

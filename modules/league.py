@@ -98,7 +98,7 @@ def get_team_leadership(team_role):
         if recruiter_role in member.roles:
             recruiters.append(member)
 
-    return {'leaders': leaders, 'coleaders': coleaders, 'recruiters': recruiters}
+    return leaders, coleaders, recruiters
 
 
 class league(commands.Cog):
