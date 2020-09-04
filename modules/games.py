@@ -9,7 +9,6 @@ import peewee
 import modules.models as models
 from modules.models import Game, db, Player, Team, DiscordMember, Squad, GameSide, Tribe, Lineup
 from modules.league import auto_grad_novas, populate_league_team_channels, get_team_leadership
-import modules.league as league
 import logging
 import datetime
 import asyncio
@@ -134,12 +133,6 @@ class polygames(commands.Cog):
                 continue
 
             await fix_channel_perm(channel, member)
-
-    @commands.command(hidden=True, aliases=[])
-    @commands.is_owner()
-    async def ts5(self, ctx, *, args=None):
-        # global league_guild
-        print(league.league_guild)
 
     @commands.Cog.listener()
     async def on_member_remove(self, member):

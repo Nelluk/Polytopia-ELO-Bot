@@ -40,13 +40,12 @@ league_teams = [('Ronin', ['The Ronin', 'The Bandits']),
 
 league_team_channels = []
 next_nova_newbie = 'Nova Red'  # Alternates between Red/Blue. Seeded randomly by Cog.on_ready()
-league_guild = None  # set in on_ready - either polychamps or test server
-print('here')
-
 
 def get_league_roles(guild=None):
 
-    guild = league_guild if not guild else guild
+    if not guild:
+        guild = settings.bot.get_guild(settings.server_ids['polychampions']) or settings.bot.get_guild(settings.server_ids['test'])
+
     pro_role_names = [a[1][0] for a in league_teams]
     junior_role_names = [a[1][1] for a in league_teams]
     team_role_names = [a[0] for a in league_teams]
@@ -63,7 +62,7 @@ def get_league_roles(guild=None):
 
 def get_umbrella_team_role(team_name: str):
     # given a team name like 'The Ronin' return the correspondng 'umbrella' team role object (Ronin)
-    print(league_guild)
+    league_guild = settings.bot.get_guild(settings.server_ids['polychampions']) or settings.bot.get_guild(settings.server_ids['test'])
     if not league_guild:
         raise exceptions.CheckFailedError('PolyChampions guild not loaded in `league.py`')
 
@@ -218,9 +217,9 @@ class league(commands.Cog):
         global next_nova_newbie
         next_nova_newbie = random.choice(['Nova Red', 'Nova Blue'])
 
-        global league_guild
-        league_guild = self.bot.get_guild(settings.server_ids['polychampions']) or self.bot.get_guild(settings.server_ids['test'])
-        print(league_guild)
+        # global league_guild
+        # league_guild = self.bot.get_guild(settings.server_ids['polychampions']) or self.bot.get_guild(settings.server_ids['test'])
+        # print(league_guild)
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload):
@@ -550,8 +549,6 @@ class league(commands.Cog):
         """
         # import statistics
 
-        leadership = get_team_leadership(discord.utils.get(ctx.guild.roles, name='The Ronin'))
-        print(leadership)
         league_balance = []
         indent_str = '\u00A0\u00A0 \u00A0\u00A0 \u00A0\u00A0'
         guild_id = settings.server_ids['polychampions']
