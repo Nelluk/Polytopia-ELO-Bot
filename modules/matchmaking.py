@@ -574,12 +574,13 @@ class matchmaking(commands.Cog):
         **Example:**
         `[p]join 1025` - Join open game 1025 to the first side with room
         `[p]join 1025 2` - Join open game 1025 to side number 2
-        `[p]join 1025 rickdaheals 2` - Add a person to a game you are hosting. Side must be specified.
+        `[p]join 1025 rickdaheals` - Add another person to a game's first available side
+        `[p]join 1025 bakalol 2` - Add another person to a game with side specifed
         """
         syntax = f'**Example usage**:\n__`{ctx.prefix}join 1025`__ - Join game 1025\n__`{ctx.prefix}join 1025 2`__ - Join game 1025, side 2'
 
         if settings.get_user_level(ctx.author) >= 4:
-            syntax += f'\n__`{ctx.prefix}join 1025 Nelluk 2`__ - Add a third party to side 2 of your open game. Side must be specified.'
+            syntax += f'\n__`{ctx.prefix}join 1025 Nelluk 2`__ - Add a third party to side 2 of your open game.'
 
         if not game:
             return await ctx.send(f'No game ID provided. Use `{ctx.prefix}opengames` to list open games you can join.\n{syntax}')
@@ -589,9 +590,19 @@ class matchmaking(commands.Cog):
             target = f'<@{ctx.author.id}>'
             side_arg = None
         elif len(args) == 1:
-            # ctx.author is joining a match, with a side specified
-            target = f'<@{ctx.author.id}>'
-            side_arg = args[0]
+            # either ctx.author is joining a match with side integer specified or author is joining a third party with no side specified
+            try:
+                side_arg = int(args[0]) if int(args[0]) <= 15 else None
+                target = f'<@{ctx.author.id}>'
+            except ValueError:
+                # non-integer value - assuming author is joining a third party with no side specified
+                side_arg = None
+                target = args[0]
+
+            if not side_arg and settings.get_user_level(ctx.author) < 4:
+                return await ctx.send('You do not have permissions to add another person to a game. Tell them to use the command:\n'
+                    f'`{ctx.prefix}join {game.id} {args[1]}` to join themselves.')
+
         elif len(args) == 2:
             # author is putting a third party into this match
             if settings.get_user_level(ctx.author) < 4:
@@ -604,9 +615,9 @@ class matchmaking(commands.Cog):
 
         guild_matches = await utilities.get_guild_member(ctx, target)
         if len(guild_matches) > 1:
-            return await ctx.send(f'There is more than one player found with name "{target}". Specify user with @Mention.')
+            return await ctx.send(f'There is more than one player found with name "{target}". Specify user with @Mention.\n{syntax}')
         elif len(guild_matches) == 0:
-            return await ctx.send(f'Could not find \"{target}\" on this server.')
+            return await ctx.send(f'Could not find \"{target}\" on this server.\n{syntax}')
         else:
             joining_member = guild_matches[0]
 
@@ -825,59 +836,60 @@ class matchmaking(commands.Cog):
 
         gamelist_fields = [(f'`{"ID":<8}{"Host":<40} {"Type":<7} {"Capacity":<7} {"Exp":>4}` ', '\u200b')]
 
-        for game in game_list:
+        async with ctx.typing():
+            for game in game_list:
 
-            notes_str = game.notes if game.notes else '\u200b'
-            players, capacity = game.capacity()
-            player_restricted_list = re.findall(r'<@!?(\d+)>', notes_str)
+                notes_str = game.notes if game.notes else '\u200b'
+                players, capacity = game.capacity()
+                player_restricted_list = re.findall(r'<@!?(\d+)>', notes_str)
 
-            if filter_unjoinable and not game.has_player(discord_id=ctx.author.id)[0]:
+                if filter_unjoinable and not game.has_player(discord_id=ctx.author.id)[0]:
 
-                game_allowed, _ = settings.can_user_join_game(user_level=user_level, game_size=capacity, is_ranked=game.is_ranked, is_host=False)
-                if not game_allowed:
-                    # skipping games that user level restricts (ie joining a large ranked game for ELO Rookie/level 1)
-                    unjoinable_count += 1
-                    continue
-
-                if player_restricted_list and str(ctx.author.id) not in player_restricted_list and (len(player_restricted_list) >= capacity - 1):
-                    # skipping games that the command issuer is not invited to
-                    unjoinable_count += 1
-                    continue
-                open_side, _ = game.first_open_side(roles=[role.id for role in ctx.author.roles])
-                if not open_side:
-                    # skipping games that are role-locked that player doesn't have role for
-                    unjoinable_count += 1
-                    continue
-                player, _ = models.Player.get_by_discord_id(discord_id=ctx.author.id, discord_name=ctx.author.name, discord_nick=ctx.author.nick, guild_id=ctx.guild.id)
-                if player:
-                    # skip any games for which player does not meet ELO requirements, IF player is registered (unless ctx.author is already in game)
-                    (min_elo, max_elo, min_elo_g, max_elo_g) = game.elo_requirements()
-                    if player.elo < min_elo or player.elo > max_elo or player.discord_member.elo < min_elo_g or player.discord_member.elo > max_elo_g:
+                    game_allowed, _ = settings.can_user_join_game(user_level=user_level, game_size=capacity, is_ranked=game.is_ranked, is_host=False)
+                    if not game_allowed:
+                        # skipping games that user level restricts (ie joining a large ranked game for ELO Rookie/level 1)
                         unjoinable_count += 1
                         continue
-                    if game.is_mobile:
-                        if not player.discord_member.polytopia_id:
+
+                    if player_restricted_list and str(ctx.author.id) not in player_restricted_list and (len(player_restricted_list) >= capacity - 1):
+                        # skipping games that the command issuer is not invited to
+                        unjoinable_count += 1
+                        continue
+                    open_side, _ = game.first_open_side(roles=[role.id for role in ctx.author.roles])
+                    if not open_side:
+                        # skipping games that are role-locked that player doesn't have role for
+                        unjoinable_count += 1
+                        continue
+                    player, _ = models.Player.get_by_discord_id(discord_id=ctx.author.id, discord_name=ctx.author.name, discord_nick=ctx.author.nick, guild_id=ctx.guild.id)
+                    if player:
+                        # skip any games for which player does not meet ELO requirements, IF player is registered (unless ctx.author is already in game)
+                        (min_elo, max_elo, min_elo_g, max_elo_g) = game.elo_requirements()
+                        if player.elo < min_elo or player.elo > max_elo or player.discord_member.elo < min_elo_g or player.discord_member.elo > max_elo_g:
                             unjoinable_count += 1
                             continue
-                    else:
-                        if not player.discord_member.name_steam:
-                            unjoinable_count += 1
-                            continue
+                        if game.is_mobile:
+                            if not player.discord_member.polytopia_id:
+                                unjoinable_count += 1
+                                continue
+                        else:
+                            if not player.discord_member.name_steam:
+                                unjoinable_count += 1
+                                continue
 
-            if (novas_only and not game.notes) or (novas_only and game.notes and 'NOVA' not in game.notes.upper()):
-                # skip all non-nova league template games, (will also include anything with "nova" in the game notes)
-                unjoinable_count += 1
-                continue
+                if (novas_only and not game.notes) or (novas_only and game.notes and 'NOVA' not in game.notes.upper()):
+                    # skip all non-nova league template games, (will also include anything with "nova" in the game notes)
+                    unjoinable_count += 1
+                    continue
 
-            capacity_str = f' {players}/{capacity}'
-            expiration = int((game.expiration - datetime.datetime.now()).total_seconds() / 3600.0)
-            expiration = 'Exp' if expiration < 0 else f'{expiration}H'
-            ranked_str = '*Unranked*' if not game.is_ranked else ''
-            ranked_str = ranked_str + ' - ' if game.notes and ranked_str else ranked_str
-            creating_player = game.creating_player()
-            host_name = creating_player.name[:35] if creating_player else '<Vacant>'
-            gamelist_fields.append((f'`{f"{game.id}":<8}{host_name:<40} {game.size_string():<7} {capacity_str:<7} {expiration:>5}`',
-                f'{game.platform_emoji()} {ranked_str}{notes_str}\n \u200b'))
+                capacity_str = f' {players}/{capacity}'
+                expiration = int((game.expiration - datetime.datetime.now()).total_seconds() / 3600.0)
+                expiration = 'Exp' if expiration < 0 else f'{expiration}H'
+                ranked_str = '*Unranked*' if not game.is_ranked else ''
+                ranked_str = ranked_str + ' - ' if game.notes and ranked_str else ranked_str
+                creating_player = game.creating_player()
+                host_name = creating_player.name[:35] if creating_player else '<Vacant>'
+                gamelist_fields.append((f'`{f"{game.id}":<8}{host_name:<40} {game.size_string():<7} {capacity_str:<7} {expiration:>5}`',
+                    f'{game.platform_emoji()} {ranked_str}{notes_str}\n \u200b'))
 
         if filter_unjoinable and unjoinable_count and not novas_only:
             if unjoinable_count == 1:
