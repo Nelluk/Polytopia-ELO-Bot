@@ -601,7 +601,7 @@ class matchmaking(commands.Cog):
 
             if not side_arg and settings.get_user_level(ctx.author) < 4:
                 return await ctx.send('You do not have permissions to add another person to a game. Tell them to use the command:\n'
-                    f'`{ctx.prefix}join {game.id} {args[1]}` to join themselves.')
+                    f'`{ctx.prefix}join {game.id}` to join themselves.')
 
         elif len(args) == 2:
             # author is putting a third party into this match
