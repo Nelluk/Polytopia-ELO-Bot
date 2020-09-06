@@ -90,6 +90,7 @@ poly_id_ban_list = [
     'MhJJohJENaeBUz7H',  # CoolGuyNotFoolGuy#0498
     '20aih8HH5IcromHX',  # XaeroXD8401
     'U4x51BhGC2kGp5rv',  # lil'omen 746795654994722901 and Atlas 456142908303867935
+    'JRZhrtFOX2Gv0Vv0',  # D’Escanor#9505 and Exiosking#9132
 ]
 
 

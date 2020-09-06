@@ -83,7 +83,12 @@ def get_umbrella_team_role(team_name: str):
 
 def get_team_leadership(team_role):
 
-    umbrella_role = get_umbrella_team_role(team_role.name)
+    try:
+        umbrella_role = get_umbrella_team_role(team_role.name)
+    except exceptions.CheckFailedError as e:
+        logger.warning(f'Could not get_team_leadership for team role {team_role}: {e}')
+        return [], [], []
+
     leaders, coleaders, recruiters = [], [], []
 
     leader_role = utilities.guild_role_by_name(team_role.guild, name='Team Leader', allow_partial=False)
