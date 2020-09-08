@@ -193,7 +193,7 @@ class league(commands.Cog):
                 log_message = f'{models.GameLog.member_string(after)} had junior team role **{member_team_roles[0].name}** added.'
         else:
             roles_to_add = []  # No team role
-            log_message = f'{models.GameLog.member_string(after)} had team role removed and is teamless.'
+            log_message = f'{models.GameLog.member_string(after)} had team role **{before_member_team_roles[0].name}** removed and is teamless.'
 
         member_roles = after.roles.copy()
         member_roles = [r for r in member_roles if r not in roles_to_remove]
