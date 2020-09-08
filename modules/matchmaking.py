@@ -301,6 +301,7 @@ class matchmaking(commands.Cog):
         roles_specified_implicity, roles_specified_explicitly = False, False
         required_role_args = []
         required_roles = []
+        preset_teams = []
         required_role_message = ''
         expiration_hours_override = None
         note_args = []
@@ -353,6 +354,7 @@ class matchmaking(commands.Cog):
                 team_size = True
                 required_roles = [None] * len(team_sizes)  # [None, None, None] for a 3-sided game
                 required_role_names = [None] * len(team_sizes)
+                preset_teams = [None] * len(team_sizes)
                 continue
             m = re.match(r"(\d+)ffa", arg.lower())
             if m:
@@ -367,6 +369,7 @@ class matchmaking(commands.Cog):
                 team_size = True
                 required_roles = [None] * len(team_sizes)  # [None, None, None] for a 3-sided game
                 required_role_names = [None] * len(team_sizes)
+                preset_teams = [None] * len(team_sizes)
                 continue
             m = re.match(r"(\d+)h", arg.lower())
             if m:
@@ -474,6 +477,16 @@ class matchmaking(commands.Cog):
             required_role_names[count] = role.name
             required_role_message += f'**Side {count + 1}** will be locked to players with role *{role.name}*\n'
 
+        for count, role_name in enumerate(required_role_names):
+            # if a role locked side is a team role, pre-assign that side to the team, so that the player roles when joined are ignored
+            try:
+                team = models.Team.get_or_except(team_name=role_name, guild_id=ctx.guild.id)
+                logger.debug(f'Pre-assigning a gameside to team {team.name} {team.id}')
+            except exceptions.NoSingleMatch:
+                team = None
+
+            preset_teams[count] = team
+
         if required_role_message:
             await ctx.send(required_role_message)
 
@@ -497,7 +510,7 @@ class matchmaking(commands.Cog):
 
             opengame = models.Game.create(host=host, expiration=expiration_timestamp, notes=game_notes, guild_id=ctx.guild.id, is_pending=True, is_ranked=is_ranked, size=team_sizes, is_mobile=is_mobile)
             for count, size in enumerate(team_sizes):
-                models.GameSide.create(game=opengame, size=size, position=count + 1, required_role_id=required_roles[count], sidename=required_role_names[count])
+                models.GameSide.create(game=opengame, size=size, position=count + 1, required_role_id=required_roles[count], sidename=required_role_names[count], team=preset_teams[count])
 
             first_side, _ = opengame.first_open_side(roles=[role.id for role in ctx.author.roles])
             if not first_side:
@@ -999,7 +1012,9 @@ class matchmaking(commands.Cog):
                     squad = models.Squad.upsert(player_list=side_players, guild_id=ctx.guild.id)
                     side.squad = squad
 
-                side.team = allied_team
+                if not side.team:
+                    # skips setting team if side.team is already set, via $opengames preset_teams list
+                    side.team = allied_team
                 side.save()
 
             game.name = name
