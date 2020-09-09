@@ -480,7 +480,7 @@ class matchmaking(commands.Cog):
         for count, role_name in enumerate(required_role_names):
             # if a role locked side is a team role, pre-assign that side to the team, so that the player roles when joined are ignored
             try:
-                team = models.Team.get_or_except(team_name=role_name, guild_id=ctx.guild.id)
+                team = models.Team.get_or_except(team_name=role_name, guild_id=ctx.guild.id, get_or_except=True)
                 logger.debug(f'Pre-assigning a gameside to team {team.name} {team.id}')
             except exceptions.NoSingleMatch:
                 team = None
