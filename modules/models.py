@@ -2222,6 +2222,8 @@ class Game(BaseModel):
                 if players < capacity:
                     if has_role_locked_side:
                         return (None, [f'Game {self.id} is limited to specific roles, and your eligible side is **full**. See details with `{prefix}game {self.id}`'])
+                    if settings.get_user_level(author_member) >= 5:
+                        return (None, [f'Game {self.id} is limited to specific roles. You can override this restriction by specifying the side to join.'])
                     return (None, [f'Game {self.id} is limited to specific roles. You are not allowed to join. See details with`{prefix}game {self.id}`'])
                 return (None, [f'Game {self.id} is completely full!'])
 
