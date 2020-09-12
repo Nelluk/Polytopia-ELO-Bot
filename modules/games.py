@@ -146,15 +146,23 @@ class polygames(commands.Cog):
             (Lineup.game.is_pending == 1) & (Lineup.player == leaving_player)
         )
 
-        if not pending_lineups:
-            return
+        incomplete_lineups = Lineup.select().join(Game).where(
+            (Lineup.game.is_pending == 0) & (Lineup.game.is_completed == 0) & (Lineup.player == leaving_player)
+        )
 
-        for l in pending_lineups:
-            models.GameLog.write(game_id=l.game.id, guild_id=member.guild.id, message=f'{models.GameLog.member_string(member)} left the game while leaving the server.')
+        if pending_lineups:
+            for l in pending_lineups:
+                models.GameLog.write(game_id=l.game.id, guild_id=member.guild.id, message=f'{models.GameLog.member_string(member)} left the game while leaving the server.')
 
-        q = Lineup.delete().where(models.Lineup.id.in_(pending_lineups))
+            q = Lineup.delete().where(models.Lineup.id.in_(pending_lineups))
 
-        logger.info(f'Existing ELO player {member.display_name} {member.id} left guild {member.guild.name} - deleted Lineup records for {q.execute()} pending games.')
+            logger.info(f'Existing ELO player {member.display_name} {member.id} left guild {member.guild.name} - deleted Lineup records for {q.execute()} pending games.')
+
+        if incomplete_lineups:
+            helper_role_name = settings.guild_setting(member.guild.id, 'helper_roles')[0]
+            helper_role = discord.utils.get(member.guild.roles, name=helper_role_name)
+            helper_mention = helper_role.mention if helper_role else 'Staff'
+            await utilities.send_to_log_channel(member.guild, f'{helper_mention} - {member.mention} ({member.display_name}) left the server and has {len(incomplete_lineups)} incomplete games.')
 
     @commands.Cog.listener()
     async def on_user_update(self, before, after):
