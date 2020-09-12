@@ -394,7 +394,7 @@ class DiscordMember(BaseModel):
             elo_field = DiscordMember.elo
 
         query = DiscordMember.select().join(Player).join(Lineup).join(Game).where(
-            (Game.is_completed == 1) & (Game.date > date_cutoff) & (Game.is_ranked == 1) & (DiscordMember.is_banned == 0)
+            (Game.is_completed == 1) & (Game.date > completed_ts) & (Game.is_ranked == 1) & (DiscordMember.is_banned == 0)
         ).distinct().order_by(-elo_field)
 
         if query.count() < 10:
@@ -698,7 +698,7 @@ class Player(BaseModel):
             (Player.guild_id == guild_id) &
             (Game.is_completed == 1) &
             (Game.is_ranked == 1) &
-            (Game.date > date_cutoff) &
+            (Game.date > completed_ts) &
             (Player.is_banned == 0) & (DiscordMember.is_banned == 0)
         ).distinct().order_by(-elo_field)
 
@@ -2553,7 +2553,7 @@ class Squad(BaseModel):
         q = Squad.select().join(GameSide).join(Game).where(
             (
                 Squad.id.in_(Squad.subq_squads_with_completed_games(min_games=min_games))
-            ) & (Squad.guild_id == guild_id) & (Game.date > date_cutoff)
+            ) & (Squad.guild_id == guild_id) & (Game.date > completed_ts)
         ).order_by(-Squad.elo).group_by(Squad)
 
         return q
