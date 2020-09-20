@@ -86,9 +86,9 @@ class Team(BaseModel):
 
     def get_by_name(team_name: str, guild_id: int, require_exact: bool = False):
         if require_exact:
-            teams = Team.select().where((Team.name == team_name) & (Team.guild_id == guild_id))
+            teams = Team.select().where((Team.name == team_name) & (Team.guild_id == guild_id) & (Team.is_hidden == 0))
         else:
-            teams = Team.select().where((Team.name.contains(team_name)) & (Team.guild_id == guild_id))
+            teams = Team.select().where((Team.name.contains(team_name)) & (Team.guild_id == guild_id) & (Team.is_hidden == 0))
         return teams
 
     def get_or_except(team_name: str, guild_id: int, require_exact: bool = False):
