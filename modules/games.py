@@ -74,8 +74,8 @@ class polygames(commands.Cog):
 
         if message.role_mentions and discord.utils.get(message.role_mentions, name='ELO-Helper'):
             prefix = settings.guild_setting(message.guild.id, 'command_prefix')
-            await message.channel.send(f'{message.author.mention}, to receive staff help please use the `{prefix}staffhelp` command, '
-                'and include information about your issue including game ID.')
+            await message.channel.send(f'{message.author.mention}, to receive staff help in the future please use the `{prefix}staffhelp` command, '
+                '- since you have already pinged please wait for a response.')
 
     @commands.Cog.listener()
     async def on_guild_channel_delete(self, channel):
