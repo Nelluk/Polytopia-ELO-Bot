@@ -418,15 +418,19 @@ class polygames(commands.Cog):
             if team_elo_history_query:
                 team_elo_history = pd.DataFrame(team_elo_history_query.dicts())
 
-                team_elo_history_resampled = team_elo_history.set_index('completed_ts').resample('D').mean().interpolate().reset_index()
+                try:
+                    team_elo_history_resampled = team_elo_history.set_index('completed_ts').resample('D').mean().interpolate().reset_index()
 
-                plt.plot(team_elo_history['completed_ts'],
-                         team_elo_history['elo'],
-                         'o', markersize=3, alpha=.05, color=str(team_role.color))
+                    plt.plot(team_elo_history['completed_ts'],
+                             team_elo_history['elo'],
+                             'o', markersize=3, alpha=.05, color=str(team_role.color))
 
-                plt.plot(team_elo_history_resampled['completed_ts'],
-                         signal.savgol_filter(team_elo_history_resampled['elo'].values, 131 if alltime else 61, 2),
-                         '-', linewidth=2, label=team.name, color=str(team_role.color))
+                    plt.plot(team_elo_history_resampled['completed_ts'],
+                             signal.savgol_filter(team_elo_history_resampled['elo'].values, 131 if alltime else 61, 2),
+                             '-', linewidth=2, label=team.name, color=str(team_role.color))
+                except ValueError as e:
+                    logger.warning(f'Exception raised during creation of lbteam plot: {e}')
+                    continue
 
         ax.yaxis.grid()
 
