@@ -158,7 +158,7 @@ class polygames(commands.Cog):
 
             logger.info(f'Existing ELO player {member.display_name} {member.id} left guild {member.guild.name} - deleted Lineup records for {q.execute()} pending games.')
 
-        if incomplete_lineups:
+        if incomplete_lineups and member.guild.id == settings.server_ids['polychampions']:
             helper_role_name = settings.guild_setting(member.guild.id, 'helper_roles')[0]
             helper_role = discord.utils.get(member.guild.roles, name=helper_role_name)
             helper_mention = helper_role.mention if helper_role else 'Staff'
