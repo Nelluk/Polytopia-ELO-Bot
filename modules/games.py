@@ -392,44 +392,45 @@ class polygames(commands.Cog):
         query = Team.select().where(
             (Team.is_hidden == 0) & (Team.guild_id == guild_check) & (Team.pro_league == pro_flag)
         ).order_by(-sort_field)
-        for counter, team in enumerate(query):
-            team_role = discord.utils.get(ctx.guild.roles, name=team.name)
-            if not team_role:
-                logger.error(f'Could not find matching role for team {team.name}')
-                continue
-            member_count = 0
-            mia_role = discord.utils.get(ctx.guild.roles, name=settings.guild_setting(ctx.guild.id, 'inactive_role'))
-            for team_member in team_role.members:
-                if mia_role and mia_role in team_member.roles:
+
+        async with ctx.typing():
+            for counter, team in enumerate(query):
+                team_role = discord.utils.get(ctx.guild.roles, name=team.name)
+                if not team_role:
+                    logger.error(f'Could not find matching role for team {team.name}')
                     continue
-                member_count += 1
-            team_name_str = f'**{team.name}**   ({member_count})'  # Show team name with number of members without MIA role
-            wins, losses = team.get_record(alltime=alltime)
+                member_count = 0
+                mia_role = discord.utils.get(ctx.guild.roles, name=settings.guild_setting(ctx.guild.id, 'inactive_role'))
+                for team_member in team_role.members:
+                    if mia_role and mia_role in team_member.roles:
+                        continue
+                    member_count += 1
+                team_name_str = f'**{team.name}**   ({member_count})'  # Show team name with number of members without MIA role
+                wins, losses = team.get_record(alltime=alltime)
 
-            elo = team.elo_alltime if alltime else team.elo
-            embed.add_field(name=f'{team.emoji} {(counter + 1):>3}. {team_name_str}\n`ELO: {elo:<5} W {wins} / L {losses}`', value='\u200b', inline=False)
+                elo = team.elo_alltime if alltime else team.elo
+                embed.add_field(name=f'{team.emoji} {(counter + 1):>3}. {team_name_str}\n`ELO: {elo:<5} W {wins} / L {losses}`', value='\u200b', inline=False)
 
-            team_elo_history_query = (GameSide
-                    .select(Game.completed_ts, (GameSide.team_elo_after_game_alltime if alltime else GameSide.team_elo_after_game).alias('elo'))
-                    .join(Game)
-                    .where((GameSide.team_id == team.id) & ((GameSide.team_elo_after_game_alltime if alltime else GameSide.team_elo_after_game).is_null(False)))
-                    .order_by(Game.completed_ts))
+                team_elo_history_query = (GameSide
+                        .select(Game.completed_ts, (GameSide.team_elo_after_game_alltime if alltime else GameSide.team_elo_after_game).alias('elo'))
+                        .join(Game)
+                        .where((GameSide.team_id == team.id) & ((GameSide.team_elo_after_game_alltime if alltime else GameSide.team_elo_after_game).is_null(False)))
+                        .order_by(Game.completed_ts))
 
-            if team_elo_history_query:
-                team_elo_history = pd.DataFrame(team_elo_history_query.dicts())
-                team_elo_history_resampled = team_elo_history.set_index('completed_ts').resample('D').mean().interpolate().reset_index()
-                filter_length = max(int(len(team_elo_history_resampled.index)/3), 1)
-                filter_length = filter_length if filter_length % 2 != 0 else filter_length - 1
-                poly_order = 2 if filter_length > 2 else 0
+                if team_elo_history_query:
+                    team_elo_history = pd.DataFrame(team_elo_history_query.dicts())
+                    team_elo_history_resampled = team_elo_history.set_index('completed_ts').resample('D').mean().interpolate().reset_index()
+                    filter_length = max(int(len(team_elo_history_resampled.index) / 3), 1)
+                    filter_length = filter_length if filter_length % 2 != 0 else filter_length - 1
+                    poly_order = 2 if filter_length > 2 else 0
 
-                plt.plot(team_elo_history['completed_ts'],
-                            team_elo_history['elo'],
-                            'o', markersize=3, alpha=.05, color=str(team_role.color))
+                    plt.plot(team_elo_history['completed_ts'],
+                                team_elo_history['elo'],
+                                'o', markersize=3, alpha=.05, color=str(team_role.color))
 
-                plt.plot(team_elo_history_resampled['completed_ts'],
-                            signal.savgol_filter(team_elo_history_resampled['elo'].values, filter_length, poly_order),
-                            '-', linewidth=2, label=team.name, color=str(team_role.color))
-
+                    plt.plot(team_elo_history_resampled['completed_ts'],
+                                signal.savgol_filter(team_elo_history_resampled['elo'].values, filter_length, poly_order),
+                                '-', linewidth=2, label=team.name, color=str(team_role.color))
 
         ax.yaxis.grid()
 
