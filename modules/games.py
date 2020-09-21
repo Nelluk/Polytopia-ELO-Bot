@@ -417,20 +417,19 @@ class polygames(commands.Cog):
 
             if team_elo_history_query:
                 team_elo_history = pd.DataFrame(team_elo_history_query.dicts())
+                team_elo_history_resampled = team_elo_history.set_index('completed_ts').resample('D').mean().interpolate().reset_index()
+                filter_length = max(int(len(team_elo_history_resampled.index)/3), 1)
+                filter_length = filter_length if filter_length % 2 != 0 else filter_length - 1
+                poly_order = 2 if filter_length > 2 else 0
 
-                try:
-                    team_elo_history_resampled = team_elo_history.set_index('completed_ts').resample('D').mean().interpolate().reset_index()
+                plt.plot(team_elo_history['completed_ts'],
+                            team_elo_history['elo'],
+                            'o', markersize=3, alpha=.05, color=str(team_role.color))
 
-                    plt.plot(team_elo_history['completed_ts'],
-                             team_elo_history['elo'],
-                             'o', markersize=3, alpha=.05, color=str(team_role.color))
+                plt.plot(team_elo_history_resampled['completed_ts'],
+                            signal.savgol_filter(team_elo_history_resampled['elo'].values, filter_length, poly_order),
+                            '-', linewidth=2, label=team.name, color=str(team_role.color))
 
-                    plt.plot(team_elo_history_resampled['completed_ts'],
-                             signal.savgol_filter(team_elo_history_resampled['elo'].values, 131 if alltime else 61, 2),
-                             '-', linewidth=2, label=team.name, color=str(team_role.color))
-                except ValueError as e:
-                    logger.warning(f'Exception raised during creation of lbteam plot: {e}')
-                    continue
 
         ax.yaxis.grid()
 
@@ -803,7 +802,7 @@ class polygames(commands.Cog):
                 ax.spines['right'].set_visible(False)
                 ax.spines['left'].set_visible(False)
 
-                plt.legend(loc="lower right")
+                plt.legend(loc="best")
 
                 plt.savefig('graph.png', transparent=False)
                 plt.close(fig)
