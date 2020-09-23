@@ -1115,6 +1115,7 @@ class Game(BaseModel):
                 embed.add_field(name='\u200b', value='\u200b', inline=False)  # Separator between sides
 
             if len(side.lineup) > 1:
+
                 team_str = f'__Lineup for Team **{side.team.name if side.team else "None"}**__ {elo_str}'
 
                 embed.add_field(name=team_str, value=squad_str, inline=False)
@@ -2674,7 +2675,7 @@ class GameSide(BaseModel):
             team_elo_str = str(self.elo_change_team_alltime) if self.elo_change_team_alltime != 0 else ''
             if self.elo_change_team_alltime > 0:
                 team_elo_str = '+' + team_elo_str
-            team_elo_str = f'({self.team_elo_after_game_alltime} {team_elo_str})'
+            team_elo_str = f'({self.team.elo_alltime} {team_elo_str})'
         else:
             team_elo_str = None
 
@@ -2688,7 +2689,6 @@ class GameSide(BaseModel):
             squad_elo_str = f'{self.squad.elo} {squad_elo_str}'
         else:
             squad_elo_str = None
-
         return (team_elo_str, squad_elo_str)
 
     def average_elo(self, by_discord_member: bool = False):

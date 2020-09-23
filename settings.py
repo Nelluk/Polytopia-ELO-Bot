@@ -39,7 +39,9 @@ re_join_game = re.compile(fr'join game (\d{{4,6}}) by reacting with {emoji_join_
 # Have to do weird double {{braces}} to mix f-strings and raw strings, https://stackoverflow.com/a/45527907/1281743
 
 # bot invite URL https://discordapp.com/oauth2/authorize?client_id=484067640302764042&scope=bot
+# with perms: https://discord.com/api/oauth2/authorize?client_id=484067640302764042&permissions=388176&scope=bot
 # bot invite URL for beta bot https://discordapp.com/oauth2/authorize?client_id=479029527553638401&scope=bot
+# with perms: https://discord.com/api/oauth2/authorize?client_id=479029527553638401&permissions=388176&scope=bot
 
 
 lobbies = [{'guild': 283436219780825088, 'size_str': '1v1', 'size': [1, 1], 'ranked': True, 'remake_partial': True, 'notes': '**Newbie game** - 1075 elo max'},
