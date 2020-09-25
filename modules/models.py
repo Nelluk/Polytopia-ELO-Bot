@@ -816,6 +816,7 @@ class Game(BaseModel):
         game_roster, side_external_servers = [], []
         ordered_side_list = list(self.ordered_side_list())
         skipping_team_chans, skipping_central_chan = False, False
+        exception_encountered, exception_messages = False, []
 
         for s in ordered_side_list:
             lineup_list = s.ordered_player_list()
@@ -856,7 +857,13 @@ class Game(BaseModel):
                 skipping_team_chans = True
                 logger.warning('Skipping channel creation for a team due to server exceeding 425 channels')
                 continue
-            chan = await channels.create_game_channel(side_guild, game=self, team_name=gameside.team.name, player_list=player_list, using_team_server_flag=using_team_server_flag)
+
+            try:
+                chan = await channels.create_game_channel(side_guild, game=self, team_name=gameside.team.name, player_list=player_list, using_team_server_flag=using_team_server_flag)
+            except exceptions.MyBaseException as e:
+                exception_encountered = True
+                exception_messages.append((f'Team: {gameside.team.name}', e))
+
             if chan:
                 gameside.team_chan = chan.id
                 if side_guild.id != guild_id:
@@ -873,7 +880,13 @@ class Game(BaseModel):
             # create game channel for larger games - 4+ sides, or 3+ sides with 6+ players
             if len(guild.text_channels) < 425:
                 player_list = [l.player for l in self.lineup]
-                chan = await channels.create_game_channel(guild, game=self, team_name=None, player_list=player_list)
+
+                try:
+                    chan = await channels.create_game_channel(guild, game=self, team_name=None, player_list=player_list)
+                except exceptions.MyBaseException as e:
+                    exception_encountered = True
+                    exception_messages.append(('Central Channel', e))
+
                 if chan:
                     self.game_chan = chan.id
                     self.save()
@@ -888,6 +901,9 @@ class Game(BaseModel):
             raise exceptions.MyBaseException(f'Skipping central game channel creation. Server is at {len(guild.text_channels)}/500 channels.')
         elif skipping_team_chans:
             raise exceptions.MyBaseException(f'Skipping 2-player team channels creation. Server is at {len(guild.text_channels)}/500 channels.')
+        elif exception_encountered:
+            exception_messages = '\n'.join(exception_messages)
+            raise exceptions.MyBaseException(f'Unhandled error(s) occured causing some channels to be skipped:\n{exception_messages}')
         else:
             return
 

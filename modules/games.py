@@ -2131,7 +2131,7 @@ async def post_newgame_messaging(ctx, game):
         try:
             await game.create_game_channels(settings.bot.guilds, ctx.guild.id)
         except exceptions.MyBaseException as e:
-            await ctx.send(f':warning: Channel creation error: {e}')
+            await ctx.send(f':warning: **Channel creation error:** {e}')
 
     if game.is_uncaught_season_game():
         await ctx.send(f':bulb: This game looks like an incorrectly named **Season Game**! You might want to use `{ctx.prefix}rename` and include the season tag at the beginning.')
