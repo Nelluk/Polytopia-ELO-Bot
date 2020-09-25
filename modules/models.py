@@ -863,6 +863,7 @@ class Game(BaseModel):
             except exceptions.MyBaseException as e:
                 exception_encountered = True
                 exception_messages.append((f'Team: {gameside.team.name}', e))
+                chan = None
 
             if chan:
                 gameside.team_chan = chan.id
@@ -886,6 +887,7 @@ class Game(BaseModel):
                 except exceptions.MyBaseException as e:
                     exception_encountered = True
                     exception_messages.append(('Central Channel', e))
+                    chan = None
 
                 if chan:
                     self.game_chan = chan.id
