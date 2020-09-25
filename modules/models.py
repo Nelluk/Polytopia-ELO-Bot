@@ -862,7 +862,7 @@ class Game(BaseModel):
                 chan = await channels.create_game_channel(side_guild, game=self, team_name=gameside.team.name, player_list=player_list, using_team_server_flag=using_team_server_flag)
             except exceptions.MyBaseException as e:
                 exception_encountered = True
-                exception_messages.append((f'Team: {gameside.team.name}', e))
+                exception_messages.append(f'Team: {gameside.team.name} - {e}')
                 chan = None
 
             if chan:
@@ -886,7 +886,7 @@ class Game(BaseModel):
                     chan = await channels.create_game_channel(guild, game=self, team_name=None, player_list=player_list)
                 except exceptions.MyBaseException as e:
                     exception_encountered = True
-                    exception_messages.append(('Central Channel', e))
+                    exception_messages.append(f'Central Channel: {e}')
                     chan = None
 
                 if chan:
