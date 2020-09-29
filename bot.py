@@ -125,9 +125,12 @@ if __name__ == '__main__':
     main()
     utilities.connect()
     am = discord.AllowedMentions(everyone=False)
+    intents = discord.Intents().all()
+    intents.typing = False
     bot = commands.Bot(command_prefix=get_prefix,
                        owner_id=settings.owner_id,
                        allowed_mentions=am,
+                       intents=intents,
                        activity=discord.Activity(name='$guide', type=discord.ActivityType.playing))
     settings.bot = bot
     bot.purgable_messages = []  # auto-deleting messages to get cleaned up by Administraton.quit  (guild, channel, message) tuple list
