@@ -37,9 +37,11 @@ async def buffered_send(destination, content, max_length=2000, allowed_mentions=
     paginator = commands.Paginator(prefix='', suffix='', max_size=max_length)
 
     for line in content.split('\n'):
-        paginator.add_line(line)
+        logger.debug(f'adding line to buffered_send: {line}')
+        paginator.add_line(line[:max_length - 2])
 
     for page in paginator.pages:
+        logger.debug(f'sending page with buffered_send: {page}')
         await destination.send(page, allowed_mentions=allowed_mentions)
 
 

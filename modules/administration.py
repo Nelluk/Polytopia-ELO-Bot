@@ -719,7 +719,7 @@ class administration(commands.Cog):
         if not defunct_members:
             return await ctx.send(f'No inactive members found!')
 
-        members_str = ' / '.join(defunct_members)
+        members_str = '\n'.join(defunct_members)
         await utilities.buffered_send(destination=ctx, content=f'Found {len(defunct_members)} inactive members - *{inactive_role.name}* has been applied to each: {members_str}')
 
     @commands.command()
