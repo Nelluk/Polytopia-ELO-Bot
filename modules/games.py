@@ -1566,12 +1566,11 @@ class polygames(commands.Cog):
 
         models.GameLog.write(game_id=winning_game, guild_id=ctx.guild.id, message=f'Win confirm logged by {models.GameLog.member_string(ctx.author)} for winner **{discord.utils.escape_markdown(winning_obj.name)}**')
         await winning_game.update_squad_channels(guild_list=settings.bot.guilds, guild_id=ctx.guild.id, message=f'A win claim has been placed by **{ctx.author.display_name}** for winner **{winning_obj.name}**')
-        if settings.is_staff(ctx.author):
+
+        has_player, author_side = winning_game.has_player(discord_id=ctx.author.id)
+        if settings.is_staff(ctx.author) and not has_player:
             confirm_win = True
         else:
-            has_player, author_side = winning_game.has_player(discord_id=ctx.author.id)
-            # helper_role = settings.guild_setting(ctx.guild.id, 'helper_roles')[0]
-
             if not has_player:
                 return await ctx.send(f'You were not a participant in this game.')
 
