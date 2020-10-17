@@ -24,7 +24,7 @@ class administration(commands.Cog):
 
     async def cog_check(self, ctx):
 
-        if settings.is_staff(ctx):
+        if settings.is_staff(ctx.author):
             return True
         else:
             if ctx.invoked_with == 'help' and ctx.command.name != 'help':
@@ -37,7 +37,7 @@ class administration(commands.Cog):
     @commands.command(aliases=['quit'])
     async def restart(self, ctx):
         """ *Owner*: Close database connection and quit bot gracefully """
-
+        settings.maintenance_mode = True
         logger.debug(f'Purging message list {self.bot.purgable_messages}')
         try:
             if models.db.close():
@@ -54,7 +54,7 @@ class administration(commands.Cog):
             async with ctx.typing():
                 for guild_id, channel_id, message_id in reversed(self.bot.purgable_messages):
                     # purge messages created by Misc.task_broadcast_newbie_message() so they arent duplicated when bot restarts
-                    guild = discord.utils.get(self.bot.guilds, id=guild_id)
+                    guild = self.bot.get_guild(guild_id)
                     channel = guild.get_channel(channel_id)
                     try:
                         logger.debug(f'Purging message {message_id} from channel {channel.id if channel else "NONE"}')
@@ -64,7 +64,7 @@ class administration(commands.Cog):
                         pass
 
             await ctx.send(f'Cleaning up temporary announcement messages...')
-            await asyncio.sleep(4)  # to make sure message deletes go through
+            await asyncio.sleep(3)  # to make sure message deletes go through
 
         await ctx.send('Shutting down')
         await self.bot.close()
@@ -72,37 +72,93 @@ class administration(commands.Cog):
     @settings.is_mod_check()
     @commands.command()
     async def purge_game_channels(self, ctx, *, arg: str = None):
-        # TODO: Remove references to deleted channels from database.  i dont -think- having ghost references will cause any usability problems
+
+        purged_channels = 0
+        current_number_of_channels = len(ctx.guild.text_channels)
 
         if not settings.guild_setting(ctx.guild.id, 'game_channel_categories'):
             return await ctx.send(f'Cannot purge - this guild has no `game_channel_categories` setting')
 
-        channels = [chan for chan in ctx.guild.channels if chan.category_id in settings.guild_setting(ctx.guild.id, 'game_channel_categories')]
-        await ctx.send(f'Returned {len(channels)} channels')
+        category_channels = [chan.id for chan in ctx.guild.channels if chan.category_id in settings.guild_setting(ctx.guild.id, 'game_channel_categories')]
+
+        common_game_channels = models.Game.select(models.Game.game_chan).where(
+            (models.Game.is_completed == 0) &
+            (models.Game.guild_id == ctx.guild.id) &
+            (models.Game.game_chan > 0)
+        ).tuples()
+
+        game_side_channels = models.GameSide.select(models.GameSide.team_chan).join(models.Game).where(
+            (models.Game.is_completed == 0) &
+            (models.Game.guild_id == ctx.guild.id) &
+            (models.Game.game_chan > 0) &
+            (models.GameSide.team_chan > 0) &
+            (models.GameSide.team_chan_external_server.is_null(True))
+        ).tuples()
+
+        game_side_channels = [gc[0] for gc in game_side_channels]
+        common_game_channels = [gc[0] for gc in common_game_channels]
+
+        potential_channels = set(category_channels + common_game_channels + game_side_channels)
+        channels = [chan for chan in ctx.guild.channels if chan.id in potential_channels]
+
+        await ctx.send(f'Returned {len(channels)} channels (of {len(potential_channels)} potential channels)')
+
         old_30d = (datetime.datetime.today() + datetime.timedelta(days=-30))
 
-        for chan in channels:
-            if chan.last_message_id:
+        async def delete_channel(channel, game=None):
+            nonlocal purged_channels
+            logger.warning(f'Deleting channel {chan.name}')
+            if not game:
                 try:
-                    messages = await chan.history(limit=5, oldest_first=False).flatten()
-                except discord.DiscordException as e:
-                    logger.error(f'Could not load channel history: {e}')
-                    continue
-                if len(messages) > 3:
-                    logger.debug(f'{chan.name} not eligible for deletion - has at least 4 messages in history')
-                    continue
-                if messages[0].created_at > old_30d:
-                    logger.debug(f'{chan.name} not eligible for deletion - has a recent message in history')
-                    continue
-                logger.warn(f'{chan.name} {chan.id} is eligible for deletion - few messages and no recent messages in history')
-                await ctx.send(f'Deleting channel **{chan.name}** - few messages and no recent messages in history')
-                try:
-                    logger.warn(f'Deleting channel {chan.name}')
+                    logger.debug('Deleting channel with no associated game')
                     await chan.delete(reason='Purging game channels with inactive history')
+                    purged_channels += 1
                 except discord.DiscordException as e:
                     logger.error(f'Could not delete channel: {e}')
+            else:
+                models.GameLog.write(game_id=game, guild_id=ctx.guild.id, message=f'Game channel *{channel.name}* deleted during purge of unused or unneeded channels.')
+                await game.delete_game_channels(self.bot.guilds, channel.guild.id, channel_id_to_delete=channel.id)
+                purged_channels += 1
 
-        await ctx.send(f'Channel cleanup complete')
+        async with ctx.typing():
+            for chan in channels:
+                logger.debug(f'Evaluating channel {chan.name} {chan.id} for deletion.')
+                try:
+                    game = models.Game.by_channel_id(chan_id=chan.id)
+                except exceptions.MyBaseException:
+                    logger.debug(f'Channel {chan.name} {chan.id} has no associated game. deleting.')
+                    await ctx.send(f'Deleting channel **{chan.name}** - it has no associated game in the database')
+                    await delete_channel(chan)
+                    continue
+
+                if chan.id in common_game_channels and current_number_of_channels > 425:
+                    logger.debug(f'Channel {chan.name} {chan.id} is a common game channel, being purged since server is too full.')
+                    await ctx.send(f'Deleting channel **{chan.name}** - it is a common game channel, being purged since server is too full.')
+                    await delete_channel(chan, game)
+                    await game.update_squad_channels(self.bot.guilds, game.guild_id, message=f'The central game channel for this game has been purged to free up room on the server')
+                    continue
+                if chan.last_message_id:
+                    try:
+                        messages = await chan.history(limit=5, oldest_first=False).flatten()
+                    except discord.DiscordException as e:
+                        logger.error(f'Could not load channel history: {e}')
+                        continue
+                    if len(messages) > 3:
+                        logger.debug(f'{chan.name} not eligible for deletion - has at least 4 messages in history')
+                        continue
+                    if messages[0].created_at > old_30d:
+                        logger.debug(f'{chan.name} not eligible for deletion - has a recent message in history')
+                        continue
+                    logger.warning(f'{chan.name} {chan.id} is eligible for deletion - few messages and no recent messages in history')
+                    await ctx.send(f'Deleting channel **{chan.name}** - few messages and no recent messages in history')
+                    await delete_channel(chan, game)
+                    models.GameLog.write(game_id=game, guild_id=ctx.guild.id, message=f'Game channel *{chan.name}* deleted during purge of unused or unneeded channels.')
+                else:
+                    logger.debug(f'Channel {chan.name} {chan.id} has no last_message_id. deleting.')
+                    await delete_channel(chan, game)
+                    continue
+
+        await ctx.send(f'Channel cleanup complete. {purged_channels} channels purged.')
 
     @commands.command(aliases=['confirmgame'], usage='game_id')
     # async def confirm(self, ctx, winning_game: PolyGame = None):
@@ -226,9 +282,9 @@ class administration(commands.Cog):
 
             utilities.connect()
             for guild in self.bot.guilds:
-                staff_output_channel = guild.get_channel(settings.guild_setting(guild.id, 'game_request_channel'))
+                staff_output_channel = guild.get_channel(settings.guild_setting(guild.id, 'log_channel'))
                 if not staff_output_channel:
-                    logger.debug(f'Could not load game_request_channel for server {guild.id} - skipping')
+                    logger.debug(f'Could not load log_channel for server {guild.id} - skipping')
                     continue
 
                 prefix = settings.guild_setting(guild.id, 'command_prefix')
@@ -252,7 +308,7 @@ class administration(commands.Cog):
             old_150d = (datetime.date.today() + datetime.timedelta(days=-150))
 
             for guild in self.bot.guilds:
-                staff_output_channel = guild.get_channel(settings.guild_setting(guild.id, 'game_request_channel'))
+                staff_output_channel = guild.get_channel(settings.guild_setting(guild.id, 'log_channel'))
 
                 utilities.connect()
 
@@ -319,7 +375,7 @@ class administration(commands.Cog):
                     if staff_output_channel:
                         await staff_output_channel.send(f'{delete_str[:1900]}\nFinished - purged {len(delete_result)} games')
                     else:
-                        logger.debug(f'Could not load game_request_channel for server {guild.id} {guild.name} - performing task silently')
+                        logger.debug(f'Could not load log_channel for server {guild.id} {guild.name} - performing task silently')
 
             await asyncio.sleep(sleep_cycle)
 
@@ -345,7 +401,7 @@ class administration(commands.Cog):
         logger.info(f'Game {game.id} is now marked as ranked.')
         models.GameLog.write(game_id=game, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} set game to be ranked.')
         await game.update_squad_channels(guild_list=settings.bot.guilds, guild_id=ctx.guild.id, message=f'Staff member **{ctx.author.display_name}** has set this game to be *ranked*.')
-        return await ctx.send(f'Game {game.id} is now marked as ranked.')
+        return await ctx.send(f'Game {game.id} is now marked as ranked.\nNotifying players: {" ".join(game.mentions())}')
 
     @commands.command(usage='game_id')
     async def rankunset(self, ctx, game: PolyGame = None):
@@ -369,7 +425,7 @@ class administration(commands.Cog):
         logger.info(f'Game {game.id} is now marked as unranked.')
         models.GameLog.write(game_id=game, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} set game to be unranked.')
         await game.update_squad_channels(guild_list=settings.bot.guilds, guild_id=ctx.guild.id, message=f'Staff member **{ctx.author.display_name}** has set this game to be *unranked*.')
-        return await ctx.send(f'Game {game.id} is now marked as unranked.')
+        return await ctx.send(f'Game {game.id} is now marked as unranked.\nNotifying players: {" ".join(game.mentions())}')
 
     @settings.in_bot_channel()
     @commands.command(usage='game_id')
@@ -387,6 +443,9 @@ class administration(commands.Cog):
         if game.is_pending:
             return await ctx.send(f'Game {game.id} is already a pending matchmaking session.')
 
+        if game.uses_channel_id(ctx.channel.id):
+            return await ctx.send(f':warning: This command must be used from a channel that is not related to the game.')
+
         if game.announcement_message:
             game.name = f'~~{game.name}~~ GAME CANCELLED'
             await game.update_announcement(guild=ctx.guild, prefix=ctx.prefix)
@@ -399,10 +458,7 @@ class administration(commands.Cog):
         game.save()
         models.GameLog.write(game_id=game, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} changed in-progress game to an open game. (`{ctx.prefix}unstart`)')
 
-        try:
-            await ctx.send(f'Game {game.id} is now an open game and no longer in progress.')
-        except discord.errors.NotFound:
-            logger.warn('Game unstarted while in game-related channel')
+        await ctx.send(f'Game {game.id} is now an open game and no longer in progress.\nNotifying players: {" ".join(game.mentions())}')
 
     @commands.command(usage='search_term', aliases=['gamelog', 'gamelogs', 'global_logs', 'log'])
     # @commands.cooldown(1, 20, commands.BucketType.user)
@@ -503,7 +559,7 @@ class administration(commands.Cog):
 
     @commands.command(aliases=['team_add_junior'], usage='new_team_name')
     @settings.is_mod_check()
-    @settings.teams_allowed()
+    @settings.guild_has_setting(setting_name='allow_teams')
     async def team_add(self, ctx, *, team_name: str):
         """*Mod*: Create new server Team
         The team should have a Role with an identical name.
@@ -531,48 +587,57 @@ class administration(commands.Cog):
             return await ctx.send('That team already exists!')
 
         await ctx.send(f'{pro_str}Team {team_name} created! Starting ELO: {team.elo}. Players with a Discord Role exactly matching \"{team_name}\" will be considered team members. '
-                f'You can now set the team flair with `{ctx.prefix}`team_emoji and `{ctx.prefix}team_image`.')
+                f'You can now set the team flair with `{ctx.prefix}team_emoji` and `{ctx.prefix}team_image`.')
 
     @commands.command(usage='team_name new_emoji')
     @settings.is_mod_check()
-    @settings.teams_allowed()
-    async def team_emoji(self, ctx, team_name: str, emoji):
+    @settings.guild_has_setting(setting_name='allow_teams')
+    async def team_emoji(self, ctx, team_name: str, emoji: str = None):
         """*Mod*: Assign an emoji to a team
         **Example:**
-        `[p]team_emoji Amazeballs :my_fancy_emoji:`
+        `[p]team_emoji Ronin :my_fancy_emoji:` - Set new emoji. Currently requires a custom emoji.
+        `[p]team_emoji Ronin` - Display currently saved emoji
         """
 
-        if len(emoji) != 1 and ('<:' not in emoji):
-            return await ctx.send('Valid emoji not detected. Example: `{}team_emoji name :my_custom_emoji:`'.format(ctx.prefix))
-
-        matching_teams = models.Team.get_by_name(team_name, ctx.guild.id)
-        if len(matching_teams) != 1:
-            return await ctx.send('Can\'t find matching team or too many matches. Example: `{}team_emoji name :my_custom_emoji:`'.format(ctx.prefix))
-
-        team = matching_teams[0]
-        team.emoji = emoji
-        team.save()
-
-        await ctx.send('Team {0.name} updated with new emoji: {0.emoji}'.format(team))
-
-    @commands.command(usage='team_name image_url')
-    @settings.is_mod_check()
-    @settings.teams_allowed()
-    async def team_image(self, ctx, team_name: str, image_url):
-        """*Mod*: Set a team's logo image
-
-        **Example:**
-        `[p]team_image Amazeballs http://www.path.to/image.png`
-        """
-
-        if 'http' not in image_url:
-            return await ctx.send(f'Valid image url not detected. Example usage: `{ctx.prefix}team_image name http://url_to_image.png`')
-            # This is a very dumb check to make sure user is passing a URL and not a random string. Assumes mod can figure it out from there.
+        # Bug: does not handle a unicode emoji argument. Tried to fix using PartialEmojiConverter but that doesn't work either
+        # for now just added unicode emoji to database directly. would probably need some fancy regex to detect unicode emoji
+        if emoji and len(emoji) != 1 and ('<:' not in emoji):
+            return await ctx.send(f'Valid emoji not detected. Example: `{ctx.prefix}team_emoji name :my_custom_emoji:`')
 
         try:
             team = models.Team.get_or_except(team_name, ctx.guild.id)
         except exceptions.NoSingleMatch as ex:
             return await ctx.send(f'{ex}\nExample: `{ctx.prefix}team_emoji name :my_custom_emoji:`')
+
+        if not emoji:
+            return await ctx.send(f'Emoji for team **{team.name}**: {team.emoji}')
+
+        team.emoji = emoji
+        team.save()
+
+        await ctx.send(f'Team **{team.name}** updated with new emoji: {team.emoji}')
+
+    @commands.command(usage='team_name image_url')
+    @settings.is_mod_check()
+    @settings.guild_has_setting(setting_name='allow_teams')
+    async def team_image(self, ctx, team_name: str, image_url: str = None):
+        """*Mod*: Set a team's logo image
+
+        **Example:**
+        `[p]team_image Ronin http://www.path.to/image.png`
+        `[p]team_image Ronin` - Display currently saved image
+        """
+        try:
+            team = models.Team.get_or_except(team_name, ctx.guild.id)
+        except exceptions.NoSingleMatch as ex:
+            return await ctx.send(f'{ex}\nExample: `{ctx.prefix}team_emoji name :my_custom_emoji:`')
+
+        if not image_url:
+            return await ctx.send(f'Image for team **{team.name}**: <{team.image_url}>')
+
+        if 'http' not in image_url:
+            return await ctx.send(f'Valid image url not detected. Example usage: `{ctx.prefix}team_image name http://url_to_image.png`')
+            # This is a very dumb check to make sure user is passing a URL and not a random string. Assumes mod can figure it out from there.
 
         team.image_url = image_url
         team.save()
@@ -582,7 +647,7 @@ class administration(commands.Cog):
 
     @commands.command(usage='old_name new_name')
     @settings.is_mod_check()
-    @settings.teams_allowed()
+    @settings.guild_has_setting(setting_name='allow_teams')
     async def team_name(self, ctx, old_team_name: str, new_team_name: str):
         """*Mod*: Change a team's name
         The team should have a Role with an identical name.
@@ -654,7 +719,7 @@ class administration(commands.Cog):
         if not defunct_members:
             return await ctx.send(f'No inactive members found!')
 
-        members_str = ' / '.join(defunct_members)
+        members_str = '\n'.join(defunct_members)
         await utilities.buffered_send(destination=ctx, content=f'Found {len(defunct_members)} inactive members - *{inactive_role.name}* has been applied to each: {members_str}')
 
     @commands.command()
@@ -681,7 +746,7 @@ class administration(commands.Cog):
         last_month = (datetime.datetime.now() + datetime.timedelta(days=-30))
         inactive_role = discord.utils.get(ctx.guild.roles, name=settings.guild_setting(ctx.guild.id, 'inactive_role'))
         if not inactive_role:
-            logger.warn(f'Could not load Inactive role by name {settings.guild_setting(ctx.guild.id, "inactive_role")}')
+            logger.warning(f'Could not load Inactive role by name {settings.guild_setting(ctx.guild.id, "inactive_role")}')
             return await ctx.send(f'Error loading Inactive role.')
 
         kickable_role_names = [
@@ -776,7 +841,7 @@ class administration(commands.Cog):
                             await member.kick(reason='No protected roles, no ELO games in at least 60 days.')
                             total_kicked_count += 1
                             if team_member:
-                                await member.send(f'You have been kicked from PolyChampions as part of an automated purge of inactive players. Please be assured this is nothing personal and is merely a manifestation of Nelluk\'s irrational need for a clean player list. If you are interested in rejoining please do so: http://discord.gg/cX7Ptnv')
+                                await member.send(f'You have been kicked from PolyChampions as part of an automated purge of inactive players. Please be assured this is nothing personal and is merely a manifestation of Nelluk\'s irrational need for a clean player list. If you are interested in rejoining please do so: https://discord.gg/YcvBheS')
                                 team_kicked_count += 1
                                 team_kicked_list.append(member.mention)
 
@@ -815,7 +880,7 @@ class administration(commands.Cog):
                 return await ctx.send(f'Found a DiscordMember *{new_discord_member.name}* in the database matching discord id `{new_guild_member.id}`. Cannot migrate to an existing player with completed games!')
 
             # but has no completed games - proceeding to migrate
-            logger.warn(f'Migrating player profile of ID {from_id} {old_discord_member.name} to new guild member {new_guild_member.id}{new_guild_member.name} with existing incomplete games')
+            logger.warning(f'Migrating player profile of ID {from_id} {old_discord_member.name} to new guild member {new_guild_member.id}{new_guild_member.name} with existing incomplete games')
 
             with models.db.atomic():
                 for gm in new_discord_member.guildmembers:
@@ -843,7 +908,7 @@ class administration(commands.Cog):
 
         else:
             # New player has no presence in the bot
-            logger.warn(f'Migrating player profile of ID {from_id} {old_discord_member.name} to new guild member {new_guild_member.id}{new_guild_member.name}')
+            logger.warning(f'Migrating player profile of ID {from_id} {old_discord_member.name} to new guild member {new_guild_member.id}{new_guild_member.name}')
 
             await ctx.send(f'The games from DiscordMember `{from_id}` *{old_discord_member.name}* will be migrated and become associated with {new_guild_member.mention}')
 
@@ -871,7 +936,6 @@ class administration(commands.Cog):
         player_id = utilities.string_to_user_id(args)
         if not player_id:
             return await ctx.send(f'Could not parse a discord ID. Usage: `{ctx.prefix}{ctx.invoked_with} [<@Mention> / <Raw ID>]`')
-        print(player_id)
 
         discord_member = models.DiscordMember.get_or_none(discord_id=player_id)
         if not discord_member:

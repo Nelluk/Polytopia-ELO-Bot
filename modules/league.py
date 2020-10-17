@@ -1,5 +1,5 @@
 import discord
-from discord.ext import commands
+from discord.ext import commands, tasks
 import modules.models as models
 import modules.utilities as utilities
 import settings
@@ -10,6 +10,7 @@ import modules.exceptions as exceptions
 import datetime
 import peewee
 import typing
+import random
 import modules.imgen as imgen
 
 logger = logging.getLogger('polybot.' + __name__)
@@ -33,13 +34,18 @@ league_teams = [('Ronin', ['The Ronin', 'The Bandits']),
     ('Wildfire', ['The Wildfire', 'The Flames']),
     ('Mallards', ['The Mallards', 'The Drakes']),
     ('Plague', ['The Plague', 'The Rats']),
-    ('Dragons', ['The Dragons', 'The Narwhals'])
+    ('Dragons', ['The Dragons', 'The Narwhals']),
+    ('Jalapenos', ['', 'The Jalapenos'])
 ]
 
 league_team_channels = []
+next_nova_newbie = 'Nova Red'  # Alternates between Red/Blue. Seeded randomly by Cog.on_ready()
 
+def get_league_roles(guild=None):
 
-def get_league_roles(guild):
+    if not guild:
+        guild = settings.bot.get_guild(settings.server_ids['polychampions']) or settings.bot.get_guild(settings.server_ids['test'])
+
     pro_role_names = [a[1][0] for a in league_teams]
     junior_role_names = [a[1][1] for a in league_teams]
     team_role_names = [a[0] for a in league_teams]
@@ -49,9 +55,55 @@ def get_league_roles(guild):
     team_roles = [discord.utils.get(guild.roles, name=r) for r in team_role_names]
 
     if None in pro_roles or None in junior_roles or None in team_roles:
-        logger.warn(f'Problem loading at least one role in get_league_roles: {pro_roles} {junior_roles} {team_roles}')
+        logger.warning(f'Problem loading at least one role in get_league_roles: {pro_roles} {junior_roles} {team_roles}')
 
     return team_roles, pro_roles, junior_roles
+
+
+def get_umbrella_team_role(team_name: str):
+    # given a team name like 'The Ronin' return the correspondng 'umbrella' team role object (Ronin)
+    league_guild = settings.bot.get_guild(settings.server_ids['polychampions']) or settings.bot.get_guild(settings.server_ids['test'])
+    if not league_guild:
+        raise exceptions.CheckFailedError('PolyChampions guild not loaded in `league.py`')
+
+    target_team_role = utilities.guild_role_by_name(league_guild, name=team_name, allow_partial=False)
+    if not target_team_role:
+        raise ValueError(f'No matching role found for team name "{team_name}"')
+
+    team_roles, pro_roles, junior_roles = get_league_roles()
+
+    if target_team_role in pro_roles:
+        team_umbrella_role = team_roles[pro_roles.index(target_team_role)]
+    elif target_team_role in junior_roles:
+        team_umbrella_role = team_roles[junior_roles.index(target_team_role)]
+    else:
+        raise exceptions.CheckFailedError(f'Unexpected error in get_umbrella_team_role for input "{team_name}')
+
+    return team_umbrella_role
+
+def get_team_leadership(team_role):
+
+    try:
+        umbrella_role = get_umbrella_team_role(team_role.name)
+    except exceptions.CheckFailedError as e:
+        logger.warning(f'Could not get_team_leadership for team role {team_role}: {e}')
+        return [], [], []
+
+    leaders, coleaders, recruiters = [], [], []
+
+    leader_role = utilities.guild_role_by_name(team_role.guild, name='Team Leader', allow_partial=False)
+    coleader_role = utilities.guild_role_by_name(team_role.guild, name='Team Co-Leader', allow_partial=False)
+    recruiter_role = utilities.guild_role_by_name(team_role.guild, name='Team Recruiter', allow_partial=False)
+
+    for member in umbrella_role.members:
+        if leader_role in member.roles:
+            leaders.append(member)
+        if coleader_role in member.roles:
+            coleaders.append(member)
+        if recruiter_role in member.roles:
+            recruiters.append(member)
+
+    return leaders, coleaders, recruiters
 
 
 class league(commands.Cog):
@@ -62,7 +114,7 @@ class league(commands.Cog):
     emoji_draft_signup = '🔆'
     emoji_draft_close = '⏯'
     emoji_draft_conclude = '❎'
-    emoji_list = [emoji_draft_signup, emoji_draft_close, emoji_draft_conclude]
+    emoji_draft_list = [emoji_draft_signup, emoji_draft_close, emoji_draft_conclude]
 
     draft_open_format_str = f'The draft is open for signups! {{0}}\'s can react with a {emoji_draft_signup} below to sign up. {{1}} who have not graduated have until the end of the draft signup period to meet requirements and sign up.\n\n{{2}}'
     draft_closed_message = f'The draft is closed to new signups. Mods can use the {emoji_draft_conclude} reaction after players have been drafted to clean up the remaining players and delete this message.'
@@ -73,7 +125,7 @@ class league(commands.Cog):
         self.announcement_message = None  # Will be populated from db if exists
 
         if settings.run_tasks:
-            pass
+            self.task_send_polychamps_invite.start()
 
     async def cog_check(self, ctx):
         return ctx.guild.id == settings.server_ids['polychampions'] or ctx.guild.id == settings.server_ids['test']
@@ -105,46 +157,43 @@ class league(commands.Cog):
         if after.guild.id not in [settings.server_ids['polychampions'], settings.server_ids['test']]:
             return
 
-        changed_role = None
-        if len(after.roles) > len(before.roles):
-            # assume one role added
-            changed_role = [x for x in after.roles if x not in before.roles]
-            if len(changed_role) != 1:
-                return logger.debug(f'Abandoned League.on_member_update because not single added role. before {before.roles} after {after.roles}')
-            changed_role = changed_role[0]
-        elif len(after.roles) < len(before.roles):
-            # assume one role removed
-            changed_role = [x for x in before.roles if x not in after.roles]
-            if len(changed_role) != 1:
-                return logger.debug(f'Abandoned League.on_member_update because not single removed role. before {before.roles} after {after.roles}')
-            changed_role = changed_role[0]
-
         team_roles, pro_roles, junior_roles = get_league_roles(after.guild)
         league_role = discord.utils.get(after.guild.roles, name=league_role_name)
         pro_member_role = discord.utils.get(after.guild.roles, name=pro_member_role_name)
         jr_member_role = discord.utils.get(after.guild.roles, name=jr_member_role_name)
+        player, team = None, None
 
-        if changed_role not in pro_roles and changed_role not in junior_roles:
-            # role that changed isn't a specific team role
+        before_member_team_roles = [x for x in before.roles if x in pro_roles or x in junior_roles]
+        member_team_roles = [x for x in after.roles if x in pro_roles or x in junior_roles]
+
+        if before_member_team_roles == member_team_roles:
             return
 
-        member_team_roles = [x for x in after.roles if x in pro_roles or x in junior_roles]
         if len(member_team_roles) > 1:
             return logger.debug(f'Member has more than one team role. Abandoning League.on_member_update. {member_team_roles}')
 
         roles_to_remove = team_roles + [jr_member_role] + [pro_member_role] + [league_role]
 
-        if member_team_roles and member_team_roles[0] in pro_roles:
-            team_umbrella_role = team_roles[pro_roles.index(member_team_roles[0])]
-            roles_to_add = [team_umbrella_role, pro_member_role, league_role]
-            models.GameLog.write(guild_id=after.guild.id, message=f'{models.GameLog.member_string(after)} had pro team role **{member_team_roles[0].name}** added.')
-        elif member_team_roles and member_team_roles[0] in junior_roles:
-            team_umbrella_role = team_roles[junior_roles.index(member_team_roles[0])]
-            roles_to_add = [team_umbrella_role, jr_member_role, league_role]
-            models.GameLog.write(guild_id=after.guild.id, message=f'{models.GameLog.member_string(after)} had junior team role **{member_team_roles[0].name}** added.')
+        if member_team_roles:
+            try:
+                player = models.Player.get_or_except(player_string=after.id, guild_id=after.guild.id)
+                team = models.Team.get_or_except(team_name=member_team_roles[0].name, guild_id=after.guild.id)
+                player.team = team
+                player.save()
+            except exceptions.NoSingleMatch as e:
+                logger.warning(f'League.on_member_update: could not load Player or Team for changing league member {after.display_name}: {e}')
+
+            if member_team_roles[0] in pro_roles:
+                team_umbrella_role = team_roles[pro_roles.index(member_team_roles[0])]
+                roles_to_add = [team_umbrella_role, pro_member_role, league_role]
+                log_message = f'{models.GameLog.member_string(after)} had pro team role **{member_team_roles[0].name}** added.'
+            elif member_team_roles[0] in junior_roles:
+                team_umbrella_role = team_roles[junior_roles.index(member_team_roles[0])]
+                roles_to_add = [team_umbrella_role, jr_member_role, league_role]
+                log_message = f'{models.GameLog.member_string(after)} had junior team role **{member_team_roles[0].name}** added.'
         else:
             roles_to_add = []  # No team role
-            models.GameLog.write(guild_id=after.guild.id, message=f'{models.GameLog.member_string(after)} had team role removed and is teamless.')
+            log_message = f'{models.GameLog.member_string(after)} had team role **{before_member_team_roles[0].name}** removed and is teamless.'
 
         member_roles = after.roles.copy()
         member_roles = [r for r in member_roles if r not in roles_to_remove]
@@ -157,6 +206,9 @@ class league(commands.Cog):
         # using member.edit() sets all the roles in one API call, much faster than using add_roles and remove_roles which uses one API call per role change, or two calls total if atomic=False
         await after.edit(roles=member_roles, reason='Detected change in team membership')
 
+        await utilities.send_to_log_channel(after.guild, log_message)
+        models.GameLog.write(guild_id=after.guild.id, message=log_message)
+
     @commands.Cog.listener()
     async def on_ready(self):
         utilities.connect()
@@ -167,11 +219,16 @@ class league(commands.Cog):
             self.announcement_message = self.get_draft_config(settings.server_ids['test'])['announcement_message']
 
         populate_league_team_channels()
+        global next_nova_newbie
+        next_nova_newbie = random.choice(['Nova Red', 'Nova Blue'])
+
+        # global league_guild
+        # league_guild = self.bot.get_guild(settings.server_ids['polychampions']) or self.bot.get_guild(settings.server_ids['test'])
+        # print(league_guild)
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload):
         # Monitors all reactions being added to all messages, looking for reactions added to relevant league announcement messages
-
         if payload.message_id != self.announcement_message:
             return
 
@@ -181,7 +238,7 @@ class league(commands.Cog):
         channel = payload.member.guild.get_channel(payload.channel_id)
         message = await channel.fetch_message(payload.message_id)
 
-        if payload.emoji.name not in self.emoji_list:
+        if payload.emoji.name not in self.emoji_draft_list:
             # Irrelevant reaction was added to relevant message. Clear it off.
             removal_emoji = self.bot.get_emoji(payload.emoji.id) if payload.emoji.id else payload.emoji.name
 
@@ -209,12 +266,12 @@ class league(commands.Cog):
         if payload.user_id == self.bot.user.id:
             return
 
-        guild = discord.utils.get(self.bot.guilds, id=payload.guild_id)
+        guild = self.bot.get_guild(payload.guild_id)
         member = guild.get_member(payload.user_id)
         channel = guild.get_channel(payload.channel_id)
         message = await channel.fetch_message(payload.message_id)
 
-        if payload.emoji.name not in self.emoji_list:
+        if payload.emoji.name not in self.emoji_draft_list:
             # Irrelevant reaction was removed
             pass
         if payload.emoji.name == self.emoji_draft_signup:
@@ -232,7 +289,7 @@ class league(commands.Cog):
             await message.remove_reaction(self.emoji_draft_conclude, member)
             logger.debug(f'Removing {self.emoji_draft_conclude} reaction placed by {member.name} on message {message.id}')
         except discord.DiscordException as e:
-            logger.warn(f'Unable to remove reaction in conclude_draft_emoji_added(): {e}')
+            logger.warning(f'Unable to remove reaction in conclude_draft_emoji_added(): {e}')
 
         if not settings.is_mod(member):
             return
@@ -240,7 +297,7 @@ class league(commands.Cog):
         free_agent_role = discord.utils.get(member.guild.roles, name=free_agent_role_name)
         draftable_role = discord.utils.get(member.guild.roles, name=draftable_role_name)
 
-        confirm_message = await channel.send(f'<@{member.id}>, react below to confirm the conclusion of the current draft. '
+        confirm_message = await channel.send(f'{member.mention}, react below to confirm the conclusion of the current draft. '
             f'{len(free_agent_role.members)} members will lose the **{free_agent_role_name}** role and {len(draftable_role.members)} members with the **{draftable_role_name}** role will lose that role and become the current crop with the **{free_agent_role_name}** role.\n'
             '*If you do not react within 30 seconds the draft will remain open.*', delete_after=35)
         await confirm_message.add_reaction('✅')
@@ -258,7 +315,7 @@ class league(commands.Cog):
             logger.debug(f'No reaction to confirmation message.')
             return
 
-        result_message_list = [f'Draft successfully closed by <@{member.id}>']
+        result_message_list = [f'Draft successfully closed by {member.mention}']
         self.announcement_message = None
 
         async with channel.typing():
@@ -268,7 +325,7 @@ class league(commands.Cog):
                 await old_free_agent.remove_roles(free_agent_role, reason='Purging old free agents')
                 logger.debug(f'Removing free agent role from {old_free_agent.name}')
 
-                result_message_list.append(f'Removing free agent role from {old_free_agent.name} <@{old_free_agent.id}>')
+                result_message_list.append(f'Removing free agent role from {old_free_agent.name} {old_free_agent.mention}')
 
             for new_free_agent in draftable_role.members:
                 await new_free_agent.add_roles(free_agent_role, reason='New crop of free agents')
@@ -277,13 +334,13 @@ class league(commands.Cog):
                 await new_free_agent.remove_roles(draftable_role, reason='Purging old free agents')
                 logger.debug(f'Removing draftable role from {new_free_agent.name}')
                 if new_free_agent in old_free_agents:
-                    result_message_list.append(f'Removing draftable role from and applying free agent role to {new_free_agent.name} <@{new_free_agent.id}>. They had it last week, too!')
+                    result_message_list.append(f'Removing draftable role from and applying free agent role to {new_free_agent.name} {new_free_agent.mention}. They had it last week, too!')
                 else:
-                    result_message_list.append(f'Removing draftable role from and applying free agent role to {new_free_agent.name} <@{new_free_agent.id}>')
+                    result_message_list.append(f'Removing draftable role from and applying free agent role to {new_free_agent.name} {new_free_agent.mention}')
 
         for log_message in result_message_list:
             models.GameLog.write(guild_id=member.guild.id, message=log_message)
-        await self.send_to_log_channel(member.guild, '\n'.join(result_message_list))
+        await utilities.send_to_log_channel(member.guild, '\n'.join(result_message_list))
         self.delete_draft_config(member.guild.id)
 
         try:
@@ -291,7 +348,7 @@ class league(commands.Cog):
             new_message = message.content.replace(self.draft_closed_message, f'~~{self.draft_closed_message}~~') + f'\nThis draft is concluded. {new_free_agents_count} members went undrafted and became free agents.'
             await message.edit(content=new_message)
         except discord.DiscordException as e:
-            logger.warn(f'Could not clear reactions or edit content in concluded draft message: {e}')
+            logger.warning(f'Could not clear reactions or edit content in concluded draft message: {e}')
 
     async def close_draft_emoji_added(self, member, channel, message):
         announce_message_link = f'https://discord.com/channels/{member.guild.id}/{channel.id}/{message.id}'
@@ -303,7 +360,7 @@ class league(commands.Cog):
             await message.remove_reaction(self.emoji_draft_close, member)
             logger.debug(f'Removing {self.emoji_draft_close} reaction placed by {member.name} on message {message.id}')
         except discord.DiscordException as e:
-            logger.warn(f'Unable to remove reaction in close_draft_emoji_added(): {e}')
+            logger.warning(f'Unable to remove reaction in close_draft_emoji_added(): {e}')
 
         if not settings.is_mod(member):
             return
@@ -312,15 +369,15 @@ class league(commands.Cog):
 
         if draft_config['draft_open']:
             new_message = f'~~{message.content}~~\n{self.draft_closed_message}'
-            log_message = f'Draft status closed by <@{member.id}>'
+            log_message = f'Draft status closed by {member.mention}'
             draft_config['draft_open'] = False
         else:
             new_message = self.draft_open_format_str.format(grad_role.mention, novas_role.mention, draft_config['draft_message'])
-            log_message = f'Draft status opened by <@{member.id}>'
+            log_message = f'Draft status opened by {member.mention}'
             draft_config['draft_open'] = True
 
         self.save_draft_config(member.guild.id, draft_config)
-        await self.send_to_log_channel(member.guild, log_message)
+        await utilities.send_to_log_channel(member.guild, log_message)
         try:
             await message.edit(content=new_message)
         except discord.DiscordException as e:
@@ -344,15 +401,15 @@ class league(commands.Cog):
                     logger.error(f'Could not add draftable role in signup_emoji_clicked: {e}')
                     return
                 else:
-                    member_message = f'You are now signed up for the next draft. If you would like to remove yourself, just remove the reaction you just placed.\n{announce_message_link}'
-                    log_message = f'<@{member.id}> ({member.name}) reacted to the draft and received the {draftable_role.name} role.'
+                    member_message = f'You are now signed up for the next draft. If you would like to remove yourself, just remove the reaction you just placed.\nAlthough you may have a preference on which team drafts you, be aware that you may be chosen by **any** team. You must make a good faith effort to play and integrate with that team to avoid a penalty for poor sportsmanship.\n{announce_message_link}'
+                    log_message = f'{member.mention} ({member.name}) reacted to the draft and received the {draftable_role.name} role.'
             else:
                 # Ineligible signup - either draft is closed or member does not have grad_role
                 try:
                     await message.remove_reaction(self.emoji_draft_signup, member)
                     logger.debug(f'Removing {self.emoji_draft_signup} reaction placed by {member.name} on message {message.id}')
                 except discord.DiscordException as e:
-                    logger.warn(f'Unable to remove irrelevant reaction in signup_emoji_clicked(): {e}')
+                    logger.warning(f'Unable to remove irrelevant reaction in signup_emoji_clicked(): {e}')
                 if not draft_opened:
                     member_message = 'The draft has been closed to new signups - your signup has been rejected.'
                     logger.debug(f'{member.id}> reacted to the draft but was rejected since it is closed.')
@@ -370,7 +427,7 @@ class league(commands.Cog):
                     return
                 else:
                     member_message = f'You have been removed from the next draft. You can sign back up at the announcement message:\n{announce_message_link}'
-                    log_message = f'<@{member.id}> ({member.name}) removed their draft reaction and has lost the {draftable_role.name} role.'
+                    log_message = f'{member.mention} ({member.name}) removed their draft reaction and has lost the {draftable_role.name} role.'
             else:
                 return
                 # member_message = (f'You removed your signup reaction from the draft announcement, but you did not have the **{draftable_role.name}** :thinking:\n'
@@ -381,13 +438,13 @@ class league(commands.Cog):
                 # if it has a nearly-same timestamp
 
         if log_message:
-            await self.send_to_log_channel(member.guild, log_message)
+            await utilities.send_to_log_channel(member.guild, log_message)
             models.GameLog.write(guild_id=member.guild.id, message=log_message)
         if member_message:
             try:
                 await member.send(member_message)
             except discord.DiscordException as e:
-                logger.warn(f'Could not message member in signup_emoji_clicked: {e}')
+                logger.warning(f'Could not message member in signup_emoji_clicked: {e}')
 
     def get_draft_config(self, guild_id):
         record, _ = models.Configuration.get_or_create(guild_id=guild_id)
@@ -402,21 +459,12 @@ class league(commands.Cog):
         q = models.Configuration.delete().where(models.Configuration.guild_id == guild_id)
         return q.execute()
 
-    async def send_to_log_channel(self, guild, message):
-
-        logger.debug(f'Sending log message to game_request_channel: {message}')
-        staff_output_channel = guild.get_channel(settings.guild_setting(guild.id, 'game_request_channel'))
-        if not staff_output_channel:
-            logger.warn(f'Could not load game_request_channel for server {guild.id} - skipping')
-        else:
-            await utilities.buffered_send(destination=staff_output_channel, content=message)
-
     @commands.command(aliases=['ds'], usage=None)
     @settings.is_mod_check()
     async def newdraft(self, ctx, channel_override: typing.Optional[discord.TextChannel], *, added_message: str = ''):
 
         """
-        Post a new draft signup announcement
+        *Mod:* Post a new draft signup announcement
 
         Will post a default draft signup announcement into a default announcement channel.
 
@@ -468,7 +516,7 @@ class league(commands.Cog):
             except discord.NotFound:
                 pass  # Message no longer exists - assume deleted and create a fresh draft message
             except discord.DiscordException as e:
-                logger.warn(f'Error loading existing draft announcement message in newdraft command: {e}')
+                logger.warning(f'Error loading existing draft announcement message in newdraft command: {e}')
 
         grad_role = discord.utils.get(ctx.guild.roles, name=grad_role_name)
         novas_role = discord.utils.get(ctx.guild.roles, name=novas_role_name)
@@ -480,7 +528,7 @@ class league(commands.Cog):
         await announcement_message.add_reaction(self.emoji_draft_close)
         await announcement_message.add_reaction(self.emoji_draft_conclude)
 
-        await self.send_to_log_channel(ctx.guild, f'Draft created by <@{ctx.author.id}>\n'
+        await utilities.send_to_log_channel(ctx.guild, f'Draft created by {ctx.author.mention}\n'
             f'https://discord.com/channels/{ctx.guild.id}/{announcement_channel.id}/{announcement_message.id}')
 
         if announcement_channel.id != ctx.message.channel.id:
@@ -495,110 +543,116 @@ class league(commands.Cog):
         self.announcement_message = announcement_message.id
         self.save_draft_config(ctx.guild.id, draft_config)
 
-    @commands.command(aliases=['balance'])
+    @commands.command(aliases=['league_balance'])
     @settings.in_bot_channel()
     @commands.cooldown(1, 5, commands.BucketType.channel)
-    async def league_balance(self, ctx, *, arg=None):
+    async def balance(self, ctx, *, arg=None):
         """ Print some stats on PolyChampions league balance
 
-            Default sort is the Draft Score. Include arguments d2 or d3 to see alternate draft scores.
+            Default sort is the Draft Score. Include arguments d2 or d3 or d4 to see alternate draft scores.
             ie: `[p]balance d3`
         """
-        import statistics
+        # import statistics
 
         league_balance = []
         indent_str = '\u00A0\u00A0 \u00A0\u00A0 \u00A0\u00A0'
         guild_id = settings.server_ids['polychampions']
         mia_role = discord.utils.get(ctx.guild.roles, name=settings.guild_setting(guild_id, 'inactive_role'))
+        # season_inactive_role = discord.utils.get(ctx.guild.roles, name='Season Inactive')
 
-        if arg and arg == 'd2':
-            draft_preference = 2
-            draft_str = 'average ELO of top 10 players (Senior or Junior)'
-        elif arg and arg == 'd3':
-            draft_preference = 3
-            draft_str = 'average ELO of top 20 players (Senior or Junior)'
-        elif arg and arg == 'd4':
-            draft_preference = 4
-            draft_str = 'average top 10 team players with Team ELO, plus half weight of average players 11 thru 20'
-        else:
-            draft_preference = 1
-            draft_str = 'Pro Team ELO + Average ELO of Pro Team members'
+        draft_str = 'combined ELO of top 10 players (Senior or Junior)'
 
         async with ctx.typing():
             for team, team_roles in league_teams:
 
                 pro_role = discord.utils.get(ctx.guild.roles, name=team_roles[0])
                 junior_role = discord.utils.get(ctx.guild.roles, name=team_roles[1])
+                junior_only_handicap = False  # Set to true for teams with a junior team but no pro team (Jalapenos)
 
-                if not pro_role or not junior_role:
-                    logger.warn(f'Could not load one team role from guild, using args: {team_roles}')
+                if pro_role:
+                    pro_role_members = pro_role.members
+                else:
+                    logger.debug(f'Could not load pro role matching {team_roles[0]}')
+                    pro_role_members = []
+                if junior_role:
+                    junior_role_members = junior_role.members
+                    if not pro_role:
+                        junior_only_handicap = True
+                else:
+                    logger.warning(f'Could not load junior role matching {team_roles[1]} - skipping loop')
                     continue
 
                 try:
-                    pro_team = models.Team.get_or_except(team_roles[0], guild_id)
+                    if junior_only_handicap:
+                        pro_team = None
+                    else:
+                        pro_team = models.Team.get_or_except(team_roles[0], guild_id)
                     junior_team = models.Team.get_or_except(team_roles[1], guild_id)
                 except exceptions.NoSingleMatch:
-                    logger.warn(f'Could not load one team from database, using args: {team_roles}')
+                    logger.warning(f'Could not load one team from database, using args: {team_roles}')
                     continue
 
                 pro_members, junior_members, pro_discord_ids, junior_discord_ids, mia_count = [], [], [], [], 0
 
-                for member in pro_role.members:
+                logger.debug(f'Processing team matching {team_roles[0]} {team_roles[1]}')
+                for member in pro_role_members:
                     if mia_role in member.roles:
                         mia_count += 1
                     else:
                         pro_members.append(member)
                         pro_discord_ids.append(member.id)
-                for member in junior_role.members:
+                for member in junior_role_members:
                     if mia_role in member.roles:
                         mia_count += 1
                     else:
                         junior_members.append(member)
                         junior_discord_ids.append(member.id)
 
-                logger.info(team)
                 combined_elo, player_games_total = models.Player.average_elo_of_player_list(list_of_discord_ids=junior_discord_ids + pro_discord_ids, guild_id=guild_id, weighted=True)
 
                 pro_elo, _ = models.Player.average_elo_of_player_list(list_of_discord_ids=pro_discord_ids, guild_id=guild_id, weighted=False)
                 junior_elo, _ = models.Player.average_elo_of_player_list(list_of_discord_ids=junior_discord_ids, guild_id=guild_id, weighted=False)
 
-                draft_score = pro_team.elo + pro_elo
-
                 sorted_elo_list = models.Player.discord_ids_to_elo_list(list_of_discord_ids=junior_discord_ids + pro_discord_ids, guild_id=guild_id)
-                draft_score_2 = statistics.mean(sorted_elo_list[:10])
-                draft_score_3 = statistics.mean(sorted_elo_list[:20])
-                draft_score_4 = statistics.mean(sorted_elo_list[:10] + [pro_team.elo]) + int(statistics.mean(sorted_elo_list[11:]) * 0.5)
-
-                if draft_preference == 2:
-                    draft_score = draft_score_2
-                elif draft_preference == 3:
-                    draft_score = draft_score_3
-                elif draft_preference == 4:
-                    draft_score = draft_score_4
-
+                draft_score = sum(sorted_elo_list[:10])
+                logger.debug(f'sorted_elo_list: {sorted_elo_list}')
+                if junior_only_handicap:
+                    logger.debug('Applying 20% junior_only_handicap')
+                    draft_score = int(draft_score * 1.2)
+                logger.debug(f'draft_score: {draft_score}')
                 league_balance.append(
-                    (team,
-                     pro_team,
-                     junior_team,
-                     len(pro_members),
-                     len(junior_members),
-                     mia_count,
-                     combined_elo,
-                     player_games_total,
-                     pro_elo,
-                     junior_elo,
-                     draft_score)
+                    (team,  # 0
+                     pro_team,  # 1
+                     junior_team,  # 2
+                     len(pro_members),  # 3
+                     len(junior_members),  # 4
+                     mia_count,  # 5
+                     combined_elo,  # 6
+                     player_games_total,  # 7
+                     pro_elo,  # 8
+                     junior_elo,  # 9
+                     draft_score)  # 10
                 )
 
         league_balance.sort(key=lambda tup: tup[10], reverse=True)     # sort by draft score
 
         embed = discord.Embed(title='PolyChampions League Balance Summary')
         for team in league_balance:
-            embed.add_field(name=(f'{team[1].emoji} {team[0]} ({team[3] + team[4]}) {team[2].emoji}\n{indent_str} \u00A0\u00A0 ActiveELO™: {team[6]}'
+            if team[1]:
+                # normal pro+junior entry
+                field_name = (f'{team[1].emoji} {team[0]} ({team[3] + team[4]}) {team[2].emoji}\n{indent_str} \u00A0\u00A0 ActiveELO™: {team[6]}'
                                   f' \u00A0 - \u00A0  Draft Score: {team[10]}'
-                                  f'\n{indent_str} \u00A0\u00A0 Recent member-games: {team[7]}'),
-                value=(f'-{indent_str}__**{team[1].name}**__ ({team[3]}) **ELO: {team[1].elo}** (Avg: {team[8]})\n'
-                       f'-{indent_str}__**{team[2].name}**__ ({team[4]}) **ELO: {team[2].elo}** (Avg: {team[9]})\n'), inline=False)
+                                  f'\n{indent_str} \u00A0\u00A0 Recent member-games: {team[7]}')
+                field_value = (f'-{indent_str}__**{team[1].name}**__ ({team[3]}) **ELO: {team[1].elo}** (Avg: {team[8]})\n'
+                       f'-{indent_str}__**{team[2].name}**__ ({team[4]}) **ELO: {team[2].elo}** (Avg: {team[9]})\n')
+            else:
+                # junior only entry
+                field_name = (f'{team[2].emoji} {team[0]} ({team[3] + team[4]}) {team[2].emoji}\n{indent_str} \u00A0\u00A0 ActiveELO™: {team[6]}'
+                                  f' \u00A0 - \u00A0  Draft Score: {team[10]}'
+                                  f'\n{indent_str} \u00A0\u00A0 Recent member-games: {team[7]}')
+                field_value = (f'-{indent_str}__**{team[2].name}**__ ({team[4]}) **ELO: {team[2].elo}** (Avg: {team[9]})\n')
+
+            embed.add_field(name=field_name, value=field_value, inline=False)
 
         embed.set_footer(text=f'ActiveELO™ is the mean ELO of members weighted by how many games each member has played in the last 30 days. Draft Score is {draft_str}.')
 
@@ -676,7 +730,7 @@ class league(commands.Cog):
                 for team in poly_teams:
                     season_record = team.get_season_record(season=season)  # (win_count_reg, loss_count_reg, incomplete_count_reg, win_count_post, loss_count_post, incomplete_count_post)
                     if not season_record:
-                        logger.warn(f'No season record returned for team {team.name}')
+                        logger.warning(f'No season record returned for team {team.name}')
                         continue
 
                     standings.append((team, season_record[0], season_record[1], season_record[2], season_record[3], season_record[4], season_record[5]))
@@ -718,20 +772,29 @@ class league(commands.Cog):
         # TODO: team numbers may be inflated due to inactive members. Can either count up only player recency, or easier but less effective way
         # would be to have $deactivate remove novas roles and make them rejoin if they come back
 
-        if len(red_role.members) > len(blue_role.members):
+        global next_nova_newbie
+        if next_nova_newbie == 'Nova Blue':
             await ctx.author.add_roles(blue_role, novas_role, reason='Joining Nova Blue')
             await ctx.send(f'Congrats, you are now a member of the **Nova Blue** team! To join the fight go to a bot channel and type `{ctx.prefix}novagames`')
+            next_nova_newbie = 'Nova Red'
         else:
             await ctx.author.add_roles(red_role, novas_role, reason='Joining Nova Red')
             await ctx.send(f'Congrats, you are now a member of the **Nova Red** team! To join the fight go to a bot channel and type `{ctx.prefix}novagames`')
-
+            next_nova_newbie = 'Nova Blue'
         if newbie_role:
             await ctx.author.remove_roles(newbie_role, reason='Joining Novas')
 
-    @commands.command(hidden=True)
+    @commands.command(usage='@Draftee TeamName')
     @settings.is_mod_check()
-    @settings.in_bot_channel_strict()
+    # @settings.in_bot_channel_strict()
     async def draft(self, ctx, *, args=None):
+        """
+        *Mod:* Generate a draft announcement image
+        Currently will not alter any roles or do anything other than display an image.
+
+        **Examples**
+        `[p]draft` @Nelluk Ronin
+        """
         args = args.split() if args else []
         usage = (f'**Example usage:** `{ctx.prefix}draft @Nelluk Ronin`')
 
@@ -739,7 +802,7 @@ class league(commands.Cog):
             return await ctx.send(f'Insufficient arguments.\n{usage}')
         draftee = ctx.guild.get_member(utilities.string_to_user_id(args[0]))
         if not draftee:
-            return await ctx.send(f'Could not find server member from **{args[0]}**\n{usage}')
+            return await ctx.send(f'Could not find server member from **{args[0]}**. Make sure to use a @Mention.\n{usage}')
 
         try:
             team = models.Team.get_or_except(team_name=' '.join(args[1:]), guild_id=ctx.guild.id)
@@ -764,13 +827,15 @@ class league(commands.Cog):
 
         await ctx.send(file=fs)
 
-    @commands.command(aliases=['freeagents', 'draftable', 'ble', 'bge'], usage='[sort] [role name list]')
+    @commands.command(aliases=['freeagents', 'draftable', 'ble', 'bge', 'roleeloany'], usage='[sort] [role name list]')
     @settings.in_bot_channel_strict()
     @commands.cooldown(1, 5, commands.BucketType.channel)
     async def roleelo(self, ctx, *, arg=None):
         """Prints list of players with a given role and their ELO stats
 
         You can check more tha one role at a time by separating them with a comma.
+        By default will return members with ALL of the specified roles.
+        Use `[p]roleeloany` to list members with ANY of the roles.
 
         Use one of the following options as the first argument to change the sorting:
         **g_elo** - Global ELO (default)
@@ -778,7 +843,8 @@ class league(commands.Cog):
         **games** - Total number of games played
         **recent** - Recent games played (14 days)
 
-        Members with the Inactive role will be skipped. Include `-file` in the argument for a CSV attachment.
+        Members with the Inactive role will be skipped unless it is explicitly listed.
+        Include `-file` in the argument for a CSV attachment.
 
         This command has some shortcuts:
         `[p]draftable` - List members with the Draftable role
@@ -790,8 +856,6 @@ class league(commands.Cog):
         `[p]roleelo elo novas` - List all members with a role matching 'novas', sorted by local elo
         `[p]draftable recent` - List all members with the Draftable role sorted by recent games
         `[p]roleelo g_elo crawfish, ronin` - List all members with any of two roles, sorted by global elo
-        `[p]roleelo recent Pros` - *Shortcut* List all members with any Pro team role, sorted by recent. 'Juniors' also works.
-        `[p]roleelo League` - *Shortcut* List all members with any team role.
         """
         args = arg.split() if arg else []
         usage = (f'**Example usage:** `{ctx.prefix}roleelo Ronin`\n'
@@ -836,35 +900,26 @@ class league(commands.Cog):
                 return await ctx.send(f'No role name was supplied.\n{usage}')
 
         player_list = []
-        checked_role = None
         player_obj_list, member_obj_list = [], []
 
         args = [a.strip().title() for a in ' '.join(args).split(',')]  # split arguments by comma
 
-        if 'Pros' in args:
-            args.remove('Pros')
-            pro_roles = [a[1][0] for a in league_teams]
-            args = args + pro_roles
-        if 'Juniors' in args:
-            args.remove('Juniors')
-            jr_roles = [a[1][1] for a in league_teams]
-            args = args + jr_roles
-        if 'League' in args:
-            args.remove('League')
-            pro_roles = [a[1][0] for a in league_teams]
-            jr_roles = [a[1][1] for a in league_teams]
-            args = args + pro_roles + jr_roles
-
         roles = [discord.utils.find(lambda r: arg.upper() in r.name.upper(), ctx.guild.roles) for arg in args]
         roles = [r for r in roles if r]  # remove Nones
-        members = list(set(member for role in roles if role for member in role.members))
+
+        if ctx.invoked_with == 'roleeloany':
+            members = list(set(member for role in roles if role for member in role.members))
+            method = 'any'
+        else:
+            members = [member for member in ctx.guild.members if all(role in member.roles for role in roles)]
+            method = 'all'
 
         if not roles:
-            return await ctx.send(f'Could not load roles from the guild matching **{"/".join(args)}**. This command tries to match one role per word.')
+            return await ctx.send(f'Could not load roles from the guild matching **{"/".join(args)}**. Multiple roles should be separated by a comma.')
 
         inactive_role = discord.utils.get(ctx.guild.roles, name=settings.guild_setting(ctx.guild.id, 'inactive_role'))
         for member in members:
-            if inactive_role and inactive_role in member.roles and inactive_role != checked_role:
+            if inactive_role and inactive_role in member.roles and inactive_role not in roles:
                 logger.debug(f'Skipping {member.name} since they have Inactive role')
                 continue
 
@@ -884,7 +939,7 @@ class league(commands.Cog):
 
             # TODO: Mention players without pinging them once discord.py 1.4 is out https://discordpy.readthedocs.io/en/latest/api.html#discord.TextChannel.send
 
-            message = (f'**{player.name}**'
+            message = (f' {dm.mention()} **{player.name}**'
                 f'\n\u00A0\u00A0 \u00A0\u00A0 \u00A0\u00A0 {recent_games} games played in last 14 days, {all_games} all-time'
                 f'\n\u00A0\u00A0 \u00A0\u00A0 \u00A0\u00A0 ELO:  {dm.elo} *global* / {player.elo} *local*\n'
                 f'\u00A0\u00A0 \u00A0\u00A0 \u00A0\u00A0 __W {g_wins} / L {g_losses}__ *global* \u00A0\u00A0 - \u00A0\u00A0 __W {wins} / L {losses}__ *local*\n')
@@ -914,17 +969,17 @@ class league(commands.Cog):
                 with open(filename, 'rb') as f:
                     file = io.BytesIO(f.read())
                 file = discord.File(file, filename=filename)
-                await ctx.send(f'Active players with any of the following roles: **{"/".join([r.name for r in roles])}**\nLoaded into a file `{filename}`, sorted by {sort_str}', file=file)
+                await ctx.send(f'Exporting {len(player_list)} active players with {method} of the following roles: **{"/".join([r.name for r in roles])}**\nLoaded into a file `{filename}`, sorted by {sort_str}', file=file)
         else:
-            await ctx.send(f'Listing {len(player_list)} active members with any of the following roles: **{"/".join([r.name for r in roles])}** (sorted by {sort_str})...')
-            # without the escape then 'everyone.name' still is a mention
+            await ctx.send(f'Listing {len(player_list)} active members with {method} of the following roles: **{"/".join([r.name for r in roles])}** (sorted by {sort_str})...')
 
             message = []
-            for grad in player_list:
-                # await ctx.send(grad[0])
-                message.append(grad[0])
+            am = discord.AllowedMentions(everyone=False, users=False, roles=False)
+            for player in player_list:
+                message.append(player[0])
             async with ctx.typing():
-                await utilities.buffered_send(destination=ctx, content=''.join(message).replace(".", "\u200b "))
+
+                await utilities.buffered_send(destination=ctx, content=''.join(message).replace(".", "\u200b "), allowed_mentions=am)
 
     @commands.command()
     # @settings.in_bot_channel()
@@ -957,33 +1012,148 @@ class league(commands.Cog):
             with open(filename, 'rb') as f:
                 file = io.BytesIO(f.read())
             file = discord.File(file, filename=filename)
-            await ctx.send(f'Wrote to `{filename}`', file=file)
+            await ctx.send(f'{ctx.author.mention}, your export is complete. Wrote to `{filename}`', file=file)
+
+    @tasks.loop(minutes=30.0)
+    async def task_send_polychamps_invite(self):
+        await self.bot.wait_until_ready()
+
+        message = ('You have met the qualifications to be invited to the **PolyChampions** discord server! '
+                   'PolyChampions is a competitive Polytopia server organized into a league, with a focus on team (2v2 and 3v3) games.'
+                   '\n To join use this invite link: https://discord.gg/YcvBheS')
+        logger.info('Running task task_send_polychamps_invite')
+        guild = self.bot.get_guild(settings.server_ids['main'])
+        if not guild:
+            logger.warning('Could not load guild via server_id')
+            return
+        utilities.connect()
+        dms = models.DiscordMember.members_not_on_polychamps()
+        logger.info(f'{len(dms)} discordmember results')
+        for dm in dms:
+            wins_count, losses_count = dm.wins().count(), dm.losses().count()
+            if wins_count < 5:
+                logger.debug(f'Skipping {dm.name} - insufficient winning games')
+                continue
+            if dm.games_played(in_days=15).count() < 1:
+                logger.debug(f'Skipping {dm.name} - insufficient recent games')
+                continue
+            if dm.elo_max > 1150:
+                logger.debug(f'{dm.name} qualifies due to higher ELO > 1150')
+            elif wins_count > losses_count:
+                logger.debug(f'{dm.name} qualifies due to positive win ratio')
+            else:
+                logger.debug(f'Skipping {dm.name} - ELO or W/L record insufficient')
+                continue
+
+            if not dm.polytopia_id and not dm.polytopia_name:
+                logger.debug(f'Skipping {dm.name} - no mobile code or name')
+                continue
+
+            logger.debug(f'Sending invite to {dm.name}')
+            guild_member = guild.get_member(dm.discord_id)
+            if not guild_member:
+                logger.debug(f'Could not load {dm.name} from guild {guild.id}')
+                continue
+            try:
+                await guild_member.send(message)
+            except discord.DiscordException as e:
+                logger.warning(f'Error DMing member: {e}')
+            else:
+                dm.date_polychamps_invite_sent = datetime.datetime.today()
+                dm.save()
+
+
+async def broadcast_team_game_to_server(ctx, game):
+    # When a PolyChamps game is created with a role-lock matching a league team, it will broadcast a message about the game
+    # to that team's server, if it has a league_game_announce_channel channel configured.
+
+    if ctx.guild.id not in [settings.server_ids['polychampions'], settings.server_ids['test']]:
+        return
+
+    role_locks = [gs.required_role_id for gs in game.gamesides if gs.required_role_id]
+    roles = [ctx.guild.get_role(r_id) for r_id in role_locks if ctx.guild.get_role(r_id)]
+
+    if not roles:
+        return
+
+    pro_role_names = [a[1][0] for a in league_teams]
+    junior_role_names = [a[1][1] for a in league_teams]
+    team_role_names = [a[0] for a in league_teams]
+
+    for role in roles:
+        if role.name in pro_role_names:
+            team_name = role.name
+            game_type = 'Pro Team'
+        elif role.name in junior_role_names:
+            team_name = role.name
+            game_type = 'Junior Team'
+        elif role.name in team_role_names:
+            # Umbrella name like Ronin/Jets
+            game_type = 'Full Team (Pros *and* Juniors)'
+            if pro_role_names[team_role_names.index(role.name)]:
+                team_name = pro_role_names[team_role_names.index(role.name)]
+            else:
+                # For junior-only teams
+                team_name = junior_role_names[team_role_names.index(role.name)]
+        else:
+            logger.debug(f'broadcast_team_game_to_server: no team name found to match role {role.name}')
+            continue
+
+        try:
+            team = models.Team.get_or_except(team_name=team_name, guild_id=ctx.guild.id)
+        except exceptions.NoSingleMatch:
+            logger.warning(f'broadcast_team_game_to_server: valid team name found to match role {role.name} but no database match')
+            continue
+
+        team_server = settings.bot.get_guild(team.external_server)
+        team_channel = discord.utils.get(team_server.text_channels, name='polychamps-game-announcements') if team_server else None
+
+        if settings.bot.user.id == 479029527553638401:
+            team_channel = discord.utils.get(team_server.text_channels, name='beta-bot-tests') if team_server else None
+
+        if not team_channel:
+            logger.warning(f'broadcast_team_game_to_server: could not load guild or announce channel for {team.name}')
+            continue
+        notes_str = f'\nNotes: *{game.notes}*' if game.notes else ''
+
+        bot_member = team_server.get_member(settings.bot.user.id)
+        if team_channel.permissions_for(bot_member).add_reactions:
+            join_str = game.reaction_join_string()
+        else:
+            join_str = ':warning: *Missing add reactions permission*'
+
+        message_content = f'New PolyChampions game `{game.id}` for {game_type} created by {game.host.name}\n{game.size_string()} {game.get_headline()}{notes_str}\n{ctx.message.jump_url}'
+        if game.is_uncaught_season_game():
+            message_content += f'\n(*This appears to be a **Season Game** so join reactions are disabled.*)'
+        else:
+            message_content += f'\n{join_str}.'
+
+        try:
+            message = await team_channel.send(message_content)
+            models.TeamServerBroadcastMessage.create(game=game, channel_id=team_channel.id, message_id=message.id)
+        except discord.DiscordException as e:
+            logger.warning(f'Could not send broadcast message: {e}')
+        logger.debug(f'broadcast_team_game_to_server - sending message to channel {team_channel.name} on server {team_server.name}\n{message_content}')
 
 
 async def auto_grad_novas(ctx, game):
     # called from post_newgame_messaging() - check if any member of the newly-started game now meets Nova graduation requirements
 
-    if ctx.guild.id == settings.server_ids['polychampions'] or ctx.guild.id == settings.server_ids['test']:
-        pass
-    else:
-        logger.debug(f'Ignoring auto_grad_novas for game {game.id}')
+    if ctx.guild.id not in [settings.server_ids['polychampions'], settings.server_ids['test']]:
         return
 
     role = discord.utils.get(ctx.guild.roles, name=novas_role_name)
     grad_role = discord.utils.get(ctx.guild.roles, name=grad_role_name)
-    grad_chan = ctx.guild.get_channel(540332800927072267)  # Novas draft talk
-    if ctx.guild.id == settings.server_ids['test']:
-        grad_chan = ctx.guild.get_channel(479292913080336397)  # bot spam
 
     if not role or not grad_role:
-        logger.warn(f'Could not load required roles to complete auto_grad_novas')
+        logger.warning(f'Could not load required roles to complete auto_grad_novas')
         return
 
     player_id_list = [l.player.discord_member.discord_id for l in game.lineup]
     for player_id in player_id_list:
         member = ctx.guild.get_member(player_id)
         if not member:
-            logger.warn(f'Could not load guild member matching discord_id {player_id} for game {game.id} in auto_grad_novas')
+            logger.warning(f'Could not load guild member matching discord_id {player_id} for game {game.id} in auto_grad_novas')
             continue
 
         if role not in member.roles or grad_role in member.roles:
@@ -995,7 +1165,7 @@ async def auto_grad_novas(ctx, game):
             dm = models.DiscordMember.get(discord_id=member.id)
             player = models.Player.get(discord_member=dm, guild_id=ctx.guild.id)
         except peewee.DoesNotExist:
-            logger.warn(f'Player {member.name} not registered.')
+            logger.warning(f'Player {member.name} not registered.')
             continue
 
         qualifying_games = []
@@ -1029,15 +1199,14 @@ async def auto_grad_novas(ctx, game):
             except discord.NotFound:
                 pass  # Draft signup message no longer exists - assume its been deleted intentionally and closed
             except discord.DiscordException as e:
-                logger.warn(f'Error loading existing draft announcement message in auto_grad_novas: {e}')
+                logger.warning(f'Error loading existing draft announcement message in auto_grad_novas: {e}')
 
         grad_announcement = (f'Player {member.mention} (*Global ELO: {dm.elo} \u00A0\u00A0\u00A0\u00A0W {wins} / L {losses}*) '
                 f'has met the qualifications and is now a **{grad_role.name}**\n'
                 f'{announce_str}')
-        if grad_chan:
-            await grad_chan.send(f'{grad_announcement}')
-        else:
-            await ctx.send(f'{grad_announcement}')
+
+        await ctx.send(grad_announcement)
+        await utilities.send_to_log_channel(ctx.guild, grad_announcement)
 
 
 def populate_league_team_channels():

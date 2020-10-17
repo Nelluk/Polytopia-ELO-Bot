@@ -116,15 +116,22 @@ def get_prefix(bot, message):
         if message.guild:
             logger.error(f'Message received not from allowed guild. ID {message.guild.id }')
         # probably a PM
-        logger.warn(f'returning None prefix for received PM. Author: {message.author.name}')
+        logger.warning(f'returning None prefix for received PM. Author: {message.author.name}')
         return 'fakeprefix'
 
 
 if __name__ == '__main__':
 
     main()
-
-    bot = commands.Bot(command_prefix=get_prefix, owner_id=settings.owner_id)
+    utilities.connect()
+    am = discord.AllowedMentions(everyone=False)
+    intents = discord.Intents().all()
+    intents.typing = False
+    bot = commands.Bot(command_prefix=get_prefix,
+                       owner_id=settings.owner_id,
+                       allowed_mentions=am,
+                       intents=intents,
+                       activity=discord.Activity(name='$guide', type=discord.ActivityType.playing))
     settings.bot = bot
     bot.purgable_messages = []  # auto-deleting messages to get cleaned up by Administraton.quit  (guild, channel, message) tuple list
 
@@ -153,7 +160,7 @@ if __name__ == '__main__':
         retry_after = bucket.update_rate_limit()
         if retry_after:
             await ctx.send('You\'re on cooldown. Slow down those commands!')
-            logger.warn(f'Cooldown limit reached for user {ctx.author.id}')
+            logger.warning(f'Cooldown limit reached for user {ctx.author.id}')
             return False
 
         # not on cooldown
@@ -172,9 +179,9 @@ if __name__ == '__main__':
             await ctx.send(f'Cannot understand command. Make sure to include a space and a numeric game ID.\n*Example:* `{ctx.prefix}join 11234`')
 
         # Anything in ignored will return and prevent anything happening.
-      #  if isinstance(exc, ignored):
-      #      logger.warn(f'Exception on ignored list raised in {ctx.command}. {exc}')
-      #      return
+        if isinstance(exc, ignored):
+            logger.warning(f'Exception on ignored list raised in {ctx.command}. {exc}')
+            return
 
         if isinstance(exc, commands.CommandOnCooldown):
             logger.info(f'Cooldown triggered: {exc}')
@@ -192,6 +199,15 @@ if __name__ == '__main__':
     initial_extensions = ['modules.games', 'modules.customhelp', 'modules.matchmaking', 'modules.administration', 'modules.misc', 'modules.league']
     for extension in initial_extensions:
         bot.load_extension(extension)
+
+    @bot.event
+    async def on_message(message):
+        if settings.maintenance_mode:
+            if message.content and message.content.startswith(tuple(get_prefix(bot, message))):
+                logger.debug('Ignoring messages while settings.maintenance_mode is set to True')
+        else:
+            # it is possible to modify the content of a message here before processing, ie replace curly quotes in message.content with straight quotes
+            await bot.process_commands(message)
 
     @bot.event
     async def on_ready():

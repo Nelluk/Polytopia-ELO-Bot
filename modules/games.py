@@ -4,10 +4,11 @@ import modules.utilities as utilities
 import settings
 import modules.exceptions as exceptions
 import modules.achievements as achievements
+from modules import channels
 import peewee
 import modules.models as models
 from modules.models import Game, db, Player, Team, DiscordMember, Squad, GameSide, Tribe, Lineup
-from modules.league import auto_grad_novas, populate_league_team_channels
+from modules.league import auto_grad_novas, populate_league_team_channels, get_team_leadership
 import logging
 import datetime
 import asyncio
@@ -37,7 +38,7 @@ class PolyGame(commands.Converter):
         else:
             logger.debug(f'Game with ID {game_id} found.')
             if game.guild_id != ctx.guild.id and not allow_cross_guild:
-                logger.warn('Game does not belong to same guild')
+                logger.warning('Game does not belong to same guild')
                 try:
                     server_name = settings.guild_setting(guild_id=game.guild_id, setting_name='display_name')
                 except exceptions.CheckFailedError:
@@ -67,6 +68,16 @@ class polygames(commands.Cog):
             self.bg_task2 = bot.loop.create_task(self.task_set_champion_role())
 
     @commands.Cog.listener()
+    async def on_message(self, message):
+        if message.author == self.bot.user:
+            return
+
+        if message.role_mentions and discord.utils.get(message.role_mentions, name='ELO-Helper'):
+            prefix = settings.guild_setting(message.guild.id, 'command_prefix')
+            await message.channel.send(f'{message.author.mention}, to receive staff help in the future please use the `{prefix}staffhelp` command, '
+                '- since you have already pinged please wait for a response.')
+
+    @commands.Cog.listener()
     async def on_guild_channel_delete(self, channel):
         query = GameSide.update(team_chan=None).where(GameSide.team_chan == channel.id)
         res = query.execute()
@@ -79,6 +90,81 @@ class polygames(commands.Cog):
             logger.debug(f'on_guild_channel_delete: detected deletion of game channel {channel.id} {channel.name} and removed reference from db')
 
     @commands.Cog.listener()
+    async def on_member_join(self, member):
+        player, upserted = models.Player.get_by_discord_id(discord_id=member.id, discord_name=member.name, discord_nick=member.nick, guild_id=member.guild.id)
+        if player:
+            if upserted:
+                logger.debug(f'on_member_join: {member.display_name} joined guild {member.guild.name} and Player was upserted as an existing DiscordMember.')
+            logger.debug(f'on_member_join: {member.display_name} re-joined guild {member.guild.name} and has an existing Player entry.')
+        else:
+            return logger.debug(f'on_member_join: {member.display_name} joined guild {member.guild.name} but does not have an existing DiscordMember record.')
+
+        # add re-joining player back to any relevant game channels
+
+        pending_lineups_with_side_channels = Lineup.select().join(GameSide).join(Game).where(
+            (Game.is_completed == 0) & (Lineup.player == player) & (GameSide.team_chan > 0) &
+            ((GameSide.team_chan_external_server == member.guild.id) | (Game.guild_id == member.guild.id))
+        )
+
+        pending_lineups_with_game_channels = Lineup.select().join(Game).where(
+            (Game.is_completed == 0) & (Lineup.player == player) & (Game.game_chan > 0) & (Game.guild_id == member.guild.id)
+        )
+
+        async def fix_channel_perm(channel, member):
+            try:
+                await channels.add_member_to_channel(channel, member)
+                logger.info(f'Re-adding {member.display_name} to channel {channel.id} {channel.name}')
+                await channel.send(f'{member.mention} has been added back to this channel after rejoining the server. :partying_face:')
+            except (discord.errors.Forbidden, discord.errors.HTTPException) as e:
+                logger.warn(f'Tried to re-add {member.display_name} to channel {channel.id} {channel.name} but got error: {e}')
+
+        for lineup in pending_lineups_with_side_channels:
+
+            channel = self.bot.get_channel(lineup.gameside.team_chan)
+            if not channel:
+                continue
+
+            await fix_channel_perm(channel, member)
+
+        for lineup in pending_lineups_with_game_channels:
+
+            channel = self.bot.get_channel(lineup.game.game_chan)
+            if not channel:
+                continue
+
+            await fix_channel_perm(channel, member)
+
+    @commands.Cog.listener()
+    async def on_member_remove(self, member):
+
+        try:
+            leaving_player = Player.get_or_except(player_string=member.id, guild_id=member.guild.id)
+        except exceptions.NoSingleMatch:
+            return
+
+        pending_lineups = Lineup.select().join(Game).where(
+            (Lineup.game.is_pending == 1) & (Lineup.player == leaving_player)
+        )
+
+        incomplete_lineups = Lineup.select().join(Game).where(
+            (Lineup.game.is_pending == 0) & (Lineup.game.is_completed == 0) & (Lineup.player == leaving_player)
+        )
+
+        if pending_lineups:
+            for l in pending_lineups:
+                models.GameLog.write(game_id=l.game.id, guild_id=member.guild.id, message=f'{models.GameLog.member_string(member)} left the game while leaving the server.')
+
+            q = Lineup.delete().where(models.Lineup.id.in_(pending_lineups))
+
+            logger.info(f'Existing ELO player {member.display_name} {member.id} left guild {member.guild.name} - deleted Lineup records for {q.execute()} pending games.')
+
+        if incomplete_lineups and member.guild.id == settings.server_ids['polychampions']:
+            helper_role_name = settings.guild_setting(member.guild.id, 'helper_roles')[0]
+            helper_role = discord.utils.get(member.guild.roles, name=helper_role_name)
+            helper_mention = helper_role.mention if helper_role else 'Staff'
+            await utilities.send_to_log_channel(member.guild, f'{helper_mention} - {member.mention} ({member.display_name}) left the server and has {len(incomplete_lineups)} incomplete games.')
+
+    @commands.Cog.listener()
     async def on_user_update(self, before, after):
         if before.name != after.name:
             logger.debug(f'Attempting to change member discordname for {before.name} to {after.name}')
@@ -89,6 +175,7 @@ class polygames(commands.Cog):
             except peewee.DoesNotExist:
                 return
             discord_member.update_name(new_name=utilities.escape_role_mentions(after.name))
+            models.GameLog.write(game_id=0, guild_id=0, message=f'{models.GameLog.member_string(after)} changed username from "{before.name}"" to "{after.name}"')
 
     @commands.Cog.listener()
     async def on_member_update(self, before, after):
@@ -151,53 +238,7 @@ class polygames(commands.Cog):
             except peewee.DoesNotExist:
                 return
             player.generate_display_name(player_name=after.name, player_nick=after.nick)
-
-    @commands.command(aliases=['reqgame', 'helpstaff'], hidden=True)
-    @commands.cooldown(2, 30, commands.BucketType.user)
-    async def staffhelp(self, ctx, *, message: str = None):
-        """
-        Send staff updates/fixes for an ELO game
-        Teams should use this to notify staff of important events with their standard ELO games:
-        restarts, substitutions, tribe choices
-
-        Use `[p]seasongame` if the game is a League/Season game.
-        **Example:**
-        `[p]staffhelp Game 250 renamed to Fields of Fire`
-        `[p]staffhelp Game 250 tribe choices: nelluk ai-mo, koric bardur.`
-        """
-        # Used so that users can submit game information to staff - bot will relay the text in the command to a specific channel.
-        # Staff would then take action and create games. Also use this to notify staff of winners or name changes
-        channel = ctx.guild.get_channel(settings.guild_setting(ctx.guild.id, 'game_request_channel'))
-        if not channel:
-            ctx.command.reset_cooldown(ctx)
-            return await ctx.send(f'This server has not been configured for `{ctx.prefix}staffhelp` requests. You will need to ping a staff member.')
-
-        if not message:
-            ctx.command.reset_cooldown(ctx)
-            return await ctx.send(f'You must supply a help request, ie: `{ctx.prefix}staffhelp Game 51, restarted with name "Sweet New Game Name"`')
-
-        helper_role_name = settings.guild_setting(ctx.guild.id, 'helper_roles')[0]
-        helper_role = discord.utils.get(ctx.guild.roles, name=helper_role_name)
-        helper_role_str = f'{helper_role.mention}' if helper_role else 'server staff'
-
-        await channel.send(f'Attention {helper_role_str} - {ctx.message.author} submitted: {ctx.message.clean_content}')
-
-    @commands.command(hidden=True, brief='Sends staff details on a League game', usage='Week 2 game vs Mallards started called "Oceans of Fire"')
-    @settings.on_polychampions()
-    @commands.cooldown(2, 30, commands.BucketType.user)
-    async def seasongame(self, ctx, *, message: str = None):
-        """
-        Teams should use this to notify staff of important events with their League games: names of started games, restarts, substitutions, winners.
-        """
-        if not message:
-            ctx.command.reset_cooldown(ctx)
-            return await ctx.send(f'You must supply a help request, ie: `{ctx.prefix}seasongame Week 2 game Ronin vs Jets started "Fields of Fire"`')
-
-        # Ping AnarchoRex and send output to #season-drafts when team leaders send in game info
-        channel = ctx.guild.get_channel(447902433964851210)
-        helper_role = discord.utils.get(ctx.guild.roles, name='Season Helper')
-        await channel.send(f'{ctx.message.author} submitted season game INFO <@&{helper_role.id}> <@451212023124983809>: {ctx.message.clean_content}')
-        await ctx.send('Request has been logged')
+            models.GameLog.write(game_id=0, guild_id=after.guild.id, message=f'{models.GameLog.member_string(after)} had changed nickname from "{before.nick}" to "{after.nick}"')
 
     @settings.in_bot_channel_strict()
     @commands.command(aliases=['leaderboard', 'leaderboards', 'lbglobal', 'lbg'])
@@ -270,7 +311,10 @@ class polygames(commands.Cog):
     @commands.command(aliases=['recent', 'active', 'lbactivealltime'], hidden=True)
     @commands.cooldown(2, 30, commands.BucketType.channel)
     async def lbrecent(self, ctx):
-        """ Display most active recent players"""
+        """ Display most active recent players
+
+        Alternative command is `[p]lbactivealltime`
+        """
         last_month = (datetime.datetime.now() + datetime.timedelta(days=-30))
 
         leaderboard = []
@@ -307,7 +351,7 @@ class polygames(commands.Cog):
         await utilities.paginate(self.bot, ctx, title=title, message_list=leaderboard, page_start=0, page_end=10, page_size=10)
 
     @settings.in_bot_channel_strict()
-    @settings.teams_allowed()
+    @settings.guild_has_setting(setting_name='allow_teams')
     @commands.command(aliases=['teamlb', 'lbteamjr'])
     @commands.cooldown(2, 30, commands.BucketType.channel)
     async def lbteam(self, ctx, *, arg: str = None):
@@ -348,41 +392,45 @@ class polygames(commands.Cog):
         query = Team.select().where(
             (Team.is_hidden == 0) & (Team.guild_id == guild_check) & (Team.pro_league == pro_flag)
         ).order_by(-sort_field)
-        for counter, team in enumerate(query):
-            team_role = discord.utils.get(ctx.guild.roles, name=team.name)
-            if not team_role:
-                logger.error(f'Could not find matching role for team {team.name}')
-                continue
-            member_count = 0
-            mia_role = discord.utils.get(ctx.guild.roles, name=settings.guild_setting(ctx.guild.id, 'inactive_role'))
-            for team_member in team_role.members:
-                if mia_role and mia_role in team_member.roles:
+
+        async with ctx.typing():
+            for counter, team in enumerate(query):
+                team_role = discord.utils.get(ctx.guild.roles, name=team.name)
+                if not team_role:
+                    logger.error(f'Could not find matching role for team {team.name}')
                     continue
-                member_count += 1
-            team_name_str = f'**{team.name}**   ({member_count})'  # Show team name with number of members without MIA role
-            wins, losses = team.get_record(alltime=alltime)
+                member_count = 0
+                mia_role = discord.utils.get(ctx.guild.roles, name=settings.guild_setting(ctx.guild.id, 'inactive_role'))
+                for team_member in team_role.members:
+                    if mia_role and mia_role in team_member.roles:
+                        continue
+                    member_count += 1
+                team_name_str = f'**{team.name}**   ({member_count})'  # Show team name with number of members without MIA role
+                wins, losses = team.get_record(alltime=alltime)
 
-            elo = team.elo_alltime if alltime else team.elo
-            embed.add_field(name=f'{team.emoji} {(counter + 1):>3}. {team_name_str}\n`ELO: {elo:<5} W {wins} / L {losses}`', value='\u200b', inline=False)
+                elo = team.elo_alltime if alltime else team.elo
+                embed.add_field(name=f'{team.emoji} {(counter + 1):>3}. {team_name_str}\n`ELO: {elo:<5} W {wins} / L {losses}`', value='\u200b', inline=False)
 
-            team_elo_history_query = (GameSide
-                    .select(Game.completed_ts, (GameSide.team_elo_after_game_alltime if alltime else GameSide.team_elo_after_game).alias('elo'))
-                    .join(Game)
-                    .where((GameSide.team_id == team.id) & ((GameSide.team_elo_after_game_alltime if alltime else GameSide.team_elo_after_game).is_null(False)))
-                    .order_by(Game.completed_ts))
+                team_elo_history_query = (GameSide
+                        .select(Game.completed_ts, (GameSide.team_elo_after_game_alltime if alltime else GameSide.team_elo_after_game).alias('elo'))
+                        .join(Game)
+                        .where((GameSide.team_id == team.id) & ((GameSide.team_elo_after_game_alltime if alltime else GameSide.team_elo_after_game).is_null(False)))
+                        .order_by(Game.completed_ts))
 
-            if team_elo_history_query:
-                team_elo_history = pd.DataFrame(team_elo_history_query.dicts())
+                if team_elo_history_query:
+                    team_elo_history = pd.DataFrame(team_elo_history_query.dicts())
+                    team_elo_history_resampled = team_elo_history.set_index('completed_ts').resample('D').mean().interpolate().reset_index()
+                    filter_length = max(int(len(team_elo_history_resampled.index) / 3), 1)
+                    filter_length = filter_length if filter_length % 2 != 0 else filter_length - 1
+                    poly_order = 2 if filter_length > 2 else 0
 
-                team_elo_history_resampled = team_elo_history.set_index('completed_ts').resample('D').mean().interpolate().reset_index()
+                    plt.plot(team_elo_history['completed_ts'],
+                                team_elo_history['elo'],
+                                'o', markersize=3, alpha=.05, color=str(team_role.color))
 
-                plt.plot(team_elo_history['completed_ts'],
-                         team_elo_history['elo'],
-                         'o', markersize=3, alpha=.05, color=str(team_role.color))
-
-                plt.plot(team_elo_history_resampled['completed_ts'],
-                         signal.savgol_filter(team_elo_history_resampled['elo'].values, 131 if alltime else 61, 2),
-                         '-', linewidth=2, label=team.name, color=str(team_role.color))
+                    plt.plot(team_elo_history_resampled['completed_ts'],
+                                signal.savgol_filter(team_elo_history_resampled['elo'].values, filter_length, poly_order),
+                                '-', linewidth=2, label=team.name, color=str(team_role.color))
 
         ax.yaxis.grid()
 
@@ -405,40 +453,112 @@ class polygames(commands.Cog):
         await ctx.send(embed=embed, file=image)
 
     @settings.in_bot_channel_strict()
-    @settings.teams_allowed()
+    @settings.guild_has_setting(setting_name='allow_teams')
     @commands.command(aliases=['squadlb'])
-    @commands.cooldown(2, 30, commands.BucketType.channel)
-    async def lbsquad(self, ctx):
+    @commands.cooldown(2, 20, commands.BucketType.channel)
+    async def lbsquad(self, ctx, *, filters: str = ''):
         """Display squad leaderboard
 
         A squad is any combination of players that have completed at least two games together.
+        To set a squad name see `[p]help squadname`
+
+        **Examples:**
+        `[p]lbsquad` - Current leaderboard. Squads who have not played a game in 90 days are not included.
+        `[p]lbsquad alltime` - Alltime leaderboard.
         """
 
         leaderboard = []
-        squads = Squad.leaderboard(date_cutoff=settings.date_cutoff, guild_id=ctx.guild.id)
-        for counter, sq in enumerate(squads[:200]):
-            wins, losses = sq.get_record()
-            squad_members = sq.get_members()
-            emoji_list = [p.team.emoji for p in squad_members if p.team is not None]
-            emoji_string = ' '.join(emoji_list)
-            squad_names = ' / '.join(sq.get_names())
-            leaderboard.append(
-                (f'{(counter + 1):>3}. {emoji_string}{squad_names}', f'`#{sq.id} (ELO: {sq.elo:4}) W {wins} / L {losses}`')
-            )
-        await utilities.paginate(self.bot, ctx, title='**Squad Leaderboards**', message_list=leaderboard, page_start=0, page_end=10, page_size=10)
+        lb_title = 'Squad Leaderboard'
+        date_cutoff = settings.date_cutoff
+
+        if 'ALLTIME' in filters.upper():
+            lb_title += ' - Alltime'
+            date_cutoff = datetime.date.min
+
+        def process_leaderboard():
+            utilities.connect()
+            squads = Squad.leaderboard(date_cutoff=date_cutoff, guild_id=ctx.guild.id)
+            for counter, sq in enumerate(squads[:500]):
+                wins, losses = sq.get_record()
+                squad_members = sq.get_members()
+                emoji_list = [p.team.emoji for p in squad_members if p.team is not None]
+                emoji_string = ' '.join(emoji_list)
+                squad_member_names = ' / '.join(sq.get_names())
+                squad_name_str = f'{sq.name}\n' if sq.name else ''
+
+                leaderboard.append(
+                    (f'{(counter + 1):>3}. {squad_name_str}{emoji_string}{squad_member_names}', f'`#{sq.id} (ELO: {sq.elo:4}) W {wins} / L {losses}`')
+                )
+            return leaderboard, squads.count()
+
+        async with ctx.typing():
+            leaderboard, leaderboard_size = await self.bot.loop.run_in_executor(None, process_leaderboard)
+
+        await utilities.paginate(self.bot, ctx, title=f'**{lb_title}**\n{leaderboard_size} ranked squads', message_list=leaderboard, page_start=0, page_end=10, page_size=10)
 
     @settings.in_bot_channel()
-    @settings.teams_allowed()
+    @settings.guild_has_setting(setting_name='allow_teams')
+    @commands.command(brief='Set a squad name', usage='squad_id New Squad Name', hidden=True)
+    async def squadname(self, ctx, *, args=None):
+        """Set a name for your squad
+
+        **Examples:**
+        `[p]squadname 5 The Desperados` - Set a name for squad 5
+        `[p]squadname 5 None` - Delete an existing name
+        """
+
+        args = args.split() if args else []
+        usage = f'**Example**: `{ctx.prefix}{ctx.invoked_with} 500 The Super Cool Squad`'
+        if not args:
+            return await ctx.send(f'No squad ID number supplied. You can use `{ctx.prefix}squad` or `{ctx.prefix}lbsquad` to look up squad IDs.\n{usage}')
+
+        try:
+            # Argument is an int, so show squad by ID
+            squad_id = int(args[0])
+            squad = Squad.get(id=squad_id)
+            new_squad_name = discord.utils.escape_markdown(' '.join(args[1:])[:50])
+        except ValueError:
+            return await ctx.send(f'No squad ID number supplied. You can use `{ctx.prefix}squad` or `{ctx.prefix}lbsquad` to look up squad IDs.\n{usage}')
+        except peewee.DoesNotExist:
+            return await ctx.send(f'Squad with ID {squad_id} cannot be found.')
+
+        logger.debug(f'Loaded squad {squad.id} for squadname command')
+
+        if squad.guild_id != ctx.guild.id:
+            return await ctx.send(f'Squad with ID {squad_id} is affiliated with a different Discord server.')
+
+        if not squad.has_player(discord_id=ctx.author.id) and not settings.is_staff(ctx.author):
+            return await ctx.send(f'A squad name can only be set by server staff or a member of that squad.')
+
+        old_squad_name = squad.name if squad.name else f'`None`'
+        if not new_squad_name:
+            return await ctx.send(f'No name given. The current name is *{old_squad_name}*\n{usage}')
+
+        if new_squad_name.upper() == 'NONE':
+            new_squad_name = ''
+            new_squad_name_str = '`None`'
+        else:
+            new_squad_name_str = f'*{new_squad_name}*'
+
+        squad.name = new_squad_name
+        squad.save()
+
+        models.GameLog.write(game_id=0, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} set squadname of squad {squad.id} to {new_squad_name}')
+        await ctx.send(f'Squad name for {squad.id} set to {new_squad_name_str}.')
+
+    @settings.in_bot_channel()
+    @settings.guild_has_setting(setting_name='allow_teams')
     @commands.command(brief='Find squads or see details on a squad', usage='player1 [player2] [player3]', aliases=['squads'])
     async def squad(self, ctx, *args):
         """Find squads with specific players, or see details on a squad
 
         A squad is any combination of players that have completed at least two games together.
+        To set a squad name see `[p]help squadname`
 
         **Examples:**
         `[p]squad 5` - details on squad 5
         `[p]squad Nelluk` - squads containing Nelluk
-        `[p]squad Nelluk frodakcin` - squad containing both players
+        `[p]squad Nelluk jd` - squad containing both players
         """
         if not args:
             return await ctx.send(f'Use `{ctx.prefix}{ctx.invoked_with} player [player2]` to search for squads by membership, or `{ctx.prefix}lbsquad` for the squad leaderboard.')
@@ -450,8 +570,7 @@ class polygames(commands.Cog):
             squad_id = None
             # Args is not an int, which means search by game name
         except peewee.DoesNotExist:
-            await ctx.send('Squad with ID {} cannot be found.'.format(squad_id))
-            return
+            return await ctx.send(f'Squad with ID {squad_id} cannot be found.')
 
         if squad_id is None:
             # Search by player names
@@ -472,14 +591,18 @@ class polygames(commands.Cog):
                 for squadside in squad_list[:50]:
                     squad = squadside.squad
                     wins, losses = squad.get_record()
+                    squad_name_str = f' - *{squad.name}*\n' if squad.name else ' - '
                     squadlist.append(
-                        (f'`#{squad.id:>3}` - {" / ".join(squad.get_names()):40}', f'`(ELO: {squad.elo}) W {wins} / L {losses}`')
+                        (f'`#{squad.id:>3}`{squad_name_str}{" / ".join(squad.get_names()):40}', f'`(ELO: {squad.elo}) W {wins} / L {losses}`')
                     )
                 await utilities.paginate(self.bot, ctx, title=f'Found {len(squad_list)} matches. Try `{ctx.prefix}squad #`:', message_list=squadlist, page_start=0, page_end=10, page_size=10)
                 return
 
             # Exact matching squad found by player name
             squad = squad_list[0].squad
+
+        if squad.guild_id != ctx.guild.id:
+            return await ctx.send(f'Squad with ID {squad_id} is affiliated with a different Discord server.')
 
         wins, losses = squad.get_record()
         rank, lb_length = squad.leaderboard_rank(settings.date_cutoff)
@@ -491,7 +614,8 @@ class polygames(commands.Cog):
 
         names_with_emoji = [f'{p.team.emoji} **{p.name}**' if p.team is not None else f'**{p.name}**' for p in squad.get_members()]
 
-        embed = discord.Embed(title=f'Squad card for Squad {squad.id}', description=f'{"  /  ".join(names_with_emoji)}'[:256])
+        squad_name_str = f'\n*{squad.name}*' if squad.name else ''
+        embed = discord.Embed(title=f'Squad card for Squad {squad.id}{squad_name_str}', description=f'{"  /  ".join(names_with_emoji)}'[:2048])
         embed.add_field(name='Results', value=f'ELO: {squad.elo},  W {wins} / L {losses}', inline=True)
         embed.add_field(name='Ranking', value=rank_str, inline=True)
         recent_games = GameSide.select(Game).join(Game).where(
@@ -508,15 +632,14 @@ class polygames(commands.Cog):
 
     @settings.in_bot_channel()
     @commands.command(brief='See details on a player', usage='player_name', aliases=['elo', 'rank'])
-    async def player(self, ctx, *args):
+    async def player(self, ctx, *, args=None):
         """See your own player card or the card of another player
         This also will find results based on a game-code or in-game name, if set.
         **Examples**
         `[p]player` - See your own player card
         `[p]player Nelluk` - See Nelluk's card
         """
-
-        args_list = list(args)
+        args_list = args.split() if args else []
         if len(args_list) == 0:
             # Player looking for info on themselves
             args_list.append(f'<@{ctx.author.id}>')
@@ -592,6 +715,8 @@ class polygames(commands.Cog):
                 embed.add_field(name='**Last-known Team**', value=team_str)
             if player.discord_member.polytopia_name:
                 embed.add_field(name='Polytopia Game Name', value=player.discord_member.polytopia_name)
+            if player.discord_member.name_steam:
+                embed.add_field(name='Steam Name', value=player.discord_member.name_steam)
             if player.discord_member.polytopia_id:
                 embed.add_field(name='Polytopia ID', value=player.discord_member.polytopia_id)
                 content_str = player.discord_member.polytopia_id
@@ -678,7 +803,7 @@ class polygames(commands.Cog):
                 ax.spines['right'].set_visible(False)
                 ax.spines['left'].set_visible(False)
 
-                plt.legend(loc="lower right")
+                plt.legend(loc="best")
 
                 plt.savefig('graph.png', transparent=False)
                 plt.close(fig)
@@ -725,7 +850,7 @@ class polygames(commands.Cog):
             await ctx.send(f'Your local 1v1 record against this opponent: **{series_record[0][0].name()}** {series_record[0][1]} wins - **{series_record[1][0].name()}** {series_record[1][1]} wins')
 
     @settings.in_bot_channel()
-    @settings.teams_allowed()
+    @settings.guild_has_setting(setting_name='allow_teams')
     @commands.command(usage='team_name')
     async def team(self, ctx, *, team_string: str = None):
         """See details on a team
@@ -751,56 +876,61 @@ class polygames(commands.Cog):
         embed = discord.Embed(title=f'Team card for **{team.name}** {team.emoji}')
         team_role = discord.utils.get(ctx.guild.roles, name=team.name)
         mia_role = discord.utils.get(ctx.guild.roles, name=settings.guild_setting(ctx.guild.id, 'inactive_role'))
-        leader_role = discord.utils.get(ctx.guild.roles, name='Team Leader')
-        coleader_role = discord.utils.get(ctx.guild.roles, name='Team Co-Leader')
+        # leader_role = discord.utils.get(ctx.guild.roles, name='Team Leader')
+        # coleader_role = discord.utils.get(ctx.guild.roles, name='Team Co-Leader')
         member_stats = []
-        leaders_list, coleaders_list = [], []
+        leaders_list, coleaders_list, recruiters_list = [], [], []
         image = None
 
         wins, losses = team.get_record(alltime=False)
         embed.add_field(name='Results', value=f'ELO: {team.elo}   Wins {wins} / Losses {losses}', inline=False)
 
         if team_role:
-            if completed_flag:
-                header_str = '__Player - ELO - Ranking - Completed Games__'
-            else:
-                header_str = '__Player - ELO - Ranking - Recent Games__'
-            for member in team_role.members:
-                if mia_role and mia_role in member.roles:
-                    continue
-                    # skip members tagged @MIA
-                if leader_role and leader_role in member.roles:
-                    leaders_list.append(member.name)
-                if coleader_role and coleader_role in member.roles:
-                    coleaders_list.append(member.name)
+            async with ctx.typing():
+                if ctx.guild.id == settings.server_ids['polychampions']:
+                    leaders_list, coleaders_list, recruiters_list = get_team_leadership(team_role)
+                    leaders_list = [member.mention for member in leaders_list]
+                    coleaders_list = [member.mention for member in coleaders_list]
+                    recruiters_list = [member.mention for member in recruiters_list]
 
-                # Create a list of members - pull ELO score from database if they are registered, or with 0 ELO if they are not
-                p = Player.string_matches(player_string=str(member.id), guild_id=ctx.guild.id)
-                if len(p) == 0:
-                    member_stats.append((member.name, 0, f'`{member.name[:23]:.<25}{"-":.<8}{"-":.<6}{"-":.<4}`'))
+                if completed_flag:
+                    header_str = '__Player - ELO - Ranking - Completed Games__'
                 else:
-                    wins, losses = p[0].get_record()
-                    lb_rank = p[0].leaderboard_rank(date_cutoff=settings.date_cutoff)[0]
-                    rank_str = f'#{lb_rank}' if lb_rank else '-'
-                    if completed_flag:
-                        games_played = p[0].completed_game_count()
+                    header_str = '__Player - ELO - Ranking - Recent Games__'
+                for member in team_role.members:
+                    if mia_role and mia_role in member.roles:
+                        continue
+                        # skip members tagged @MIA
+
+                    # Create a list of members - pull ELO score from database if they are registered, or with 0 ELO if they are not
+                    p = Player.string_matches(player_string=str(member.id), guild_id=ctx.guild.id)
+                    if len(p) == 0:
+                        member_stats.append((member.name, 0, f'`{member.name[:23]:.<25}{"-":.<8}{"-":.<6}{"-":.<4}`'))
                     else:
-                        games_played = p[0].games_played(in_days=30).count()
-                    member_stats.append(({p[0].discord_member.name}, games_played, f'`{p[0].discord_member.name[:23]:.<25}{p[0].elo:.<8}{rank_str:.<6}{games_played:.<4}`'))
+                        wins, losses = p[0].get_record()
+                        lb_rank = p[0].leaderboard_rank(date_cutoff=settings.date_cutoff)[0]
+                        rank_str = f'#{lb_rank}' if lb_rank else '-'
+                        if completed_flag:
+                            games_played = p[0].completed_game_count()
+                        else:
+                            games_played = p[0].games_played(in_days=30).count()
+                        member_stats.append(({p[0].discord_member.name}, games_played, f'`{p[0].discord_member.name[:23]:.<25}{p[0].elo:.<8}{rank_str:.<6}{games_played:.<4}`'))
 
-            member_stats.sort(key=lambda tup: tup[1], reverse=True)     # sort the list descending by recent games played
-            members_sorted = [str(x[2].replace(".", "\u200b ")) for x in member_stats[:28]]    # create list of strings like 'Nelluk  1277 #3  21'.
-            # replacing '.' with "\u200b " (alternated zero width space with a normal space) so discord wont strip spaces
+                member_stats.sort(key=lambda tup: tup[1], reverse=True)     # sort the list descending by recent games played
+                members_sorted = [str(x[2].replace(".", "\u200b ")) for x in member_stats[:28]]    # create list of strings like 'Nelluk  1277 #3  21'.
+                # replacing '.' with "\u200b " (alternated zero width space with a normal space) so discord wont strip spaces
 
-            members_str = "\n".join(members_sorted) if len(members_sorted) > 0 else '\u200b'
-            embed.description = f'**Members({len(member_stats)})**\n{header_str}\n{members_str}'[:2048]
+                members_str = "\n".join(members_sorted) if len(members_sorted) > 0 else '\u200b'
+                embed.description = f'**Members({len(member_stats)})**\n{header_str}\n{members_str}'[:2048]
         else:
-            await ctx.send(f'Warning: No matching discord role "{team.name}" could be found. Player membership cannot be detected.')
+            await ctx.send(f':no_entry_sign: No matching discord role "{team.name}" could be found. Player membership cannot be detected.')
 
         if leaders_list:
             embed.add_field(name='**Team Leader**', value=', '.join(leaders_list), inline=True)
         if coleaders_list:
             embed.add_field(name='**Team Co-Leaders**', value=', '.join(coleaders_list), inline=True)
+        if recruiters_list:
+            embed.add_field(name='**Team Recruiters**', value=', '.join(recruiters_list), inline=True)
         if team.image_url:
             embed.set_thumbnail(url=team.image_url)
 
@@ -841,8 +971,8 @@ class polygames(commands.Cog):
             fig.suptitle('ELO History (' + team.name + ')', fontsize=16)
             fig.autofmt_xdate()
 
-            plt.plot(team_elo_history_dates, team_elo_history_elos, 'o', markersize=3, label = f'Since {settings.team_elo_reset_date}')
-            plt.plot(alltime_team_elo_history_dates, alltime_team_elo_history_elos, 'o', markersize=3, label = 'Alltime')
+            plt.plot(team_elo_history_dates, team_elo_history_elos, 'o', markersize=3, label=f'Since {settings.team_elo_reset_date}')
+            plt.plot(alltime_team_elo_history_dates, alltime_team_elo_history_elos, 'o', markersize=3, label='Alltime')
 
             ax.yaxis.grid()
             ax.spines['top'].set_visible(False)
@@ -863,44 +993,60 @@ class polygames(commands.Cog):
 
         await ctx.send(file=image, embed=embed)
 
-    @commands.command(brief='Sets a Polytopia game code and registers user with the bot', usage='[user] polytopia_code')
-    async def setcode(self, ctx, *args):
+    @commands.command(brief='Sets a Polytopia account name and registers user with the bot', usage='[user] polytopia_code', aliases=['steamname', 'setname'])
+    async def setcode(self, ctx, *, args=None):
         """
         Sets your own Polytopia code, or allows a staff member to set a player's code. This also will register the player with the bot if not already.
         **Examples:**
         `[p]setcode YOUR_POLY_GAME_CODE`
-        `[p]setcode Nelluk YOUR_POLY_GAME_CODE`
-        `[p]setcode Nelluk none` - Server staff can delete a code if it is invalid for some reason
-        """
+        `[p]setcode @Nelluk YOUR_POLY_GAME_CODE`
+        `[p]setcode @Nelluk none` - Server staff can delete a code if it is invalid for some reason
 
-        if len(args) == 1:      # User setting code for themselves. No special permissions required.
-            target_discord_member = ctx.message.author
-            new_id = args[0]
+        Also use `[p]steamname` and `[p]setname` for setting Steam or mobile account names.
+        """
+        args = args.split() if args else []
+        if ctx.invoked_with == 'setcode':
+            code_type = 'Polytopia Player ID'
+            code_example = 'YOURCODEHERE'
+            db_field = DiscordMember.polytopia_id
+        elif ctx.invoked_with == 'steamname':
+            code_type = 'Steam username'
+            code_example = 'Your Steam Name'
+            db_field = DiscordMember.name_steam
+        elif ctx.invoked_with == 'setname':
+            code_type = 'mobile username'
+            code_example = 'Your Mobile Name'
+            db_field = DiscordMember.polytopia_name
+        if not args:
+            return await ctx.send(f'**Usage:** `{ctx.prefix}{ctx.invoked_with} {code_example}`\nUse `{ctx.prefix}code` to quickly display your own code and in-game name.')
+
+        m = utilities.string_to_user_id(args[0])
+        if m:
+            logger.debug(f'Third party use of {ctx.invoked_with}')
+            # Staff member using command on third party
+            if settings.is_staff(ctx.author) is False:
+                logger.debug('insufficient user level')
+                return await ctx.send(f'You do not have permission to set another player\'s name or code.')
+            new_id = ' '.join(args[1:])
+            target_string = str(m)
+            log_by_str = f' by {models.GameLog.member_string(ctx.author)}'
+        else:
+            # Player using command on their own games
+            new_id = ' '.join(args)
+            target_string = str(ctx.author.id)
             log_by_str = ''
 
-        elif len(args) == 2:    # User changing another user's code. Helper permissions required.
+        # Try to find matching guild/server member
+        guild_matches = await utilities.get_guild_member(ctx, target_string)
+        if len(guild_matches) == 0:
+            return await ctx.send(f'Could not find any server member matching *{args[0]}*. Try specifying with an @Mention')
+        elif len(guild_matches) > 1:
+            return await ctx.send(f'Found {len(guild_matches)} server members matching *{args[0]}*. Try specifying with an @Mention')
+        target_discord_member = guild_matches[0]
 
-            if settings.is_staff(ctx) is False:
-                return await ctx.send(f'You only have permission to set your own code. To do that use `{ctx.prefix}setcode YOURCODEHERE`')
-
-            # Try to find matching guild/server member
-            guild_matches = await utilities.get_guild_member(ctx, args[0])
-            if len(guild_matches) == 0:
-                return await ctx.send(f'Could not find any server member matching *{args[0]}*. Try specifying with an @Mention')
-            elif len(guild_matches) > 1:
-                return await ctx.send(f'Found {len(guild_matches)} server members matching *{args[0]}*. Try specifying with an @Mention')
-            target_discord_member = guild_matches[0]
-            new_id = args[1]
-            log_by_str = f' by {models.GameLog.member_string(ctx.author)}'
-
-        else:
-            # Unexpected input
-            await ctx.send(f'Wrong number of arguments. Use `{ctx.prefix}setcode YOURCODEHERE`')
-            return
-
-        if new_id.lower() == 'none' and settings.is_staff(ctx):
+        if new_id.lower() == 'none' and settings.is_staff(ctx.author):
             new_id = None
-        elif len(new_id) != 16 or new_id.isalnum() is False:
+        elif (len(new_id) != 16 or new_id.isalnum() is False) and ctx.invoked_with == 'setcode':
             # Very basic polytopia code sanity checking. Making sure it is 16-character alphanumeric.
             return await ctx.send(f'Polytopia code `{new_id}` does not appear to be a valid code. Copy your unique code from the **Profile** tab of the **Polytopia app**.')
 
@@ -911,25 +1057,36 @@ class polygames(commands.Cog):
                                         discord_nick=target_discord_member.nick,
                                         guild_id=ctx.guild.id,
                                         team=team_list[0])
-        player.discord_member.polytopia_id = new_id
+        if ctx.invoked_with == 'setcode':
+            player.discord_member.polytopia_id = new_id
+            register_str = f'{code_type} `{player.discord_member.polytopia_id}`'
+            warning_str = f':warning: Also set your mobile in-game name with `{ctx.prefix}setname Your Mobile Name` - This will be required soon.\n'
+        elif ctx.invoked_with == 'steamname':
+            player.discord_member.name_steam = discord.utils.escape_mentions(new_id) if new_id else None
+            register_str = f'{code_type} `{player.discord_member.name_steam}`'
+            warning_str = ''
+        elif ctx.invoked_with == 'setname':
+            player.discord_member.polytopia_name = discord.utils.escape_mentions(new_id) if new_id else None
+            register_str = f'{code_type} `{player.discord_member.polytopia_name}`'
+            warning_str = ''
+
         player.discord_member.save()
 
-        models.GameLog.write(game_id=0, guild_id=0, message=f'{models.GameLog.member_string(player.discord_member)} code {"set" if created else "updated"} to `{new_id}` {log_by_str}')
+        models.GameLog.write(game_id=0, guild_id=0, message=f'{models.GameLog.member_string(player.discord_member)} {code_type} {"set" if created else "updated"} to `{new_id}` {log_by_str}')
 
         if created:
-            await ctx.send(f'Player **{player.name}** added to system with Polytopia code `{player.discord_member.polytopia_id}` and ELO **{player.elo}**\n'
-                f'If your in-game name is different than your discord name, let the bot know with `{ctx.prefix}setname YOUR_INGAME_NAME`\n'
+            await ctx.send(f'Player **{player.name}** added to system with {register_str} and ELO **{player.elo}**\n{warning_str}'
                 f'To find games to join use the `{ctx.prefix}games` command.')
         else:
-            await ctx.send(f'Player **{player.name}** updated in system with Polytopia code `{player.discord_member.polytopia_id}`.')
+            await ctx.send(f'Player **{player.name}** updated in system with {register_str}.')
 
-        players_with_id = DiscordMember.select().where(DiscordMember.polytopia_id == new_id)
+        players_with_id = DiscordMember.select().where(db_field ** new_id)
         if players_with_id.count() > 1 and new_id:
             helper_role_name = settings.guild_setting(ctx.guild.id, 'helper_roles')[0]
             helper_role = discord.utils.get(ctx.guild.roles, name=helper_role_name)
             helper_role_str = f'someone with the {helper_role.mention} role' if helper_role else 'server staff'
             p_names = [f'<@{p.discord_id}> ({p.name})' for p in players_with_id]
-            await ctx.send(f'**Warning:** This polytopia code is already entered in the database. '
+            await ctx.send(f':warning: This polytopia code is already entered in the database. '
                 f'If you need help using this bot please contact {helper_role_str} or <@{settings.owner_id}>.\nDuplicated players: {", ".join(p_names)}')
 
     @commands.command(aliases=['code'], usage='player_name')
@@ -955,24 +1112,32 @@ class polygames(commands.Cog):
         elif len(guild_matches) > 1:
             player_matches = Player.string_matches(player_string=player_string, guild_id=ctx.guild.id)
             if len(player_matches) == 1:
-                await ctx.send(f'Found {len(guild_matches)} server members matching *{player_string_safe}*, but only **{player_matches[0].name}** is registered.')
-                return await ctx.send(player_matches[0].discord_member.polytopia_id)
+                if player_matches[0].discord_member.polytopia_name:
+                    in_game_name_str = f' (In-game name: **{player_matches[0].discord_member.polytopia_name}**)'
+                else:
+                    in_game_name_str = ''
+                if player_matches[0].discord_member.name_steam:
+                    in_game_name_str += f' (Steam name: **{player_matches[0].discord_member.name_steam}**)'
+                await ctx.send(f'Found {len(guild_matches)} server members matching *{player_string_safe}*, but only **{player_matches[0].name}** {in_game_name_str} is registered.')
+                return await ctx.send(player_matches[0].discord_member.polytopia_id or 'No mobile code set')
 
             return await ctx.send(f'Found {len(guild_matches)} server members matching *{player_string_safe}*. Try specifying with an @Mention or more characters.')
         target_discord_member = guild_matches[0]
 
         discord_member = DiscordMember.get_or_none(discord_id=target_discord_member.id)
 
-        if discord_member and discord_member.polytopia_id:
-            if discord_member.polytopia_name and discord_member.polytopia_name.lower() != discord_member.name.lower():
+        if discord_member:
+            if discord_member.polytopia_name:
                 in_game_name_str = f' (In-game name: **{discord_member.polytopia_name}**)'
             else:
                 in_game_name_str = ''
+            if discord_member.name_steam:
+                in_game_name_str += f' (Steam name: **{discord_member.name_steam}**)'
             await ctx.send(f'Code for **{discord_member.name}**{in_game_name_str}:')
-            return await ctx.send(discord_member.polytopia_id)
+            return await ctx.send(discord_member.polytopia_id or 'None set')
         else:
-            return await ctx.send(f'Member **{target_discord_member.name}** has no code on file.\n'
-                f'Register your own code with `{ctx.prefix}setcode YOURCODEHERE`')
+            return await ctx.send(f'Member **{target_discord_member.name}** is not registered.\n'
+                f'Register your own code or in-game name with `{ctx.prefix}setcode YOURCODEHERE` or `{ctx.prefix}steamname STEAM NAME HERE`')
 
     @commands.command(aliases=['codes'], usage='game_id')
     @models.is_registered_member()
@@ -998,10 +1163,16 @@ class polygames(commands.Cog):
         async with ctx.typing():
             for p in ordered_player_list:
                 dm_obj = p['player'].discord_member
-                if dm_obj.polytopia_name and dm_obj.polytopia_name.lower() != p['player'].name.lower():
-                    in_game_name_str = f' (In-game name: **{dm_obj.polytopia_name}**)'
+                if game.is_mobile:
+                    if dm_obj.polytopia_name and dm_obj.polytopia_name.lower() != p['player'].name.lower():
+                        in_game_name_str = f' (In-game name: **{dm_obj.polytopia_name}**)'
+                    else:
+                        in_game_name_str = ''
                 else:
-                    in_game_name_str = ''
+                    if dm_obj.name_steam:
+                        in_game_name_str = f' (Steam name: **{dm_obj.name_steam}**)'
+                    else:
+                        in_game_name_str = ' (*Steam name not set*)'
 
                 if first_loop:
                     # header_str combined with first player's name in order to reduce number of ctx.send() that are done.
@@ -1015,57 +1186,58 @@ class polygames(commands.Cog):
                         tz_str = ''
                     await ctx.send(f'**{p["player"].name}**{in_game_name_str} {tz_str}')
                 poly_id = dm_obj.polytopia_id
-                await ctx.send(poly_id if poly_id else '*No code registered*')
+                if game.is_mobile:
+                    await ctx.send(poly_id if poly_id else '*No code registered*')
 
-    @commands.command(brief='Set in-game name', usage='new_name')
-    @models.is_registered_member()
-    async def setname(self, ctx, *args):
-        """Sets your own in-game name, or lets staff set a player's in-game name
-        When this is set, people can find you by the in-game name with the `[p]player` command.
-        **Examples:**
-        `[p]setname PolyChamp` - Set your own in-game name to *PolyChamp*
-        `[p]setname @Nelluk PolyChamp` - Lets staff set in-game name of Nelluk to *PolyChamp*
-        """
+    # @commands.command(brief='Set in-game name', usage='new_name', aliases=['steamname'])
+    # # @models.is_registered_member()
+    # async def setname(self, ctx, *args):
+    #     """Sets your own in-game name, or lets staff set a player's in-game name
+    #     When this is set, people can find you by the in-game name with the `[p]player` command.
+    #     **Examples:**
+    #     `[p]setname PolyChamp` - Set your own in-game name to *PolyChamp*
+    #     `[p]setname @Nelluk PolyChamp` - Lets staff set in-game name of Nelluk to *PolyChamp*
 
-        if not args:
-            return await ctx.send(f'bzzt')
+    #     Use `steamname` instead of `setname` to set a Steam user-id.
+    #     """
 
-        m = utilities.string_to_user_id(args[0])
+    #     usage = f'**Usage:** `{ctx.prefix}{ctx.invoked_with} My In-game Name`'
+    #     if not args:
+    #         return await ctx.send(usage)
 
-        if m:
-            logger.debug('Third party use of setname')
-            # Staff member using command on third party
-            if settings.is_staff(ctx) is False:
-                logger.debug('insufficient user level')
-                return await ctx.send(f'You do not have permission to set another player\'s name.')
-            new_name = ' '.join(args[1:])
-            target_string = str(m)
-            log_by_str = f' by {models.GameLog.member_string(ctx.author)}'
-        else:
-            # Play using command on their own games
-            new_name = ' '.join(args)
-            target_string = str(ctx.author.id)
-            log_by_str = ''
+    #     logger.debug(f'setname target is {target_string} with name {new_name}')
 
-        logger.debug(f'setname target is {target_string} with name {new_name}')
+    #     try:
+    #         player_target = Player.get_or_except(target_string, ctx.guild.id)
+    #     except exceptions.NoMatches:
+    #         if len(args) == 1:
+    #             error_msg = f'You have no Polytopia friend code on file. A Polytopia friend code must be registered first with `{ctx.prefix}setcode YOUR_POLYCODE`'
+    #         else:
+    #             error_msg = f'Could not find a registered player matching **{target_string}**. A Polytopia friend code must be registered first with `{ctx.prefix}setcode`\nExample usage: `{ctx.prefix}setname @Player in_game_name`'
+    #         return await ctx.send(error_msg)
+    #     except exceptions.TooManyMatches:
+    #         return await ctx.send(f'Found more than one matches for a player with **{target_string}**. Be more specific or use an @Mention.\nExample usage: `{ctx.prefix}setname @Player in_game_name`')
 
-        try:
-            player_target = Player.get_or_except(target_string, ctx.guild.id)
-        except exceptions.NoMatches:
-            if len(args) == 1:
-                error_msg = f'You have no Polytopia friend code on file. A Polytopia friend code must be registered first with `{ctx.prefix}setcode YOUR_POLYCODE`'
-            else:
-                error_msg = f'Could not find a registered player matching **{target_string}**. A Polytopia friend code must be registered first with `{ctx.prefix}setcode`\nExample usage: `{ctx.prefix}setname @Player in_game_name`'
-            return await ctx.send(error_msg)
-        except exceptions.TooManyMatches:
-            return await ctx.send(f'Found more than one matches for a player with **{target_string}**. Be more specific or use an @Mention.\nExample usage: `{ctx.prefix}setname @Player in_game_name`')
+    #     player, created = Player.upsert(discord_id=target_discord_member.id,
+    #                                     discord_name=target_discord_member.name,
+    #                                     discord_nick=target_discord_member.nick,
+    #                                     guild_id=ctx.guild.id,
+    #                                     team=team_list[0])
+    #     player.discord_member.polytopia_id = new_id
+    #     player.discord_member.save()
+    #     new_name = None if new_name.upper() == 'NONE' else discord.utils.escape_mentions(new_name)
 
-        new_name = discord.utils.escape_mentions(new_name)
-        player_target.discord_member.polytopia_name = new_name
-        player_target.discord_member.save()
+    #     if ctx.invoked_with == 'steamname':
+    #         steam_str = 'Steam'
+    #         player_target.discord_member.name_steam = new_name
+    #     else:
+    #         steam_str = ''
+    #         player_target.discord_member.name_steam = new_name
 
-        models.GameLog.write(game_id=0, guild_id=0, message=f'{models.GameLog.member_string(player_target.discord_member)} name set to *{new_name}* {log_by_str}')
-        await ctx.send(f'Player **{player_target.name}** updated in system with Polytopia name **{new_name}**.')
+    #     player_target.discord_member.save()
+
+    #     models.GameLog.write(game_id=0, guild_id=0, message=f'{models.GameLog.member_string(player_target.discord_member)} {steam_str} name set to *{new_name}* {log_by_str}')
+    #     await ctx.send(f'Player **{player_target.name}** updated in system with {steam_str} Polytopia name **{new_name}**.')
 
     @commands.command(brief='Set player time zone', usage='UTC±#')
     @models.is_registered_member()
@@ -1090,7 +1262,7 @@ class polygames(commands.Cog):
                 # catching the case of someone doing '$settime UTC +5'
                 target_string = f'<@{ctx.author.id}>'
                 tz_string = (args[0] + args[1]).replace(' ', '')
-            elif settings.is_staff(ctx) is False:
+            elif settings.is_staff(ctx.author) is False:
                 return await ctx.send('You do not have permission to trigger this command.')
             else:
                 target_string = args[0]
@@ -1186,6 +1358,7 @@ class polygames(commands.Cog):
         `[p]incomplete Nelluk anarchoRex` - Lists all incomplete games with both players
         `[p]incomplete Nelluk Jets` - Lists all incomplete games for Nelluk that include team Jets
         `[p]incomplete Ronin Jets` - Lists all incomplete games that include teams Ronin and Jets
+        `[p]incomplete RONIN` - Search by title - words in all caps are used to search title/notes.
 
         You can also include a game size such as *2v2* to limit by size.
         """
@@ -1218,7 +1391,7 @@ class polygames(commands.Cog):
 
     @settings.in_bot_channel()
     @models.is_registered_member()
-    @commands.command(usage='"Name of Game" player1 player2 vs player3 player4', aliases=['newgameunranked'])
+    @commands.command(usage='"Name of Game" player1 player2 vs player3 player4', aliases=['newgameunranked', 'newsteamgame', 'newsteamgameunranked'])
     # @settings.is_user_check()
     async def newgame(self, ctx, game_name: str = None, *args):
         """Adds an existing game to the bot for tracking
@@ -1229,12 +1402,15 @@ class polygames(commands.Cog):
         `[p]newgame "Name of Game" nelluk frodakcin vs bakalol ben` - Sets up a 2v2 game
 
         Use `[p]newgameunranked` to create the game as unranked
+        Use `[p]newsteamgame` or `[p]newsteamgameunranked` to specify Steam platform.
         """
-        ranked_flag = False if ctx.invoked_with == 'newgameunranked' else True
+        ranked_flag = False if ctx.invoked_with in ['newgameunranked', 'newsteamgameunranked'] else True
+        is_mobile = True if ctx.invoked_with in ['newgame', 'newgameunranked'] else False
+
         example_usage = (f'Example usage:\n`{ctx.prefix}newgame "Name of Game" player1 VS player2` - Start a 1v1 game\n'
                          f'`{ctx.prefix}newgame "Name of Game" player1 player2 VS player3 player4` - Start a 2v2 game')
 
-        if settings.get_user_level(ctx) <= 2:
+        if settings.get_user_level(ctx.author) <= 2:
             return await ctx.send(f'You are not authorized to use this command. Create and join games with `{ctx.prefix}open` / `{ctx.prefix}join`')
         if not game_name:
             return await ctx.send(f'Invalid format. {example_usage}')
@@ -1245,10 +1421,10 @@ class polygames(commands.Cog):
             return await ctx.send(f'Invalid game name. Make sure to use "quotation marks" around the full game name.\n{example_usage}')
 
         if not utilities.is_valid_poly_gamename(input=game_name):
-            if settings.get_user_level(ctx) <= 2:
+            if settings.get_user_level(ctx.author) <= 2:
                 return await ctx.send('That name looks made up. :thinking: You need to manually create the game __in Polytopia__, come back and input the name of the new game you made.\n'
                     f'You can use `{ctx.prefix}code NAME` to get the code of each player in this game.')
-            await ctx.send(f'*Warning:* That game name looks made up - you are allowed to override due to your user level.')
+            await ctx.send(f':warning: That game name looks made up - you are allowed to override due to your user level.')
 
         if len(args) == 1:
             args_list = [str(ctx.author.id), 'vs', args[0]]
@@ -1265,17 +1441,17 @@ class polygames(commands.Cog):
         if len(player_groups) < 2:
             return await ctx.send(f'Invalid format. {example_usage}')
 
-        game_allowed, join_error_message = settings.can_user_join_game(user_level=settings.get_user_level(ctx), game_size=total_players, is_ranked=ranked_flag, is_host=True)
+        game_allowed, join_error_message = settings.can_user_join_game(user_level=settings.get_user_level(ctx.author), game_size=total_players, is_ranked=ranked_flag, is_host=True)
         if not game_allowed:
             return await ctx.send(join_error_message)
 
-        if total_players > 12:
+        if total_players > 15:
             return await ctx.send(f'You cannot have more than twelve players.')
         if biggest_team > settings.guild_setting(ctx.guild.id, 'max_team_size'):
-            if settings.is_mod(ctx):
+            if settings.is_mod(ctx.author):
                 await ctx.send('Moderator over-riding server size limits')
             elif settings.guild_setting(ctx.guild.id, 'allow_uneven_teams') and smallest_team <= settings.guild_setting(ctx.guild.id, 'max_team_size'):
-                await ctx.send('Warning: Team sizes are uneven.')
+                await ctx.send(':warning: Team sizes are uneven.')
             else:
                 return await ctx.send(f'This server has a maximum team size of {settings.guild_setting(ctx.guild.id, "max_team_size")}. For full functionality with support for up to 5-player team games and league play check out PolyChampions.')
 
@@ -1292,7 +1468,7 @@ class polygames(commands.Cog):
                     return await ctx.send(f'More than one server matches found for "**{p}**". Try being more specific or using an @Mention.')
 
                 if guild_matches[0].id in settings.discord_id_ban_list or discord.utils.get(guild_matches[0].roles, name='ELO Banned'):
-                    if settings.is_mod(ctx):
+                    if settings.is_mod(ctx.author):
                         await ctx.send(f'**{guild_matches[0].name}** has been **ELO Banned** -- *moderator over-ride* :thinking:')
                     else:
                         return await ctx.send(f'**{guild_matches[0].name}** has been **ELO Banned** and cannot join any new games. :cry:')
@@ -1312,11 +1488,11 @@ class polygames(commands.Cog):
         n = len(discord_groups[0])
         if not all(len(g) == n for g in discord_groups):
             if settings.guild_setting(ctx.guild.id, 'allow_uneven_teams'):
-                await ctx.send('**Warning:** Teams are not the same size. This is allowed but may not be what you want.')
+                await ctx.send(':warning: Teams are not the same size. This is allowed but may not be what you want.')
             else:
                 return await ctx.send('Teams are not the same size. This is not allowed on this server. Game not created.')
 
-        if not author_found and not settings.is_staff(ctx):
+        if not author_found and not settings.is_staff(ctx.author):
             # TODO: possibly allow this in PolyChampions (rickdaheals likes to do this)
             return await ctx.send('You can\'t create a game that you are not a participant in.')
 
@@ -1324,7 +1500,7 @@ class polygames(commands.Cog):
 
         with db.atomic():
             try:
-                newgame = Game.create_game(discord_groups, name=game_name, is_ranked=ranked_flag, guild_id=ctx.guild.id, require_teams=settings.guild_setting(ctx.guild.id, 'require_teams'))
+                newgame = Game.create_game(discord_groups, name=game_name, is_ranked=ranked_flag, guild_id=ctx.guild.id, is_mobile=is_mobile, require_teams=settings.guild_setting(ctx.guild.id, 'require_teams'))
                 host_player, _ = Player.get_by_discord_id(discord_id=ctx.author.id, guild_id=ctx.guild.id)
                 if host_player:
                     newgame.host = host_player
@@ -1390,12 +1566,11 @@ class polygames(commands.Cog):
 
         models.GameLog.write(game_id=winning_game, guild_id=ctx.guild.id, message=f'Win confirm logged by {models.GameLog.member_string(ctx.author)} for winner **{discord.utils.escape_markdown(winning_obj.name)}**')
         await winning_game.update_squad_channels(guild_list=settings.bot.guilds, guild_id=ctx.guild.id, message=f'A win claim has been placed by **{ctx.author.display_name}** for winner **{winning_obj.name}**')
-        if settings.is_staff(ctx):
+
+        has_player, author_side = winning_game.has_player(discord_id=ctx.author.id)
+        if settings.is_staff(ctx.author) and not has_player:
             confirm_win = True
         else:
-            has_player, author_side = winning_game.has_player(discord_id=ctx.author.id)
-            helper_role = settings.guild_setting(ctx.guild.id, 'helper_roles')[0]
-
             if not has_player:
                 return await ctx.send(f'You were not a participant in this game.')
 
@@ -1422,18 +1597,17 @@ class polygames(commands.Cog):
                     conf_str = 'Your confirmation has been logged. ' if new_confirmation else ''
                     await ctx.send(f'{conf_str}**Game {winning_game.id}** *{winning_game.name}* is pending confirmation: {confirmed_count} of {side_count} sides have confirmed.\n'
                         f'Participants in the game should use the command __`{ctx.prefix}win {winning_game.id} {printed_side_name}`__ to confirm the victory.\n'
-                        f'Please post a screenshot of your victory in case there is a dispute. If this win was claimed in error please ping a **@{helper_role}**, '
+                        f'Please post a screenshot of your victory in case there is a dispute. If this win was claimed in error please use the `{ctx.prefix}staffhelp` command., '
                         f'or you can cancel your claim with the command `{ctx.prefix}unwin {winning_game.id}`')
                 else:
                     winning_game.win_claimed_ts = datetime.datetime.now()
                     winning_game.save()
                     # first time this win has been claimed - ping lineup instructions
-                    player_mentions = [f'<@{l.player.discord_member.discord_id}>' for l in winning_game.lineup]
                     await ctx.send(f'**Game {winning_game.id}** *{winning_game.name}* concluded pending confirmation of winner **{winning_obj.name}**\n'
                         f'To confirm, have opponents use the command __`{ctx.prefix}win {winning_game.id} {printed_side_name}`__\n'
                         f'If opponents do not dispute the win then the game will be confirmed automatically after a period of time.\n'
-                        f'If this win was claimed falsely please ping a **@{helper_role}** to contest, or you can cancel your claim with the command `{ctx.prefix}unwin {winning_game.id}`.\n'
-                        f'*Game lineup*: {" ".join(player_mentions)}')
+                        f'If this win was claimed falsely please use the `{ctx.prefix}staffhelp` command to contest, or you can cancel your claim with the command `{ctx.prefix}unwin {winning_game.id}`.\n'
+                        f'*Game lineup*: {" ".join(winning_game.mentions())}')
 
         try:
             winning_game.declare_winner(winning_side=winning_side, confirm=confirm_win)
@@ -1476,7 +1650,7 @@ class polygames(commands.Cog):
         if not game.is_completed:
             return await ctx.send(f'Game {game.id} is marked as *Incomplete*. This command cannot be used.')
 
-        if settings.is_staff(ctx):
+        if settings.is_staff(ctx.author):
             # Staff usage: reset any game to Incomplete state
             game.confirmations_reset()
             models.GameLog.write(game_id=game, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} staffer used unwin command.')
@@ -1562,16 +1736,25 @@ class polygames(commands.Cog):
         if not game:
             return await ctx.send(f'Game ID not provided. Usage: __`{ctx.prefix}delete GAME_ID`__')
 
+        mention_list = game.mentions()
         if game.is_pending:
             is_hosted_by, host = game.is_hosted_by(ctx.author.id)
-            if not is_hosted_by and not settings.is_staff(ctx):
+            if not is_hosted_by and not settings.is_staff(ctx.author):
                 host_name = f' **{host.name}**' if host else ''
                 return await ctx.send(f'Only the game host{host_name} or server staff can do this.')
-            models.GameLog.write(game_id=game, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} deleted the game.')
-            game.delete_game()
-            return await ctx.send(f'Deleting open game {game.id}')
 
-        if not settings.is_mod(ctx):
+            players, capacity = game.capacity()
+            if players >= capacity:
+                filled_str = 'full'
+            else:
+                filled_str = 'unfilled'
+
+            await game.update_external_broadcasts(deleted=True)
+            models.GameLog.write(game_id=game, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} deleted the {filled_str} pending game.')
+            await ctx.send(f'Deleting {filled_str} open game {game.id}\nNotifying players: {" ".join(mention_list)}')
+            return game.delete_game()
+
+        if not settings.is_mod(ctx.author):
             return await ctx.send('Only server mods can delete completed or in-progress games.')
 
         if game.winner and game.is_confirmed and game.is_ranked:
@@ -1588,9 +1771,9 @@ class polygames(commands.Cog):
             async with ctx.typing():
                 await self.bot.loop.run_in_executor(None, game.delete_game)
                 # Allows bot to remain responsive while this large operation is running.
-                await ctx.send(f'Game with ID {gid} has been deleted and team/player ELO changes have been reverted, if applicable.')
+                await ctx.send(f'Game with ID {gid} has been deleted and team/player ELO changes have been reverted, if applicable.\nNotifying players: {" ".join(mention_list)}')
         except discord.errors.NotFound:
-            logger.warn('Game deleted while in game-related channel')
+            logger.warning('Game deleted while in game-related channel')
             await self.bot.loop.run_in_executor(None, game.delete_game)
 
     @commands.command(usage='game_id "New Name"')
@@ -1600,7 +1783,8 @@ class polygames(commands.Cog):
 
         You can rename a game for which you are the host. You can omit the game ID if you use the command in a game-specific channel.
         **Example:**
-        `[p]rename 25 Mountains of Fire`
+        `[p]rename 52000 Mountains of Fire`
+        `[p]rename 52000 None` - Remove a game's name. Required elevated permissions.
         """
 
         usage = (f'**Example usage:** `{ctx.prefix}rename 100 New Game Name`\n'
@@ -1623,7 +1807,7 @@ class polygames(commands.Cog):
         except exceptions.NoMatches:
             if game_id:
                 game = await PolyGame().convert(ctx, int(game_id), allow_cross_guild=False)
-                if ctx.channel.id not in settings.guild_setting(ctx.guild.id, 'bot_channels'):
+                if not await settings.is_bot_channel_strict(ctx):
                     return await ctx.send(f'This command must be used in a bot spam channel or in a game-specific channel.')
             else:
                 ctx.command.reset_cooldown(ctx)
@@ -1635,30 +1819,33 @@ class polygames(commands.Cog):
         if game.is_pending:
             return await ctx.send(f'This game has not started yet.')
 
+        if not new_game_name:
+            return await ctx.send(usage)
+        if new_game_name.upper() == 'NONE':
+            if settings.get_user_level(ctx.author) <= 3:
+                return await ctx.send(f'You do not have permissions to delete a game name.')
+            new_game_name = None
         is_hosted_by, host = game.is_hosted_by(ctx.author.id)
-        if not is_hosted_by and not settings.is_staff(ctx) and not game.is_created_by(discord_id=ctx.author.id):
+        if not is_hosted_by and not settings.is_staff(ctx.author) and not game.is_created_by(discord_id=ctx.author.id):
             # host_name = f' **{host.name}**' if host else ''
             return await ctx.send(f'Only the game creator **{game.creating_player().name}** or server staff can do this.')
-
         if new_game_name and not utilities.is_valid_poly_gamename(input=new_game_name):
-            if settings.get_user_level(ctx) <= 2:
+            if settings.get_user_level(ctx.author) <= 2:
                 return await ctx.send('That name looks made up. :thinking: You need to manually create the game __in Polytopia__, come back and input the name of the new game you made.\n'
                     f'You can use `{ctx.prefix}code NAME` to get the code of each player in this game.')
-            await ctx.send(f'*Warning:* That game name looks made up - you are allowed to override due to your user level.')
+            await ctx.send(f':warning: That game name looks made up - you are allowed to override due to your user level.')
 
         old_game_name = game.name
         game.name = new_game_name
-
-        game_guild = discord.utils.get(self.bot.guilds, id=game.guild_id)
+        game_guild = self.bot.get_guild(game.guild_id)
         if not game_guild:
             logger.error(f'Error attempting in rename command for game {game.id} - could not load guild {game.guild_id}')
             return await ctx.send('Error loading guild associated with this game. Please contact the bot owner.')
 
         game.save()
-
         await game.update_squad_channels(self.bot.guilds, game_guild.id)
         await game.update_announcement(guild=game_guild, prefix=ctx.prefix)
-        models.GameLog.write(game_id=game, guild_id=game.guild_id, message=f'{models.GameLog.member_string(ctx.author)} renamed the game to *{discord.utils.escape_markdown(new_game_name)}*')
+        models.GameLog.write(game_id=game, guild_id=game.guild_id, message=f'{models.GameLog.member_string(ctx.author)} renamed the game to *{discord.utils.escape_markdown(str(new_game_name))}*')
 
         new_game_name = game.name if game.name else 'None'
         old_game_name = old_game_name if old_game_name else 'None'
@@ -1683,16 +1870,17 @@ class polygames(commands.Cog):
         if not args:
             return await ctx.send(f'No arguments provided. **Example usage:** `{ctx.prefix}{ctx.invoked_with} 1234 bardur`')
 
-        if settings.get_user_level(ctx) < 4:
+        if settings.get_user_level(ctx.author) < 4:
             perm_str = f'You only have permissions to set your own tribe. **Example usage:** `{ctx.prefix}{ctx.invoked_with} 1234 bardur`'
         else:
             perm_str = ''
 
         arg_list = args.split()
-        game = Game.by_channel_or_arg(chan_id=ctx.channel.id, arg=arg_list[0])
 
-        if not game:
-            return await ctx.send(f'Game ID not provided. **Example usage:** `{ctx.prefix}{ctx.invoked_with} 1234 bardur`\nYou can also omit the game ID if you use the command from a game-specific channel.')
+        try:
+            game = Game.by_channel_or_arg(chan_id=ctx.channel.id, arg=arg_list[0])
+        except (ValueError, exceptions.MyBaseException) as e:
+            return await ctx.send(f'{e}\n**Example usage:** `{ctx.prefix}{ctx.invoked_with} 1234 bardur`\nYou can also omit the game ID if you use the command from a game-specific channel.')
 
         if str(game.id) == str(arg_list[0]):
             arg_list = arg_list[1:]  # Remove game ID from list if it was used for lookup
@@ -1701,7 +1889,7 @@ class polygames(commands.Cog):
 
         logger.debug(f'Attempting settribe for game {game.id}')
 
-        if settings.get_user_level(ctx) < 4 or len(arg_list) == 1:
+        if settings.get_user_level(ctx.author) < 4 or len(arg_list) == 1:
             # if non-priviledged user, force the command to be about the ctx.author
             arg_list = [f'<@{ctx.author.id}>', arg_list[0]]
 
@@ -1750,6 +1938,7 @@ class polygames(commands.Cog):
 
         target_list = [arg.replace('"', '') for arg in arg_list]  # should enable it to handle "multi word" args
         target_list = [i for i in target_list if len(i) > 2]  # strip 1-2 character arguments that match too easily to random players
+        player_discord_id = None  # Filled by author.id if command is just bare $incomplete - list will include channel links
 
         if mode.upper() == 'ALLGAMES':
             status_filter, status_str = 0, 'game'
@@ -1801,13 +1990,17 @@ class polygames(commands.Cog):
             player_matches, team_matches, remaining_args = parse_players_and_teams(target_list, ctx.guild.id)
             p_names, t_names = [p.name for p in player_matches], [t.name for t in team_matches]
 
+            if mode.upper() == 'INCOMPLETE' and len(player_matches) == 1:
+                # show gameside channel links for one-player target of #incomplete command
+                player_discord_id = player_matches[0].discord_member.discord_id
+
             if p_names:
                 results_title.append(f'Including players: *{"* & *".join(p_names)}*')
             if t_names:
                 results_title.append(f'Including teams: *{"* & *".join(t_names)}*')
             if remaining_args:
                 remaining_args = [utilities.escape_role_mentions(x) for x in remaining_args]
-                results_title.append(f'Included in name: *{"* *".join(remaining_args)}*')
+                results_title.append(f'Included in name/notes: *{"* *".join(remaining_args)}*')
             if team_size_str:
                 results_title.append(f'Game size: *{team_size_str}*')
 
@@ -1820,7 +2013,7 @@ class polygames(commands.Cog):
                 query = Game.search(status_filter=status_filter, player_filter=player_matches, team_filter=team_matches, title_filter=remaining_args, guild_id=ctx.guild.id, size_filter=team_sizes)
                 logger.debug(f'Searching games, status filter: {status_filter}, player_filter: {player_matches}, team_filter: {team_matches}, title_filter: {remaining_args}')
                 logger.debug(f'Returned {len(query)} results')
-                game_list = utilities.summarize_game_list(query[:500])
+                game_list = utilities.summarize_game_list(query[:500], player_discord_id=player_discord_id)
                 list_name = f'{len(query)} {status_str}{"s" if len(query) != 1 else ""}\n{results_str}'
                 return game_list, list_name
 
@@ -1847,7 +2040,7 @@ class polygames(commands.Cog):
 
             logger.info(f'running task_purge_game_channels on {len(old_games)} games')
             for game in old_games:
-                guild = discord.utils.get(self.bot.guilds, id=game.guild_id)
+                guild = self.bot.get_guild(game.guild_id)
                 if guild:
                     await game.delete_game_channels(self.bot.guilds, game.guild_id)
 
@@ -1877,7 +2070,6 @@ async def post_win_messaging(guild, prefix, current_chan, winning_game):
 
     await winning_game.update_squad_channels(guild_list=settings.bot.guilds, guild_id=guild.id, message=f'The game is over with **{winning_game.winner.name()}** victorious. {purge_message}')
     models.GameLog.write(game_id=winning_game.id, guild_id=winning_game.guild_id, message=f'Win is confirmed and ELO changes processed.')
-    player_mentions = [f'<@{l.player.discord_member.discord_id}>' for l in winning_game.lineup]
     embed, content = winning_game.embed(guild=guild, prefix=prefix)
 
     for l in winning_game.lineup:
@@ -1886,36 +2078,35 @@ async def post_win_messaging(guild, prefix, current_chan, winning_game):
     if settings.guild_setting(guild.id, 'game_announce_channel') is not None:
         channel = guild.get_channel(settings.guild_setting(guild.id, 'game_announce_channel'))
         if channel is not None:
-            await channel.send(f'Game concluded! Congrats **{winning_game.winner.name()}**. Roster: {" ".join(player_mentions)}')
+            await channel.send(f'Game concluded! Congrats **{winning_game.winner.name()}**. Roster: {" ".join(winning_game.mentions())}')
             await channel.send(embed=embed)
             return await current_chan.send(f'Game concluded! See {channel.mention} for full details.')
 
-    await current_chan.send(f'Game concluded! Congrats **{winning_game.winner.name()}**. Roster: {" ".join(player_mentions)}{reminder_message}')
+    await current_chan.send(f'Game concluded! Congrats **{winning_game.winner.name()}**. Roster: {" ".join(winning_game.mentions())}{reminder_message}')
     await current_chan.send(embed=embed, content=content)
 
 
 async def post_unwin_messaging(guild, prefix, current_chan, game, previously_confirmed: bool = False):
 
     await game.update_squad_channels(guild_list=settings.bot.guilds, guild_id=guild.id, message=f'The game has reset to *Incomplete* status.')
-    player_mentions = [f'<@{l.player.discord_member.discord_id}>' for l in game.lineup]
 
     if previously_confirmed:
         for l in game.lineup:
             await achievements.set_experience_role(l.player.discord_member)
 
-    await current_chan.send(f'Game reset to *Incomplete*. Previously claimed win has been canceled.  Notifying game roster: {" ".join(player_mentions)}')
+    await current_chan.send(f'Game reset to *Incomplete*. Previously claimed win has been canceled.  Notifying game roster: {" ".join(game.mentions())}')
 
 
 async def post_newgame_messaging(ctx, game):
 
-    mentions_list = [f'<@{l.player.discord_member.discord_id}>' for l in game.lineup]
     season, season_str = game.is_season_game(), ''
     if season:
         season_str = f'**{"Pro" if season[1] == "P" else "Junior"} Season {season[0]}** '
 
     embed, content = game.embed(guild=ctx.guild, prefix=ctx.prefix)
     ranked_str = 'unranked ' if not game.is_ranked else ''
-    announce_str = f'New {season_str}{ranked_str}game ID **{game.id}** started! Roster: {" ".join(mentions_list)}'
+    platform_str = '' if game.is_mobile else 'Steam '
+    announce_str = f'New {season_str}{ranked_str}{platform_str}game ID **{game.id}** started! Roster: {" ".join(game.mentions())}'
 
     if settings.guild_setting(ctx.guild.id, 'game_announce_channel'):
         channel = ctx.guild.get_channel(settings.guild_setting(ctx.guild.id, 'game_announce_channel'))
@@ -1937,10 +2128,9 @@ async def post_newgame_messaging(ctx, game):
 
     if settings.guild_setting(ctx.guild.id, 'game_channel_categories'):
         try:
-            # await game.create_game_channels(ctx.guild)
             await game.create_game_channels(settings.bot.guilds, ctx.guild.id)
         except exceptions.MyBaseException as e:
-            await ctx.send(f'Error during channel creation: {e}')
+            await ctx.send(f':warning: **Channel creation error:** {e}')
 
     if game.is_uncaught_season_game():
         await ctx.send(f':bulb: This game looks like an incorrectly named **Season Game**! You might want to use `{ctx.prefix}rename` and include the season tag at the beginning.')
