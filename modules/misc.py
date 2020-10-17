@@ -25,11 +25,16 @@ class misc(commands.Cog):
 
     @commands.command(hidden=True, aliases=['ts', 'blah'])
     @commands.is_owner()
-    async def test(self, ctx, *, args=None):
-        role = discord.utils.get(ctx.guild.roles, name='The Ronin')
-        member = ctx.author
-        fs = imgen.player_draft_card(member, role)
+    async def test(
+            self, ctx, top: str, bottom: str, left_im: str, right_im: str, *,
+            arrows: str):
+        """Create an arrow card.
 
+        Example:
+        `[p]test PROMOTION HELPER https://picsum.photos/200 https://picsum.photos/300 l-#ff0000 r-#00ff00`
+        """
+        arrows = [arrow.split('-') for arrow in arrows.split(' ')]
+        fs = imgen.arrow_card(top, bottom, left_im, right_im, arrows)
         await ctx.send(file=fs)
 
     @commands.command(usage=None)

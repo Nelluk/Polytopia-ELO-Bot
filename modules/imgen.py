@@ -1,8 +1,13 @@
 """Image generation code."""
 from io import BytesIO
-import discord
-import requests
+import typing
+
 from PIL import Image, ImageDraw, ImageFont
+
+import discord
+
+import requests
+
 from modules.models import Player, Team
 
 
@@ -14,8 +19,9 @@ def fetch_image(url: str) -> Image:
 
 def get_player_summary(member: discord.Member) -> str:
     """Get a summary for a player."""
-
-    player = Player.get_or_except(player_string=member.id, guild_id=member.guild.id)
+    player = Player.get_or_except(
+        player_string=member.id, guild_id=member.guild.id
+    )
     local_wins, local_losses = player.get_record()
     local_elo = player.elo
     global_wins, global_losses = player.discord_member.get_record()
@@ -40,10 +46,31 @@ def draw_text(
     draw.text((left, top), text, '#fff', font)
 
 
+def draw_inverse_text(
+        image: Image.Image, text: str, *, size: int = 50, left: int = 0,
+        top: int = 0):
+    """Draw transparent text on a white background."""
+    width, height = ImageFont.truetype(
+        f'res/font.ttf', size,
+        layout_engine=ImageFont.LAYOUT_BASIC
+    ).getsize(text)
+    mask = Image.new('1', (width + 40, height + 30))
+    draw_text(mask, text, size=size, top=10, left=5)
+    mask_data = list(mask.getdata())
+    for idx, px in enumerate(mask_data):
+        if px > 128:
+            mask_data[idx] = 0
+        else:
+            mask_data[idx] = 255
+    mask.putdata(mask_data)
+    white = Image.new('RGBA', (width + 40, height + 30), '#fff')
+    image.paste(white, (left, top), mask)
+
+
 def get_text_width(text: str, font_size: int) -> int:
     """Get the width of some text."""
     return ImageFont.truetype(
-        f'res/font.ttf', font_size,
+        f'res/font2.ttf', font_size,
         layout_engine=ImageFont.LAYOUT_BASIC
     ).getsize(text)[0]
 
@@ -71,8 +98,8 @@ def generate_gradient(
     mask = Image.new('L', (width, height))
     mask_data = []
     for y in range(height):
-        for x in range(width):
-            mask_data.append(int(255 * ((x + y) / (height + width))))
+        for _x in range(width):
+            mask_data.append(int(255 * (y / height)))
     mask.putdata(mask_data)
     base.paste(top, (0, 0), mask)
     return base
@@ -84,7 +111,35 @@ def rectangle(
     """Draw a rectangle."""
     layer = Image.new('RGBA', (width, height), colour)
     mask = Image.new('L', (width, height), 128)
-    image.paste(layer, (0, 0), mask)
+    image.paste(layer, (top, left), mask)
+
+
+def draw_arrow(
+        image: Image.Image, x_pos: int, y_pos: int, direction: str, fill: str):
+    """Draw an arrow."""
+    points = [(0, 45), (45, 0), (90, 45), (75, 60), (45, 30), (15, 60)]
+    move = lambda x, y: (x + x_pos - 45, y + y_pos - 30)
+    if direction == 'u':
+        transform = lambda x, y: (x, y)
+    elif direction == 'd':
+        transform = lambda x, y: (x, 90 - y)
+    elif direction == 'l':
+        transform = lambda x, y: (y, x)
+    elif direction == 'r':
+        transform = lambda x, y: (90 - y, x)
+    first_points = [move(*transform(*point)) for point in points]
+    ImageDraw.Draw(image).polygon(first_points, fill=fill, outline=fill)
+    second = lambda x, y: (x, y + 35)
+    second_points = [move(*transform(*second(*point))) for point in points]
+    ImageDraw.Draw(image).polygon(second_points, fill=fill, outline=fill)
+
+
+def store_image(image: Image.Image, filename: str) -> discord.File:
+    """Prepare an image to be sent over discord."""
+    stream = BytesIO()
+    image.save(stream, format='PNG')
+    stream.seek(0)
+    return discord.File(stream, filename=filename)
 
 
 def player_draft_card(
@@ -103,7 +158,6 @@ def player_draft_card(
     name = member.name.upper()
     summary = get_player_summary(member)
     wordmark = Image.open('res/pc_wordmark.png')
-    filename = f'{team_role.name}_selects_{member.name}.png'
     # generate the image
     width = max(
         get_text_width(title, 50) + 125,
@@ -118,8 +172,43 @@ def player_draft_card(
     paste_image(im, team_logo, left=20, top=10, height=80)
     paste_image(im, player_avatar, left=23, top=108, height=255)
     paste_image(im, wordmark, left=5, top=365, height=30)
-    # store the image
-    stream = BytesIO()
-    im.save(stream, format='PNG')
-    stream.seek(0)
-    return discord.File(stream, filename=filename)
+    return store_image(im, f'{team_role.name}_selects_{member.name}.png')
+
+
+def arrow_card(
+        top_text: str, bottom_text: str, left_image: str, right_image: str,
+        arrows: typing.Iterable[typing.Iterable[str]]):
+    """Create a card that can be used for promotions or similar.
+
+    "arrows" should be a list of tuples. The tuples should be a direction
+    ("l", "r", "u" or "d" for left, right, up or down) followed by a hex code.
+    For example:
+
+        [('l', '#ff0000'), ('r', '#00ff00')]
+    """
+    # Create the base with a background gradient.
+    height, width = 573, 836
+    im = generate_gradient('#4e459d', '#b03045', width, height)
+    draw = ImageDraw.Draw(im)
+    # Put the wordmark in the top left.
+    wordmark = Image.open('res/pc_wordmark.png')
+    paste_image(im, wordmark, left=7, top=7, height=80)
+    # Add an outline to the image.
+    draw.rectangle([5, 5, width - 5, height - 5], width=2)
+    # Draw the top text.
+    top_text_left = (width - get_text_width(top_text, 70) - 15) // 2
+    draw_inverse_text(im, top_text, left=top_text_left, top=100, size=70)
+    # Draw the images with their outlines.
+    draw.rectangle([98, 234, 331, 467], width=2)
+    paste_image(im, fetch_image(left_image), 100, 236, 230)
+    draw.rectangle([width - 100, 234, width - 331, 467], width=2)
+    paste_image(im, fetch_image(right_image), width - 330, 236, 230)
+    # Draw the bottom text.
+    bottom_text_left = (width - get_text_width(bottom_text, 70)) // 2
+    draw_text(im, bottom_text, left=bottom_text_left, top=487, size=70)
+    # Draw the arrows.
+    next_arrow_y = 413 - (67 * len(arrows))
+    for direction, colour in arrows:
+        draw_arrow(im, width // 2, next_arrow_y, direction, colour)
+        next_arrow_y += 135
+    return store_image(im, f'{top_text}_{bottom_text}.png')

@@ -172,9 +172,9 @@ if __name__ == '__main__':
             await ctx.send(f'Cannot understand command. Make sure to include a space and a numeric game ID.\n*Example:* `{ctx.prefix}join 11234`')
 
         # Anything in ignored will return and prevent anything happening.
-        if isinstance(exc, ignored):
-            logger.warn(f'Exception on ignored list raised in {ctx.command}. {exc}')
-            return
+      #  if isinstance(exc, ignored):
+      #      logger.warn(f'Exception on ignored list raised in {ctx.command}. {exc}')
+      #      return
 
         if isinstance(exc, commands.CommandOnCooldown):
             logger.info(f'Cooldown triggered: {exc}')
