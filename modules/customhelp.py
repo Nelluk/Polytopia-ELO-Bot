@@ -89,6 +89,8 @@ class MyHelpCommand(commands.MinimalHelpCommand):
         command: :class:`Command`
             The command to show information of.
         """
+
+        # this is for the list output of '$help administration', for example
         fmt = '__**`{0}{1}`**__ \N{EN DASH} {2}' if command.short_doc else '__**`{0}{1}`**__'
         self.paginator.add_line(fmt.format(self.clean_prefix, command.qualified_name, command.short_doc.replace('[p]', self.clean_prefix)))
 
@@ -111,7 +113,13 @@ class MyHelpCommand(commands.MinimalHelpCommand):
 
         if command.help:
             try:
-                self.paginator.add_line(command.help.replace('[p]', self.clean_prefix), empty=True)
+                # This adds the body of the content in /help commandname. not sure under what circumstances an Exception would trigger
+                if self.context.guild.id == settings.server_ids['polychampions']:
+                    # Any bit of shortdoc after <START POLYCHAMPS>\n will be truncated if current server is not polychampions
+                    self.paginator.add_line(command.help.replace('[p]', self.clean_prefix).replace('<START POLYCHAMPS>\n', ''), empty=True)
+                else:
+                    self.paginator.add_line(command.help.replace('[p]', self.clean_prefix).split('<START POLYCHAMPS>\n', 1)[0], empty=True)
+
             except RuntimeError:
                 for line in command.help.replace('[p]', self.clean_prefix).splitlines():
                     self.paginator.add_line(line)

@@ -1,10 +1,11 @@
 import discord
-from discord.ext import commands
+from discord.ext import commands, tasks
 import modules.models as models
 import modules.utilities as utilities
 import settings
 import modules.exceptions as exceptions
 from modules.games import post_newgame_messaging
+from modules.league import broadcast_team_game_to_server
 import peewee
 import re
 import datetime
@@ -45,22 +46,229 @@ class matchmaking(commands.Cog):
     Host open and find open games.
     """
 
+    ignorable_join_reactions = set()  # Set of entries indicating reactions that, if removed, should be ignored.
+    # an entry will be (message_id, user_id)
+    # keys are added here when a join reaction is placed, and removed if the join reaction is valid.
+
     def __init__(self, bot):
         self.bot = bot
         if settings.run_tasks:
             self.bg_task = bot.loop.create_task(self.task_print_matchlist())
             self.bg_task2 = bot.loop.create_task(self.task_dm_game_creators())
             self.bg_task3 = bot.loop.create_task(self.task_create_empty_matchmaking_lobbies())
+            self.task_purge_expired_games.start()  # new task style
+
+    def is_joingame_message(self, message: str):
+        # If message is of a given format (currently 'join game GAMEID by reacting with ⚔️' inside message), load game by ID
+        # return (parsed_id: int, Game Object) if message is valid
+        # ie (52600, Game(id=52600)) or (52600, None)
+        # Game might be None if id is not valid
+        # return None, None if not valid
+
+        m = settings.re_join_game.search(message.lower())
+
+        if not m:
+            return (None, None)
+
+        game_id = int(m[1])
+        game = models.Game.get_or_none(id=game_id)
+
+        return (game_id, game)
+
+    @commands.Cog.listener()
+    async def on_message(self, message):
+        # Add ⚔️ join emoji to valid messages
+        game_id, game = self.is_joingame_message(message.content)
+        if not game_id or not game or not game.is_pending:
+            return
+        if message.guild.id == game.guild_id or message.guild.id in models.Team.related_external_severs(game.guild_id):
+            # current guild is compatible with game guild (either same guild or a related external server)
+            await message.add_reaction(settings.emoji_join_game)
+
+    @commands.Cog.listener()
+    async def on_raw_reaction_remove(self, payload):
+
+        if payload.emoji.name != settings.emoji_join_game:
+            return
+
+        if payload.user_id == self.bot.user.id:
+            return
+
+        if (payload.message_id, payload.user_id) in self.ignorable_join_reactions:
+            logger.debug('Ignoring reaction removal due to ignorable_join_reactions')
+            return self.ignorable_join_reactions.discard((payload.message_id, payload.user_id))
+
+        guild = self.bot.get_guild(payload.guild_id)
+        member = guild.get_member(payload.user_id)
+        channel = member.guild.get_channel(payload.channel_id)
+        message = await channel.fetch_message(payload.message_id) if channel else None
+        if not message:
+            return
+
+        if message.author.id == settings.bot_id_beta and self.bot.user.id != settings.bot_id_beta:
+            # have production bot ignore messages from beta bot
+            return
+
+        if self.bot.user.id == settings.bot_id_beta and message.author.id != settings.bot_id_beta:
+            # have beta bot ignore messages that are not from it
+            return
+
+        game_id, game = self.is_joingame_message(message.content)
+
+        if not game_id:
+            return  # Message being reacted to is not parsed as a Join Game message
+
+        logger.debug(f'Matchmaking on_raw_reaction_removed: Joingame emoji removed from a Join Game message by {member.display_name}. Game ID {game_id}. Game loaded? {"yes" if game else "no"}')
+
+        if channel.name == 'polychamps-game-announcements':
+            feedback_destination = member
+        else:
+            feedback_destination = channel
+
+        lineup = game.player(discord_id=member.id)
+        if not lineup:
+            return await feedback_destination.send(f'You are not a member of game {game.id}')
+
+        if game.is_hosted_by(member.id)[0]:
+
+            if settings.get_user_level(member) < 4:
+                return await feedback_destination.send('You do not have permissions to leave your own match.\n'
+                    f'If you want to delete use the `delete` command in a bot channel.')
+
+            await feedback_destination.send(f'**Warning:** You are leaving your own game. You will still be the host. '
+                f'If you want to delete use the `delete` command in a bot channel.')
+
+        if not game.is_pending:
+            return await feedback_destination.send(f'Game {game.id} has already started and cannot be left.')
+
+        models.GameLog.write(game_id=game, guild_id=member.guild.id, message=f'{models.GameLog.member_string(member)} left the game (via reaction).')
+        lineup.delete_instance()
+        await feedback_destination.send(f'Removing you from game {game.id}.')
+
+    @commands.Cog.listener()
+    async def on_raw_reaction_add(self, payload):
+
+        if payload.emoji.name != settings.emoji_join_game:
+            return
+
+        if payload.user_id == self.bot.user.id:
+            return
+
+        channel = payload.member.guild.get_channel(payload.channel_id)
+        message = await channel.fetch_message(payload.message_id) if channel else None
+        if not message:
+            return
+
+        if message.author.id == 479029527553638401 and self.bot.user.id != 479029527553638401:
+            # have beta bot ignore non-beta messages and production bot ignore beta messages
+            return
+
+        if self.bot.user.id == 479029527553638401 and message.author.id != 479029527553638401:
+            # have beta bot ignore non-beta messages and production bot ignore beta messages
+            return
+
+        game_id, game = self.is_joingame_message(message.content)
+
+        if not game_id:
+            return  # Message being reacted to is not parsed as a Join Game message
+
+        self.ignorable_join_reactions.add((payload.message_id, payload.user_id))
+
+        logger.debug(f'Matchmaking on_raw_reaction_add: Joingame emoji added to a Join Game message by {payload.member.display_name}. Game ID {game_id}. Game loaded? {"yes" if game else "no"}')
+
+        if channel.name == 'polychamps-game-announcements':
+            feedback_destination = payload.member
+        else:
+            feedback_destination = channel
+
+        if not game:
+            await feedback_destination.send(f'{payload.member.mention}, it looks like you tried to join game {game_id}, but a game with that ID does not exist. Maybe it was deleted?')
+            return await message.remove_reaction(payload.emoji.name, payload.member)
+
+        if payload.member.guild.id == game.guild_id:
+            # reaction in same guild as game is associated with
+            guild = payload.member.guild
+            joining_member = payload.member
+            announce_channel = channel
+        else:
+            # guild does not match game guild. check to see if its a valid external server (PolyChamps teams)
+            valid_external_servers = models.Team.related_external_severs(game.guild_id)
+            guild = self.bot.get_guild(game.guild_id)
+            if not guild:
+                return logger.warning(f'Matchmaking on_raw_reaction_add: could not load server {game.guild_id}')
+            if payload.member.guild.id in valid_external_servers:
+                logger.debug(f'Matchmaking on_raw_reaction_add: Join reacted from external server {payload.member.guild.name} from game server {guild.name} ')
+                joining_member = guild.get_member(payload.member.id)
+                if not joining_member:
+                    logger.warning(f'{payload.member.guild.name} is not found as a member of game guild.')
+                    await feedback_destination.send(f'{payload.member.mention}, it looks like you tried to join game {game_id}, but it is associated with another server: __{guild.name}__, and you are not a member of that server. ')
+                    return await message.remove_reaction(payload.emoji.name, payload.member)
+
+                announce_channel_id = settings.guild_setting(guild.id, 'game_announce_channel')
+                announce_channel = guild.get_channel(announce_channel_id) if announce_channel_id else None
+                if not announce_channel:
+                    logger.warning(f'Guild {guild.id} {guild.name} does not have game_announce_channel configured')
+                    await feedback_destination.send(f'{payload.member.mention}, it looks like you tried to join game {game_id}, but __{guild.name}__ does not have game_announce_channel configured. Joining via reaction is disabled. You will need to use the `join` command in a bot channel.')
+                    return await message.remove_reaction(payload.emoji.name, payload.member)
+
+            else:
+                await feedback_destination.send(f'{payload.member.mention}, it looks like you tried to join game {game_id}, but it is associated with another server: __{guild.name}__ ')
+                return await message.remove_reaction(payload.emoji.name, payload.member)
+
+        lineup, message_list = await game.join(member=joining_member, side_arg=None, author_member=joining_member, log_note='(via reaction)')
+        message_str = '\n'.join(message_list)
+
+        if not lineup:
+            logger.debug(f'Join by reaction failed: {message_str}')
+            if 'already in game' in message_str:
+                self.ignorable_join_reactions.discard((payload.message_id, payload.user_id))
+                return await feedback_destination.send(f':warning: {joining_member.mention}:\n{message_str}')
+            else:
+                await message.remove_reaction(payload.emoji.name, payload.member)
+                return await feedback_destination.send(f':no_entry_sign: {joining_member.mention} could not join game:\n{message_str}')
+
+        prefix = settings.guild_setting(guild.id, 'command_prefix')
+        embed, content = game.embed(guild=guild, prefix=prefix)
+        content = f'{content}\n' if content else ''
+
+        players, capacity = game.capacity()
+        if players >= capacity:
+            creating_player = game.creating_player()
+            announce_message = f'Game {game.id} is now full and {creating_player.discord_member.mention()} should create the game in Polytopia.'
+
+            if game.host and game.host != creating_player:
+                announce_message += f'\nMatchmaking host {game.host.discord_member.mention()} is not the game creator.'
+
+            await announce_channel.send(embed=embed, content=f'{content}{announce_message}')
+
+        # Alert user if they have >1 games ready to start
+        waitlist_hosting = [f'{g.id}' for g in models.Game.search_pending(status_filter=1, guild_id=guild.id, host_discord_id=joining_member.id)]
+        waitlist_creating = [f'{g.game}' for g in models.Game.waiting_for_creator(creator_discord_id=joining_member.id)]
+        waitlist = set(waitlist_hosting + waitlist_creating)
+
+        if len(waitlist) > 1:
+            start_str = f'Type __`{prefix}game IDNUM`__ for more details, ie `{prefix}game {(waitlist_hosting + waitlist_creating)[0]}`'
+            message_list.append(f':warning: You have full games waiting to start: **{", ".join(waitlist)}**\n{start_str}')
+
+        if feedback_destination == payload.member:
+            message_list.append(f':bulb: I do not respond to PM commands. You will need to use a bot command channel in the appropriate server.')
+        message_str = '\n'.join(message_list)
+
+        logger.debug(f'Join by reaction success: {message_str}')
+        self.ignorable_join_reactions.discard((payload.message_id, payload.user_id))
+        return await feedback_destination.send(embed=embed, content=f'{message_str}')
 
     @settings.in_bot_channel()
     @models.is_registered_member()
-    @commands.command(aliases=['openmatch', 'open'], usage='size expiration rules')
+    @commands.command(aliases=['openmatch', 'open', 'opensteam'], usage='size expiration rules')
     async def opengame(self, ctx, *, args=None):
 
         """
         Opens a game that others can join
         Expiration can be between 1H - 96H
         Size examples: 1v1, 2v2, 1v1v1v1v1, 3v3v3, 1v3
+
+        Use `opensteam` to specify that a new game is for Steam - otherwise the game will be assumed for mobile platform.
 
         **Examples:**
         `[p]opengame 1v1`
@@ -79,6 +287,7 @@ class matchmaking(commands.Cog):
         `[p]opengame 1v1 For @Nelluk only`
         (Include one or more @Mentions in notes and only those people will be permitted to join.)
 
+        <START POLYCHAMPS>
         `[p]opengame 2v2 for @The Ronin vs @The Jets`
         (Include one or more @Roles and the games sides will be locked to that specific role. For use with PolyChampions teams.)
 
@@ -88,9 +297,11 @@ class matchmaking(commands.Cog):
         This allows you to specify a role without a mention, as well as specify exactly which sides get which role.)
         """
 
-        team_size, is_ranked = False, True
+        team_size, is_ranked, is_mobile = False, True, True
         roles_specified_implicity, roles_specified_explicitly = False, False
         required_role_args = []
+        required_roles = []
+        preset_teams = []
         required_role_message = ''
         expiration_hours_override = None
         note_args = []
@@ -112,8 +323,8 @@ class matchmaking(commands.Cog):
         if settings.guild_setting(ctx.guild.id, 'require_teams') and not on_team:
             return await ctx.send(f'You must join a Team in order to participate in games on this server.')
 
-        max_open = max(1, settings.get_user_level(ctx) * 3)
-        if settings.get_user_level(ctx) > 5:
+        max_open = max(1, settings.get_user_level(ctx.author) * 3)
+        if settings.get_user_level(ctx.author) > 5:
             max_open = 75
 
         if models.Game.select().where((models.Game.host == host) & (models.Game.is_pending == 1)).count() > max_open:
@@ -122,7 +333,10 @@ class matchmaking(commands.Cog):
         if settings.guild_setting(ctx.guild.id, 'unranked_game_channel') and ctx.channel.id == settings.guild_setting(ctx.guild.id, 'unranked_game_channel'):
             is_ranked = False
 
-        args = args.replace("'", "\\'")  # Escape single quotation marks for shlex.split() parsing
+        if (settings.guild_setting(ctx.guild.id, 'steam_game_channel') and ctx.channel.id == settings.guild_setting(ctx.guild.id, 'steam_game_channel')) or ctx.invoked_with == 'opensteam':
+            is_mobile = False
+
+        args = args.replace("'", "\\'").replace("“", "\"").replace("”", "\"")  # Escape single quotation marks for shlex.split() parsing
         if args.count('"') % 2 != 0:
             return await ctx.send(':no_entry_sign: Unbalanced "quotation marks" found. Cannot parse command.')
         # for arg in args.split(' '):
@@ -135,11 +349,12 @@ class matchmaking(commands.Cog):
                 team_sizes = [int(x) for x in arg.lower().split(m[1])]  # split on 'vs' or 'v'; whichever the regexp detects
                 if min(team_sizes) < 1:
                     return await ctx.send(f'Invalid game size **{team_size_str}**: Each side must have at least 1 player.')
-                if sum(team_sizes) > 12:
+                if sum(team_sizes) > 15:
                     return await ctx.send(f'Invalid game size **{team_size_str}**: Games can have a maximum of 12 players.')
                 team_size = True
                 required_roles = [None] * len(team_sizes)  # [None, None, None] for a 3-sided game
                 required_role_names = [None] * len(team_sizes)
+                preset_teams = [None] * len(team_sizes)
                 continue
             m = re.match(r"(\d+)ffa", arg.lower())
             if m:
@@ -147,13 +362,14 @@ class matchmaking(commands.Cog):
                 players = int(m[1])
                 if players < 2:
                     return await ctx.send(f'Invalid game size **{arg}**: There must be at least 2 sides.')
-                if players > 12:
-                    return await ctx.send(f'Invalid game size **{arg}**: Games can have a maximum of 12 players.')
+                if players > 15:
+                    return await ctx.send(f'Invalid game size **{arg}**: Games can have a maximum of 15 players.')
                 team_sizes = [1] * players
                 team_size_str = 'v'.join([str(x) for x in team_sizes])
                 team_size = True
                 required_roles = [None] * len(team_sizes)  # [None, None, None] for a 3-sided game
                 required_role_names = [None] * len(team_sizes)
+                preset_teams = [None] * len(team_sizes)
                 continue
             m = re.match(r"(\d+)h", arg.lower())
             if m:
@@ -173,12 +389,12 @@ class matchmaking(commands.Cog):
                 if roles_specified_explicitly:
                     return await ctx.send(f':no_entry_sign: Roles were assigned via both mention and explicit argument - use one or the other but not both.')
                 roles_specified_implicity = True
-                extracted_role = discord.utils.get(ctx.guild.roles, id=int(m[1]))
+                extracted_role = ctx.guild.get_role(int(m[1]))
                 if extracted_role:
                     note_args.append('**@' + extracted_role.name + '**')
                     required_role_args.append(extracted_role)
                 else:
-                    logger.warn(f'Detected role-like string {m[0]} in arguments but cannot match to an actual role. Skipping.')
+                    logger.warning(f'Detected role-like string {m[0]} in arguments but cannot match to an actual role. Skipping.')
                 continue
             m = re.match(r"role(\d?\d?)=(.*$)", arg)
             if m:
@@ -221,7 +437,13 @@ class matchmaking(commands.Cog):
         if not team_size:
             return await ctx.send(f'Game size is required. Include argument like *1v1* to specify size')
 
-        game_allowed, join_error_message = settings.can_user_join_game(user_level=settings.get_user_level(ctx), game_size=sum(team_sizes), is_ranked=is_ranked, is_host=True)
+        if not host.discord_member.polytopia_id and is_mobile:
+            return await ctx.send(f'**{host.name}** does not have a mobile game code on file. Use `{ctx.prefix}setcode` to set one, or try `{ctx.prefix}opensteam` for a Steam game.')
+
+        if not is_mobile and not host.discord_member.name_steam:
+            return await ctx.send(f'**{host.name}** does not have a Steam username on file and this is a Steam game 🖥. Use `{ctx.prefix}steamname` to set one, or try `{ctx.prefix}opengame` for a Mobile game.')
+
+        game_allowed, join_error_message = settings.can_user_join_game(user_level=settings.get_user_level(ctx.author), game_size=sum(team_sizes), is_ranked=is_ranked, is_host=True)
         if not game_allowed:
             return await ctx.send(join_error_message)
 
@@ -233,7 +455,7 @@ class matchmaking(commands.Cog):
         if max(team_sizes) > server_size_max:
             if settings.guild_setting(ctx.guild.id, 'allow_uneven_teams') and min(team_sizes) <= server_size_max:
                 await ctx.send(':warning: Team sizes are uneven.')
-            elif settings.is_mod(ctx):
+            elif settings.is_mod(ctx.author):
                 await ctx.send('Moderator over-riding server size limits')
             elif not is_ranked and max(team_sizes) <= server_size_max + 1:
                 # Arbitrary rule, unranked games can go +1 from server_size_max
@@ -254,6 +476,16 @@ class matchmaking(commands.Cog):
             required_roles[count] = role.id
             required_role_names[count] = role.name
             required_role_message += f'**Side {count + 1}** will be locked to players with role *{role.name}*\n'
+
+        for count, role_name in enumerate(required_role_names):
+            # if a role locked side is a team role, pre-assign that side to the team, so that the player roles when joined are ignored
+            try:
+                team = models.Team.get_or_except(team_name=role_name, guild_id=ctx.guild.id, require_exact=True)
+                logger.debug(f'Pre-assigning a gameside to team {team.name} {team.id}')
+            except exceptions.NoSingleMatch:
+                team = None
+
+            preset_teams[count] = team
 
         if required_role_message:
             await ctx.send(required_role_message)
@@ -276,13 +508,13 @@ class matchmaking(commands.Cog):
             host.team = player_team
             host.save()
 
-            opengame = models.Game.create(host=host, expiration=expiration_timestamp, notes=game_notes, guild_id=ctx.guild.id, is_pending=True, is_ranked=is_ranked, size=team_sizes)
+            opengame = models.Game.create(host=host, expiration=expiration_timestamp, notes=game_notes, guild_id=ctx.guild.id, is_pending=True, is_ranked=is_ranked, size=team_sizes, is_mobile=is_mobile)
             for count, size in enumerate(team_sizes):
-                models.GameSide.create(game=opengame, size=size, position=count + 1, required_role_id=required_roles[count], sidename=required_role_names[count])
+                models.GameSide.create(game=opengame, size=size, position=count + 1, required_role_id=required_roles[count], sidename=required_role_names[count], team=preset_teams[count])
 
             first_side, _ = opengame.first_open_side(roles=[role.id for role in ctx.author.roles])
             if not first_side:
-                if settings.get_user_level(ctx) >= 4:
+                if settings.get_user_level(ctx.author) >= 4:
                     warning_message = f':warning: All sides in this game are locked to a specific @Role - and you don\'t have any of those roles. You are not a player in this game.'
                     fatal_warning = False
                 else:
@@ -301,8 +533,10 @@ class matchmaking(commands.Cog):
             await ctx.send(warning_message)
 
         models.GameLog.write(game_id=opengame, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} opened new {team_size_str} game. Notes: *{discord.utils.escape_markdown(notes_str)}*')
-        await ctx.send(f'Starting new {"unranked " if not is_ranked else ""}open game ID {opengame.id}. Size: {team_size_str}. Expiration: {expiration_hours} hours.\nNotes: *{notes_str}*\n'
-            f'Other players can join this game with `{ctx.prefix}join {opengame.id}`.')
+        await ctx.send(f'Starting new {"__Steam__ " if not is_mobile else ""}{"unranked " if not is_ranked else ""}open game ID {opengame.id}. Size: {team_size_str}. Expiration: {expiration_hours} hours.\nNotes: *{notes_str}*\n'
+            f'Other players can join this game with `{ctx.prefix}join {opengame.id}` or {opengame.reaction_join_string().lower()}.')
+
+        await broadcast_team_game_to_server(ctx, opengame)
 
     @settings.in_bot_channel()
     @commands.command(aliases=['matchside', 'sidename'], usage='match_id side_number Side Name', hidden=True)
@@ -317,7 +551,7 @@ class matchmaking(commands.Cog):
 
         if not game.is_pending:
             return await ctx.send(f'The game has already started and can no longer be changed.')
-        if not game.is_hosted_by(ctx.author.id)[0] and not settings.is_staff(ctx):
+        if not game.is_hosted_by(ctx.author.id)[0] and not settings.is_staff(ctx.author):
             return await ctx.send(f'Only the game host or server staff can do this.')
 
         # TODO: Have this command also allow side re-ordering
@@ -353,165 +587,75 @@ class matchmaking(commands.Cog):
         **Example:**
         `[p]join 1025` - Join open game 1025 to the first side with room
         `[p]join 1025 2` - Join open game 1025 to side number 2
-        `[p]join 1025 rickdaheals 2` - Add a person to a game you are hosting. Side must be specified.
+        `[p]join 1025 rickdaheals` - Add another person to a game's first available side
+        `[p]join 1025 bakalol 2` - Add another person to a game with side specifed
         """
         syntax = f'**Example usage**:\n__`{ctx.prefix}join 1025`__ - Join game 1025\n__`{ctx.prefix}join 1025 2`__ - Join game 1025, side 2'
 
-        if settings.get_user_level(ctx) >= 4:
-            syntax += f'\n__`{ctx.prefix}join 1025 Nelluk 2`__ - Add a third party to side 2 of your open game. Side must be specified.'
+        if settings.get_user_level(ctx.author) >= 4:
+            syntax += f'\n__`{ctx.prefix}join 1025 Nelluk 2`__ - Add a third party to side 2 of your open game.'
 
         if not game:
             return await ctx.send(f'No game ID provided. Use `{ctx.prefix}opengames` to list open games you can join.\n{syntax}')
-        if not game.is_pending:
-            return await ctx.send(f'The game has already started and can no longer be joined.')
-
-        waitlist_hosting = [f'{g.id}' for g in models.Game.search_pending(status_filter=1, guild_id=ctx.guild.id, host_discord_id=ctx.author.id)]
-        waitlist_creating = [f'{g.game}' for g in models.Game.waiting_for_creator(creator_discord_id=ctx.author.id)]
-        waitlist = set(waitlist_hosting + waitlist_creating)
-
-        if len(waitlist) > 2 and settings.get_user_level(ctx) < 3:
-            # Prevent newer players from having a big backlog of games needing to start and then joining more games
-            return await ctx.send(f'You are the host of {len(waitlist)} games that are waiting to start. You cannot join new games until that is complete. Game IDs: **{", ".join(waitlist)}**\n'
-                f'Type __`{ctx.prefix}game IDNUM`__ for more details, ie `{ctx.prefix}game {(waitlist_hosting + waitlist_creating)[0]}`\n'
-                f'You must create each game in Polytopia and invite the other players using their friend codes, and then use the `{ctx.prefix}start` command in this bot.')
-
-        inactive_role = discord.utils.get(ctx.guild.roles, name=settings.guild_setting(ctx.guild.id, 'inactive_role'))
-        if inactive_role and inactive_role in ctx.author.roles:
-            await ctx.author.remove_roles(inactive_role, reason='Player joined a game so should no longer be inactive')
-            return await ctx.send(f'You have the inactive role **{inactive_role.name}**. Removing it since you seem to be active! :smiling_face_with_3_hearts: Just use the `{ctx.prefix}{ctx.invoked_with}` command one more time.')
 
         if len(args) == 0:
             # ctx.author is joining a game, no side given
             target = f'<@{ctx.author.id}>'
-            log_by_str = ''
-            (side, has_role_locked_side), side_open = game.first_open_side(roles=[role.id for role in ctx.author.roles]), True
-
-            if not side:
-                players, capacity = game.capacity()
-                if players < capacity:
-                    if has_role_locked_side:
-                        return await ctx.send(f'Game {game.id} is limited to specific roles, and your eligible side is **full**. See details with `{ctx.prefix}game {game.id}`')
-                    return await ctx.send(f'Game {game.id} is limited to specific roles. You are not allowed to join. See details with`{ctx.prefix}game {game.id}`')
-                return await ctx.send(f'Game {game.id} is completely full!')
-
+            side_arg = None
         elif len(args) == 1:
-            # ctx.author is joining a match, with a side specified
-            target = f'<@{ctx.author.id}>'
-            log_by_str = ''
-            side, side_open = game.get_side(lookup=args[0])
+            # either ctx.author is joining a match with side integer specified or author is joining a third party with no side specified
+            try:
+                side_arg = int(args[0]) if int(args[0]) <= 15 else None
+                target = f'<@{ctx.author.id}>'
+            except ValueError:
+                # non-integer value - assuming author is joining a third party with no side specified
+                side_arg = None
+                target = args[0]
 
-            if not side:
-                return await ctx.send(f'Could not find side with "{args[0]}" in game {game.id}. You can use a side number or name if available.\n{syntax}')
+            if not side_arg and settings.get_user_level(ctx.author) < 4:
+                return await ctx.send('You do not have permissions to add another person to a game. Tell them to use the command:\n'
+                    f'`{ctx.prefix}join {game.id}` to join themselves.')
 
         elif len(args) == 2:
             # author is putting a third party into this match
-            log_by_str = f'(Command issued by {models.GameLog.member_string(ctx.author)})'
-            if settings.get_user_level(ctx) < 4:
+            if settings.get_user_level(ctx.author) < 4:
                 return await ctx.send('You do not have permissions to add another person to a game. Tell them to use the command:\n'
                     f'`{ctx.prefix}join {game.id} {args[1]}` to join themselves.')
             target = args[0]
-            side, side_open = game.get_side(lookup=args[1])
-            if not side:
-                return await ctx.send(f'Could not find side with "{args[1]}" in game {game.id}. You can use a side number or name if available.\n{syntax}')
+            side_arg = args[1]
         else:
             return await ctx.send(f'Invalid usage.\n{syntax}')
 
-        if not side_open:
-            return await ctx.send(f'That side of game {game.id} is already full. See `{ctx.prefix}game {game.id}` for details.')
-
         guild_matches = await utilities.get_guild_member(ctx, target)
         if len(guild_matches) > 1:
-            return await ctx.send(f'There is more than one player found with name "{target}". Specify user with @Mention.')
-        if len(guild_matches) == 0:
-            return await ctx.send(f'Could not find \"{target}\" on this server.')
+            return await ctx.send(f'There is more than one player found with name "{target}". Specify user with @Mention.\n{syntax}')
+        elif len(guild_matches) == 0:
+            return await ctx.send(f'Could not find \"{target}\" on this server.\n{syntax}')
+        else:
+            joining_member = guild_matches[0]
 
-        on_team, player_team = models.Player.is_in_team(guild_id=ctx.guild.id, discord_member=guild_matches[0])
-        if settings.guild_setting(ctx.guild.id, 'require_teams') and not on_team:
-            return await ctx.send(f'**{guild_matches[0].name}** must join a Team in order to participate in games on this server.')
+        lineup, message_list = await game.join(member=joining_member, side_arg=side_arg, author_member=ctx.author)
+        message_str = '\n'.join(message_list)
 
-        if side.required_role_id and not discord.utils.get(guild_matches[0].roles, id=side.required_role_id):
-            if settings.get_user_level(ctx) >= 5:
-                await ctx.send(f'Side {side.position} of game {game.id} is limited to players with the **@{side.sidename}** role. *Overriding restriction due to staff privileges.*')
+        if not lineup:
+            logger.debug('join via command failed')
+            if 'already in game' in message_str:
+                return await ctx.send(f':warning: {message_str}')
             else:
-                return await ctx.send(f'Side {side.position} of game {game.id} is limited to players with the **@{side.sidename}** role. You are not allowed to join.')
+                return await ctx.send(f':no_entry_sign: Could not join game:\n{message_str}')
 
-        player, _ = models.Player.get_by_discord_id(discord_id=guild_matches[0].id, discord_name=guild_matches[0].name, discord_nick=guild_matches[0].nick, guild_id=ctx.guild.id)
-        if not player:
-            # Matching guild member but no Player or DiscordMember
-            return await ctx.send(f'*{guild_matches[0].name}* was found in the server but is not registered with me. '
-                f'Players can register themselves with `{ctx.prefix}setcode POLYTOPIA_CODE`.')
-
-        if not player.discord_member.polytopia_id:
-            return await ctx.send(f'**{player.name}** does not have a Polytopia game code on file. Use `{ctx.prefix}setcode` to set one.')
-
-        if inactive_role and inactive_role in guild_matches[0].roles:
-            return await ctx.send(f'**{player.name}** has the inactive role *{inactive_role.name}* - cannot join them to a game until the role is removed. The role will be removed if they use the `{ctx.prefix}join` command themselves.')
-
-        if player.is_banned or player.discord_member.is_banned:
-            if settings.is_mod(ctx):
-                await ctx.send(f'**{player.name}** has been **ELO Banned** -- *moderator over-ride* :thinking:')
-            else:
-                return await ctx.send(f'**{player.name}** has been **ELO Banned** and cannot join any new games. :cry:')
-
-        if game.has_player(player)[0]:
-            return await ctx.send(f'**{player.name}** is already in game {game.id}. If you are trying to change sides, use `{ctx.prefix}leave {game.id}` first.')
-
-        if game.is_hosted_by(player.discord_member.discord_id)[0] and side.position != 1:
-            await ctx.send('**Warning:** Since you are not joining side 1 you will not be the game creator.')
-
-        _, game_size = game.capacity()
-        game_allowed, join_error_message = settings.can_user_join_game(user_level=settings.get_user_level(ctx), game_size=game_size, is_ranked=game.is_ranked, is_host=False)
-        if not game_allowed:
-            return await ctx.send(join_error_message)
-
-        # if settings.get_user_level(ctx) <= 1:
-        #     if (game.is_ranked and game_size) > 3 or (not game.is_ranked and game_size > 6):
-        #         return await ctx.send(f'You are a restricted user (*level 1*) - complete a few more ELO games to have more permissions.\n{settings.levels_info}')
-        # elif settings.get_user_level(ctx) <= 2:
-        #     if (game.is_ranked and game_size) > 6 or (not game.is_ranked and game_size > 12):
-        #         return await ctx.send(f'You are a restricted user (*level 2*) - complete a few more ELO games to have more permissions.\n{settings.levels_info}')
-
-        notes = game.notes if game.notes else ''
-        (min_elo, max_elo, min_elo_g, max_elo_g) = game.elo_requirements()
-
-        if player.elo < min_elo or player.elo > max_elo:
-            if not game.is_hosted_by(ctx.author.id)[0] and not settings.is_mod(ctx):
-                return await ctx.send(f'This game has an ELO restriction of {min_elo} - {max_elo} and **{player.name}** has an ELO of **{player.elo}**. Cannot join! :cry:')
-            await ctx.send(f'This game has an ELO restriction of {min_elo} - {max_elo}. Bypassing because you are game host or a mod.')
-
-        if player.discord_member.elo < min_elo_g or player.discord_member.elo > max_elo_g:
-            if not game.is_hosted_by(ctx.author.id)[0] and not settings.is_mod(ctx):
-                return await ctx.send(f'This game has a global ELO restriction of {min_elo_g} - {max_elo_g} and **{player.name}** has a global ELO of **{player.discord_member.elo}**. Cannot join! :cry:')
-            await ctx.send(f'This game has an ELO restriction of {min_elo_g} - {max_elo_g}. Bypassing because you are game host or a mod.')
-
-        # list of ID strings that are allowed to join game, e.g. ['272510639124250625', '481527584107003904']
-        player_restricted_list = re.findall(r'<@!?(\d+)>', notes)
-
-        if player_restricted_list and str(player.discord_member.discord_id) not in player_restricted_list and (len(player_restricted_list) >= game_size - 1):
-            # checking length of player_restricted_list compared to game capacity.. only using restriction if capacity is at least game_size - 1
-            # if its game_size - 1, assuming that the host is the 'other' person
-            # this isnt really ideal.. could have some games where the restriction should be honored but people are allowed to join.. but better than making the lock too restrictive
-            return await ctx.send(f'Game {game.id} is limited to specific players. You are not allowed to join. See game notes for details: `{ctx.prefix}game {game.id}`')
-
-        logger.info(f'Checks passed. Joining player {player.discord_member.discord_id} to side {side.position} of game {game.id}')
-
-        with models.db.atomic():
-            models.Lineup.create(player=player, game=game, gameside=side)
-            player.team = player_team  # update player record with detected team in case its changed since last game.
-            logger.debug(f'Associating team {player_team} with player {player.id} {player.name}')
-            player.save()
-        await ctx.send(f'Joining <@{player.discord_member.discord_id}> to side {side.position} of game {game.id}')
-        models.GameLog.write(game_id=game, guild_id=ctx.guild.id, message=f'Side {side.position} joined by {models.GameLog.member_string(player.discord_member)} {log_by_str}')
+        embed, content = game.embed(guild=ctx.guild, prefix=ctx.prefix)
         players, capacity = game.capacity()
         if players >= capacity:
             creating_player = game.creating_player()
-            await ctx.send(f'Game {game.id} is now full and <@{creating_player.discord_member.discord_id}> should create the game in Polytopia.')
+            await ctx.send(f'Game {game.id} is now full and {creating_player.mention()} should create the game in Polytopia.')
 
             if game.host and game.host != creating_player:
-                await ctx.send(f'Matchmaking host <@{game.host.discord_member.discord_id}> is not the game creator.')
-
-        embed, content = game.embed(guild=ctx.guild, prefix=ctx.prefix)
-        await ctx.send(embed=embed, content=content)
+                await ctx.send(f'Matchmaking host {game.host.discord_member.mention()} is not the game creator.')
+            await ctx.send(embed=embed, content=content)
+        else:
+            await ctx.send(embed=embed)
+        await ctx.send(message_str)
 
         # Alert user if they have >1 games ready to start
         waitlist_hosting = [f'{g.id}' for g in models.Game.search_pending(status_filter=1, guild_id=ctx.guild.id, host_discord_id=ctx.author.id)]
@@ -538,7 +682,7 @@ class matchmaking(commands.Cog):
 
         if game.is_hosted_by(ctx.author.id)[0]:
 
-            if settings.get_user_level(ctx) < 4:
+            if settings.get_user_level(ctx.author) < 4:
                 return await ctx.send('You do not have permissions to leave your own match.\n'
                     f'If you want to delete use `{ctx.prefix}delete {game.id}`')
 
@@ -571,7 +715,7 @@ class matchmaking(commands.Cog):
         if not notes:
             return await ctx.send(f'Include new note or *none* to delete existing note. Usage: `{ctx.prefix}{ctx.invoked_with} {game.id} These are my new notes`')
 
-        if not game.is_hosted_by(ctx.author.id)[0] and not settings.is_staff(ctx):
+        if not game.is_hosted_by(ctx.author.id)[0] and not settings.is_staff(ctx.author):
             return await ctx.send(f'Only the game host or server staff can do this.')
 
         if notes.lower() == 'none':
@@ -579,7 +723,7 @@ class matchmaking(commands.Cog):
 
         if game.is_completed:
             return await ctx.send('This game is completed and notes cannot be edited.')
-        elif not game.is_pending and not settings.is_staff(ctx):
+        elif not game.is_pending and not settings.is_staff(ctx.author):
             return await ctx.send(f'Only server staff can edit notes of an in-progress game.')
 
         game.notes = notes[:150] if notes else None
@@ -603,7 +747,7 @@ class matchmaking(commands.Cog):
         `[p]kick 25 koric`
         """
         is_hosted_by, host = game.is_hosted_by(ctx.author.id)
-        if not is_hosted_by and not settings.is_staff(ctx):
+        if not is_hosted_by and not settings.is_staff(ctx.author):
             host_name = f' **{host.name}**' if host else ''
             helper_role = settings.guild_setting(ctx.guild.id, 'helper_roles')[0]
 
@@ -643,16 +787,19 @@ class matchmaking(commands.Cog):
         `[p]opengames waiting` - Lists open games that are full but not yet started
         `[p]opengames all` - List all open games with open space, even games you cannot join due to restrictions
         `[p]opengames me` - List unstarted opengames that you have joined
-        You can also add keywords **ranked** or **unranked** to filter by those types of games.
+        You can also add keywords **ranked** or **unranked** or **steam** to filter by those types of games.
         """
-        models.Game.purge_expired_games()
+        # models.Game.purge_expired_games()
 
         ranked_filter, ranked_str = 2, ''
+        platform_filter = 2  # mobile==1. 0 is desktop and 2 is any
+        platform_str = ''
         filter_unjoinable, novas_only = False, False
         unjoinable_count = 0
         ranked_chan = settings.guild_setting(ctx.guild.id, 'ranked_game_channel')
         unranked_chan = settings.guild_setting(ctx.guild.id, 'unranked_game_channel')
-        user_level = settings.get_user_level(ctx)
+        steam_chan = settings.guild_setting(ctx.guild.id, 'steam_game_channel')
+        user_level = settings.get_user_level(ctx.author)
 
         if ctx.invoked_with == 'nova' and args and args[0] == 'games':
             # redirect '$nova games' to '$novagames'
@@ -664,6 +811,9 @@ class matchmaking(commands.Cog):
         elif ctx.channel.id == ranked_chan or any(arg.upper() == 'RANKED' for arg in args):
             ranked_filter = 1
             ranked_str = ' **ranked**'
+        elif ctx.channel.id == steam_chan or any(arg.upper() == 'STEAM' for arg in args):
+            platform_filter = 0
+            platform_str = ' **Steam**'
 
         if len(args) > 0 and args[0].upper() == 'WAITING':
             title_str = f'Open{ranked_str} games waiting to start'
@@ -671,10 +821,18 @@ class matchmaking(commands.Cog):
 
         elif len(args) > 0 and args[0].upper() == 'ME':
             title_str = f'Open games joined by **{ctx.author.name}**'
-            game_list = models.Game.search_pending(guild_id=ctx.guild.id, player_discord_id=ctx.author.id)
+            joined_list = models.Game.search_pending(guild_id=ctx.guild.id, player_discord_id=ctx.author.id)
+            hosting_list = models.Game.search_pending(status_filter=0, guild_id=ctx.guild.id, host_discord_id=ctx.author.id)
+            game_list = list(set(joined_list + hosting_list))
 
         elif ctx.invoked_with == 'novagames' or ctx.invoked_with == 'nova':
-            title_str = f'Current pending Nova League games\nUse `{ctx.prefix}games` to view all joinable games'
+            if len(args) > 0 and args[0].upper() == 'ALL':
+                filter_unjoinable = False
+                title_str = f'Current pending Nova games\nUse `{ctx.prefix}games` for all joinable games.'
+            else:
+                title_str = f'Current joinable Nova games\nUse `{ctx.prefix}novagames all` to view all Nova Games or `{ctx.prefix}games` for all joinable games.'
+                filter_unjoinable = True
+
             novas_only = True
             game_list = models.Game.search_pending(status_filter=2, guild_id=ctx.guild.id, ranked_filter=ranked_filter)
 
@@ -686,58 +844,67 @@ class matchmaking(commands.Cog):
                 filter_str = ' joinable'
                 filter_unjoinable = True
 
-            title_str = f'Current{filter_str}{ranked_str} open games with available spots'
-            game_list = models.Game.search_pending(status_filter=2, guild_id=ctx.guild.id, ranked_filter=ranked_filter)
+            title_str = f'Current{filter_str}{ranked_str}{platform_str} open games with available spots'
+            game_list = models.Game.search_pending(status_filter=2, guild_id=ctx.guild.id, ranked_filter=ranked_filter, platform_filter=platform_filter)
 
         gamelist_fields = [(f'`{"ID":<8}{"Host":<40} {"Type":<7} {"Capacity":<7} {"Exp":>4}` ', '\u200b')]
 
-        for game in game_list:
+        async with ctx.typing():
+            for game in game_list:
 
-            notes_str = game.notes if game.notes else '\u200b'
-            players, capacity = game.capacity()
-            player_restricted_list = re.findall(r'<@!?(\d+)>', notes_str)
+                notes_str = game.notes if game.notes else '\u200b'
+                players, capacity = game.capacity()
+                player_restricted_list = re.findall(r'<@!?(\d+)>', notes_str)
 
-            if filter_unjoinable and not game.has_player(discord_id=ctx.author.id)[0]:
+                if filter_unjoinable and not game.has_player(discord_id=ctx.author.id)[0]:
 
-                game_allowed, _ = settings.can_user_join_game(user_level=user_level, game_size=capacity, is_ranked=game.is_ranked, is_host=False)
-                if not game_allowed:
-                    # skipping games that user level restricts (ie joining a large ranked game for ELO Rookie/level 1)
-                    unjoinable_count += 1
-                    continue
-
-                if player_restricted_list and str(ctx.author.id) not in player_restricted_list and (len(player_restricted_list) >= capacity - 1):
-                    # skipping games that the command issuer is not invited to
-                    unjoinable_count += 1
-                    continue
-                open_side, _ = game.first_open_side(roles=[role.id for role in ctx.author.roles])
-                if not open_side:
-                    # skipping games that are role-locked that player doesn't have role for
-                    unjoinable_count += 1
-                    continue
-                player, _ = models.Player.get_by_discord_id(discord_id=ctx.author.id, discord_name=ctx.author.name, discord_nick=ctx.author.nick, guild_id=ctx.guild.id)
-                if player:
-                    # skip any games for which player does not meet ELO requirements, IF player is registered (unless ctx.author is already in game)
-                    (min_elo, max_elo, min_elo_g, max_elo_g) = game.elo_requirements()
-                    if player.elo < min_elo or player.elo > max_elo or player.discord_member.elo < min_elo_g or player.discord_member.elo > max_elo_g:
+                    game_allowed, _ = settings.can_user_join_game(user_level=user_level, game_size=capacity, is_ranked=game.is_ranked, is_host=False)
+                    if not game_allowed:
+                        # skipping games that user level restricts (ie joining a large ranked game for ELO Rookie/level 1)
                         unjoinable_count += 1
                         continue
 
-            if (novas_only and not game.notes) or (novas_only and game.notes and 'NOVA' not in game.notes.upper()):
-                # skip all non-nova league template games, (will also include anything with "nova" in the game notes)
-                unjoinable_count += 1
-                continue
+                    if player_restricted_list and str(ctx.author.id) not in player_restricted_list and (len(player_restricted_list) >= capacity - 1):
+                        # skipping games that the command issuer is not invited to
+                        unjoinable_count += 1
+                        continue
+                    open_side, _ = game.first_open_side(roles=[role.id for role in ctx.author.roles])
+                    if not open_side:
+                        # skipping games that are role-locked that player doesn't have role for
+                        unjoinable_count += 1
+                        continue
+                    player, _ = models.Player.get_by_discord_id(discord_id=ctx.author.id, discord_name=ctx.author.name, discord_nick=ctx.author.nick, guild_id=ctx.guild.id)
+                    if player:
+                        # skip any games for which player does not meet ELO requirements, IF player is registered (unless ctx.author is already in game)
+                        (min_elo, max_elo, min_elo_g, max_elo_g) = game.elo_requirements()
+                        if player.elo < min_elo or player.elo > max_elo or player.discord_member.elo < min_elo_g or player.discord_member.elo > max_elo_g:
+                            unjoinable_count += 1
+                            continue
+                        if game.is_mobile:
+                            if not player.discord_member.polytopia_id:
+                                unjoinable_count += 1
+                                continue
+                        else:
+                            if not player.discord_member.name_steam:
+                                unjoinable_count += 1
+                                continue
 
-            capacity_str = f' {players}/{capacity}'
-            expiration = int((game.expiration - datetime.datetime.now()).total_seconds() / 3600.0)
-            expiration = 'Exp' if expiration < 0 else f'{expiration}H'
-            ranked_str = '*Unranked*' if not game.is_ranked else ''
-            ranked_str = ranked_str + ' - ' if game.notes and ranked_str else ranked_str
-            creating_player = game.creating_player()
-            host_name = creating_player.name[:35] if creating_player else '<Vacant>'
-            gamelist_fields.append((f'`{f"{game.id}":<8}{host_name:<40} {game.size_string():<7} {capacity_str:<7} {expiration:>5}`',
-                f'{ranked_str}{notes_str}\n \u200b'))
+                if (novas_only and not game.notes) or (novas_only and game.notes and 'NOVA' not in game.notes.upper()):
+                    # skip all non-nova league template games, (will also include anything with "nova" in the game notes)
+                    unjoinable_count += 1
+                    continue
 
-        if filter_unjoinable and unjoinable_count:
+                capacity_str = f' {players}/{capacity}'
+                expiration = int((game.expiration - datetime.datetime.now()).total_seconds() / 3600.0)
+                expiration = 'Exp' if expiration < 0 else f'{expiration}H'
+                ranked_str = '*Unranked*' if not game.is_ranked else ''
+                ranked_str = ranked_str + ' - ' if game.notes and ranked_str else ranked_str
+                creating_player = game.creating_player()
+                host_name = creating_player.name[:35] if creating_player else '<Vacant>'
+                gamelist_fields.append((f'`{f"{game.id}":<8}{host_name:<40} {game.size_string():<7} {capacity_str:<7} {expiration:>5}`',
+                    f'{game.platform_emoji()} {ranked_str}{notes_str}\n \u200b'))
+
+        if filter_unjoinable and unjoinable_count and not novas_only:
             if unjoinable_count == 1:
                 title_str = title_str + f'\n1 game that you cannot join was filtered. See `{ctx.prefix}{ctx.invoked_with} all` for an unfiltered list.'
             else:
@@ -745,7 +912,7 @@ class matchmaking(commands.Cog):
 
         title_str_full = title_str + f'\nUse __`{ctx.prefix}join ID`__ to join one or __`{ctx.prefix}game ID`__ for more details.'
 
-        self.bot.loop.create_task(utilities.paginate(self.bot, ctx, title=title_str_full, message_list=gamelist_fields, page_start=0, page_end=15, page_size=15))
+        self.bot.loop.create_task(utilities.paginate(self.bot, ctx, title=title_str_full[:255], message_list=gamelist_fields, page_start=0, page_end=15, page_size=15))
         # paginator done as a task because otherwise it will not let the waitlist message send until after pagination is complete (20+ seconds)
 
         # Alert user if a game they are hosting OR should be creating is waiting to be created
@@ -778,7 +945,7 @@ class matchmaking(commands.Cog):
             return await ctx.send(f'No game ID provided. Use `{ctx.prefix}opengames me` to list open games you have waiting to start.\n{syntax}')
 
         is_hosted_by, host = game.is_hosted_by(ctx.author.id)
-        if not is_hosted_by and not settings.is_staff(ctx) and not game.is_created_by(ctx.author.id):
+        if not is_hosted_by and not settings.is_staff(ctx.author) and not game.is_created_by(ctx.author.id):
             creating_player = game.creating_player()
             helper_role = settings.guild_setting(ctx.guild.id, 'helper_roles')[0]
 
@@ -798,7 +965,7 @@ class matchmaking(commands.Cog):
             return await ctx.send(f'Game name is required. The game must be created **in Polytopia** first to get the correct name.\n{syntax}')
 
         if not utilities.is_valid_poly_gamename(input=name):
-            if settings.get_user_level(ctx) <= 2:
+            if settings.get_user_level(ctx.author) <= 3:
                 return await ctx.send('That name looks made up. :thinking: You need to manually create the game __in Polytopia__, come back and input the name of the new game you made.\n'
                     f'You can use `{ctx.prefix}codes {game.id}` to get the code of each player in this game in an easy-to-copy format.')
             await ctx.send(f'*Warning:* That game name looks made up - you are allowed to override due to your user level.')
@@ -828,7 +995,7 @@ class matchmaking(commands.Cog):
                                                                 guild_id=ctx.guild.id,
                                                                 require_teams=settings.guild_setting(ctx.guild.id, 'require_teams'))
         except (peewee.PeeweeException, exceptions.CheckFailedError) as e:
-            logger.warn(f'Error creating new game: {e}')
+            logger.warning(f'Error creating new game: {e}')
             return await ctx.send(f'Error creating new game: {e}')
 
         with models.db.atomic():
@@ -845,7 +1012,9 @@ class matchmaking(commands.Cog):
                     squad = models.Squad.upsert(player_list=side_players, guild_id=ctx.guild.id)
                     side.squad = squad
 
-                side.team = allied_team
+                if not side.team:
+                    # skips setting team if side.team is already set, via $opengames preset_teams list
+                    side.team = allied_team
                 side.save()
 
             game.name = name
@@ -855,6 +1024,7 @@ class matchmaking(commands.Cog):
 
         logger.info(f'Game {game.id} closed and being tracked for ELO')
         models.GameLog.write(game_id=game, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} started game with name *{discord.utils.escape_markdown(game.name)}*')
+        await game.update_external_broadcasts(deleted=False)
         await post_newgame_messaging(ctx, game=game)
 
     async def task_dm_game_creators(self):
@@ -866,7 +1036,7 @@ class matchmaking(commands.Cog):
             full_games = models.Game.search_pending(status_filter=1, ranked_filter=1)
             logger.debug(f'Starting task_dm_game_creators on {len(full_games)} games')
             for game in full_games:
-                guild = discord.utils.get(self.bot.guilds, id=game.guild_id)
+                guild = self.bot.get_guild(game.guild_id)
                 creating_player = game.creating_player()
                 # TOOD: only trigger if game is <23hours til expiration
                 if not guild:
@@ -875,7 +1045,7 @@ class matchmaking(commands.Cog):
 
                 creating_guild_member = guild.get_member(creating_player.discord_member.discord_id)
                 if not creating_guild_member:
-                    logger.warn(f'Couldnt load creator for game {game.id} in server {guild.name}. Maybe they left the server?')
+                    logger.warning(f'Couldnt load creator for game {game.id} in server {guild.name}. Maybe they left the server?')
                     continue
 
                 bot_channel = settings.guild_setting(guild.id, 'bot_channels_strict')[0]
@@ -892,7 +1062,7 @@ class matchmaking(commands.Cog):
                     await creating_guild_member.send('I do not respond to DMed commands. You must issue commands in the channel linked above.')
                     logger.info(f'Sending reminder DM to {creating_guild_member.name} {creating_guild_member.id} to start game {game.id}')
                 except discord.DiscordException as e:
-                    logger.warn(f'Error DMing creator of waiting game: {e}')
+                    logger.warning(f'Error DMing creator of waiting game: {e}')
 
     async def task_create_empty_matchmaking_lobbies(self):
         # Keep open games list populated with vacant lobbies as specified in settings.lobbies
@@ -921,9 +1091,9 @@ class matchmaking(commands.Cog):
 
                 if not matching_lobby:
                     logger.info(f'creating new lobby {lobby}')
-                    guild = discord.utils.get(self.bot.guilds, id=lobby['guild'])
+                    guild = self.bot.get_guild(lobby['guild'])
                     if not guild:
-                        logger.warn(f'Bot not a member of guild {lobby["guild"]}')
+                        logger.warning(f'Bot not a member of guild {lobby["guild"]}')
                         continue
                     expiration_hours = lobby.get('exp', 30)
                     expiration_timestamp = (datetime.datetime.now() + datetime.timedelta(hours=expiration_hours)).strftime("%Y-%m-%d %H:%M:%S")
@@ -933,14 +1103,14 @@ class matchmaking(commands.Cog):
                                                       guild_id=lobby['guild'], is_pending=True,
                                                       is_ranked=lobby['ranked'], expiration=expiration_timestamp, size=lobby['size'])
                         notes_str = f'*{discord.utils.escape_markdown(opengame.notes)}*' if opengame.notes else ''
-                        models.GameLog.write(game_id=opengame, guild_id=guild.id, message=f'I created an empty {lobby["size_str"]} lobby. {notes_str}')
+                        models.GameLog.write(game_id=opengame, guild_id=guild.id, message=f'I created an {"unranked" if not lobby["ranked"] else ""} empty {lobby["size_str"]} lobby. {notes_str}')
                         for count, size in enumerate(lobby['size']):
                             role_lock_id = role_locks[count]
                             role_lock_name = None
                             if role_lock_id:
-                                role_lock = discord.utils.get(guild.roles, id=role_lock_id)
+                                role_lock = guild.get_role(role_lock_id)
                                 if not role_lock:
-                                    logger.warn(f'Lock to role {role_lock_id} was specified, but that role is not found in guild {guild.id} {guild.name}')
+                                    logger.warning(f'Lock to role {role_lock_id} was specified, but that role is not found in guild {guild.id} {guild.name}')
                                     role_lock_id = None
                                 else:
                                     # successfully found role - using its ID to lock a side and its name for the role side
@@ -956,7 +1126,7 @@ class matchmaking(commands.Cog):
             await asyncio.sleep(5)
             logger.debug('Task running: task_print_matchlist')
             utilities.connect()
-            models.Game.purge_expired_games()
+            # models.Game.purge_expired_games()
             for guild in self.bot.guilds:
                 broadcast_channels = [guild.get_channel(chan) for chan in settings.guild_setting(guild.id, 'match_challenge_channels')]
                 if not broadcast_channels:
@@ -1008,12 +1178,60 @@ class matchmaking(commands.Cog):
                     try:
                         message = await chan.send(embed=embed, delete_after=sleep_cycle)
                     except discord.DiscordException as e:
-                        logger.warn(f'Error broadcasting game list: {e}')
+                        logger.warning(f'Error broadcasting game list: {e}')
                     else:
                         logger.info(f'Broadcast game list to channel {chan.id} in message {message.id}')
                         self.bot.purgable_messages = self.bot.purgable_messages[-20:] + [(guild.id, chan.id, message.id)]
 
             await asyncio.sleep(sleep_cycle)
+
+    @tasks.loop(seconds=30.0)
+    async def task_purge_expired_games(self):
+        await self.bot.wait_until_ready()
+        purge_deadline = (datetime.datetime.now() + datetime.timedelta(days=-3))
+        for guild in self.bot.guilds:
+            logger.debug(f'Running task_purge_expired_games for guild {guild.name}')
+            channel = self.bot.get_channel(settings.guild_setting(guild.id, 'game_announce_channel'))
+
+            old_expired_games = models.Game.select().where(
+                (models.Game.expiration < purge_deadline) & (models.Game.is_pending == 1) & (models.Game.guild_id == guild.id)
+            )
+            # full expired games get another 3 days to be started
+
+            expired_but_not_full = models.Game.select().where(
+                (models.Game.expiration < datetime.datetime.now()) & (models.Game.id.in_(models.Game.subq_open_games_with_capacity(guild_id=guild.id))) & (models.Game.is_pending == 1)
+            )
+
+            for game in set(old_expired_games + expired_but_not_full):
+                await game.update_external_broadcasts(deleted=True)
+                creating_player = game.creating_player()
+                creating_member = creating_player.discord_member if creating_player else None
+                players, capacity = game.capacity()
+                mention_str = f'Notifying players: {" ".join(game.mentions())}'
+                if game.host and game.host != creating_player:
+                    host_str = f'(Matchmaking host {game.host.mention()})'
+                else:
+                    host_str = ''
+
+                if not players:
+                    log_str = f'Bot purged an empty pending game.'
+                    announce_str = ''
+                elif players >= capacity:
+                    log_str = f'Bot purged a {"ranked" if game.is_ranked else ""} full pending game because {models.GameLog.member_string(creating_member)} did not start it.'
+                    announce_str = f'Purging expired game {game.id}. This game was full but {creating_member.mention()} never `start`-ed it. :rage:\n{mention_str} {host_str}'
+                else:
+                    hosted_by_str = f'hosted by {models.GameLog.member_string(creating_member)}' if creating_member else ''
+                    log_str = f'Bot purged a {"ranked" if game.is_ranked else ""} pending game {hosted_by_str} because it did not fill in time.'
+                    announce_str = f'Purging expired game {game.id}. This game did not fill prior to expiration.\n{mention_str} {host_str}'
+
+                models.GameLog.write(game_id=game, guild_id=guild.id, message=log_str)
+                if channel and announce_str:
+                    try:
+                        await channel.send(announce_str)
+                    except discord.DiscordException as e:
+                        logger.warning(f'could not send in task_purge_expired_games: {e}')
+
+                game.delete_game()
 
 
 def setup(bot):

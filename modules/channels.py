@@ -17,7 +17,7 @@ def generate_channel_name(game, team_name: str = None):
 
     if not game_name:
         game_name = 'No Name'
-        logger.warn(f'No game name passed to generate_channel_name for game {game_id}')
+        logger.warning(f'No game name passed to generate_channel_name for game {game_id}')
     if not team_name:
         logger.info(f'No team name passed to generate_channel_name for game {game_id}')
         team_name = ''
@@ -39,7 +39,7 @@ def get_channel_category(guild, team_name: str = None, using_team_server_flag: b
     list_of_generic_team_names = [a[0] for a in settings.generic_teams_long] + [a[0] for a in settings.generic_teams_short]
 
     if guild.me.guild_permissions.manage_channels is not True:
-        logger.warn('manage_channels permission is false.')  # TODO: change this to see if bot has this perm in the category it selects
+        logger.warning('manage_channels permission is false.')  # TODO: change this to see if bot has this perm in the category it selects
         # return None, None
 
     if team_name:
@@ -49,14 +49,14 @@ def get_channel_category(guild, team_name: str = None, using_team_server_flag: b
             if 'polychamp' in cat.name.lower() and team_name_lc in cat.name.lower():
                 logger.debug(f'Using {cat.id} - {cat.name} as a team channel category')
                 if len(cat.channels) >= 50:
-                    logger.warn(f'Chosen category is full - falling back')
+                    logger.warning(f'Chosen category is full - falling back')
                     continue
                 return cat, True
         for cat in guild.categories:
             if team_name_lc in cat.name.lower():
                 logger.debug(f'Using {cat.id} - {cat.name} as a team channel category')
                 if len(cat.channels) >= 50:
-                    logger.warn(f'Chosen category is full - falling back')
+                    logger.warning(f'Chosen category is full - falling back')
                     continue
                 return cat, True
         if team_name in list_of_generic_team_names and using_team_server_flag:
@@ -64,7 +64,7 @@ def get_channel_category(guild, team_name: str = None, using_team_server_flag: b
                 if 'polychamp' in cat.name.lower() and 'other' in cat.name.lower():
                     logger.debug(f'Mixed team - Using {cat.id} - {cat.name} as a team channel category')
                     if len(cat.channels) >= 50:
-                        logger.warn(f'Chosen category is full - falling back')
+                        logger.warning(f'Chosen category is full - falling back')
                         continue
                     return cat, True
 
@@ -74,11 +74,11 @@ def get_channel_category(guild, team_name: str = None, using_team_server_flag: b
 
         chan_category = discord.utils.get(guild.categories, id=int(game_channel_category))
         if chan_category is None:
-            logger.warn(f'chans_category_id {game_channel_category} was supplied but cannot be loaded')
+            logger.warning(f'chans_category_id {game_channel_category} was supplied but cannot be loaded')
             continue
 
         if len(chan_category.channels) >= 50:
-            logger.warn(f'chans_category_id {game_channel_category} was supplied but is full')
+            logger.warning(f'chans_category_id {game_channel_category} was supplied but is full')
             continue
 
         logger.debug(f'using {chan_category.id} - {chan_category.name} for channel category')
@@ -132,6 +132,15 @@ async def create_game_channel(guild, game, player_list, team_name: str = None, u
     return new_chan
 
 
+async def add_member_to_channel(channel, member):
+    # Specifically add one given DiscordMember to a channel's permission overwrites
+    # used when a player rejoins a server with games pending to get re-added to the channels
+    overwrites = channel.overwrites
+    overwrites[member] = discord.PermissionOverwrite(read_messages=True, add_reactions=True, send_messages=True, attach_files=True, manage_messages=True)
+
+    await channel.edit(overwrites=overwrites)
+
+
 async def greet_game_channel(guild, chan, roster_names, game, player_list, full_game: bool = False):
 
     chan_mentions = [f'<@{p.discord_member.discord_id}>' for p in player_list]
@@ -166,11 +175,11 @@ async def delete_game_channel(guild, channel_id: int):
     try:
         chan = await settings.bot.fetch_channel(channel_id)
     except discord.DiscordException as e:
-        logger.warn(f'Could not retrieve channel with id {channel_id}: {e}')
+        logger.warning(f'Could not retrieve channel with id {channel_id}: {e}')
         return
 
     try:
-        logger.warn(f'Deleting channel {chan.name}')
+        logger.warning(f'Deleting channel {chan.name}')
         await chan.delete(reason='Game concluded')
     except discord.DiscordException as e:
         logger.error(f'Could not delete channel: {e}')
@@ -179,7 +188,7 @@ async def delete_game_channel(guild, channel_id: int):
 async def send_message_to_channel(guild, channel_id: int, message: str, suppress_errors=True):
     chan = guild.get_channel(channel_id)
     if chan is None:
-        logger.warn(f'Channel ID {channel_id} provided for message but it could not be loaded from guild')
+        logger.warning(f'Channel ID {channel_id} provided for message but it could not be loaded from guild')
         if suppress_errors:
             return
         raise exceptions.CheckFailedError(f':no_entry_sign: Channel `{channel_id}` provided for message but it could not be loaded from guild')
@@ -195,7 +204,7 @@ async def send_message_to_channel(guild, channel_id: int, message: str, suppress
 async def update_game_channel_name(guild, channel_id: int, game, team_name: str = None):
     chan = guild.get_channel(channel_id)
     if chan is None:
-        return logger.warn(f'Channel ID {channel_id} provided for update but it could not be loaded from guild')
+        return logger.warning(f'Channel ID {channel_id} provided for update but it could not be loaded from guild')
 
     game_id, game_name = game.id, game.name
 

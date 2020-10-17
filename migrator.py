@@ -56,7 +56,10 @@ db.connect(reuse_if_open=True)
 # team_elo_after_game_alltime = SmallIntegerField(default=None, null=True)
 # size = ArrayField(SmallIntegerField, default=0)
 # game_id = SmallIntegerField(null=True, default=12587)
-is_protected = BooleanField(default=False)
+# is_protected = BooleanField(default=False)
+# name_steam = TextField(unique=False, null=True)
+# is_mobile = BooleanField(default=True)
+name = TextField(null=False, default='')
 
 migrate(
     # migrator.add_column('discordmember', 'elo_max', elo_max),
@@ -76,7 +79,9 @@ migrate(
     # migrator.add_column('lineup', 'elo_after_game_global', elo_after_game_global),
     # migrator.add_column('gameside', 'team_elo_after_game', team_elo_after_game),
     # migrator.add_column('gameside', 'team_elo_after_game_alltime', team_elo_after_game_alltime)
-    migrator.add_column('gamelog', 'is_protected', is_protected),
+    # migrator.add_column('gamelog', 'is_protected', is_protected),
+    # migrator.add_column('discordmember', 'name_steam', name_steam),
+    migrator.add_column('squad', 'name', name)
     # migrator.drop_column('gamelog', 'game_id'),
     # migrator.alter_column_type('gamelog', 'game_id', ForeignKeyField(Game))
     # migrator.drop_constraint('gamelog', 'gamelog_game_id_fkey')

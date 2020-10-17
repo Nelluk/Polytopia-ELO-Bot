@@ -28,7 +28,7 @@ def guild_role_by_name(guild, name: str, allow_partial: bool = False):
     return discord.utils.find(lambda r: name.upper() == r.name.upper(), guild.roles)
 
 
-async def buffered_send(destination, content, max_length=2000):
+async def buffered_send(destination, content, max_length=2000, allowed_mentions=None):
     # use to replace await ctx.send(message) if message could potentially be over the Discord limit of 2000 characters
     # will split message by \n characters and send in chunks up to max_length size
 
@@ -37,10 +37,22 @@ async def buffered_send(destination, content, max_length=2000):
     paginator = commands.Paginator(prefix='', suffix='', max_size=max_length)
 
     for line in content.split('\n'):
-        paginator.add_line(line)
+        logger.debug(f'adding line to buffered_send: {line}')
+        paginator.add_line(line[:max_length - 2])
 
     for page in paginator.pages:
-        await destination.send(page)
+        logger.debug(f'sending page with buffered_send: {page}')
+        await destination.send(page, allowed_mentions=allowed_mentions)
+
+
+async def send_to_log_channel(guild, message):
+
+    logger.debug(f'Sending log message to log_channel: {message}')
+    staff_output_channel = guild.get_channel(settings.guild_setting(guild.id, 'log_channel'))
+    if not staff_output_channel:
+        logger.warning(f'Could not load log_channel for server {guild.id} - skipping')
+    else:
+        await buffered_send(destination=staff_output_channel, content=message)
 
 
 def escape_role_mentions(input: str):
@@ -144,7 +156,7 @@ def get_matching_roles(discord_member, list_of_role_names):
     return set(member_roles).intersection(list_of_role_names)
 
 
-def summarize_game_list(games_query):
+def summarize_game_list(games_query, player_discord_id: int = None):
     # Turns a list/query-result of several games (or GameSide) into a List of Tuples that can be sent to the pagination function
     # ie. [('Game 330   :nauseated_face: DrippyIsGod vs Nelluk :spy: Mountain Of Songs', '2018-10-05 - 1v1 - WINNER: Nelluk')]
     game_list = []
@@ -152,6 +164,7 @@ def summarize_game_list(games_query):
     # for counter, game in enumerate(games_query):
     # for game in peewee.prefetch(games_query, models.GameSide):
     for game in games_query:
+        channel_link = ''
         if isinstance(game, models.GameSide):
             game = game.game  # In case a list of GameSide is passed instead of a list of Games
 
@@ -170,9 +183,16 @@ def summarize_game_list(games_query):
                 status_str = f'**WINNER:** {game.winner.name()}'
 
         rank_str = 'Unranked - ' if not game.is_ranked else ''
+        platform_str = '' if game.is_mobile else f'{game.platform_emoji()} - '
+
+        if player_discord_id:
+            _, gameside = game.has_player(discord_id=player_discord_id)
+            if gameside and gameside.team_chan:
+                channel_link = f'\n<#{gameside.team_chan}>'
+
         game_list.append((
             f'{game.get_headline()}'[:255],
-            f'{(str(game.date))} - {rank_str}{game.size_string()} - {status_str}'
+            f'{(str(game.date))} - {platform_str}{rank_str}{game.size_string()} - {status_str}{channel_link}'
         ))
         # logger.debug(f'Parsed game {game_list[-1]}')
     return game_list
@@ -272,7 +292,7 @@ def export_player_data(player_list, member_list):
             p_record = player.get_record()
             dm_record = dm.get_record()
 
-            recent_games = player.games_played(in_days=14).count()
+            recent_games = dm.games_played(in_days=14).count()
 
             row = [player.name, dm.discord_id, player.team.name if player.team else '', player.elo, player.elo_max,
                    dm.elo, dm.elo_max, f'{p_record[0]} / {p_record[1]}', f'{dm_record[0]} / {dm_record[1]}',
@@ -313,7 +333,7 @@ async def paginate(bot, ctx, title, message_list, page_start=0, page_end=10, pag
             try:
                 await reaction.remove(user)
             except (discord.ext.commands.errors.CommandInvokeError, discord.errors.Forbidden):
-                logger.warn('Unable to remove message reaction due to insufficient permissions. Giving bot \'Manage Messages\' permission will improve usability.')
+                logger.warning('Unable to remove message reaction due to insufficient permissions. Giving bot \'Manage Messages\' permission will improve usability.')
             await sent_message.edit(embed=embed)
 
         def check(reaction, user):
@@ -332,7 +352,7 @@ async def paginate(bot, ctx, title, message_list, page_start=0, page_end=10, pag
             try:
                 await sent_message.clear_reactions()
             except (discord.ext.commands.errors.CommandInvokeError, discord.errors.Forbidden):
-                logger.warn('Unable to clear message reaction due to insufficient permissions. Giving bot \'Manage Messages\' permission will improve usability.')
+                logger.warning('Unable to clear message reaction due to insufficient permissions. Giving bot \'Manage Messages\' permission will improve usability.')
             finally:
                 break
         else:
