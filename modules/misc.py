@@ -25,38 +25,17 @@ class misc(commands.Cog):
 
     @commands.command(hidden=True, aliases=['ts', 'blah'])
     @commands.is_owner()
-    async def test(self, ctx, *, args=None):
-        bot_members = models.DiscordMember.select().where(
-            models.DiscordMember.discord_id.in_([settings.bot_id, settings.bot_id_beta])
-        )
-        print(len(bot_members))
-        bot_update1 = models.Player.update(elo=0, elo_max=0).where(models.Player.discord_member_id.in_(bot_members))
-        bot_update2 = models.DiscordMember.update(elo=0, elo_max=0).where(models.DiscordMember.id.in_(bot_members))
-        await ctx.send(f'Updating {bot_update1.execute()} bot Player records with 0 elo and {bot_update2.execute()} bot DiscordMember records with 0 elo.')
-        # DiscordMember.update(elo=1000, elo_max=1000).execute()
+    async def test(
+            self, ctx, top: str, bottom: str, left_im: str, right_im: str, *,
+            arrows: str):
+        """Create an arrow card.
 
-    @commands.command(hidden=True)
-    @commands.is_owner()
-    async def tshealth(self, ctx, *, args=None):
-        team_servers = models.Team.related_external_severs(ctx.guild.id)
-        for server in team_servers:
-            guild = self.bot.get_guild(server)
-            if not guild:
-                await ctx.send(f'no guild for id {server}')
-                continue
-            team_channel = discord.utils.get(guild.text_channels, name='polychamps-game-announcements')
-            if team_channel:
-                team_bot_member = guild.get_member(self.bot.user.id)
-                message = f'Channel found for {guild.name} <#{team_channel.id}>'
-                if not team_channel.permissions_for(team_bot_member).add_reactions:
-                    message += ' - No add reactions!'
-                if not team_channel.permissions_for(team_bot_member).send_messages:
-                    message += ' - No send messages!'
-                if not team_channel.permissions_for(team_bot_member).manage_messages:
-                    message += ' - No manage messages!'
-                await ctx.send(message)
-                continue
-            await ctx.send(f'No channel found for {guild.name}')
+        Example:
+        `[p]test PROMOTION HELPER https://picsum.photos/200 https://picsum.photos/300 l-#ff0000 r-#00ff00`
+        """
+        arrows = [arrow.split('-') for arrow in arrows.split(' ')]
+        fs = imgen.arrow_card(top, bottom, left_im, right_im, arrows)
+        await ctx.send(file=fs)
 
     @commands.command(usage=None)
     @settings.in_bot_channel_strict()
