@@ -835,13 +835,13 @@ class league(commands.Cog):
                         # passed name of team. use team image url.
                         return team_matches[0].image_url
                     else:
-                        raise ValueError(f'Two arguments must be either images or member mentions. ')
+                        raise ValueError(f'Cannot convert *{image_arg}* to an image.')
 
         try:
             left_image = await arg_to_image_url(args[2])
             right_image = await arg_to_image_url(args[3])
         except ValueError as e:
-            return await ctx.send(f'Cannot convert one of your arguments to an image. {e}\nMust be either an image URL, member name, or team name.')
+            return await ctx.send(f'Cannot convert one of your arguments to an image: {e}\nMust be an image URL, member name, or team name.')
 
         if ctx.invoked_with == 'promote':
             arrows = [['r', '#00ff00']]
