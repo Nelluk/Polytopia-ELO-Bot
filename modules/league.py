@@ -807,13 +807,13 @@ class league(commands.Cog):
         """
 
         import shlex
-        args = args.replace("'", "\\'").replace("“", "\"").replace("”", "\"")  # Escape single quotation marks for shlex.split() parsing
-        args = shlex.split(args) if args else []
+        args = args.replace("'", "\\'").replace("“", "\"").replace("”", "\"")  if args else '' # Escape single quotation marks for shlex.split() parsing
+        args = shlex.split(args)
         for arg in args:
             print(arg)
 
         if len(args) != 4:
-            return await ctx.send(f'Usage error (expected 4 arguments and found {len(args)})')
+            return await ctx.send(f'Usage error (expected 4 arguments and found {len(args)})\n**Example**: `{ctx.prefix}{ctx.invoked_with} "Top Text" "Bottom Text" @PromotedPlayer Ronin`')
 
         top_string = '' if args[0].upper() == 'NONE' else args[0]
         bottom_string = '' if args[1].upper() == 'NONE' else args[1]
