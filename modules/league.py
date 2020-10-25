@@ -823,17 +823,16 @@ class league(commands.Cog):
                 # passed raw image url
                 return image_arg
             else:
-                guild_matches = await utilities.get_guild_member(ctx, image_arg)
-                if len(guild_matches) == 1:
-                    # passed member mention. use profile picture/avatar
-                    # TODO: need to be more restrictive to make sure its a mention and not just a single member result
-                    # (example 'crawfish' might return a single player who has Crawfish in the name)
-                    return guild_matches[0].avatar_url_as(size=256, format='png')
+                team_matches = models.Team.get_by_name(team_name=image_arg, guild_id=ctx.guild.id, require_exact=False)
+                if len(team_matches) == 1:
+                    # passed name of team. use team image url.
+                    return team_matches[0].image_url
                 else:
-                    team_matches = models.Team.get_by_name(team_name=image_arg, guild_id=ctx.guild.id, require_exact=False)
-                    if len(team_matches) == 1:
-                        # passed name of team. use team image url.
-                        return team_matches[0].image_url
+                    guild_matches = await utilities.get_guild_member(ctx, image_arg)
+                    if len(guild_matches) == 1:
+                        # passed member mention. use profile picture/avatar
+                        return guild_matches[0].avatar_url_as(size=256, format='png')
+
                     else:
                         raise ValueError(f'Cannot convert *{image_arg}* to an image.')
 
