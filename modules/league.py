@@ -785,7 +785,7 @@ class league(commands.Cog):
             await ctx.author.remove_roles(newbie_role, reason='Joining Novas')
 
     @commands.command(usage='', aliases=['trade'])
-    @settings.is_mod_check()
+    # @settings.is_mod_check()
     async def promote(self, ctx, *, args=None):
         """
         *Mod:* Generate a trade or promotion image
@@ -833,7 +833,7 @@ class league(commands.Cog):
                         # passed name of team. use team image url.
                         return team_matches[0].image_url
                     else:
-                        raise ValueErr0r(f'Two arguments must be either images or member mentions. ')
+                        raise ValueError(f'Two arguments must be either images or member mentions. ')
 
         left_image = await arg_to_image_url(args[2])
         right_image = await arg_to_image_url(args[3])
