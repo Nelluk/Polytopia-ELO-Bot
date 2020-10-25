@@ -28,6 +28,8 @@ class misc(commands.Cog):
     async def test(
             self, ctx, top: str, bottom: str, left_im: str, right_im: str, *,
             arrows: str):
+
+        import modules.imgen as imgen
         """Create an arrow card.
 
         Example:
@@ -35,6 +37,8 @@ class misc(commands.Cog):
         """
         arrows = [arrow.split('-') for arrow in arrows.split(' ')]
         fs = imgen.arrow_card(top, bottom, left_im, right_im, arrows)
+
+        fs = imgen.arrow_card('test top', 'test two words bottom', None, right_im, arrows)
         await ctx.send(file=fs)
 
     @commands.command(usage=None)

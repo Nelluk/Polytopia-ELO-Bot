@@ -784,6 +784,69 @@ class league(commands.Cog):
         if newbie_role:
             await ctx.author.remove_roles(newbie_role, reason='Joining Novas')
 
+    @commands.command(usage='', aliases=['trade'])
+    @settings.is_mod_check()
+    async def promote(self, ctx, *, args=None):
+        """
+        *Mod:* Generate a trade or promotion image
+
+        Requires four arguments:
+        - Top text (Use "quotation marks" if more than one word)
+        - Bottom text (same)
+        - Left box image
+        - Right box image
+
+        A box can be any one of the following:
+        - An image URL
+        - A member mention, which will use the member's avatar
+        - A team name, which will use the team image
+
+        **Examples**
+        `[p]promote Promotion "to Ronin" @nelluk Ronin`
+        `[p]trade "Bombers Trade" "With Crawfish" @jd @luna`
+        """
+
+        import shlex
+        args = args.replace("'", "\\'").replace("“", "\"").replace("”", "\"")  # Escape single quotation marks for shlex.split() parsing
+        args = shlex.split(args) if args else []
+        for arg in args:
+            print(arg)
+
+        if len(args) != 4:
+            return await ctx.send(f'Usage error (expected 4 arguments and found {len(args)})')
+
+        top_string = '' if args[0].upper() == 'NONE' else args[0]
+        bottom_string = '' if args[1].upper() == 'NONE' else args[1]
+
+        async def arg_to_image_url(image_arg: str):
+            if image_arg[:4] == 'http':
+                # passed raw image url
+                return image_arg
+            else:
+                guild_matches = await utilities.get_guild_member(ctx, image_arg)
+                if len(guild_matches) == 1:
+                    # passed member mention. use profile picture/avatar
+                    return guild_matches[0].avatar_url_as(size=256, format='png')
+                else:
+                    team_matches = models.Team.get_by_name(team_name=image_arg, guild_id=ctx.guild.id, require_exact=False)
+                    if len(team_matches) == 1:
+                        # passed name of team. use team image url.
+                        return team_matches[0].image_url
+                    else:
+                        raise ValueErr0r(f'Two arguments must be either images or member mentions. ')
+
+        left_image = await arg_to_image_url(args[2])
+        right_image = await arg_to_image_url(args[3])
+
+        if ctx.invoked_with == 'promote':
+            arrows = [['r', '#00ff00']]
+        else:
+            arrows = [['r', '#00ff00'], ['l', '#ff0000']]
+
+        print(left_image, right_image)
+        fs = imgen.arrow_card(top_string, bottom_string, left_image, right_image, arrows)
+        await ctx.send(file=fs)
+
     @commands.command(usage='@Draftee TeamName')
     @settings.is_mod_check()
     # @settings.in_bot_channel_strict()
