@@ -791,7 +791,7 @@ class league(commands.Cog):
         *Mod:* Generate a trade or promotion image
 
         Requires four arguments:
-        - Top text (Use "quotation marks" if more than one word)
+        - Top text (Use "quotation marks" if more than one word. Use 'none' to leave blank.)
         - Bottom text (same)
         - Left box image
         - Right box image
