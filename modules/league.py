@@ -826,6 +826,8 @@ class league(commands.Cog):
                 guild_matches = await utilities.get_guild_member(ctx, image_arg)
                 if len(guild_matches) == 1:
                     # passed member mention. use profile picture/avatar
+                    # TODO: need to be more restrictive to make sure its a mention and not just a single member result
+                    # (example 'crawfish' might return a single player who has Crawfish in the name)
                     return guild_matches[0].avatar_url_as(size=256, format='png')
                 else:
                     team_matches = models.Team.get_by_name(team_name=image_arg, guild_id=ctx.guild.id, require_exact=False)
@@ -835,8 +837,11 @@ class league(commands.Cog):
                     else:
                         raise ValueError(f'Two arguments must be either images or member mentions. ')
 
-        left_image = await arg_to_image_url(args[2])
-        right_image = await arg_to_image_url(args[3])
+        try:
+            left_image = await arg_to_image_url(args[2])
+            right_image = await arg_to_image_url(args[3])
+        except ValueError as e:
+            return await ctx.send(f'Cannot convert one of your arguments to an image. {e}\nMust be either an image URL, member name, or team name.')
 
         if ctx.invoked_with == 'promote':
             arrows = [['r', '#00ff00']]
