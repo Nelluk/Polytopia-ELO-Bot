@@ -208,7 +208,7 @@ class misc(commands.Cog):
         clean_message = utilities.escape_role_mentions(message)
         if len(list_of_players) > 100:
             await ctx.send(f'*Warning:* More than 100 unique players are addressed. Only the first 100 will be mentioned.')
-        await ctx.send(f'{title_str} for <@{target}>: *{clean_message}*')
+        await ctx.send(f'{title_str} for <@{target}> ({player_match.name}): *{clean_message}*')
 
         recipient_message = f'Message recipients: {" ".join(list_of_players[:100])}'
         await ctx.send(recipient_message[:2000])
@@ -216,7 +216,7 @@ class misc(commands.Cog):
         for game in game_list:
             logger.debug(f'Sending message to game channels for game {game.id} from {ctx.invoked_with}')
             models.GameLog.write(game_id=game, guild_id=ctx.guild.id, message=f'{log_message} *{discord.utils.escape_markdown(clean_message)}*')
-            await game.update_squad_channels(self.bot.guilds, game.guild_id, message=f'{title_str} for <@{target}>: *{clean_message}*')
+            await game.update_squad_channels(self.bot.guilds, game.guild_id, message=f'{title_str} for <@{target}> ({player_match.name}): *{clean_message}*')
 
     @commands.command(usage='game_id message')
     @models.is_registered_member()
