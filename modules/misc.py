@@ -27,6 +27,8 @@ class misc(commands.Cog):
     @commands.is_owner()
     async def test(self, ctx, *, args: str = None):
 
+        from modules import channels
+
         new_server = self.bot.get_guild(768501596354248704)
         old_server = self.bot.get_guild(573272736085049375)
 
