@@ -43,9 +43,11 @@ class misc(commands.Cog):
             if not old_chan:
                 logger.warning(f'TS: Could not load old channel for game {g.game_id}')
                 continue
-            new_chan = discord.utils.get(new_server.text_channels, name=old_chan.name)
+            # new_chan = discord.utils.get(new_server.text_channels, name=old_chan.name)
+            new_chan = discord.utils.find(lambda r: f'e{g.game_id}' in r.name, new_server.text_channels)
             if not new_chan:
-                logger.warning(f'TS: Could not find a new channel with matching name {old_chan.name}')
+                # logger.warning(f'TS: Could not find a new channel with matching name {old_chan.name}')
+                logger.warning(f'TS: Could not find a new channel with name that includes e{g.game_id}')
                 continue
 
             logger.debug(f'TS: Found NEW channel with name {new_chan.name} and should update game to match')
