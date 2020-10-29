@@ -54,7 +54,7 @@ class misc(commands.Cog):
 
                 try:
                     new_chan = await channels.create_game_channel(new_server, game=g.game, team_name=g.team.name, player_list=player_list, using_team_server_flag=True)
-                    logger.debug(f'TS: New channel created successfully {chan.id} {chan.name}')
+                    logger.debug(f'TS: New channel created successfully {new_chan.id} {new_chan.name}')
                 except exceptions.MyBaseException as e:
                     logger.debug(f'TS: Could not create channel: {e}')
                     new_chan = None
