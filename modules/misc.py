@@ -65,9 +65,20 @@ class misc(commands.Cog):
             g.team_chan = new_chan.id
             g.team_chan_external_server = new_server.id
             g.save()
+            logger.debug(f'TS: Channel migrated in database')
 
-            await old_chan.send(f'This channel is no longer an active ELO channel. Migrate your conversation to <#{new_chan.id}>')
-            await new_chan.send(f'This channel is now the active ELO channel for this game. :space_invader:')
+            try:
+                await old_chan.send(f'This channel is no longer an active ELO channel. Migrate your conversation to <#{new_chan.id}>')
+            except discord.DiscordException as e:
+                logger.debug(f'TS: Could not send message to old channel')
+
+            try:
+                await new_chan.send(f'This channel is now the active ELO channel for this game. :space_invader:')
+            except discord.DiscordException as e:
+                logger.debug(f'TS: Could not send message to new channel')
+
+            logger.debug(f'TS: Channel migrated in database')
+
 
     @commands.command(usage=None)
     @settings.in_bot_channel_strict()
