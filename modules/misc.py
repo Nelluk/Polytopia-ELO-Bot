@@ -53,15 +53,21 @@ class misc(commands.Cog):
                 player_list = [l.player for l in g.ordered_player_list()]
 
                 try:
-                    chan = await channels.create_game_channel(new_server, game=g.game, team_name=g.team.name, player_list=player_list, using_team_server_flag=True)
+                    new_chan = await channels.create_game_channel(new_server, game=g.game, team_name=g.team.name, player_list=player_list, using_team_server_flag=True)
                     logger.debug(f'TS: New channel created successfully {chan.id} {chan.name}')
                 except exceptions.MyBaseException as e:
                     logger.debug(f'TS: Could not create channel: {e}')
-                    chan = None
+                    new_chan = None
+                    continue
 
-                continue
 
             logger.debug(f'TS: Found NEW channel with name {new_chan.name} and should update game to match')
+            g.team_chan = new_chan.id
+            g.team_chan_external_server = new_server.id
+            g.save()
+
+            await old_chan.send(f'This channel is no longer an active ELO channel. Migrate your conversation to <#{new_chan.id}>')
+            await new_chan.send(f'This channel is now the active ELO channel for this game. :space_invader:')
 
     @commands.command(usage=None)
     @settings.in_bot_channel_strict()
