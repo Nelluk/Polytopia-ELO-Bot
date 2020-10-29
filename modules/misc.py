@@ -25,21 +25,30 @@ class misc(commands.Cog):
 
     @commands.command(hidden=True, aliases=['ts', 'blah'])
     @commands.is_owner()
-    async def test(
-            self, ctx, top: str, bottom: str, left_im: str, right_im: str, *,
-            arrows: str):
+    async def test(self, ctx, *, args: str = None):
 
-        import modules.imgen as imgen
-        """Create an arrow card.
+        new_server = self.bot.get_guild(768501596354248704)
+        old_server = self.bot.get_guild(573272736085049375)
 
-        Example:
-        `[p]test PROMOTION HELPER https://picsum.photos/200 https://picsum.photos/300 l-#ff0000 r-#00ff00`
-        """
-        arrows = [arrow.split('-') for arrow in arrows.split(' ')]
-        fs = imgen.arrow_card(top, bottom, left_im, right_im, arrows)
+        if not new_server or not old_server:
+            return logger.error('TS: Did not load both servers')
 
-        fs = imgen.arrow_card('test top', 'test two words bottom', None, right_im, arrows)
-        await ctx.send(file=fs)
+        games = models.GameSide.select().join(models.Game).where(
+            # incomplete games on old Cosmonauts server
+            (models.GameSide.team_chan_external_server == old_server.id) & (models.Game.is_completed == 0)
+        )
+
+        for g in games:
+            old_chan = old_server.get_channel(g.team_chan)
+            if not old_chan:
+                logger.warning(f'TS: Could not load old channel for game {g.game_id}')
+                continue
+            new_chan = discord.utils.get(new_server.text_channels, name=old_chan.name)
+            if not new_chan:
+                logger.warning(f'TS: Could not find a new channel with matching name {old_chan.name}')
+                continue
+
+            logger.debug(f'TS: Found NEW channel with name {new_chan.name} and should update game to match')
 
     @commands.command(usage=None)
     @settings.in_bot_channel_strict()
@@ -253,6 +262,9 @@ class misc(commands.Cog):
         except ValueError:
             game_id = None
             message = ' '.join(args)
+
+        # TODO:  should prioritize inferred game above an integer. currently something like '$ping 1 city island plz restart'
+        # will try to ping game ID #1 even if done within a game channel
 
         inferred_game = None
         if not game_id:
