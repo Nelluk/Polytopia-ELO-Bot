@@ -53,7 +53,7 @@ class misc(commands.Cog):
                 player_list = [l.player for l in g.ordered_player_list()]
 
                 try:
-                    chan = await channels.create_game_channel(new_server, game=g.game, team_name=gameside.team.name, player_list=player_list, using_team_server_flag=True)
+                    chan = await channels.create_game_channel(new_server, game=g.game, team_name=g.team.name, player_list=player_list, using_team_server_flag=True)
                     logger.debug(f'TS: New channel created successfully {chan.id} {chan.name}')
                 except exceptions.MyBaseException as e:
                     logger.debug(f'TS: Could not create channel: {e}')
