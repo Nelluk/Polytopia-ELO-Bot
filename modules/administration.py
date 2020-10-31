@@ -10,6 +10,7 @@ import asyncio
 import discord
 import re
 from modules.games import PolyGame, post_win_messaging
+import modules.achievements as achievements
 
 logger = logging.getLogger('polybot.' + __name__)
 elo_logger = logging.getLogger('polybot.elo')
@@ -849,6 +850,39 @@ class administration(commands.Cog):
 
         await utilities.buffered_send(destination=ctx, content=f'Kicking {total_kicked_count} inactive members. Of those, {team_kicked_count} had a team role, listed below:\n {" / ".join(team_kicked_list)}')
 
+    @commands.command(aliases=['boost_from_norole'])
+    @commands.is_owner()
+    async def boost_from(self, ctx, p_string: str):
+        """*Owner*: Award booster roles to a member who has donated
+        Use a @Mention or raw user ID as an argument. This will attempt to set the role on ALL servers the bot shares with the player.
+        It will look for a role that contains the word 'ELO' and 'BOOST' in the name. It will also mark the player as a booster in the database.
+
+        **Examples**
+        `[p]boost_from @FrontDoor Matt`
+
+        Use `[p]boost_from_norole` to skip the role setting (for the shy).
+        """
+
+        p_id = utilities.string_to_user_id(p_string)
+        if not p_id:
+            return await ctx.send(f'Could not parse a discord ID. Usage: `{ctx.prefix}{ctx.invoked_with} @BoostingUser`')
+
+        try:
+            dm = models.DiscordMember.select().where(models.DiscordMember.discord_id == p_id).get()
+        except peewee.DoesNotExist:
+            return await ctx.send(f'Could not find a DiscordMember in the database matching discord id `{p_id}`')
+
+        if ctx.invoked_with == 'boost_from_norole':
+            counter = 0
+        else:
+            counter = await achievements.award_booster_role(dm)
+
+        dm.boost_level = 1
+        dm.save()
+
+        await ctx.send(f'Marking **{dm.name}** as a booster and successfully applied the role across {counter} server(s).')
+
+
     @commands.command(aliases=['migrate'])
     @commands.is_owner()
     async def migrate_player(self, ctx, from_string: str, to_string: str):
@@ -856,7 +890,7 @@ class administration(commands.Cog):
         Target player cannot have any completed games associated with their profile. Use a @Mention or raw user ID as an argument.
 
         **Examples**
-        [p]migrate_player @NellukOld @NellukNew
+        `[p]migrate_player @NellukOld @NellukNew`
         """
 
         from_id, to_id = utilities.string_to_user_id(from_string), utilities.string_to_user_id(to_string)

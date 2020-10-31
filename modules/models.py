@@ -427,6 +427,15 @@ class DiscordMember(BaseModel):
 
         return query
 
+    def is_booster(self):
+        # boost_level default of None intended to be used in the future to indicate that they have not yet received a one-time advertising PM
+        # once it is sent set boost_level to 0
+
+        if self.boost_level:
+            return (True, self.boost_level)
+        else:
+            return (False, 0)
+
 
 class Player(BaseModel):
     discord_member = ForeignKeyField(DiscordMember, unique=False, null=False, backref='guildmembers', on_delete='CASCADE')

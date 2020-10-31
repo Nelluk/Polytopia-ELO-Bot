@@ -26,7 +26,7 @@ async def set_champion_role():
         logger.info(f'Attempting champion set for guild {guild.name}')
         role = discord.utils.get(guild.roles, name='ELO Champion')
         if not role:
-            logger.warn(f'Could not load ELO Champion role in guild {guild.name}')
+            logger.warning(f'Could not load ELO Champion role in guild {guild.name}')
             continue
 
         # local_champion = models.Player.select().where(models.Player.guild_id == guild.id).order_by(-models.Player.elo).limit(1).get()
@@ -50,7 +50,7 @@ async def set_champion_role():
                     await local_champion_member.add_roles(role, reason='Local champion')
                     log_message += f'{models.GameLog.member_string(local_champion_member)} given role for local **ELO Champion**\n'
             else:
-                logger.warn(f'Couldnt find local champion {local_champion} in guild {guild.name}!')
+                logger.warning(f'Couldnt find local champion {local_champion} in guild {guild.name}!')
 
             if global_champion_member:
                 if global_champion_member not in role.members:
@@ -58,15 +58,44 @@ async def set_champion_role():
                     await global_champion_member.add_roles(role, reason='Global champion')
                     log_message += f'{models.GameLog.member_string(global_champion_member)} given role for global **ELO Champion**\n'
             else:
-                logger.warn(f'Couldnt find global champion {global_champion.name} in guild {guild.name}!')
+                logger.warning(f'Couldnt find global champion {global_champion.name} in guild {guild.name}!')
         except discord.DiscordException as e:
-            logger.warn(f'Error during set_champion_role for guild {guild.id}: {e}')
+            logger.warning(f'Error during set_champion_role for guild {guild.id}: {e}')
             continue
 
         if log_message:
             await utilities.send_to_log_channel(guild, log_message)
             models.GameLog.write(guild_id=guild.id, message=log_message)
 
+
+async def award_booster_role(discord_member):
+    logger.info(f'awarding booster role for member {discord_member.name}')
+
+    counter = 0
+    for guildmember in list(discord_member.guildmembers):
+        guild = settings.bot.get_guild(guildmember.guild_id)
+        member = guild.get_member(discord_member.discord_id) if guild else None
+
+        if not member:
+            logger.debug(f'Skipping guild {guildmember.guild_id}, could not load both guild and its member object')
+            continue
+
+        boost_role = discord.utils.find(lambda r: 'ELO' in r.name.upper() and 'BOOSTER' in r.name.upper(), guild.roles)
+        if not boost_role:
+            logger.debug(f'Skipping guild {guildmember.guild_id}, could not load a matching booster role')
+            continue
+
+        logger.debug(f'Using boost_role {boost_role.name} for guild {guild.name}')
+
+        try:
+            await member.add_roles(boost_role)
+            logger.info(f'adding role {boost_role} to member {member}')
+            counter += 1
+        except discord.DiscordException as e:
+            logger.warning(f'Error during award_booster_role for guild {guild.id} member {member.display_name}: {e}')
+
+        logger.debug(f'Successfully awarded role in {counter} servers')
+        return counter
 
 async def set_experience_role(discord_member):
     logger.debug(f'processing experience role for member {discord_member.name}')
@@ -117,7 +146,7 @@ async def set_experience_role(discord_member):
                 await member.add_roles(role)
                 logger.info(f'adding role {role} to member {member}')
             except discord.DiscordException as e:
-                logger.warn(f'Error during set_experience_role for guild {guild.id} member {member.display_name}: {e}')
+                logger.warning(f'Error during set_experience_role for guild {guild.id} member {member.display_name}: {e}')
 
         max_local_elo = models.Player.select(peewee.fn.Max(models.Player.elo)).where(models.Player.guild_id == guild.id).scalar()
         max_global_elo = models.DiscordMember.select(peewee.fn.Max(models.DiscordMember.elo)).scalar()
