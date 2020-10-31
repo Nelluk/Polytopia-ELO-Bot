@@ -189,6 +189,7 @@ class DiscordMember(BaseModel):
     is_banned = BooleanField(default=False)
     timezone_offset = SmallIntegerField(default=None, null=True)
     date_polychamps_invite_sent = DateField(default=None, null=True)
+    boost_level = SmallIntegerField(default=None, null=True)
 
     def mention(self):
         return f'<@{self.discord_id}>'

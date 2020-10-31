@@ -120,7 +120,7 @@ class misc(commands.Cog):
         """
         Display development credits
         """
-        embed = discord.Embed(title=f'PolyELO Bot Donation Link', url='https://cash.me/$Nelluk/3')
+        embed = discord.Embed(title=f'Support this project', url='https://www.buymeacoffee.com/nelluk')
 
         embed.add_field(name='Developer', value='Nelluk')
         embed.add_field(name='Source code', value='https://github.com/Nelluk/Polytopia-ELO-Bot')
