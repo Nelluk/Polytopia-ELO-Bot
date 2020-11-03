@@ -1917,8 +1917,7 @@ class polygames(commands.Cog):
                         existing_lineup = l
                         break
                 if existing_lineup:
-                    await ctx.send(f'*{tribe.name}* has already been assigned to player **{l.player.name}** in this game.')
-                    continue
+                    await ctx.send(f':warning: *{tribe.name}* has already been assigned to player **{l.player.name}** in this game.')
 
             lineup_match = game.player(name=player_name)
 

@@ -97,6 +97,7 @@ async def award_booster_role(discord_member):
     logger.debug(f'Successfully awarded role in {counter} servers')
     return counter
 
+
 async def set_experience_role(discord_member):
     logger.debug(f'processing experience role for member {discord_member.name}')
     completed_games = discord_member.completed_game_count(only_ranked=False)
