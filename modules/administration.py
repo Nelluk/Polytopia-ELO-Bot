@@ -688,10 +688,11 @@ class administration(commands.Cog):
         except ValueError:
             return await ctx.send(f'Server ID was invalid.\nExample: `{ctx.prefix}team_server \"Team Name\" 447883341463814144` (Use the raw numeric ID of the team\'s server)')
 
+        old_server = str(team.external_server) if team.external_server else 'None'
         team.external_server = server_id
         team.save()
 
-        await ctx.send(f'Team **{team.name}** has been assigned an external server of `{server_id}`.')
+        await ctx.send(f'Team **{team.name}** has been assigned an external server of `{server_id}`. Previous value was `{old_server}`.')
 
     @commands.command(aliases=['deactivate'])
     @settings.is_mod_check()
