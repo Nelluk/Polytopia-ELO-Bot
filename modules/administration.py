@@ -668,6 +668,31 @@ class administration(commands.Cog):
 
         await ctx.send(f'Team **{old_name}** has been renamed to **{team.name}**.')
 
+    @commands.command(usage='team_name server_id')
+    @settings.is_mod_check()
+    @settings.guild_has_setting(setting_name='allow_teams')
+    async def team_server(self, ctx, team_name: str, team_server_id: str):
+        """*Mod*: Change a team's external server
+
+        **Example:**
+        `[p]team_server Ronin 572885616656908288`
+        """
+
+        try:
+            team = models.Team.get_or_except(team_name, ctx.guild.id)
+        except exceptions.NoSingleMatch as ex:
+            return await ctx.send(f'{ex}\nExample: `{ctx.prefix}team_server \"Team Name\" 447883341463814144` (Use the raw numeric ID of the team\'s server)')
+
+        try:
+            server_id = int(team_server_id)
+        except ValueError:
+            return await ctx.send(f'Server ID was invalid.\nExample: `{ctx.prefix}team_server \"Team Name\" 447883341463814144` (Use the raw numeric ID of the team\'s server)')
+
+        team.external_server = server_id
+        team.save()
+
+        await ctx.send(f'Team **{team.name}** has been assigned an external server of `{server_id}`.')
+
     @commands.command(aliases=['deactivate'])
     @settings.is_mod_check()
     @settings.on_polychampions()
