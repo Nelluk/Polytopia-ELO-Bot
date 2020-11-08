@@ -37,8 +37,9 @@ class misc(commands.Cog):
             if g.is_ranked:
                 output.append(f'COSMOSTS - Modifying game {g.id} - {g.name} - {g.notes} - {g.is_ranked}')
                 g.is_ranked = False
-                # g.notes = g.notes + ' - Set to unranked Nov 8 2020 for team cheating scandal'
-                # g.save()
+                g.notes = g.notes + ' - Set to unranked Nov 8 2020 for team cheating scandal'
+                g.save()
+                models.GameLog.write(game_id=g, guild_id=g.guild_id, message=f'Previously a ranked Season 6 or Season 7 win - changed to unranked as part of Cosmonauts team cheating scandal punishment.')
             else:
                 output.append(f'COSMOSTS - Skipping game {g.id} - Unranked (Already modified?)')
 
@@ -53,15 +54,40 @@ class misc(commands.Cog):
 
         for g in games_8:
             output.append(f'COSMOSTS - Found S8 game {g.id} - {g.name} - {g.notes} - {g.is_ranked}')
-
+            g.name = g.name.replace('Ps8W', 'Cancelled Season 8 Week ')
             if g in games_8_wins:
                 output.append(f'COSMOSTS - Winning game to unrank and de-tag')
+                g.is_ranked = False
+                g.notes = g.notes + ' - Previously a game from Season 8 - Set to unranked win Nov 8 2020 for team cheating scandal'
+                models.GameLog.write(game_id=g, guild_id=g.guild_id, message=f'Game renamed to *{g.name}* to remove it from Season 8 as part of Cosmonauts team cheating scandal punishment. Set to unranked as it was a win.')
             else:
-                output.append(f'COSMOSTS - Losing game to de-tag')
+                output.append(f'COSMOSTS - Losing or incomplete game to de-tag')
+                g.notes = g.notes + ' - Previously a game from Season 8 - Set to unranked win Nov 8 2020 for team cheating scandal'
+                models.GameLog.write(game_id=g, guild_id=g.guild_id, message=f'Game renamed to *{g.name}* to remove it from Season 8 as part of Cosmonauts team cheating scandal punishment.')
 
             logger.debug(output[-2:])
 
+            g.save()
+
+            await g.update_squad_channels(self.bot.guilds, ctx.guild.id)
+
         await utilities.buffered_send(destination=ctx, content="\n".join(output))
+
+    @commands.command(hidden=True)
+    @commands.is_owner()
+    async def reset_ts_from(self, ctx, *, arg: str = None):
+
+        import functools
+        game = models.Game.get_or_none(id=arg)
+        if not game:
+            return print('no game')
+
+        print(f'Loaded game {game.id}')
+        async with ctx.typing():
+            utilities.connect()
+            await self.bot.loop.run_in_executor(None, functools.partial(models.Game.recalculate_elo_since, timestamp=game.completed_ts))
+            # Allows bot to remain responsive while this large operation is running.
+            await ctx.send(f'DB has been refreshed from {game.completed_ts} onward')
 
     @commands.command(usage=None)
     @settings.in_bot_channel_strict()
