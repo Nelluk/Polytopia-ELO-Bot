@@ -30,8 +30,12 @@ class misc(commands.Cog):
         cosmos = models.Team.get_or_except(team_name='The Cosmonauts', guild_id=ctx.guild.id, require_exact=True)
 
         games = models.Game.search(team_filter=[cosmos], title_filter=['PS7W'], status_filter=3)
+        output = []
         for g in games:
-            logger.debug(f'COSMOSTS - Found game {g.id} - {g.name} - {g.notes} - {g.is_ranked}')
+            output.append(f'COSMOSTS - Found game {g.id} - {g.name} - {g.notes} - {g.is_ranked}')
+            logger.debug(output[1:])
+
+        await utilities.buffered_send(destination=ctx, content="\n".join(output))
 
     @commands.command(usage=None)
     @settings.in_bot_channel_strict()
