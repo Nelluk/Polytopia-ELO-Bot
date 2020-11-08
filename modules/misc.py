@@ -27,58 +27,11 @@ class misc(commands.Cog):
     @commands.is_owner()
     async def test(self, ctx, *, args: str = None):
 
-        from modules import channels
+        cosmos = models.Team.get_or_except(team_name='The Cosmonauts', guild_id=ctx.guild.id, require_exact=True)
 
-        new_server = self.bot.get_guild(768501596354248704)
-        old_server = self.bot.get_guild(573272736085049375)
-
-        if not new_server or not old_server:
-            return logger.error('TS: Did not load both servers')
-
-        games = models.GameSide.select().join(models.Game).where(
-            # incomplete games on old Cosmonauts server
-            (models.GameSide.team_chan_external_server == old_server.id) & (models.Game.is_completed == 0)
-        )
-
+        games = models.Game.search(team_filter=[cosmos], title_filter=['PS7W'], status_filter=3)
         for g in games:
-            old_chan = old_server.get_channel(g.team_chan)
-            if not old_chan:
-                logger.debug(f'TS: Could not load old channel for game {g.game_id}')
-                continue
-            # new_chan = discord.utils.get(new_server.text_channels, name=old_chan.name)
-            new_chan = discord.utils.find(lambda r: f'e{g.game_id}' in r.name, new_server.text_channels)
-            if not new_chan:
-                # logger.warning(f'TS: Could not find a new channel with matching name {old_chan.name}')
-                logger.debug(f'TS: Could not find a new channel with name that includes e{g.game_id} - trying to create')
-                player_list = [l.player for l in g.ordered_player_list()]
-
-                try:
-                    new_chan = await channels.create_game_channel(new_server, game=g.game, team_name=g.team.name, player_list=player_list, using_team_server_flag=True)
-                    logger.debug(f'TS: New channel created successfully {new_chan.id} {new_chan.name}')
-                except exceptions.MyBaseException as e:
-                    logger.debug(f'TS: Could not create channel: {e}')
-                    new_chan = None
-                    continue
-
-
-            logger.debug(f'TS: Found NEW channel with name {new_chan.name} and should update game to match')
-            g.team_chan = new_chan.id
-            g.team_chan_external_server = new_server.id
-            g.save()
-            logger.debug(f'TS: Channel migrated in database')
-
-            try:
-                await old_chan.send(f'This channel is no longer an active ELO channel. Migrate your conversation to <#{new_chan.id}>')
-            except discord.DiscordException as e:
-                logger.debug(f'TS: Could not send message to old channel')
-
-            try:
-                await new_chan.send(f'This channel is now the active ELO channel for this game. :space_invader:')
-            except discord.DiscordException as e:
-                logger.debug(f'TS: Could not send message to new channel')
-
-            logger.debug(f'TS: Channel migrated in database')
-
+            logger.debug(f'COSMOSTS - Found game {g.id} - {g.name} - {g.notes} - {g.is_ranked}')
 
     @commands.command(usage=None)
     @settings.in_bot_channel_strict()
