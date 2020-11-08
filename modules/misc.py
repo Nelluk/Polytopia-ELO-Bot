@@ -29,15 +29,37 @@ class misc(commands.Cog):
 
         cosmos = models.Team.get_or_except(team_name='The Cosmonauts', guild_id=ctx.guild.id, require_exact=True)
 
-        games_6 = models.Game.search(team_filter=[cosmos], title_filter=['PS6'], status_filter=3, ranked_filter=1)
-        games_7 = models.Game.search(team_filter=[cosmos], title_filter=['PS7'], status_filter=3, ranked_filter=1)
+        games_6 = models.Game.search(team_filter=[cosmos], title_filter=['PS6'], status_filter=3)
+        games_7 = models.Game.search(team_filter=[cosmos], title_filter=['PS7'], status_filter=3)
         output = []
+
         for g in games_6 + games_7:
-            output.append(f'COSMOSTS - Found game {g.id} - {g.name} - {g.notes} - {g.is_ranked}')
+            if g.is_ranked:
+                output.append(f'COSMOSTS - Modifying game {g.id} - {g.name} - {g.notes} - {g.is_ranked}')
+                g.is_ranked = False
+                # g.notes = g.notes + ' - Set to unranked Nov 8 2020 for team cheating scandal'
+                # g.save()
+            else:
+                output.append(f'COSMOSTS - Skipping game {g.id} - Unranked (Already modified?)')
+
             logger.debug(output[-1:])
-            g.is_ranked = False
-            g.notes = g.notes + ' - Set to unranked Nov 8 2020 for team cheating scandal'
-            g.save()
+
+        await utilities.buffered_send(destination=ctx, content="\n".join(output))
+
+        output = []
+
+        games_8_wins = models.Game.search(team_filter=[cosmos], title_filter=['PS8'], status_filter=3)
+        games_8 = models.Game.search(team_filter=[cosmos], title_filter=['PS8'])
+
+        for g in games_8:
+            output.append(f'COSMOSTS - Found S8 game {g.id} - {g.name} - {g.notes} - {g.is_ranked}')
+
+            if g in games_8_wins:
+                output.append(f'COSMOSTS - Winning game to unrank and de-tag')
+            else:
+                output.append(f'COSMOSTS - Losing game to de-tag')
+
+            logger.debug(output[-2:])
 
         await utilities.buffered_send(destination=ctx, content="\n".join(output))
 
