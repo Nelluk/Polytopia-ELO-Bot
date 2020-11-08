@@ -29,12 +29,15 @@ class misc(commands.Cog):
 
         cosmos = models.Team.get_or_except(team_name='The Cosmonauts', guild_id=ctx.guild.id, require_exact=True)
 
-        games_6 = models.Game.search(team_filter=[cosmos], title_filter=['PS6'], status_filter=3)
-        games_7 = models.Game.search(team_filter=[cosmos], title_filter=['PS7'], status_filter=3)
+        games_6 = models.Game.search(team_filter=[cosmos], title_filter=['PS6'], status_filter=3, ranked_filter=1)
+        games_7 = models.Game.search(team_filter=[cosmos], title_filter=['PS7'], status_filter=3, ranked_filter=1)
         output = []
         for g in games_6 + games_7:
             output.append(f'COSMOSTS - Found game {g.id} - {g.name} - {g.notes} - {g.is_ranked}')
             logger.debug(output[-1:])
+            g.is_ranked = False
+            g.notes = g.notes + ' - Set to unranked Nov 8 2020 for team cheating scandal'
+            g.save()
 
         await utilities.buffered_send(destination=ctx, content="\n".join(output))
 
