@@ -29,8 +29,8 @@ class misc(commands.Cog):
 
         cosmos = models.Team.get_or_except(team_name='The Cosmonauts', guild_id=ctx.guild.id, require_exact=True)
 
-        games_6 = models.Game.search(team_filter=[cosmos], title_filter=['PS6W'], status_filter=3)
-        games_7 = models.Game.search(team_filter=[cosmos], title_filter=['PS7W'], status_filter=3)
+        games_6 = models.Game.search(team_filter=[cosmos], title_filter=['PS6'], status_filter=3)
+        games_7 = models.Game.search(team_filter=[cosmos], title_filter=['PS7'], status_filter=3)
         output = []
         for g in games_6 + games_7:
             output.append(f'COSMOSTS - Found game {g.id} - {g.name} - {g.notes} - {g.is_ranked}')
