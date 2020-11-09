@@ -2191,7 +2191,7 @@ class Game(BaseModel):
         if not player:
             # No Player or DiscordMember
             return (None, [f'*{member.name}* was found in the server but is not registered with me. '
-                f'Players can register themselves with `{prefix}setcode` or `{prefix}setname for Mobile, or `{prefix}steamname` for Steam/Desktop.'])
+                f'Players can register themselves with `{prefix}setcode` or `{prefix}setname` for Mobile, or `{prefix}steamname` for Steam/Desktop.'])
 
         if self.has_player(player)[0]:
             leave_kick_str = f'`{prefix}leave {self.id}`' if author_member == member else f'`{prefix}kick {self.id} {member.name}`'

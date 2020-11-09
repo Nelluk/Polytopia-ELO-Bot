@@ -27,6 +27,8 @@ class misc(commands.Cog):
     @commands.is_owner()
     async def test(self, ctx, *, args: str = None):
 
+        return await ctx.send('No op')
+
         cosmos = models.Team.get_or_except(team_name='The Cosmonauts', guild_id=ctx.guild.id, require_exact=True)
 
         games_6 = models.Game.search(team_filter=[cosmos], title_filter=['PS6'], status_filter=3)
