@@ -35,13 +35,13 @@ class administration(commands.Cog):
                 return False
 
     @commands.is_owner()
-    @commands.command(aliases=['quit'])
+    @commands.command(aliases=['quit', 'restart_force'])
     async def restart(self, ctx):
         """ *Owner*: Close database connection and quit bot gracefully """
 
-        if settings.recalculation_mode:
+        if settings.recalculation_mode and ctx.invoked_with != 'restart_force':
             logger.info('Skipping command due to settings.recalculation_mode')
-            return await ctx.send(f':warning: {ctx.author.mention} - I am currently recalculating the results of prior games. A restart seems like a bad idea.')
+            return await ctx.send(f':warning: {ctx.author.mention} - I am currently recalculating the results of prior games. A restart seems like a bad idea. Force restart with `{ctx.prefix}restart_force`')
 
         settings.maintenance_mode = True
         logger.debug(f'Purging message list {self.bot.purgable_messages}')
