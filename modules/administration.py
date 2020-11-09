@@ -38,6 +38,11 @@ class administration(commands.Cog):
     @commands.command(aliases=['quit'])
     async def restart(self, ctx):
         """ *Owner*: Close database connection and quit bot gracefully """
+
+        if settings.recalculation_mode:
+            logger.info('Skipping command due to settings.recalculation_mode')
+            return await ctx.send(f':warning: {ctx.author.mention} - I am currently recalculating the results of prior games. A restart seems like a bad idea.')
+
         settings.maintenance_mode = True
         logger.debug(f'Purging message list {self.bot.purgable_messages}')
         try:
@@ -179,6 +184,10 @@ class administration(commands.Cog):
             await utilities.paginate(self.bot, ctx, title=f'{len(game_list)} unconfirmed games', message_list=game_list, page_start=0, page_end=15, page_size=15)
             return
 
+        if settings.recalculation_mode:
+            logger.info('Skipping command due to settings.recalculation_mode')
+            return await ctx.send(f':warning: {ctx.author.mention} - I am currently recalculating the results of prior games. No new game results can be logged. Please try again in a few minutes.')
+
         if arg.lower() == 'auto':
             (unconfirmed_count, games_confirmed) = await self.confirm_auto(ctx.guild, ctx.prefix, ctx.channel)
             return await ctx.send(f'Autoconfirm process complete. {games_confirmed} games auto-confirmed. {unconfirmed_count - games_confirmed} games left unconfirmed.')
@@ -236,6 +245,11 @@ class administration(commands.Cog):
 
     async def confirm_auto(self, guild, prefix, current_channel):
         logger.debug('in confirm_auto')
+
+        if settings.recalculation_mode:
+            logger.info('Skipping confirm_auto due to settings.recalculation_mode')
+            return (0, 0)
+
         game_query = models.Game.search(status_filter=5, guild_id=guild.id).order_by(models.Game.win_claimed_ts)
         old_24h = (datetime.datetime.now() + datetime.timedelta(hours=-24))
         old_6h = (datetime.datetime.now() + datetime.timedelta(hours=-6))
@@ -281,17 +295,20 @@ class administration(commands.Cog):
             await asyncio.sleep(8)
             logger.debug('Task running: task_confirm_auto')
 
-            utilities.connect()
-            for guild in self.bot.guilds:
-                staff_output_channel = guild.get_channel(settings.guild_setting(guild.id, 'log_channel'))
-                if not staff_output_channel:
-                    logger.debug(f'Could not load log_channel for server {guild.id} - skipping')
-                    continue
+            if settings.recalculation_mode:
+                logger.debug('Skipping task_confirm_auto since settings.recalculation_mode is set to True.')
+            else:
+                utilities.connect()
+                for guild in self.bot.guilds:
+                    staff_output_channel = guild.get_channel(settings.guild_setting(guild.id, 'log_channel'))
+                    if not staff_output_channel:
+                        logger.debug(f'Could not load log_channel for server {guild.id} - skipping')
+                        continue
 
-                prefix = settings.guild_setting(guild.id, 'command_prefix')
-                (unconfirmed_count, games_confirmed) = await self.confirm_auto(guild, prefix, staff_output_channel)
-                if games_confirmed:
-                    await staff_output_channel.send(f'Autoconfirm process complete. {games_confirmed} games auto-confirmed. {unconfirmed_count - games_confirmed} games left unconfirmed.')
+                    prefix = settings.guild_setting(guild.id, 'command_prefix')
+                    (unconfirmed_count, games_confirmed) = await self.confirm_auto(guild, prefix, staff_output_channel)
+                    if games_confirmed:
+                        await staff_output_channel.send(f'Autoconfirm process complete. {games_confirmed} games auto-confirmed. {unconfirmed_count - games_confirmed} games left unconfirmed.')
 
             await asyncio.sleep(sleep_cycle)
 

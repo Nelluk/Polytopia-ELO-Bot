@@ -85,11 +85,14 @@ class misc(commands.Cog):
             return print('no game')
 
         print(f'Loaded game {game.id}')
+        await ctx.send(f'This may take a while...')
+        settings.recalculation_mode = True
         async with ctx.typing():
             utilities.connect()
             await self.bot.loop.run_in_executor(None, functools.partial(models.Game.recalculate_elo_since, timestamp=game.completed_ts))
             # Allows bot to remain responsive while this large operation is running.
             await ctx.send(f'DB has been refreshed from {game.completed_ts} onward')
+            settings.recalculation_mode = False
 
     @commands.command(usage=None)
     @settings.in_bot_channel_strict()

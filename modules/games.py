@@ -1536,6 +1536,11 @@ class polygames(commands.Cog):
         `[p]win 2050 Home` - Declare *Home* team winner of game 2050
         `[p]win 2050 Nelluk` - Declare *Nelluk* winner of game 2050
         """
+
+        if settings.recalculation_mode:
+            logger.info('Skipping command due to settings.recalculation_mode')
+            return await ctx.send(f':warning: {ctx.author.mention} - I am currently recalculating the results of prior games. No new game results can be logged. Please try again in a few minutes.')
+
         usage = ('Include both game ID and the name of the winning side. Example usage:\n'
                 f'`{ctx.prefix}win 422 Nelluk`\n`{ctx.prefix}win 425 Home` *For a team game*\n')
         if ctx.invoked_with.lower() == 'lose':
@@ -1654,6 +1659,10 @@ class polygames(commands.Cog):
         if not game.is_completed:
             return await ctx.send(f'Game {game.id} is marked as *Incomplete*. This command cannot be used.')
 
+        if settings.recalculation_mode:
+            logger.info('Skipping command due to settings.recalculation_mode')
+            return await ctx.send(f':warning: {ctx.author.mention} - I am currently recalculating the results of prior games. No new game results can be logged. Please try again in a few minutes.')
+
         if settings.is_staff(ctx.author):
             # Staff usage: reset any game to Incomplete state
             game.confirmations_reset()
@@ -1672,8 +1681,10 @@ class polygames(commands.Cog):
 
                         await post_unwin_messaging(ctx.guild, ctx.prefix, ctx.channel, game, previously_confirmed=True)
                         if game.is_ranked:
+                            settings.recalculation_mode = True
                             Game.recalculate_elo_since(timestamp=timestamp)
                             elo_logger.debug(f'unwin game {game.id} completed')
+                            settings.recalculation_mode = False
                             return await ctx.send(f'Game {game.id} has been marked as *Incomplete*. ELO changes have been reverted and ELO from all subsequent games recalculated.')
 
                         else:
