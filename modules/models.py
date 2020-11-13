@@ -2840,11 +2840,13 @@ class GameLog(BaseModel):
         return GameLog.create(guild_id=guild_id, message=message, is_protected=is_protected)
 
     def search(keywords=None, negative_keyword=None, guild_id=None, limit=500):
-
         if not keywords:
             keywords = '%'  # Wildcard/return all matches
         else:
             keywords = keywords.replace(' ', '%')  # match multiple words with ALL
+
+        if not negative_keyword:
+            negative_keyword = 'fakeplaceholderstringthatwonteverbefound'
 
         if guild_id:
             subq_by_guild = GameLog.select(GameLog.id).where((GameLog.guild_id == guild_id) | (GameLog.guild_id == 0))

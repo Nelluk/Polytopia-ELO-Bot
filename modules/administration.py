@@ -495,8 +495,8 @@ class administration(commands.Cog):
 
         paginated_message_list = []
 
-        search_term = re.sub(r'\b(\d{4,6})\b', r'\\_\1\\_', search_term, count=1) if search_term else None
-        # Above finds a 4-6 digit number in search_term and adds escaped underscores around it
+        search_term = re.sub(r'\b(\d{4,6})\b', r'_\1_', search_term, count=1) if search_term else None
+        # Above finds a 4-6 digit number in search_term and adds underscores around it
         # This will cause it to match against the __GAMEID__ the log entries are prefixed with and not substrings from
         # user IDs
 
