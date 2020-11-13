@@ -1037,6 +1037,7 @@ class polygames(commands.Cog):
             log_by_str = ''
 
         # Try to find matching guild/server member
+        # TODO: It would be good to be able to change the code of a player who is no longer a server member
         guild_matches = await utilities.get_guild_member(ctx, target_string)
         if len(guild_matches) == 0:
             return await ctx.send(f'Could not find any server member matching *{args[0]}*. Try specifying with an @Mention')
