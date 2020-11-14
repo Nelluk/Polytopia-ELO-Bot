@@ -60,7 +60,17 @@ db.connect(reuse_if_open=True)
 # name_steam = TextField(unique=False, null=True)
 # is_mobile = BooleanField(default=True)
 # name = TextField(null=False, default='')
-boost_level = SmallIntegerField(default=None, null=True)
+# boost_level = SmallIntegerField(default=None, null=True)
+
+elo_alltime = SmallIntegerField(default=1000)  # x2
+elo_max_alltime = SmallIntegerField(default=1000)  # x2
+
+# elo_change_alltime_player = SmallIntegerField(default=0)
+# elo_change_alltime_discordmember = SmallIntegerField(default=0)
+
+
+# elo_after_game_alltime = SmallIntegerField(default=None, null=True)
+# elo_after_game_alltime_global = SmallIntegerField(default=None, null=True)
 
 migrate(
     # migrator.add_column('discordmember', 'elo_max', elo_max),
@@ -86,17 +96,21 @@ migrate(
     # migrator.drop_column('gamelog', 'game_id'),
     # migrator.alter_column_type('gamelog', 'game_id', ForeignKeyField(Game))
     # migrator.drop_constraint('gamelog', 'gamelog_game_id_fkey')
-    migrator.add_column('discordmember', 'boost_level', boost_level),
+    migrator.add_column('discordmember', 'elo_alltime', elo_alltime),
+    migrator.add_column('player', 'elo_alltime', elo_alltime),
+
+    migrator.add_column('discordmember', 'elo_max_alltime', elo_max_alltime),
+    migrator.add_column('player', 'elo_max_alltime', elo_max_alltime),
 
 
 )
-
 # import modules.models as models
-# models.db.connect()
-# for g in models.Game.select():
-#     size = [s.size for s in g.gamesides]
-#     # print(g.id, size)
-#     g.size = size
-#     g.save()
+models.db.connect(reuse_if_open=True)
+
+query = models.DiscordMember.update(elo_alltime=models.DiscordMember.elo, elo_max_alltime=models.DiscordMember.elo_max)
+print(query.execute())
+
+query = models.Player.update(elo_alltime=models.Player.elo, elo_max_alltime=models.Player.elo_max)
+print(query.execute())
 
 print('done')

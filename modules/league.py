@@ -807,7 +807,7 @@ class league(commands.Cog):
         """
 
         import shlex
-        args = args.replace("'", "\\'").replace("“", "\"").replace("”", "\"")  if args else '' # Escape single quotation marks for shlex.split() parsing
+        args = args.replace("'", "\\'").replace("“", "\"").replace("”", "\"") if args else ''  # Escape single quotation marks for shlex.split() parsing
         args = shlex.split(args)
         for arg in args:
             print(arg)

@@ -184,6 +184,8 @@ class DiscordMember(BaseModel):
     name_steam = TextField(null=True)
     elo = SmallIntegerField(default=1000)
     elo_max = SmallIntegerField(default=1000)
+    elo_alltime = SmallIntegerField(default=1000)
+    elo_max_alltime = SmallIntegerField(default=1000)
     polytopia_id = TextField(null=True)
     polytopia_name = TextField(null=True)
     is_banned = BooleanField(default=False)
@@ -445,6 +447,8 @@ class Player(BaseModel):
     team = ForeignKeyField(Team, null=True, backref='player', on_delete='SET NULL')
     elo = SmallIntegerField(default=1000)
     elo_max = SmallIntegerField(default=1000)
+    elo_alltime = SmallIntegerField(default=1000)
+    elo_max_alltime = SmallIntegerField(default=1000)
     trophies = ArrayField(CharField, null=True)
     is_banned = BooleanField(default=False)
 
@@ -2868,8 +2872,13 @@ class Lineup(BaseModel):
     player = ForeignKeyField(Player, null=False, backref='lineup', on_delete='RESTRICT')
     elo_change_player = SmallIntegerField(default=0)
     elo_change_discordmember = SmallIntegerField(default=0)
+    elo_change_alltime_player = SmallIntegerField(default=0)
+    elo_change_alltime_discordmember = SmallIntegerField(default=0)
+
     elo_after_game = SmallIntegerField(default=None, null=True)  # snapshot of what elo was after game concluded
     elo_after_game_global = SmallIntegerField(default=None, null=True)  # snapshot of what global (discordmember) elo was after game concluded
+    elo_after_game_alltime = SmallIntegerField(default=None, null=True)  # snapshot of what local alltime elo was after game concluded
+    elo_after_game_alltime_global = SmallIntegerField(default=None, null=True)  # snapshot of what global (discordmember) alltime elo was after game concluded
 
     def change_elo_after_game(self, chance_of_winning: float, is_winner: bool, by_discord_member: bool = False):
         # Average(Away Side Elo) is compared to Average(Home_Side_Elo) for calculation - ie all members on a side will have the same elo_delta
