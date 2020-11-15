@@ -49,7 +49,7 @@ def is_registered_member():
         if ctx.invoked_with == 'help' and ctx.command.name != 'help':
             return False
         else:
-            await ctx.send(f'This command requires bot registration first. Type __`{ctx.prefix}setcode YOURCODEHERE`__ or  __`{ctx.prefix}steamname Your Steam Username`__ to get started.')
+            await ctx.send(f'This command requires bot registration first. Type __`{ctx.prefix}setname Your Mobile Name`__ or  __`{ctx.prefix}steamname Your Steam Username`__ to get started.')
         return False
     return commands.check(predicate)
 
@@ -1253,7 +1253,7 @@ class Game(BaseModel):
                 tribe_str = player_lineup.tribe.emoji if player_lineup.tribe else ''
                 team_str = player.team.emoji if player.team else ''
                 if self.is_mobile:
-                    poly_id_str = f'\n`{player.discord_member.polytopia_id}`' if len(ordered_player_list) < 10 else ''  # to avoid hidding 1024 char limit on very big sides
+                    poly_id_str = f'\n`{player.discord_member.polytopia_name}`' if len(ordered_player_list) < 10 else ''  # to avoid hitting 1024 char limit on very big sides
                 else:
                     poly_id_str = f'\n`{player.discord_member.name_steam if player.discord_member.name_steam else ""}`' if len(ordered_player_list) < 10 else ''
                 player_list.append(f'**{player.name}** ({player.elo}) {tribe_str} {team_str}{poly_id_str}')
@@ -2191,7 +2191,7 @@ class Game(BaseModel):
         if not player:
             # No Player or DiscordMember
             return (None, [f'*{member.name}* was found in the server but is not registered with me. '
-                f'Players can register themselves with `{prefix}setcode` or `{prefix}setname` for Mobile, or `{prefix}steamname` for Steam/Desktop.'])
+                f'Players can register themselves with `{prefix}setname` for Mobile, or `{prefix}steamname` for Steam/Desktop.'])
 
         if self.has_player(player)[0]:
             leave_kick_str = f'`{prefix}leave {self.id}`' if author_member == member else f'`{prefix}kick {self.id} {member.name}`'
@@ -2203,8 +2203,8 @@ class Game(BaseModel):
             else:
                 return (None, [f'**{player.name}** has been **ELO Banned** and cannot join any new games. :cry:'])
 
-        if not player.discord_member.polytopia_id and self.is_mobile:
-            return (None, [f'**{player.name}** does not have a Polytopia game code on file. Use `{prefix}setcode` to set one.'])
+        if not player.discord_member.polytopia_name and self.is_mobile:
+            return (None, [f'**{player.name}** does not have a Polytopia in-game name on file. Use `{prefix}setname` to set one.'])
 
         if not self.is_mobile and not player.discord_member.name_steam:
             return (None, [f'**{player.name}** does not have a Steam username on file and this is a Steam game {self.platform_emoji()}. Use `{prefix}steamname` to set one.'])

@@ -993,16 +993,17 @@ class polygames(commands.Cog):
 
         await ctx.send(file=image, embed=embed)
 
-    @commands.command(brief='Sets a Polytopia account name and registers user with the bot', usage='[user] polytopia_code', aliases=['steamname', 'setname'])
-    async def setcode(self, ctx, *, args=None):
+    @commands.command(brief='Sets a Polytopia account name and registers user with the bot', usage='[user] polytopia_code', aliases=['steamname', 'setcode'])
+    async def setname(self, ctx, *, args=None):
         """
         Sets your own Polytopia code, or allows a staff member to set a player's code. This also will register the player with the bot if not already.
         **Examples:**
-        `[p]setcode YOUR_POLY_GAME_CODE`
-        `[p]setcode @Nelluk YOUR_POLY_GAME_CODE`
+        `[p]setname <Your In-Game Name Here>`
+        `[p]steamname <Your Steam Name Here>`
+        `[p]setname @Nelluk Nelluk` *Staff usage*
         `[p]setcode @Nelluk none` - Server staff can delete a code if it is invalid for some reason
 
-        Also use `[p]steamname` and `[p]setname` for setting Steam or mobile account names.
+        Also use `[p]steamname` and `[p]setcode` for setting Steam name or old-style friend code
         """
         args = args.split() if args else []
         if ctx.invoked_with == 'setcode':
@@ -1094,9 +1095,9 @@ class polygames(commands.Cog):
             await ctx.send(f':warning: This polytopia code is already entered in the database. '
                 f'If you need help using this bot please contact {helper_role_str} or <@{settings.owner_id}>.\nDuplicated players: {", ".join(p_names)}')
 
-    @commands.command(aliases=['code'], usage='player_name')
-    async def getcode(self, ctx, *, player_string: str = None):
-        """Get game code of a player
+    @commands.command(aliases=['code', 'getcode', 'name'], usage='player_name')
+    async def getname(self, ctx, *, player_string: str = None):
+        """Get game ID of a player
         Just returns the code and nothing else so it can easily be copied."""
 
         if not player_string:
@@ -1132,25 +1133,25 @@ class polygames(commands.Cog):
         discord_member = DiscordMember.get_or_none(discord_id=target_discord_member.id)
 
         if discord_member:
-            if discord_member.polytopia_name:
-                in_game_name_str = f' (In-game name: **{discord_member.polytopia_name}**)'
+            if discord_member.name_steam:
+                in_game_name_str = f' (Steam name: **{discord_member.name_steam}**)'
             else:
                 in_game_name_str = ''
-            if discord_member.name_steam:
-                in_game_name_str += f' (Steam name: **{discord_member.name_steam}**)'
-            await ctx.send(f'Code for **{discord_member.name}**{in_game_name_str}:')
-            return await ctx.send(discord_member.polytopia_id or 'None set')
+            if discord_member.polytopia_id:
+                in_game_name_str += f' (Old-style code: `{discord_member.polytopia_id}`)'
+            await ctx.send(f'Mobile name for **{discord_member.name}**{in_game_name_str}:')
+            return await ctx.send(discord_member.polytopia_name or 'None set')
         else:
             return await ctx.send(f'Member **{target_discord_member.name}** is not registered.\n'
-                f'Register your own code or in-game name with `{ctx.prefix}setcode YOURCODEHERE` or `{ctx.prefix}steamname STEAM NAME HERE`')
+                f'Register your own or in-game name with `{ctx.prefix}setname MOBILE NAME HERE` or `{ctx.prefix}steamname STEAM NAME HERE`')
 
-    @commands.command(aliases=['codes'], usage='game_id')
+    @commands.command(aliases=['names', 'codes', 'getcodes'], usage='game_id')
     @models.is_registered_member()
-    async def getcodes(self, ctx, *, game: PolyGame = None):
-        """Print all player codes associated with a game ID
-        The codes will be printed on separate line for ease of copying, and in the order that players should be added to the game.
+    async def getnames(self, ctx, *, game: PolyGame = None):
+        """Print all player names associated with a game ID
+        The names will be printed on separate line for ease of copying, and in the order that players should be added to the game.
         **Examples:**
-        `[p]getcodes 1250` - Get all player codes for players in game 1250
+        `[p]getnames 1250` - Get all player codes for players in game 1250
         """
 
         if not game:
@@ -1162,22 +1163,26 @@ class polygames(commands.Cog):
             return await ctx.send(f'**Error:** {e}')
 
         warn_str = '\n*(List may take a few seconds to print due to discord anti-spam measures.)*' if len(ordered_player_list) > 2 else ''
-        header_str = f'Polytopia codes for **game {game.id}**, in draft order:{warn_str}'
+        header_str = f'In-game names for **game {game.id}**, in draft order:{warn_str}'
 
         first_loop = True
         async with ctx.typing():
             for p in ordered_player_list:
                 dm_obj = p['player'].discord_member
                 if game.is_mobile:
-                    if dm_obj.polytopia_name and dm_obj.polytopia_name.lower() != p['player'].name.lower():
-                        in_game_name_str = f' (In-game name: **{dm_obj.polytopia_name}**)'
+                    # if dm_obj.polytopia_name and dm_obj.polytopia_name.lower() != p['player'].name.lower():
+                    #     in_game_name_str = f' (In-game name: **{dm_obj.polytopia_name}**)'
+                    # else:
+                    #     in_game_name_str = ''
+                    if dm_obj.polytopia_id:
+                        in_game_name_str = f' (Old-style code: `{dm_obj.polytopia_id}`)'
                     else:
                         in_game_name_str = ''
                 else:
                     if dm_obj.name_steam:
-                        in_game_name_str = f' (Steam name: **{dm_obj.name_steam}**)'
+                        in_game_name_str = f'\nSteam name: **{dm_obj.name_steam}**'
                     else:
-                        in_game_name_str = ' (*Steam name not set*)'
+                        in_game_name_str = '\n *Steam name not set*'
 
                 if first_loop:
                     # header_str combined with first player's name in order to reduce number of ctx.send() that are done.
@@ -1190,9 +1195,8 @@ class polygames(commands.Cog):
                     else:
                         tz_str = ''
                     await ctx.send(f'**{p["player"].name}**{in_game_name_str} {tz_str}')
-                poly_id = dm_obj.polytopia_id
                 if game.is_mobile:
-                    await ctx.send(poly_id if poly_id else '*No code registered*')
+                    await ctx.send(dm_obj.polytopia_name or 'No name set')
 
     # @commands.command(brief='Set in-game name', usage='new_name', aliases=['steamname'])
     # # @models.is_registered_member()
