@@ -1438,14 +1438,21 @@ class Game(BaseModel):
     def reverse_elo_changes(self):
         for lineup in self.lineup:
             lineup.player.elo += lineup.elo_change_player * -1
+            lineup.player.elo_alltime += lineup.elo_change_player_alltime * -1
             lineup.player.save()
             lineup.elo_change_player = 0
+            lineup.elo_change_player_alltime = 0
             lineup.elo_after_game = None
+            lineup.elo_after_game_alltime = None
             lineup.elo_after_game_global = None
-            if lineup.elo_change_discordmember:
+            lineup.elo_after_game_global_alltime = None
+
+            if lineup.elo_change_discordmember_alltime:
                 lineup.player.discord_member.elo += lineup.elo_change_discordmember * -1
+                lineup.player.discord_member.elo_alltime += lineup.elo_change_discordmember_alltime * -1
                 lineup.player.discord_member.save()
                 lineup.elo_change_discordmember = 0
+                lineup.elo_change_discordmember_alltime = 0
             lineup.save()
 
         for gameside in self.gamesides:
@@ -1562,8 +1569,13 @@ class Game(BaseModel):
 
                     side_elos = [s.average_elo() for s in gamesides]
                     side_elos_discord = [s.average_elo(by_discord_member=True) for s in gamesides]
+
+                    side_elos_alltime = [s.average_elo(alltime=True) for s in gamesides]
+                    side_elos_discord_alltime = [s.average_elo(by_discord_member=True, alltime=True) for s in gamesides]
+
                     team_elos = [s.team.elo if s.team else None for s in gamesides]
                     team_elos_alltime = [s.team.elo_alltime if s.team else None for s in gamesides]
+
                     squad_elos = [s.squad.elo if s.squad else None for s in gamesides]
 
                     if self.date >= settings.elo_calc_v2_date:
@@ -1581,6 +1593,9 @@ class Game(BaseModel):
 
                     side_win_chances = Game.get_side_win_chances(largest_side, gamesides, side_elos, calc_version)
                     side_win_chances_discord = Game.get_side_win_chances(largest_side, gamesides, side_elos_discord, calc_version)
+
+                    side_win_chances_alltime = Game.get_side_win_chances(largest_side, gamesides, side_elos_alltime, calc_version)
+                    side_win_chances_discord_alltime = Game.get_side_win_chances(largest_side, gamesides, side_elos_discord_alltime, calc_version)
 
                     if smallest_side > 1:
                         if None not in team_elos:
@@ -1605,8 +1620,13 @@ class Game(BaseModel):
                         side = gamesides[i]
                         is_winner = True if side == winning_side else False
                         for p in side.lineup:
-                            p.change_elo_after_game(side_win_chances[i], is_winner)
-                            p.change_elo_after_game(side_win_chances_discord[i], is_winner, by_discord_member=True)
+                            p.change_elo_after_game(side_win_chances_alltime[i], is_winner, alltime=True)
+                            p.change_elo_after_game(side_win_chances_discord_alltime[i], is_winner, by_discord_member=True, alltime=True)
+                            if self.date >= settings.elo_reset_date:
+                                p.change_elo_after_game(side_win_chances[i], is_winner, alltime=False)
+                                p.change_elo_after_game(side_win_chances_discord[i], is_winner, by_discord_member=True, alltime=False)
+                            else:
+                                logger.info(f'Game date {self.date} is before ELO reset date of {settings.elo_reset_date}. Will not count towards regular ELO.')
 
                         if team_win_chances:
                             team_elo_delta = side.team.change_elo_after_game(team_win_chances[i], is_winner)
@@ -2098,6 +2118,7 @@ class Game(BaseModel):
         # return games_with_same_number_of_sides
 
     def recalculate_elo_since(timestamp):
+        db.connect(reuse_if_open=True)
         games = Game.select().where(
             (Game.is_completed == 1) & (Game.is_confirmed == 1) & (Game.completed_ts >= timestamp) & (Game.winner.is_null(False)) & (Game.is_ranked == 1)
         ).order_by(Game.completed_ts).prefetch(GameSide, Lineup)
@@ -2725,11 +2746,18 @@ class GameSide(BaseModel):
             squad_elo_str = None
         return (team_elo_str, squad_elo_str)
 
-    def average_elo(self, by_discord_member: bool = False):
-        if by_discord_member is True:
+    def average_elo(self, by_discord_member: bool = False, alltime: bool = False):
+
+        if by_discord_member and alltime:
+            elo_list = [l.player.discord_member.elo_alltime for l in self.lineup]
+        elif by_discord_member and not alltime:
             elo_list = [l.player.discord_member.elo for l in self.lineup]
-        else:
+        elif not by_discord_member and alltime:
+            elo_list = [l.player.elo_alltime for l in self.lineup]
+        elif not by_discord_member and not alltime:
             elo_list = [l.player.elo for l in self.lineup]
+        else:
+            raise ValueError(f'average_elo: should not be here!')
 
         return int(round(sum(elo_list) / len(elo_list)))
 
@@ -2872,15 +2900,15 @@ class Lineup(BaseModel):
     player = ForeignKeyField(Player, null=False, backref='lineup', on_delete='RESTRICT')
     elo_change_player = SmallIntegerField(default=0)
     elo_change_discordmember = SmallIntegerField(default=0)
-    elo_change_alltime_player = SmallIntegerField(default=0)
-    elo_change_alltime_discordmember = SmallIntegerField(default=0)
+    elo_change_player_alltime = SmallIntegerField(default=0)
+    elo_change_discordmember_alltime = SmallIntegerField(default=0)
 
     elo_after_game = SmallIntegerField(default=None, null=True)  # snapshot of what elo was after game concluded
     elo_after_game_global = SmallIntegerField(default=None, null=True)  # snapshot of what global (discordmember) elo was after game concluded
     elo_after_game_alltime = SmallIntegerField(default=None, null=True)  # snapshot of what local alltime elo was after game concluded
-    elo_after_game_alltime_global = SmallIntegerField(default=None, null=True)  # snapshot of what global (discordmember) alltime elo was after game concluded
+    elo_after_game_global_alltime = SmallIntegerField(default=None, null=True)  # snapshot of what global (discordmember) alltime elo was after game concluded
 
-    def change_elo_after_game(self, chance_of_winning: float, is_winner: bool, by_discord_member: bool = False):
+    def change_elo_after_game(self, chance_of_winning: float, is_winner: bool, by_discord_member: bool = False, alltime: bool = False):
         # Average(Away Side Elo) is compared to Average(Home_Side_Elo) for calculation - ie all members on a side will have the same elo_delta
         # Team A: p1 900 elo, p2 1000 elo = 950 average
         # Team B: p1 1000 elo, p2 1200 elo = 1100 average
@@ -2891,10 +2919,16 @@ class Lineup(BaseModel):
                 logger.info(f'Skipping ELO change by discord member because {self.game.guild_id} is set to be excluded.')
                 return
             num_games = self.player.discord_member.completed_game_count()
-            elo = self.player.discord_member.elo
+            if alltime:
+                elo = self.player.discord_member.elo_alltime
+            else:
+                elo = self.player.discord_member.elo
         else:
             num_games = self.player.completed_game_count()
-            elo = self.player.elo
+            if alltime:
+                elo = self.player.elo_alltime
+            else:
+                elo = self.player.elo
 
         max_elo_delta = 32
 
@@ -2927,21 +2961,39 @@ class Lineup(BaseModel):
 
         with db.atomic():
             if by_discord_member is True:
-                self.player.discord_member.elo = int(elo + elo_delta)
-                if self.player.discord_member.elo > self.player.discord_member.elo_max:
-                    self.player.discord_member.elo_max = self.player.discord_member.elo
-                self.elo_change_discordmember = elo_delta
-                self.elo_after_game_global = int(elo + elo_delta)
-                self.player.discord_member.save()
-                self.save()
+                if alltime:
+                    self.player.discord_member.elo_alltime = int(elo + elo_delta)
+                    if self.player.discord_member.elo_alltime > self.player.discord_member.elo_max_alltime:
+                        self.player.discord_member.elo_max_alltime = self.player.discord_member.elo_alltime
+                    self.elo_change_discordmember_alltime = elo_delta
+                    self.elo_after_game_global_alltime = int(elo + elo_delta)
+                    self.player.discord_member.save()
+                    self.save()
+                else:
+                    self.player.discord_member.elo = int(elo + elo_delta)
+                    if self.player.discord_member.elo > self.player.discord_member.elo_max:
+                        self.player.discord_member.elo_max = self.player.discord_member.elo
+                    self.elo_change_discordmember = elo_delta
+                    self.elo_after_game_global = int(elo + elo_delta)
+                    self.player.discord_member.save()
+                    self.save()
             else:
-                self.player.elo = int(elo + elo_delta)
-                self.elo_after_game = int(elo + elo_delta)
-                if self.player.elo > self.player.elo_max:
-                    self.player.elo_max = self.player.elo
-                self.elo_change_player = elo_delta
-                self.player.save()
-                self.save()
+                if alltime:
+                    self.player.elo_alltime = int(elo + elo_delta)
+                    self.elo_after_game_alltime = int(elo + elo_delta)
+                    if self.player.elo_alltime > self.player.elo_max_alltime:
+                        self.player.elo_max_alltime = self.player.elo_alltime
+                    self.elo_change_player_alltime = elo_delta
+                    self.player.save()
+                    self.save()
+                else:
+                    self.player.elo = int(elo + elo_delta)
+                    self.elo_after_game = int(elo + elo_delta)
+                    if self.player.elo > self.player.elo_max:
+                        self.player.elo_max = self.player.elo
+                    self.elo_change_player = elo_delta
+                    self.player.save()
+                    self.save()
 
         # logger.debug(f'elo after save: {self.player.elo}')
 

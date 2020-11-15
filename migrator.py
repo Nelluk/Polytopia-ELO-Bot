@@ -65,12 +65,12 @@ db.connect(reuse_if_open=True)
 elo_alltime = SmallIntegerField(default=1000)  # x2
 elo_max_alltime = SmallIntegerField(default=1000)  # x2
 
-# elo_change_alltime_player = SmallIntegerField(default=0)
-# elo_change_alltime_discordmember = SmallIntegerField(default=0)
+elo_change_player_alltime = SmallIntegerField(default=0)
+elo_change_discordmember_alltime = SmallIntegerField(default=0)
 
+elo_after_game_alltime = SmallIntegerField(default=None, null=True)  # snapshot of what local alltime elo was after game concluded
+elo_after_game_global_alltime = SmallIntegerField(default=None, null=True)
 
-# elo_after_game_alltime = SmallIntegerField(default=None, null=True)
-# elo_after_game_alltime_global = SmallIntegerField(default=None, null=True)
 
 migrate(
     # migrator.add_column('discordmember', 'elo_max', elo_max),
@@ -102,15 +102,28 @@ migrate(
     migrator.add_column('discordmember', 'elo_max_alltime', elo_max_alltime),
     migrator.add_column('player', 'elo_max_alltime', elo_max_alltime),
 
+    migrator.add_column('lineup', 'elo_change_player_alltime', elo_change_player_alltime),
+    migrator.add_column('lineup', 'elo_change_discordmember_alltime', elo_change_discordmember_alltime),
+    migrator.add_column('lineup', 'elo_after_game_alltime', elo_after_game_alltime),
+    migrator.add_column('lineup', 'elo_after_game_global_alltime', elo_after_game_global_alltime),
+
+    # TODO: copy over the new columns data
 
 )
 # import modules.models as models
 models.db.connect(reuse_if_open=True)
 
 query = models.DiscordMember.update(elo_alltime=models.DiscordMember.elo, elo_max_alltime=models.DiscordMember.elo_max)
-print(query.execute())
+print(f'models.DiscordMember.elo {query.execute()}')
 
 query = models.Player.update(elo_alltime=models.Player.elo, elo_max_alltime=models.Player.elo_max)
-print(query.execute())
+print(f'models.Player.elo {query.execute()}')
+
+query = models.Lineup.update(elo_change_player_alltime=models.Lineup.elo_change_player,
+                             elo_change_discordmember_alltime=models.Lineup.elo_change_discordmember,
+                             elo_after_game_alltime=models.Lineup.elo_after_game,
+                             elo_after_game_global_alltime=models.Lineup.elo_after_game_global)
+
+print(f'Lineups {query.execute()}')
 
 print('done')
