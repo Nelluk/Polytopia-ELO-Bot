@@ -1588,6 +1588,8 @@ class Game(BaseModel):
                             # Gives them an extra 50 phantom ELO which will make their calculated chance of winning higher, thus ELO prize lower
                             side_elos[0] = side_elos[0] + 50
                             side_elos_discord[0] = side_elos_discord[0] + 50
+                            side_elos_alltime[0] = side_elos_alltime[0] + 50
+                            side_elos_discord_alltime[0] = side_elos_discord_alltime[0] + 50
                     else:
                         calc_version = 1
 
@@ -1616,6 +1618,10 @@ class Game(BaseModel):
                         team_win_chances = None
                         logger.info(f'Game date {self.date} is before reset date of {team_elo_reset_date}. Will not count towards team ELO.')
 
+                    print('side_win_chances', side_win_chances)
+                    print('side_win_chances_discord', side_win_chances_discord)
+                    print('side_win_chances_alltime', side_win_chances_alltime)
+                    print('side_win_chances_discord_alltime', side_win_chances_discord_alltime)
                     for i in range(len(gamesides)):
                         side = gamesides[i]
                         is_winner = True if side == winning_side else False
