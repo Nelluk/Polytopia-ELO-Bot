@@ -107,8 +107,6 @@ migrate(
     migrator.add_column('lineup', 'elo_after_game_alltime', elo_after_game_alltime),
     migrator.add_column('lineup', 'elo_after_game_global_alltime', elo_after_game_global_alltime),
 
-    # TODO: copy over the new columns data
-
 )
 # import modules.models as models
 models.db.connect(reuse_if_open=True)
