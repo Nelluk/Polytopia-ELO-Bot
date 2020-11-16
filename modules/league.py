@@ -658,7 +658,7 @@ class league(commands.Cog):
 
         await ctx.send(embed=embed)
 
-    @commands.command(aliases=['jrseason'], usage='[season #]')
+    @commands.command(aliases=['jrseason', 'ps', 'js', 'seasonjr'], usage='[season #]')
     @settings.in_bot_channel()
     @commands.cooldown(1, 30, commands.BucketType.channel)
     async def season(self, ctx, *, arg=None):
@@ -688,7 +688,7 @@ class league(commands.Cog):
         if season and (season == 1 or season == 2):
             return await ctx.send(f'Records from the first two seasons (ie. the dark ages when I did not exist) are mostly lost to antiquity, but some information remains:\n'
                 f'**The Sparkies** won Season 1 and **The Jets** won season 2, and if you squint you can just make out the records below:\nhttps://i.imgur.com/L7FPr1d.png')
-        if ctx.invoked_with == 'jrseason':
+        if ctx.invoked_with in ['jrseason', 'js', 'seasonjr']:
             pro_value = 0
             pro_str = 'Junior'
         else:
