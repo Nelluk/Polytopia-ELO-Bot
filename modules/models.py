@@ -388,12 +388,16 @@ class DiscordMember(BaseModel):
         rank = counter + 1 if is_found else None
         return (rank, query.count())
 
-    def leaderboard(date_cutoff, guild_id: int = None, max_flag: bool = False):
+    def leaderboard(date_cutoff, guild_id: int = None, max_flag: bool = False, alltime_flag: bool = False):
         # guild_id is a dummy parameter so DiscordMember.leaderboard and Player.leaderboard can be called in identical ways
 
-        if max_flag:
+        if max_flag and alltime_flag:
+            elo_field = DiscordMember.elo_max_alltime
+        elif max_flag and not alltime_flag:
             elo_field = DiscordMember.elo_max
-        else:
+        elif not max_flag and alltime_flag:
+            elo_field = DiscordMember.elo_alltime
+        elif not max_flag and not alltime_flag:
             elo_field = DiscordMember.elo
 
         query = DiscordMember.select().join(Player).join(Lineup).join(Game).where(
@@ -702,10 +706,15 @@ class Player(BaseModel):
         rank = counter + 1 if player_found else None
         return (rank, query.count())
 
-    def leaderboard(date_cutoff, guild_id: int, max_flag: bool = False):
-        if max_flag:
+    def leaderboard(date_cutoff, guild_id: int, max_flag: bool = False, alltime_flag: bool = False):
+
+        if max_flag and alltime_flag:
+            elo_field = Player.elo_max_alltime
+        elif max_flag and not alltime_flag:
             elo_field = Player.elo_max
-        else:
+        elif not max_flag and alltime_flag:
+            elo_field = Player.elo_alltime
+        elif not max_flag and not alltime_flag:
             elo_field = Player.elo
 
         query = Player.select().join(Lineup).join(Game).join_from(Player, DiscordMember).where(

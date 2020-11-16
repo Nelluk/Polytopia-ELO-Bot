@@ -252,20 +252,28 @@ class polygames(commands.Cog):
         A player's global ELO is independent of their local server ELO.
         **max**
         Ranks leaderboard by a player's maximum ELO ever achieved
+        **allplayers**
+        Includes players who have not played recently. By default the leaderboard drops players who have not played in 90 days.
+        **alltime**
+        Ranks by the permanent Alltime ELO field, which is never reset. The standard ELO field is occasionally reset (most recently December 2020)
 
         Examples:
         `[p]lb` - Default local leaderboard
         `[p]lb global` - Global leaderboard
         `[p]lb max` - Local leaderboard for maximum historic ELO
-        `[p]lb alltime` - Local leaderboard all time (by default, players are removed if they do not play for 90 days)
+        `[p]lb allplayers` - Local leaderboard including inactive players
         `[p]lb global max` - Leaderboard of maximum historic *global* ELO
+        `[p]lb alltime` - Local leaderboard by Alltime ELO
+        `[p]lb alltime max` - Leaderboard of maximum historic Alltime ELO
+        `[p]lb alltime global` - Global leaderboard by Alltime ELO
+        `[p]lb global alltime allplayers max` - Global leaderboard, including inactive players, ranked by maximum hstoric Alltime ELO
 
         `[p]lbrecent` - Most active players of the last 30 days
         `[p]lbactivealltime` - Most active players of all time
         """
 
         leaderboard = []
-        max_flag, global_flag = False, False
+        max_flag, global_flag, alltime_flag = False, False, False
         target_model = Player
         lb_title = 'Individual Leaderboard'
         date_cutoff = settings.date_cutoff
@@ -278,17 +286,21 @@ class polygames(commands.Cog):
             lb_title = 'Global Leaderboard'
             target_model = DiscordMember
 
-        if 'ALLTIME' in filters.upper():
-            lb_title += ' - Alltime'
+        if 'ALLPLAYERS' in filters.upper():
+            lb_title += ' - Including Inactive Players'
             date_cutoff = datetime.date.min
 
         if 'MAX' in filters.upper():
             max_flag = True  # leaderboard ranked by player.max_elo
             lb_title += ' - Maximum ELO Achieved'
 
+        if 'ALLTIME' in filters.upper():
+            alltime_flag = True  # leaderboard ranked by player.elo_alltime
+            lb_title += ' - Alltime (not reset)'
+
         def process_leaderboard():
             utilities.connect()
-            leaderboard_query = target_model.leaderboard(date_cutoff=date_cutoff, guild_id=ctx.guild.id, max_flag=max_flag)
+            leaderboard_query = target_model.leaderboard(date_cutoff=date_cutoff, guild_id=ctx.guild.id, max_flag=max_flag, alltime_flag=alltime_flag)
 
             for counter, player in enumerate(leaderboard_query[:2000]):
                 wins, losses = player.get_record()
@@ -635,11 +647,21 @@ class polygames(commands.Cog):
     async def player(self, ctx, *, args=None):
         """See your own player card or the card of another player
         This also will find results based on a game-code or in-game name, if set.
+
+        Add *alltime* as an argument to see ELO stats and graphs from the inception of this bot. The default ELO number is occasionally reset (most recently December 2020).
         **Examples**
         `[p]player` - See your own player card
         `[p]player Nelluk` - See Nelluk's card
+        `[p]player Nelluk alltime` - See Nelluk's card (Alltime ELO)
         """
-        args_list = args.split() if args else []
+        args_list = args.lower().split() if args else []
+
+        if 'alltime' in args_list:
+            alltime_flag = True
+            args_list.remove('alltime')
+        else:
+            alltime_flag = False
+
         if len(args_list) == 0:
             # Player looking for info on themselves
             args_list.append(f'<@{ctx.author.id}>')
@@ -690,19 +712,30 @@ class polygames(commands.Cog):
 
             image = None
 
+            if alltime_flag:
+                elo = player.elo_alltime
+                g_elo = player.discord_member.elo_alltime
+                elo_max = player.elo_max_alltime
+                g_elo_max = player.discord_member.elo_max_alltime
+            else:
+                elo = player.elo
+                g_elo = player.discord_member.elo
+                elo_max = player.elo_max
+                g_elo_max = player.discord_member.elo_max
+
             if rank is None:
                 rank_str = 'Unranked'
             else:
                 rank_str = f'{rank} of {lb_length}'
 
-            results_str = f'ELO: {player.elo}\nW\u00A0{wins}\u00A0/\u00A0L\u00A0{losses}'
+            results_str = f'ELO: {elo}\nW\u00A0{wins}\u00A0/\u00A0L\u00A0{losses}'
 
             if rank_g:
                 rank_str = f'{rank_str}\n{rank_g} of {lb_length_g} *Global*'
-                results_str = f'{results_str}\n**Global**\nELO: {player.discord_member.elo}\nW\u00A0{wins_g}\u00A0/\u00A0L\u00A0{losses_g}'
+                results_str = f'{results_str}\n**Global**\nELO: {g_elo}\nW\u00A0{wins_g}\u00A0/\u00A0L\u00A0{losses_g}'
 
             # embed = discord.Embed(title=f'Player card for __{player.name}__')
-            embed = discord.Embed(description=f'__Player card for <@{player.discord_member.discord_id}>__')
+            embed = discord.Embed(description=f'__{"Alltime ELO " if alltime_flag else ""}Player card for <@{player.discord_member.discord_id}>__')
             embed.add_field(name='**Results**', value=results_str)
             embed.add_field(name='**Ranking**', value=rank_str)
 
@@ -748,8 +781,8 @@ class polygames(commands.Cog):
 
             # TODO: maybe "adjusted ELO" for how big game is?
 
-            if player.discord_member.elo_max > 1000:
-                misc_stats.append(('Max ELO achieved', f'{player.discord_member.elo_max} G \u200b - \u200b {player.elo_max} L'))
+            if g_elo_max > 1000:
+                misc_stats.append(('Max ELO achieved', f'{g_elo_max} G \u200b - \u200b {elo_max} L'))
 
             favorite_tribes = player.discord_member.favorite_tribes(limit=3)
             if favorite_tribes:
@@ -762,25 +795,32 @@ class polygames(commands.Cog):
             if misc_stats:
                 embed.add_field(name='__Miscellaneous Global Stats__', value='\n'.join(misc_stats), inline=False)
 
+            if alltime_flag:
+                after_game_global_field = Lineup.elo_after_game_global
+                after_game_field = Lineup.elo_after_game
+            else:
+                after_game_global_field = Lineup.elo_after_game_global_alltime
+                after_game_field = Lineup.elo_after_game_alltime
+
             global_elo_history_query = (Player
-                .select(Game.completed_ts, Lineup.elo_after_game_global)
+                .select(Game.completed_ts, after_game_global_field)
                 .join(Lineup)
                 .join(Game)
-                .where((Player.discord_member_id == player.discord_member_id) & (Lineup.elo_after_game_global.is_null(False)))
+                .where((Player.discord_member_id == player.discord_member_id) & (after_game_global_field.is_null(False)))
                 .order_by(Game.completed_ts))
 
             global_elo_history_dates = [l.completed_ts for l in global_elo_history_query.objects()]
 
             if global_elo_history_dates:
                 local_elo_history_query = (Lineup
-                    .select(Game.completed_ts, Lineup.elo_after_game)
+                    .select(Game.completed_ts, after_game_field)
                     .join(Game)
-                    .where((Lineup.player_id == player.id) & (Lineup.elo_after_game.is_null(False))))
+                    .where((Lineup.player_id == player.id) & (after_game_field.is_null(False))))
 
                 local_elo_history_dates = [l.completed_ts for l in local_elo_history_query.objects()]
-                local_elo_history_elos = [l.elo_after_game for l in local_elo_history_query.objects()]
+                local_elo_history_elos = [l.elo_after_game_alltime for l in local_elo_history_query.objects()] if alltime_flag else [l.elo_after_game for l in local_elo_history_query.objects()]
 
-                global_elo_history_elos = [l.elo_after_game_global for l in global_elo_history_query.objects()]
+                global_elo_history_elos = [l.elo_after_game_global for l in global_elo_history_query.objects()] if alltime_flag else [l.elo_after_game_global_alltime for l in global_elo_history_query.objects()]
 
                 try:
                     server_name = settings.guild_setting(guild_id=player.guild_id, setting_name='display_name')
@@ -792,7 +832,7 @@ class polygames(commands.Cog):
                 plt.switch_backend('Agg')
 
                 fig, ax = plt.subplots()
-                fig.suptitle('ELO History (' + server_name + ')', fontsize=16)
+                fig.suptitle(f'{"Alltime" if alltime_flag else ""} ELO History (' + server_name + ')', fontsize=16)
                 fig.autofmt_xdate()
 
                 plt.plot(local_elo_history_dates, local_elo_history_elos, 'o', markersize=3, label=server_name)
