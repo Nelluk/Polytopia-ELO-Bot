@@ -796,11 +796,14 @@ class polygames(commands.Cog):
                 embed.add_field(name='__Miscellaneous Global Stats__', value='\n'.join(misc_stats), inline=False)
 
             if alltime_flag:
-                after_game_global_field = Lineup.elo_after_game_global
-                after_game_field = Lineup.elo_after_game
-            else:
                 after_game_global_field = Lineup.elo_after_game_global_alltime
                 after_game_field = Lineup.elo_after_game_alltime
+                # date_cutoff = datetime.date.min
+            else:
+                after_game_global_field = Lineup.elo_after_game_global
+                after_game_field = Lineup.elo_after_game
+                # date_cutoff = settings.elo_reset_date
+                # add restrictions of (Game.date >= date_cutoff) to both queries to restrict regular elo graph to just the current reset period
 
             global_elo_history_query = (Player
                 .select(Game.completed_ts, after_game_global_field)
@@ -811,21 +814,23 @@ class polygames(commands.Cog):
 
             global_elo_history_dates = [l.completed_ts for l in global_elo_history_query.objects()]
 
-            if global_elo_history_dates:
-                local_elo_history_query = (Lineup
-                    .select(Game.completed_ts, after_game_field)
-                    .join(Game)
-                    .where((Lineup.player_id == player.id) & (after_game_field.is_null(False))))
+            # if global_elo_history_dates:
+            local_elo_history_query = (Lineup
+                .select(Game.completed_ts, after_game_field)
+                .join(Game)
+                .where((Lineup.player_id == player.id) & (after_game_field.is_null(False))))
 
-                local_elo_history_dates = [l.completed_ts for l in local_elo_history_query.objects()]
-                local_elo_history_elos = [l.elo_after_game_alltime for l in local_elo_history_query.objects()] if alltime_flag else [l.elo_after_game for l in local_elo_history_query.objects()]
+            local_elo_history_dates = [l.completed_ts for l in local_elo_history_query.objects()]
+            local_elo_history_elos = [l.elo_after_game_alltime for l in local_elo_history_query.objects()] if alltime_flag else [l.elo_after_game for l in local_elo_history_query.objects()]
 
-                global_elo_history_elos = [l.elo_after_game_global for l in global_elo_history_query.objects()] if alltime_flag else [l.elo_after_game_global_alltime for l in global_elo_history_query.objects()]
+            global_elo_history_elos = [l.elo_after_game_global_alltime for l in global_elo_history_query.objects()] if alltime_flag else [l.elo_after_game_global for l in global_elo_history_query.objects()]
 
-                try:
-                    server_name = settings.guild_setting(guild_id=player.guild_id, setting_name='display_name')
-                except exceptions.CheckFailedError:
-                    server_name = settings.guild_setting(guild_id=None, setting_name='display_name')
+            try:
+                server_name = settings.guild_setting(guild_id=player.guild_id, setting_name='display_name')
+            except exceptions.CheckFailedError:
+                server_name = settings.guild_setting(guild_id=None, setting_name='display_name')
+
+            if global_elo_history_dates or local_elo_history_dates:
 
                 plt.style.use('default')
 

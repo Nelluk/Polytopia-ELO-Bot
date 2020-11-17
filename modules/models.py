@@ -1627,10 +1627,6 @@ class Game(BaseModel):
                         team_win_chances = None
                         logger.info(f'Game date {self.date} is before reset date of {team_elo_reset_date}. Will not count towards team ELO.')
 
-                    print('side_win_chances', side_win_chances)
-                    print('side_win_chances_discord', side_win_chances_discord)
-                    print('side_win_chances_alltime', side_win_chances_alltime)
-                    print('side_win_chances_discord_alltime', side_win_chances_discord_alltime)
                     for i in range(len(gamesides)):
                         side = gamesides[i]
                         is_winner = True if side == winning_side else False
@@ -2157,16 +2153,16 @@ class Game(BaseModel):
         elo_logger.info(f'recalculate_all_elo')
 
         with db.atomic():
-            Player.update(elo=1000, elo_max=1000).execute()
+            Player.update(elo=1000, elo_max=1000, elo_alltime=1000, elo_max_alltime=1000).execute()
             Team.update(elo=1000, elo_alltime=1000).execute()
-            DiscordMember.update(elo=1000, elo_max=1000).execute()
+            DiscordMember.update(elo=1000, elo_max=1000, elo_alltime=1000, elo_max_alltime=1000).execute()
             Squad.update(elo=1000).execute()
 
             bot_members = DiscordMember.select().where(
                 DiscordMember.discord_id.in_([settings.bot_id, settings.bot_id_beta])
             )
-            bot_update1 = Player.update(elo=0, elo_max=0).where(Player.discord_member_id.in_(bot_members))
-            bot_update2 = DiscordMember.update(elo=0, elo_max=0).where(DiscordMember.id.in_(bot_members))
+            bot_update1 = Player.update(elo=0, elo_max=0, elo_alltime=0, elo_max_alltime=0).where(Player.discord_member_id.in_(bot_members))
+            bot_update2 = DiscordMember.update(elo=0, elo_max=0, elo_alltime=0, elo_max_alltime=0).where(DiscordMember.id.in_(bot_members))
             logger.info(f'Updating {bot_update1.execute()} bot Player records with 0 elo and {bot_update2.execute()} bot DiscordMember records with 0 elo.')
 
             Game.update(is_completed=0, is_confirmed=0).where(

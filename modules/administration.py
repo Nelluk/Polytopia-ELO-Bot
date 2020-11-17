@@ -925,6 +925,48 @@ class administration(commands.Cog):
 
         await ctx.send(f'Marking **{dm.name}** as a booster and successfully applied the role across {counter} server(s).')
 
+    @commands.command(hidden=True)
+    @commands.is_owner()
+    async def recalc_games_from(self, ctx, *, arg: str = None):
+        """*Owner*: Recalculate games from a specific timestamp
+
+        Give a game ID, and the bot will *recalculate_elo_since* all games completed after that game was completed.
+        """
+
+        import functools
+        game = models.Game.get_or_none(id=arg)
+        if not game:
+            return await ctx.send(f'no game found for id {arg}')
+
+        logger.info(f'reset_ts_from loaded game {game.id} with completed_ts {game.completed_ts}')
+        if not game.completed_ts:
+            return await ctx.send(f'Game {game.id} is not completed. Choose a completed game.')
+
+        await ctx.send(f'This may take a while...')
+        settings.recalculation_mode = True
+        async with ctx.typing():
+            await self.bot.loop.run_in_executor(None, functools.partial(models.Game.recalculate_elo_since, timestamp=game.completed_ts))
+            # Allows bot to remain responsive while this large operation is running.
+            await ctx.send(f'DB has been refreshed from {game.completed_ts} onward')
+            settings.recalculation_mode = False
+
+    @commands.command(hidden=True)
+    @commands.is_owner()
+    async def reset_elo(self, ctx, *, arg: str = None):
+        """*Owner*: Reset ELO to today's date
+
+        settings.elo_reset_date value must equal today for this to do anything.
+        When successful it will reset all non-alltime ELO values
+        """
+
+        if settings.elo_reset_date == datetime.datetime.today().date():
+            logger.info('reset_elo performed and settings.elo_reset_date equals today\'s date. Performing normal ELO reset.')
+            with models.db.atomic():
+                q1 = models.Player.update(elo=1000, elo_max=1000)
+                q2 = models.DiscordMember.update(elo=1000, elo_max=1000)
+                return await ctx.send(f':warning: Regular ELO has been reset for {q1.execute()} Player records and {q2.execute()} DiscordMember records.')
+        else:
+            return await ctx.send('The value set in `settings.elo_reset_date` must equal today\'s date before a reset can be performed.')
 
     @commands.command(aliases=['migrate'])
     @commands.is_owner()
