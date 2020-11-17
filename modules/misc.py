@@ -38,24 +38,6 @@ class misc(commands.Cog):
 
         await utilities.buffered_send(destination=ctx, content="\n".join(output))
 
-    @commands.command(hidden=True)
-    @commands.is_owner()
-    async def reset_ts_from(self, ctx, *, arg: str = None):
-
-        import functools
-        game = models.Game.get_or_none(id=arg)
-        if not game:
-            return print('no game')
-
-        print(f'Loaded game {game.id}')
-        await ctx.send(f'This may take a while...')
-        settings.recalculation_mode = True
-        async with ctx.typing():
-            await self.bot.loop.run_in_executor(None, functools.partial(models.Game.recalculate_elo_since, timestamp=game.completed_ts))
-            # Allows bot to remain responsive while this large operation is running.
-            await ctx.send(f'DB has been refreshed from {game.completed_ts} onward')
-            settings.recalculation_mode = False
-
     @commands.command(usage=None)
     @settings.in_bot_channel_strict()
     async def guide(self, ctx):
