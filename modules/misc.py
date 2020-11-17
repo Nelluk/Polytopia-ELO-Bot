@@ -27,51 +27,14 @@ class misc(commands.Cog):
     @commands.is_owner()
     async def test(self, ctx, *, args: str = None):
 
-        return await ctx.send('No op')
-
-        cosmos = models.Team.get_or_except(team_name='The Cosmonauts', guild_id=ctx.guild.id, require_exact=True)
-
-        games_6 = models.Game.search(team_filter=[cosmos], title_filter=['PS6'], status_filter=3)
-        games_7 = models.Game.search(team_filter=[cosmos], title_filter=['PS7'], status_filter=3)
         output = []
 
-        for g in games_6 + games_7:
-            if g.is_ranked:
-                output.append(f'COSMOSTS - Modifying game {g.id} - {g.name} - {g.notes} - {g.is_ranked}')
-                g.is_ranked = False
-                g.notes = g.notes + ' - Set to unranked Nov 8 2020 for team cheating scandal'
-                g.save()
-                models.GameLog.write(game_id=g, guild_id=g.guild_id, message=f'Previously a ranked Season 6 or Season 7 win - changed to unranked as part of Cosmonauts team cheating scandal punishment.')
-            else:
-                output.append(f'COSMOSTS - Skipping game {g.id} - Unranked (Already modified?)')
+        q = models.Lineup.select().join(models.Game).where(
+            (models.Game.is_ranked == 0) & (models.Lineup.elo_change_player != 0)
+        )
 
-            logger.debug(output[-1:])
-
-        await utilities.buffered_send(destination=ctx, content="\n".join(output))
-
-        output = []
-
-        games_8_wins = models.Game.search(team_filter=[cosmos], title_filter=['PS8'], status_filter=3)
-        games_8 = models.Game.search(team_filter=[cosmos], title_filter=['PS8'])
-
-        for g in games_8:
-            output.append(f'COSMOSTS - Found S8 game {g.id} - {g.name} - {g.notes} - {g.is_ranked}')
-            g.name = g.name.replace('Ps8W', 'Cancelled Season 8 Week ')
-            if g in games_8_wins:
-                output.append(f'COSMOSTS - Winning game to unrank and de-tag')
-                g.is_ranked = False
-                g.notes = g.notes + ' - Previously a game from Season 8 - Set to unranked win Nov 8 2020 for team cheating scandal'
-                models.GameLog.write(game_id=g, guild_id=g.guild_id, message=f'Game renamed to *{g.name}* to remove it from Season 8 as part of Cosmonauts team cheating scandal punishment. Set to unranked as it was a win.')
-            else:
-                output.append(f'COSMOSTS - Losing or incomplete game to de-tag')
-                g.notes = g.notes + ' - Previously a game from Season 8 - Set to unranked win Nov 8 2020 for team cheating scandal'
-                models.GameLog.write(game_id=g, guild_id=g.guild_id, message=f'Game renamed to *{g.name}* to remove it from Season 8 as part of Cosmonauts team cheating scandal punishment.')
-
-            logger.debug(output[-2:])
-
-            g.save()
-
-            await g.update_squad_channels(self.bot.guilds, ctx.guild.id)
+        for l in q:
+            output.append(f'{l.game.id} {l.game.name}')
 
         await utilities.buffered_send(destination=ctx, content="\n".join(output))
 
