@@ -27,14 +27,30 @@ class misc(commands.Cog):
     @commands.is_owner()
     async def test(self, ctx, *, args: str = None):
 
-        output = []
+        output = ['Games fixed:']
+        games = []
 
         q = models.Lineup.select().join(models.Game).where(
             (models.Game.is_ranked == 0) & (models.Lineup.elo_change_player != 0)
-        )
+        ).order_by(models.Lineup.id)
 
+        # NOTE: dont think that elo changes got properly reversed from Cosmonauts fix. since reverse_elo_changes skips over Unranked games
+        # fix should be - identify affected games- run reverse_elo_changes on them - then recalc_ts_from that initial old game?
         for l in q:
-            output.append(f'{l.game.id} {l.game.name}')
+            print(f'{l.game.id} {l.game.name}')
+            games.append(l.game)
+            # l.gameside.elo_change_squad = 0
+            # l.gameside.elo_change_team = 0
+            # l.gameside.elo_change_team_alltime = 0
+            # l.gameside.team_elo_after_game = None
+            # l.gameside.team_elo_after_game_alltime = None
+
+        games = list(set(games))
+        print(games)
+
+        for g in games:
+            output.append(f'Fixing game {g.id} - {g.name} - {g.get_headline()}')
+            g.reverse_elo_changes()
 
         await utilities.buffered_send(destination=ctx, content="\n".join(output))
 

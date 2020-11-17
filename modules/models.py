@@ -1445,6 +1445,7 @@ class Game(BaseModel):
         return newgame
 
     def reverse_elo_changes(self):
+        logger.debug(f'reverse_elo_changes for game {self.id}')
         for lineup in self.lineup:
             lineup.player.elo += lineup.elo_change_player * -1
             lineup.player.elo_alltime += lineup.elo_change_player_alltime * -1
