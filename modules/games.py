@@ -893,6 +893,8 @@ class polygames(commands.Cog):
         if matchup_games:
             series_record = matchup_games[0].series_record()
             await ctx.send(f'Your local 1v1 record against this opponent: **{series_record[0][0].name()}** {series_record[0][1]} wins - **{series_record[1][0].name()}** {series_record[1][1]} wins')
+        if settings.recalculation_mode:
+            await ctx.send(f':warning: {ctx.author.mention} - I am currently recalculating the results of prior games. Results from player cards will be incomplete.')
 
     @settings.in_bot_channel()
     @settings.guild_has_setting(setting_name='allow_teams')
