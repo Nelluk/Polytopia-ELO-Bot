@@ -2152,6 +2152,7 @@ class Game(BaseModel):
 
         logger.warning('Resetting and recalculating all ELO')
         elo_logger.info(f'recalculate_all_elo')
+        settings.recalculation_mode = True
 
         with db.atomic():
             Player.update(elo=1000, elo_max=1000, elo_alltime=1000, elo_max_alltime=1000).execute()
@@ -2178,6 +2179,7 @@ class Game(BaseModel):
                 full_game = Game.load_full_game(game_id=game.id)
                 full_game.declare_winner(winning_side=full_game.winner, confirm=True)
 
+        settings.recalculation_mode = False
         elo_logger.info(f'recalculate_all_elo complete')
 
     def first_open_side(self, roles):
