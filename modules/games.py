@@ -695,7 +695,7 @@ class polygames(commands.Cog):
             if not player:
                 # Matching guild member but no Player or DiscordMember
                 return await ctx.send(f'*{player_mention_safe}* was found in the server but is not registered with me. '
-                    f'Players can register themselves with  `{ctx.prefix}setcode YOUR_POLYCODE`.')
+                    f'Players can register themselves with  `{ctx.prefix}setname Your In-Game Name`.')
             # if still running here that means there was a DiscordMember match not in current guild, and upserted into guild
         else:
             player = player_results[0]
