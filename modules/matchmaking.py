@@ -317,7 +317,7 @@ class matchmaking(commands.Cog):
         host, _ = models.Player.get_by_discord_id(discord_id=ctx.author.id, discord_name=ctx.author.name, discord_nick=ctx.author.nick, guild_id=ctx.guild.id)
         if not host:
             # Matching guild member but no Player or DiscordMember
-            return await ctx.send(f'You must be a registered player before hosting a match. Try `{ctx.prefix}setcode POLYCODE`')
+            return await ctx.send(f'You must be a registered player before hosting a match. Try `{ctx.prefix}setname Your Mobile Name`')
 
         on_team, player_team = models.Player.is_in_team(guild_id=ctx.guild.id, discord_member=ctx.author)
         if settings.guild_setting(ctx.guild.id, 'require_teams') and not on_team:
@@ -437,8 +437,8 @@ class matchmaking(commands.Cog):
         if not team_size:
             return await ctx.send(f'Game size is required. Include argument like *1v1* to specify size')
 
-        if not host.discord_member.polytopia_id and is_mobile:
-            return await ctx.send(f'**{host.name}** does not have a mobile game code on file. Use `{ctx.prefix}setcode` to set one, or try `{ctx.prefix}opensteam` for a Steam game.')
+        if not host.discord_member.polytopia_name and is_mobile:
+            return await ctx.send(f'**{host.name}** does not have a mobile name on file. Use `{ctx.prefix}setname` to set one, or try `{ctx.prefix}opensteam` for a Steam game.')
 
         if not is_mobile and not host.discord_member.name_steam:
             return await ctx.send(f'**{host.name}** does not have a Steam username on file and this is a Steam game 🖥. Use `{ctx.prefix}steamname` to set one, or try `{ctx.prefix}opengame` for a Mobile game.')
@@ -881,7 +881,7 @@ class matchmaking(commands.Cog):
                             unjoinable_count += 1
                             continue
                         if game.is_mobile:
-                            if not player.discord_member.polytopia_id:
+                            if not player.discord_member.polytopia_name:
                                 unjoinable_count += 1
                                 continue
                         else:
@@ -1051,15 +1051,17 @@ class matchmaking(commands.Cog):
                 bot_channel = settings.guild_setting(guild.id, 'bot_channels_strict')[0]
                 prefix = settings.guild_setting(guild.id, 'command_prefix')
 
+                embed, _ = game.embed(guild=guild, prefix=prefix)
+
                 message = (f'__You have a ranked game on **{guild.name}** that is waiting to be created.__'
                            f'\nPlease visit the server\'s bot channel at this link: <https://discordapp.com/channels/{guild.id}/{bot_channel}/>'
-                           f'\nType the command __`{prefix}game {game.id}`__ for more details. Remember. you must manually **create the game within Polytopia** using the supplied '
-                           f'friend codes, come back to the channel, and use the command __`{prefix}start {game.id} Name of Game`__ to mark the game as started.'
-                           f'\n\nYou can use the command __`{prefix}codes {game.id}`__ to get each player\'s friend code in an easy-to-copy format.')
+                           f'\nType the command __`{prefix}game {game.id}`__ for more details. Remember. you must manually **create the game within Polytopia**, '
+                           f'come back to discord, and use the command __`{prefix}start {game.id} Name of Game`__ to mark the game as started.'
+                           f'\n\nYou can use the command __`{prefix}names {game.id}`__ to get each player\'s in-game name in an easy-to-copy format.'
+                           '\n\n*(I do not respond to DMed commands. You must issue commands in the channel linked above.)*')
 
                 try:
-                    await creating_guild_member.send(message)
-                    await creating_guild_member.send('I do not respond to DMed commands. You must issue commands in the channel linked above.')
+                    await creating_guild_member.send(content=message, embed=embed)
                     logger.info(f'Sending reminder DM to {creating_guild_member.name} {creating_guild_member.id} to start game {game.id}')
                 except discord.DiscordException as e:
                     logger.warning(f'Error DMing creator of waiting game: {e}')
