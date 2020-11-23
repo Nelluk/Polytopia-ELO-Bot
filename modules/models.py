@@ -186,6 +186,8 @@ class DiscordMember(BaseModel):
     elo_max = SmallIntegerField(default=1000)
     elo_alltime = SmallIntegerField(default=1000)
     elo_max_alltime = SmallIntegerField(default=1000)
+    elo_moonrise = SmallIntegerField(default=1000)
+    elo_max_moonrise = SmallIntegerField(default=1000)
     polytopia_id = TextField(null=True)
     polytopia_name = TextField(null=True)
     is_banned = BooleanField(default=False)
@@ -453,6 +455,8 @@ class Player(BaseModel):
     elo_max = SmallIntegerField(default=1000)
     elo_alltime = SmallIntegerField(default=1000)
     elo_max_alltime = SmallIntegerField(default=1000)
+    elo_moonrise = SmallIntegerField(default=1000)
+    elo_max_moonrise = SmallIntegerField(default=1000)
     trophies = ArrayField(CharField, null=True)
     is_banned = BooleanField(default=False)
 
@@ -1449,20 +1453,26 @@ class Game(BaseModel):
         for lineup in self.lineup:
             lineup.player.elo += lineup.elo_change_player * -1
             lineup.player.elo_alltime += lineup.elo_change_player_alltime * -1
+            lineup.player.elo_moonrise += lineup.elo_change_player_moonrise * -1
             lineup.player.save()
             lineup.elo_change_player = 0
             lineup.elo_change_player_alltime = 0
+            lineup.elo_change_player_moonrise = 0
             lineup.elo_after_game = None
             lineup.elo_after_game_alltime = None
             lineup.elo_after_game_global = None
             lineup.elo_after_game_global_alltime = None
+            lineup.elo_after_game_moonrise = None
+            lineup.elo_after_game_global_moonrise = None
 
-            if lineup.elo_change_discordmember_alltime:
+            if lineup.elo_change_discordmember_alltime or lineup.elo_change_discordmember or lineup.elo_change_discordmember_moonrise:
                 lineup.player.discord_member.elo += lineup.elo_change_discordmember * -1
                 lineup.player.discord_member.elo_alltime += lineup.elo_change_discordmember_alltime * -1
+                lineup.player.discord_member.elo_moonrise += lineup.elo_change_discordmember_moonrise * -1
                 lineup.player.discord_member.save()
                 lineup.elo_change_discordmember = 0
                 lineup.elo_change_discordmember_alltime = 0
+                lineup.elo_change_discordmember_moonrise = 0
             lineup.save()
 
         for gameside in self.gamesides:
@@ -1632,13 +1642,16 @@ class Game(BaseModel):
                         side = gamesides[i]
                         is_winner = True if side == winning_side else False
                         for p in side.lineup:
-                            p.change_elo_after_game(side_win_chances_alltime[i], is_winner, alltime=True)
-                            p.change_elo_after_game(side_win_chances_discord_alltime[i], is_winner, by_discord_member=True, alltime=True)
-                            if self.date >= settings.elo_reset_date:
-                                p.change_elo_after_game(side_win_chances[i], is_winner, alltime=False)
-                                p.change_elo_after_game(side_win_chances_discord[i], is_winner, by_discord_member=True, alltime=False)
+                            p.change_elo_after_game(side_win_chances_alltime[i], is_winner, alltime=True, moonrise=False)
+                            p.change_elo_after_game(side_win_chances_discord_alltime[i], is_winner, by_discord_member=True, alltime=True, moonrise=False)
+                            if self.date >= settings.moonrise_reset_date:
+                                p.change_elo_after_game(side_win_chances[i], is_winner, alltime=False, moonrise=True)
+                                p.change_elo_after_game(side_win_chances_discord[i], is_winner, by_discord_member=True, alltime=False, moonrise=True)
+                                logger.info(f'Game date {self.date} is after ELO reset date of {settings.moonrise_reset_date}. Counts towards POST-Moonrise ELO')
                             else:
-                                logger.info(f'Game date {self.date} is before ELO reset date of {settings.elo_reset_date}. Will not count towards regular ELO.')
+                                p.change_elo_after_game(side_win_chances[i], is_winner, alltime=False, moonrise=False)
+                                p.change_elo_after_game(side_win_chances_discord[i], is_winner, by_discord_member=True, alltime=False, moonrise=False)
+                                logger.info(f'Game date {self.date} is before ELO reset date of {settings.moonrise_reset_date}. Counts towards pre-Moonrise ELO')
 
                         if team_win_chances:
                             team_elo_delta = side.team.change_elo_after_game(team_win_chances[i], is_winner)
@@ -2765,11 +2778,11 @@ class GameSide(BaseModel):
         if by_discord_member and alltime:
             elo_list = [l.player.discord_member.elo_alltime for l in self.lineup]
         elif by_discord_member and not alltime:
-            elo_list = [l.player.discord_member.elo for l in self.lineup]
+            elo_list = [l.player.discord_member.elo for l in self.lineup] if self.game.date < settings.moonrise_reset_date else [l.player.discord_member.elo_moonrise for l in self.lineup]
         elif not by_discord_member and alltime:
             elo_list = [l.player.elo_alltime for l in self.lineup]
         elif not by_discord_member and not alltime:
-            elo_list = [l.player.elo for l in self.lineup]
+            elo_list = [l.player.elo for l in self.lineup] if self.game.date < settings.moonrise_reset_date else [l.player.elo_moonrise for l in self.lineup]
         else:
             raise ValueError(f'average_elo: should not be here!')
 
@@ -2916,33 +2929,50 @@ class Lineup(BaseModel):
     elo_change_discordmember = SmallIntegerField(default=0)
     elo_change_player_alltime = SmallIntegerField(default=0)
     elo_change_discordmember_alltime = SmallIntegerField(default=0)
+    elo_change_player_moonrise = SmallIntegerField(default=0)
+    elo_change_discordmember_moonrise = SmallIntegerField(default=0)
 
-    elo_after_game = SmallIntegerField(default=None, null=True)  # snapshot of what elo was after game concluded
-    elo_after_game_global = SmallIntegerField(default=None, null=True)  # snapshot of what global (discordmember) elo was after game concluded
-    elo_after_game_alltime = SmallIntegerField(default=None, null=True)  # snapshot of what local alltime elo was after game concluded
-    elo_after_game_global_alltime = SmallIntegerField(default=None, null=True)  # snapshot of what global (discordmember) alltime elo was after game concluded
+    elo_after_game = SmallIntegerField(default=None, null=True)
+    elo_after_game_global = SmallIntegerField(default=None, null=True)
+    elo_after_game_alltime = SmallIntegerField(default=None, null=True)
+    elo_after_game_global_alltime = SmallIntegerField(default=None, null=True)
+    elo_after_game_moonrise = SmallIntegerField(default=None, null=True)
+    elo_after_game_global_moonrise = SmallIntegerField(default=None, null=True)
 
-    def change_elo_after_game(self, chance_of_winning: float, is_winner: bool, by_discord_member: bool = False, alltime: bool = False):
+    def change_elo_after_game(self, chance_of_winning: float, is_winner: bool, by_discord_member: bool = False, alltime: bool = False, moonrise: bool = True):
         # Average(Away Side Elo) is compared to Average(Home_Side_Elo) for calculation - ie all members on a side will have the same elo_delta
         # Team A: p1 900 elo, p2 1000 elo = 950 average
         # Team B: p1 1000 elo, p2 1200 elo = 1100 average
         # ELO is compared 950 vs 1100 and all players treated equally
 
+        # 'moonrise' elo fields reflect a reset on 2020-12-01, shortly after a major game update. 'old'/original ELO kept for posterity.
+
         if by_discord_member is True:
             if self.game.guild_id not in settings.servers_included_in_global_lb():
-                logger.info(f'Skipping ELO change by discord member because {self.game.guild_id} is set to be excluded.')
-                return
-            num_games = self.player.discord_member.completed_game_count()
-            if alltime:
-                elo = self.player.discord_member.elo_alltime
-            else:
-                elo = self.player.discord_member.elo
+                return logger.info(f'Skipping ELO change by discord member because {self.game.guild_id} is set to be excluded.')
+
+            record = self.player.discord_member
         else:
-            num_games = self.player.completed_game_count()
-            if alltime:
-                elo = self.player.elo_alltime
-            else:
-                elo = self.player.elo
+            record = self.player
+
+        if moonrise:
+            elo_field = 'elo_moonrise'
+            max_field = 'elo_max_moonrise'
+            change_field = 'elo_change_discordmember_moonrise' if by_discord_member else 'elo_change_player_moonrise'
+            aftergame_field = 'elo_after_game_global_moonrise' if by_discord_member else 'elo_after_game_moonrise'
+        elif alltime:
+            elo_field = 'elo_alltime'
+            max_field = 'elo_max_alltime'
+            change_field = 'elo_change_discordmember_alltime' if by_discord_member else 'elo_change_player_alltime'
+            aftergame_field = 'elo_after_game_global_alltime' if by_discord_member else 'elo_after_game_alltime'
+        else:
+            elo_field = 'elo'
+            max_field = 'elo_max'
+            change_field = 'elo_change_discordmember' if by_discord_member else 'elo_change_player'
+            aftergame_field = 'elo_after_game_global' if by_discord_member else 'elo_after_game'
+
+        elo = getattr(record, elo_field)
+        num_games = record.completed_game_count()
 
         max_elo_delta = 32
 
@@ -2957,59 +2987,25 @@ class Lineup(BaseModel):
             elo_delta = int(round((max_elo_delta * (0 - chance_of_winning)), 0))
 
         elo_boost = .60 * ((1200 - max(min(elo, 1200), 900)) / 300)  # 60% boost to delta at elo 900, gradually shifts to 0% boost at 1200 ELO
-        # elo_boost = 1.0 * ((1200 - min(elo, 1200)) / 200)  # 100% boost to delta at elo 1000, gradually shifts to 0% boost at 1200 ELO
-        # elo_boost = 0.95 * ((1200 - min(elo, 1200)) / 200)
 
         elo_bonus = int(abs(elo_delta) * elo_boost)
         elo_delta += elo_bonus
-
-        # elo_logger.debug(f'game: {self.game.id}, {"discordmember" if by_discord_member else "player"}, {self.player.name[:15]}, '
-        # f'elo: {elo}, CoW: {chance_of_winning}, elo_delta: {elo_delta}, new_elo: {int(elo + elo_delta)}')
-
-        # logger.debug(f'Player {self.player.id} chance of winning: {chance_of_winning} game {self.game.id},'
-        #     f'elo_delta {elo_delta}, current_player_elo {self.player.elo}, new_player_elo {int(self.player.elo + elo_delta)}')
 
         if self.player.discord_member.discord_id in [settings.bot_id, settings.bot_id_beta]:
             # keep elobot's elo at 0 always - for penalty games
             return logger.info('Skipping elo set for bot user')
 
+        new_elo = int(elo + elo_delta)
         with db.atomic():
-            if by_discord_member is True:
-                if alltime:
-                    self.player.discord_member.elo_alltime = int(elo + elo_delta)
-                    if self.player.discord_member.elo_alltime > self.player.discord_member.elo_max_alltime:
-                        self.player.discord_member.elo_max_alltime = self.player.discord_member.elo_alltime
-                    self.elo_change_discordmember_alltime = elo_delta
-                    self.elo_after_game_global_alltime = int(elo + elo_delta)
-                    self.player.discord_member.save()
-                    self.save()
-                else:
-                    self.player.discord_member.elo = int(elo + elo_delta)
-                    if self.player.discord_member.elo > self.player.discord_member.elo_max:
-                        self.player.discord_member.elo_max = self.player.discord_member.elo
-                    self.elo_change_discordmember = elo_delta
-                    self.elo_after_game_global = int(elo + elo_delta)
-                    self.player.discord_member.save()
-                    self.save()
-            else:
-                if alltime:
-                    self.player.elo_alltime = int(elo + elo_delta)
-                    self.elo_after_game_alltime = int(elo + elo_delta)
-                    if self.player.elo_alltime > self.player.elo_max_alltime:
-                        self.player.elo_max_alltime = self.player.elo_alltime
-                    self.elo_change_player_alltime = elo_delta
-                    self.player.save()
-                    self.save()
-                else:
-                    self.player.elo = int(elo + elo_delta)
-                    self.elo_after_game = int(elo + elo_delta)
-                    if self.player.elo > self.player.elo_max:
-                        self.player.elo_max = self.player.elo
-                    self.elo_change_player = elo_delta
-                    self.player.save()
-                    self.save()
+            setattr(record, elo_field, new_elo)
+            if new_elo > getattr(record, max_field):
+                setattr(record, max_field, new_elo)
+            setattr(self, change_field, elo_delta)
+            setattr(self, aftergame_field, new_elo)
+            record.save()
+            self.save()
 
-        # logger.debug(f'elo after save: {self.player.elo}')
+        print(record, elo_field, max_field, change_field, aftergame_field, new_elo, elo_delta)
 
     def emoji_str(self):
 

@@ -34,7 +34,7 @@ maintenance_mode = False  # if set as True bot will ignore all commands (TODO: r
 recalculation_mode = False  # If set as True during a long recalculation (unwin an old game) - prevent any $win or $unwin commands
 team_elo_reset_date = '1/1/2020'
 
-elo_reset_date = datetime.date(2017, 12, 1)
+moonrise_reset_date = datetime.date(2020, 12, 1)
 elo_calc_v2_date = datetime.date(2020, 8, 2)  # tweaked elo calc Aug 2, 2020
 
 emoji_join_game = '⚔️'

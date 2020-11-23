@@ -950,24 +950,6 @@ class administration(commands.Cog):
             await ctx.send(f'DB has been refreshed from {game.completed_ts} onward')
             settings.recalculation_mode = False
 
-    @commands.command(hidden=True)
-    @commands.is_owner()
-    async def reset_elo(self, ctx, *, arg: str = None):
-        """*Owner*: Reset ELO to today's date
-
-        settings.elo_reset_date value must equal today for this to do anything.
-        When successful it will reset all non-alltime ELO values
-        """
-
-        if settings.elo_reset_date == datetime.datetime.today().date():
-            logger.info('reset_elo performed and settings.elo_reset_date equals today\'s date. Performing normal ELO reset.')
-            with models.db.atomic():
-                q1 = models.Player.update(elo=1000, elo_max=1000)
-                q2 = models.DiscordMember.update(elo=1000, elo_max=1000)
-                return await ctx.send(f':warning: Regular ELO has been reset for {q1.execute()} Player records and {q2.execute()} DiscordMember records.')
-        else:
-            return await ctx.send('The value set in `settings.elo_reset_date` must equal today\'s date before a reset can be performed.')
-
     @commands.command(aliases=['migrate'])
     @commands.is_owner()
     async def migrate_player(self, ctx, from_string: str, to_string: str):
