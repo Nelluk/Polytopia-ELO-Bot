@@ -1644,7 +1644,7 @@ class Game(BaseModel):
                         for p in side.lineup:
                             p.change_elo_after_game(side_win_chances_alltime[i], is_winner, alltime=True, moonrise=False)
                             p.change_elo_after_game(side_win_chances_discord_alltime[i], is_winner, by_discord_member=True, alltime=True, moonrise=False)
-                            if self.date >= settings.moonrise_reset_date:
+                            if self.uses_moonrise_elo():
                                 p.change_elo_after_game(side_win_chances[i], is_winner, alltime=False, moonrise=True)
                                 p.change_elo_after_game(side_win_chances_discord[i], is_winner, by_discord_member=True, alltime=False, moonrise=True)
                                 logger.info(f'Game date {self.date} is after ELO reset date of {settings.moonrise_reset_date}. Counts towards POST-Moonrise ELO')
@@ -2539,6 +2539,12 @@ class Game(BaseModel):
 
         return False
 
+    def uses_moonrise_elo(self):
+
+        # if True, use moonrise ELO fields such as elo_moonrise / elo_after_game_global_moonrise
+        # if False, use the old/archived fields such as elo / elo_after_game_global
+        return bool(self.date >= settings.moonrise_reset_date)
+
 
 class Squad(BaseModel):
     elo = SmallIntegerField(default=1000)
@@ -2842,13 +2848,17 @@ class GameSide(BaseModel):
         # for l in self.lineup:
         for l in Lineup.select(Lineup, Player).join(Player).where(Lineup.gameside == self).order_by(Lineup.id):
 
-            if is_confirmed and l.elo_after_game:
+            if is_confirmed and (l.elo_after_game_moonrise or l.elo_after_game):
                 # build elo string showing change in elo from this game
-                elo_change_str = f'+{l.elo_change_player}' if l.elo_change_player >= 0 else str(l.elo_change_player)
-                elo_str = f'{l.elo_after_game} {elo_change_str}'
+                if self.game.uses_moonrise_elo():
+                    elo_change_str = f'+{l.elo_change_player_moonrise}' if l.elo_change_player_moonrise >= 0 else str(l.elo_change_player_moonrise)
+                    elo_str = f'{l.elo_after_game_moonrise} {elo_change_str}'
+                else:
+                    elo_change_str = f'+{l.elo_change_player}' if l.elo_change_player >= 0 else str(l.elo_change_player)
+                    elo_str = f'{l.elo_after_game} {elo_change_str}'
             else:
                 # build elo string showing current elo only
-                elo_str = f'{l.player.elo}'
+                elo_str = f'{l.player.elo_moonrise}' if self.game.uses_moonrise_elo() else f'{l.player.elo}'
             players.append(
                 (l.player, f'{elo_str}', l.emoji_str())
             )
