@@ -495,7 +495,7 @@ class misc(commands.Cog):
                 bot_spam_chan = settings.guild_setting(guild.id, 'bot_channels_strict')[0]
                 elo_guide_channel = 533391050014720040
 
-                broadcast_message = (f'To register for ELO leaderboards and matchmaking use the command __`{prefix}setcode YOURCODEHERE`__')
+                broadcast_message = (f'To register for ELO leaderboards and matchmaking use the command __`{prefix}setname Your Mobile Name`__')
                 broadcast_message += f'\nTo get started with joining an open game, go to <#{bot_spam_chan}> and type __`{prefix}games`__'
                 broadcast_message += f'\nFor full information go read <#{elo_guide_channel}>.'
 
