@@ -2339,9 +2339,12 @@ class Game(BaseModel):
         message_list.append(f'Joining {member.mention} to side {side.position} of game {self.id}')
         GameLog.write(game_id=self, guild_id=member.guild.id, message=f'Side {side.position} joined by {GameLog.member_string(player.discord_member)} {log_by_str} {log_note}')
 
-        if players + 1 < capacity and self.creating_player() == player and member == author_member and settings.get_user_level(member) <= 1:
+        creating_player = self.creating_player()
+        if players + 1 < capacity and creating_player == player and member == author_member and settings.get_user_level(member) <= 1:
             message_list.append(':bulb: Since you are joining **side 1**, you will be the host of this game and will be notified when it is full. It will be your responsibility to create the game in Polytopia. '
                 f'You can specify a non-host side to join; see `{prefix}help join` in a bot channel.')
+        elif creating_player and creating_player != player and settings.get_user_level(member) <= 3:
+            message_list.append(f':bulb: To help get the game set up more quickly, send the game host a friend request within Polytopia. The in-game name of the host is `{creating_player.discord_member.polytopia_name}`.')
 
         if self.is_mobile and not player.discord_member.polytopia_name:
             message_list.append(f':warning: Use `{prefix}setname Your Mobile Name` to set your in-game name. This will replace your friend code in the near future.')
