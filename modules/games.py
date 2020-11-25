@@ -1922,9 +1922,9 @@ class polygames(commands.Cog):
 
         if settings.get_user_level(ctx.author) < 4 or len(arg_list) == 1:
             # if non-priviledged user, force the command to be about the ctx.author
-            arg_list = [f'<@{ctx.author.id}>', arg_list[0]]
+            arg_list = [f'<@{ctx.author.id}>', arg_list[0] if arg_list else ' ']
 
-        if len(arg_list) % 2 != 0:
+        if len(arg_list) % 2 != 0 or len(arg_list) == 0:
             return await ctx.send(f'Wrong number of arguments. See `{ctx.prefix}help settribe` for usage examples.')
 
         for i in range(0, len(arg_list), 2):

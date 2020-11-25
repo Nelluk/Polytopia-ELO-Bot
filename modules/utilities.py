@@ -23,7 +23,7 @@ def connect():
 def lock_game(game_id: int):
     if game_id in settings.bot.locked_game_records:
         logger.warning(f'Tried to lock game {game_id} but it is already locked!')
-        raise exceptions.RecordLocked(f'Game {game_id} is locked for another command and cannot be processed.')
+        raise exceptions.RecordLocked(f'Game {game_id} is locked by another command. Try again in a few seconds. If this persists please inform **Nelluk**.')
     else:
         logger.debug(f'Locking game {game_id}')
         settings.bot.locked_game_records.add(game_id)
