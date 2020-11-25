@@ -1588,7 +1588,6 @@ class polygames(commands.Cog):
         `[p]win 2050 Home` - Declare *Home* team winner of game 2050
         `[p]win 2050 Nelluk` - Declare *Nelluk* winner of game 2050
         """
-
         if settings.recalculation_mode:
             logger.info('Skipping command due to settings.recalculation_mode')
             return await ctx.send(f':warning: {ctx.author.mention} - I am currently recalculating the results of prior games. No new game results can be logged. Please try again in a few minutes.')
@@ -1625,6 +1624,8 @@ class polygames(commands.Cog):
         if winning_game.is_pending:
             return await ctx.send(f'This game has not started yet.')
 
+        utilities.lock_game(winning_game.id)
+
         models.GameLog.write(game_id=winning_game, guild_id=ctx.guild.id, message=f'Win confirm logged by {models.GameLog.member_string(ctx.author)} for winner **{discord.utils.escape_markdown(winning_obj.name)}**')
         await winning_game.update_squad_channels(guild_list=settings.bot.guilds, guild_id=ctx.guild.id, message=f'A win claim has been placed by **{ctx.author.display_name}** for winner **{winning_obj.name}**')
 
@@ -1633,6 +1634,7 @@ class polygames(commands.Cog):
             confirm_win = True
         else:
             if not has_player:
+                utilities.unlock_game(winning_game.id)
                 return await ctx.send(f'You were not a participant in this game.')
 
             if reset_confirmations_flag:
@@ -1673,8 +1675,10 @@ class polygames(commands.Cog):
         try:
             winning_game.declare_winner(winning_side=winning_side, confirm=confirm_win)
         except exceptions.CheckFailedError as e:
+            utilities.unlock_game(winning_game.id)
             await ctx.send(f'*Error*: {e}')
         else:
+            utilities.unlock_game(winning_game.id)
             if confirm_win:
                 # Cleanup game channels and announce winners
                 # try/except block is attempt at a bandaid where sometimes an InterfaceError/Cursor Closed exception would hit here, probably due to issues with async code
@@ -1718,6 +1722,7 @@ class polygames(commands.Cog):
         if settings.is_staff(ctx.author):
             # Staff usage: reset any game to Incomplete state
             game.confirmations_reset()
+            utilities.lock_game(game.id)
             models.GameLog.write(game_id=game, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} staffer used unwin command.')
             if game.is_completed and game.is_confirmed:
                 elo_logger.debug(f'unwin game {game.id}')
@@ -1737,10 +1742,12 @@ class polygames(commands.Cog):
                             Game.recalculate_elo_since(timestamp=timestamp)
                             elo_logger.debug(f'unwin game {game.id} completed')
                             settings.recalculation_mode = False
+                            utilities.unlock_game(game.id)
                             return await ctx.send(f'Game {game.id} has been marked as *Incomplete*. ELO changes have been reverted and ELO from all subsequent games recalculated.')
 
                         else:
                             elo_logger.debug(f'unwin game {game.id} completed (unranked)')
+                            utilities.unlock_game(game.id)
                             return await ctx.send(f'Unranked game {game.id} has been marked as *Incomplete*.')
 
             elif game.is_completed:
@@ -1750,6 +1757,7 @@ class polygames(commands.Cog):
                 game.winner = None
                 game.save()
                 await post_unwin_messaging(ctx.guild, ctx.prefix, ctx.channel, game, previously_confirmed=False)
+                utilities.unlock_game(game.id)
                 return await ctx.send(f'Unconfirmed Game {game.id} has been marked as *Incomplete*.')
 
             else:
@@ -1766,6 +1774,7 @@ class polygames(commands.Cog):
             if game.is_pending:
                 return await ctx.send(f'Game {game.id} is marked as *pending / not started*. This command cannot be used.')
 
+            utilities.lock_game(game.id)
             if author_side == game.winner:
                 logger.debug(f'Player {ctx.author.name} is removing their own win claim on game {game.id}')
                 models.GameLog.write(game_id=game, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} removes their self-win claim and confirmations have reset.')
@@ -1775,6 +1784,7 @@ class polygames(commands.Cog):
                 game.winner = None
                 game.save()
                 await post_unwin_messaging(ctx.guild, ctx.prefix, ctx.channel, game, previously_confirmed=False)
+                utilities.unlock_game(game.id)
                 return await ctx.send(f'Your unconfirmed win in game {game.id} has been reset and the game is now marked as *Incomplete*.')
             else:
                 # author removing win claim for a game pointing at another side as the winner
@@ -1784,7 +1794,7 @@ class polygames(commands.Cog):
                 author_side.save()
 
                 (confirmed_count, side_count, fully_confirmed) = game.confirmations_count()
-
+                utilities.unlock_game(game.id)
                 return await ctx.send(f'Your confirmation that **{game.winner.name()}** won game {game.id} has been *removed*. The win is still pending confirmation. '
                     f'{confirmed_count} of {side_count} sides are marked as confirming.')
 
@@ -1802,6 +1812,7 @@ class polygames(commands.Cog):
 
         if not game:
             return await ctx.send(f'Game ID not provided. Usage: __`{ctx.prefix}delete GAME_ID`__')
+        gid = game.id
 
         mention_list = game.mentions()
         if game.is_pending:
@@ -1824,6 +1835,7 @@ class polygames(commands.Cog):
         if not settings.is_mod(ctx.author):
             return await ctx.send('Only server mods can delete completed or in-progress games.')
 
+        utilities.lock_game(gid)
         if game.winner and game.is_confirmed and game.is_ranked:
             await ctx.send(f'Deleting game with ID {game.id} and re-calculating ELO for all subsequent games. This will take a few seconds.')
 
@@ -1833,7 +1845,7 @@ class polygames(commands.Cog):
 
         await game.delete_game_channels(self.bot.guilds, ctx.guild.id)
         models.GameLog.write(game_id=game, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} deleted the game.')
-        gid = game.id
+
         try:
             async with ctx.typing():
                 await self.bot.loop.run_in_executor(None, game.delete_game)
@@ -1842,6 +1854,8 @@ class polygames(commands.Cog):
         except discord.errors.NotFound:
             logger.warning('Game deleted while in game-related channel')
             await self.bot.loop.run_in_executor(None, game.delete_game)
+
+        utilities.unlock_game(gid)
 
     @commands.command(usage='game_id "New Name"')
     @models.is_registered_member()

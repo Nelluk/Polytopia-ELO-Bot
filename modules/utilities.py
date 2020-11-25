@@ -4,6 +4,7 @@ import logging
 import asyncio
 import settings
 import modules.models as models
+import modules.exceptions as exceptions
 import re
 # import peewee
 
@@ -16,6 +17,25 @@ def connect():
         return True
     else:
         # logger.debug('reusing db connection')
+        return False
+
+
+def lock_game(game_id: int):
+    if game_id in settings.bot.locked_game_records:
+        logger.warning(f'Tried to lock game {game_id} but it is already locked!')
+        raise exceptions.RecordLocked(f'Game {game_id} is locked for another command and cannot be processed.')
+    else:
+        logger.debug(f'Locking game {game_id}')
+        settings.bot.locked_game_records.add(game_id)
+
+
+def unlock_game(game_id: int):
+    if game_id in settings.bot.locked_game_records:
+        settings.bot.locked_game_records.discard(game_id)
+        logger.debug(f'Unlocking game {game_id}')
+        return True
+    else:
+        logger.debug(f'Tried to unlock game {game_id} but it was already unlocked')
         return False
 
 

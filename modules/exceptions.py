@@ -1,3 +1,6 @@
+from discord.ext import commands
+
+
 class MyBaseException(Exception):
     pass
 
@@ -17,4 +20,10 @@ class TooManyMatches(NoSingleMatch):
 
 
 class NoMatches(NoSingleMatch):
+    pass
+
+
+class RecordLocked(MyBaseException, commands.CommandError):
+    """ Custom exception for a record it attempted to lock but is already in the locked list (bot.locked_game_records) """
+    """ Subclassing from CommandError allows it to be handled gracefully from the error handler in bot.py """
     pass

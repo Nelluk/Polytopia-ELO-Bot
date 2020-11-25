@@ -5,6 +5,7 @@ from discord.ext import commands
 from modules import models
 from modules import initialize_data
 from modules import utilities
+import modules.exceptions as exceptions
 import settings
 import logging
 import sys
@@ -134,6 +135,7 @@ if __name__ == '__main__':
                        activity=discord.Activity(name='$guide', type=discord.ActivityType.playing))
     settings.bot = bot
     bot.purgable_messages = []  # auto-deleting messages to get cleaned up by Administraton.quit  (guild, channel, message) tuple list
+    bot.locked_game_records = set()  # Games which cannot be written to since another command is working on them right now. Ugly hack to do what should be done at the DB level
 
     cooldown = commands.CooldownMapping.from_cooldown(6, 30.0, commands.BucketType.user)
 
@@ -168,11 +170,12 @@ if __name__ == '__main__':
 
     @bot.event
     async def on_command_error(ctx, exc):
-
         # This prevents any commands with local handlers being handled here in on_command_error.
         if hasattr(ctx.command, 'on_error'):
             return
-
+        print(type(exc))
+        error = getattr(exc, "original", exc)
+        print(error, type(error))
         ignored = (commands.CommandNotFound, commands.UserInputError, commands.CheckFailure)
 
         if isinstance(exc, commands.CommandNotFound) and ctx.invoked_with[:4] == 'join':
@@ -182,10 +185,11 @@ if __name__ == '__main__':
         if isinstance(exc, ignored):
             logger.warning(f'Exception on ignored list raised in {ctx.command}. {exc}')
             return
-
         if isinstance(exc, commands.CommandOnCooldown):
             logger.info(f'Cooldown triggered: {exc}')
             await ctx.send(f'This command is on a cooldown period. Try again in {exc.retry_after:.0f} seconds.')
+        elif isinstance(exc, exceptions.RecordLocked):
+            return await ctx.send(f':warning: {exc}')
         else:
             exception_str = ''.join(traceback.format_exception(etype=type(exc), value=exc, tb=exc.__traceback__))
             logger.critical(f'Ignoring exception in command {ctx.command}: {exc} {exception_str}', exc_info=True)
