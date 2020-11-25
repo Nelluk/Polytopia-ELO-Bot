@@ -695,7 +695,7 @@ class polygames(commands.Cog):
             if not player:
                 # Matching guild member but no Player or DiscordMember
                 return await ctx.send(f'*{player_mention_safe}* was found in the server but is not registered with me. '
-                    f'Players can register themselves with  `{ctx.prefix}setcode YOUR_POLYCODE`.')
+                    f'Players can register themselves with  `{ctx.prefix}setname Your In-Game Name`.')
             # if still running here that means there was a DiscordMember match not in current guild, and upserted into guild
         else:
             player = player_results[0]
@@ -1245,56 +1245,6 @@ class polygames(commands.Cog):
                 if game.is_mobile:
                     await ctx.send(dm_obj.polytopia_name or 'No name set')
 
-    # @commands.command(brief='Set in-game name', usage='new_name', aliases=['steamname'])
-    # # @models.is_registered_member()
-    # async def setname(self, ctx, *args):
-    #     """Sets your own in-game name, or lets staff set a player's in-game name
-    #     When this is set, people can find you by the in-game name with the `[p]player` command.
-    #     **Examples:**
-    #     `[p]setname PolyChamp` - Set your own in-game name to *PolyChamp*
-    #     `[p]setname @Nelluk PolyChamp` - Lets staff set in-game name of Nelluk to *PolyChamp*
-
-    #     Use `steamname` instead of `setname` to set a Steam user-id.
-    #     """
-
-    #     usage = f'**Usage:** `{ctx.prefix}{ctx.invoked_with} My In-game Name`'
-    #     if not args:
-    #         return await ctx.send(usage)
-
-    #     logger.debug(f'setname target is {target_string} with name {new_name}')
-
-    #     try:
-    #         player_target = Player.get_or_except(target_string, ctx.guild.id)
-    #     except exceptions.NoMatches:
-    #         if len(args) == 1:
-    #             error_msg = f'You have no Polytopia friend code on file. A Polytopia friend code must be registered first with `{ctx.prefix}setcode YOUR_POLYCODE`'
-    #         else:
-    #             error_msg = f'Could not find a registered player matching **{target_string}**. A Polytopia friend code must be registered first with `{ctx.prefix}setcode`\nExample usage: `{ctx.prefix}setname @Player in_game_name`'
-    #         return await ctx.send(error_msg)
-    #     except exceptions.TooManyMatches:
-    #         return await ctx.send(f'Found more than one matches for a player with **{target_string}**. Be more specific or use an @Mention.\nExample usage: `{ctx.prefix}setname @Player in_game_name`')
-
-    #     player, created = Player.upsert(discord_id=target_discord_member.id,
-    #                                     discord_name=target_discord_member.name,
-    #                                     discord_nick=target_discord_member.nick,
-    #                                     guild_id=ctx.guild.id,
-    #                                     team=team_list[0])
-    #     player.discord_member.polytopia_id = new_id
-    #     player.discord_member.save()
-    #     new_name = None if new_name.upper() == 'NONE' else discord.utils.escape_mentions(new_name)
-
-    #     if ctx.invoked_with == 'steamname':
-    #         steam_str = 'Steam'
-    #         player_target.discord_member.name_steam = new_name
-    #     else:
-    #         steam_str = ''
-    #         player_target.discord_member.name_steam = new_name
-
-    #     player_target.discord_member.save()
-
-    #     models.GameLog.write(game_id=0, guild_id=0, message=f'{models.GameLog.member_string(player_target.discord_member)} {steam_str} name set to *{new_name}* {log_by_str}')
-    #     await ctx.send(f'Player **{player_target.name}** updated in system with {steam_str} Polytopia name **{new_name}**.')
-
     @commands.command(brief='Set player time zone', usage='UTC±#')
     @models.is_registered_member()
     async def settime(self, ctx, *args):
@@ -1588,7 +1538,6 @@ class polygames(commands.Cog):
         `[p]win 2050 Home` - Declare *Home* team winner of game 2050
         `[p]win 2050 Nelluk` - Declare *Nelluk* winner of game 2050
         """
-
         if settings.recalculation_mode:
             logger.info('Skipping command due to settings.recalculation_mode')
             return await ctx.send(f':warning: {ctx.author.mention} - I am currently recalculating the results of prior games. No new game results can be logged. Please try again in a few minutes.')
@@ -1625,6 +1574,8 @@ class polygames(commands.Cog):
         if winning_game.is_pending:
             return await ctx.send(f'This game has not started yet.')
 
+        utilities.lock_game(winning_game.id)
+
         models.GameLog.write(game_id=winning_game, guild_id=ctx.guild.id, message=f'Win confirm logged by {models.GameLog.member_string(ctx.author)} for winner **{discord.utils.escape_markdown(winning_obj.name)}**')
         await winning_game.update_squad_channels(guild_list=settings.bot.guilds, guild_id=ctx.guild.id, message=f'A win claim has been placed by **{ctx.author.display_name}** for winner **{winning_obj.name}**')
 
@@ -1633,6 +1584,7 @@ class polygames(commands.Cog):
             confirm_win = True
         else:
             if not has_player:
+                utilities.unlock_game(winning_game.id)
                 return await ctx.send(f'You were not a participant in this game.')
 
             if reset_confirmations_flag:
@@ -1673,8 +1625,10 @@ class polygames(commands.Cog):
         try:
             winning_game.declare_winner(winning_side=winning_side, confirm=confirm_win)
         except exceptions.CheckFailedError as e:
+            utilities.unlock_game(winning_game.id)
             await ctx.send(f'*Error*: {e}')
         else:
+            utilities.unlock_game(winning_game.id)
             if confirm_win:
                 # Cleanup game channels and announce winners
                 # try/except block is attempt at a bandaid where sometimes an InterfaceError/Cursor Closed exception would hit here, probably due to issues with async code
@@ -1718,6 +1672,7 @@ class polygames(commands.Cog):
         if settings.is_staff(ctx.author):
             # Staff usage: reset any game to Incomplete state
             game.confirmations_reset()
+            utilities.lock_game(game.id)
             models.GameLog.write(game_id=game, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} staffer used unwin command.')
             if game.is_completed and game.is_confirmed:
                 elo_logger.debug(f'unwin game {game.id}')
@@ -1737,10 +1692,12 @@ class polygames(commands.Cog):
                             Game.recalculate_elo_since(timestamp=timestamp)
                             elo_logger.debug(f'unwin game {game.id} completed')
                             settings.recalculation_mode = False
+                            utilities.unlock_game(game.id)
                             return await ctx.send(f'Game {game.id} has been marked as *Incomplete*. ELO changes have been reverted and ELO from all subsequent games recalculated.')
 
                         else:
                             elo_logger.debug(f'unwin game {game.id} completed (unranked)')
+                            utilities.unlock_game(game.id)
                             return await ctx.send(f'Unranked game {game.id} has been marked as *Incomplete*.')
 
             elif game.is_completed:
@@ -1750,6 +1707,7 @@ class polygames(commands.Cog):
                 game.winner = None
                 game.save()
                 await post_unwin_messaging(ctx.guild, ctx.prefix, ctx.channel, game, previously_confirmed=False)
+                utilities.unlock_game(game.id)
                 return await ctx.send(f'Unconfirmed Game {game.id} has been marked as *Incomplete*.')
 
             else:
@@ -1766,6 +1724,7 @@ class polygames(commands.Cog):
             if game.is_pending:
                 return await ctx.send(f'Game {game.id} is marked as *pending / not started*. This command cannot be used.')
 
+            utilities.lock_game(game.id)
             if author_side == game.winner:
                 logger.debug(f'Player {ctx.author.name} is removing their own win claim on game {game.id}')
                 models.GameLog.write(game_id=game, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} removes their self-win claim and confirmations have reset.')
@@ -1775,6 +1734,7 @@ class polygames(commands.Cog):
                 game.winner = None
                 game.save()
                 await post_unwin_messaging(ctx.guild, ctx.prefix, ctx.channel, game, previously_confirmed=False)
+                utilities.unlock_game(game.id)
                 return await ctx.send(f'Your unconfirmed win in game {game.id} has been reset and the game is now marked as *Incomplete*.')
             else:
                 # author removing win claim for a game pointing at another side as the winner
@@ -1784,7 +1744,7 @@ class polygames(commands.Cog):
                 author_side.save()
 
                 (confirmed_count, side_count, fully_confirmed) = game.confirmations_count()
-
+                utilities.unlock_game(game.id)
                 return await ctx.send(f'Your confirmation that **{game.winner.name()}** won game {game.id} has been *removed*. The win is still pending confirmation. '
                     f'{confirmed_count} of {side_count} sides are marked as confirming.')
 
@@ -1802,6 +1762,7 @@ class polygames(commands.Cog):
 
         if not game:
             return await ctx.send(f'Game ID not provided. Usage: __`{ctx.prefix}delete GAME_ID`__')
+        gid = game.id
 
         mention_list = game.mentions()
         if game.is_pending:
@@ -1824,6 +1785,7 @@ class polygames(commands.Cog):
         if not settings.is_mod(ctx.author):
             return await ctx.send('Only server mods can delete completed or in-progress games.')
 
+        utilities.lock_game(gid)
         if game.winner and game.is_confirmed and game.is_ranked:
             await ctx.send(f'Deleting game with ID {game.id} and re-calculating ELO for all subsequent games. This will take a few seconds.')
 
@@ -1833,7 +1795,7 @@ class polygames(commands.Cog):
 
         await game.delete_game_channels(self.bot.guilds, ctx.guild.id)
         models.GameLog.write(game_id=game, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} deleted the game.')
-        gid = game.id
+
         try:
             async with ctx.typing():
                 await self.bot.loop.run_in_executor(None, game.delete_game)
@@ -1842,6 +1804,8 @@ class polygames(commands.Cog):
         except discord.errors.NotFound:
             logger.warning('Game deleted while in game-related channel')
             await self.bot.loop.run_in_executor(None, game.delete_game)
+
+        utilities.unlock_game(gid)
 
     @commands.command(usage='game_id "New Name"')
     @models.is_registered_member()
@@ -1958,9 +1922,9 @@ class polygames(commands.Cog):
 
         if settings.get_user_level(ctx.author) < 4 or len(arg_list) == 1:
             # if non-priviledged user, force the command to be about the ctx.author
-            arg_list = [f'<@{ctx.author.id}>', arg_list[0]]
+            arg_list = [f'<@{ctx.author.id}>', arg_list[0] if arg_list else ' ']
 
-        if len(arg_list) % 2 != 0:
+        if len(arg_list) % 2 != 0 or len(arg_list) == 0:
             return await ctx.send(f'Wrong number of arguments. See `{ctx.prefix}help settribe` for usage examples.')
 
         for i in range(0, len(arg_list), 2):
