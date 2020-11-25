@@ -1245,56 +1245,6 @@ class polygames(commands.Cog):
                 if game.is_mobile:
                     await ctx.send(dm_obj.polytopia_name or 'No name set')
 
-    # @commands.command(brief='Set in-game name', usage='new_name', aliases=['steamname'])
-    # # @models.is_registered_member()
-    # async def setname(self, ctx, *args):
-    #     """Sets your own in-game name, or lets staff set a player's in-game name
-    #     When this is set, people can find you by the in-game name with the `[p]player` command.
-    #     **Examples:**
-    #     `[p]setname PolyChamp` - Set your own in-game name to *PolyChamp*
-    #     `[p]setname @Nelluk PolyChamp` - Lets staff set in-game name of Nelluk to *PolyChamp*
-
-    #     Use `steamname` instead of `setname` to set a Steam user-id.
-    #     """
-
-    #     usage = f'**Usage:** `{ctx.prefix}{ctx.invoked_with} My In-game Name`'
-    #     if not args:
-    #         return await ctx.send(usage)
-
-    #     logger.debug(f'setname target is {target_string} with name {new_name}')
-
-    #     try:
-    #         player_target = Player.get_or_except(target_string, ctx.guild.id)
-    #     except exceptions.NoMatches:
-    #         if len(args) == 1:
-    #             error_msg = f'You have no Polytopia friend code on file. A Polytopia friend code must be registered first with `{ctx.prefix}setcode YOUR_POLYCODE`'
-    #         else:
-    #             error_msg = f'Could not find a registered player matching **{target_string}**. A Polytopia friend code must be registered first with `{ctx.prefix}setcode`\nExample usage: `{ctx.prefix}setname @Player in_game_name`'
-    #         return await ctx.send(error_msg)
-    #     except exceptions.TooManyMatches:
-    #         return await ctx.send(f'Found more than one matches for a player with **{target_string}**. Be more specific or use an @Mention.\nExample usage: `{ctx.prefix}setname @Player in_game_name`')
-
-    #     player, created = Player.upsert(discord_id=target_discord_member.id,
-    #                                     discord_name=target_discord_member.name,
-    #                                     discord_nick=target_discord_member.nick,
-    #                                     guild_id=ctx.guild.id,
-    #                                     team=team_list[0])
-    #     player.discord_member.polytopia_id = new_id
-    #     player.discord_member.save()
-    #     new_name = None if new_name.upper() == 'NONE' else discord.utils.escape_mentions(new_name)
-
-    #     if ctx.invoked_with == 'steamname':
-    #         steam_str = 'Steam'
-    #         player_target.discord_member.name_steam = new_name
-    #     else:
-    #         steam_str = ''
-    #         player_target.discord_member.name_steam = new_name
-
-    #     player_target.discord_member.save()
-
-    #     models.GameLog.write(game_id=0, guild_id=0, message=f'{models.GameLog.member_string(player_target.discord_member)} {steam_str} name set to *{new_name}* {log_by_str}')
-    #     await ctx.send(f'Player **{player_target.name}** updated in system with {steam_str} Polytopia name **{new_name}**.')
-
     @commands.command(brief='Set player time zone', usage='UTC±#')
     @models.is_registered_member()
     async def settime(self, ctx, *args):
