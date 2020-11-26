@@ -25,7 +25,7 @@ def tomorrow():
 
 
 def is_post_moonrise():
-    return bool(datetime.datetime.today() >= settings.moonrise_reset_date)
+    return bool(datetime.datetime.today().date() >= settings.moonrise_reset_date)
 
 
 def moonrise_or_air_date_range():
@@ -592,7 +592,6 @@ class Player(BaseModel):
             )
             if len(query_by_id) > 0:
                 return query_by_id
-
         if len(player_string.split('#', 1)[0]) > 2:
             discord_str = player_string.split('#', 1)[0]
             # If query is something like 'Nelluk#7034', use just the 'Nelluk' to match against discord_name.
@@ -607,8 +606,7 @@ class Player(BaseModel):
         if len(name_exact_match) == 1:
             # String matches DiscordUser.name exactly
             return name_exact_match
-
-        # If no exact match, return any substring matches - prioritized by number of games played
+        # If no exact match, return any substring matches - prioritized by number of games played (will not return players with 0 games)
 
         name_substring_match = Lineup.select(Lineup.player, fn.COUNT('*').alias('games_played')).join(Player).join(DiscordMember).where(
             ((Player.nick.contains(player_string)) | (DiscordMember.name.contains(discord_str))) & (Player.guild_id == guild_id)
@@ -616,7 +614,6 @@ class Player(BaseModel):
 
         if len(name_substring_match) > 0:
             return [l.player for l in name_substring_match]
-
         if include_poly_info:
             # If no substring name matches, return anything with matching polytopia name or code
             poly_fields_match = Player.select(Player, DiscordMember).join(DiscordMember).where(

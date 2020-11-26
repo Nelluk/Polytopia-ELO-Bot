@@ -679,15 +679,15 @@ class polygames(commands.Cog):
         player_results = Player.string_matches(player_string=player_mention, guild_id=ctx.guild.id)
 
         if len(player_results) > 1:
-            p_names = [p.name for p in player_results]
-            p_names_str = '**, **'.join(p_names[:10])
-            return await ctx.send(f'Found {len(player_results)} players matching *{player_mention_safe}*. Be more specific or use an @Mention.\nFound: **{p_names_str}**')
+            p_names = [f'{p.mention()} ({p.name})' for p in player_results]
+            p_names_str = ', '.join(p_names[:10])
+            return await ctx.send(f'Found {len(player_results)} players matching *{player_mention_safe}*. Be more specific or use an @Mention.\nFound: {p_names_str}', allowed_mentions=discord.AllowedMentions(everyone=False, users=False, roles=False))
         elif len(player_results) == 0:
             # No Player matches - check for guild membership
             if len(guild_matches) > 1:
-                p_names = [p.display_name for p in guild_matches]
-                p_names_str = '**, **'.join(p_names[:10])
-                return await ctx.send(f'There is more than one member found with name *{player_mention_safe}*. Be more specific or use an @Mention.\nFound: **{p_names_str}**')
+                p_names = [f'{p.mention} ({p.name})' for p in guild_matches]
+                p_names_str = ', '.join(p_names[:10])
+                return await ctx.send(f'There is more than one member found with name *{player_mention_safe}*. Be more specific or use an @Mention.\nFound: {p_names_str}', allowed_mentions=discord.AllowedMentions(everyone=False, users=False, roles=False))
             if len(guild_matches) == 0:
                 return await ctx.send(f'Could not find *{player_mention_safe}* by Discord name, Polytopia name, or Polytopia ID.')
 
