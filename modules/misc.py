@@ -27,18 +27,10 @@ class misc(commands.Cog):
     @commands.is_owner()
     async def test(self, ctx, *, args: str = None):
 
-        lineup = models.Lineup.get(id=192413)
-        print(lineup.elo_change_player)
+        elo_logger = logging.getLogger('polybot.elo')
 
-        # field = models.Lineup.elo_change_player
-
-        field = 'elo_change_player'
-        setattr(lineup, field, 50)
-        lineup.save()
-        print(lineup.elo_change_player)
-
-        foo = getattr(lineup, field)
-        print(foo)
+        elo_logger.debug('testdebug')
+        elo_logger.warning('testwarning')
 
     @commands.command(usage=None)
     @settings.in_bot_channel_strict()

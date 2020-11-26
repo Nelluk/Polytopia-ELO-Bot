@@ -118,19 +118,12 @@ class Team(BaseModel):
 
     def change_elo_after_game(self, chance_of_winning: float, is_winner: bool):
 
-        # if self.completed_game_count() < 11:
-        #     max_elo_delta = 50
-        # else:
-        #     max_elo_delta = 32
         max_elo_delta = 32
 
         if is_winner is True:
             elo_delta = int(round((max_elo_delta * (1 - chance_of_winning)), 0))
         else:
             elo_delta = int(round((max_elo_delta * (0 - chance_of_winning)), 0))
-
-        # self.elo = int(self.elo + elo_delta)
-        # self.save()
 
         return elo_delta
 
@@ -1710,12 +1703,14 @@ class Game(BaseModel):
 
                         if team_win_chances:
                             team_elo_delta = side.team.change_elo_after_game(team_win_chances[i], is_winner)
+                            elo_logger.debug(f'Team.change_elo_after_game team.id: {side.team.id} ELO {side.team.elo} adding delta {team_elo_delta}')
                             side.elo_change_team = team_elo_delta
                             side.team.elo = int(side.team.elo + team_elo_delta)
                             side.team_elo_after_game = side.team.elo
                             side.team.save()
                         if team_win_chances_alltime:
                             team_elo_delta = side.team.change_elo_after_game(team_win_chances_alltime[i], is_winner)
+                            elo_logger.debug(f'Team.change_elo_after_game team.id: {side.team.id} Alltime ELO {side.team.elo_alltime} adding delta {team_elo_delta}')
                             side.elo_change_team_alltime = team_elo_delta
                             side.team.elo_alltime = int(side.team.elo_alltime + team_elo_delta)
                             side.team_elo_after_game_alltime = side.team.elo_alltime
@@ -2641,6 +2636,7 @@ class Squad(BaseModel):
         else:
             elo_delta = int(round((max_elo_delta * (0 - chance_of_winning)), 0))
 
+        elo_logger.debug(f'Squad.change_elo_after_game squad.id: {self.id} ELO {self.elo} adding delta {elo_delta}')
         self.elo = int(self.elo + elo_delta)
         self.save()
 
@@ -3063,6 +3059,8 @@ class Lineup(BaseModel):
             # keep elobot's elo at 0 always - for penalty games
             return logger.info('Skipping elo set for bot user')
 
+        elo_logger.debug(f'Lineup.change_elo_after_game: Global: {by_discord_member} is_winner: {is_winner} alltime: {alltime} moonrise: {moonrise} Game.id {self.game.id} Lineup.id: {self.id} Player/DM.id: {record.id} Original ELO: {elo} Delta: {elo_delta} Original max ELO: {getattr(record, max_field)}')
+
         new_elo = int(elo + elo_delta)
         with db.atomic():
             setattr(record, elo_field, new_elo)
@@ -3072,8 +3070,6 @@ class Lineup(BaseModel):
             setattr(self, aftergame_field, new_elo)
             record.save()
             self.save()
-
-        print(record, elo_field, max_field, change_field, aftergame_field, new_elo, elo_delta)
 
     def emoji_str(self):
 
