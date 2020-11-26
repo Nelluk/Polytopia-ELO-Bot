@@ -24,10 +24,14 @@ def tomorrow():
     return (datetime.datetime.now() + datetime.timedelta(hours=24)).strftime("%Y-%m-%d %H:%M:%S")
 
 
+def is_post_moonrise():
+    return bool(datetime.datetime.today() >= settings.moonrise_reset_date)
+
+
 def moonrise_or_air_date_range():
     # given todays date, return pre-moonrise dates (epoch thru moonrise) or post-moonrise dates (moonrise thru end of time)
     # returns (beginning_datetime, end_datetime)
-    if datetime.datetime.today() >= settings.moonrise_reset_date:
+    if is_post_moonrise():
         return (settings.moonrise_reset_date, datetime.date.max)
     return (datetime.date.min, settings.moonrise_reset_date - datetime.timedelta(days=1))
 
@@ -1689,8 +1693,8 @@ class Game(BaseModel):
                         for p in side.lineup:
                             p.change_elo_after_game(side_win_chances_alltime[i], is_winner, alltime=True, moonrise=False)
                             p.change_elo_after_game(side_win_chances_discord_alltime[i], is_winner, by_discord_member=True, alltime=True, moonrise=False)
-                            if self.uses_moonrise_elo():
-                                if smallest_side == 1 and self.guild_id in [settings.server_ids['polychampions'], settings.server_ids['test']]:
+                            if self.is_post_moonrise():
+                                if smallest_side == 1 and self.guild_id in [settings.server_ids['polychampions']]:
                                     logger.info(f'Skipping local ELO for non-team game (polychampions-specific rule')
                                 else:
                                     p.change_elo_after_game(side_win_chances[i], is_winner, alltime=False, moonrise=True)
@@ -2592,7 +2596,7 @@ class Game(BaseModel):
 
         return False
 
-    def uses_moonrise_elo(self):
+    def is_post_moonrise(self):
 
         # if True, use moonrise ELO fields such as elo_moonrise / elo_after_game_global_moonrise
         # if False, use the old/archived fields such as elo / elo_after_game_global
@@ -2904,7 +2908,7 @@ class GameSide(BaseModel):
 
             if is_confirmed and (l.elo_after_game_moonrise or l.elo_after_game):
                 # build elo string showing change in elo from this game
-                if self.game.uses_moonrise_elo():
+                if self.game.is_post_moonrise():
                     elo_change_str = f'+{l.elo_change_player_moonrise}' if l.elo_change_player_moonrise >= 0 else str(l.elo_change_player_moonrise)
                     elo_str = f'{l.elo_after_game_moonrise} {elo_change_str}'
                 else:
@@ -2912,7 +2916,7 @@ class GameSide(BaseModel):
                     elo_str = f'{l.elo_after_game} {elo_change_str}'
             else:
                 # build elo string showing current elo only
-                elo_str = f'{l.player.elo_moonrise}' if self.game.uses_moonrise_elo() else f'{l.player.elo}'
+                elo_str = f'{l.player.elo_moonrise}' if self.game.is_post_moonrise() else f'{l.player.elo}'
             players.append(
                 (l.player, f'{elo_str}', l.emoji_str())
             )

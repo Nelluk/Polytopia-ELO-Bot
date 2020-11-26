@@ -100,7 +100,7 @@ async def award_booster_role(discord_member):
 
 async def set_experience_role(discord_member):
     logger.debug(f'processing experience role for member {discord_member.name}')
-    completed_games = discord_member.completed_game_count(only_ranked=False)
+    completed_games = discord_member.completed_game_count(only_ranked=False, moonrise=models.is_post_moonrise())
 
     for guildmember in list(discord_member.guildmembers):
         guild = settings.bot.get_guild(guildmember.guild_id)
