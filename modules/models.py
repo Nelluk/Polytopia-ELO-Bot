@@ -24,6 +24,14 @@ def tomorrow():
     return (datetime.datetime.now() + datetime.timedelta(hours=24)).strftime("%Y-%m-%d %H:%M:%S")
 
 
+def moonrise_or_air_date_range():
+    # given todays date, return pre-moonrise dates (epoch thru moonrise) or post-moonrise dates (moonrise thru end of time)
+    # returns (beginning_datetime, end_datetime)
+    if datetime.datetime.today() >= settings.moonrise_reset_date:
+        return (settings.moonrise_reset_date, datetime.date.max)
+    return (datetime.date.min, settings.moonrise_reset_date - datetime.timedelta(days=1))
+
+
 def string_to_user_id(input):
     # copied from Utilities - probably a better way to structure this but currently importing utilities creates circular import
 
@@ -276,7 +284,12 @@ class DiscordMember(BaseModel):
         for guildmember in self.guildmembers:
             guildmember.generate_display_name(player_name=new_name, player_nick=guildmember.nick)
 
-    def wins(self):
+    def wins(self, alltime: bool = False):
+
+        if alltime:
+            date_min, date_max = datetime.date.min, datetime.date.max
+        else:
+            date_min, date_max = moonrise_or_air_date_range()
 
         server_list = settings.servers_included_in_global_lb()
         q = Lineup.select().join(Game).join_from(Lineup, GameSide).join_from(Lineup, Player).where(
@@ -285,12 +298,19 @@ class DiscordMember(BaseModel):
             (Lineup.game.is_ranked == 1) &
             (Lineup.game.guild_id.in_(server_list)) &
             (Lineup.player.discord_member == self) &
-            (Game.winner == Lineup.gameside.id)
+            (Game.winner == Lineup.gameside.id) &
+            (Game.date >= date_min) & (Game.date <= date_max)
         )
 
         return q
 
-    def losses(self):
+    def losses(self, alltime: bool = False):
+
+        if alltime:
+            date_min, date_max = datetime.date.min, datetime.date.max
+        else:
+            date_min, date_max = moonrise_or_air_date_range()
+
         server_list = settings.servers_included_in_global_lb()
         q = Lineup.select().join(Game).join_from(Lineup, GameSide).join_from(Lineup, Player).where(
             (Lineup.game.is_completed == 1) &
@@ -298,14 +318,15 @@ class DiscordMember(BaseModel):
             (Lineup.game.is_ranked == 1) &
             (Lineup.game.guild_id.in_(server_list)) &
             (Lineup.player.discord_member == self) &
-            (Game.winner != Lineup.gameside.id)
+            (Game.winner != Lineup.gameside.id) &
+            (Game.date >= date_min) & (Game.date <= date_max)
         )
 
         return q
 
-    def get_record(self):
+    def get_record(self, alltime: bool = False):
 
-        return (self.wins().count(), self.losses().count())
+        return (self.wins(alltime=alltime).count(), self.losses(alltime=alltime).count())
 
     def get_polychamps_record(self):
 
@@ -354,7 +375,12 @@ class DiscordMember(BaseModel):
             (Lineup.player.discord_member == self)
         ).order_by(-Game.date)
 
-    def completed_game_count(self, only_ranked=True):
+    def completed_game_count(self, only_ranked: bool = True, moonrise: bool = False):
+
+        if moonrise:
+            date_cutoff = settings.moonrise_reset_date
+        else:
+            date_cutoff = datetime.date.min
 
         if only_ranked:
             # default behavior, used for elo max_delta
@@ -363,12 +389,13 @@ class DiscordMember(BaseModel):
                 (Lineup.game.is_completed == 1) &
                 (Lineup.game.is_ranked == 1) &
                 (Lineup.game.guild_id.in_(server_list)) &
-                (Lineup.player.discord_member == self)
+                (Lineup.player.discord_member == self) &
+                (Lineup.game.date >= date_cutoff)
             ).count()
         else:
             # full count of all games played - used for achievements role setting
             num_games = Lineup.select().join(Player).join_from(Lineup, Game).where(
-                (Lineup.game.is_completed == 1) & (Lineup.player.discord_member == self)
+                (Lineup.game.is_completed == 1) & (Lineup.player.discord_member == self) & (Lineup.game.date >= date_cutoff)
             ).count()
 
         return num_games
@@ -640,10 +667,15 @@ class Player(BaseModel):
             logger.debug(f'get_by_discord_id Upserting new guild player for discord ID {discord_id}')
             return player, True
 
-    def completed_game_count(self):
+    def completed_game_count(self, moonrise: bool = False):
+
+        if moonrise:
+            date_cutoff = settings.moonrise_reset_date
+        else:
+            date_cutoff = datetime.date.min
 
         num_games = Lineup.select().join(Game).where(
-            (Lineup.game.is_completed == 1) & (Lineup.game.is_ranked == 1) & (Lineup.player == self)
+            (Lineup.game.is_completed == 1) & (Lineup.game.is_ranked == 1) & (Lineup.player == self) & (Lineup.game.date >= date_cutoff)
         ).count()
 
         return num_games
@@ -673,25 +705,45 @@ class Player(BaseModel):
             (Game.id.in_(subq_games_with_minimum_side_size))
         ).order_by(-Game.date)
 
-    def wins(self):
-        # TODO: Could combine wins/losses into one function that takes an argument and modifies query
+    def wins(self, alltime: bool = False):
+
+        if alltime:
+            date_min, date_max = datetime.date.min, datetime.date.max
+        else:
+            date_min, date_max = moonrise_or_air_date_range()
 
         q = Lineup.select().join(Game).join_from(Lineup, GameSide).where(
-            (Lineup.game.is_completed == 1) & (Lineup.game.is_confirmed == 1) & (Lineup.game.is_ranked == 1) & (Lineup.player == self) & (Game.winner == Lineup.gameside.id)
+            (Lineup.game.is_completed == 1) &
+            (Lineup.game.is_confirmed == 1) &
+            (Lineup.game.is_ranked == 1) &
+            (Lineup.player == self) &
+            (Game.winner == Lineup.gameside.id) &
+            (Game.date >= date_min) & (Game.date <= date_max)
         )
 
         return q
 
-    def losses(self):
+    def losses(self, alltime: bool = False):
+
+        if alltime:
+            date_min, date_max = datetime.date.min, datetime.date.max
+        else:
+            date_min, date_max = moonrise_or_air_date_range()
+
         q = Lineup.select().join(Game).join_from(Lineup, GameSide).where(
-            (Lineup.game.is_completed == 1) & (Lineup.game.is_confirmed == 1) & (Lineup.game.is_ranked == 1) & (Lineup.player == self) & (Game.winner != Lineup.gameside.id)
+            (Lineup.game.is_completed == 1) &
+            (Lineup.game.is_confirmed == 1) &
+            (Lineup.game.is_ranked == 1) &
+            (Lineup.player == self) &
+            (Game.winner != Lineup.gameside.id) &
+            (Game.date >= date_min) & (Game.date <= date_max)
         )
 
         return q
 
-    def get_record(self):
+    def get_record(self, alltime: bool = False):
 
-        return (self.wins().count(), self.losses().count())
+        return (self.wins(alltime=alltime).count(), self.losses(alltime=alltime).count())
 
     def leaderboard_rank(self, date_cutoff):
         # TODO: This could be replaced with Postgresql Window functions to have the DB calculate the rank.
@@ -2988,7 +3040,7 @@ class Lineup(BaseModel):
             aftergame_field = 'elo_after_game_global' if by_discord_member else 'elo_after_game'
 
         elo = getattr(record, elo_field)
-        num_games = record.completed_game_count()
+        num_games = record.completed_game_count(moonrise=moonrise)
 
         max_elo_delta = 32
 
