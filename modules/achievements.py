@@ -20,6 +20,8 @@ async def set_champion_role():
 
     # global_champion = models.DiscordMember.select().order_by(-models.DiscordMember.elo).limit(1).get()
     global_champion = models.DiscordMember.leaderboard(date_cutoff=settings.date_cutoff, guild_id=None, max_flag=False).limit(1).get()
+    if global_champion.elo_field == 1000:
+        global_champion = None
 
     for guild in settings.bot.guilds:
         log_message = ''
@@ -31,9 +33,11 @@ async def set_champion_role():
 
         # local_champion = models.Player.select().where(models.Player.guild_id == guild.id).order_by(-models.Player.elo).limit(1).get()
         local_champion = models.Player.leaderboard(date_cutoff=settings.date_cutoff, guild_id=guild.id, max_flag=False).limit(1).get()
+        if local_champion.elo_field == 1000:
+            continue
 
         local_champion_member = guild.get_member(local_champion.discord_member.discord_id)
-        global_champion_member = guild.get_member(global_champion.discord_id)
+        global_champion_member = guild.get_member(global_champion.discord_id) if global_champion else None
 
         try:
             for old_champion in role.members:
