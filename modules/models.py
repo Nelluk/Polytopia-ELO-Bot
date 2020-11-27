@@ -444,7 +444,7 @@ class DiscordMember(BaseModel):
 
         if query.count() < 10:
             # Include all registered players on leaderboard if not many games played
-            query = DiscordMember.select().order_by(-elo_field)
+            query = DiscordMember.select(DiscordMember, elo_field.alias('elo_field')).order_by(-elo_field)
 
         return query
 
@@ -778,7 +778,7 @@ class Player(BaseModel):
         elif version == 'ALLTIME':
             elo_field = Player.elo_max_alltime if max_flag else Player.elo_alltime
 
-        query = Player.select().join(Lineup).join(Game).join_from(Player, DiscordMember).where(
+        query = Player.select(Player, elo_field.alias('elo_field')).join(Lineup).join(Game).join_from(Player, DiscordMember).where(
             (Player.guild_id == guild_id) &
             (Game.is_completed == 1) &
             (Game.is_ranked == 1) &
