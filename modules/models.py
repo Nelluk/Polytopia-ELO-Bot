@@ -421,19 +421,24 @@ class DiscordMember(BaseModel):
         rank = counter + 1 if is_found else None
         return (rank, query.count())
 
-    def leaderboard(date_cutoff, guild_id: int = None, max_flag: bool = False, alltime_flag: bool = False):
+    def leaderboard(date_cutoff, guild_id: int = None, max_flag: bool = False, version: str = None):
         # guild_id is a dummy parameter so DiscordMember.leaderboard and Player.leaderboard can be called in identical ways
 
-        if max_flag and alltime_flag:
-            elo_field = DiscordMember.elo_max_alltime
-        elif max_flag and not alltime_flag:
-            elo_field = DiscordMember.elo_max
-        elif not max_flag and alltime_flag:
-            elo_field = DiscordMember.elo_alltime
-        elif not max_flag and not alltime_flag:
-            elo_field = DiscordMember.elo
+        if not version:
+            version = 'MOONRISE' if is_post_moonrise() else 'AIR'
 
-        query = DiscordMember.select().join(Player).join(Lineup).join(Game).where(
+        version = version.upper()
+        if version not in ['AIR', 'MOONRISE', 'ALLTIME']:
+            raise ValueError('Valid arguments are "air", "moonrise", or "alltime". Leave as None to use the current verson based on today\'s date.')
+
+        if version == 'AIR':
+            elo_field = DiscordMember.elo_max if max_flag else DiscordMember.elo
+        elif version == 'MOONRISE':
+            elo_field = DiscordMember.elo_max_moonrise if max_flag else DiscordMember.elo_moonrise
+        elif version == 'ALLTIME':
+            elo_field = DiscordMember.elo_max_alltime if max_flag else DiscordMember.elo_alltime
+
+        query = DiscordMember.select(DiscordMember, elo_field.alias('elo_field')).join(Player).join(Lineup).join(Game).where(
             (Game.is_completed == 1) & (Game.completed_ts > date_cutoff) & (Game.is_ranked == 1) & (DiscordMember.is_banned == 0)
         ).distinct().order_by(-elo_field)
 
@@ -757,16 +762,21 @@ class Player(BaseModel):
         rank = counter + 1 if player_found else None
         return (rank, query.count())
 
-    def leaderboard(date_cutoff, guild_id: int, max_flag: bool = False, alltime_flag: bool = False):
+    def leaderboard(date_cutoff, guild_id: int, max_flag: bool = False, version: str = None):
 
-        if max_flag and alltime_flag:
-            elo_field = Player.elo_max_alltime
-        elif max_flag and not alltime_flag:
-            elo_field = Player.elo_max
-        elif not max_flag and alltime_flag:
-            elo_field = Player.elo_alltime
-        elif not max_flag and not alltime_flag:
-            elo_field = Player.elo
+        if not version:
+            version = 'MOONRISE' if is_post_moonrise() else 'AIR'
+
+        version = version.upper()
+        if version not in ['AIR', 'MOONRISE', 'ALLTIME']:
+            raise ValueError('Valid arguments are "air", "moonrise", or "alltime". Leave as None to use the current verson based on today\'s date.')
+
+        if version == 'AIR':
+            elo_field = Player.elo_max if max_flag else Player.elo
+        elif version == 'MOONRISE':
+            elo_field = Player.elo_max_moonrise if max_flag else Player.elo_moonrise
+        elif version == 'ALLTIME':
+            elo_field = Player.elo_max_alltime if max_flag else Player.elo_alltime
 
         query = Player.select().join(Lineup).join(Game).join_from(Player, DiscordMember).where(
             (Player.guild_id == guild_id) &
@@ -778,7 +788,7 @@ class Player(BaseModel):
 
         if query.count() < 10:
             # Include all registered players on leaderboard if not many games played
-            query = Player.select().where(Player.guild_id == guild_id).order_by(-elo_field)
+            query = Player.select(Player, elo_field.alias('elo_field')).where(Player.guild_id == guild_id).order_by(-elo_field)
 
         return query
 

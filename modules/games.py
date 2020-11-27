@@ -254,8 +254,6 @@ class polygames(commands.Cog):
         Ranks leaderboard by a player's maximum ELO ever achieved
         **allplayers**
         Includes players who have not played recently. By default the leaderboard drops players who have not played in 90 days.
-        **alltime**
-        Ranks by the permanent Alltime ELO field, which is never reset. The standard ELO field is occasionally reset (most recently December 2020)
 
         Examples:
         `[p]lb` - Default local leaderboard
@@ -263,17 +261,25 @@ class polygames(commands.Cog):
         `[p]lb max` - Local leaderboard for maximum historic ELO
         `[p]lb allplayers` - Local leaderboard including inactive players
         `[p]lb global max` - Leaderboard of maximum historic *global* ELO
-        `[p]lb alltime` - Local leaderboard by Alltime ELO
-        `[p]lb alltime max` - Leaderboard of maximum historic Alltime ELO
-        `[p]lb alltime global` - Global leaderboard by Alltime ELO
-        `[p]lb global alltime allplayers max` - Global leaderboard, including inactive players, ranked by maximum hstoric Alltime ELO
 
         `[p]lbrecent` - Most active players of the last 30 days
         `[p]lbactivealltime` - Most active players of all time
         """
 
+        """
+        Hidden help info for now:
+
+         **alltime**
+        Ranks by the permanent Alltime ELO field, which is never reset. The standard ELO field was reset December 1st, 2020 for Moonrise release.
+
+        `[p]lb alltime` - Local leaderboard by Alltime ELO
+        `[p]lb alltime max` - Leaderboard of maximum historic Alltime ELO
+        `[p]lb alltime global` - Global leaderboard by Alltime ELO
+        `[p]lb global alltime allplayers max` - Global leaderboard, including inactive players, ranked by maximum hstoric Alltime ELO
+        """
+
         leaderboard = []
-        max_flag, global_flag, alltime_flag = False, False, False
+        max_flag, global_flag, version = False, False, None
         target_model = Player
         lb_title = 'Individual Leaderboard'
         date_cutoff = settings.date_cutoff
@@ -295,18 +301,19 @@ class polygames(commands.Cog):
             lb_title += ' - Maximum ELO Achieved'
 
         if 'ALLTIME' in filters.upper():
-            alltime_flag = True  # leaderboard ranked by player.elo_alltime
+            version = 'ALLTIME'  # leaderboard ranked by player.elo_alltime
             lb_title += ' - Alltime (not reset)'
 
         def process_leaderboard():
             utilities.connect()
-            leaderboard_query = target_model.leaderboard(date_cutoff=date_cutoff, guild_id=ctx.guild.id, max_flag=max_flag, alltime_flag=alltime_flag)
+            leaderboard_query = target_model.leaderboard(date_cutoff=date_cutoff, guild_id=ctx.guild.id, max_flag=max_flag, version=version)
 
             for counter, player in enumerate(leaderboard_query[:2000]):
                 wins, losses = player.get_record()
                 emoji_str = player.team.emoji if not global_flag and player.team else ''
+
                 leaderboard.append(
-                    (f'{(counter + 1):>3}. {emoji_str}{player.name}', f'`ELO {player.elo_max if max_flag else player.elo}\u00A0\u00A0\u00A0\u00A0W {wins} / L {losses}`')
+                    (f'{(counter + 1):>3}. {emoji_str}{player.name}', f'`ELO {player.elo_field}\u00A0\u00A0\u00A0\u00A0W {wins} / L {losses}`')
                 )
             return leaderboard, leaderboard_query.count()
 
@@ -725,10 +732,9 @@ class polygames(commands.Cog):
                     g_elo_max = player.discord_member.elo_max
 
                     air_record_g = player.discord_member.get_record(version='air')
-                    print(air_record_g)
+
                     if air_record_g[0] or air_record_g[1]:
                         air_record_l = player.get_record(version='air')
-                        print(air_record_l)
                         air_record = [('Global Record', f'W {air_record_g[0]} / L {air_record_g[1]}'),
                                       ('Global ELO', f'{player.discord_member.elo} / {player.discord_member.elo_max} Max'),
                                       ('Local Record', f'W {air_record_l[0]} / L {air_record_l[1]}'),
