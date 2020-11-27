@@ -418,7 +418,7 @@ class polygames(commands.Cog):
                         continue
                     member_count += 1
                 team_name_str = f'**{team.name}**   ({member_count})'  # Show team name with number of members without MIA role
-                wins, losses = team.get_record(alltime=alltime)
+                wins, losses = team.get_record(version='alltime')
 
                 elo = team.elo_alltime if alltime else team.elo
                 embed.add_field(name=f'{team.emoji} {(counter + 1):>3}. {team_name_str}\n`ELO: {elo:<5} W {wins} / L {losses}`', value='\u200b', inline=False)
@@ -648,12 +648,11 @@ class polygames(commands.Cog):
         """See your own player card or the card of another player
         This also will find results based on a game-code or in-game name, if set.
 
-        Add *alltime* as an argument to see ELO stats and graphs from the inception of this bot. The default ELO number is occasionally reset (most recently December 2020).
         **Examples**
         `[p]player` - See your own player card
         `[p]player Nelluk` - See Nelluk's card
-        `[p]player Nelluk alltime` - See Nelluk's card (Alltime ELO)
         """
+        # hidden argument: add 'alltime' as an argument to view alltime ELO.
         args_list = args.lower().split() if args else []
 
         if 'alltime' in args_list:
@@ -702,15 +701,16 @@ class polygames(commands.Cog):
 
         def async_create_player_embed():
             utilities.connect()
-            wins, losses = player.get_record()
+            wins, losses = player.get_record(version='alltime' if alltime_flag else None)
             rank, lb_length = player.leaderboard_rank(settings.date_cutoff)
 
-            wins_g, losses_g = player.discord_member.get_record()
+            wins_g, losses_g = player.discord_member.get_record(version='alltime' if alltime_flag else None)
             rank_g, lb_length_g = player.discord_member.leaderboard_rank(settings.date_cutoff)
 
             polychamps_record = player.discord_member.get_polychamps_record()
 
             image = None
+            air_record = []
 
             if alltime_flag:
                 elo = player.elo_alltime
@@ -718,10 +718,26 @@ class polygames(commands.Cog):
                 elo_max = player.elo_max_alltime
                 g_elo_max = player.discord_member.elo_max_alltime
             else:
-                elo = player.elo
-                g_elo = player.discord_member.elo
-                elo_max = player.elo_max
-                g_elo_max = player.discord_member.elo_max
+                if models.is_post_moonrise():
+                    elo = player.elo_moonrise
+                    g_elo = player.discord_member.elo_moonrise
+                    elo_max = player.elo_max
+                    g_elo_max = player.discord_member.elo_max
+
+                    air_record_g = player.discord_member.get_record(version='air')
+                    print(air_record_g)
+                    if air_record_g[0] or air_record_g[1]:
+                        air_record_l = player.get_record(version='air')
+                        print(air_record_l)
+                        air_record = [('Global Record', f'W {air_record_g[0]} / L {air_record_g[1]}'),
+                                      ('Global ELO', f'{player.discord_member.elo} / {player.discord_member.elo_max} Max'),
+                                      ('Local Record', f'W {air_record_l[0]} / L {air_record_l[1]}'),
+                                      ('Local ELO', f'{player.elo} / {player.elo_max} Max')]
+                else:
+                    elo = player.elo
+                    g_elo = player.discord_member.elo
+                    elo_max = player.elo_max
+                    g_elo_max = player.discord_member.elo_max
 
             if rank is None:
                 rank_str = 'Unranked'
@@ -795,35 +811,31 @@ class polygames(commands.Cog):
             if misc_stats:
                 embed.add_field(name='__Miscellaneous Global Stats__', value='\n'.join(misc_stats), inline=False)
 
-            if alltime_flag:
-                after_game_global_field = Lineup.elo_after_game_global_alltime
-                after_game_field = Lineup.elo_after_game_alltime
-                # date_cutoff = datetime.date.min
-            else:
-                after_game_global_field = Lineup.elo_after_game_global
-                after_game_field = Lineup.elo_after_game
-                # date_cutoff = settings.elo_reset_date
-                # add restrictions of (Game.date >= date_cutoff) to both queries to restrict regular elo graph to just the current reset period
+            if air_record:
+                air_record = [f'`{stat[0]:.<25}` {stat[1]}' for stat in air_record]
+                air_record = [stat.replace(".", "\u200b ") for stat in air_record]
+                embed.add_field(name='__Pre-Moonrise Reset Stats__', value='\n'.join(air_record), inline=False)
 
             global_elo_history_query = (Player
-                .select(Game.completed_ts, after_game_global_field)
+                .select(Game.completed_ts, Lineup.elo_after_game_global, Lineup.elo_after_game_global_moonrise, Lineup.elo_after_game_global_alltime)
                 .join(Lineup)
                 .join(Game)
-                .where((Player.discord_member_id == player.discord_member_id) & (after_game_global_field.is_null(False)))
+                .where((Player.discord_member_id == player.discord_member_id) & ((Lineup.elo_after_game_global.is_null(False)) | (Lineup.elo_after_game_global_moonrise.is_null(False))))
                 .order_by(Game.completed_ts))
 
             global_elo_history_dates = [l.completed_ts for l in global_elo_history_query.objects()]
 
             # if global_elo_history_dates:
             local_elo_history_query = (Lineup
-                .select(Game.completed_ts, after_game_field)
+                .select(Game.completed_ts, Lineup.elo_after_game, Lineup.elo_after_game_alltime, Lineup.elo_after_game_moonrise)
                 .join(Game)
-                .where((Lineup.player_id == player.id) & (after_game_field.is_null(False))))
+                .where((Lineup.player_id == player.id) & ((Lineup.elo_after_game.is_null(False)) | (Lineup.elo_after_game_moonrise.is_null(False))))
+            )
 
             local_elo_history_dates = [l.completed_ts for l in local_elo_history_query.objects()]
-            local_elo_history_elos = [l.elo_after_game_alltime for l in local_elo_history_query.objects()] if alltime_flag else [l.elo_after_game for l in local_elo_history_query.objects()]
+            local_elo_history_elos = [l.elo_after_game_alltime for l in local_elo_history_query.objects()] if alltime_flag else [l.elo_after_game or l.elo_after_game_moonrise for l in local_elo_history_query.objects()]
 
-            global_elo_history_elos = [l.elo_after_game_global_alltime for l in global_elo_history_query.objects()] if alltime_flag else [l.elo_after_game_global for l in global_elo_history_query.objects()]
+            global_elo_history_elos = [l.elo_after_game_global_alltime for l in global_elo_history_query.objects()] if alltime_flag else [l.elo_after_game_global or l.elo_after_game_global_moonrise for l in global_elo_history_query.objects()]
 
             try:
                 server_name = settings.guild_setting(guild_id=player.guild_id, setting_name='display_name')
@@ -1452,7 +1464,7 @@ class polygames(commands.Cog):
             return await ctx.send(join_error_message)
 
         if total_players > 15:
-            return await ctx.send(f'You cannot have more than twelve players.')
+            return await ctx.send(f'You cannot have more than fifteen players.')
         if biggest_team > settings.guild_setting(ctx.guild.id, 'max_team_size'):
             if settings.is_mod(ctx.author):
                 await ctx.send('Moderator over-riding server size limits')

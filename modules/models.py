@@ -28,12 +28,25 @@ def is_post_moonrise():
     return bool(datetime.datetime.today().date() >= settings.moonrise_reset_date)
 
 
-def moonrise_or_air_date_range():
+def moonrise_or_air_date_range(version: str = None):
     # given todays date, return pre-moonrise dates (epoch thru moonrise) or post-moonrise dates (moonrise thru end of time)
     # returns (beginning_datetime, end_datetime)
-    if is_post_moonrise():
-        return (settings.moonrise_reset_date, datetime.date.max)
-    return (datetime.date.min, settings.moonrise_reset_date - datetime.timedelta(days=1))
+    moonrise = (settings.moonrise_reset_date, datetime.date.max)
+    air = (datetime.date.min, settings.moonrise_reset_date - datetime.timedelta(days=1))
+
+    if version and version.upper() not in ['AIR', 'MOONRISE', 'ALLTIME']:
+        raise ValueError('Valid arguments are "air", "moonrise", or "alltime". Leave as None to use the current verson based on today\'s date.')
+
+    if version and version.upper() == 'AIR':
+        return air
+    elif version and version.upper() == 'MOONRISE':
+        return moonrise
+    elif version and version.upper() == 'ALLTIME':
+        return (datetime.date.min, datetime.date.max)
+    elif is_post_moonrise():
+        return moonrise
+    else:
+        return air
 
 
 def string_to_user_id(input):
@@ -281,12 +294,9 @@ class DiscordMember(BaseModel):
         for guildmember in self.guildmembers:
             guildmember.generate_display_name(player_name=new_name, player_nick=guildmember.nick)
 
-    def wins(self, alltime: bool = False):
+    def wins(self, version: str = None):
 
-        if alltime:
-            date_min, date_max = datetime.date.min, datetime.date.max
-        else:
-            date_min, date_max = moonrise_or_air_date_range()
+        date_min, date_max = moonrise_or_air_date_range(version=version)
 
         server_list = settings.servers_included_in_global_lb()
         q = Lineup.select().join(Game).join_from(Lineup, GameSide).join_from(Lineup, Player).where(
@@ -301,12 +311,9 @@ class DiscordMember(BaseModel):
 
         return q
 
-    def losses(self, alltime: bool = False):
+    def losses(self, version: str = None):
 
-        if alltime:
-            date_min, date_max = datetime.date.min, datetime.date.max
-        else:
-            date_min, date_max = moonrise_or_air_date_range()
+        date_min, date_max = moonrise_or_air_date_range(version=version)
 
         server_list = settings.servers_included_in_global_lb()
         q = Lineup.select().join(Game).join_from(Lineup, GameSide).join_from(Lineup, Player).where(
@@ -321,9 +328,9 @@ class DiscordMember(BaseModel):
 
         return q
 
-    def get_record(self, alltime: bool = False):
+    def get_record(self, version: str = None):
 
-        return (self.wins(alltime=alltime).count(), self.losses(alltime=alltime).count())
+        return (self.wins(version=version).count(), self.losses(version=version).count())
 
     def get_polychamps_record(self):
 
@@ -699,12 +706,9 @@ class Player(BaseModel):
             (Game.id.in_(subq_games_with_minimum_side_size))
         ).order_by(-Game.date)
 
-    def wins(self, alltime: bool = False):
+    def wins(self, version: str = None):
 
-        if alltime:
-            date_min, date_max = datetime.date.min, datetime.date.max
-        else:
-            date_min, date_max = moonrise_or_air_date_range()
+        date_min, date_max = moonrise_or_air_date_range(version=version)
 
         q = Lineup.select().join(Game).join_from(Lineup, GameSide).where(
             (Lineup.game.is_completed == 1) &
@@ -717,12 +721,9 @@ class Player(BaseModel):
 
         return q
 
-    def losses(self, alltime: bool = False):
+    def losses(self, version: str = None):
 
-        if alltime:
-            date_min, date_max = datetime.date.min, datetime.date.max
-        else:
-            date_min, date_max = moonrise_or_air_date_range()
+        date_min, date_max = moonrise_or_air_date_range(version=version)
 
         q = Lineup.select().join(Game).join_from(Lineup, GameSide).where(
             (Lineup.game.is_completed == 1) &
@@ -735,9 +736,9 @@ class Player(BaseModel):
 
         return q
 
-    def get_record(self, alltime: bool = False):
+    def get_record(self, version: str = None):
 
-        return (self.wins(alltime=alltime).count(), self.losses(alltime=alltime).count())
+        return (self.wins(version=version).count(), self.losses(version=version).count())
 
     def leaderboard_rank(self, date_cutoff):
         # TODO: This could be replaced with Postgresql Window functions to have the DB calculate the rank.
