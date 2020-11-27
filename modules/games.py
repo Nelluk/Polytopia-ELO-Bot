@@ -728,8 +728,8 @@ class polygames(commands.Cog):
                 if models.is_post_moonrise():
                     elo = player.elo_moonrise
                     g_elo = player.discord_member.elo_moonrise
-                    elo_max = player.elo_max
-                    g_elo_max = player.discord_member.elo_max
+                    elo_max = player.elo_max_moonrise
+                    g_elo_max = player.discord_member.elo_max_moonrise
 
                     air_record_g = player.discord_member.get_record(version='air')
 

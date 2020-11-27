@@ -117,7 +117,14 @@ migrate(
     migrator.add_column('lineup', 'elo_after_game_global_moonrise', elo_after_game_global_moonrise),
 
 )
-# models.db.connect(reuse_if_open=True)
+models.db.connect(reuse_if_open=True)
+
+bot_members = models.DiscordMember.select().where(
+    models.DiscordMember.discord_id.in_([settings.bot_id, settings.bot_id_beta])
+)
+bot_update1 = models.Player.update(elo=0, elo_max=0, elo_alltime=0, elo_max_alltime=0, elo_moonrise=0, elo_max_moonrise=0).where(models.Player.discord_member_id.in_(bot_members))
+bot_update2 = models.DiscordMember.update(elo=0, elo_max=0, elo_alltime=0, elo_max_alltime=0, elo_moonrise=0, elo_max_moonrise=0).where(models.DiscordMember.id.in_(bot_members))
+print(f'Updating {bot_update1.execute()} bot Player records with 0 elo and {bot_update2.execute()} bot DiscordMember records with 0 elo.')
 
 # query = models.DiscordMember.update(elo_alltime=models.DiscordMember.elo, elo_max_alltime=models.DiscordMember.elo_max)
 # print(f'models.DiscordMember.elo {query.execute()}')

@@ -2230,16 +2230,16 @@ class Game(BaseModel):
         settings.recalculation_mode = True
 
         with db.atomic():
-            Player.update(elo=1000, elo_max=1000, elo_alltime=1000, elo_max_alltime=1000).execute()
+            Player.update(elo=1000, elo_max=1000, elo_alltime=1000, elo_max_alltime=1000, elo_moonrise=1000, elo_max_moonrise=1000).execute()
             Team.update(elo=1000, elo_alltime=1000).execute()
-            DiscordMember.update(elo=1000, elo_max=1000, elo_alltime=1000, elo_max_alltime=1000).execute()
+            DiscordMember.update(elo=1000, elo_max=1000, elo_alltime=1000, elo_max_alltime=1000, elo_moonrise=1000, elo_max_moonrise=1000).execute()
             Squad.update(elo=1000).execute()
 
             bot_members = DiscordMember.select().where(
                 DiscordMember.discord_id.in_([settings.bot_id, settings.bot_id_beta])
             )
-            bot_update1 = Player.update(elo=0, elo_max=0, elo_alltime=0, elo_max_alltime=0).where(Player.discord_member_id.in_(bot_members))
-            bot_update2 = DiscordMember.update(elo=0, elo_max=0, elo_alltime=0, elo_max_alltime=0).where(DiscordMember.id.in_(bot_members))
+            bot_update1 = Player.update(elo=0, elo_max=0, elo_alltime=0, elo_max_alltime=0, elo_moonrise=0, elo_max_moonrise=0).where(Player.discord_member_id.in_(bot_members))
+            bot_update2 = DiscordMember.update(elo=0, elo_max=0, elo_alltime=0, elo_max_alltime=0, elo_moonrise=0, elo_max_moonrise=0).where(DiscordMember.id.in_(bot_members))
             logger.info(f'Updating {bot_update1.execute()} bot Player records with 0 elo and {bot_update2.execute()} bot DiscordMember records with 0 elo.')
 
             Game.update(is_completed=0, is_confirmed=0).where(
