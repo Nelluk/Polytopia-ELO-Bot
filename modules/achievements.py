@@ -115,7 +115,7 @@ async def set_experience_role(discord_member):
             continue
 
         role_list = []
-
+        elo_max = discord_member.elo_max_moonrise if models.is_post_moonrise() else discord_member.elo_max
         role = None
         if completed_games >= 2:
             role = discord.utils.get(guild.roles, name='ELO Rookie')
@@ -123,19 +123,19 @@ async def set_experience_role(discord_member):
         if completed_games >= 10:
             role = discord.utils.get(guild.roles, name='ELO Player')
             role_list.append(role) if role is not None else None
-        if discord_member.elo_max >= 1200:
+        if elo_max >= 1200:
             role = discord.utils.get(guild.roles, name='ELO Veteran')
             role_list.append(role) if role is not None else None
-        if discord_member.elo_max >= 1350:
+        if elo_max >= 1350:
             role = discord.utils.get(guild.roles, name='ELO Hero')
             role_list.append(role) if role is not None else None
-        if discord_member.elo_max >= 1500:
+        if elo_max >= 1500:
             role = discord.utils.get(guild.roles, name='ELO Elite')
             role_list.append(role) if role is not None else None
-        if discord_member.elo_max >= 1650:
+        if elo_max >= 1650:
             role = discord.utils.get(guild.roles, name='ELO Master')
             role_list.append(role) if role is not None else None
-        if discord_member.elo_max >= 1800:
+        if elo_max >= 1800:
             role = discord.utils.get(guild.roles, name='ELO Titan')
             role_list.append(role) if role is not None else None
 
