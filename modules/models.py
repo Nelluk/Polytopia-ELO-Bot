@@ -1140,7 +1140,7 @@ class Game(BaseModel):
 
         for pick in range(num_tribes):
             picking_team = None
-            lowest_score = 99
+            lowest_score = 199  # changed from 99 with the change from 12 max tribes to 15. lowest_score values were going over 100
             # for team in teams:
             for side_obj in side_objs:
                 # Find side with lowest pick_score
