@@ -1041,8 +1041,7 @@ class Game(BaseModel):
                     logger.debug(f'Using default guild {guild} for side_guild')
                     side_guild = guild
                 if message:
-                    if include_message_mentions:
-                        side_message = f'{message}\n{" ".join(gameside.mentions())}'
+                    side_message = f'{message}\n{" ".join(gameside.mentions())}' if include_message_mentions else message
                     logger.debug(f'Pinging message to channel {gameside.team_chan} in guild {side_guild}')
                     await channels.send_message_to_channel(side_guild, channel_id=gameside.team_chan, message=side_message, suppress_errors=suppress_errors)
                 else:
@@ -1050,8 +1049,7 @@ class Game(BaseModel):
 
         if self.game_chan:
             if message:
-                if include_message_mentions:
-                    game_chan_message = f'{message}\n{" ".join(self.mentions())}'
+                game_chan_message = f'{message}\n{" ".join(self.mentions())}' if include_message_mentions else message
                 await channels.send_message_to_channel(guild, channel_id=self.game_chan, message=game_chan_message, suppress_errors=suppress_errors)
             else:
                 await channels.update_game_channel_name(guild, channel_id=self.game_chan, game=self, team_name=None)
