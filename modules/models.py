@@ -1026,7 +1026,7 @@ class Game(BaseModel):
             self.game_chan = None
             self.save()
 
-    async def update_squad_channels(self, guild_list, guild_id, message: str = None, suppress_errors=True):
+    async def update_squad_channels(self, guild_list, guild_id, message: str = None, suppress_errors: bool = True, include_message_mentions: bool = False):
         guild = discord.utils.get(guild_list, id=guild_id)
 
         for gameside in list(self.gamesides):
@@ -1041,14 +1041,18 @@ class Game(BaseModel):
                     logger.debug(f'Using default guild {guild} for side_guild')
                     side_guild = guild
                 if message:
+                    if include_message_mentions:
+                        side_message = f'{message}\n{" ".join(gameside.mentions())}'
                     logger.debug(f'Pinging message to channel {gameside.team_chan} in guild {side_guild}')
-                    await channels.send_message_to_channel(side_guild, channel_id=gameside.team_chan, message=message, suppress_errors=suppress_errors)
+                    await channels.send_message_to_channel(side_guild, channel_id=gameside.team_chan, message=side_message, suppress_errors=suppress_errors)
                 else:
                     await channels.update_game_channel_name(side_guild, channel_id=gameside.team_chan, game=self, team_name=gameside.team.name)
 
         if self.game_chan:
             if message:
-                await channels.send_message_to_channel(guild, channel_id=self.game_chan, message=message, suppress_errors=suppress_errors)
+                if include_message_mentions:
+                    game_chan_message = f'{message}\n{" ".join(self.mentions())}'
+                await channels.send_message_to_channel(guild, channel_id=self.game_chan, message=game_chan_message, suppress_errors=suppress_errors)
             else:
                 await channels.update_game_channel_name(guild, channel_id=self.game_chan, game=self, team_name=None)
 

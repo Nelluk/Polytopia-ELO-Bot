@@ -351,7 +351,7 @@ class misc(commands.Cog):
                 await ctx.send(f'{full_message}\n{" ".join(player_mentions)}')
             else:
                 logger.debug(f'Ping triggered in private channel {ctx.channel.id}')
-                await game.update_squad_channels(self.bot.guilds, game.guild_id, message=f'{full_message}\n{" ".join(player_mentions)}', suppress_errors=False)
+                await game.update_squad_channels(self.bot.guilds, game.guild_id, message=f'{full_message}', suppress_errors=False, include_message_mentions=True)
                 if ctx.channel.id not in game_channels:
                     await ctx.send(f'Sending ping to game channels:\n{full_message}')
         except exceptions.CheckFailedError as e:
