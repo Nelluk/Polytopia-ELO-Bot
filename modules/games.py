@@ -425,7 +425,7 @@ class polygames(commands.Cog):
                         continue
                     member_count += 1
                 team_name_str = f'**{team.name}**   ({member_count})'  # Show team name with number of members without MIA role
-                wins, losses = team.get_record(alltime=True)
+                wins, losses = team.get_record(alltime=alltime)
 
                 elo = team.elo_alltime if alltime else team.elo
                 embed.add_field(name=f'{team.emoji} {(counter + 1):>3}. {team_name_str}\n`ELO: {elo:<5} W {wins} / L {losses}`', value='\u200b', inline=False)
