@@ -807,7 +807,7 @@ class Player(BaseModel):
             (DiscordMember.discord_id.in_(list_of_discord_ids)) & (Player.guild_id == guild_id)
         )
 
-        elo_list = [p.elo for p in players] if players else []
+        elo_list = [p.elo_alltime for p in players] if players else []
         elo_list.sort(reverse=True)
         return elo_list
 
@@ -831,10 +831,10 @@ class Player(BaseModel):
 
             if weighted:
                 max_weighted_games = min(games_played, 10)
-                elo_list = elo_list + [p.elo] * max_weighted_games
+                elo_list = elo_list + [p.elo_alltime] * max_weighted_games
             else:
                 # Straight average of player elo scores with no weighting
-                elo_list.append(p.elo)
+                elo_list.append(p.elo_alltime)
 
         if elo_list:
             return int(statistics.mean(elo_list)), player_games

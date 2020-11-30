@@ -560,7 +560,7 @@ class league(commands.Cog):
         mia_role = discord.utils.get(ctx.guild.roles, name=settings.guild_setting(guild_id, 'inactive_role'))
         # season_inactive_role = discord.utils.get(ctx.guild.roles, name='Season Inactive')
 
-        draft_str = 'combined ELO of top 10 players (Senior or Junior)'
+        draft_str = 'combined alltime local ELO of top 10 players (Senior or Junior)'
 
         async with ctx.typing():
             for team, team_roles in league_teams:
