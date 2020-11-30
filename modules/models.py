@@ -440,11 +440,11 @@ class DiscordMember(BaseModel):
 
         query = DiscordMember.select(DiscordMember, elo_field.alias('elo_field')).join(Player).join(Lineup).join(Game).where(
             (Game.is_completed == 1) & (Game.completed_ts > date_cutoff) & (Game.is_ranked == 1) & (DiscordMember.is_banned == 0)
-        ).distinct().order_by(-elo_field)
+        ).distinct().order_by(-elo_field, DiscordMember.id)
 
         if query.count() < 10:
             # Include all registered players on leaderboard if not many games played
-            query = DiscordMember.select(DiscordMember, elo_field.alias('elo_field')).order_by(-elo_field)
+            query = DiscordMember.select(DiscordMember, elo_field.alias('elo_field')).order_by(-elo_field, DiscordMember.id)
 
         return query
 
@@ -784,11 +784,11 @@ class Player(BaseModel):
             (Game.is_ranked == 1) &
             (Game.completed_ts > date_cutoff) &
             (Player.is_banned == 0) & (DiscordMember.is_banned == 0)
-        ).distinct().order_by(-elo_field)
+        ).distinct().order_by(-elo_field, Player.id)
 
         if query.count() < 10:
             # Include all registered players on leaderboard if not many games played
-            query = Player.select(Player, elo_field.alias('elo_field')).where(Player.guild_id == guild_id).order_by(-elo_field)
+            query = Player.select(Player, elo_field.alias('elo_field')).where(Player.guild_id == guild_id).order_by(-elo_field, Player.id)
 
         return query
 
