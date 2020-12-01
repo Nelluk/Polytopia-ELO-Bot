@@ -2980,10 +2980,12 @@ class GameLog(BaseModel):
         if not keywords:
             keywords = '%'  # Wildcard/return all matches
         else:
-            keywords = keywords.replace(' ', '%')  # match multiple words with ALL
+            keywords = '%' + keywords.replace(' ', '%') + '%'  # match multiple words with ALL
 
         if not negative_keyword:
             negative_keyword = 'fakeplaceholderstringthatwonteverbefound'
+        else:
+            negative_keyword = '%' + negative_keyword + '%'
 
         if guild_id:
             subq_by_guild = GameLog.select(GameLog.id).where((GameLog.guild_id == guild_id) | (GameLog.guild_id == 0))
@@ -2992,8 +2994,8 @@ class GameLog(BaseModel):
 
         return GameLog.select().where(
             GameLog.id.in_(subq_by_guild) &
-            GameLog.message.contains(keywords) &
-            ~GameLog.message.contains(negative_keyword) &
+            GameLog.message ** (keywords) &
+            ~(GameLog.message ** (negative_keyword)) &
             (GameLog.is_protected == 0)
         ).order_by(-GameLog.message_ts).limit(limit)
 

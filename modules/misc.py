@@ -23,45 +23,14 @@ class misc(commands.Cog):
             self.bg_task = bot.loop.create_task(self.task_broadcast_newbie_message())
             self.bg_task3 = bot.loop.create_task(self.task_broadcast_newbie_steam_message())
 
-    @commands.command(hidden=True)
+    @commands.command(hidden=True, aliases=['ts'])
     @commands.is_owner()
-    async def reset_elite_roles(self, ctx, *, args: str = None):
+    async def test(self, ctx, *, args: str = None):
 
-        async with ctx.typing():
-            results = ['Resetting elite ELO roles for: ']
-            role_names = ['ELO Hero', 'ELO Elite', 'ELO Master', 'ELO Titan']
-            for guild in settings.bot.guilds:
-                logger.info(f'Trying role reset for guild {guild.name} - {guild.id}')
-                veteran_role = discord.utils.get(guild.roles, name='ELO Veteran')
-                if not veteran_role:
-                    logger.info(f'Skipping role reset for guild {guild.name} - no Veteran role')
-                    continue
-
-                elite_roles = [discord.utils.get(guild.roles, name=r) for r in role_names]
-                elite_roles = [r for r in elite_roles if r]  # remove Nones
-                members = []
-                for role in elite_roles:
-                    if not role:
-                        continue
-                    members.extend(role.members)
-
-                logger.debug(f'Elite members: {members}')
-
-                for member in members:
-
-                    new_member_roles = member.roles.copy()
-                    new_member_roles = [r for r in new_member_roles if r not in elite_roles]
-                    new_member_roles.append(veteran_role)
-
-                    try:
-                        logger.debug(f'Attempting to update member {member.display_name} role set to {new_member_roles}')
-                        await member.edit(roles=new_member_roles, reason='Resetting elite ELO achievement roles')
-                        results.append(f'**{member.display_name}**')
-                    except discord.DiscordException as e:
-                        logger.warning(f'Error during role reset for guild {guild.id}: {e}')
-                        continue
-
-            await utilities.buffered_send(destination=ctx, content=', '.join(results))
+        rs = models.GameLog.search(keywords='72731 joined', guild_id=283436219780825088)
+        print(len(rs))
+        for r in rs:
+            print(r)
 
     @commands.command(usage=None)
     @settings.in_bot_channel_strict()
