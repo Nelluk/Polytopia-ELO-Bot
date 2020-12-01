@@ -51,6 +51,7 @@ def guild_role_by_name(guild, name: str, allow_partial: bool = False):
 async def buffered_send(destination, content, max_length=2000, allowed_mentions=None):
     # use to replace await ctx.send(message) if message could potentially be over the Discord limit of 2000 characters
     # will split message by \n characters and send in chunks up to max_length size
+    # TODO: Could be handy to split by something like a ',' character IF there are no \n's in the text
 
     if not content:
         return

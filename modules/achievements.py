@@ -153,9 +153,9 @@ async def set_experience_role(discord_member):
             except discord.DiscordException as e:
                 logger.warning(f'Error during set_experience_role for guild {guild.id} member {member.display_name}: {e}')
 
-        max_local_elo = models.Player.select(peewee.fn.Max(models.Player.elo)).where(models.Player.guild_id == guild.id).scalar()
-        max_global_elo = models.DiscordMember.select(peewee.fn.Max(models.DiscordMember.elo)).scalar()
+        max_local_elo = models.Player.select(peewee.fn.Max(models.Player.elo_moonrise)).where(models.Player.guild_id == guild.id).scalar()
+        max_global_elo = models.DiscordMember.select(peewee.fn.Max(models.DiscordMember.elo_moonrise)).scalar()
 
-        if discord_member.elo >= max_global_elo or guildmember.elo >= max_local_elo:
+        if discord_member.elo_moonrise >= max_global_elo or guildmember.elo_moonrise >= max_local_elo:
             # This player has #1 spot in either local OR global leaderboard. Apply ELO Champion role on any server where the player is:
             await set_champion_role()
