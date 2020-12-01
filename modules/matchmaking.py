@@ -1030,15 +1030,20 @@ class matchmaking(commands.Cog):
     async def task_dm_game_creators(self):
         await self.bot.wait_until_ready()
         while not self.bot.is_closed():
-            await asyncio.sleep(60 * 60 * 10)
+            await asyncio.sleep(60 * 60 * 12)
             logger.debug('Task running: task_dm_game_creators')
             utilities.connect()
             full_games = models.Game.search_pending(status_filter=1, ranked_filter=1)
             logger.debug(f'Starting task_dm_game_creators on {len(full_games)} games')
             for game in full_games:
+                last_joiner = models.GameLog.search(keywords=f'_{game.id}_ joined', guild_id=game.guild_id, limit=1).first()
+                if last_joiner and last_joiner.message_ts > (datetime.datetime.now() + datetime.timedelta(hours=-12)):
+                    logger.debug(f'Skipping task_dm_game_creators for game {game.id} - most recent joiner joined too recently.')
+                    continue
+
                 guild = self.bot.get_guild(game.guild_id)
                 creating_player = game.creating_player()
-                # TOOD: only trigger if game is <23hours til expiration
+                # TODO: ? only trigger if game is <23hours til expiration
                 if not guild:
                     logger.error(f'Couldnt load guild ID {game.guild_id}')
                     continue

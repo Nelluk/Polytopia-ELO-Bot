@@ -27,10 +27,11 @@ class misc(commands.Cog):
     @commands.is_owner()
     async def test(self, ctx, *, args: str = None):
 
-        rs = models.GameLog.search(keywords='72731 joined', guild_id=283436219780825088)
-        print(len(rs))
-        for r in rs:
-            print(r)
+        rs = models.GameLog.search(keywords='_72731_ joined', guild_id=283436219780825088, limit=1).first()
+        if rs and rs.message_ts < (datetime.datetime.now() + datetime.timedelta(hours=-24)):
+            print(f'pass {rs.message_ts}')
+        else:
+            print(f'fail {rs.message_ts}')
 
     @commands.command(usage=None)
     @settings.in_bot_channel_strict()
