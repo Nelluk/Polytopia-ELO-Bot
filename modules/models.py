@@ -1332,7 +1332,7 @@ class Game(BaseModel):
                     poly_id_str = f'\n`{player.discord_member.polytopia_name}`' if len(ordered_player_list) < 10 else ''  # to avoid hitting 1024 char limit on very big sides
                 else:
                     poly_id_str = f'\n`{player.discord_member.name_steam if player.discord_member.name_steam else ""}`' if len(ordered_player_list) < 10 else ''
-                player_list.append(f'**{player.name}** ({player.elo}) {tribe_str} {team_str}{poly_id_str}')
+                player_list.append(f'**{player.name}** ({player.elo_moonrise if self.is_post_moonrise() else player.elo}) {tribe_str} {team_str}{poly_id_str}')
             player_str = '\u200b' if not player_list else '\n'.join(player_list)
 
             embed.add_field(name=f'__Side {side.position}__{side_name} *({side_capacity[0]}/{side_capacity[1]})*', value=player_str[:1024], inline=False)
