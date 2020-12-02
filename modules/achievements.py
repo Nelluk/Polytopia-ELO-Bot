@@ -123,7 +123,8 @@ async def set_experience_role(discord_member):
         if completed_games >= 10:
             role = discord.utils.get(guild.roles, name='ELO Player')
             role_list.append(role) if role is not None else None
-        if elo_max >= 1200:
+        if discord_member.elo_max >= 1200 or discord_member.elo_max_moonrise >= 1200:
+            # special case for resetting pre-moonrise Veterans and above down to Veteran
             role = discord.utils.get(guild.roles, name='ELO Veteran')
             role_list.append(role) if role is not None else None
         if elo_max >= 1350:
