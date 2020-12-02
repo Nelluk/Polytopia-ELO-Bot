@@ -755,7 +755,7 @@ class league(commands.Cog):
         if not player:
             # Matching guild member but no Player or DiscordMember
             return await ctx.send(f'*{ctx.author.name}* was found in the server but is not registered with me. '
-                f'Players can register themselves with `{ctx.prefix}setcode POLYTOPIA_CODE`.')
+                f'Players can register themselves with `{ctx.prefix}setname Your Mobile Name`.')
 
         on_team, player_team = models.Player.is_in_team(guild_id=ctx.guild.id, discord_member=ctx.author)
         if on_team:
