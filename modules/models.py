@@ -2387,14 +2387,14 @@ class Game(BaseModel):
 
         (min_elo, max_elo, min_elo_g, max_elo_g) = self.elo_requirements()
 
-        if player.elo < min_elo or player.elo > max_elo:
+        if player.elo_moonrise < min_elo or player.elo_moonrise > max_elo:
             if not self.is_hosted_by(author_member.id)[0] and not settings.is_mod(author_member):
-                return (None, [f'This game has an ELO restriction of {min_elo} - {max_elo} and **{player.name}** has an ELO of **{player.elo}**. Cannot join! :cry: Use `{prefix}games` to list games you *can* join.'])
+                return (None, [f'This game has an ELO restriction of {min_elo} - {max_elo} and **{player.name}** has an ELO of **{player.elo_moonrise}**. Cannot join! :cry: Use `{prefix}games` to list games you *can* join.'])
             message_list.append(f'This game has an ELO restriction of {min_elo} - {max_elo}. Bypassing because you are game host or a mod.')
 
-        if player.discord_member.elo < min_elo_g or player.discord_member.elo > max_elo_g:
+        if player.discord_member.elo_moonrise < min_elo_g or player.discord_member.elo_moonrise > max_elo_g:
             if not self.is_hosted_by(author_member.id)[0] and not settings.is_mod(author_member):
-                return (None, [f'This game has a global ELO restriction of {min_elo_g} - {max_elo_g} and **{player.name}** has a global ELO of **{player.discord_member.elo}**. Cannot join! :cry:'])
+                return (None, [f'This game has a global ELO restriction of {min_elo_g} - {max_elo_g} and **{player.name}** has a global ELO of **{player.discord_member.elo_moonrise}**. Cannot join! :cry:'])
             message_list.append(f'This game has a global ELO restriction of {min_elo_g} - {max_elo_g}. Bypassing because you are game host or a mod.')
 
         # list of ID strings that are allowed to join game, e.g. ['272510639124250625', '481527584107003904']

@@ -877,7 +877,7 @@ class matchmaking(commands.Cog):
                     if player:
                         # skip any games for which player does not meet ELO requirements, IF player is registered (unless ctx.author is already in game)
                         (min_elo, max_elo, min_elo_g, max_elo_g) = game.elo_requirements()
-                        if player.elo < min_elo or player.elo > max_elo or player.discord_member.elo < min_elo_g or player.discord_member.elo > max_elo_g:
+                        if player.elo_moonrise < min_elo or player.elo_moonrise > max_elo or player.discord_member.elo_moonrise < min_elo_g or player.discord_member.elo_moonrise > max_elo_g:
                             unjoinable_count += 1
                             continue
                         if game.is_mobile:
