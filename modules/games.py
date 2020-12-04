@@ -1146,7 +1146,7 @@ class polygames(commands.Cog):
         models.GameLog.write(game_id=0, guild_id=0, message=f'{models.GameLog.member_string(player.discord_member)} {code_type} {"set" if created else "updated"} to `{new_id}` {log_by_str}')
 
         if created:
-            await ctx.send(f'Player **{player.name}** added to system with {register_str} and ELO **{player.elo}**\n{warning_str}'
+            await ctx.send(f'Player **{player.name}** added to system with {register_str} and ELO **{player.elo_moonrise}**\n{warning_str}'
                 f'To find games to join use the `{ctx.prefix}games` command.')
         else:
             await ctx.send(f'Player **{player.name}** updated in system with {register_str}.')

@@ -1008,10 +1008,10 @@ class league(commands.Cog):
 
             message = (f' {dm.mention()} **{player.name}**'
                 f'\n\u00A0\u00A0 \u00A0\u00A0 \u00A0\u00A0 {recent_games} games played in last 14 days, {all_games} all-time'
-                f'\n\u00A0\u00A0 \u00A0\u00A0 \u00A0\u00A0 ELO:  {dm.elo} *global* / {player.elo} *local*\n'
+                f'\n\u00A0\u00A0 \u00A0\u00A0 \u00A0\u00A0 ELO:  {dm.elo_moonrise} *global* / {player.elo_moonrise} *local*\n'
                 f'\u00A0\u00A0 \u00A0\u00A0 \u00A0\u00A0 __W {g_wins} / L {g_losses}__ *global* \u00A0\u00A0 - \u00A0\u00A0 __W {wins} / L {losses}__ *local*\n')
 
-            player_list.append((message, dm.elo, player.elo, all_games, recent_games, member, player))
+            player_list.append((message, dm.elo_moonrise, player.elo_moonrise, all_games, recent_games, member, player))
 
         player_list.sort(key=lambda tup: tup[sort_key], reverse=False)     # sort the list by argument supplied
 
@@ -1104,7 +1104,7 @@ class league(commands.Cog):
             if dm.games_played(in_days=15).count() < 1:
                 logger.debug(f'Skipping {dm.name} - insufficient recent games')
                 continue
-            if dm.elo_max > 1150:
+            if dm.elo_max_moonrise > 1150:
                 logger.debug(f'{dm.name} qualifies due to higher ELO > 1150')
             elif wins_count > losses_count:
                 logger.debug(f'{dm.name} qualifies due to positive win ratio')
@@ -1268,7 +1268,7 @@ async def auto_grad_novas(ctx, game):
             except discord.DiscordException as e:
                 logger.warning(f'Error loading existing draft announcement message in auto_grad_novas: {e}')
 
-        grad_announcement = (f'Player {member.mention} (*Global ELO: {dm.elo} \u00A0\u00A0\u00A0\u00A0W {wins} / L {losses}*) '
+        grad_announcement = (f'Player {member.mention} (*Global ELO: {dm.elo_moonrise} \u00A0\u00A0\u00A0\u00A0W {wins} / L {losses}*) '
                 f'has met the qualifications and is now a **{grad_role.name}**\n'
                 f'{announce_str}')
 
