@@ -144,14 +144,14 @@ async def set_experience_role(discord_member):
             logger.debug(f'No relevant achievement role loaded for guild {guild.name} ')
             continue
 
-        unearned_roles = role_list.remove(role)
-        logger.debug(f'Earned role: {role.name}\nUnearned role list: {unearned_roles}')
+        role_list.remove(role)
+        logger.debug(f'Earned role: {role.name}\nUnearned role list: {role_list}')
 
-        if role not in member.roles or any(item in member.roles for item in unearned_roles):
+        if role not in member.roles or any(item in member.roles for item in role_list):
             logger.debug(f'Updating achievement roles for {member.display_name}')
             try:
-                await member.remove_roles(*unearned_roles)
-                logger.info(f'removing roles from member {member}:\n:{unearned_roles}')
+                await member.remove_roles(*role_list)
+                logger.info(f'removing roles from member {member}:\n:{role_list}')
                 await member.add_roles(role)
                 logger.info(f'adding role {role} to member {member}')
             except discord.DiscordException as e:
