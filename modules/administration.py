@@ -488,7 +488,7 @@ class administration(commands.Cog):
             negative_title_str = ''
 
         if search_term:
-            title_str = f'Searching for log entries containing *{search_term}*{negative_title_str}'.replace('\\_', '')
+            title_str = f'Searching for log entries containing *{search_term}*{negative_title_str}'.replace('_', '')
         else:
             title_str = f'All recent log entries{negative_title_str}'
 

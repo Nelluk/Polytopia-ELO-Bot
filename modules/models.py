@@ -2980,7 +2980,7 @@ class GameLog(BaseModel):
         if not keywords:
             keywords = '%'  # Wildcard/return all matches
         else:
-            keywords = '%' + keywords.replace(' ', '%') + '%'  # match multiple words with ALL
+            keywords = '%' + keywords.replace(' ', '%').replace('_', r'\_') + '%'  # match multiple words with ALL
 
         if not negative_keyword:
             negative_keyword = 'fakeplaceholderstringthatwonteverbefound'
