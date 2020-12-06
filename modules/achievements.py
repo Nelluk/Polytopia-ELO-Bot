@@ -141,18 +141,23 @@ async def set_experience_role(discord_member):
             role_list.append(role) if role is not None else None
 
         if not role:
+            logger.debug(f'No relevant achievement role loaded for guild {guild.name} ')
             continue
 
-        if role not in member.roles:
-            logger.debug(f'Applying new achievement role {role.name} to {member.display_name}')
+        unearned_roles = role_list.remove(role)
+        logger.debug(f'Earned role: {role.name}\nUnearned role list: {unearned_roles}')
+
+        if role not in member.roles or any(item in member.roles for item in unearned_roles):
+            logger.debug(f'Updating achievement roles for {member.display_name}')
             try:
-                if role not in role_list or len(role_list) > 1:
-                    await member.remove_roles(*role_list)
-                    logger.info(f'removing roles from member {member}:\n:{role_list}')
+                await member.remove_roles(*unearned_roles)
+                logger.info(f'removing roles from member {member}:\n:{unearned_roles}')
                 await member.add_roles(role)
                 logger.info(f'adding role {role} to member {member}')
             except discord.DiscordException as e:
                 logger.warning(f'Error during set_experience_role for guild {guild.id} member {member.display_name}: {e}')
+        else:
+            logger.debug(f'No achievement roles to change')
 
         max_local_elo = models.Player.select(peewee.fn.Max(models.Player.elo_moonrise)).where(models.Player.guild_id == guild.id).scalar()
         max_global_elo = models.DiscordMember.select(peewee.fn.Max(models.DiscordMember.elo_moonrise)).scalar()
