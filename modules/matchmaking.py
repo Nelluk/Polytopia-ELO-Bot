@@ -265,7 +265,7 @@ class matchmaking(commands.Cog):
 
         """
         Opens a game that others can join
-        Expiration can be between 1H - 96H
+        Expiration can be between 1H - 168H
         Size examples: 1v1, 2v2, 1v1v1v1v1, 3v3v3, 1v3
 
         Use `opensteam` to specify that a new game is for Steam - otherwise the game will be assumed for mobile platform.

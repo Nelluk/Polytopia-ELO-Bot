@@ -2468,8 +2468,8 @@ class Game(BaseModel):
 
     def purge_expired_games():
 
-        # Full matches that expired more than 3 days ago (ie. host has 3 days to start match before it vanishes)
-        purge_deadline = (datetime.datetime.now() + datetime.timedelta(days=-3))
+        # Full matches that expired more than 4 days ago (ie. host has 3 days to start match before it vanishes)
+        purge_deadline = (datetime.datetime.now() + datetime.timedelta(days=-4))
 
         delete_query = Game.delete().where(
             (Game.expiration < purge_deadline) & (Game.is_pending == 1)
