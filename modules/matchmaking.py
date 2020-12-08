@@ -374,8 +374,8 @@ class matchmaking(commands.Cog):
             m = re.match(r"(\d+)h", arg.lower())
             if m:
                 # arg looks like '12h'
-                if not 0 < int(m[1]) < 97:
-                    return await ctx.send(f'Invalid expiration {arg}. Must be between 1H and 96H (One hour through four days).')
+                if not 0 < int(m[1]) < 169:
+                    return await ctx.send(f'Invalid expiration {arg}. Must be between 1H and 168H (One hour through seven days).')
                 expiration_hours_override = int(m[1])
                 continue
             if arg.lower()[:8] == 'unranked':
