@@ -350,7 +350,7 @@ class misc(commands.Cog):
 
             return await ctx.send(f'This command can not be used in this channel. {error_str}Permitted channels: {" ".join(channel_tags)}')
 
-        full_message = f'Message from {ctx.author.mention} (**{ctx.author.name}**) regarding game {game.id} **{game.name}**:\n*{message}*'
+        full_message = f'Message from **{ctx.author.display_name}** regarding game {game.id} **{game.name}**:\n*{message}*'
         models.GameLog.write(game_id=game, guild_id=game.guild_id, message=f'{models.GameLog.member_string(ctx.author)} pinged the game with message: *{discord.utils.escape_markdown(message)}*')
 
         try:
