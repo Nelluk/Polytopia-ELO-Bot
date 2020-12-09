@@ -979,7 +979,7 @@ class polygames(commands.Cog):
                             games_played = p[0].completed_game_count()
                         else:
                             games_played = p[0].games_played(in_days=30).count()
-                        member_stats.append(({p[0].discord_member.name}, games_played, f'`{p[0].discord_member.name[:23]:.<25}{p[0].elo:.<8}{rank_str:.<6}{games_played:.<4}`'))
+                        member_stats.append(({p[0].discord_member.name}, games_played, f'`{p[0].discord_member.name[:23]:.<25}{p[0].elo_moonrise:.<8}{rank_str:.<6}{games_played:.<4}`'))
 
                 member_stats.sort(key=lambda tup: tup[1], reverse=True)     # sort the list descending by recent games played
                 members_sorted = [str(x[2].replace(".", "\u200b ")) for x in member_stats[:28]]    # create list of strings like 'Nelluk  1277 #3  21'.
