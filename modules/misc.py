@@ -241,7 +241,7 @@ class misc(commands.Cog):
         for game in game_list:
             logger.debug(f'Sending message to game channels for game {game.id} from {ctx.invoked_with}')
             models.GameLog.write(game_id=game, guild_id=ctx.guild.id, message=f'{log_message} *{discord.utils.escape_markdown(clean_message)}*')
-            await game.update_squad_channels(self.bot.guilds, game.guild_id, message=f'{title_str} for <@{target}> ({player_match.name}): *{clean_message}*')
+            await game.update_squad_channels(self.bot.guilds, game.guild_id, message=f'{title_str} for **{player_match.name}**: *{clean_message}*')
 
     @commands.command(usage='game_id message')
     @models.is_registered_member()
