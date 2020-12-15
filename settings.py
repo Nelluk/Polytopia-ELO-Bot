@@ -80,6 +80,7 @@ discord_id_ban_list = [
     484067640302764042,  # polyelo himself
     479029527553638401,  # polyelo beta herself
     590055026643435544,  # mikeyphelps#1744 aka dfgigy - star hacking
+    430699598483554325,  # Mewtic - offensive troll
 ]
 
 poly_id_ban_list = [
@@ -98,6 +99,7 @@ poly_id_ban_list = [
     'U4x51BhGC2kGp5rv',  # lil'omen 746795654994722901 and Atlas 456142908303867935
     'JRZhrtFOX2Gv0Vv0',  # D’Escanor#9505 and Exiosking#9132
     'TLyEvHTBidd21Vl9',  # mikeyphelps#1744 aka dfgigy
+    'm6U1t7dXUHbLYFC1',  # Mewtic
 ]
 
 
