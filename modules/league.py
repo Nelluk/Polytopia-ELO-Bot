@@ -852,7 +852,7 @@ class league(commands.Cog):
         await ctx.send(file=fs)
 
     @commands.command(usage='@Draftee TeamName')
-    @settings.is_mod_check()
+    @settings.draft_check()
     # @settings.in_bot_channel_strict()
     async def draft(self, ctx, *, args=None):
         """

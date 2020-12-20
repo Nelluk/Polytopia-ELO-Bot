@@ -34,7 +34,7 @@ def get_player_summary(member: discord.Member) -> str:
 
 def draw_text(
         image: Image.Image, text: str, *, size: int = 50, left: int = 0,
-        top: int = 0):
+        top: int = 0, colour: str = None):
     """Draw some text."""
     # load the font
     font = ImageFont.truetype(
@@ -43,7 +43,7 @@ def draw_text(
     )
     # draw the text
     draw = ImageDraw.Draw(image)
-    draw.text((left, top), text, '#fff', font)
+    draw.text((left, top), text, colour or '#fff', font)
 
 
 def draw_inverse_text(
@@ -168,9 +168,15 @@ def player_draft_card(
     # im = generate_gradient('#4e459d', '#b03045', width, 400)
     im = generate_gradient(str(team_role.color), '#FFFFFF', width, 400)
     rectangle(im, 0, 0, width, 90, team_colour)
-    draw_text(im, title, left=120, top=15, size=50)
-    draw_text(im, name, left=293, top=95, size=40)
-    draw_text(im, summary, left=293, top=145, size=25)
+    if 'LIGHTNING' in title or 'PLAGUE' in title:
+        text_colour = '#000'
+        wordmark = Image.open('res/pc_wordmark_black.png')
+    else:
+        text_colour = None
+
+    draw_text(im, title, left=120, top=15, size=50, colour=text_colour)
+    draw_text(im, name, left=293, top=95, size=40, colour=text_colour)
+    draw_text(im, summary, left=293, top=145, size=25, colour=text_colour)
     paste_image(im, team_logo, left=20, top=10, height=80)
     paste_image(im, player_avatar, left=23, top=108, height=255)
     paste_image(im, wordmark, left=5, top=365, height=30)
