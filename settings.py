@@ -3,7 +3,7 @@ import logging
 import datetime
 import server_settings
 from discord.ext import commands
-# import discord
+import discord
 import re
 import configparser
 logger = logging.getLogger('polybot.' + __name__)
@@ -226,6 +226,12 @@ def is_mod_check():
 
     def predicate(ctx):
         return is_mod(ctx.author)
+    return commands.check(predicate)
+
+
+def draft_check():
+    def predicate(ctx: commands.Context):
+        return is_mod(ctx.author) or discord.utils.get(ctx.guild.roles, name='Drafter') in ctx.author.roles
     return commands.check(predicate)
 
 
