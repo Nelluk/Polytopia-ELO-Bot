@@ -4,7 +4,7 @@ from discord.ext import commands
 import re
 # import psycopg2
 from psycopg2.errors import DuplicateObject
-from peewee import *
+# from peewee import *
 from playhouse.postgres_ext import *
 import modules.exceptions as exceptions
 # from modules import utilities
@@ -86,11 +86,12 @@ class BaseModel(Model):
 
 
 class Configuration(BaseModel):
-    def draft_config_defaults():
-        return {'announcement_message': None, 'announcement_channel': None,
-                'draft_open': False, 'date_opened': None, 'added_message': ''}
+    draft_config_defaults = {
+        'announcement_message': None, 'announcement_channel': None,
+        'draft_open': False, 'date_opened': None, 'added_message': ''
+    }
 
-    polychamps_draft = BinaryJSONField(null=True, default=draft_config_defaults())
+    polychamps_draft = BinaryJSONField(null=True, default=draft_config_defaults)
     guild_id = BitField(unique=True, null=False)
 
 
@@ -108,7 +109,8 @@ class Team(BaseModel):
     class Meta:
         indexes = ((('name', 'guild_id'), True),)   # Trailing comma is required
         # http://docs.peewee-orm.com/en/3.6.0/peewee/models.html#multi-column-indexes
-
+    
+    @staticmethod
     def get_by_name(team_name: str, guild_id: int, require_exact: bool = False):
         if require_exact:
             teams = Team.select().where((Team.name == team_name) & (Team.guild_id == guild_id) & (Team.is_hidden == 0))
@@ -116,6 +118,7 @@ class Team(BaseModel):
             teams = Team.select().where((Team.name.contains(team_name)) & (Team.guild_id == guild_id) & (Team.is_hidden == 0))
         return teams
 
+    @staticmethod
     def get_or_except(team_name: str, guild_id: int, require_exact: bool = False):
         results = Team.get_by_name(team_name=team_name, guild_id=guild_id, require_exact=require_exact)
         if len(results) == 0:
@@ -457,7 +460,8 @@ class DiscordMember(BaseModel):
         ).group_by(Lineup.tribe, Lineup.tribe.emoji, Tribe.name).order_by(-SQL('tribe_count')).limit(limit)
 
         return q.dicts()
-
+    
+    @staticmethod
     def members_not_on_polychamps():
         # two_weeks = (datetime.datetime.now() + datetime.timedelta(days=-14))
 
@@ -519,6 +523,7 @@ class Player(BaseModel):
             self.save()
         return display_name
 
+    @staticmethod
     def upsert(discord_id, guild_id, discord_name=None, discord_nick=None, team=None):
         # Stopped using postgres upsert on_conflict() because it only returns row ID so its annoying to use
         display_name = Player.generate_display_name(player_name=discord_name, player_nick=discord_nick)
@@ -550,6 +555,7 @@ class Player(BaseModel):
 
         return player, created
 
+    @staticmethod
     def get_teams_of_players(guild_id, list_of_players):
         # TODO: make function async? Tried but got invalid syntax complaint in linter in the calling function
 
@@ -583,6 +589,7 @@ class Player(BaseModel):
         same_team_flag = True if all(x == list_of_matching_teams[0] for x in list_of_matching_teams) else False
         return same_team_flag, list_of_matching_teams
 
+    @staticmethod
     def is_in_team(guild_id, discord_member):
         _, list_of_teams = Player.get_teams_of_players(guild_id=guild_id, list_of_players=[discord_member])
         if not list_of_teams or None in list_of_teams:
@@ -591,6 +598,7 @@ class Player(BaseModel):
         logger.debug(f'is_in_team: True / {list_of_teams[0].id} {list_of_teams[0].name}')
         return (True, list_of_teams[0])
 
+    @staticmethod
     def string_matches(player_string: str, guild_id: int, include_poly_info: bool = True):
         # Returns QuerySet containing players in current guild matching string. Searches against discord mention ID first, then exact discord name match,
         # then falls back to substring match on name/nick, then a lastly a substring match of polytopia ID or polytopia in-game name
@@ -636,6 +644,7 @@ class Player(BaseModel):
             # if include_poly_info == False, then do not fall back to searching by polytopia_id or polytopia_name
             return []
 
+    @staticmethod
     def get_or_except(player_string: str, guild_id: int):
         results = Player.string_matches(player_string=player_string, guild_id=guild_id)
         if len(results) == 0:
@@ -646,6 +655,7 @@ class Player(BaseModel):
         logger.debug(f'get_or_except matched string {player_string} to player {results[0].id} {results[0].name} - team {results[0].team_id}')
         return results[0]
 
+    @staticmethod
     def get_by_discord_id(discord_id: int, guild_id: int, discord_nick: str = None, discord_name: str = None):
         # if no matching player, will check to see if there is already a DiscordMember created from another guild's player
         # if exists, Player will be upserted
@@ -762,6 +772,7 @@ class Player(BaseModel):
         rank = counter + 1 if player_found else None
         return (rank, query.count())
 
+    @staticmethod
     def leaderboard(date_cutoff, guild_id: int, max_flag: bool = False, version: str = None):
 
         if not version:
@@ -802,6 +813,7 @@ class Player(BaseModel):
 
         return q.dicts()
 
+    @staticmethod
     def discord_ids_to_elo_list(list_of_discord_ids, guild_id):
         players = Player.select(Player, DiscordMember).join(DiscordMember).where(
             (DiscordMember.discord_id.in_(list_of_discord_ids)) & (Player.guild_id == guild_id)
@@ -811,6 +823,7 @@ class Player(BaseModel):
         elo_list.sort(reverse=True)
         return elo_list
 
+    @staticmethod
     def average_elo_of_player_list(list_of_discord_ids, guild_id, weighted=True):
 
         # Given a group of discord_ids (likely teammates) come up with an average ELO for that group, weighted by how active they are
@@ -849,6 +862,7 @@ class Tribe(BaseModel):
     name = TextField(unique=True, null=False)
     emoji = TextField(null=False, default='')
 
+    @staticmethod
     def get_by_name(name: str):
 
         tribe_name_match = Tribe.select().where(Tribe.name.startswith(name))
@@ -858,6 +872,7 @@ class Tribe(BaseModel):
             return None
         return tribe_name_match[0]
 
+    @staticmethod
     def update_emoji(name: str, emoji: str):
         try:
             tribe = Tribe.get(Tribe.name.startswith(name))
@@ -1390,6 +1405,7 @@ class Game(BaseModel):
             return 'FFA'
         return 'v'.join([str(s) for s in self.size])
 
+    @staticmethod
     def load_full_game(game_id: int):
         # Returns a single Game object with all related tables pre-fetched. or None
 
@@ -1407,6 +1423,7 @@ class Game(BaseModel):
             raise DoesNotExist()
         return res[0]
 
+    @staticmethod
     def pregame_check(discord_groups, guild_id, require_teams: bool = False):
         # discord_groups = list of lists [[d1, d2, d3], [d4, d5, d6]]. each item being a discord.Member object
         # returns (ListOfLists1, List2)
@@ -1464,6 +1481,7 @@ class Game(BaseModel):
         logger.debug(f'pregame_check returning {teams_for_each_discord_member} // {list_of_final_teams}')
         return (teams_for_each_discord_member, list_of_final_teams)
 
+    @staticmethod
     def create_game(discord_groups, guild_id, name: str = None, require_teams: bool = False, is_ranked: bool = True, is_mobile: bool = True):
         # discord_groups = list of lists [[d1, d2, d3], [d4, d5, d6]]. each item being a discord.Member object
 
@@ -1582,6 +1600,7 @@ class Game(BaseModel):
             if recalculate:
                 Game.recalculate_elo_since(timestamp=since)
 
+    @staticmethod
     def get_side_win_chances(largest_team: int, gameside_list, gameside_elo_list, calc_version: int = 1):
         n = len(gameside_list)
 
@@ -1856,6 +1875,7 @@ class Game(BaseModel):
 
         return (min_elo, max_elo, min_elo_g, max_elo_g)
 
+    @staticmethod
     def waiting_for_creator(creator_discord_id: int):
         # Games for which creator_discord_id is in the 'creating player' slot (first player in GameSide.position == 1) and Game is full/waiting to start
 
@@ -1870,6 +1890,7 @@ class Game(BaseModel):
 
         return q
 
+    @staticmethod
     def search_pending(status_filter: int = 0, ranked_filter: int = 2, guild_id: int = None, player_discord_id: int = None, host_discord_id: int = None, platform_filter: int = 2):
         # status_filter
         # 0 = all open games
@@ -1954,6 +1975,7 @@ class Game(BaseModel):
                 -(fn.SUM(GameSide.size) - fn.COUNT(Lineup.id))
             ).prefetch(GameSide, Lineup, Player)
 
+    @staticmethod
     def search(player_filter=None, team_filter=None, title_filter=None, status_filter: int = 0, guild_id: int = None, size_filter=None, platform_filter: int = 2):
         # Returns Games by almost any combination of player/team participation, and game status
         # player_filter/team_filter should be a [List, of, Player/Team, objects] (or ID #s)
@@ -2108,6 +2130,7 @@ class Game(BaseModel):
             return ((gamesides[1], s2_wins), (gamesides[0], s1_wins))
         return ((gamesides[0], s1_wins), (gamesides[1], s2_wins))
 
+    @staticmethod
     def by_channel_id(chan_id: int):
         # Given a discord channel id (such as 722725679443214347) return a Game that uses that channel as its gameside or game channel ID
         # Raise exception if no match or more than one match
@@ -2130,6 +2153,7 @@ class Game(BaseModel):
         game_channels = [gs.team_chan for gs in self.gamesides] + [self.game_chan]
         return bool(chan_id in game_channels)
 
+    @staticmethod
     def by_channel_or_arg(chan_id: int = None, arg: str = None):
 
         # given a channel_id and/or a string argument, return matching Game if channel_id is associated with a game,
@@ -2165,6 +2189,7 @@ class Game(BaseModel):
             logger.debug(f'by_channel_or_arg - failed lookup by numeric arg')
             raise exceptions.NoMatches(f'No game found matching game ID `{int(arg)}`.')
 
+    @staticmethod
     def by_opponents(player_lists):
         # Given lists of player objects representing game sides, ie:
         # [[p1, p2], [p3, [p4], [p5, p6]] for a 2v2v2 game
@@ -2206,6 +2231,7 @@ class Game(BaseModel):
 
         # return games_with_same_number_of_sides
 
+    @staticmethod
     def recalculate_elo_since(timestamp):
         db.connect(reuse_if_open=True)
         games = Game.select().where(
@@ -2224,6 +2250,7 @@ class Game(BaseModel):
             full_game.declare_winner(winning_side=full_game.winner, confirm=True)
         elo_logger.debug(f'recalculate_elo_since complete')
 
+    @staticmethod
     def recalculate_all_elo():
         # Reset all ELOs to 1000, reset completed game counts, and re-run Game.declare_winner() on all qualifying games
 
@@ -2446,6 +2473,7 @@ class Game(BaseModel):
 
         return None, False
 
+    @staticmethod
     def subq_open_games_with_capacity(guild_id: int = None):
         # All games that have open capacity
         # not restricted by expiration
@@ -2466,6 +2494,7 @@ class Game(BaseModel):
 
         return q
 
+    @staticmethod
     def purge_expired_games():
 
         # Full matches that expired more than 4 days ago (ie. host has 3 days to start match before it vanishes)
@@ -2503,6 +2532,7 @@ class Game(BaseModel):
 
         return (confirmed_count, side_count, fully_confirmed)
 
+    @staticmethod
     def polychamps_season_games(league='all', season=None):
         # infers polychampions season games based on Game.name, something like "PS8W7 Blah Blah" or "JS8 Finals Foo"
         # Junior seasons began with S4
@@ -2618,6 +2648,7 @@ class Squad(BaseModel):
     guild_id = BitField(unique=False, null=False)
     name = TextField(null=False, default='')
 
+    @staticmethod
     def upsert(player_list, guild_id: int):
 
         squads = Squad.get_matching_squad(player_list)
@@ -2656,6 +2687,7 @@ class Squad(BaseModel):
 
         return elo_delta
 
+    @staticmethod
     def subq_squads_by_size(min_size: int = 2, exact=False):
 
         if exact:
@@ -2669,6 +2701,7 @@ class Squad(BaseModel):
             SquadMember.squad
         ).having(fn.COUNT('*') >= min_size)
 
+    @staticmethod
     def subq_squads_with_completed_games(min_games: int = 1):
         # Defaults to squads who have completed more than 0 games
 
@@ -2695,6 +2728,7 @@ class Squad(BaseModel):
         rank = counter + 1 if squad_found else None
         return (rank, query.count())
 
+    @staticmethod
     def leaderboard(date_cutoff, guild_id: int):
 
         num_squads = Squad.select().where(Squad.guild_id == guild_id).count()
@@ -2713,6 +2747,7 @@ class Squad(BaseModel):
 
         return q
 
+    @staticmethod
     def get_matching_squad(player_list):
         # Takes [List, of, Player, Records] (not names)
         # Returns squad with exactly the same participating players. See https://stackoverflow.com/q/52010522/1281743
@@ -2722,6 +2757,7 @@ class Squad(BaseModel):
 
         return query
 
+    @staticmethod
     def get_all_matching_squads(player_list, guild_id: int):
         # Takes [List, of, Player, Records] (not names)
         # Returns all squads containing players in player list. Used to look up a squad by partial or complete membership
@@ -2817,6 +2853,7 @@ class GameSide(BaseModel):
 
         return all(p in s2_players for p in s1_players)
 
+    @staticmethod
     def calc_win_chance(my_side_elo: int, opponent_elo: int):
         chance_of_winning = round(1 / (1 + (10 ** ((opponent_elo - my_side_elo) / 400.0))), 3)
         return chance_of_winning
@@ -2957,6 +2994,7 @@ class GameLog(BaseModel):
 
     # Entries will have guild_id of 0 for things like $setcode and $setname that arent guild-specific
 
+    @staticmethod
     def member_string(member):
 
         try:
@@ -2969,6 +3007,7 @@ class GameLog(BaseModel):
             d_id = member.discord_id
         return f'**{discord.utils.escape_markdown(name)}** (`{d_id}`)'
 
+    @staticmethod
     def write(message, guild_id, game_id=0, is_protected=False):
         if game_id:
             message = f'__{str(game_id)}__ - {message}'
@@ -2976,6 +3015,7 @@ class GameLog(BaseModel):
         logger.debug(f'Writing gamelog for game_id {game_id} and guild_id {guild_id}\n{message}')
         return GameLog.create(guild_id=guild_id, message=message, is_protected=is_protected)
 
+    @staticmethod
     def search(keywords=None, negative_keyword=None, guild_id=None, limit=500):
         if not keywords:
             keywords = '%'  # Wildcard/return all matches
