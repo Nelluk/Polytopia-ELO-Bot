@@ -818,34 +818,36 @@ class league(commands.Cog):
         top_string = '' if args[0].upper() == 'NONE' else args[0]
         bottom_string = '' if args[1].upper() == 'NONE' else args[1]
 
-        async def arg_to_image_url(image_arg: str):
+        async def arg_to_image_url(image_arg: str, position: int = 0):
             if image_arg[:4] == 'http':
                 # passed raw image url
-                return image_arg
+                return image_arg, '#00ff00' if position == 0 else '#ff0000'
             else:
                 team_matches = models.Team.get_by_name(team_name=image_arg, guild_id=ctx.guild.id, require_exact=False)
                 if len(team_matches) == 1:
                     # passed name of team. use team image url.
-                    return team_matches[0].image_url
+                    team_role = utilities.guild_role_by_name(ctx.guild, name=team_matches[0].name, allow_partial=False)
+                    return team_matches[0].image_url, team_role.colour.to_rgb()
                 else:
                     guild_matches = await utilities.get_guild_member(ctx, image_arg)
                     if len(guild_matches) == 1:
                         # passed member mention. use profile picture/avatar
-                        return guild_matches[0].avatar_url_as(size=256, format='png')
+                        return guild_matches[0].avatar_url_as(size=256, format='png'), \
+                               '#00ff00' if position == 0 else '#ff0000'
 
                     else:
                         raise ValueError(f'Cannot convert *{image_arg}* to an image.')
 
         try:
-            left_image = await arg_to_image_url(args[2])
-            right_image = await arg_to_image_url(args[3])
+            left_image, right_arrow_colour = await arg_to_image_url(args[2])
+            right_image, left_arrow_colour = await arg_to_image_url(args[3], position=1)
         except ValueError as e:
             return await ctx.send(f'Cannot convert one of your arguments to an image: {e}\nMust be an image URL, member name, or team name.')
 
         if ctx.invoked_with == 'promote':
-            arrows = [['r', '#00ff00']]
+            arrows = [['u', '#00ff00']]
         else:
-            arrows = [['r', '#00ff00'], ['l', '#ff0000']]
+            arrows = [['r', right_arrow_colour], ['l', left_arrow_colour]]
 
         print(left_image, right_image)
         fs = imgen.arrow_card(top_string, bottom_string, left_image, right_image, arrows)
