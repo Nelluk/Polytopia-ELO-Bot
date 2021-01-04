@@ -1116,8 +1116,8 @@ class polygames(commands.Cog):
         elif (len(new_id) != 16 or new_id.isalnum() is False) and ctx.invoked_with == 'setcode':
             # Very basic polytopia code sanity checking. Making sure it is 16-character alphanumeric.
             return await ctx.send(f'Polytopia code `{new_id}` does not appear to be a valid code. Copy your unique code from the **Profile** tab of the **Polytopia app**.')
-        elif ctx.invoked_with == 'setname' and 'GAME' in new_id.upper() and 'NAME' in new_id.upper():
-            await ctx.send(f':warning: This name doesn\'t look right. You need to use *your* in-game name (`Multiplayer > Profile > Alias` in the Polytopia app)')
+        elif ctx.invoked_with == 'setname' and 'YOUR' in new_id.upper() and 'GAME' in new_id.upper() and 'NAME' in new_id.upper():
+            return await ctx.send(f':warning: This name doesn\'t look right. You need to use *your* in-game name (`Multiplayer > Profile > Alias` in the Polytopia app)')
         elif ctx.invoked_with == 'steamname' and 'STEAM' in new_id.upper() and 'NAME' in new_id.upper():
             await ctx.send(f':warning: This name doesn\'t look right. You need to use *your* Steam name.')
 
