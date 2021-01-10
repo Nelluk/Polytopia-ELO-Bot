@@ -1960,14 +1960,6 @@ class polygames(commands.Cog):
                     await ctx.send(f'Matching Tribe not found matching "{discord.utils.escape_mentions(tribe_name)}". Check spelling or be more specific. {perm_str}')
                     continue
 
-                existing_lineup = None
-                for l in game.lineup:
-                    if l.tribe == tribe:
-                        existing_lineup = l
-                        break
-                if existing_lineup:
-                    await ctx.send(f':warning: *{tribe.name}* has already been assigned to player **{l.player.name}** in this game.')
-
             lineup_match = game.player(name=player_name)
 
             if not lineup_match:
