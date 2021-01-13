@@ -45,6 +45,7 @@ def get_channel_category(guild, team_name: str = None, using_team_server_flag: b
     if team_name:
         team_name_lc = team_name.lower().replace('the', '').strip()  # The Ronin > ronin
         # first seek a category named something like 'Polychamps Ronin Games', fallback to any category with 'Ronin' in the name.
+        # TODO: perm check in each fall back condition to make sure bot actually has permissions
         for cat in guild.categories:
             if 'polychamp' in cat.name.lower() and team_name_lc in cat.name.lower():
                 logger.debug(f'Using {cat.id} - {cat.name} as a team channel category')
