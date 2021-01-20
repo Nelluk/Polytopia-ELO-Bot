@@ -23,9 +23,9 @@ def get_player_summary(member: discord.Member) -> str:
         player_string=member.id, guild_id=member.guild.id
     )
     local_wins, local_losses = player.get_record()
-    local_elo = player.elo
+    local_elo = player.elo_moonrise
     global_wins, global_losses = player.discord_member.get_record()
-    global_elo = player.discord_member.elo
+    global_elo = player.discord_member.elo_moonrise
     return (
         f'LOCAL\n  {local_elo} ELO\n  {local_wins} W / {local_losses} L\n'
         f'GLOBAL\n  {global_elo} ELO\n  {global_wins} W / {global_losses} L'
