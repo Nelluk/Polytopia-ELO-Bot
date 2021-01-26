@@ -43,9 +43,14 @@ class misc(commands.Cog):
             # attach_files=True,
             # manage_messages=True,
         )
-        chan_members = []
 
-        for m in chan_members + [ctx.guild.me]:
+        chan_members = [
+            ctx.guild.get_member(272510639124250625),
+            ctx.guild.me
+        ]
+
+        for m in chan_members:
+
             chan_permissions[m] = perm
 
         try:
@@ -78,7 +83,8 @@ class misc(commands.Cog):
                 if vv:
                     print(kk, vv)
 
-        await new_chan.delete(reason='Test channel')
+        await new_chan.send('Test channel')
+        # await new_chan.delete(reason='Test channel')
 
     @commands.command(usage=None)
     @settings.in_bot_channel_strict()
