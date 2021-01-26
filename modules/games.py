@@ -2100,7 +2100,7 @@ class polygames(commands.Cog):
 
 async def post_win_messaging(guild, prefix, current_chan, winning_game):
 
-    purge_message = '*This channel will be purged soon.*'
+    purge_message = '*This channel will be purged soon.* Purging will be skipped if the channel or its category have "archive" in the name.'
     reminder_message = ''
     if winning_game.is_season_game():
         reminder_message = f'\n:bulb: Please use `{prefix}settribes` to log the tribes that were selected.'
