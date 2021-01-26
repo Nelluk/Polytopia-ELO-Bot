@@ -109,7 +109,9 @@ async def create_game_channel(guild, game, player_list, team_name: str = None, u
         logger.error(f'At least one member of game is not found in guild {guild.name}. May be using external server and they are not in both servers?')
         chan_members = [member for member in chan_members if member]
 
-    chan_permissions = chan_cat.overwrites
+    chan_permissions = {}
+    # chan_permissions = chan_cat.overwrites
+
     if not team_cat_flag and not using_team_server_flag:
         # Both chans going into a central ELO Games category. Set a default permissions to ensure it isnt world-readable
         chan_permissions[guild.default_role] = discord.PermissionOverwrite(read_messages=False)
@@ -118,7 +120,15 @@ async def create_game_channel(guild, game, player_list, team_name: str = None, u
 
     for m in chan_members + [guild.me]:
         chan_permissions[m] = perm
+        # for k, v in iter(perm):
+        #     print(k, v)
     try:
+        logger.debug(chan_permissions)
+        for k, v in chan_permissions.items():
+            print(f'__Permissions for {k}__')
+            for kk, vv in iter(v):
+                if vv:
+                    print(kk, vv)
         new_chan = await guild.create_text_channel(name=chan_name, overwrites=chan_permissions, category=chan_cat, reason='ELO Game chan')
     except (discord.errors.Forbidden, discord.errors.HTTPException) as e:
         logger.error(f'Exception in create_game_channels:\n{e} - Status {e.status}, Code {e.code}: {e.text}', exc_info=True)
