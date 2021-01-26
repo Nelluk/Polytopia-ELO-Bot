@@ -95,14 +95,6 @@ async def create_game_channel(guild, game, player_list, team_name: str = None, u
         logger.error(f'in create_squad_channel - cannot proceed due to None category')
         return None
 
-    if game.name.upper()[:3] == 'LR1' and guild.id == settings.server_ids['polychampions']:
-        # temp code for event-specific game prefixes to go in their own category
-        # 'wwn' leftover from original 'world war newt' event
-        # code reused for LigaRex event Sept 2019
-        wwn_category = discord.utils.get(guild.categories, id=622058617964593193)
-        if wwn_category:
-            chan_cat, team_cat_flag = wwn_category, False
-
     chan_name = generate_channel_name(game=game, team_name=team_name)
     chan_members = [guild.get_member(p.discord_member.discord_id) for p in player_list]
     if None in chan_members:
@@ -116,16 +108,22 @@ async def create_game_channel(guild, game, player_list, team_name: str = None, u
         # Both chans going into a central ELO Games category. Set a default permissions to ensure it isnt world-readable
         chan_permissions[guild.default_role] = discord.PermissionOverwrite(read_messages=False)
 
-    perm = discord.PermissionOverwrite(read_messages=True, add_reactions=True, send_messages=True, attach_files=True, manage_messages=True)
+    perm = discord.PermissionOverwrite(
+        read_messages=True,
+        # add_reactions=True,
+        # send_messages=True,
+        # attach_files=True,
+        # manage_messages=True,
+    )
 
-    for m in chan_members + [guild.me]:
+    # for m in chan_members + [guild.me]:
+    for m in [guild.me]:
         chan_permissions[m] = perm
-        # for k, v in iter(perm):
-        #     print(k, v)
+
     try:
         logger.debug(chan_permissions)
         for k, v in chan_permissions.items():
-            print(f'__Permissions for {k}__')
+            print(f'__Permissions Overwrites for {k}__')
             for kk, vv in iter(v):
                 if vv:
                     print(kk, vv)
@@ -134,7 +132,7 @@ async def create_game_channel(guild, game, player_list, team_name: str = None, u
             print(kv)
         new_chan = await guild.create_text_channel(name=chan_name, overwrites=chan_permissions, category=chan_cat, reason='ELO Game chan')
     except (discord.errors.Forbidden, discord.errors.HTTPException) as e:
-        logger.error(f'Exception in create_game_channels:\n{e} - Status {e.status}, Code {e.code}: {e.text}', exc_info=True)
+        logger.error(f'Exception in create_game_channels:\n{e} - Status {e.status}, Code {e.code}: {e.text}. category: {chan_cat} guild: {guild.name}', exc_info=True)
         raise exceptions.MyBaseException(e)
         # return None
     except discord.errors.InvalidArgument as e:
