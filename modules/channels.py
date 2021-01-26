@@ -129,7 +129,9 @@ async def create_game_channel(guild, game, player_list, team_name: str = None, u
             for kk, vv in iter(v):
                 if vv:
                     print(kk, vv)
-        print(f'Guild permissions for bot: {guild.me.guild_permissions}')
+        print(f'Guild permissions for bot:')
+        for kv in guild.me.guild_permissions:
+            print(kv)
         new_chan = await guild.create_text_channel(name=chan_name, overwrites=chan_permissions, category=chan_cat, reason='ELO Game chan')
     except (discord.errors.Forbidden, discord.errors.HTTPException) as e:
         logger.error(f'Exception in create_game_channels:\n{e} - Status {e.status}, Code {e.code}: {e.text}', exc_info=True)
