@@ -29,10 +29,20 @@ class misc(commands.Cog):
 
         chan_cat = discord.utils.get(ctx.guild.categories, id=493149162238640161)  # ELO Games
 
+        print(f'Guild permissions for bot:')
+        for kv in ctx.guild.me.guild_permissions:
+            print(kv)
+
+        print(f'\nBot user permissions within category {chan_cat.name} {chan_cat.id}')
+        bot_cat_perms = chan_cat.permissions_for(ctx.guild.me)
+        for kk, vv in iter(bot_cat_perms):
+            if vv:
+                print(kk, vv)
+
         chan_name = 'test_name'
 
         chan_permissions = {}
-        # chan_permissions = chan_cat.overwrites
+        chan_permissions = chan_cat.overwrites
 
         chan_permissions[ctx.guild.default_role] = discord.PermissionOverwrite(read_messages=False)
 
@@ -50,41 +60,39 @@ class misc(commands.Cog):
         ]
 
         for m in chan_members:
-
             chan_permissions[m] = perm
 
         try:
             logger.debug(chan_permissions)
             for k, v in chan_permissions.items():
-                print(f'__Permissions Overwrites for {k}__')
+                print(f'\n__Category Permissions Overwrites for {k} - Attempting to Copy to New Channel__')
                 for kk, vv in iter(v):
                     if vv:
                         print(kk, vv)
-            print(f'Guild permissions for bot:')
-            for kv in ctx.guild.me.guild_permissions:
-                print(kv)
+
             new_chan = await ctx.guild.create_text_channel(name=chan_name, overwrites=chan_permissions, category=chan_cat, reason='ELO Game chan')
+
         except (discord.errors.Forbidden, discord.errors.HTTPException) as e:
             logger.error(f'Exception in create_game_channels:\n{e} - Status {e.status}, Code {e.code}: {e.text}. category: {chan_cat} guild: {ctx.guild.name}', exc_info=True)
             raise exceptions.MyBaseException(e)
             return None
 
-        print(f'successfully created channel {new_chan} with overwrites:')
+        print(f'\nsuccessfully created channel {new_chan} with overwrites:')
         for k, v in new_chan.overwrites.items():
             print(f'__Permissions Overwrites for {k}__')
             for kk, vv in iter(v):
                 if vv:
                     print(kk, vv)
 
-        print(f'category {chan_cat.name} has overwrites:')
-        for k, v in chan_cat.overwrites.items():
-            print(f'__Permissions Overwrites for {k}__')
-            for kk, vv in iter(v):
-                if vv:
-                    print(kk, vv)
+        # print(f'category {chan_cat.name} has overwrites:')
+        # for k, v in chan_cat.overwrites.items():
+        #     print(f'__Permissions Overwrites for {k}__')
+        #     for kk, vv in iter(v):
+        #         if vv:
+        #             print(kk, vv)
 
         await new_chan.send('Test channel')
-        # await new_chan.delete(reason='Test channel')
+        await new_chan.delete(reason='Test channel')
 
     @commands.command(usage=None)
     @settings.in_bot_channel_strict()
