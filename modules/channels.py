@@ -178,8 +178,8 @@ async def delete_game_channel(guild, channel_id: int):
     except discord.DiscordException as e:
         return logger.warning(f'Could not retrieve channel with id {channel_id}: {e}')
 
-    if 'ARCHIVE' in chan.name.upper() or (chan.category and 'ARCHIVE' in chan.category.name.upper()):
-        return logger.info(f'Skipping deletion for channel {chan.name} - appears to be archived by name or category name')
+    if 'ARCHIVE' in chan.name.upper() or (chan.category and 'ARCHIVE' in chan.category.name.upper()) or chan.permissions_for(guild.me).manage_channels is False:
+        return logger.info(f'Skipping deletion for channel {chan.name} - appears to be archived by name or category name, or has manage_channel denied to me.')
 
     try:
         logger.warning(f'Deleting channel {chan.name}')
