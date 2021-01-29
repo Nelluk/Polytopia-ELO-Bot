@@ -1180,8 +1180,7 @@ class matchmaking(commands.Cog):
                         ranked_str = '*Unranked*' if not game.is_ranked else ''
                         ranked_str = ranked_str + ' - ' if game.notes and ranked_str else ranked_str
 
-                        embed.add_field(name=f'`{game.id:<8}{host_name:<40} {game.size_string():<7} {capacity_str:<7} {expiration:>5}`', value=f'{ranked_str}{notes_str}\n \u200b', inline=False)
-
+                        embed.add_field(name=f'`{game.id:<8}{host_name:<40} {game.size_string():<7} {capacity_str:<7} {expiration:>5}`', value=f'{game.platform_emoji()} {ranked_str}{notes_str}\n \u200b', inline=False)
                     try:
                         message = await chan.send(embed=embed, delete_after=sleep_cycle)
                     except discord.DiscordException as e:
