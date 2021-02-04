@@ -116,7 +116,7 @@ class league(commands.Cog):
     emoji_draft_conclude = '❎'
     emoji_draft_list = [emoji_draft_signup, emoji_draft_close, emoji_draft_conclude]
 
-    draft_open_format_str = f'The draft is open for signups! {{0}}\'s can react with a {emoji_draft_signup} below to sign up. {{1}} who have not graduated have until the end of the draft signup period to meet requirements and sign up.\n\n{{2}}'
+    draft_open_format_str = f'The draft is open for signups! {{0}}s can react with a {emoji_draft_signup} below to sign up. {{1}} who have not graduated have until the end of the draft signup period to meet requirements and sign up.\n\n{{2}}'
     draft_closed_message = f'The draft is closed to new signups. Mods can use the {emoji_draft_conclude} reaction after players have been drafted to clean up the remaining players and delete this message.'
 
     def __init__(self, bot):
