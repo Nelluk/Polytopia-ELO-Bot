@@ -512,6 +512,9 @@ class administration(commands.Cog):
          **Examples**
         `[p]extend 1234`
         """
+        
+        if not game:
+            return await ctx.send(f'No game ID provided.')
 
         if not game.is_pending:
             return await ctx.send(f'Game {game.id} is no longer an open game so cannot be extended.')
