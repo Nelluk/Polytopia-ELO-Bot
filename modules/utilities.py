@@ -95,19 +95,20 @@ def is_valid_poly_gamename(input: str):
     #              "Hills", "Fields", "Lands", "Forest", "Ocean", "Fruit", "Mountain", "Lake",
     #              "Test", "Unknown"]
     key_words = ["War", "Spirit", "Faith", "Glory", "Blood", "Empires", "Songs", "Dawn", "Majestic", "Parade",
-                 "Prophecy", "Prophesy", "Gold", "Fire", "Swords", "Queens", "Knights", "Kings", "Tribes",
-                 "Tales", "Quests", "Change", "Games", "Throne", "Conquest", "Struggle", "Victory",
-                 "Battles", "Legends", "Heroes", "Storms", "Clouds", "Gods", "Love", "Lords",
-                 "Lights", "Wrath", "Destruction", "Whales", "Ruins", "Monuments", "Wonder", "Clowns",
-                 "Bongo", "Duh!", "Squeal", "Squirrel", "Confusion", "Gruff", "Moan", "Chickens", "Spunge",
-                 "Gnomes", "Bell boys", "Gurkins", "Commotion", "LOL", "Shenanigans", "Hullabaloo",
-                 "Papercuts", "Eggs", "Mooni", "Gaami", "Banjo", "Flowers", "Fiddlesticks", "Fish Sticks", "Hills", "Fields", "Lands", "Forest", "Ocean", "Fruit", "Mountain",
-                 "Lake", "Paradise", "Jungle", "Desert", "River", "Sea", "Shores", "Valley", "Garden", "Moon",
-                 "Star", "Winter", "Spring", "Summer", "Autumn", "Divide", "Square", "Custard", "Goon", "Cat",
-                 "Spagetti", "Fish", "Fame", "Popcorn", "Dessert", "Space", "Glacier", "Ice", "Frozen", "Superb", "Unknown", "Test",
-                 "Beasts", "Birds", "Bugs", "Food", "Aliens", "Plains", "Volcano", "Cliff", "Rapids", "Reef", "Plateau", "Basin", "Oasis",
-                 "Marsh", "Swamp", "Monsoon", "Atoll", "Fjord", "Tundra", "Map", "Strait", "Savanna", "Butte", "Bay", "Giants", "Warriors",
-                 "Archers", "Defenders", "Catapults", "Riders", "Sleds", "Explorers", "Priests", "Ships", "Dragons", "Crabs", "Rebellion"]
+                 "Prophecy", "Prophesy", "Gold", "Fire", "Swords", "Queens", "Knights", "Kings", "Tribes", "Tales", 
+                 "Quests", "Change", "Games", "Throne", "Conquest", "Struggle", "Victory", "Battles", "Legends", 
+                 "Heroes", "Storms", "Clouds", "Gods", "Love", "Lords", "Lights", "Wrath", "Destruction", "Whales", 
+                 "Ruins", "Monuments", "Wonder", "Clowns", "Bongo", "Duh!", "Squeal", "Squirrel", "Confusion", "Gruff", 
+                 "Moan", "Chickens", "Spunge", "Gnomes", "Bell boys", "Gurkins", "Commotion", "LOL", "Shenanigans", 
+                 "Hullabaloo", "Papercuts", "Eggs", "Mooni", "Gaami", "Banjo", "Flowers", "Fiddlesticks", "Fish Sticks", 
+                 "Hills", "Fields", "Lands", "Forest", "Ocean", "Fruit", "Mountain", "Lake", "Paradise", "Jungle", 
+                 "Desert", "River", "Sea", "Shores", "Valley", "Garden", "Moon", "Star", "Winter", "Spring", "Summer", 
+                 "Autumn", "Divide", "Square", "Custard", "Goon", "Cat", "Spagetti", "Fish", "Fame", "Popcorn", "Dessert", 
+                 "Space", "Glacier", "Ice", "Frozen", "Superb", "Unknown", "Test", "Beasts", "Birds", "Bugs", "Food", 
+                 "Aliens", "Plains", "Volcano", "Cliff", "Rapids", "Reef", "Plateau", "Basin", "Oasis", "Marsh", "Swamp", 
+                 "Monsoon", "Atoll", "Fjord", "Tundra", "Map", "Strait", "Savanna", "Butte", "Bay", "Giants", "Warriors", 
+                 "Archers", "Defenders", "Catapults", "Riders", "Sleds", "Explorers", "Priests", "Ships", "Dragons", "Crabs", 
+                 "Rebellion", "Sponge", "Gherkins"]
     return any(word.upper() in input.upper() for word in key_words)
 
 
