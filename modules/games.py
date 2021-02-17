@@ -1469,8 +1469,8 @@ class polygames(commands.Cog):
         if not game_allowed:
             return await ctx.send(join_error_message)
 
-        if total_players > 16:
-            return await ctx.send(f'You cannot have more than 16 players.')
+        if total_players > settings.max_game_size:
+            return await ctx.send(f'You cannot have more than {settings.max_game_size} players.')
         if biggest_team > settings.guild_setting(ctx.guild.id, 'max_team_size'):
             if settings.is_mod(ctx.author):
                 await ctx.send('Moderator over-riding server size limits')

@@ -109,6 +109,10 @@ generic_teams_long = [('Sharks', ':shark:'), ('Owls', ':owl:'), ('Eagles', ':eag
                       ('Lions', ':lion:'), ('Cats', ':cat:'), ('Birds', ':bird:'), ('Spiders', ':spider:'),
                       ('Camels', ':camel:'), ('Bugs', ':bug:'), ('Whales', ':whale:'), ('Unicorns', ':unicorn:')]
 
+max_game_size = 16
+
+assert bool(len(generic_teams_long) == max_game_size), 'generic_teams_long must have a number of entries equal to max_game_size.'
+
 date_cutoff = datetime.datetime.today() - datetime.timedelta(days=90)  # Players who haven't played since cutoff are not included in leaderboards
 
 
