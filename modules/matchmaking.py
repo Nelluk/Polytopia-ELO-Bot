@@ -349,8 +349,8 @@ class matchmaking(commands.Cog):
                 team_sizes = [int(x) for x in arg.lower().split(m[1])]  # split on 'vs' or 'v'; whichever the regexp detects
                 if min(team_sizes) < 1:
                     return await ctx.send(f'Invalid game size **{team_size_str}**: Each side must have at least 1 player.')
-                if sum(team_sizes) > 15:
-                    return await ctx.send(f'Invalid game size **{team_size_str}**: Games can have a maximum of 12 players.')
+                if sum(team_sizes) > 16:
+                    return await ctx.send(f'Invalid game size **{team_size_str}**: Games can have a maximum of 16 players.')
                 team_size = True
                 required_roles = [None] * len(team_sizes)  # [None, None, None] for a 3-sided game
                 required_role_names = [None] * len(team_sizes)
@@ -362,8 +362,8 @@ class matchmaking(commands.Cog):
                 players = int(m[1])
                 if players < 2:
                     return await ctx.send(f'Invalid game size **{arg}**: There must be at least 2 sides.')
-                if players > 15:
-                    return await ctx.send(f'Invalid game size **{arg}**: Games can have a maximum of 15 players.')
+                if players > 16:
+                    return await ctx.send(f'Invalid game size **{arg}**: Games can have a maximum of 16 players.')
                 team_sizes = [1] * players
                 team_size_str = 'v'.join([str(x) for x in team_sizes])
                 team_size = True
@@ -605,7 +605,7 @@ class matchmaking(commands.Cog):
         elif len(args) == 1:
             # either ctx.author is joining a match with side integer specified or author is joining a third party with no side specified
             try:
-                side_arg = int(args[0]) if int(args[0]) <= 15 else None
+                side_arg = int(args[0]) if int(args[0]) <= 16 else None
                 target = f'<@{ctx.author.id}>'
             except ValueError:
                 # non-integer value - assuming author is joining a third party with no side specified
