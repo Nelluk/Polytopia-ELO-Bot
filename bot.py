@@ -64,7 +64,8 @@ def main(args: list[str] = None):
     parser.add_argument('--recalc_elo', action='store_true')
     parser.add_argument('--game_export', action='store_true')
     parser.add_argument('--skip_tasks', action='store_true')
-    args = parser.parse_args(args)
+    # Ignore extra args from uvicorn.
+    args, unkown = parser.parse_known_args(args)
     if args.add_default_data:
         initialize_data.initialize_data()
         exit(0)
