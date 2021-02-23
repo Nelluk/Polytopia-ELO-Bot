@@ -512,7 +512,7 @@ class administration(commands.Cog):
          **Examples**
         `[p]extend 1234`
         """
-        
+
         if not game:
             return await ctx.send(f'No game ID provided.')
 
@@ -901,6 +901,70 @@ class administration(commands.Cog):
         dm.save()
 
         await ctx.send(f'Marking **{dm.name}** as a booster and successfully applied the role across {counter} server(s).')
+
+    @commands.command(hidden=True)
+    @commands.is_owner()
+    async def reverse_duplicated_elo(self, ctx, *, arg: str = None):
+        """*Owner*: Reverse the ELO from a game which calculated multiple times
+
+        Give a game ID, and the bot will reverse the ELO changes associated with a game, but not change any game records.
+        This is useful if due to a race condition a game's is calculated twice (like two people issuing the win command simultaneously)
+        """
+
+        return await ctx.send('command not finished')
+        game = models.Game.get_or_none(id=arg)
+        if not game:
+            return await ctx.send(f'no game found for id {arg}')
+
+        logger.info(f'reverse_duplicated_elo loaded game {game.id}')
+        if not game.completed_ts:
+            return await ctx.send(f'Game {game.id} is not completed. Choose a completed game.')
+
+        for lineup in game.lineup:
+            lineup.player.elo += lineup.elo_change_player * -1
+            lineup.player.elo_alltime += lineup.elo_change_player_alltime * -1
+            lineup.player.elo_moonrise += lineup.elo_change_player_moonrise * -1
+            lineup.player.save()
+            lineup.elo_change_player = 0
+            lineup.elo_change_player_alltime = 0
+            lineup.elo_change_player_moonrise = 0
+            lineup.elo_after_game = None
+            lineup.elo_after_game_alltime = None
+            lineup.elo_after_game_global = None
+            lineup.elo_after_game_global_alltime = None
+            lineup.elo_after_game_moonrise = None
+            lineup.elo_after_game_global_moonrise = None
+
+            if lineup.elo_change_discordmember_alltime or lineup.elo_change_discordmember or lineup.elo_change_discordmember_moonrise:
+                lineup.player.discord_member.elo += lineup.elo_change_discordmember * -1
+                lineup.player.discord_member.elo_alltime += lineup.elo_change_discordmember_alltime * -1
+                lineup.player.discord_member.elo_moonrise += lineup.elo_change_discordmember_moonrise * -1
+                lineup.player.discord_member.save()
+                lineup.elo_change_discordmember = 0
+                lineup.elo_change_discordmember_alltime = 0
+                lineup.elo_change_discordmember_moonrise = 0
+            lineup.save()
+
+        for gameside in self.gamesides:
+            if gameside.elo_change_squad and gameside.squad:
+                gameside.squad.elo += (gameside.elo_change_squad * -1)
+                gameside.squad.save()
+                gameside.elo_change_squad = 0
+
+            if gameside.elo_change_team and gameside.team:
+                gameside.team.elo += (gameside.elo_change_team * -1)
+                gameside.team.save()
+                gameside.elo_change_team = 0
+
+            if gameside.elo_change_team_alltime and gameside.team:
+                gameside.team.elo_alltime += (gameside.elo_change_team_alltime * -1)
+                gameside.team.save()
+                gameside.elo_change_team_alltime = 0
+
+            gameside.team_elo_after_game = None
+            gameside.team_elo_after_game_alltime = None
+            gameside.save()
+
 
     @commands.command(hidden=True)
     @commands.is_owner()
