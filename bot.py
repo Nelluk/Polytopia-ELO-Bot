@@ -1,17 +1,19 @@
-import discord
+from __future__ import annotations
+
 import argparse
-import traceback
-from discord.ext import commands
-from modules import models
-from modules import initialize_data
-from modules import utilities
-import modules.exceptions as exceptions
-import settings
+import asyncio
 import logging
 import sys
+import traceback
 from logging.handlers import RotatingFileHandler
 from timeit import default_timer as timer
-# import peewee
+
+import discord
+from discord.ext import commands
+
+import settings
+import modules.exceptions as exceptions
+from modules import initialize_data, models, utilities
 
 
 # Logger config is a bit of a mess and probably could be simplified a lot, but works. debug and above sent to file / error above sent to stderr
@@ -58,14 +60,14 @@ logger_peewee.addHandler(handler)
 logger = logging.getLogger('polybot.' + __name__)
 
 
-def main():
-
+def main(args: list[str] = None):
     parser = argparse.ArgumentParser()
     parser.add_argument('--add_default_data', action='store_true')
     parser.add_argument('--recalc_elo', action='store_true')
     parser.add_argument('--game_export', action='store_true')
     parser.add_argument('--skip_tasks', action='store_true')
-    args = parser.parse_args()
+    # Ignore extra args from uvicorn.
+    args, unkown = parser.parse_known_args(args)
     if args.add_default_data:
         initialize_data.initialize_data()
         exit(0)
@@ -121,9 +123,8 @@ def get_prefix(bot, message):
         return 'fakeprefix'
 
 
-if __name__ == '__main__':
-
-    main()
+def init_bot(loop: asyncio.AbstractEventLoop = None, args: list[str] = None):
+    main(args)
     utilities.connect()
     am = discord.AllowedMentions(everyone=False)
     intents = discord.Intents().all()
@@ -132,7 +133,8 @@ if __name__ == '__main__':
                        owner_id=settings.owner_id,
                        allowed_mentions=am,
                        intents=intents,
-                       activity=discord.Activity(name='$guide', type=discord.ActivityType.playing))
+                       activity=discord.Activity(name='$guide', type=discord.ActivityType.playing),
+                       loop=loop)
     settings.bot = bot
     bot.purgable_messages = []  # auto-deleting messages to get cleaned up by Administraton.quit  (guild, channel, message) tuple list
     bot.locked_game_records = set()  # Games which cannot be written to since another command is working on them right now. Ugly hack to do what should be done at the DB level
@@ -227,4 +229,11 @@ if __name__ == '__main__':
                 logger.error(f'Unauthorized guild {g.id} {g.name} not found in settings.py configuration - Leaving...')
                 await g.leave()
 
-    bot.run(settings.discord_key, bot=True, reconnect=True)
+    if loop:
+        loop.create_task(bot.start(settings.discord_key))
+    else:
+        bot.run(settings.discord_key)
+
+
+if __name__ == '__main__':
+    init_bot()

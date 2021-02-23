@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import datetime
 import discord
 from discord.ext import commands
@@ -13,6 +15,7 @@ from modules import channels
 import statistics
 import settings
 import logging
+from typing import Any
 
 logger = logging.getLogger('polybot.' + __name__)
 elo_logger = logging.getLogger('polybot.elo')
@@ -213,6 +216,26 @@ class DiscordMember(BaseModel):
     date_polychamps_invite_sent = DateField(default=None, null=True)
     boost_level = SmallIntegerField(default=None, null=True)
 
+    def as_json(self) -> dict[str, Any]:
+        """Get the user as a dict for returning from the API."""
+        games = {}
+        for guild_member in self.guildmembers:
+            games[guild_member.guild_id] = [
+                player.game.id
+                for player in guild_member.lineup
+            ]
+        return {
+            'discord_id': self.discord_id,
+            'name': self.name,
+            'steam_name': self.name_steam,
+            'mobile_name': self.polytopia_name,
+            'legacy_elo': self.elo,
+            'moonrise_elo': self.elo_moonrise,
+            'is_banned': self.is_banned,
+            'utc_offset': self.timezone_offset,
+            'games': games
+        }
+
     def mention(self):
         return f'<@{self.discord_id}>'
 
@@ -372,7 +395,8 @@ class DiscordMember(BaseModel):
         if in_days:
             date_cutoff = (datetime.datetime.now() + datetime.timedelta(days=-in_days))
         else:
-            date_cutoff = datetime.date.min  # 'forever' ?
+            # 1970, well before Polytopia or Discord existed
+            date_cutoff = datetime.date.min
 
         return Lineup.select(Lineup.game).join(Game).join_from(Lineup, Player).where(
             ((Lineup.game.date > date_cutoff) | (Lineup.game.completed_ts > date_cutoff)) &
@@ -888,6 +912,28 @@ class Game(BaseModel):
     game_chan = BitField(default=None, null=True)
     size = ArrayField(SmallIntegerField, default=[0])
     is_mobile = BooleanField(default=True)
+
+    def as_json(self) -> dict[str, Any]:
+        """Get the game as a dict for returning from the API."""
+        sides = [
+            side.as_json() for side in GameSide.select().where(
+                GameSide.game == self
+            )
+        ]
+        return {
+            'id': self.id,
+            'guild_id': self.guild_id,
+            'is_ranked': self.is_ranked,
+            'is_mobile': self.is_mobile,
+            'is_completed': self.is_completed,
+            'is_confirmed': self.is_confirmed,
+            'is_open': self.is_pending,
+            'name': self.name,
+            'notes': self.notes,
+            'winner': self.winner.id if self.winner else None,
+            'size': self.size,
+            'sides': sides
+        }
 
     def __setattr__(self, name, value):
         if name == 'name':
@@ -2805,6 +2851,21 @@ class GameSide(BaseModel):
     win_confirmed = BooleanField(default=False)
     team_chan_external_server = BitField(unique=False, null=True, default=None)
 
+    def as_json(self) -> dict[str, Any]:
+        """Get the game side as a dict for returning from the API."""
+        members = [
+            member.as_json() for member in
+            Lineup.select().where(Lineup.gameside == self)
+        ]
+        return {
+            'id': self.id,
+            'side_name': self.sidename,
+            'size': self.size,
+            'position': self.position,
+            'win_confirmed': self.win_confirmed,
+            'members': members
+        }
+
     def has_same_players_as(self, gameside):
         # Given side1.has_same_players_as(side2)
         # Return True if both players have exactly the same players in their lineup
@@ -3018,6 +3079,13 @@ class Lineup(BaseModel):
     elo_after_game_global_alltime = SmallIntegerField(default=None, null=True)
     elo_after_game_moonrise = SmallIntegerField(default=None, null=True)
     elo_after_game_global_moonrise = SmallIntegerField(default=None, null=True)
+
+    def as_json(self) -> dict[str, Any]:
+        """Get the game member as a dict for returning from the API."""
+        return {
+            'tribe': self.tribe.name if self.tribe else None,
+            'discord_id': self.player.discord_member.discord_id
+        }
 
     def change_elo_after_game(self, chance_of_winning: float, is_winner: bool, by_discord_member: bool = False, alltime: bool = False, moonrise: bool = True):
         # Average(Away Side Elo) is compared to Average(Home_Side_Elo) for calculation - ie all members on a side will have the same elo_delta
