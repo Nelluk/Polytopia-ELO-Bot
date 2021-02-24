@@ -1,21 +1,23 @@
 from __future__ import annotations
 
+import base64
 import datetime
+import logging
+import os
+import re
+from typing import Any
+
 import discord
 from discord.ext import commands
-import re
-# import psycopg2
-from psycopg2.errors import DuplicateObject
+
 from peewee import *
 from playhouse.postgres_ext import *
-import modules.exceptions as exceptions
-# from modules import utilities
-# import modules.utilities as utilities
-from modules import channels
-import statistics
+from psycopg2.errors import DuplicateObject
+
 import settings
-import logging
-from typing import Any
+import statistics
+from modules import channels, exceptions
+
 
 logger = logging.getLogger('polybot.' + __name__)
 elo_logger = logging.getLogger('polybot.elo')
@@ -216,14 +218,17 @@ class DiscordMember(BaseModel):
     date_polychamps_invite_sent = DateField(default=None, null=True)
     boost_level = SmallIntegerField(default=None, null=True)
 
-    def as_json(self) -> dict[str, Any]:
+    def as_json(self, include_games: bool) -> dict[str, Any]:
         """Get the user as a dict for returning from the API."""
-        games = {}
-        for guild_member in self.guildmembers:
-            games[guild_member.guild_id] = [
-                player.game.id
-                for player in guild_member.lineup
-            ]
+        extra = {}
+        if include_games:
+            games = {}
+            for guild_member in self.guildmembers:
+                games[guild_member.guild_id] = [
+                    player.game.id
+                    for player in guild_member.lineup
+                ]
+            extra['games'] = games
         return {
             'discord_id': self.discord_id,
             'name': self.name,
@@ -233,7 +238,7 @@ class DiscordMember(BaseModel):
             'moonrise_elo': self.elo_moonrise,
             'is_banned': self.is_banned,
             'utc_offset': self.timezone_offset,
-            'games': games
+            **extra
         }
 
     def mention(self):
@@ -2854,7 +2859,7 @@ class GameSide(BaseModel):
     def as_json(self) -> dict[str, Any]:
         """Get the game side as a dict for returning from the API."""
         members = [
-            member.as_json() for member in
+            member.id for member in
             Lineup.select().where(Lineup.gameside == self)
         ]
         return {
@@ -3186,8 +3191,62 @@ class TeamServerBroadcastMessage(BaseModel):
         return message
 
 
+class ApiApplication(BaseModel):
+    """Model for applications allowed to access the API."""
+
+    owner = ForeignKeyField(DiscordMember, backref='applications')
+    name = CharField(max_length=32)
+    # Token will only be null until generate_new_token is called, which should
+    # happen as soon as a new instance is created.
+    token = CharField(max_length=512, null=True)
+    # Space-separated list of scopes the application is authorised for.
+    scopes = CharField(max_length=2048, default='none')
+
+    @classmethod
+    async def convert(
+            cls, ctx: commands.Context, raw_argument: str) -> ApiApplication:
+        """Convert a Discord.py argument to an application."""
+        try:
+            app_id = int(raw_argument)
+        except ValueError:
+            raise commands.BadArgument(
+                f'`{raw_argument}` is not a valid app ID.'
+            )
+        app = cls.get_or_none(cls.id == app_id)
+        if not app:
+            raise commands.BadArgument(
+                f'Could not find app by ID `{app_id}`.'
+            )
+        return app
+
+    @classmethod
+    def authenticate(
+            cls, username: str, password: str) -> Optional[ApiApplication]:
+        """Check a username and password (RFC 7617) for authentication."""
+        try:
+            app_id = int(username)
+        except ValueError:
+            return None
+        return cls.get_or_none((cls.id == app_id) & (cls.token == password))
+
+    @property
+    def user_pass(self) -> str:
+        """Get the user pass that should be used in HTTP authentication."""
+        unencoded = f'{self.id}:{self.token}'
+        return base64.b64encode(unencoded.encode()).decode()
+
+    def generate_new_token(self):
+        """Generate a new token for the application."""
+        self.token = base64.b64encode(os.urandom(32))
+        self.save()
+
+
 with db.connection_context():
-    db.create_tables([Configuration, Team, DiscordMember, Game, Player, Tribe, Squad, GameSide, SquadMember, Lineup, GameLog, TeamServerBroadcastMessage])
+    db.create_tables([
+        Configuration, Team, DiscordMember, Game, Player, Tribe, Squad,
+        GameSide, SquadMember, Lineup, GameLog, TeamServerBroadcastMessage,
+        ApiApplication
+    ])
     # Only creates missing tables so should be safe to run each time
 
     try:
