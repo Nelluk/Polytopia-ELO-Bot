@@ -202,7 +202,11 @@ def init_bot(loop: asyncio.AbstractEventLoop = None, args: list[str] = None):
         utilities.connect()
         logger.debug(f'Command invoked: {ctx.message.clean_content}. By {ctx.message.author.name} in {ctx.channel.id} {ctx.channel.name} on {ctx.guild.name}')
 
-    initial_extensions = ['modules.games', 'modules.customhelp', 'modules.matchmaking', 'modules.administration', 'modules.misc', 'modules.league']
+    initial_extensions = [
+        'modules.games', 'modules.customhelp', 'modules.matchmaking',
+        'modules.administration', 'modules.misc', 'modules.league',
+        'modules.api_cog'
+    ]
     for extension in initial_extensions:
         bot.load_extension(extension)
 
