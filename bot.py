@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import argparse
 import asyncio
 import logging
@@ -7,6 +5,7 @@ import sys
 import traceback
 from logging.handlers import RotatingFileHandler
 from timeit import default_timer as timer
+from typing import List
 
 import discord
 from discord.ext import commands
@@ -60,7 +59,7 @@ logger_peewee.addHandler(handler)
 logger = logging.getLogger('polybot.' + __name__)
 
 
-def main(args: list[str] = None):
+def main(args: List[str] = None):
     parser = argparse.ArgumentParser()
     parser.add_argument('--add_default_data', action='store_true')
     parser.add_argument('--recalc_elo', action='store_true')
@@ -123,7 +122,7 @@ def get_prefix(bot, message):
         return 'fakeprefix'
 
 
-def init_bot(loop: asyncio.AbstractEventLoop = None, args: list[str] = None):
+def init_bot(loop: asyncio.AbstractEventLoop = None, args: List[str] = None):
     main(args)
     utilities.connect()
     am = discord.AllowedMentions(everyone=False)

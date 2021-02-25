@@ -5,7 +5,7 @@ import datetime
 import logging
 import os
 import re
-from typing import Any
+from typing import Dict, Any
 
 import discord
 from discord.ext import commands
@@ -218,7 +218,7 @@ class DiscordMember(BaseModel):
     date_polychamps_invite_sent = DateField(default=None, null=True)
     boost_level = SmallIntegerField(default=None, null=True)
 
-    def as_json(self, include_games: bool) -> dict[str, Any]:
+    def as_json(self, include_games: bool) -> Dict[str, Any]:
         """Get the user as a dict for returning from the API."""
         extra = {}
         if include_games:
@@ -918,7 +918,7 @@ class Game(BaseModel):
     size = ArrayField(SmallIntegerField, default=[0])
     is_mobile = BooleanField(default=True)
 
-    def as_json(self) -> dict[str, Any]:
+    def as_json(self) -> Dict[str, Any]:
         """Get the game as a dict for returning from the API."""
         sides = [
             side.as_json() for side in GameSide.select().where(
@@ -2856,7 +2856,7 @@ class GameSide(BaseModel):
     win_confirmed = BooleanField(default=False)
     team_chan_external_server = BitField(unique=False, null=True, default=None)
 
-    def as_json(self) -> dict[str, Any]:
+    def as_json(self) -> Dict[str, Any]:
         """Get the game side as a dict for returning from the API."""
         members = [
             member.id for member in
@@ -3085,7 +3085,7 @@ class Lineup(BaseModel):
     elo_after_game_moonrise = SmallIntegerField(default=None, null=True)
     elo_after_game_global_moonrise = SmallIntegerField(default=None, null=True)
 
-    def as_json(self) -> dict[str, Any]:
+    def as_json(self) -> Dict[str, Any]:
         """Get the game member as a dict for returning from the API."""
         return {
             'tribe': self.tribe.name if self.tribe else None,

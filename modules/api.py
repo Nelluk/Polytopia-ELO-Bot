@@ -1,4 +1,6 @@
 """Read-only HTTP API for bot data."""
+from typing import List
+
 from fastapi import Depends, FastAPI, HTTPException, Response
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 
@@ -10,7 +12,7 @@ security = HTTPBasic()
 
 
 async def get_scopes(
-        credentials: HTTPBasicCredentials = Depends(security)) -> list[str]:
+        credentials: HTTPBasicCredentials = Depends(security)) -> List[str]:
     """Get the scopes the requester has access to."""
     app = ApiApplication.authenticate(
         credentials.username, credentials.password
@@ -27,7 +29,7 @@ async def get_scopes(
 @server.get('/users/{discord_id}')
 async def get_user(
         discord_id: int, response: Response,
-        scopes: list[str] = Depends(get_scopes)) -> dict:
+        scopes: List[str] = Depends(get_scopes)) -> dict:
     """Get a user by discord ID."""
     if 'users:read' not in scopes:
         raise HTTPException(
@@ -42,7 +44,7 @@ async def get_user(
 @server.get('/games/{game_id}')
 async def get_game(
         game_id: int, response: Response,
-        scopes: list[str] = Depends(get_scopes)) -> dict:
+        scopes: List[str] = Depends(get_scopes)) -> dict:
     """Get a game by ID."""
     if 'games:read' not in scopes:
         raise HTTPException(
