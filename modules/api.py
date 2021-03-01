@@ -29,6 +29,7 @@ class NewGame(pydantic.BaseModel):
     guild_id: int
     is_ranked: bool = False
     is_mobile: bool = True
+    notes: str = ''
     sides_discord_ids: List[List[int]]
 
 
@@ -127,5 +128,7 @@ async def new_game(
         is_ranked=game.is_ranked,
         is_mobile=game.is_mobile
     )
+    if game.notes:
+        db_game.notes = game.notes
+        db_game.save()
     return {'game_id': db_game.id}
-    raise HTTPException(status_code=404, detail='Game not found.')
