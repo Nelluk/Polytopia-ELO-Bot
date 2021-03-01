@@ -924,6 +924,9 @@ class Game(BaseModel):
         referenced_users = []
         for side in GameSide.select().where(GameSide.game == self):
             sides.append(side.as_json())
+        win_time = (
+            self.win_claimed_ts.timestamp() if self.win_claimed_ts else None
+        )
         return {
             'id': self.id,
             'guild_id': self.guild_id,
@@ -935,6 +938,7 @@ class Game(BaseModel):
             'name': self.name,
             'notes': self.notes,
             'winner': self.winner.id if self.winner else None,
+            'win_claimed_at': win_time,
             'size': self.size,
             'sides': sides
         }
