@@ -918,13 +918,12 @@ class Game(BaseModel):
     size = ArrayField(SmallIntegerField, default=[0])
     is_mobile = BooleanField(default=True)
 
-    def as_json(self) -> Dict[str, Any]:
+    def as_json(self, include_users: bool = False) -> Dict[str, Any]:
         """Get the game as a dict for returning from the API."""
-        sides = [
-            side.as_json() for side in GameSide.select().where(
-                GameSide.game == self
-            )
-        ]
+        sides = []
+        referenced_users = []
+        for side in GameSide.select().where(GameSide.game == self):
+            sides.append(side.as_json())
         return {
             'id': self.id,
             'guild_id': self.guild_id,
@@ -2856,11 +2855,19 @@ class GameSide(BaseModel):
     win_confirmed = BooleanField(default=False)
     team_chan_external_server = BitField(unique=False, null=True, default=None)
 
-    def as_json(self) -> Dict[str, Any]:
-        """Get the game side as a dict for returning from the API."""
+    def as_json(self) -> tuple[list[Player], Dict[str, Any]]:
+        """Get the game side as a dict for returning from the API.
+
+        Also returns a list of referenced players.
+        """
         members = [
-            member.id for member in
-            Lineup.select().where(Lineup.gameside == self)
+            game_player.player.discord_member.discord_id
+            for game_player in
+            Lineup
+                .select()
+                .join(Player)
+                .join(DiscordMember)
+                .where(Lineup.gameside == self)
         ]
         return {
             'id': self.id,
