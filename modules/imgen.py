@@ -38,7 +38,7 @@ def draw_text(
     """Draw some text."""
     # load the font
     font = ImageFont.truetype(
-        f'res/font.ttf', size,
+        'res/font.ttf', size,
         layout_engine=ImageFont.LAYOUT_BASIC
     )
     # draw the text
@@ -51,7 +51,7 @@ def draw_inverse_text(
         top: int = 0):
     """Draw transparent text on a white background."""
     width, height = ImageFont.truetype(
-        f'res/font.ttf', size,
+        'res/font.ttf', size,
         layout_engine=ImageFont.LAYOUT_BASIC
     ).getsize(text)
     mask = Image.new('1', (width + 40, height + 30))
@@ -70,7 +70,7 @@ def draw_inverse_text(
 def get_text_width(text: str, font_size: int) -> int:
     """Get the width of some text."""
     return ImageFont.truetype(
-        f'res/font2.ttf', font_size,
+        'res/font2.ttf', font_size,
         layout_engine=ImageFont.LAYOUT_BASIC
     ).getsize(text)[0]
 

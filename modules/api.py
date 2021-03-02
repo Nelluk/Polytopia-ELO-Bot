@@ -6,7 +6,7 @@ from typing import List
 
 import discord
 
-from fastapi import Depends, FastAPI, HTTPException, Response
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 
 import pydantic
@@ -121,13 +121,16 @@ async def new_game(
             user = await get_discord_member(game.guild_id, discord_id)
             discord_user_side.append(user)
         discord_user_sides.append(discord_user_side)
-    db_game = Game.create_game(
-        discord_groups=discord_user_sides,
-        guild_id=game.guild_id,
-        name=game.game_name,
-        is_ranked=game.is_ranked,
-        is_mobile=game.is_mobile
-    )
+    try:
+        db_game, _warnings = Game.create_game(
+            discord_groups=discord_user_sides,
+            guild_id=game.guild_id,
+            name=game.game_name,
+            is_ranked=game.is_ranked,
+            is_mobile=game.is_mobile
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     if game.notes:
         db_game.notes = game.notes
         db_game.save()

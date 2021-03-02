@@ -223,7 +223,7 @@ def init_bot(loop: asyncio.AbstractEventLoop = None, args: List[str] = None):
         """http://discordpy.readthedocs.io/en/rewrite/api.html#discord.on_ready"""
 
         print(f'\n\nv2 Logged in as: {bot.user.name} - {bot.user.id}\nVersion: {discord.__version__}\n')
-        print(f'Successfully logged in and booted...!')
+        print('Successfully logged in and booted...!')
 
         for g in bot.guilds:
             if g.id in settings.config:

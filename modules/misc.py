@@ -78,7 +78,7 @@ class misc(commands.Cog):
                     # 'Its primary home is [PolyChampions](https://discord.gg/YcvBheSv), a server focused on team play organized into a league.\n'
                     f'To register as a player with the bot use __`{ctx.prefix}setname Mobile User Name`__ or  __`{ctx.prefix}steamname Steam User Name`__')
 
-        embed = discord.Embed(title=f'PolyELO Bot Donation Link', url='https://cash.me/$Nelluk/3', description=bot_desc)
+        embed = discord.Embed(title='PolyELO Bot Donation Link', url='https://cash.me/$Nelluk/3', description=bot_desc)
 
         embed.add_field(name='Matchmaking',
             value=f'This helps players organize and find games.\nFor example, use __`{ctx.prefix}opengame 1v1`__ to create an open 1v1 game that others can join.\n'
@@ -94,7 +94,7 @@ class misc(commands.Cog):
         embed.add_field(name='Finishing tracked games',
             value=f'Use the __`{ctx.prefix}win`__ command to tell the bot that a game has concluded.\n'
             f'For example if Nelluk wins game 10150, he would type __`{ctx.prefix}win 10150 nelluk`__. The losing player can confirm using the same command. '
-            f'Games are auto-confirmed after 24 hours, or sooner if the losing side manually confirms.', inline=False)
+            'Games are auto-confirmed after 24 hours, or sooner if the losing side manually confirms.', inline=False)
 
         embed.set_thumbnail(url=self.bot.user.avatar_url_as(size=512))
         embed.set_footer(text='Developer: Nelluk')
@@ -106,7 +106,7 @@ class misc(commands.Cog):
         """
         Display development credits
         """
-        embed = discord.Embed(title=f'Support this project', url='https://www.buymeacoffee.com/nelluk')
+        embed = discord.Embed(title='Support this project', url='https://www.buymeacoffee.com/nelluk')
 
         embed.add_field(name='Developer', value='Nelluk')
         embed.add_field(name='Source code', value='https://github.com/Nelluk/Polytopia-ELO-Bot')
@@ -182,7 +182,7 @@ class misc(commands.Cog):
 
         """
         if not message:
-            return await ctx.send(f'Message is required.')
+            return await ctx.send('Message is required.')
 
         m = utilities.string_to_user_id(message.split()[0])
 
@@ -191,7 +191,7 @@ class misc(commands.Cog):
             # Staff member using command on third party
             if settings.get_user_level(ctx.author) <= 3:
                 logger.debug('insufficient user level')
-                return await ctx.send(f'You do not have permission to use this command on another player\'s games.')
+                return await ctx.send('You do not have permission to use this command on another player\'s games.')
             message = ' '.join(message.split()[1:])  # remove @Mention first word of message
             target = str(m)
             log_message = f'{models.GameLog.member_string(ctx.author)} used pingall on behalf of player ID `{target}` with message: '
@@ -200,7 +200,7 @@ class misc(commands.Cog):
             # Play using command on their own games
             if settings.get_user_level(ctx.author) <= 2:
                 logger.debug('insufficient user level')
-                return await ctx.send(f'You do not have permission to use this command. You can ask a server staff member to use this command on your games for you.')
+                return await ctx.send('You do not have permission to use this command. You can ask a server staff member to use this command on your games for you.')
             target = str(ctx.author.id)
             log_message = f'{models.GameLog.member_string(ctx.author)} used {ctx.invoked_with} with message: '
 
@@ -232,7 +232,7 @@ class misc(commands.Cog):
         logger.debug(f'{len(list_of_players)} unique opponents for target')
         clean_message = utilities.escape_role_mentions(message)
         if len(list_of_players) > 100:
-            await ctx.send(f'*Warning:* More than 100 unique players are addressed. Only the first 100 will be mentioned.')
+            await ctx.send('*Warning:* More than 100 unique players are addressed. Only the first 100 will be mentioned.')
         await ctx.send(f'{title_str} for <@{target}> ({player_match.name}): *{clean_message}*')
 
         recipient_message = f'Message recipients: {" ".join(list_of_players[:100])}'
@@ -324,16 +324,16 @@ class misc(commands.Cog):
         mention_players_in_current_channel = True  # False when done from game channel, True otherwise
 
         if ctx.channel.id in game_channels and len(game_channels) >= len(game.gamesides):
-            logger.debug(f'Allowing ping since it is within a game channel, and all sides have a game channel')
+            logger.debug('Allowing ping since it is within a game channel, and all sides have a game channel')
             mention_players_in_current_channel = False
         elif settings.is_mod(ctx.author) and len(game_channels) >= len(game.gamesides):
-            logger.debug(f'Allowing ping since it is from a mod and all sides have a game channel')
+            logger.debug('Allowing ping since it is from a mod and all sides have a game channel')
             mention_players_in_current_channel = False
         elif None not in game_members and all(ctx.channel.permissions_for(member).read_messages for member in game_members):
-            logger.debug(f'Allowing ping since all members have read access to current channel')
+            logger.debug('Allowing ping since all members have read access to current channel')
             mention_players_in_current_channel = True
         elif ctx.channel.id in permitted_channels:
-            logger.debug(f'Allowing ping since it is a bot channel or central game channel')
+            logger.debug('Allowing ping since it is a bot channel or central game channel')
             mention_players_in_current_channel = True
         else:
             logger.debug(f'Not allowing ping in {ctx.channel.id}')
@@ -400,7 +400,7 @@ class misc(commands.Cog):
 
         if not channel:
             ctx.command.reset_cooldown(ctx)
-            return await ctx.send(f'Cannot load staff channel. You will need to ping a staff member.')
+            return await ctx.send('Cannot load staff channel. You will need to ping a staff member.')
 
         if ctx.message.attachments:
             attachment_urls = '\n'.join([attachment.url for attachment in ctx.message.attachments])
@@ -429,7 +429,7 @@ class misc(commands.Cog):
             game_id = 0
 
         models.GameLog.write(game_id=game_id, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} requested staffhelp: *{message}*')
-        await ctx.send(f'Your message has been sent to server staff. Please wait patiently or send additional information on your issue.')
+        await ctx.send('Your message has been sent to server staff. Please wait patiently or send additional information on your issue.')
 
     @commands.command(hidden=True, aliases=['random_tribes', 'rtribe'], usage='game_size [-banned_tribe ...]')
     @settings.in_bot_channel()
