@@ -69,7 +69,7 @@ class administration(commands.Cog):
                     except discord.DiscordException:
                         pass
 
-            await ctx.send(f'Cleaning up temporary announcement messages...')
+            await ctx.send('Cleaning up temporary announcement messages...')
             await asyncio.sleep(3)  # to make sure message deletes go through
 
         await ctx.send('Shutting down')
@@ -83,7 +83,7 @@ class administration(commands.Cog):
         current_number_of_channels = len(ctx.guild.text_channels)
 
         if not settings.guild_setting(ctx.guild.id, 'game_channel_categories'):
-            return await ctx.send(f'Cannot purge - this guild has no `game_channel_categories` setting')
+            return await ctx.send('Cannot purge - this guild has no `game_channel_categories` setting')
 
         category_channels = [chan.id for chan in ctx.guild.channels if chan.category_id in settings.guild_setting(ctx.guild.id, 'game_channel_categories')]
 
@@ -141,7 +141,7 @@ class administration(commands.Cog):
                     logger.debug(f'Channel {chan.name} {chan.id} is a common game channel, being purged since server is too full.')
                     await ctx.send(f'Deleting channel **{chan.name}** - it is a common game channel, being purged since server is too full.')
                     await delete_channel(chan, game)
-                    await game.update_squad_channels(self.bot.guilds, game.guild_id, message=f'The central game channel for this game has been purged to free up room on the server')
+                    await game.update_squad_channels(self.bot.guilds, game.guild_id, message='The central game channel for this game has been purged to free up room on the server')
                     continue
                 if chan.last_message_id:
                     try:
@@ -180,7 +180,7 @@ class administration(commands.Cog):
             game_query = models.Game.search(status_filter=5, guild_id=ctx.guild.id).order_by(models.Game.win_claimed_ts)
             game_list = utilities.summarize_game_list(game_query)
             if len(game_list) == 0:
-                return await ctx.send(f'No unconfirmed games found.')
+                return await ctx.send('No unconfirmed games found.')
             await utilities.paginate(self.bot, ctx, title=f'{len(game_list)} unconfirmed games', message_list=game_list, page_start=0, page_end=15, page_size=15)
             return
 
@@ -320,14 +320,14 @@ class administration(commands.Cog):
                     if game_size == 2 and game.date < old_60d and not game.is_completed:
                         delete_result.append(f'Deleting incomplete 1v1 game older than 60 days. - {game.get_headline()} - {game.date}{rank_str}')
                         # await self.bot.loop.run_in_executor(None, game.delete_game)
-                        models.GameLog.write(game_id=game, guild_id=guild.id, message=f'I purged the game during cleanup of old incomplete games.')
+                        models.GameLog.write(game_id=game, guild_id=guild.id, message='I purged the game during cleanup of old incomplete games.')
                         game.delete_game()
 
                     if game_size == 3 and game.date < old_90d and not game.is_completed:
                         delete_result.append(f'Deleting incomplete 3-player game older than 90 days. - {game.get_headline()} - {game.date}{rank_str}')
                         await game.delete_game_channels(self.bot.guilds, guild.id)
                         # await self.bot.loop.run_in_executor(None, game.delete_game)
-                        models.GameLog.write(game_id=game, guild_id=guild.id, message=f'I purged the game during cleanup of old incomplete games.')
+                        models.GameLog.write(game_id=game, guild_id=guild.id, message='I purged the game during cleanup of old incomplete games.')
                         game.delete_game()
 
                     if game_size == 4:
@@ -335,12 +335,12 @@ class administration(commands.Cog):
                             delete_result.append(f'Deleting incomplete 4-player game older than 90 days. - {game.get_headline()} - {game.date}{rank_str}')
                             await game.delete_game_channels(self.bot.guilds, guild.id)
                             await self.bot.loop.run_in_executor(None, game.delete_game)
-                            models.GameLog.write(game_id=game, guild_id=guild.id, message=f'I purged the game during cleanup of old incomplete games.')
+                            models.GameLog.write(game_id=game, guild_id=guild.id, message='I purged the game during cleanup of old incomplete games.')
                             game.delete_game()
                         if game.date < old_120d and not game.is_completed and game.is_ranked:
                             delete_result.append(f'Deleting incomplete ranked 4-player game older than 120 days. - {game.get_headline()} - {game.date}{rank_str}')
                             await game.delete_game_channels(self.bot.guilds, guild.id)
-                            models.GameLog.write(game_id=game, guild_id=guild.id, message=f'I purged the game during cleanup of old incomplete games.')
+                            models.GameLog.write(game_id=game, guild_id=guild.id, message='I purged the game during cleanup of old incomplete games.')
                             # await self.bot.loop.run_in_executor(None, game.delete_game)
                             game.delete_game()
 
@@ -349,7 +349,7 @@ class administration(commands.Cog):
                         delete_result.append(f'Deleting incomplete ranked {game_size}-player game older than 150 days. - {game.get_headline()} - {game.date}{rank_str}')
                         await game.delete_game_channels(self.bot.guilds, guild.id)
                         # await self.bot.loop.run_in_executor(None, game.delete_game)
-                        models.GameLog.write(game_id=game, guild_id=guild.id, message=f'I purged the game during cleanup of old incomplete games.')
+                        models.GameLog.write(game_id=game, guild_id=guild.id, message='I purged the game during cleanup of old incomplete games.')
                         game.delete_game()
 
                     if game_size >= 5 and not game.is_ranked and game.date < old_120d and not game.is_completed:
@@ -357,7 +357,7 @@ class administration(commands.Cog):
                         delete_result.append(f'Deleting incomplete unranked {game_size}-player game older than 120 days. - {game.get_headline()} - {game.date}{rank_str}')
                         await game.delete_game_channels(self.bot.guilds, guild.id)
                         # await self.bot.loop.run_in_executor(None, game.delete_game)
-                        models.GameLog.write(game_id=game, guild_id=guild.id, message=f'I purged the game during cleanup of old incomplete games.')
+                        models.GameLog.write(game_id=game, guild_id=guild.id, message='I purged the game during cleanup of old incomplete games.')
                         game.delete_game()
 
                 delete_str = '\n'.join(delete_result)
@@ -379,7 +379,7 @@ class administration(commands.Cog):
         `[p]rankset 50`
         """
         if game is None:
-            return await ctx.send(f'No matching game was found.')
+            return await ctx.send('No matching game was found.')
 
         if game.is_completed or game.is_confirmed:
             return await ctx.send(f'This can only be used on a pending game. You can use `{ctx.prefix}unwin` to turn a completed game into a pending game.')
@@ -403,7 +403,7 @@ class administration(commands.Cog):
         `[p]rankunset 50`
         """
         if game is None:
-            return await ctx.send(f'No matching game was found.')
+            return await ctx.send('No matching game was found.')
 
         if game.is_completed or game.is_confirmed:
             return await ctx.send(f'This can only be used on a pending game. You can use `{ctx.prefix}unwin` to turn a completed game into a pending game.')
@@ -429,14 +429,14 @@ class administration(commands.Cog):
         """
 
         if game is None:
-            return await ctx.send(f'No matching game was found.')
+            return await ctx.send('No matching game was found.')
         if game.is_completed or game.is_confirmed:
             return await ctx.send(f'Game {game.id} is marked as completed already.')
         if game.is_pending:
             return await ctx.send(f'Game {game.id} is already a pending matchmaking session.')
 
         if game.uses_channel_id(ctx.channel.id):
-            return await ctx.send(f':warning: This command must be used from a channel that is not related to the game.')
+            return await ctx.send(':warning: This command must be used from a channel that is not related to the game.')
 
         if game.announcement_message:
             game.name = f'~~{game.name}~~ GAME CANCELLED'
@@ -514,7 +514,7 @@ class administration(commands.Cog):
         """
 
         if not game:
-            return await ctx.send(f'No game ID provided.')
+            return await ctx.send('No game ID provided.')
 
         if not game.is_pending:
             return await ctx.send(f'Game {game.id} is no longer an open game so cannot be extended.')
@@ -540,7 +540,7 @@ class administration(commands.Cog):
         `[p]tribe_emoji Bardur :new_bardur_emoji:`
         """
         if not settings.guild_setting(ctx.guild.id, 'include_in_global_lb') and ctx.author.id != settings.owner_id:
-            return await ctx.send(f'This command can only be run in a Global ELO server (ie. PolyChampions or Polytopia Main')
+            return await ctx.send('This command can only be run in a Global ELO server (ie. PolyChampions or Polytopia Main')
 
         if len(emoji) != 1 and ('<:' not in emoji):
             return await ctx.send('Valid emoji not detected. Example: `{}tribe_emoji Tribename :my_custom_emoji:`'.format(ctx.prefix))
@@ -738,7 +738,7 @@ class administration(commands.Cog):
                 logger.debug(f'{member.name} is inactive')
 
         if not defunct_members:
-            return await ctx.send(f'No inactive members found!')
+            return await ctx.send('No inactive members found!')
 
         members_str = '\n'.join(defunct_members)
         await utilities.buffered_send(destination=ctx, content=f'Found {len(defunct_members)} inactive members - *{inactive_role.name}* has been applied to each: {members_str}')
@@ -768,7 +768,7 @@ class administration(commands.Cog):
         inactive_role = discord.utils.get(ctx.guild.roles, name=settings.guild_setting(ctx.guild.id, 'inactive_role'))
         if not inactive_role:
             logger.warning(f'Could not load Inactive role by name {settings.guild_setting(ctx.guild.id, "inactive_role")}')
-            return await ctx.send(f'Error loading Inactive role.')
+            return await ctx.send('Error loading Inactive role.')
 
         kickable_role_names = [
             settings.guild_setting(ctx.guild.id, 'inactive_role'),
@@ -840,7 +840,7 @@ class administration(commands.Cog):
 
                 logger.debug(f'Member {member.name} qualifies for kicking based on roles. Team member? {team_member}')
                 if member.joined_at > last_week:
-                    logger.debug(f'Joined in the previous week. Skipping.')
+                    logger.debug('Joined in the previous week. Skipping.')
                     continue
 
                 try:
@@ -849,7 +849,7 @@ class administration(commands.Cog):
                     logger.debug(f'Player {member.name} has not registered with PolyELO Bot.')
 
                     if member.joined_at < last_week:
-                        logger.info(f'Joined more than a week ago with no code on file. Kicking from server')
+                        logger.info('Joined more than a week ago with no code on file. Kicking from server')
                         await member.kick(reason='No role, no code on file')
                         total_kicked_count += 1
                     continue
@@ -858,11 +858,11 @@ class administration(commands.Cog):
                         if dm.games_played(in_days=60):
                             logger.debug('Has played recent ELO game on at least one server. Skipping.')
                         else:
-                            logger.info(f'Joined more than a month ago and has played zero recent ELO games. Kicking from server')
+                            logger.info('Joined more than a month ago and has played zero recent ELO games. Kicking from server')
                             await member.kick(reason='No protected roles, no ELO games in at least 60 days.')
                             total_kicked_count += 1
                             if team_member:
-                                await member.send(f'You have been kicked from PolyChampions as part of an automated purge of inactive players. Please be assured this is nothing personal and is merely a manifestation of Nelluk\'s irrational need for a clean player list. If you are interested in rejoining please do so: https://discord.gg/YcvBheS')
+                                await member.send('You have been kicked from PolyChampions as part of an automated purge of inactive players. Please be assured this is nothing personal and is merely a manifestation of Nelluk\'s irrational need for a clean player list. If you are interested in rejoining please do so: https://discord.gg/YcvBheS')
                                 team_kicked_count += 1
                                 team_kicked_list.append(member.mention)
 
@@ -983,7 +983,7 @@ class administration(commands.Cog):
         if not game.completed_ts:
             return await ctx.send(f'Game {game.id} is not completed. Choose a completed game.')
 
-        await ctx.send(f'This may take a while...')
+        await ctx.send('This may take a while...')
         settings.recalculation_mode = True
         async with ctx.typing():
             await self.bot.loop.run_in_executor(None, functools.partial(models.Game.recalculate_elo_since, timestamp=game.completed_ts))

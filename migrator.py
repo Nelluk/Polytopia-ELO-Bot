@@ -3,7 +3,6 @@ import settings
 from playhouse.postgres_ext import *
 import logging
 from logging.handlers import RotatingFileHandler
-from modules.models import GameLog
 import modules.models as models
 
 # http://docs.peewee-orm.com/en/latest/peewee/playhouse.html#schema-migrations

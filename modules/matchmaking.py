@@ -133,10 +133,10 @@ class matchmaking(commands.Cog):
 
             if settings.get_user_level(member) < 4:
                 return await feedback_destination.send('You do not have permissions to leave your own match.\n'
-                    f'If you want to delete use the `delete` command in a bot channel.')
+                    'If you want to delete use the `delete` command in a bot channel.')
 
-            await feedback_destination.send(f'**Warning:** You are leaving your own game. You will still be the host. '
-                f'If you want to delete use the `delete` command in a bot channel.')
+            await feedback_destination.send('**Warning:** You are leaving your own game. You will still be the host. '
+                'If you want to delete use the `delete` command in a bot channel.')
 
         if not game.is_pending:
             return await feedback_destination.send(f'Game {game.id} has already started and cannot be left.')
@@ -251,7 +251,7 @@ class matchmaking(commands.Cog):
             message_list.append(f':warning: You have full games waiting to start: **{", ".join(waitlist)}**\n{start_str}')
 
         if feedback_destination == payload.member:
-            message_list.append(f':bulb: I do not respond to PM commands. You will need to use a bot command channel in the appropriate server.')
+            message_list.append(':bulb: I do not respond to PM commands. You will need to use a bot command channel in the appropriate server.')
         message_str = '\n'.join(message_list)
 
         logger.debug(f'Join by reaction success: {message_str}')
@@ -321,7 +321,7 @@ class matchmaking(commands.Cog):
 
         on_team, player_team = models.Player.is_in_team(guild_id=ctx.guild.id, discord_member=ctx.author)
         if settings.guild_setting(ctx.guild.id, 'require_teams') and not on_team:
-            return await ctx.send(f'You must join a Team in order to participate in games on this server.')
+            return await ctx.send('You must join a Team in order to participate in games on this server.')
 
         max_open = max(1, settings.get_user_level(ctx.author) * 3)
         if settings.get_user_level(ctx.author) > 5:
@@ -387,7 +387,7 @@ class matchmaking(commands.Cog):
                 # replace raw role tag <@&....> with name of role, so people dont get mentioned every time note is printed
                 # also extracting roles from raw args instead of iterating over ctx.message.roles since that ordering is not reliable
                 if roles_specified_explicitly:
-                    return await ctx.send(f':no_entry_sign: Roles were assigned via both mention and explicit argument - use one or the other but not both.')
+                    return await ctx.send(':no_entry_sign: Roles were assigned via both mention and explicit argument - use one or the other but not both.')
                 roles_specified_implicity = True
                 extracted_role = ctx.guild.get_role(int(m[1]))
                 if extracted_role:
@@ -401,7 +401,7 @@ class matchmaking(commands.Cog):
                 # arg looks like role=Word, role1=Two Words, role10=Some Long Role Name
                 logger.debug(f'Explicit role argument used. Name {m[2]} and explicit position: {m[1]}')
                 if roles_specified_implicity:
-                    return await ctx.send(f':no_entry_sign: Roles were assigned via both mention and explicit argument - use one or the other but not both.')
+                    return await ctx.send(':no_entry_sign: Roles were assigned via both mention and explicit argument - use one or the other but not both.')
                 roles_specified_explicitly = True
                 if m[1]:
                     # role ordering specified with an integer
@@ -435,7 +435,7 @@ class matchmaking(commands.Cog):
             note_args.append(arg)
 
         if not team_size:
-            return await ctx.send(f'Game size is required. Include argument like *1v1* to specify size')
+            return await ctx.send('Game size is required. Include argument like *1v1* to specify size')
 
         if not host.discord_member.polytopia_name and is_mobile:
             return await ctx.send(f'**{host.name}** does not have a mobile name on file. Use `{ctx.prefix}setname` to set one, or try `{ctx.prefix}opensteam` for a Steam game.')
@@ -465,7 +465,7 @@ class matchmaking(commands.Cog):
 
         if required_role_args and len(required_role_args) < len(team_sizes) and required_role_args[0] not in ctx.author.roles:
             # used for a case like: $opengame 1v1 me vs @The Novas   -- puts that role on side 2 if you dont have it
-            logger.debug(f'Offsetting required_role_args')
+            logger.debug('Offsetting required_role_args')
             required_role_args.insert(0, None)
 
         for count, role in enumerate(required_role_args):
@@ -515,11 +515,11 @@ class matchmaking(commands.Cog):
             first_side, _ = opengame.first_open_side(roles=[role.id for role in ctx.author.roles])
             if not first_side:
                 if settings.get_user_level(ctx.author) >= 4:
-                    warning_message = f':warning: All sides in this game are locked to a specific @Role - and you don\'t have any of those roles. You are not a player in this game.'
+                    warning_message = ':warning: All sides in this game are locked to a specific @Role - and you don\'t have any of those roles. You are not a player in this game.'
                     fatal_warning = False
                 else:
                     transaction.rollback()
-                    warning_message = f':warning All sides in this game are locked to a specific @Role - and you don\'t have any of those roles. Game not created.'
+                    warning_message = ':warning All sides in this game are locked to a specific @Role - and you don\'t have any of those roles. Game not created.'
                     fatal_warning = True
             else:
                 models.Lineup.create(player=host, game=opengame, gameside=first_side)
@@ -550,9 +550,9 @@ class matchmaking(commands.Cog):
         """
 
         if not game.is_pending:
-            return await ctx.send(f'The game has already started and can no longer be changed.')
+            return await ctx.send('The game has already started and can no longer be changed.')
         if not game.is_hosted_by(ctx.author.id)[0] and not settings.is_staff(ctx.author):
-            return await ctx.send(f'Only the game host or server staff can do this.')
+            return await ctx.send('Only the game host or server staff can do this.')
 
         # TODO: Have this command also allow side re-ordering
         # matchside m1 1 name ronin
@@ -560,7 +560,7 @@ class matchmaking(commands.Cog):
 
         gameside, _ = game.get_side(lookup=side_lookup)
         if not gameside:
-            return await ctx.send(f'Can\'t find that side for game {game.id}.')
+            return await ctx.send('Can\'t find that side for game {game.id}.')
 
         if args and args.lower() == 'none':
             args = None
@@ -686,7 +686,7 @@ class matchmaking(commands.Cog):
                 return await ctx.send('You do not have permissions to leave your own match.\n'
                     f'If you want to delete use `{ctx.prefix}delete {game.id}`')
 
-            await ctx.send(f'**Warning:** You are leaving your own game. You will still be the host. '
+            await ctx.send('**Warning:** You are leaving your own game. You will still be the host. '
                 f'If you want to delete use `{ctx.prefix}delete {game.id}`')
 
         if not game.is_pending:
@@ -716,7 +716,7 @@ class matchmaking(commands.Cog):
             return await ctx.send(f'Include new note or *none* to delete existing note. Usage: `{ctx.prefix}{ctx.invoked_with} {game.id} These are my new notes`')
 
         if not game.is_hosted_by(ctx.author.id)[0] and not settings.is_staff(ctx.author):
-            return await ctx.send(f'Only the game host or server staff can do this.')
+            return await ctx.send('Only the game host or server staff can do this.')
 
         if notes.lower() == 'none':
             notes = None
@@ -724,7 +724,7 @@ class matchmaking(commands.Cog):
         if game.is_completed:
             return await ctx.send('This game is completed and notes cannot be edited.')
         elif not game.is_pending and not settings.is_staff(ctx.author):
-            return await ctx.send(f'Only server staff can edit notes of an in-progress game.')
+            return await ctx.send('Only server staff can edit notes of an in-progress game.')
 
         game.notes = notes[:150] if notes else None
         game.save()
@@ -968,7 +968,7 @@ class matchmaking(commands.Cog):
             if settings.get_user_level(ctx.author) <= 3:
                 return await ctx.send('That name looks made up. :thinking: You need to manually create the game __in Polytopia__, come back and input the name of the new game you made.\n'
                     f'You can use `{ctx.prefix}codes {game.id}` to get the code of each player in this game in an easy-to-copy format.')
-            await ctx.send(f'*Warning:* That game name looks made up - you are allowed to override due to your user level.')
+            await ctx.send('*Warning:* That game name looks made up - you are allowed to override due to your user level.')
 
         if not game.is_pending:
             return await ctx.send(f'Game {game.id} has already started with name **{game.name}**')
@@ -1220,7 +1220,7 @@ class matchmaking(commands.Cog):
                     host_str = ''
 
                 if not players:
-                    log_str = f'Bot purged an empty pending game.'
+                    log_str = 'Bot purged an empty pending game.'
                     announce_str = ''
                 elif players >= capacity:
                     log_str = f'Bot purged a {"ranked" if game.is_ranked else ""} full pending game because {models.GameLog.member_string(creating_member)} did not start it.'

@@ -312,7 +312,7 @@ class league(commands.Cog):
             reaction, user = await self.bot.wait_for('reaction_add', check=check, timeout=33)
 
         except asyncio.TimeoutError:
-            logger.debug(f'No reaction to confirmation message.')
+            logger.debug('No reaction to confirmation message.')
             return
 
         result_message_list = [f'Draft successfully closed by {member.mention}']
@@ -532,7 +532,7 @@ class league(commands.Cog):
             f'https://discord.com/channels/{ctx.guild.id}/{announcement_channel.id}/{announcement_message.id}')
 
         if announcement_channel.id != ctx.message.channel.id:
-            await ctx.send(f'Draft announcement has been posted in the announcement channel.')
+            await ctx.send('Draft announcement has been posted in the announcement channel.')
 
         draft_config['announcement_message'] = announcement_message.id
         draft_config['announcement_channel'] = announcement_message.channel.id
@@ -686,8 +686,8 @@ class league(commands.Cog):
         standings = []
 
         if season and (season == 1 or season == 2):
-            return await ctx.send(f'Records from the first two seasons (ie. the dark ages when I did not exist) are mostly lost to antiquity, but some information remains:\n'
-                f'**The Sparkies** won Season 1 and **The Jets** won season 2, and if you squint you can just make out the records below:\nhttps://i.imgur.com/L7FPr1d.png')
+            return await ctx.send('Records from the first two seasons (ie. the dark ages when I did not exist) are mostly lost to antiquity, but some information remains:\n'
+                '**The Sparkies** won Season 1 and **The Jets** won season 2, and if you squint you can just make out the records below:\nhttps://i.imgur.com/L7FPr1d.png')
         if ctx.invoked_with in ['jrseason', 'js', 'seasonjr']:
             pro_value = 0
             pro_str = 'Junior'
@@ -767,7 +767,7 @@ class league(commands.Cog):
         newbie_role = discord.utils.get(ctx.guild.roles, name='Newbie')
 
         if not red_role or not blue_role or not novas_role:
-            return await ctx.send(f'Error finding Novas roles. Searched for *Nova Red* and *Nova Blue* and *The Novas*.')
+            return await ctx.send('Error finding Novas roles. Searched for *Nova Red* and *Nova Blue* and *The Novas*.')
 
         # TODO: team numbers may be inflated due to inactive members. Can either count up only player recency, or easier but less effective way
         # would be to have $deactivate remove novas roles and make them rejoin if they come back
@@ -1022,7 +1022,7 @@ class league(commands.Cog):
             message.append(player[0])
 
         if not player_list:
-            await ctx.send(f'No matching players found.')
+            await ctx.send('No matching players found.')
         elif file_export:
             import io
 
@@ -1074,7 +1074,7 @@ class league(commands.Cog):
         if query:
             await ctx.send(f'Exporting {len(query)} game records. This might take a little while...')
         else:
-            return await ctx.send(f'No matching games found.')
+            return await ctx.send('No matching games found.')
 
         async with ctx.typing():
             filename = await self.bot.loop.run_in_executor(None, async_call_export_func)
@@ -1193,7 +1193,7 @@ async def broadcast_team_game_to_server(ctx, game):
 
         message_content = f'New PolyChampions game `{game.id}` for {game_type} created by {game.host.name}\n{game.size_string()} {game.get_headline()}{notes_str}\n{ctx.message.jump_url}'
         if game.is_uncaught_season_game():
-            message_content += f'\n(*This appears to be a **Season Game** so join reactions are disabled.*)'
+            message_content += '\n(*This appears to be a **Season Game** so join reactions are disabled.*)'
         else:
             message_content += f'\n{join_str}.'
 
@@ -1215,7 +1215,7 @@ async def auto_grad_novas(ctx, game):
     grad_role = discord.utils.get(ctx.guild.roles, name=grad_role_name)
 
     if not role or not grad_role:
-        logger.warning(f'Could not load required roles to complete auto_grad_novas')
+        logger.warning('Could not load required roles to complete auto_grad_novas')
         return
 
     player_id_list = [l.player.discord_member.discord_id for l in game.lineup]
@@ -1259,7 +1259,7 @@ async def auto_grad_novas(ctx, game):
             break
 
         config, _ = models.Configuration.get_or_create(guild_id=ctx.guild.id)
-        announce_str = f'Draft signups open regularly - pay attention to server announcements for a notification of the next one.'
+        announce_str = 'Draft signups open regularly - pay attention to server announcements for a notification of the next one.'
         if config.polychamps_draft['draft_open']:
             try:
                 channel = ctx.guild.get_channel(config.polychamps_draft['announcement_channel'])

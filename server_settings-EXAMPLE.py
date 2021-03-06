@@ -24,7 +24,6 @@ server_list = {'default':
                       'max_team_size': 1,
                       'command_prefix': '/',
                       'include_in_global_lb': False,
-                      'bot_channels': [],  # list of channel IDs that are bot channels
                       'match_challenge_channel': None,
                       'bot_channels_private': [],  # channels here will pass any bot channel check, and not linked in bot messages
                       'bot_channels_strict': [],  # channels where the most limited commands work, like leaderboards

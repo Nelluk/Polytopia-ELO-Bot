@@ -9,11 +9,11 @@ import peewee
 import modules.models as models
 from modules.models import Game, db, Player, Team, DiscordMember, Squad, GameSide, Tribe, Lineup
 from modules.league import auto_grad_novas, populate_league_team_channels, get_team_leadership
+from itertools import groupby
 import logging
 import datetime
 import asyncio
 import re
-from itertools import groupby
 from matplotlib import pyplot as plt
 import io
 import pandas as pd
@@ -462,7 +462,7 @@ class polygames(commands.Cog):
         plt.savefig('graph.png', transparent=False)
         plt.close(fig)
 
-        embed.set_image(url=f'attachment://graph.png')
+        embed.set_image(url='attachment://graph.png')
 
         with open('graph.png', 'rb') as f:
             file = io.BytesIO(f.read())
@@ -547,9 +547,9 @@ class polygames(commands.Cog):
             return await ctx.send(f'Squad with ID {squad_id} is affiliated with a different Discord server.')
 
         if not squad.has_player(discord_id=ctx.author.id) and not settings.is_staff(ctx.author):
-            return await ctx.send(f'A squad name can only be set by server staff or a member of that squad.')
+            return await ctx.send('A squad name can only be set by server staff or a member of that squad.')
 
-        old_squad_name = squad.name if squad.name else f'`None`'
+        old_squad_name = squad.name if squad.name else '`None`'
         if not new_squad_name:
             return await ctx.send(f'No name given. The current name is *{old_squad_name}*\n{usage}')
 
@@ -871,7 +871,7 @@ class polygames(commands.Cog):
                 plt.savefig('graph.png', transparent=False)
                 plt.close(fig)
 
-                embed.set_image(url=f'attachment://graph.png')
+                embed.set_image(url='attachment://graph.png')
 
                 with open('graph.png', 'rb') as f:
                     file = io.BytesIO(f.read())
@@ -1049,7 +1049,7 @@ class polygames(commands.Cog):
             plt.savefig('graph.png', transparent=False)
             plt.close(fig)
 
-            embed.set_image(url=f'attachment://graph.png')
+            embed.set_image(url='attachment://graph.png')
 
             with open('graph.png', 'rb') as f:
                 file = io.BytesIO(f.read())
@@ -1092,7 +1092,7 @@ class polygames(commands.Cog):
             # Staff member using command on third party
             if settings.is_staff(ctx.author) is False:
                 logger.debug('insufficient user level')
-                return await ctx.send(f'You do not have permission to set another player\'s name or code.')
+                return await ctx.send('You do not have permission to set another player\'s name or code.')
             new_id = ' '.join(args[1:])
             target_string = str(m)
             log_by_str = f' by {models.GameLog.member_string(ctx.author)}'
@@ -1117,9 +1117,9 @@ class polygames(commands.Cog):
             # Very basic polytopia code sanity checking. Making sure it is 16-character alphanumeric.
             return await ctx.send(f'Polytopia code `{new_id}` does not appear to be a valid code. Copy your unique code from the **Profile** tab of the **Polytopia app**.')
         elif ctx.invoked_with == 'setname' and 'YOUR' in new_id.upper() and 'GAME' in new_id.upper() and 'NAME' in new_id.upper():
-            return await ctx.send(f':warning: This name doesn\'t look right. You need to use *your* in-game name (`Multiplayer > Profile > Alias` in the Polytopia app)')
+            return await ctx.send(':warning: This name doesn\'t look right. You need to use *your* in-game name (`Multiplayer > Profile > Alias` in the Polytopia app)')
         elif ctx.invoked_with == 'steamname' and 'STEAM' in new_id.upper() and 'NAME' in new_id.upper():
-            await ctx.send(f':warning: This name doesn\'t look right. You need to use *your* Steam name.')
+            await ctx.send(':warning: This name doesn\'t look right. You need to use *your* Steam name.')
 
         _, team_list = Player.get_teams_of_players(guild_id=ctx.guild.id, list_of_players=[target_discord_member])
 
@@ -1157,7 +1157,7 @@ class polygames(commands.Cog):
             helper_role = discord.utils.get(ctx.guild.roles, name=helper_role_name)
             helper_role_str = f'someone with the {helper_role.mention} role' if helper_role else 'server staff'
             p_names = [f'<@{p.discord_id}> ({p.name})' for p in players_with_id]
-            await ctx.send(f':warning: This polytopia code is already entered in the database. '
+            await ctx.send(':warning: This polytopia code is already entered in the database. '
                 f'If you need help using this bot please contact {helper_role_str} or <@{settings.owner_id}>.\nDuplicated players: {", ".join(p_names)}')
 
     @commands.command(aliases=['code', 'getcode', 'name'], usage='player_name')
@@ -1428,27 +1428,41 @@ class polygames(commands.Cog):
         Use `[p]newgameunranked` to create the game as unranked
         Use `[p]newsteamgame` or `[p]newsteamgameunranked` to specify Steam platform.
         """
-        ranked_flag = False if ctx.invoked_with in ['newgameunranked', 'newsteamgameunranked'] else True
-        is_mobile = True if ctx.invoked_with in ['newgame', 'newgameunranked'] else False
+        ranked_flag = not ctx.invoked_with in [
+            'newgameunranked', 'newsteamgameunranked']
+        is_mobile = ctx.invoked_with in ['newgame', 'newgameunranked']
 
         example_usage = (f'Example usage:\n`{ctx.prefix}newgame "Name of Game" player1 VS player2` - Start a 1v1 game\n'
                          f'`{ctx.prefix}newgame "Name of Game" player1 player2 VS player3 player4` - Start a 2v2 game')
 
         if settings.get_user_level(ctx.author) <= 2:
-            return await ctx.send(f'You are not authorized to use this command. Create and join games with `{ctx.prefix}open` / `{ctx.prefix}join`')
+            return await ctx.send(
+                'You are not authorized to use this command. Create and '
+                f'join games with `{ctx.prefix}open` / `{ctx.prefix}join`'
+            )
         if not game_name:
             return await ctx.send(f'Invalid format. {example_usage}')
         if not args:
             return await ctx.send(f'Invalid format. {example_usage}')
 
         if len(game_name.split(' ')) < 2 and ctx.author.id != settings.owner_id:
-            return await ctx.send(f'Invalid game name. Make sure to use "quotation marks" around the full game name.\n{example_usage}')
-
+            return await ctx.send(
+                'Invalid game name. Make sure to use "quotation marks" '
+                f'around the full game name.\n{example_usage}'
+            )
         if not utilities.is_valid_poly_gamename(input=game_name):
             if settings.get_user_level(ctx.author) <= 2:
-                return await ctx.send('That name looks made up. :thinking: You need to manually create the game __in Polytopia__, come back and input the name of the new game you made.\n'
-                    f'You can use `{ctx.prefix}code NAME` to get the code of each player in this game.')
-            await ctx.send(f':warning: That game name looks made up - you are allowed to override due to your user level.')
+                return await ctx.send(
+                    'That name looks made up. :thinking: You need to '
+                    'manually create the game __in Polytopia__, come back '
+                    'and input the name of the new game you made.\n'
+                    f'You can use `{ctx.prefix}code NAME` to get the code '
+                    'of each player in this game.'
+                )
+            await ctx.send(
+                ':warning: That game name looks made up - you are allowed '
+                'to override due to your user level.'
+            )
 
         if len(args) == 1:
             args_list = [str(ctx.author.id), 'vs', args[0]]
@@ -1458,74 +1472,60 @@ class polygames(commands.Cog):
         player_groups = [list(group) for k, group in groupby(args_list, lambda x: x.lower() in ('vs', 'versus')) if not k]
         # split ['foo', 'bar', 'vs', 'baz', 'bat'] into [['foo', 'bar']['baz', 'bat']]
 
-        biggest_team = max(len(group) for group in player_groups)
-        smallest_team = min(len(group) for group in player_groups)
-        total_players = sum(len(group) for group in player_groups)
-
-        if len(player_groups) < 2:
-            return await ctx.send(f'Invalid format. {example_usage}')
-
-        game_allowed, join_error_message = settings.can_user_join_game(user_level=settings.get_user_level(ctx.author), game_size=total_players, is_ranked=ranked_flag, is_host=True)
+        total_players = sum(map(len, player_groups))
+        game_allowed, join_error_message = settings.can_user_join_game(
+            user_level=settings.get_user_level(ctx.author), game_size=total_players, is_ranked=ranked_flag, is_host=True
+        )
         if not game_allowed:
             return await ctx.send(join_error_message)
 
-        if total_players > settings.max_game_size:
-            return await ctx.send(f'You cannot have more than {settings.max_game_size} players.')
-        if biggest_team > settings.guild_setting(ctx.guild.id, 'max_team_size'):
-            if settings.is_mod(ctx.author):
-                await ctx.send('Moderator over-riding server size limits')
-            elif settings.guild_setting(ctx.guild.id, 'allow_uneven_teams') and smallest_team <= settings.guild_setting(ctx.guild.id, 'max_team_size'):
-                await ctx.send(':warning: Team sizes are uneven.')
-            else:
-                return await ctx.send(f'This server has a maximum team size of {settings.guild_setting(ctx.guild.id, "max_team_size")}. For full functionality with support for up to 5-player team games and league play check out PolyChampions.')
-
-        discord_groups, discord_players_flat = [], []
+        discord_groups = []
         author_found = False
         for group in player_groups:
-            # Convert each arg into a Discord Guild Member and build a new list of lists. Or return if any arg can't be matched.
+            # Convert each arg into a Discord guild member and build a new
+            # list of lists, or return if any arg can't be matched.
             discord_group = []
             for p in group:
                 guild_matches = await utilities.get_guild_member(ctx, p)
                 if len(guild_matches) == 0:
-                    return await ctx.send(f'Could not match "**{p}**" to a server member. Try using an @Mention.')
+                    return await ctx.send(
+                        f'Could not match "**{p}**" to a server member. '
+                        'Try using an @Mention.'
+                    )
                 if len(guild_matches) > 1:
-                    return await ctx.send(f'More than one server matches found for "**{p}**". Try being more specific or using an @Mention.')
-
-                if guild_matches[0].id in settings.discord_id_ban_list or discord.utils.get(guild_matches[0].roles, name='ELO Banned'):
-                    if settings.is_mod(ctx.author):
-                        await ctx.send(f'**{guild_matches[0].name}** has been **ELO Banned** -- *moderator over-ride* :thinking:')
-                    else:
-                        return await ctx.send(f'**{guild_matches[0].name}** has been **ELO Banned** and cannot join any new games. :cry:')
-
-                if guild_matches[0] in discord_players_flat:
-                    return await ctx.send('Duplicate players detected. Game not created.')
-                else:
-                    discord_players_flat.append(guild_matches[0])
-
+                    return await ctx.send(
+                        f'More than one server matches found for "**{p}**". '
+                        'Try being more specific or using an @Mention.'
+                    )
                 if guild_matches[0] == ctx.author:
                     author_found = True
-
                 discord_group.append(guild_matches[0])
-
             discord_groups.append(discord_group)
 
-        n = len(discord_groups[0])
-        if not all(len(g) == n for g in discord_groups):
-            if settings.guild_setting(ctx.guild.id, 'allow_uneven_teams'):
-                await ctx.send(':warning: Teams are not the same size. This is allowed but may not be what you want.')
-            else:
-                return await ctx.send('Teams are not the same size. This is not allowed on this server. Game not created.')
-
         if not author_found and not settings.is_staff(ctx.author):
-            # TODO: possibly allow this in PolyChampions (rickdaheals likes to do this)
-            return await ctx.send('You can\'t create a game that you are not a participant in.')
+            # TODO: possibly allow this in PolyChampions
+            # (rickdaheals likes to do this)
+            return await ctx.send(
+                'You can\'t create a game that you are not a participant in.'
+            )
 
-        logger.info(f'All input checks passed. Creating new game records with args: {args}')
-
+        logger.info(
+            'All input checks passed. Creating new game records with args: '
+            f'{args}'
+        )
+        newgame = None
         with db.atomic():
             try:
-                newgame = Game.create_game(discord_groups, name=game_name, is_ranked=ranked_flag, guild_id=ctx.guild.id, is_mobile=is_mobile, require_teams=settings.guild_setting(ctx.guild.id, 'require_teams'))
-                host_player, _ = Player.get_by_discord_id(discord_id=ctx.author.id, guild_id=ctx.guild.id)
+                newgame, warnings = Game.create_game(
+                    discord_groups, name=game_name, is_ranked=ranked_flag,
+                    guild_id=ctx.guild.id, is_mobile=is_mobile,
+                    mod_override=settings.is_mod(ctx.author)
+                )
+                if warnings:
+                    await ctx.send('\n'.join(warnings))
+                host_player, _ = Player.get_by_discord_id(
+                    discord_id=ctx.author.id, guild_id=ctx.guild.id
+                )
                 if host_player:
                     newgame.host = host_player
                     newgame.save()
@@ -1534,10 +1534,18 @@ class polygames(commands.Cog):
             except (peewee.PeeweeException, exceptions.CheckFailedError) as e:
                 logger.error(f'Error creating new game: {e}')
                 await ctx.send(f'Error creating new game: {e}')
-                newgame = None
+            except ValueError as e:
+                await ctx.send(e)
 
         if newgame:
-            models.GameLog.write(game_id=newgame, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} created game with `{ctx.invoked_with}` command with name *{discord.utils.escape_markdown(newgame.name)}*')
+            models.GameLog.write(
+                game_id=newgame, guild_id=ctx.guild.id,
+                message=(
+                    f'{models.GameLog.member_string(ctx.author)} created '
+                    f'game with `{ctx.invoked_with}` command with name '
+                    f'*{discord.utils.escape_markdown(newgame.name)}*'
+                )
+            )
             await post_newgame_messaging(ctx, game=newgame)
 
     @settings.in_bot_channel()
@@ -1590,7 +1598,7 @@ class polygames(commands.Cog):
                 reset_confirmations_flag = True
 
         if winning_game.is_pending:
-            return await ctx.send(f'This game has not started yet.')
+            return await ctx.send('This game has not started yet.')
 
         utilities.lock_game(winning_game.id)
 
@@ -1603,7 +1611,7 @@ class polygames(commands.Cog):
         else:
             if not has_player:
                 utilities.unlock_game(winning_game.id)
-                return await ctx.send(f'You were not a participant in this game.')
+                return await ctx.send('You were not a participant in this game.')
 
             if reset_confirmations_flag:
                 winning_game.confirmations_reset()
@@ -1617,7 +1625,7 @@ class polygames(commands.Cog):
             (confirmed_count, side_count, fully_confirmed) = winning_game.confirmations_count()
 
             if fully_confirmed:
-                await ctx.send(f'All sides have confirmed this victory. Good game!')
+                await ctx.send('All sides have confirmed this victory. Good game!')
                 confirm_win = True
             else:
                 confirm_win = False
@@ -1636,7 +1644,7 @@ class polygames(commands.Cog):
                     # first time this win has been claimed - ping lineup instructions
                     await ctx.send(f'**Game {winning_game.id}** *{winning_game.name}* concluded pending confirmation of winner **{winning_obj.name}**\n'
                         f'To confirm, have opponents use the command __`{ctx.prefix}win {winning_game.id} {printed_side_name}`__\n'
-                        f'If opponents do not dispute the win then the game will be confirmed automatically after a period of time.\n'
+                        'If opponents do not dispute the win then the game will be confirmed automatically after a period of time.\n'
                         f'If this win was claimed falsely please use the `{ctx.prefix}staffhelp` command to contest, or you can cancel your claim with the command `{ctx.prefix}unwin {winning_game.id}`.\n'
                         f'*Game lineup*: {" ".join(winning_game.mentions())}')
 
@@ -1676,7 +1684,7 @@ class polygames(commands.Cog):
         """
 
         if game is None:
-            return await ctx.send(f'No matching game was found.')
+            return await ctx.send('No matching game was found.')
 
         if game.is_pending:
             return await ctx.send(f'Game {game.id} is marked as *pending / not started*. This command cannot be used.')
@@ -1857,7 +1865,7 @@ class polygames(commands.Cog):
             if game_id:
                 game = await PolyGame().convert(ctx, int(game_id), allow_cross_guild=False)
                 if not await settings.is_bot_channel_strict(ctx):
-                    return await ctx.send(f'This command must be used in a bot spam channel or in a game-specific channel.')
+                    return await ctx.send('This command must be used in a bot spam channel or in a game-specific channel.')
             else:
                 ctx.command.reset_cooldown(ctx)
                 return await ctx.send(f'Game ID was not included and this does not appear to be a game-specific channel.\n{usage}')
@@ -1866,13 +1874,13 @@ class polygames(commands.Cog):
             logger.debug(f'Inferring game {inferred_game.id} from rename command used in channel {ctx.message.channel.id}')
 
         if game.is_pending:
-            return await ctx.send(f'This game has not started yet.')
+            return await ctx.send('This game has not started yet.')
 
         if not new_game_name:
             return await ctx.send(usage)
         if new_game_name.upper() == 'NONE':
             if settings.get_user_level(ctx.author) <= 3:
-                return await ctx.send(f'You do not have permissions to delete a game name.')
+                return await ctx.send('You do not have permissions to delete a game name.')
             new_game_name = None
         is_hosted_by, host = game.is_hosted_by(ctx.author.id)
         if not is_hosted_by and not settings.is_staff(ctx.author) and not game.is_created_by(discord_id=ctx.author.id):
@@ -1882,7 +1890,7 @@ class polygames(commands.Cog):
             if settings.get_user_level(ctx.author) <= 2:
                 return await ctx.send('That name looks made up. :thinking: You need to manually create the game __in Polytopia__, come back and input the name of the new game you made.\n'
                     f'You can use `{ctx.prefix}code NAME` to get the code of each player in this game.')
-            await ctx.send(f':warning: That game name looks made up - you are allowed to override due to your user level.')
+            await ctx.send(':warning: That game name looks made up - you are allowed to override due to your user level.')
 
         old_game_name = game.name
         game.name = new_game_name
@@ -2109,7 +2117,7 @@ async def post_win_messaging(guild, prefix, current_chan, winning_game):
         reminder_message = f'\n:bulb: This game looks like an incorrectly named **Season Game**! You might want to use `{prefix}rename` and include the season tag at the beginning.'
 
     await winning_game.update_squad_channels(guild_list=settings.bot.guilds, guild_id=guild.id, message=f'The game is over with **{winning_game.winner.name()}** victorious. {purge_message}')
-    models.GameLog.write(game_id=winning_game.id, guild_id=winning_game.guild_id, message=f'Win is confirmed and ELO changes processed.')
+    models.GameLog.write(game_id=winning_game.id, guild_id=winning_game.guild_id, message='Win is confirmed and ELO changes processed.')
     embed, content = winning_game.embed(guild=guild, prefix=prefix)
 
     for l in winning_game.lineup:
@@ -2128,7 +2136,7 @@ async def post_win_messaging(guild, prefix, current_chan, winning_game):
 
 async def post_unwin_messaging(guild, prefix, current_chan, game, previously_confirmed: bool = False):
 
-    await game.update_squad_channels(guild_list=settings.bot.guilds, guild_id=guild.id, message=f'The game has reset to *Incomplete* status.')
+    await game.update_squad_channels(guild_list=settings.bot.guilds, guild_id=guild.id, message='The game has reset to *Incomplete* status.')
 
     if previously_confirmed:
         for l in game.lineup:
@@ -2159,7 +2167,7 @@ async def post_newgame_messaging(ctx, game):
             game.save()
         else:
             await ctx.send(embed=embed, content=content)
-            await ctx.send(f'Error loading game announcement channel from server settings. Please inform the bot owner.')
+            await ctx.send('Error loading game announcement channel from server settings. Please inform the bot owner.')
             logger.error(f'Could not load game_announce_channel channel for guild {ctx.guild.id}')
 
     else:

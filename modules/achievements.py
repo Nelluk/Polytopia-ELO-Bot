@@ -157,7 +157,7 @@ async def set_experience_role(discord_member):
             except discord.DiscordException as e:
                 logger.warning(f'Error during set_experience_role for guild {guild.id} member {member.display_name}: {e}')
         else:
-            logger.debug(f'No achievement roles to change')
+            logger.debug('No achievement roles to change')
 
         max_local_elo = models.Player.select(peewee.fn.Max(models.Player.elo_moonrise)).where(models.Player.guild_id == guild.id).scalar()
         max_global_elo = models.DiscordMember.select(peewee.fn.Max(models.DiscordMember.elo_moonrise)).scalar()

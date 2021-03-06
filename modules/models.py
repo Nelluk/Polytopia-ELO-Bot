@@ -5,7 +5,7 @@ import datetime
 import logging
 import os
 import re
-from typing import Dict, Any
+from typing import Any, Dict, List
 
 import discord
 from discord.ext import commands
@@ -615,7 +615,7 @@ class Player(BaseModel):
     def is_in_team(guild_id, discord_member):
         _, list_of_teams = Player.get_teams_of_players(guild_id=guild_id, list_of_players=[discord_member])
         if not list_of_teams or None in list_of_teams:
-            logger.debug(f'is_in_team: False / None')
+            logger.debug('is_in_team: False / None')
             return (False, None)
         logger.debug(f'is_in_team: True / {list_of_teams[0].id} {list_of_teams[0].name}')
         return (True, list_of_teams[0])
@@ -918,13 +918,14 @@ class Game(BaseModel):
     size = ArrayField(SmallIntegerField, default=[0])
     is_mobile = BooleanField(default=True)
 
-    def as_json(self) -> Dict[str, Any]:
+    def as_json(self, include_users: bool = False) -> Dict[str, Any]:
         """Get the game as a dict for returning from the API."""
-        sides = [
-            side.as_json() for side in GameSide.select().where(
-                GameSide.game == self
-            )
-        ]
+        sides = []
+        for side in GameSide.select().where(GameSide.game == self):
+            sides.append(side.as_json())
+        win_time = (
+            self.win_claimed_ts.timestamp() if self.win_claimed_ts else None
+        )
         return {
             'id': self.id,
             'guild_id': self.guild_id,
@@ -936,6 +937,7 @@ class Game(BaseModel):
             'name': self.name,
             'notes': self.notes,
             'winner': self.winner.id if self.winner else None,
+            'win_claimed_at': win_time,
             'size': self.size,
             'sides': sides
         }
@@ -1335,7 +1337,7 @@ class Game(BaseModel):
         content_str = None
 
         if self.expiration < datetime.datetime.now():
-            expiration_str = f'*Expired*'
+            expiration_str = '*Expired*'
             status_str = 'Expired'
         else:
             expiration_str = f'{int((self.expiration - datetime.datetime.now()).total_seconds() / 3600.0)} hours'
@@ -1481,17 +1483,17 @@ class Game(BaseModel):
                 else:
                     # Player(s) can't be matched to team, but server setting allows that.
                     intermingled_flag = True
-                    logger.debug(f'setting intermingled_flag due to None in list_of_teams')
+                    logger.debug('setting intermingled_flag due to None in list_of_teams')
             if not same_team:
                 # Mixed players within same side
                 intermingled_flag = True
-                logger.debug(f'setting intermingled_flag due to mixed teams in discord group')
+                logger.debug('setting intermingled_flag due to mixed teams in discord group')
 
             if not intermingled_flag:
                 if list_of_teams[0] in list_of_detected_teams:
                     # Detected team already present (ie. Ronin players vs Ronin players)
                     intermingled_flag = True
-                    logger.debug(f'setting intermingled_flag due to same team being present multiple times')
+                    logger.debug('setting intermingled_flag due to same team being present multiple times')
                 else:
                     list_of_detected_teams.append(list_of_teams[0])
 
@@ -1515,10 +1517,65 @@ class Game(BaseModel):
         logger.debug(f'pregame_check returning {teams_for_each_discord_member} // {list_of_final_teams}')
         return (teams_for_each_discord_member, list_of_final_teams)
 
-    def create_game(discord_groups, guild_id, name: str = None, require_teams: bool = False, is_ranked: bool = True, is_mobile: bool = True):
-        # discord_groups = list of lists [[d1, d2, d3], [d4, d5, d6]]. each item being a discord.Member object
-
-        teams_for_each_discord_member, list_of_final_teams = Game.pregame_check(discord_groups, guild_id, require_teams)
+    def create_game(
+            discord_groups: List[List[discord.Member]], guild_id: int,
+            name: str = None, is_ranked: bool = True, is_mobile: bool = True,
+            mod_override: bool = False):
+        if not name:
+            raise ValueError('Game must have a name.')
+        if len(discord_groups) < 2:
+            raise ValueError('Game must have at least two sides.')
+        warnings = []
+        flat_ids = []
+        for side in discord_groups:
+            for member in side:
+                if member.id in flat_ids:
+                    raise ValueError('Can\'t have duplicated players.')
+                banned = (
+                    member.id in settings.discord_id_ban_list
+                    or discord.utils.get(member.roles, name='ELO Banned')
+                )
+                if banned:
+                    if mod_override:
+                        warnings.append(
+                            f'**{member.display_name}** has been ELO banned, '
+                            'but you have overridden this.'
+                        )
+                    else:
+                        raise ValueError(
+                            f'**{member.display_name}** is ELO banned and '
+                            'cannot join games.'
+                        )
+                flat_ids.append(member.id)
+        if len(flat_ids) > settings.max_game_size:
+            if mod_override:
+                warnings.append(
+                    'Warning: maximum players per game is '
+                    f'{settings.max_game_size}, but you have overriden this.'
+                )
+            else:
+                raise ValueError(
+                    f'Maximum players per game is {settings.max_game_size}.'
+                )
+        shape = [len(group) for group in discord_groups]
+        if len(set(shape)) > 1:
+            if settings.guild_setting(guild_id, 'allow_uneven_teams'):
+                warnings.append(
+                    'Warning: uneven teams. This is allowed, but may not '
+                    'be what you want.'
+                )
+            else:
+                raise ValueError('This server does not allow uneven teams.')
+        max_team_size = settings.guild_setting(guild_id, 'max_team_size')
+        if max(shape) > max_team_size:
+            raise ValueError(
+                'This server does not allow teams with over '
+                f'{max_team_size} members.'
+            )
+        teams_for_each_discord_member, list_of_final_teams = Game.pregame_check(
+            discord_groups, guild_id,
+            settings.guild_setting(guild_id, 'require_teams')
+        )
         logger.debug(f'teams_for_each_discord_member: {teams_for_each_discord_member}\nlist_of_final_teams: {list_of_final_teams}')
 
         with db.atomic():
@@ -1526,7 +1583,7 @@ class Game(BaseModel):
                                   guild_id=guild_id,
                                   is_ranked=is_ranked,
                                   is_mobile=is_mobile,
-                                  size=[len(g) for g in discord_groups])
+                                  size=shape)
 
             side_position = 1
             for team_group, allied_team, discord_group in zip(teams_for_each_discord_member, list_of_final_teams, discord_groups):
@@ -1556,7 +1613,7 @@ class Game(BaseModel):
                 for player in player_group:
                     Lineup.create(game=newgame, gameside=gameside, player=player)
 
-        return newgame
+        return newgame, warnings
 
     def reverse_elo_changes(self):
         logger.debug(f'reverse_elo_changes for game {self.id}')
@@ -1684,7 +1741,7 @@ class Game(BaseModel):
             if confirm is True:
                 if self.is_confirmed:
                     # Without this check, possible for a race condition in which two $win commands are issued near-simultaneously and ELO changes are double counted
-                    raise exceptions.CheckFailedError(f'Cannot process win. This may happen if this game is closed by multiple people at the same time.')
+                    raise exceptions.CheckFailedError('Cannot process win. This may happen if this game is closed by multiple people at the same time.')
 
                 if not self.completed_ts:
                     self.completed_ts = datetime.datetime.now()  # will be preserved if ELO is re-calculated after initial win.
@@ -1756,7 +1813,7 @@ class Game(BaseModel):
                             p.change_elo_after_game(side_win_chances_discord_alltime[i], is_winner, by_discord_member=True, alltime=True, moonrise=False)
                             if self.is_post_moonrise():
                                 if smallest_side == 1 and self.guild_id in [settings.server_ids['polychampions']]:
-                                    logger.info(f'Skipping local ELO for non-team game (polychampions-specific rule')
+                                    logger.info('Skipping local ELO for non-team game (polychampions-specific rule')
                                 else:
                                     p.change_elo_after_game(side_win_chances[i], is_winner, alltime=False, moonrise=True)
                                 p.change_elo_after_game(side_win_chances_discord[i], is_winner, by_discord_member=True, alltime=False, moonrise=True)
@@ -2168,10 +2225,10 @@ class Game(BaseModel):
         ).distinct()
 
         if len(query) == 0:
-            raise exceptions.NoMatches(f'No matching game found for given channel')
+            raise exceptions.NoMatches('No matching game found for given channel')
         if len(query) > 1:
             logger.warning(f'by_channel_id - More than one game matches channel ID {chan_id}')
-            raise exceptions.TooManyMatches(f'More than game found with this associated channel')
+            raise exceptions.TooManyMatches('More than game found with this associated channel')
 
         return query[0]
 
@@ -2193,12 +2250,12 @@ class Game(BaseModel):
                 logger.debug(f'by_channel_or_arg found game {game.id} by chan_id {chan_id}')
                 return game
             except exceptions.NoSingleMatch:
-                logger.debug(f'by_channel_or_arg - failed channel lookup')
+                logger.debug('by_channel_or_arg - failed channel lookup')
 
         if not arg:
-            logger.debug(f'by_channel_or_arg - no arg provided')
+            logger.debug('by_channel_or_arg - no arg provided')
             if chan_id:
-                raise exceptions.NoMatches(f'No game found related to the current channel.')
+                raise exceptions.NoMatches('No game found related to the current channel.')
             else:
                 raise ValueError('No argument supplied to search for channel.')
 
@@ -2213,7 +2270,7 @@ class Game(BaseModel):
             logger.debug(f'by_channel_or_arg found game {game.id} by arg {numeric_arg}')
             return game
         except DoesNotExist:
-            logger.debug(f'by_channel_or_arg - failed lookup by numeric arg')
+            logger.debug('by_channel_or_arg - failed lookup by numeric arg')
             raise exceptions.NoMatches(f'No game found matching game ID `{int(arg)}`.')
 
     def by_opponents(player_lists):
@@ -2273,13 +2330,13 @@ class Game(BaseModel):
         for g in games:
             full_game = Game.load_full_game(game_id=g.id)
             full_game.declare_winner(winning_side=full_game.winner, confirm=True)
-        elo_logger.debug(f'recalculate_elo_since complete')
+        elo_logger.debug('recalculate_elo_since complete')
 
     def recalculate_all_elo():
         # Reset all ELOs to 1000, reset completed game counts, and re-run Game.declare_winner() on all qualifying games
 
         logger.warning('Resetting and recalculating all ELO')
-        elo_logger.info(f'recalculate_all_elo')
+        elo_logger.info('recalculate_all_elo')
         settings.recalculation_mode = True
 
         with db.atomic():
@@ -2308,7 +2365,7 @@ class Game(BaseModel):
                 full_game.declare_winner(winning_side=full_game.winner, confirm=True)
 
         settings.recalculation_mode = False
-        elo_logger.info(f'recalculate_all_elo complete')
+        elo_logger.info('recalculate_all_elo complete')
 
     def first_open_side(self, roles):
 
@@ -2352,7 +2409,7 @@ class Game(BaseModel):
         players, capacity = self.capacity()
 
         if not self.is_pending:
-            return (None, [f'The game has already started and can no longer be joined.'])
+            return (None, ['The game has already started and can no longer be joined.'])
 
         player, _ = Player.get_by_discord_id(discord_id=member.id, discord_name=member.name, discord_nick=member.nick, guild_id=member.guild.id)
         if not player:
@@ -2856,11 +2913,19 @@ class GameSide(BaseModel):
     win_confirmed = BooleanField(default=False)
     team_chan_external_server = BitField(unique=False, null=True, default=None)
 
-    def as_json(self) -> Dict[str, Any]:
-        """Get the game side as a dict for returning from the API."""
+    def as_json(self) -> tuple[list[Player], Dict[str, Any]]:
+        """Get the game side as a dict for returning from the API.
+
+        Also returns a list of referenced players.
+        """
         members = [
-            member.id for member in
-            Lineup.select().where(Lineup.gameside == self)
+            game_player.player.discord_member.discord_id
+            for game_player in
+            Lineup
+                .select()
+                .join(Player)
+                .join(DiscordMember)
+                .where(Lineup.gameside == self)
         ]
         return {
             'id': self.id,
@@ -2924,7 +2989,7 @@ class GameSide(BaseModel):
         elif not by_discord_member and not alltime:
             elo_list = [l.player.elo for l in self.lineup] if self.game.date < settings.moonrise_reset_date else [l.player.elo_moonrise for l in self.lineup]
         else:
-            raise ValueError(f'average_elo: should not be here!')
+            raise ValueError('average_elo: should not be here!')
 
         return int(round(sum(elo_list) / len(elo_list)))
 

@@ -46,4 +46,4 @@ def initialize_data():
             with models.db.atomic():
                 models.Tribe.create(name=tribe)
         except peewee.IntegrityError:
-            print(f'Already exists in database')
+            print('Already exists in database')

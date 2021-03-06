@@ -50,14 +50,14 @@ def get_channel_category(guild, team_name: str = None, using_team_server_flag: b
             if 'polychamp' in cat.name.lower() and team_name_lc in cat.name.lower():
                 logger.debug(f'Using {cat.id} - {cat.name} as a team channel category')
                 if len(cat.channels) >= 50:
-                    logger.warning(f'Chosen category is full - falling back')
+                    logger.warning('Chosen category is full - falling back')
                     continue
                 return cat, True
         for cat in guild.categories:
             if team_name_lc in cat.name.lower():
                 logger.debug(f'Using {cat.id} - {cat.name} as a team channel category')
                 if len(cat.channels) >= 50:
-                    logger.warning(f'Chosen category is full - falling back')
+                    logger.warning('Chosen category is full - falling back')
                     continue
                 return cat, True
         if team_name in list_of_generic_team_names and using_team_server_flag:
@@ -65,7 +65,7 @@ def get_channel_category(guild, team_name: str = None, using_team_server_flag: b
                 if 'polychamp' in cat.name.lower() and 'other' in cat.name.lower():
                     logger.debug(f'Mixed team - Using {cat.id} - {cat.name} as a team channel category')
                     if len(cat.channels) >= 50:
-                        logger.warning(f'Chosen category is full - falling back')
+                        logger.warning('Chosen category is full - falling back')
                         continue
                     return cat, True
 
@@ -92,7 +92,7 @@ def get_channel_category(guild, team_name: str = None, using_team_server_flag: b
 async def create_game_channel(guild, game, player_list, team_name: str = None, using_team_server_flag: bool = False):
     chan_cat, team_cat_flag = get_channel_category(guild, team_name, using_team_server_flag)
     if chan_cat is None:
-        logger.error(f'in create_squad_channel - cannot proceed due to None category')
+        logger.error('in create_squad_channel - cannot proceed due to None category')
         return None
 
     if game.name.upper()[:3] == 'LR1' and guild.id == settings.server_ids['polychampions']:
