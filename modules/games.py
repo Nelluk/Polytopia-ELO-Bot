@@ -9,6 +9,7 @@ import peewee
 import modules.models as models
 from modules.models import Game, db, Player, Team, DiscordMember, Squad, GameSide, Tribe, Lineup
 from modules.league import auto_grad_novas, populate_league_team_channels, get_team_leadership
+from itertools import groupby
 import logging
 import datetime
 import asyncio
@@ -1467,8 +1468,10 @@ class polygames(commands.Cog):
             args_list = [str(ctx.author.id), 'vs', args[0]]
         else:
             args_list = list(args)
-        player_groups = [[]]
+
         player_groups = [list(group) for k, group in groupby(args_list, lambda x: x.lower() in ('vs', 'versus')) if not k]
+        # split ['foo', 'bar', 'vs', 'baz', 'bat'] into [['foo', 'bar']['baz', 'bat']]
+
         total_players = sum(map(len, player_groups))
         game_allowed, join_error_message = settings.can_user_join_game(
             user_level=settings.get_user_level(ctx.author), game_size=total_players, is_ranked=ranked_flag, is_host=True
