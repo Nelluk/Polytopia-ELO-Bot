@@ -1431,13 +1431,8 @@ class polygames(commands.Cog):
             'newgameunranked', 'newsteamgameunranked']
         is_mobile = ctx.invoked_with in ['newgame', 'newgameunranked']
 
-        example_usage = (
-            'Example usage:\n'
-            f'`{ctx.prefix}newgame "Name of Game" player1 VS player2` - '
-            'Start a 1v1 game\n'
-            f'`{ctx.prefix}newgame "Name of Game" player1 player2 VS '
-            'player3 player4` - Start a 2v2 game'
-        )
+        example_usage = (f'Example usage:\n`{ctx.prefix}newgame "Name of Game" player1 VS player2` - Start a 1v1 game\n'
+                         f'`{ctx.prefix}newgame "Name of Game" player1 player2 VS player3 player4` - Start a 2v2 game')
 
         if settings.get_user_level(ctx.author) <= 2:
             return await ctx.send(
@@ -1473,14 +1468,8 @@ class polygames(commands.Cog):
         else:
             args_list = list(args)
         player_groups = [[]]
-        total_players = 0
-        for arg in args_list:
-            if arg in ('vs', 'versus'):
-                player_groups.append([])
-            else:
-                total_players += 1
-                player_groups[-1].append(arg)
-
+        player_groups = [list(group) for k, group in groupby(args_list, lambda x: x.lower() in ('vs', 'versus')) if not k]
+        total_players = sum(map(len, player_groups))
         game_allowed, join_error_message = settings.can_user_join_game(
             user_level=settings.get_user_level(ctx.author), game_size=total_players, is_ranked=ranked_flag, is_host=True
         )
