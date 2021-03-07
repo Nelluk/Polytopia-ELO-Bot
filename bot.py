@@ -19,10 +19,12 @@ from modules import initialize_data, models, utilities
 handler = RotatingFileHandler(filename='logs/full_bot.log', encoding='utf-8', maxBytes=1024 * 1024 * 2, backupCount=10)
 partial_handler = RotatingFileHandler(filename='logs/discord.log', encoding='utf-8', maxBytes=1024 * 1024 * 2, backupCount=10)  # without peewee logging
 elo_handler = RotatingFileHandler(filename='logs/elo.log', encoding='utf-8', maxBytes=1024 * 1024 * 2, backupCount=5)
+api_handler = RotatingFileHandler(filename='logs/api.log', encoding='utf-8', maxBytes=1024 * 1024 * 2, backupCount=5)
 
 handler.setFormatter(logging.Formatter('%(asctime)s:%(levelname)s:%(name)s: %(message)s'))
 partial_handler.setFormatter(logging.Formatter('%(asctime)s:%(levelname)s:%(name)s: %(message)s'))
 elo_handler.setFormatter(logging.Formatter('%(asctime)s:%(levelname)s:%(name)s: %(message)s'))
+api_handler.setFormatter(logging.Formatter('%(asctime)s:%(levelname)s:%(name)s: %(message)s'))
 
 my_logger = logging.getLogger('polybot')
 my_logger.setLevel(logging.DEBUG)
@@ -32,6 +34,10 @@ my_logger.addHandler(partial_handler)
 elo_logger = logging.getLogger('polybot.elo')
 elo_logger.setLevel(logging.DEBUG)
 elo_logger.addHandler(elo_handler)
+
+api_logger = logging.getLogger('polybot.api')
+api_logger.setLevel(logging.DEBUG)
+api_logger.addHandler(api_handler)
 
 err = logging.StreamHandler(sys.stderr)
 err.setLevel(logging.ERROR)

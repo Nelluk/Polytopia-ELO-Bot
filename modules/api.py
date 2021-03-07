@@ -1,6 +1,7 @@
 """Read-only HTTP API for bot data."""
 import asyncio
 import configparser
+import logging
 from pathlib import Path
 from typing import List
 
@@ -13,6 +14,8 @@ import pydantic
 
 from .models import ApiApplication, DiscordMember, Game
 
+
+api_logger = logging.getLogger('polybot.api')
 
 server = FastAPI()
 security = HTTPBasic()
@@ -61,7 +64,10 @@ async def get_scopes(
         credentials.username, credentials.password
     )
     if app:
+        api_logger.info(f'Successful app authentication for user {credentials.username}')
         return app.scopes.split()
+
+    api_logger.warning(f'Failed app authentication attempted with user {credentials.username}')
     raise HTTPException(
         status_code=401,
         detail='Incorrect app ID or token.',
@@ -75,6 +81,7 @@ async def startup():
     global client
     loop = asyncio.get_running_loop()
     client = discord.Client(loop=loop)
+    api_logger.debug(f'starting up')
     loop.create_task(client.start(config['DEFAULT']['discord_key']))
 
 
@@ -83,12 +90,16 @@ async def get_user(
         discord_id: int, scopes: List[str] = Depends(get_scopes)) -> dict:
     """Get a user by discord ID."""
     if 'users:read' not in scopes:
+        api_logger.warning(f'FAILED users:read call attempted on discord_id {discord_id}')
         raise HTTPException(
             status_code=403, detail='Not authorised for scope users:read.'
         )
     user = DiscordMember.get_or_none(DiscordMember.discord_id == discord_id)
     if user:
+        api_logger.info(f'users:read call returned on discord_id {discord_id}')
         return user.as_json(include_games='games:read' in scopes)
+
+    api_logger.debug(f'Failed (not found) users:read call attempted on discord_id {discord_id}')
     raise HTTPException(status_code=404, detail='User not found.')
 
 
@@ -97,12 +108,16 @@ async def get_game(
         game_id: int, scopes: List[str] = Depends(get_scopes)) -> dict:
     """Get a game by ID."""
     if 'games:read' not in scopes:
+        api_logger.warning(f'FAILED games:read call attempted on game_id {game_id}')
         raise HTTPException(
             status_code=403, detail='Not authorised for scope games:read.'
         )
     game = Game.get_or_none(Game.id == game_id)
     if game:
+        api_logger.info(f'games:read call returned on game_id {game_id}')
         return game.as_json()
+
+    api_logger.debug(f'Failed (not found) games:read call attempted on game_id {game_id}')
     raise HTTPException(status_code=404, detail='Game not found.')
 
 
@@ -110,7 +125,11 @@ async def get_game(
 async def new_game(
         game: NewGame, scopes: List[str] = Depends(get_scopes)) -> dict:
     """Create a new game, adding the users to it."""
+
+    api_logger.info(f'games-write attempted with game info: {game.game_name} / {game.guild_id} / {game.sides_discord_ids}')
+
     if 'games:new' not in scopes:
+        api_logger.warning('FAILED games:write call (unauthorized)')
         raise HTTPException(
             status_code=403, detail='Not authorised for scope games:new.'
         )
@@ -130,8 +149,11 @@ async def new_game(
             is_mobile=game.is_mobile
         )
     except ValueError as e:
+        api_logger.error(f'FAILED games:write call (creation error): {e}')
         raise HTTPException(status_code=400, detail=str(e))
     if game.notes:
         db_game.notes = game.notes
         db_game.save()
+
+    api_logger.info(f'Game ID {db_game.id} created successfully')
     return {'game_id': db_game.id}

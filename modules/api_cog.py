@@ -1,8 +1,11 @@
 """Discord.py extension for managing API applications."""
 import discord
+import logging
 from discord.ext import commands
 
 from . import models
+
+api_logger = logging.getLogger('polybot.api')
 
 
 class Api(commands.Cog, name='api'):
@@ -23,6 +26,8 @@ class Api(commands.Cog, name='api'):
 
         Example: `[p]add-app @Legorooj Awesome Bot 3000`
         """
+
+        api_logger.debug(f'{ctx.invoked_with} invoked by {ctx.author}')
         owner_member = models.DiscordMember.get_or_none(
             models.DiscordMember.discord_id == owner.id
         )
@@ -32,6 +37,8 @@ class Api(commands.Cog, name='api'):
             )
         app = models.ApiApplication.create(owner=owner_member, name=name)
         app.generate_new_token()
+
+        api_logger.debug(f'App "{name}" created for {owner.display_name}')
         await ctx.send(
             f'Created app **{name}** for **{owner.display_name}**.'
         )
@@ -43,6 +50,8 @@ class Api(commands.Cog, name='api'):
 
         Example: `[p]all-apps`
         """
+
+        api_logger.debug(f'{ctx.invoked_with} invoked by {ctx.author}')
         embed = discord.Embed(title='API Apps')
         for app in models.ApiApplication.select().join(models.DiscordMember):
             embed.add_field(
@@ -64,6 +73,8 @@ class Api(commands.Cog, name='api'):
 
         Example: `[p]del-app 5`
         """
+
+        api_logger.debug(f'{ctx.invoked_with} invoked by {ctx.author} for app {app.name}')
         name = app.name
         app.delete_instance()
         await ctx.send(f'Deleted app **{name}**.')
@@ -80,6 +91,8 @@ class Api(commands.Cog, name='api'):
         Note that this also removes any scopes the app previously had access
         to - you must specify them all in the same command.
         """
+
+        api_logger.debug(f'{ctx.invoked_with} invoked by {ctx.author} for scopes {scopes} on app {app.name}')
         app.scopes = scopes
         app.save()
         await ctx.send(f'Updated scopes for **{app.name}**.')
@@ -90,6 +103,8 @@ class Api(commands.Cog, name='api'):
 
         Example: `[p]apps`
         """
+
+        api_logger.debug(f'{ctx.invoked_with} invoked by {ctx.author}')
         member = models.DiscordMember.get_or_none(
             ctx.author.id == models.DiscordMember.discord_id
         )
@@ -110,6 +125,8 @@ class Api(commands.Cog, name='api'):
 
         Example: `[p]app-token 3`
         """
+
+        api_logger.debug(f'{ctx.invoked_with} invoked by {ctx.author} for app {app.id}')
         if app.owner.discord_id != ctx.author.id:
             await ctx.send('You don\'t own that app!')
             return

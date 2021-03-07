@@ -27,7 +27,10 @@ class misc(commands.Cog):
     @commands.is_owner()
     async def test(self, ctx, *, args: str = None):
 
-        return await ctx.end('nop')
+        api_logger = logging.getLogger('polybot.api')
+        api_logger.debug('test')
+
+        return await ctx.send('nop')
 
         async with ctx.typing():
             results = ['Resetting elite ELO roles for: ']
