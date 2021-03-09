@@ -11,5 +11,13 @@ You can specify the port/address to bind to with the `--host` and
 from modules.api import server
 from modules.utilities import connect
 
+import logging
+from logging.handlers import RotatingFileHandler
+
+api_handler = RotatingFileHandler(filename='logs/api.log', encoding='utf-8', maxBytes=1024 * 1024 * 2, backupCount=5)
+api_handler.setFormatter(logging.Formatter('%(asctime)s:%(levelname)s:%(name)s: %(message)s'))
+api_logger = logging.getLogger('polybot.api')
+api_logger.setLevel(logging.DEBUG)
+api_logger.addHandler(api_handler)
 
 connect()

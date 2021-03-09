@@ -16,7 +16,7 @@ class Api(commands.Cog, name='api'):
         self.bot = bot
 
     @commands.is_owner()
-    @commands.command(name='add-application', aliases=['add-app'])
+    @commands.command(name='add-application', aliases=['add-app'], hidden=True)
     async def add_application(
             self, ctx: commands.Context, owner: discord.User, *, name: str):
         """Authorise a new application to use the API.
@@ -44,7 +44,7 @@ class Api(commands.Cog, name='api'):
         )
 
     @commands.is_owner()
-    @commands.command(name='all-applications', aliases=['all-apps'])
+    @commands.command(name='all-applications', aliases=['all-apps'], hidden=True)
     async def all_applications(self, ctx: commands.Context):
         """Get a list of every app, its scopes, ID, name and owner.
 
@@ -66,7 +66,7 @@ class Api(commands.Cog, name='api'):
         await ctx.send(embed=embed)
 
     @commands.is_owner()
-    @commands.command(name='delete-application', aliases=['del-app'])
+    @commands.command(name='delete-application', aliases=['del-app'], hidden=True)
     async def delete_application(
             self, ctx: commands.Context, app: models.ApiApplication):
         """Delete an application by ID.
@@ -80,7 +80,7 @@ class Api(commands.Cog, name='api'):
         await ctx.send(f'Deleted app **{name}**.')
 
     @commands.is_owner()
-    @commands.command(name='authorise-application', aliases=['auth-app'])
+    @commands.command(name='authorise-application', aliases=['auth-app'], hidden=True)
     async def authorise_application(
             self, ctx: commands.Context,
             app: models.ApiApplication, *, scopes: str):
@@ -97,7 +97,7 @@ class Api(commands.Cog, name='api'):
         app.save()
         await ctx.send(f'Updated scopes for **{app.name}**.')
 
-    @commands.command(brief='View your apps.')
+    @commands.command(brief='View your apps.', hidden=True)
     async def apps(self, ctx: commands.Context):
         """View all API apps you own.
 
@@ -116,7 +116,7 @@ class Api(commands.Cog, name='api'):
             lines.append(f'`{app.id:>2}` **{app.name}**\n`{app.scopes}`')
         await ctx.send('\n\n'.join(lines))
 
-    @commands.command(brief='Get your app\'s token.', name='app-token')
+    @commands.command(brief='Get your app\'s token.', name='app-token', hidden=True)
     async def app_token(
             self, ctx: commands.Context, *, app: models.ApiApplication):
         """Get the token of an app you own (it will be DMed to you).
@@ -138,7 +138,7 @@ class Api(commands.Cog, name='api'):
         )
         await ctx.send('DMed you.')
 
-    @commands.command(brief='Reset your app\'s token.', name='reset-token')
+    @commands.command(brief='Reset your app\'s token.', name='reset-token', hidden=True)
     async def reset_token(
             self, ctx: commands.Context, *, app: models.ApiApplication):
         """Reset the token of an app you own.
