@@ -315,6 +315,11 @@ class administration(commands.Cog):
 
                 delete_result = []
                 for game in game_list[:500]:
+
+                    if game.is_season_game():
+                        logger.debug(f'task_purge_incomplete: skipping game {game.id} since it is a Season Game')
+                        continue
+
                     game_size = len(game.lineup)
                     rank_str = ' - *Unranked*' if not game.is_ranked else ''
                     if game_size == 2 and game.date < old_60d and not game.is_completed:
