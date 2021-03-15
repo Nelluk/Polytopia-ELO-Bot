@@ -1248,7 +1248,7 @@ class polygames(commands.Cog):
                         in_game_name_str = f'\nSteam name: **{dm_obj.name_steam}**'
                     else:
                         in_game_name_str = '\n *Steam name not set*'
-
+                output = ""
                 if first_loop:
                     # header_str combined with first player's name in order to reduce number of ctx.send() that are done.
                     # More than 3-4 and they will drip out due to API rate limits
@@ -1259,9 +1259,14 @@ class polygames(commands.Cog):
                         tz_str = f'`UTC+{dm_obj.timezone_offset}`' if dm_obj.timezone_offset > 0 else f'`UTC{dm_obj.timezone_offset}`'
                     else:
                         tz_str = ''
-                    await ctx.send(f'**{p["player"].name}**{in_game_name_str} {tz_str}')
+                    output += f'**{p["player"].name}**{in_game_name_str} {tz_str}')
                 if game.is_mobile:
                     await ctx.send(dm_obj.polytopia_name or 'No name set')
+                    try:
+                        output += dm_obj.polytopia_name
+                    except:
+                        output += "No name set"
+                await ctx.send(output)
 
     @commands.command(brief='Set player time zone', usage='UTC±#')
     @models.is_registered_member()
