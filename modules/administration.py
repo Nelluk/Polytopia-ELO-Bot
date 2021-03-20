@@ -75,7 +75,7 @@ class administration(commands.Cog):
         await ctx.send('Shutting down')
         await self.bot.close()
 
-    @settings.is_mod_check()
+    @settings.is_owner()
     @commands.command()
     async def purge_game_channels(self, ctx, *, arg: str = None):
 
@@ -536,7 +536,7 @@ class administration(commands.Cog):
         return await ctx.send(f'Game {game.id}\'s deadline has been extended to **{game.expiration}**. Previous expiration was **{old_expiration}**.')
 
     @commands.command(usage='tribe_name new_emoji')
-    @settings.is_mod_check()
+    @settings.is_owner()
     async def tribe_emoji(self, ctx, tribe_name: str, emoji):
         """*Mod*: Assign an emoji to a tribe
         The emoji chosen will be used on *all* servers that this bot is on.
