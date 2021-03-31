@@ -81,7 +81,7 @@ class misc(commands.Cog):
                     # 'Its primary home is [PolyChampions](https://discord.gg/YcvBheSv), a server focused on team play organized into a league.\n'
                     f'To register as a player with the bot use __`{ctx.prefix}setname Mobile User Name`__ or  __`{ctx.prefix}steamname Steam User Name`__')
 
-        embed = discord.Embed(title='PolyELO Bot Donation Link', url='https://cash.me/$Nelluk/3', description=bot_desc)
+        embed = discord.Embed(title='PolyELO Bot Donation Link', url='https://www.buymeacoffee.com/nelluk', description=bot_desc)
 
         embed.add_field(name='Matchmaking',
             value=f'This helps players organize and find games.\nFor example, use __`{ctx.prefix}opengame 1v1`__ to create an open 1v1 game that others can join.\n'
