@@ -221,13 +221,21 @@ class DiscordMember(BaseModel):
     def as_json(self, include_games: bool) -> Dict[str, Any]:
         """Get the user as a dict for returning from the API."""
         extra = {}
-        if include_games:
-            games = {}
-            for guild_member in self.guildmembers:
+        games = {}
+        teams = {}
+        for guild_member in self.guildmembers:
+            if include_games:
                 games[guild_member.guild_id] = [
                     player.game.id
                     for player in guild_member.lineup
                 ]
+            if guild_member.team:
+                teams[guild_member.guild_id] = {
+                    'name': guild_member.team.name,
+                    'pro': guild_member.team.pro_league,
+                    'hidden': guild_member.team.is_hidden
+                }
+        if include_games:
             extra['games'] = games
         return {
             'discord_id': self.discord_id,
@@ -238,6 +246,7 @@ class DiscordMember(BaseModel):
             'moonrise_elo': self.elo_moonrise,
             'is_banned': self.is_banned,
             'utc_offset': self.timezone_offset,
+            'teams': teams,
             **extra
         }
 
