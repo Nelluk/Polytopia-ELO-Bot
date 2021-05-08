@@ -1,5 +1,6 @@
 import discord
 from discord.ext import commands, tasks
+from PIL import UnidentifiedImageError
 import modules.models as models
 import modules.utilities as utilities
 import settings
@@ -786,6 +787,7 @@ class league(commands.Cog):
 
     @commands.command(usage='', aliases=['trade'])
     # @settings.is_mod_check()
+    @settings.in_bot_channel_strict()
     async def promote(self, ctx, *, args=None):
         """
         *Mod:* Generate a trade or promotion image
@@ -808,9 +810,10 @@ class league(commands.Cog):
 
         import shlex
         args = args.replace("'", "\\'").replace("“", "\"").replace("”", "\"") if args else ''  # Escape single quotation marks for shlex.split() parsing
-        args = shlex.split(args)
-        for arg in args:
-            print(arg)
+        try:
+            args = shlex.split(args)
+        except ValueError as e:
+            return await ctx.send(f'Error parsing arguments: {e}')
 
         if len(args) != 4:
             return await ctx.send(f'Usage error (expected 4 arguments and found {len(args)})\n**Example**: `{ctx.prefix}{ctx.invoked_with} "Top Text" "Bottom Text" @PromotedPlayer Ronin`')
@@ -849,8 +852,10 @@ class league(commands.Cog):
         else:
             arrows = [['r', right_arrow_colour], ['l', left_arrow_colour]]
 
-        print(left_image, right_image)
-        fs = imgen.arrow_card(top_string, bottom_string, left_image, right_image, arrows)
+        try:
+            fs = imgen.arrow_card(top_string, bottom_string, left_image, right_image, arrows)
+        except UnidentifiedImageError:
+            return await ctx.send(f'Image is formatted incorrectly. Use an image URL that links directly to a file.')
         await ctx.send(file=fs)
 
     @commands.command(usage='@Draftee TeamName')

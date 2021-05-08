@@ -91,7 +91,7 @@ poly_id_ban_list = [
     # 'qIqw1okeZZgaFpUL',  # Remalin (skre alt)
     # '815D2hK94mN7StoL',  # Skrealder
     'fOEjbnrzO9tg1QYT',  # Doggo#8422
-    '8ZWg85d9PlogdY1H',  # Stupid#7043
+    # '8ZWg85d9PlogdY1H',  # Stupid#7043
     'R5NregRkLycUsq7C',  # Just7609
     '9x85fWIxxkLyOMem',  # logs#4361
     # 'JU1Zb9jGO4H1I4Ls',  # SouthPenguinJay#3692
