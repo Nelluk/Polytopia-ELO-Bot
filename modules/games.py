@@ -309,7 +309,7 @@ class polygames(commands.Cog):
             leaderboard_query = target_model.leaderboard(date_cutoff=date_cutoff, guild_id=ctx.guild.id, max_flag=max_flag, version=version)
 
             for counter, player in enumerate(leaderboard_query[:2000]):
-                wins, losses = player.get_record()
+                wins, losses = player.get_record(version=version)
                 emoji_str = player.team.emoji if not global_flag and player.team else ''
 
                 leaderboard.append(
