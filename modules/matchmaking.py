@@ -306,6 +306,9 @@ class matchmaking(commands.Cog):
         expiration_hours_override = None
         note_args = []
 
+        if ctx.guild.id == 814317488418193478 and not settings.is_staff(ctx.author):
+            return await ctx.send('For **The Polympics** only server staff may open games.')
+
         if args == 'games':
             return await ctx.invoke(self.bot.get_command('opengames'))
 
