@@ -143,6 +143,7 @@ def guild_setting(guild_id: int, setting_name: str):
 
 
 def servers_included_in_global_lb():
+    # returns [int, int] list of server IDs for the servers that have include_in_global_lb marked as True
     return [server for server, settings in config.items() if settings.get('include_in_global_lb', False)]
 
 
