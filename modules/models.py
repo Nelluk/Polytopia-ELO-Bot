@@ -2131,7 +2131,7 @@ class Game(BaseModel):
 
         if title_filter:
 
-            strip_regexp = re.compile('[^1-9a-zA-Z ]')  # strip out everything except alphanumerics and spaces
+            strip_regexp = re.compile('[^0-9a-zA-Z ]')  # strip out everything except alphanumerics and spaces
             clean_search_terms = strip_regexp.sub('', ' '.join(title_filter)).split()
             search_regexp = '^' + ''.join([f'(?=.*{arg})' for arg in clean_search_terms]) + '.+'
             # https://stackoverflow.com/questions/24656131/regex-for-existence-of-some-words-whose-order-doesnt-matter
