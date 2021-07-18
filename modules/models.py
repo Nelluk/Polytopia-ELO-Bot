@@ -993,7 +993,7 @@ class Game(BaseModel):
             if len(player_list) < 2:
                 continue
             team_name = gameside.team.name if gameside.team else ''
-            if (len(guild.text_channels) > 440 and  # Give server some breathing room for non-game channels
+            if (len(guild.text_channels) > 460 and  # Give server some breathing room for non-game channels
                    len(player_list) < 3 and  # Large-team chans still get created
                    not using_team_server_flag and  # if on external server, skip check
                    'Nova' not in team_name):  # skip check for game chans locked to Nova Blue or Nova Red
