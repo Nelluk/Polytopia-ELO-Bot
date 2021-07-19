@@ -155,7 +155,7 @@ def player_draft_card(
     title = f'{selecting_string.upper()} SELECT'
     player_avatar = fetch_image(str(member.avatar_url_as(
         format='png', size=256
-    )))
+    ))).convert("RGB")
     name = member.name.upper()
     summary = get_player_summary(member)
     wordmark = Image.open('res/pc_wordmark.png')
