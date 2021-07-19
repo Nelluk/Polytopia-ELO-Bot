@@ -104,8 +104,12 @@ class administration(commands.Cog):
         game_side_channels = [gc[0] for gc in game_side_channels]
         common_game_channels = [gc[0] for gc in common_game_channels]
 
+        logger.debug(f'game_side_channels: {game_side_channels}\ncommon_game_channels:{common_game_channels}')
+
         potential_channels = set(category_channels + common_game_channels + game_side_channels)
         channels = [chan for chan in ctx.guild.channels if chan.id in potential_channels]
+
+        logger.debug(f'list of purge candidate channels: {channels}')
 
         await ctx.send(f'Returned {len(channels)} channels (of {len(potential_channels)} potential channels)')
 
