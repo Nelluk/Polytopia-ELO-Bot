@@ -156,6 +156,8 @@ def player_draft_card(
     player_avatar = fetch_image(str(member.avatar_url_as(
         format='png', size=256
     )))
+    if not member.avatar:
+        player_avatar = player_avatar.convert("RGB")
     name = member.name.upper()
     summary = get_player_summary(member)
     wordmark = Image.open('res/pc_wordmark.png')
