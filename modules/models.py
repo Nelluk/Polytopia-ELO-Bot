@@ -605,18 +605,22 @@ class Player(BaseModel):
         list_of_teams = [team.name for team in query]               # ['The Ronin', 'The Jets', ...]
         list_of_matching_teams = []
         for player in list_of_players:
-            matching_roles = get_matching_roles(player, list_of_teams)
-            if len(matching_roles) > 0:
-                # TODO: This would be more efficient to do as one query and then looping over the list of teams one time for each player
-                name = next(iter(matching_roles))
-                list_of_matching_teams.append(
-                    Team.select().where(
-                        (Team.name == name) & (Team.guild_id == guild_id)
-                    ).get()
-                )
-            else:
+            if not player:
                 list_of_matching_teams.append(None)
-                # Would be here if no player Roles match any known teams
+                # Catch case if discord_member = None, which should only be if a player left the server but game is still started
+            else:
+                matching_roles = get_matching_roles(player, list_of_teams)
+                if len(matching_roles) > 0:
+                    # TODO: This would be more efficient to do as one query and then looping over the list of teams one time for each player
+                    name = next(iter(matching_roles))
+                    list_of_matching_teams.append(
+                        Team.select().where(
+                            (Team.name == name) & (Team.guild_id == guild_id)
+                        ).get()
+                    )
+                else:
+                    list_of_matching_teams.append(None)
+                    # Would be here if no player Roles match any known teams
 
         same_team_flag = True if all(x == list_of_matching_teams[0] for x in list_of_matching_teams) else False
         return same_team_flag, list_of_matching_teams
@@ -1541,8 +1545,7 @@ class Game(BaseModel):
                 if member.id in flat_ids:
                     raise ValueError('Can\'t have duplicated players.')
                 banned = (
-                    member.id in settings.discord_id_ban_list
-                    or discord.utils.get(member.roles, name='ELO Banned')
+                    member.id in settings.discord_id_ban_list or discord.utils.get(member.roles, name='ELO Banned')
                 )
                 if banned:
                     if mod_override:

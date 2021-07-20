@@ -988,6 +988,7 @@ class matchmaking(commands.Cog):
                 guild_member = ctx.guild.get_member(gameplayer.player.discord_member.discord_id)
                 if not guild_member:
                     await ctx.send(f'Player *{gameplayer.player.name}* not found on this server. (Maybe they left?) Game will still be created.')
+                    current_side.append(None)
                 else:
                     current_side.append(guild_member)
                     mentions.append(guild_member.mention)
