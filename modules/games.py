@@ -1428,8 +1428,11 @@ class polygames(commands.Cog):
         Use `[p]newgameunranked` to create the game as unranked
         Use `[p]newsteamgame` or `[p]newsteamgameunranked` to specify Steam platform.
         """
-        ranked_flag = not ctx.invoked_with in [
-            'newgameunranked', 'newsteamgameunranked']
+
+        if ctx.guild.id == 814317488418193478 and not settings.is_staff(ctx.author):
+            return await ctx.send('For **The Polympics** only server staff may open games.')
+
+        ranked_flag = not (ctx.invoked_with in ['newgameunranked', 'newsteamgameunranked'])
         is_mobile = ctx.invoked_with in ['newgame', 'newgameunranked']
 
         example_usage = (f'Example usage:\n`{ctx.prefix}newgame "Name of Game" player1 VS player2` - Start a 1v1 game\n'
