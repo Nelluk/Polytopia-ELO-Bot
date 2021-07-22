@@ -191,6 +191,16 @@ class Team(BaseModel):
         loss_count_post = Game.select(Game.id).where(Game.id.in_(losses) & Game.id.in_(post_season_games)).count()
         incomplete_count_post = Game.select(Game.id).where(Game.id.in_(incomplete) & Game.id.in_(post_season_games)).count()
 
+        # DEBUG - REMOVE BLOCK
+        regular_season_games_list = Game.select(Game.id).where(
+            ((Game.id.in_(wins)) | (Game.id.in_(losses)) | (Game.id.in_(incomplete))) & Game.id.in_(regular_season_games)
+        )
+        logger.debug(f'regular season games: {[g.id for g in regular_season_games_list]}')
+        post_season_games_list = Game.select(Game.id).where(
+            ((Game.id.in_(wins)) | (Game.id.in_(losses)) | (Game.id.in_(incomplete))) & Game.id.in_(post_season_games)
+        )
+        logger.debug(f'post season games: {[g.id for g in post_season_games_list]}')
+
         return (win_count_reg, loss_count_reg, incomplete_count_reg, win_count_post, loss_count_post, incomplete_count_post)
 
     def related_external_severs(guild_id: int):
@@ -2669,8 +2679,6 @@ class Game(BaseModel):
         regular_season = Game.select().where(Game.id.in_(full_season) & ~Game.id.in_(playoff_filter))
 
         post_season = Game.select().where(Game.id.in_(full_season) & Game.id.in_(playoff_filter))
-
-        logger.debug(f'polychamps_season_games full season: {[g.id for g in full_season]}')
 
         return (full_season, regular_season, post_season)
 
