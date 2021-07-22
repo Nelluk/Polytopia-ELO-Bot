@@ -172,6 +172,8 @@ class Team(BaseModel):
 
     def get_season_record(self, season=None):
 
+        logger.debug(f'in get_season_record season {season}')
+
         if self.guild_id != settings.server_ids['polychampions'] or self.is_hidden:
             return ()
 
@@ -2668,8 +2670,7 @@ class Game(BaseModel):
 
         post_season = Game.select().where(Game.id.in_(full_season) & Game.id.in_(playoff_filter))
 
-        for g in full_season:
-            logger.debug(f'polychamps_season_games full season: {[g.id for f in full_season]}')
+        logger.debug(f'polychamps_season_games full season: {[g.id for f in full_season]}')
 
         return (full_season, regular_season, post_season)
 
