@@ -295,7 +295,7 @@ class administration(commands.Cog):
         sleep_cycle = (60 * 60 * 2)  # 2 hour cycle
 
         while not self.bot.is_closed():
-            await asyncio.sleep(120)
+            await asyncio.sleep(520)
             logger.debug('Task running: task_purge_incomplete')
 
             old_60d = (datetime.date.today() + datetime.timedelta(days=-60))
