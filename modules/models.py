@@ -2670,7 +2670,7 @@ class Game(BaseModel):
 
         post_season = Game.select().where(Game.id.in_(full_season) & Game.id.in_(playoff_filter))
 
-        logger.debug(f'polychamps_season_games full season: {[g.id for f in full_season]}')
+        logger.debug(f'polychamps_season_games full season: {[g.id for g in full_season]}')
 
         return (full_season, regular_season, post_season)
 
