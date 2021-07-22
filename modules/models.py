@@ -191,16 +191,6 @@ class Team(BaseModel):
         loss_count_post = Game.select(Game.id).where(Game.id.in_(losses) & Game.id.in_(post_season_games)).count()
         incomplete_count_post = Game.select(Game.id).where(Game.id.in_(incomplete) & Game.id.in_(post_season_games)).count()
 
-        # DEBUG - REMOVE BLOCK
-        regular_season_games_list = Game.select(Game.id).where(
-            ((Game.id.in_(wins)) | (Game.id.in_(losses)) | (Game.id.in_(incomplete))) & Game.id.in_(regular_season_games)
-        )
-        logger.debug(f'regular season games: {[g.id for g in regular_season_games_list]}')
-        post_season_games_list = Game.select(Game.id).where(
-            ((Game.id.in_(wins)) | (Game.id.in_(losses)) | (Game.id.in_(incomplete))) & Game.id.in_(post_season_games)
-        )
-        logger.debug(f'post season games: {[g.id for g in post_season_games_list]}')
-
         return (win_count_reg, loss_count_reg, incomplete_count_reg, win_count_post, loss_count_post, incomplete_count_post)
 
     def related_external_severs(guild_id: int):
@@ -409,6 +399,16 @@ class DiscordMember(BaseModel):
         junior_win_count = Game.select(Game.id).where(Game.id.in_(wins) & Game.id.in_(junior_season_games)).count()
 
         junior_loss_count = Game.select(Game.id).where(Game.id.in_(losses) & Game.id.in_(junior_season_games)).count()
+
+        # DEBUG - REMOVE BLOCK
+        pro_season_games_list = Game.select(Game.id).where(
+            ((Game.id.in_(wins)) | (Game.id.in_(losses))) & Game.id.in_(pro_season_games)
+        )
+        logger.debug(f'pro season games: {[g.id for g in pro_season_games_list]}')
+        jr_season_games_list = Game.select(Game.id).where(
+            ((Game.id.in_(wins)) | (Game.id.in_(losses))) & Game.id.in_(junior_season_games)
+        )
+        logger.debug(f'junior season games: {[g.id for g in jr_season_games_list]}')
 
         return {
             'full_record': (total_win_count, total_loss_count),
