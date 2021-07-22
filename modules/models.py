@@ -2630,6 +2630,7 @@ class Game(BaseModel):
         # default season=None returns all seasons (any digit character). Otherwise pass an integer representing season #
         # Returns three lists: ([All season games], [Regular season games], [Post season games])
 
+        logger.debug(f'in polychamps_season_games for league {league} and season {season}')
         if season:
             season_str = str(season)
         else:
@@ -2666,6 +2667,9 @@ class Game(BaseModel):
         regular_season = Game.select().where(Game.id.in_(full_season) & ~Game.id.in_(playoff_filter))
 
         post_season = Game.select().where(Game.id.in_(full_season) & Game.id.in_(playoff_filter))
+
+        for g in full_season:
+            logger.debug(f'polychamps_season_games full season: {[g.id for f in full_season]}')
 
         return (full_season, regular_season, post_season)
 
