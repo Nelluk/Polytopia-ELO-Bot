@@ -2658,9 +2658,9 @@ class Game(BaseModel):
             )
         elif league == 'pro':
             if not season:
-                early_season_str = 'S[1234]'  # pro seasons before S5 had no 'P' designator
+                early_season_str = 'S[1234][^\\d]'  # pro seasons before S5 had no 'P' designator
             elif season and season <= 4:
-                early_season_str = f'S{str(season)}'
+                early_season_str = f'S{str(season)}[^\\d]'
             else:
                 early_season_str = None
 
