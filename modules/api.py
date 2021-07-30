@@ -80,7 +80,7 @@ async def startup():
     """Connect the Discord client."""
     global client
     loop = asyncio.get_running_loop()
-    client = discord.Client(loop=loop)
+    client = discord.Client(loop=loop, intents=discord.Intents.default())
     api_logger.debug(f'starting up')
     loop.create_task(client.start(config['DEFAULT']['discord_key']))
 
