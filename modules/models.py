@@ -1307,7 +1307,9 @@ class Game(BaseModel):
                     embed.add_field(name=f'**{player.name}** {tribe_emoji}', value=f'ELO: {player_elo_str}', inline=True)
                 else:
                     embed.add_field(name=f'__**{player.name}**__ {tribe_emoji}', value=f'ELO: {player_elo_str}', inline=True)
-            use_separator = True
+            if len(game_data) < 12:
+                # avoiding excessive fields for many-sided games
+                use_separator = True
 
         if len(self.gamesides) == 2:
             series_record = self.series_record()
