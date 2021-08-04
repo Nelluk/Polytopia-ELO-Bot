@@ -96,8 +96,8 @@ class administration(commands.Cog):
         game_side_channels = models.GameSide.select(models.GameSide.team_chan).join(models.Game).where(
             (models.Game.is_completed == 0) &
             (models.Game.guild_id == ctx.guild.id) &
-            (models.Game.game_chan > 0) &
-            (models.GameSide.team_chan > 0) &
+            ((models.Game.game_chan > 0) |
+            (models.GameSide.team_chan > 0)) &
             (models.GameSide.team_chan_external_server.is_null(True))
         ).tuples()
 
