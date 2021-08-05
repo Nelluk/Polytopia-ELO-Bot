@@ -27,47 +27,37 @@ class misc(commands.Cog):
     @commands.is_owner()
     async def test(self, ctx, *, args: str = None):
 
-        api_logger = logging.getLogger('polybot.api')
-        api_logger.debug('test')
+        player = models.Player.get_or_except(player_string=ctx.author.id, guild_id=ctx.guild.id)
+        # player.trophies = ['Polympics 2021: 🥇🥈🥈🥉']
+        print(player.trophies)
+        player.trophies.append('foobar')
+        player.save()
 
-        return await ctx.send('nop')
+    @commands.command(hidden=True, aliases=['pt'])
+    @commands.is_owner()
+    async def ptrophies(self, ctx, *, args=None):
 
-        async with ctx.typing():
-            results = ['Resetting elite ELO roles for: ']
-            role_names = ['ELO Rookie', 'ELO Player']
+        usage = f'**Example Usage**: {ctx.prefix}{ctx.invoked_with} @PlayerName 🥇🥈🥈🥉\nUse "None" to clear trophies.\nPlayer can be a raw discord ID. Command must be used by a mod on Polympics server.'
+        args = args.split() if args else []
+        if len(args) != 2:
+            return await ctx.send(f'Wrong number of arguments.\n{usage}')
 
-            for guild in settings.bot.guilds:
-                logger.info(f'Trying role reset for guild {guild.name} - {guild.id}')
-                veteran_role = discord.utils.get(guild.roles, name='ELO Veteran')
-                if not veteran_role:
-                    logger.info(f'Skipping role reset for guild {guild.name} - no Veteran role')
-                    continue
+        p_id = utilities.string_to_user_id(args[0])
+        if not p_id:
+            return await ctx.send(f'Could not parse a discord ID or player mention.\n{usage}')
 
-                elite_roles = [discord.utils.get(guild.roles, name=r) for r in role_names]
-                elite_roles = [r for r in elite_roles if r]  # remove Nones
-                members = []
-                for role in elite_roles:
-                    if not role:
-                        continue
-                    members.extend(role.members)
+        try:
+            dm = models.DiscordMember.select().where(models.DiscordMember.discord_id == p_id).get()
+            original_trophies = dm.trophies
+        except peewee.DoesNotExist:
+            return await ctx.send(f'Could not find a DiscordMember in the database matching discord id `{p_id}`')
 
-                logger.debug(f'Elite members: {members}')
+        if args[1].upper() == 'NONE':
+            trophies_value = None
+        else:
+            trophies_value = args[1]
 
-                for member in members:
-
-                    new_member_roles = member.roles.copy()
-                    new_member_roles = [r for r in new_member_roles if r not in elite_roles]
-                    new_member_roles.append(veteran_role)
-
-                    try:
-                        logger.debug(f'Attempting to update member {member.display_name} role set to {new_member_roles}')
-                        await member.edit(roles=new_member_roles, reason='Resetting elite ELO achievement roles')
-                        results.append(f'**{member.display_name}**')
-                    except discord.DiscordException as e:
-                        logger.warning(f'Error during role reset for guild {guild.id}: {e}')
-                        continue
-
-            await utilities.buffered_send(destination=ctx, content=', '.join(results))
+        print(trophies_value)
 
     @commands.command(usage=None)
     @settings.in_bot_channel_strict()

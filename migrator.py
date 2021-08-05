@@ -70,14 +70,17 @@ db.connect(reuse_if_open=True)
 # elo_after_game_alltime = SmallIntegerField(default=None, null=True)  # snapshot of what local alltime elo was after game concluded
 # elo_after_game_global_alltime = SmallIntegerField(default=None, null=True)
 
-elo_moonrise = SmallIntegerField(default=1000)
-elo_max_moonrise = SmallIntegerField(default=1000)
+# elo_moonrise = SmallIntegerField(default=1000)
+# elo_max_moonrise = SmallIntegerField(default=1000)
 
-elo_change_player_moonrise = SmallIntegerField(default=0)
-elo_change_discordmember_moonrise = SmallIntegerField(default=0)
+# elo_change_player_moonrise = SmallIntegerField(default=0)
+# elo_change_discordmember_moonrise = SmallIntegerField(default=0)
 
-elo_after_game_moonrise = SmallIntegerField(default=None, null=True)
-elo_after_game_global_moonrise = SmallIntegerField(default=None, null=True)
+# elo_after_game_moonrise = SmallIntegerField(default=None, null=True)
+# elo_after_game_global_moonrise = SmallIntegerField(default=None, null=True)
+
+# trophies = ArrayField(CharField, null=True)
+trophies = BinaryJSONField(null=True, default=None)
 
 
 migrate(
@@ -104,38 +107,22 @@ migrate(
     # migrator.drop_column('gamelog', 'game_id'),
     # migrator.alter_column_type('gamelog', 'game_id', ForeignKeyField(Game))
     # migrator.drop_constraint('gamelog', 'gamelog_game_id_fkey')
-    migrator.add_column('discordmember', 'elo_moonrise', elo_moonrise),
-    migrator.add_column('player', 'elo_moonrise', elo_moonrise),
+    # migrator.add_column('discordmember', 'elo_moonrise', elo_moonrise),
+    # migrator.add_column('player', 'elo_moonrise', elo_moonrise),
 
-    migrator.add_column('discordmember', 'elo_max_moonrise', elo_max_moonrise),
-    migrator.add_column('player', 'elo_max_moonrise', elo_max_moonrise),
+    # migrator.add_column('discordmember', 'elo_max_moonrise', elo_max_moonrise),
+    # migrator.add_column('player', 'elo_max_moonrise', elo_max_moonrise),
 
-    migrator.add_column('lineup', 'elo_change_player_moonrise', elo_change_player_moonrise),
-    migrator.add_column('lineup', 'elo_change_discordmember_moonrise', elo_change_discordmember_moonrise),
-    migrator.add_column('lineup', 'elo_after_game_moonrise', elo_after_game_moonrise),
-    migrator.add_column('lineup', 'elo_after_game_global_moonrise', elo_after_game_global_moonrise),
+    # migrator.add_column('lineup', 'elo_change_player_moonrise', elo_change_player_moonrise),
+    # migrator.add_column('lineup', 'elo_change_discordmember_moonrise', elo_change_discordmember_moonrise),
+    # migrator.add_column('lineup', 'elo_after_game_moonrise', elo_after_game_moonrise),
+    # migrator.add_column('lineup', 'elo_after_game_global_moonrise', elo_after_game_global_moonrise),
+
+    migrator.drop_column('discordmember', 'trophies'),
+    migrator.drop_column('player', 'trophies'),
+    migrator.add_column('discordmember', 'trophies', trophies),
+    migrator.add_column('player', 'trophies', trophies),
 
 )
-models.db.connect(reuse_if_open=True)
-
-bot_members = models.DiscordMember.select().where(
-    models.DiscordMember.discord_id.in_([settings.bot_id, settings.bot_id_beta])
-)
-bot_update1 = models.Player.update(elo=0, elo_max=0, elo_alltime=0, elo_max_alltime=0, elo_moonrise=0, elo_max_moonrise=0).where(models.Player.discord_member_id.in_(bot_members))
-bot_update2 = models.DiscordMember.update(elo=0, elo_max=0, elo_alltime=0, elo_max_alltime=0, elo_moonrise=0, elo_max_moonrise=0).where(models.DiscordMember.id.in_(bot_members))
-print(f'Updating {bot_update1.execute()} bot Player records with 0 elo and {bot_update2.execute()} bot DiscordMember records with 0 elo.')
-
-# query = models.DiscordMember.update(elo_alltime=models.DiscordMember.elo, elo_max_alltime=models.DiscordMember.elo_max)
-# print(f'models.DiscordMember.elo {query.execute()}')
-
-# query = models.Player.update(elo_alltime=models.Player.elo, elo_max_alltime=models.Player.elo_max)
-# print(f'models.Player.elo {query.execute()}')
-
-# query = models.Lineup.update(elo_change_player_alltime=models.Lineup.elo_change_player,
-#                              elo_change_discordmember_alltime=models.Lineup.elo_change_discordmember,
-#                              elo_after_game_alltime=models.Lineup.elo_after_game,
-#                              elo_after_game_global_alltime=models.Lineup.elo_after_game_global)
-
-# print(f'Lineups {query.execute()}')
 
 print('done')
