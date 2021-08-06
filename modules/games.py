@@ -2082,13 +2082,12 @@ class polygames(commands.Cog):
         await self.bot.wait_until_ready()
         while not self.bot.is_closed():
             # purge game channels from games that were concluded at least 24 hours ago
-            # TODO: This task seems to be very resource intensive and makes the bot unresponsive. For now making it much much less frequently.
-            # ideally find a way to optimize it
+            # restricted games to those that concluded less than 7 days ago because otherwise task takes ~15 minutes to run and makes the bot freeze
 
-            await asyncio.sleep(30)
+            await asyncio.sleep(900)
             logger.debug('Task running: task_purge_game_channels')
             yesterday = (datetime.datetime.now() + datetime.timedelta(hours=-24))
-            last_week = (datetime.datetime.now() + datetime.timedelta(hours=-168))
+            last_week = (datetime.datetime.now() + datetime.timedelta(days=-7))
 
             utilities.connect()
             old_games = Game.select().join(GameSide, on=(GameSide.game == Game.id)).where(
@@ -2102,7 +2101,7 @@ class polygames(commands.Cog):
                 if guild:
                     await game.delete_game_channels(self.bot.guilds, game.guild_id)
 
-            await asyncio.sleep(60 * 60 * 12)
+            await asyncio.sleep(60 * 60 * 6)
 
     async def task_set_champion_role(self):
         await self.bot.wait_until_ready()
