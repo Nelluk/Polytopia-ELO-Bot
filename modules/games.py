@@ -2085,13 +2085,14 @@ class polygames(commands.Cog):
             # TODO: This task seems to be very resource intensive and makes the bot unresponsive. For now making it much much less frequently.
             # ideally find a way to optimize it
 
-            await asyncio.sleep(10000)
+            await asyncio.sleep(30)
             logger.debug('Task running: task_purge_game_channels')
             yesterday = (datetime.datetime.now() + datetime.timedelta(hours=-24))
+            last_week = (datetime.datetime.now() + datetime.timedelta(hours=-168))
 
             utilities.connect()
             old_games = Game.select().join(GameSide, on=(GameSide.game == Game.id)).where(
-                (Game.is_confirmed == 1) & (Game.completed_ts < yesterday) &
+                (Game.is_confirmed == 1) & (Game.completed_ts < yesterday) & (Game.completed_ts > last_week) &
                 ((GameSide.team_chan.is_null(False)) | (Game.game_chan.is_null(False)))
             )
 
