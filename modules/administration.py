@@ -878,6 +878,55 @@ class administration(commands.Cog):
 
         await utilities.buffered_send(destination=ctx, content=f'Kicking {total_kicked_count} inactive members. Of those, {team_kicked_count} had a team role, listed below:\n {" / ".join(team_kicked_list)}')
 
+    @commands.command()
+    @settings.is_mod_check()
+    async def ptrophies(self, ctx, *, args=None):
+
+        if settings.guild_setting(ctx.guild.id, 'display_name') != 'Polympics' and settings.get_user_level(ctx.author) < 7:
+            return await ctx.send('This command must be used from the "Polympics" server or by the bot owner.')
+
+        usage = f'**Example Usage**: {ctx.prefix}{ctx.invoked_with} @PlayerName 🥇🥈🥈🥉\nUse "None" to clear trophies.\nPlayer can be a raw discord ID. Command must be used by a mod on Polympics server.'
+        args = args.split() if args else []
+        if len(args) != 2:
+            return await ctx.send(f'Wrong number of arguments.\n{usage}')
+
+        p_id = utilities.string_to_user_id(args[0])
+        if not p_id:
+            return await ctx.send(f'Could not parse a discord ID or player mention.\n{usage}')
+
+        trophies_key = 'polympics2021'
+
+        try:
+            dm = models.DiscordMember.select().where(models.DiscordMember.discord_id == p_id).get()
+            if dm.trophies:
+                old_trophies = dm.trophies.get(trophies_key, None)
+            else:
+                old_trophies = None
+        except peewee.DoesNotExist:
+            return await ctx.send(f'Could not find a DiscordMember in the database matching discord id `{p_id}`')
+
+        if args[1].upper() == 'NONE':
+            new_trophies = None
+        else:
+            new_trophies = str(args[1])
+
+        logger.debug(f'Attempting to update Polympics 2021 trophies of user {dm.name} from {old_trophies} to {new_trophies}')
+        if new_trophies:
+            if dm.trophies:
+                dm.trophies[trophies_key] = new_trophies
+            else:
+                dm.trophies = {trophies_key: new_trophies}
+        else:
+            if dm.trophies and trophies_key in dm.trophies:
+                del dm.trophies[trophies_key]
+                
+        if not dm.trophies:
+            dm.trophies = None
+        dm.save()
+
+        await ctx.send(f'Polympics 2021 trophies field for *{dm.name}* updated with new value "{new_trophies}". The previous value was "{old_trophies}".')
+   
+    
     @commands.command(aliases=['boost_from_norole'])
     @commands.is_owner()
     async def boost_from(self, ctx, p_string: str):

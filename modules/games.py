@@ -779,6 +779,10 @@ class polygames(commands.Cog):
             else:
                 content_str = ''
 
+            if player.discord_member.trophies:
+                if 'polympics2021' in player.discord_member.trophies:
+                    embed.add_field(name='Polympics 2021 Trophies', value=player.discord_member.trophies['polympics2021'])
+
             if player.discord_member.timezone_offset:
                 offset_str = f'UTC+{player.discord_member.timezone_offset}' if player.discord_member.timezone_offset > 0 else f'UTC{player.discord_member.timezone_offset}'
                 embed.add_field(value=offset_str, name='Timezone Offset', inline=True)

@@ -118,8 +118,8 @@ migrate(
     # migrator.add_column('lineup', 'elo_after_game_moonrise', elo_after_game_moonrise),
     # migrator.add_column('lineup', 'elo_after_game_global_moonrise', elo_after_game_global_moonrise),
 
-    migrator.drop_column('discordmember', 'trophies'),
-    migrator.drop_column('player', 'trophies'),
+    # migrator.drop_column('discordmember', 'trophies'),
+    # migrator.drop_column('player', 'trophies'),
     migrator.add_column('discordmember', 'trophies', trophies),
     migrator.add_column('player', 'trophies', trophies),
 
