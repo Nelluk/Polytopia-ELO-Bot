@@ -878,9 +878,15 @@ class administration(commands.Cog):
 
         await utilities.buffered_send(destination=ctx, content=f'Kicking {total_kicked_count} inactive members. Of those, {team_kicked_count} had a team role, listed below:\n {" / ".join(team_kicked_list)}')
 
-    @commands.command()
+    @commands.command(usage='@Player <New Trophies Value>')
     @settings.is_mod_check()
     async def ptrophies(self, ctx, *, args=None):
+        """*Mod*: Set the trophies earned during the 2021 Polympics. Can only be used by mods on the server that the bot has tagged as named "Polympics"
+
+        **Example:**
+        `[p]ptrophies @Nelluk` 🥇🥈🥈🥉
+        `[p]ptrophies @koric None` - Clear existing trophies
+        """
 
         if settings.guild_setting(ctx.guild.id, 'display_name') != 'Polympics' and settings.get_user_level(ctx.author) < 7:
             return await ctx.send('This command must be used from the "Polympics" server or by the bot owner.')
