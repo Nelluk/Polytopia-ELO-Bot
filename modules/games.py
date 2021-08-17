@@ -1555,7 +1555,7 @@ class polygames(commands.Cog):
             )
             await post_newgame_messaging(ctx, game=newgame)
 
-    @settings.in_bot_channel()
+    @settings.in_bot_channel_strict()
     @models.is_registered_member()
     @commands.command(usage='game_id winner_name', aliases=['lose'])
     async def win(self, ctx, winning_game: PolyGame = None, *, winning_side_name: str = None):
