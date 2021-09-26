@@ -84,11 +84,11 @@ discord_id_ban_list = [
     479029527553638401,  # polyelo beta herself
     590055026643435544,  # mikeyphelps#1744 aka dfgigy - star hacking
     430699598483554325,  # Mewtic - offensive troll
-    630118686589714434,  # Joyoung
-    662634965527429130,  # Aido
-    325596275007422466,  # Resetti
-    259701692835037184,  # Justluck
-    761544966710231050,  # Kirby
+    # 630118686589714434,  # Joyoung
+    # 662634965527429130,  # Aido
+    # 325596275007422466,  # Resetti
+    # 259701692835037184,  # Justluck
+    # 761544966710231050,  # Kirby
 ]
 
 poly_id_ban_list = [

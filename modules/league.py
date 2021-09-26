@@ -1105,11 +1105,13 @@ class league(commands.Cog):
         logger.info(f'{len(dms)} discordmember results')
         for dm in dms:
             wins_count, losses_count = dm.wins().count(), dm.losses().count()
+            logger.debug(f'Evaluating {dm.name} - W:{wins_count} L:{losses_count} ELO_MAX_MOONRISE: {dm.elo_max_moonrise}')
             if wins_count < 5:
-                logger.debug(f'Skipping {dm.name} - insufficient winning games')
+                logger.debug(f'Skipping {dm.name} - insufficient winning games {wins_count}')
                 continue
-            if dm.games_played(in_days=15).count() < 1:
-                logger.debug(f'Skipping {dm.name} - insufficient recent games')
+            recent_count = dm.games_played(in_days=15).count()
+            if recent_count < 1:
+                logger.debug(f'Skipping {dm.name} - insufficient recent games ({recent_count})')
                 continue
             if dm.elo_max_moonrise > 1150:
                 logger.debug(f'{dm.name} qualifies due to higher ELO > 1150')
