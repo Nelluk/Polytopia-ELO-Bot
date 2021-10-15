@@ -22,7 +22,7 @@ from modules import channels, exceptions
 logger = logging.getLogger('polybot.' + __name__)
 elo_logger = logging.getLogger('polybot.elo')
 
-db = PostgresqlExtDatabase(settings.psql_db, autorollback=True, user=settings.psql_user, autoconnect=False, password='password')
+db = PostgresqlExtDatabase(settings.psql_db, autorollback=True, user=settings.psql_user, autoconnect=True, password='password')
 
 
 def tomorrow():
