@@ -1,3 +1,5 @@
+from collections import defaultdict
+
 import discord
 from discord.ext import commands, tasks
 from PIL import UnidentifiedImageError
@@ -15,6 +17,8 @@ import random
 import modules.imgen as imgen
 
 logger = logging.getLogger('polybot.' + __name__)
+
+season_standings_cache = defaultdict(lambda: False)
 
 
 grad_role_name = 'Nova Grad'           # met graduation requirements and is eligible to sign up for draft
@@ -661,8 +665,7 @@ class league(commands.Cog):
 
     @commands.command(aliases=['jrseason', 'ps', 'js', 'seasonjr'], usage='[season #]')
     @settings.in_bot_channel()
-    @commands.cooldown(1, 30, commands.BucketType.channel)
-    async def season(self, ctx, *, arg=None):
+    async def season(self, ctx, *, season: str = None):
         """
         Display team records for one or all seasons
 
@@ -671,16 +674,11 @@ class league(commands.Cog):
         `[p]jrseason` Records for all seasons (Junior teams)
         `[p]season 7` Records for a specific season (Pro teams)
         `[p]jrseason 7` Records for a specific season (Junior teams)
-        `[p]season 7 games` List all games from Season 7 in summary form (very spammy)
         """
 
-        season, list_games = None, False
-        if arg:
-            if 'games' in arg:
-                list_games = True
-                arg = arg.replace('games', '').strip()
+        if season:
             try:
-                season = int(arg)
+                season = int(season)
             except ValueError:
                 return await ctx.send(f'Invalid argument. Leave blank for all seasons or use an integer like `{ctx.prefix}{ctx.invoked_with} 8`')
 
@@ -696,8 +694,8 @@ class league(commands.Cog):
             pro_value = 1
             pro_str = 'Pro'
 
-        if arg:
-            title = f'Season {arg} {pro_str} Records'
+        if season:
+            title = f'Season {season} {pro_str} Records'
         else:
             title = f'{pro_str} Records - All Seasons'
 
@@ -705,28 +703,8 @@ class league(commands.Cog):
             (models.Team.guild_id == settings.server_ids['polychampions']) & (models.Team.is_hidden == 0) & (models.Team.pro_league == pro_value)
         )
 
-        async with ctx.typing():
-            if list_games:
-                # list all games of this season
-                if not season:
-                    return await ctx.send(f'You must specify a season to list games. **Example**: `{ctx.prefix}{ctx.invoked_with} 7 games`')
-                season_games, _, _ = models.Game.polychamps_season_games(league=pro_str.lower(), season=season)
-                season_games = season_games.order_by(models.Game.id)
-                output = [f'__**Season {season} Games**__']
-                for game in season_games:
-                    if game.is_confirmed:
-                        losing_side = game.gamesides[0] if game.gamesides[1] == game.winner else game.gamesides[1]
-                        winning_side = game.winner
-                        winning_roster = [f'{p[0].name} {p[1]} {p[2]}' for p in winning_side.roster()]
-                        losing_roster = [f'{p[0].name} {p[1]} {p[2]}' for p in losing_side.roster()]
-                        output_str = f'`{game.id}` *{game.name}* - **{winning_side.name()}** ({" / ".join(winning_roster)}) defeats **{losing_side.name()}** ({" / ".join(losing_roster)})'
-                        output.append(output_str)
-                    else:
-                        side1, side2 = game.gamesides[0], game.gamesides[1]
-                        side1_roster = [f'{p[0].name} {p[1]} {p[2]}' for p in side1.roster()]
-                        side2_roster = [f'{p[0].name} {p[1]} {p[2]}' for p in side2.roster()]
-                        output.append(f'`{game.id}` *{game.name}* - **{side1.name()}** ({" / ".join(side1_roster)}) currently battling **{side2.name()}** ({" / ".join(side2_roster)}) ')
-            else:
+        if not season_standings_cache[pro_value, season]:
+            async with ctx.typing():
                 # regular standings summary
                 for team in poly_teams:
                     season_record = team.get_season_record(season=season)  # (win_count_reg, loss_count_reg, incomplete_count_reg, win_count_post, loss_count_post, incomplete_count_post)
@@ -745,7 +723,11 @@ class league(commands.Cog):
                     line = f'{team_str}`{str(standing[1]) + "W":.<3} {str(standing[2]) + "L":.<3} {str(standing[3]) + "I":.<3} - {str(standing[4]) + "W":.<3} {str(standing[5]) + "L":.<3} {standing[6]}I`'
                     output.append(line.replace(".", "\u200b "))
 
-        await utilities.buffered_send(destination=ctx, content='\n'.join(output))
+            season_standings_cache[pro_value, season] = output
+        else:
+            output = season_standings_cache[pro_value, season]
+
+        await ctx.send('\n'.join(output))
 
     @commands.command(aliases=['joinnovas'])
     async def novas(self, ctx, *, arg=None):

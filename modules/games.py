@@ -9,6 +9,7 @@ import peewee
 import modules.models as models
 from modules.models import Game, db, Player, Team, DiscordMember, Squad, GameSide, Tribe, Lineup
 from modules.league import auto_grad_novas, populate_league_team_channels, get_team_leadership
+import modules.league as league
 from itertools import groupby
 import logging
 import datetime
@@ -1663,6 +1664,11 @@ class polygames(commands.Cog):
         else:
             utilities.unlock_game(winning_game.id)
             if confirm_win:
+                if data := winning_game.is_season_game():
+                    pro_value = int(data[1] == 'P')
+                    league.season_standings_cache[pro_value, data[0]] = False
+                    league.season_standings_cache[pro_value, None] = False
+
                 # Cleanup game channels and announce winners
                 # try/except block is attempt at a bandaid where sometimes an InterfaceError/Cursor Closed exception would hit here, probably due to issues with async code
 
