@@ -18,8 +18,6 @@ import modules.imgen as imgen
 
 logger = logging.getLogger('polybot.' + __name__)
 
-season_standings_cache = defaultdict(lambda: False)
-
 
 grad_role_name = 'Nova Grad'           # met graduation requirements and is eligible to sign up for draft
 draftable_role_name = 'Draftable'      # signed up for current draft
@@ -120,6 +118,9 @@ class league(commands.Cog):
     emoji_draft_close = '⏯'
     emoji_draft_conclude = '❎'
     emoji_draft_list = [emoji_draft_signup, emoji_draft_close, emoji_draft_conclude]
+
+    season_standings_cache = {}
+    last_team_elos = defaultdict(lambda: [])
 
     draft_open_format_str = f'The draft is open for signups! {{0}}s can react with a {emoji_draft_signup} below to sign up. {{1}} who have not graduated have until the end of the draft signup period to meet requirements and sign up.\n\n{{2}}'
     draft_closed_message = f'The draft is closed to new signups. Mods can use the {emoji_draft_conclude} reaction after players have been drafted to clean up the remaining players and delete this message.'
@@ -682,8 +683,6 @@ class league(commands.Cog):
             except ValueError:
                 return await ctx.send(f'Invalid argument. Leave blank for all seasons or use an integer like `{ctx.prefix}{ctx.invoked_with} 8`')
 
-        standings = []
-
         if season and (season == 1 or season == 2):
             return await ctx.send('Records from the first two seasons (ie. the dark ages when I did not exist) are mostly lost to antiquity, but some information remains:\n'
                 '**The Sparkies** won Season 1 and **The Jets** won season 2, and if you squint you can just make out the records below:\nhttps://i.imgur.com/L7FPr1d.png')
@@ -703,8 +702,10 @@ class league(commands.Cog):
             (models.Team.guild_id == settings.server_ids['polychampions']) & (models.Team.is_hidden == 0) & (models.Team.pro_league == pro_value)
         )
 
-        if not season_standings_cache[pro_value, season]:
+        async def calc():
             async with ctx.typing():
+                standings = []
+
                 # regular standings summary
                 for team in poly_teams:
                     season_record = team.get_season_record(season=season)  # (win_count_reg, loss_count_reg, incomplete_count_reg, win_count_post, loss_count_post, incomplete_count_post)
@@ -723,11 +724,24 @@ class league(commands.Cog):
                     line = f'{team_str}`{str(standing[1]) + "W":.<3} {str(standing[2]) + "L":.<3} {str(standing[3]) + "I":.<3} - {str(standing[4]) + "W":.<3} {str(standing[5]) + "L":.<3} {standing[6]}I`'
                     output.append(line.replace(".", "\u200b "))
 
-            season_standings_cache[pro_value, season] = output
-        else:
-            output = season_standings_cache[pro_value, season]
+                return '\n'.join(output)
 
-        await ctx.send('\n'.join(output))
+        elos = [t.elo for t in poly_teams]
+
+        # If the team elos haven't changed, then check the cache
+        if elos == self.last_team_elos[pro_value, season]:
+            if output := self.season_standings_cache.get((pro_value, season)):
+                # Send the cached results for the request league + season
+                return await ctx.send(output)
+            else:
+                # Calculate the results for the requested season, cache them, then send them
+                output = self.season_standings_cache[pro_value, season] = await calc()
+                return await ctx.send(output)
+        else:
+            # ELOs have changed since this season was last requested, recalculate it.
+            output = self.season_standings_cache[pro_value, season] = await calc()
+            self.last_team_elos[pro_value, season] = elos
+            return await ctx.send(output)
 
     @commands.command(aliases=['joinnovas'])
     async def novas(self, ctx, *, arg=None):
