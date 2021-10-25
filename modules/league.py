@@ -733,15 +733,10 @@ class league(commands.Cog):
             if output := self.season_standings_cache.get((pro_value, season)):
                 # Send the cached results for the request league + season
                 return await ctx.send(output)
-            else:
-                # Calculate the results for the requested season, cache them, then send them
-                output = self.season_standings_cache[pro_value, season] = await calc()
-                return await ctx.send(output)
-        else:
-            # ELOs have changed since this season was last requested, recalculate it.
-            output = self.season_standings_cache[pro_value, season] = await calc()
-            self.last_team_elos[pro_value, season] = elos
-            return await ctx.send(output)
+        # Calculate the results for the requested season, cache them, then send them
+        output = self.season_standings_cache[pro_value, season] = await calc()
+        self.last_team_elos[pro_value, season] = elos
+        await ctx.send(output)
 
     @commands.command(aliases=['joinnovas'])
     async def novas(self, ctx, *, arg=None):
