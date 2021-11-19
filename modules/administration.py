@@ -711,7 +711,8 @@ class administration(commands.Cog):
 
         inactive_role = discord.utils.get(ctx.guild.roles, name=settings.guild_setting(ctx.guild.id, 'inactive_role'))
         protected_roles = [discord.utils.get(ctx.guild.roles, name='Team Recruiter'), discord.utils.get(ctx.guild.roles, name='Mod'),
-                           discord.utils.get(ctx.guild.roles, name='Team Leader'), discord.utils.get(ctx.guild.roles, name='Team Co-Leader')]
+                           discord.utils.get(ctx.guild.roles, name='Team Leader'), discord.utils.get(ctx.guild.roles, name='Team Co-Leader'),
+                           discord.utils.get(ctx.guild.roles, name='PrOPhEt oF MiDJiWaN')]
 
         activity_time = (datetime.datetime.now() + datetime.timedelta(days=-60))
         if not inactive_role:
