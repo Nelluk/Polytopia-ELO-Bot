@@ -64,7 +64,9 @@ lobbies = [{'guild': 283436219780825088, 'size_str': '1v1', 'size': [1, 1], 'ran
         #    {'guild': 447883341463814144, 'size_str': '3v3', 'size': [3, 3], 'ranked': True, 'exp': 95, 'remake_partial': False, 'notes': 'Open to all'},
            {'guild': 478571892832206869, 'size_str': '3v3', 'size': [3, 3], 'ranked': False, 'exp': 95, 'remake_partial': False, 'role_locks': [None, 480350546172182530], 'notes': ''},
            {'guild': 478571892832206869, 'size_str': 'FFA', 'size': [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], 'ranked': True, 'exp': 95, 'remake_partial': True, 'notes': 'Open to all'},
-           {'guild': 722870446252359751, 'size_str': '1v1', 'size': [1, 1], 'ranked': False, 'exp': 95, 'remake_partial': False, 'notes': 'Unranked'}]
+           {'guild': 722870446252359751, 'size_str': '1v1', 'size': [1, 1], 'ranked': False, 'exp': 95, 'remake_partial': False, 'notes': 'Unranked'},
+           {'guild': 283436219780825088, 'size_str': '1v1', 'size': [1, 1], 'ranked': False, 'remake_partial': False, 'notes': 'QT 0 wins players only. Small map. Drylands. Yadakk mirror (Oumaji mirror as free alternative)'}
+           ]
 
 discord_id_ban_list = [
     493503844865671187,  # BlueberryCraft#9080 (star hacker)
