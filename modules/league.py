@@ -894,7 +894,7 @@ class league(commands.Cog):
     @commands.command(aliases=['freeagents', 'draftable', 'ble', 'bge', 'roleeloany'], usage='[sort] [role name list]')
     @settings.in_bot_channel_strict()
     @commands.cooldown(1, 5, commands.BucketType.channel)
-    async def roleelo(self, ctx, *, arg=None):
+    async def roleelo(self, ctx: commands.Context, *, arg=None):
         """Prints list of players with a given role and their ELO stats
 
         You can check more tha one role at a time by separating them with a comma.
@@ -979,7 +979,10 @@ class league(commands.Cog):
             method = 'all'
 
         if not roles:
-            return await ctx.send(f'Could not load roles from the guild matching **{"/".join(args)}**. Multiple roles should be separated by a comma.')
+            return await ctx.send(
+                f'Could not load roles from the guild matching **{"/".join(args)}**. Multiple roles should be separated by a comma.',
+                allowed_mentions=discord.AllowedMentions.none()
+            )
 
         inactive_role = discord.utils.get(ctx.guild.roles, name=settings.guild_setting(ctx.guild.id, 'inactive_role'))
         for member in members:
