@@ -91,6 +91,7 @@ discord_id_ban_list = [
     # 325596275007422466,  # Resetti
     # 259701692835037184,  # Justluck
     # 761544966710231050,  # Kirby
+    799078333149085716,  # Ciruelatron - alting and then attempting to evade ELO Ban
 ]
 
 poly_id_ban_list = [
