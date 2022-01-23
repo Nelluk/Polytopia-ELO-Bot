@@ -122,8 +122,8 @@ class league(commands.Cog):
     season_standings_cache = {}
     last_team_elos = defaultdict(lambda: [])
 
-    draft_open_format_str = f'The draft is open for signups! {{0}}s can react with a {emoji_draft_signup} below to sign up. {{1}} who have not graduated have until the end of the draft signup period to meet requirements and sign up.\n\n{{2}}'
-    draft_closed_message = f'The draft is closed to new signups. Mods can use the {emoji_draft_conclude} reaction after players have been drafted to clean up the remaining players and delete this message.'
+    draft_open_format_str = f'The league is now open for Free Agent signups! {{0}}s can react with a {emoji_draft_signup} below to sign up. {{1}} who have not graduated have until the end of the signup period to meet requirements and sign up.\n\n{{2}}'
+    draft_closed_message = f'The league is currently to new Free Agent signups. Mods can use the {emoji_draft_conclude} reaction after players have been drafted to clean up the remaining players and delete this message.'
 
     def __init__(self, bot):
 
@@ -303,9 +303,9 @@ class league(commands.Cog):
         free_agent_role = discord.utils.get(member.guild.roles, name=free_agent_role_name)
         draftable_role = discord.utils.get(member.guild.roles, name=draftable_role_name)
 
-        confirm_message = await channel.send(f'{member.mention}, react below to confirm the conclusion of the current draft. '
-            f'{len(free_agent_role.members)} members will lose the **{free_agent_role_name}** role and {len(draftable_role.members)} members with the **{draftable_role_name}** role will lose that role and become the current crop with the **{free_agent_role_name}** role.\n'
-            '*If you do not react within 30 seconds the draft will remain open.*', delete_after=35)
+        confirm_message = await channel.send(f'{member.mention}, react below to confirm the conclusion of the current Free Agent signup. '
+            f'{len(free_agent_role.members)} members currently have the Free Agent role. No role changes will result from closing the signup.\n'
+            '*If you do not react within 30 seconds the signup will remain open.*', delete_after=35)
         await confirm_message.add_reaction('✅')
 
         logger.debug('waiting for reaction confirmation')
@@ -321,28 +321,8 @@ class league(commands.Cog):
             logger.debug('No reaction to confirmation message.')
             return
 
-        result_message_list = [f'Draft successfully closed by {member.mention}']
+        result_message_list = [f'Free Agent signup successfully closed by {member.mention}']
         self.announcement_message = None
-
-        async with channel.typing():
-            old_free_agents = free_agent_role.members.copy()
-            new_free_agents_count = len(draftable_role.members)
-            for old_free_agent in free_agent_role.members:
-                await old_free_agent.remove_roles(free_agent_role, reason='Purging old free agents')
-                logger.debug(f'Removing free agent role from {old_free_agent.name}')
-
-                result_message_list.append(f'Removing free agent role from {old_free_agent.name} {old_free_agent.mention}')
-
-            for new_free_agent in draftable_role.members:
-                await new_free_agent.add_roles(free_agent_role, reason='New crop of free agents')
-                logger.debug(f'Adding free agent role to {new_free_agent.name}')
-
-                await new_free_agent.remove_roles(draftable_role, reason='Purging old free agents')
-                logger.debug(f'Removing draftable role from {new_free_agent.name}')
-                if new_free_agent in old_free_agents:
-                    result_message_list.append(f'Removing draftable role from and applying free agent role to {new_free_agent.name} {new_free_agent.mention}. They had it last week, too!')
-                else:
-                    result_message_list.append(f'Removing draftable role from and applying free agent role to {new_free_agent.name} {new_free_agent.mention}')
 
         for log_message in result_message_list:
             models.GameLog.write(guild_id=member.guild.id, message=log_message)
@@ -351,7 +331,7 @@ class league(commands.Cog):
 
         try:
             await message.clear_reactions()
-            new_message = message.content.replace(self.draft_closed_message, f'~~{self.draft_closed_message}~~') + f'\nThis draft is concluded. {new_free_agents_count} members went undrafted and became free agents.'
+            new_message = message.content.replace(self.draft_closed_message, f'~~{self.draft_closed_message}~~') + f'\nThis signup is concluded. {len(free_agent_role.members)} members are currently Free Agents.'
             await message.edit(content=new_message)
         except discord.DiscordException as e:
             logger.warning(f'Could not clear reactions or edit content in concluded draft message: {e}')
@@ -394,7 +374,8 @@ class league(commands.Cog):
         draft_opened = self.get_draft_config(member.guild.id)['draft_open']
         member_message, log_message = '', ''
         grad_role = discord.utils.get(member.guild.roles, name=grad_role_name)
-        draftable_role = discord.utils.get(member.guild.roles, name=draftable_role_name)
+        # draftable_role = discord.utils.get(member.guild.roles, name=draftable_role_name)
+        free_agent_role = discord.utils.get(member.guild.roles, name=free_agent_role_name)
         announce_message_link = f'https://discord.com/channels/{member.guild.id}/{channel.id}/{message.id}'
         logger.debug(f'Draft signup reaction added by {member.name} to draft announcement {announce_message_link}')
 
@@ -402,13 +383,13 @@ class league(commands.Cog):
             if draft_opened and grad_role in member.roles:
                 # An eligible member signing up for the draft
                 try:
-                    await member.add_roles(draftable_role, reason='Member added themselves to draft')
+                    await member.add_roles(free_agent_role, reason='Member signed up as Free Agent')
                 except discord.DiscordException as e:
-                    logger.error(f'Could not add draftable role in signup_emoji_clicked: {e}')
+                    logger.error(f'Could not add free_agent_role in signup_emoji_clicked: {e}')
                     return
                 else:
-                    member_message = f'You are now signed up for the next draft. If you would like to remove yourself, just remove the reaction you just placed.\nAlthough you may have a preference on which team drafts you, be aware that you may be chosen by **any** team. You must make a good faith effort to play and integrate with that team to avoid a penalty for poor sportsmanship.\n{announce_message_link}'
-                    log_message = f'{member.mention} ({member.name}) reacted to the draft and received the {draftable_role.name} role.'
+                    member_message = f'You are now signed up as a league Free Agent. If you would like to remove yourself, just remove the reaction you just placed.\nAlthough you may have a preference on which team drafts you, be aware that you may be chosen by **any** team. You must make a good faith effort to play and integrate with that team to avoid a penalty for poor sportsmanship.\n{announce_message_link}'
+                    log_message = f'{member.mention} ({member.name}) reacted to the signup message and received the {free_agent_role.name} role.'
             else:
                 # Ineligible signup - either draft is closed or member does not have grad_role
                 try:
@@ -424,16 +405,16 @@ class league(commands.Cog):
                     logger.debug(f'Rejected {member.name} from the draft since they lack the {grad_role.name} role.')
         else:
             # Reaction removed
-            if draftable_role in member.roles:
+            if free_agent_role in member.roles:
                 # Removing member from draft, same behavior whether draft is opened or closed
                 try:
-                    await member.remove_roles(draftable_role, reason='Member removed from draft')
+                    await member.remove_roles(free_agent_role, reason='Member removed from Free Agent signup')
                 except discord.DiscordException as e:
-                    logger.error(f'Could not remove draftable role in signup_emoji_clicked: {e}')
+                    logger.error(f'Could not remove Free Agent role in signup_emoji_clicked: {e}')
                     return
                 else:
-                    member_message = f'You have been removed from the next draft. You can sign back up at the announcement message:\n{announce_message_link}'
-                    log_message = f'{member.mention} ({member.name}) removed their draft reaction and has lost the {draftable_role.name} role.'
+                    member_message = f'You have been removed from the Free Agent list. You can sign back up at the announcement message:\n{announce_message_link}'
+                    log_message = f'{member.mention} ({member.name}) removed their Free Agent reaction and has lost the {free_agent_role.name} role.'
             else:
                 return
                 # member_message = (f'You removed your signup reaction from the draft announcement, but you did not have the **{draftable_role.name}** :thinking:\n'
@@ -465,7 +446,7 @@ class league(commands.Cog):
         q = models.Configuration.delete().where(models.Configuration.guild_id == guild_id)
         return q.execute()
 
-    @commands.command(aliases=['ds'], usage=None)
+    @commands.command(usage=None)
     @settings.is_mod_check()
     async def newdraft(self, ctx, channel_override: typing.Optional[discord.TextChannel], *, added_message: str = ''):
 
@@ -523,6 +504,88 @@ class league(commands.Cog):
                 pass  # Message no longer exists - assume deleted and create a fresh draft message
             except discord.DiscordException as e:
                 logger.warning(f'Error loading existing draft announcement message in newdraft command: {e}')
+
+        grad_role = discord.utils.get(ctx.guild.roles, name=grad_role_name)
+        novas_role = discord.utils.get(ctx.guild.roles, name=novas_role_name)
+
+        formatted_message = self.draft_open_format_str.format(grad_role.mention, novas_role.mention, added_message)
+        announcement_message = await announcement_channel.send(formatted_message)
+
+        await announcement_message.add_reaction(self.emoji_draft_signup)
+        await announcement_message.add_reaction(self.emoji_draft_close)
+        await announcement_message.add_reaction(self.emoji_draft_conclude)
+
+        await utilities.send_to_log_channel(ctx.guild, f'Draft created by {ctx.author.mention}\n'
+            f'https://discord.com/channels/{ctx.guild.id}/{announcement_channel.id}/{announcement_message.id}')
+
+        if announcement_channel.id != ctx.message.channel.id:
+            await ctx.send('Draft announcement has been posted in the announcement channel.')
+
+        draft_config['announcement_message'] = announcement_message.id
+        draft_config['announcement_channel'] = announcement_message.channel.id
+        draft_config['date_opened'] = str(datetime.datetime.today())
+        draft_config['draft_open'] = True
+        draft_config['draft_message'] = added_message
+
+        self.announcement_message = announcement_message.id
+        self.save_draft_config(ctx.guild.id, draft_config)
+
+    @commands.command(usage=None)
+    @settings.is_mod_check()
+    async def newfreeagent(self, ctx, channel_override: typing.Optional[discord.TextChannel], *, added_message: str = ''):
+
+        """
+        *Mod:* Post a new Free Agent signup announcement
+
+        Will post a default Free Agent signup announcement into a default announcement channel.
+
+        Three emoji reactions are used to interact with the draft.
+        The first can be used by any member who has the Nova Grad role, and they will receive the Free Agent role when they react. They can also unreact to lose the role.
+
+        The play/pause reaction is mod-only and can be used to close or re-open the signup to new Nova Grads.
+        A Free Agent member can remove themselves from the list while it is closed, but any new signups will be rejected.
+
+        The ❎ reaction should be used by a mod after the draft has been performed and members have been put onto their new teams.
+        Any current Free Agents will be remain Free Agents.
+
+        Hitting this reaction will tell you exactly how many members will be affected by role changes and ask for a confirmation.
+
+        You can optionally direct the announcement to a non-default channel, and add an optional message to the end of the announcement message.
+
+        **Examples**
+        `[p]newfreeagent` Normal usage with a generic message
+        `[p]newfreeagent #special-channel` Direct message to a non-standard channel
+        `[p]newfreeagent Signups will be closing on Sunday and the draft will occur the following Sunday` Add an extra message to the announcement.
+
+        """
+
+        # post message in announcements (optional argument of a different channel if mod wants announcement to go elsewhere?)
+        # listen for reactions in a check
+        # if reactor has Nova Grad role, PM success message and apply Free Agent role
+        # if not, PM failure message and remove reaction
+        # remove Free Agent role if user removes their reaction
+
+        if channel_override:
+            announcement_channel = channel_override
+        else:
+            # use default channel for announcement
+            if ctx.guild.id == settings.server_ids['polychampions']:
+                announcement_channel = ctx.guild.get_channel(447986488152686594)  # #server-announcements
+            else:
+                announcement_channel = ctx.guild.get_channel(480078679930830849)  # #admin-spam
+
+        draft_config = self.get_draft_config(ctx.guild.id)
+
+        if self.announcement_message:
+            try:
+                channel = ctx.guild.get_channel(draft_config['announcement_channel'])
+                if channel and await channel.fetch_message(self.announcement_message):
+                    return await ctx.send(f'There is already an existing announcement message. Use the {self.emoji_draft_conclude} reaction on that message (preferred) '
+                        f'or delete the message.\nhttps://discord.com/channels/{ctx.guild.id}/{channel.id}/{self.announcement_message}')
+            except discord.NotFound:
+                pass  # Message no longer exists - assume deleted and create a fresh draft message
+            except discord.DiscordException as e:
+                logger.warning(f'Error loading existing draft announcement message in newfreeagent command: {e}')
 
         grad_role = discord.utils.get(ctx.guild.roles, name=grad_role_name)
         novas_role = discord.utils.get(ctx.guild.roles, name=novas_role_name)
@@ -738,6 +801,7 @@ class league(commands.Cog):
         self.last_team_elos[pro_value, season] = elos
         await ctx.send(output)
 
+
     @commands.command(aliases=['joinnovas'])
     async def novas(self, ctx, *, arg=None):
         """ Join yourself to the Novas team
@@ -753,26 +817,18 @@ class league(commands.Cog):
         if on_team:
             return await ctx.send(f'You are already a member of team *{player_team.name}* {player_team.emoji}. Server staff is required to remove you from a team.')
 
-        red_role = discord.utils.get(ctx.guild.roles, name='Nova Red')
-        blue_role = discord.utils.get(ctx.guild.roles, name='Nova Blue')
+        # red_role = discord.utils.get(ctx.guild.roles, name='Nova Red')
+        # blue_role = discord.utils.get(ctx.guild.roles, name='Nova Blue')
         novas_role = discord.utils.get(ctx.guild.roles, name='The Novas')
         newbie_role = discord.utils.get(ctx.guild.roles, name='Newbie')
 
-        if not red_role or not blue_role or not novas_role:
-            return await ctx.send('Error finding Novas roles. Searched for *Nova Red* and *Nova Blue* and *The Novas*.')
+        if not novas_role:
+            return await ctx.send('Error finding Novas role. Searched *The Novas*.')
 
-        # TODO: team numbers may be inflated due to inactive members. Can either count up only player recency, or easier but less effective way
-        # would be to have $deactivate remove novas roles and make them rejoin if they come back
 
-        global next_nova_newbie
-        if next_nova_newbie == 'Nova Blue':
-            await ctx.author.add_roles(blue_role, novas_role, reason='Joining Nova Blue')
-            await ctx.send(f'Congrats, you are now a member of the **Nova Blue** team! To join the fight go to a bot channel and type `{ctx.prefix}novagames`')
-            next_nova_newbie = 'Nova Red'
-        else:
-            await ctx.author.add_roles(red_role, novas_role, reason='Joining Nova Red')
-            await ctx.send(f'Congrats, you are now a member of the **Nova Red** team! To join the fight go to a bot channel and type `{ctx.prefix}novagames`')
-            next_nova_newbie = 'Nova Blue'
+        await ctx.author.add_roles(novas_role, reason='Joining Novas')
+        await ctx.send(f'Congrats, you are now a member of the **The Novas**! To join the fight go to a bot channel and type `{ctx.prefix}novagames`')
+
         if newbie_role:
             await ctx.author.remove_roles(newbie_role, reason='Joining Novas')
 
@@ -1241,11 +1297,11 @@ async def auto_grad_novas(ctx, game):
 
         for lineup in player.games_played():
             game = lineup.game
-            if game.notes and 'NOVA RED' in game.notes.upper() and 'NOVA BLUE' in game.notes.upper():
+            if game.smallest_team() > 1:
                 if not game.is_pending:
                     qualifying_games.append(str(game.id))
 
-        if len(qualifying_games) < 3:
+        if len(qualifying_games) < 2:
             logger.debug(f'Player {player.name} has insufficient qualifying games. Games that qualified: {qualifying_games}')
             continue
 
@@ -1259,12 +1315,12 @@ async def auto_grad_novas(ctx, game):
             break
 
         config, _ = models.Configuration.get_or_create(guild_id=ctx.guild.id)
-        announce_str = 'Draft signups open regularly - pay attention to server announcements for a notification of the next one.'
+        announce_str = 'Free Agent signups open regularly - pay attention to server announcements for a notification of the next one.'
         if config.polychamps_draft['draft_open']:
             try:
                 channel = ctx.guild.get_channel(config.polychamps_draft['announcement_channel'])
                 if channel and await channel.fetch_message(config.polychamps_draft['announcement_message']):
-                    announce_str = f'Draft signups are currently open in <#{channel.id}>'
+                    announce_str = f'Free Agent signups are currently open in <#{channel.id}>'
             except discord.NotFound:
                 pass  # Draft signup message no longer exists - assume its been deleted intentionally and closed
             except discord.DiscordException as e:
