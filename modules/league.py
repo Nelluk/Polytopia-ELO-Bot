@@ -42,7 +42,6 @@ league_teams = [('Ronin', ['The Ronin', 'The Bandits']),
 ]
 
 league_team_channels = []
-next_nova_newbie = 'Nova Red'  # Alternates between Red/Blue. Seeded randomly by Cog.on_ready()
 
 def get_league_roles(guild=None):
 
@@ -225,8 +224,6 @@ class league(commands.Cog):
             self.announcement_message = self.get_draft_config(settings.server_ids['test'])['announcement_message']
 
         populate_league_team_channels()
-        global next_nova_newbie
-        next_nova_newbie = random.choice(['Nova Red', 'Nova Blue'])
 
         # global league_guild
         # league_guild = self.bot.get_guild(settings.server_ids['polychampions']) or self.bot.get_guild(settings.server_ids['test'])
@@ -734,8 +731,6 @@ class league(commands.Cog):
         if on_team:
             return await ctx.send(f'You are already a member of team *{player_team.name}* {player_team.emoji}. Server staff is required to remove you from a team.')
 
-        # red_role = discord.utils.get(ctx.guild.roles, name='Nova Red')
-        # blue_role = discord.utils.get(ctx.guild.roles, name='Nova Blue')
         novas_role = discord.utils.get(ctx.guild.roles, name='The Novas')
         newbie_role = discord.utils.get(ctx.guild.roles, name='Newbie')
 
