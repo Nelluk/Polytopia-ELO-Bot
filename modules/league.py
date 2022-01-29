@@ -20,7 +20,6 @@ logger = logging.getLogger('polybot.' + __name__)
 
 
 grad_role_name = 'Nova Grad'           # met graduation requirements and is eligible to sign up for draft
-draftable_role_name = 'Draftable'      # signed up for current draft
 free_agent_role_name = 'Free Agent'    # signed up for a prior draft but did not get drafted
 novas_role_name = 'The Novas'          # Umbrella newbie role that all of above should also have
 league_role_name = 'League Member'     # Umbrella role for all Pro+Junior members
@@ -122,7 +121,7 @@ class league(commands.Cog):
     last_team_elos = defaultdict(lambda: [])
 
     draft_open_format_str = f'The league is now open for Free Agent signups! {{0}}s can react with a {emoji_draft_signup} below to sign up. {{1}} who have not graduated have until the end of the signup period to meet requirements and sign up.\n\n{{2}}'
-    draft_closed_message = f'The league is currently to new Free Agent signups. Mods can use the {emoji_draft_conclude} reaction after players have been drafted to clean up the remaining players and delete this message.'
+    draft_closed_message = f'The league is closed to new Free Agent signups. Mods can use the {emoji_draft_conclude} reaction to clean up and delete this message.'
 
     def __init__(self, bot):
 
@@ -298,7 +297,6 @@ class league(commands.Cog):
             return
 
         free_agent_role = discord.utils.get(member.guild.roles, name=free_agent_role_name)
-        draftable_role = discord.utils.get(member.guild.roles, name=draftable_role_name)
 
         confirm_message = await channel.send(f'{member.mention}, react below to confirm the conclusion of the current Free Agent signup. '
             f'{len(free_agent_role.members)} members currently have the Free Agent role. No role changes will result from closing the signup.\n'
@@ -859,7 +857,7 @@ class league(commands.Cog):
 
         await ctx.send(file=fs)
 
-    @commands.command(aliases=['freeagents', 'draftable', 'ble', 'bge', 'roleeloany'], usage='[sort] [role name list]')
+    @commands.command(aliases=['freeagents', 'ble', 'bge', 'roleeloany'], usage='[sort] [role name list]')
     @settings.in_bot_channel_strict()
     @commands.cooldown(1, 5, commands.BucketType.channel)
     async def roleelo(self, ctx: commands.Context, *, arg=None):
@@ -879,14 +877,12 @@ class league(commands.Cog):
         Include `-file` in the argument for a CSV attachment.
 
         This command has some shortcuts:
-        `[p]draftable` - List members with the Draftable role
         `[p]freeagents` - List members with the Free Agent role
 
         **Examples**
         `[p]roleelo novas` - List all members with a role matching 'novas'
         `[p]roleelo novas -file` - Load all 'nova' members into a CSV file
         `[p]roleelo elo novas` - List all members with a role matching 'novas', sorted by local elo
-        `[p]draftable recent` - List all members with the Draftable role sorted by recent games
         `[p]roleelo g_elo crawfish, ronin` - List all members with any of two roles, sorted by global elo
         """
         args = arg.split() if arg else []
@@ -923,9 +919,7 @@ class league(commands.Cog):
             # args = ' '.join(args)
             sort_str = 'Global ELO'
 
-        if ctx.invoked_with == 'draftable':
-            args = [draftable_role_name]
-        elif ctx.invoked_with == 'freeagents':
+        if ctx.invoked_with == 'freeagents':
             args = [free_agent_role_name]
         elif ctx.invoked_with == 'roleelo':
             if not args:
