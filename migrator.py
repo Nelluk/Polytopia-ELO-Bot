@@ -80,7 +80,8 @@ db.connect(reuse_if_open=True)
 # elo_after_game_global_moonrise = SmallIntegerField(default=None, null=True)
 
 # trophies = ArrayField(CharField, null=True)
-trophies = BinaryJSONField(null=True, default=None)
+# trophies = BinaryJSONField(null=True, default=None)
+is_archived = BooleanField(default=False)
 
 
 migrate(
@@ -120,8 +121,9 @@ migrate(
 
     # migrator.drop_column('discordmember', 'trophies'),
     # migrator.drop_column('player', 'trophies'),
-    migrator.add_column('discordmember', 'trophies', trophies),
-    migrator.add_column('player', 'trophies', trophies),
+    # migrator.add_column('discordmember', 'trophies', trophies),
+    # migrator.add_column('player', 'trophies', trophies),
+    migrator.add_column('team', 'is_archived', is_archived),
 
 )
 

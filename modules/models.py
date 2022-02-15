@@ -107,6 +107,7 @@ class Team(BaseModel):
     image_url = TextField(null=True)
     guild_id = BitField(unique=False, null=False)
     is_hidden = BooleanField(default=False)             # True = generic team ie Home/Away, False = server team like Ronin
+    is_archived = BooleanField(default=False)           # True = a previously-active team that is no longer used. Will be hidden in various displays
     pro_league = BooleanField(default=True)
     external_server = BitField(unique=False, null=True)
 
@@ -218,7 +219,6 @@ class DiscordMember(BaseModel):
     is_banned = BooleanField(default=False)
     timezone_offset = SmallIntegerField(default=None, null=True)
     date_polychamps_invite_sent = DateField(default=None, null=True)
-    # trophies = ArrayField(CharField, null=True)
     trophies = BinaryJSONField(null=True, default=None)
     boost_level = SmallIntegerField(default=None, null=True)
 
@@ -545,7 +545,6 @@ class Player(BaseModel):
     elo_max_alltime = SmallIntegerField(default=1000)
     elo_moonrise = SmallIntegerField(default=1000)
     elo_max_moonrise = SmallIntegerField(default=1000)
-    # trophies = ArrayField(CharField, null=True)
     trophies = BinaryJSONField(null=True, default=None)
     is_banned = BooleanField(default=False)
 
