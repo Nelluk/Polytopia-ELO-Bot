@@ -115,13 +115,24 @@ class Team(BaseModel):
         indexes = ((('name', 'guild_id'), True),)   # Trailing comma is required
         # http://docs.peewee-orm.com/en/3.6.0/peewee/models.html#multi-column-indexes
 
+    @staticmethod
     def get_by_name(team_name: str, guild_id: int, require_exact: bool = False):
         if require_exact:
             teams = Team.select().where((Team.name == team_name) & (Team.guild_id == guild_id) & (Team.is_hidden == 0))
         else:
-            teams = Team.select().where((Team.name.contains(team_name)) & (Team.guild_id == guild_id) & (Team.is_hidden == 0))
+            teams = Team.select().where(
+                (Team.name.contains(team_name)) & (Team.guild_id == guild_id) &
+                (Team.is_hidden == 0) & (Team.is_archived == 0)
+            )
+            # If no results found, include archived teams in the search
+            if len(teams) == 0:
+                teams = Team.select().where(
+                    (Team.name.contains(team_name)) & (Team.guild_id == guild_id) &
+                    (Team.is_hidden == 0)
+                )
         return teams
 
+    @staticmethod
     def get_or_except(team_name: str, guild_id: int, require_exact: bool = False):
         results = Team.get_by_name(team_name=team_name, guild_id=guild_id, require_exact=require_exact)
         if len(results) == 0:
