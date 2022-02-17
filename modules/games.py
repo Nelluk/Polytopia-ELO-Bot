@@ -380,6 +380,7 @@ class polygames(commands.Cog):
         Examples:
         `[p]lbteam` - Default team leaderboard, which resets occasionally
         `[p]lbteam all` - All-time team leaderboard including all game history
+        `[p]lbteam old` - Include old (archived) teams in the leaderboard.
         `[p]lbteamjr` - Display team leaderboard for Junior teams
         """
 
@@ -393,12 +394,20 @@ class polygames(commands.Cog):
         fig, ax = plt.subplots(figsize=(12, 8))
         plt.style.use('default')
 
+        old = False
+
         if arg and arg.lower()[:3] == 'all':
             # date_cutoff = datetime.date.min
             embed = discord.Embed(title=f'**Alltime {jr_string}Team Leaderboard**')
             fig.suptitle('Team ELO History (Alltime)', fontsize=16)
             alltime = True
             sort_field = Team.elo_alltime
+        elif arg and arg.lower()[:3] == 'old':
+            embed = discord.Embed(title=f'**{jr_string}Team Leaderboard (Inc. Archived Teams)**')
+            fig.suptitle('Team ELO History since ' + settings.team_elo_reset_date, fontsize=16)
+            alltime = False
+            old = True
+            sort_field = Team.elo
         else:
             # date_cutoff = datetime.datetime.strptime(settings.team_elo_reset_date, "%m/%d/%Y").date()
             embed = discord.Embed(title=f'**{jr_string}Team Leaderboard since {settings.team_elo_reset_date}**')
@@ -409,9 +418,16 @@ class polygames(commands.Cog):
         fig.autofmt_xdate()
 
         guild_check = settings.server_ids['polychampions'] if ctx.guild.id == settings.server_ids['test'] else ctx.guild.id
-        query = Team.select().where(
-            (Team.is_hidden == 0) & (Team.guild_id == guild_check) & (Team.pro_league == pro_flag)
-        ).order_by(-sort_field)
+
+        if old:
+            query = Team.select().where(
+                (Team.is_hidden == 0) & (Team.guild_id == guild_check) & (Team.pro_league == pro_flag)
+            ).order_by(-sort_field)
+        else:
+            query = Team.select().where(
+                (Team.is_hidden == 0) & (Team.is_archived == 0) &
+                (Team.guild_id == guild_check) & (Team.pro_league == pro_flag)
+            ).order_by(-sort_field)
 
         async with ctx.typing():
             for counter, team in enumerate(query):
@@ -987,11 +1003,11 @@ class polygames(commands.Cog):
                         member_stats.append(({p[0].discord_member.name}, games_played, f'`{p[0].discord_member.name[:23]:.<25}{p[0].elo_moonrise:.<8}{rank_str:.<6}{games_played:.<4}`'))
 
                 member_stats.sort(key=lambda tup: tup[1], reverse=True)     # sort the list descending by recent games played
-                members_sorted = [str(x[2].replace(".", "\u200b ")) for x in member_stats[:28]]    # create list of strings like 'Nelluk  1277 #3  21'.
+                members_sorted = [str(x[2].replace(".", "\u200b ")) for x in member_stats[:50]]    # create list of strings like 'Nelluk  1277 #3  21'.
                 # replacing '.' with "\u200b " (alternated zero width space with a normal space) so discord wont strip spaces
 
                 members_str = "\n".join(members_sorted) if len(members_sorted) > 0 else '\u200b'
-                embed.description = f'**Members({len(member_stats)})**\n{header_str}\n{members_str}'[:2048]
+                embed.description = f'**Members({len(member_stats)})**\n{header_str}\n{members_str}'[:4000]
         else:
             await ctx.send(f':no_entry_sign: No matching discord role "{team.name}" could be found. Player membership cannot be detected.')
 

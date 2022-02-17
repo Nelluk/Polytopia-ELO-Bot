@@ -26,7 +26,8 @@ league_role_name = 'League Member'     # Umbrella role for all Pro+Junior member
 pro_member_role_name = 'Pro Player'    # Umbrella role for all Pro members
 jr_member_role_name = 'Junior Player'  # Umbrella role for all Junior memebrs
 
-league_teams = [('Ronin', ['The Ronin', 'The Bandits']),
+league_teams = [
+    ('Ronin', ['The Ronin', 'The Bandits']),
     ('Jets', ['The Jets', 'The Cropdusters']),
     ('Bombers', ['The Bombers', 'The Dynamite']),
     ('Lightning', ['The Lightning', 'The Pulse']),
@@ -35,9 +36,12 @@ league_teams = [('Ronin', ['The Ronin', 'The Bandits']),
     ('Sparkies', ['The Sparkies', 'The Pups']),
     ('Wildfire', ['The Wildfire', 'The Flames']),
     ('Mallards', ['The Mallards', 'The Drakes']),
-    ('Plague', ['The Plague', 'The Rats']),
+    ('OldPlague', ['The OldPlague', 'The Rats']),
     ('Dragons', ['The Dragons', 'The Narwhals']),
-    ('Jalapenos', ['The Reapers', 'The Jalapenos'])
+    ('Jalapenos', ['The OldReapers', 'The Jalapenos']),
+    ('Kraken', ['The Kraken', 'The Squids']),
+    ('ArcticWolves', ['The ArcticWolves', 'The Huskies']),
+    ('Plague', ['The Plague', 'The Reapers']),
 ]
 
 league_team_channels = []
@@ -684,6 +688,10 @@ class league(commands.Cog):
                 # regular standings summary
                 for team in poly_teams:
                     season_record = team.get_season_record(season=season)  # (win_count_reg, loss_count_reg, incomplete_count_reg, win_count_post, loss_count_post, incomplete_count_post)
+
+                    if season_record == (0, 0, 0, 0, 0, 0) and team.is_archived:
+                        continue
+
                     if not season_record:
                         logger.warning(f'No season record returned for team {team.name}')
                         continue
@@ -712,7 +720,6 @@ class league(commands.Cog):
         output = self.season_standings_cache[pro_value, season] = await calc()
         self.last_team_elos[pro_value, season] = elos
         await ctx.send(output)
-
 
     @commands.command(aliases=['joinnovas'])
     async def novas(self, ctx, *, arg=None):
