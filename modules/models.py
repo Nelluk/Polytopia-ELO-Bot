@@ -1009,7 +1009,7 @@ class Game(BaseModel):
         roster_names = '\n'.join(game_roster)  # "Side **Home**: Nelluk, player2\n Side **Away**: Player 3, Player 4"
 
         for gameside, side_external_server in zip(ordered_side_list, side_external_servers):
-            logger.debug(f'Checking for external server usage for side {gameside.id}: {side_external_server}')
+            logger.debug(f'Checking for external server usage for side {gameside.id} {gameside.team}: {side_external_server}')
             if side_external_server and discord.utils.get(guild_list, id=side_external_server):
                 side_guild = discord.utils.get(guild_list, id=side_external_server)  # use team-specific external server
                 using_team_server_flag = True
