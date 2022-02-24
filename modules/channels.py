@@ -36,6 +36,7 @@ def get_channel_category(guild, team_name: str = None, using_team_server_flag: b
     # Returns (DiscordCategory, Bool_IsTeamCategory?) or None
     # Bool_IsTeamCategory? == True if its using a team-specific category, False if using a central games category
 
+    logger.debug(f'in get_channel_category - team_name: {team_name}; using_team_server_flag: {using_team_server_flag} ')
     list_of_generic_team_names = [a[0] for a in settings.generic_teams_long] + [a[0] for a in settings.generic_teams_short]
 
     if guild.me.guild_permissions.manage_channels is not True:
