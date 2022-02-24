@@ -116,6 +116,7 @@ poly_id_ban_list = [
 
 
 generic_teams_short = [('Home', ':stadium:'), ('Away', ':airplane:')]  # For two-team games
+generic_teams_short_novas = [('Nova Red', ':red_circle:'), ('Nova Blue', ':blue_circle:')]  # For two-team games with both Novas
 generic_teams_long = [('Sharks', ':shark:'), ('Owls', ':owl:'), ('Eagles', ':eagle:'), ('Tigers', ':tiger:'),
                       ('Bears', ':bear:'), ('Koalas', ':koala:'), ('Dogs', ':dog:'), ('Bats', ':bat:'),
                       ('Lions', ':lion:'), ('Cats', ':cat:'), ('Birds', ':bird:'), ('Spiders', ':spider:'),
