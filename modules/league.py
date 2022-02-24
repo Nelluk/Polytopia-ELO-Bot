@@ -387,7 +387,7 @@ class league(commands.Cog):
                     logger.error(f'Could not add free_agent_role in signup_emoji_clicked: {e}')
                     return
                 else:
-                    member_message = f'You are now signed up as a league Free Agent. If you would like to remove yourself, just remove the reaction you just placed.\nAlthough you may have a preference on which team drafts you, be aware that you may be chosen by **any** team. You must make a good faith effort to play and integrate with that team to avoid a penalty for poor sportsmanship.\n{announce_message_link}'
+                    member_message = f'**Important - Please Read.** You are signed up for the PolyChampions Auction this upcoming Saturday. Between now and the auction, you may be contacted by Team recruiters. It is in your best interest to speak with all these recruiters.\n\nBe open minded. Do not tell recruiter you\'re already committed to a team. Also, any recruiter who tries to force you to chose a team before the auction happens should be reported, as this is against league rules.\n\nRemember, the team choose the player, not the other way around.\n{announce_message_link}'
                     log_message = f'{member.mention} ({member.name}) reacted to the signup message and received the {free_agent_role.name} role.'
             else:
                 # Ineligible signup - either draft is closed or member does not have grad_role
