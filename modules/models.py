@@ -1544,7 +1544,7 @@ class Game(BaseModel):
         else:
             # Use Generic Teams
             if len(discord_groups) == 2:
-                if same_team and list_of_teams[0].name == 'The Novas':
+                if same_team and list_of_teams and list_of_teams[0] and list_of_teams[0].name == 'The Novas':
                     # special PolyChampions/Novas exception, give a game of Novas vs Novas special Nova Red and Nova Blue team.
                     logger.debug('special Novas exception triggered')
                     generic_teams = settings.generic_teams_short_novas
