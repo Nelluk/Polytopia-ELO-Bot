@@ -879,7 +879,7 @@ class administration(commands.Cog):
 
         await utilities.buffered_send(destination=ctx, content=f'Kicking {total_kicked_count} inactive members. Of those, {team_kicked_count} had a team role, listed below:\n {" / ".join(team_kicked_list)}')
 
-    @commands.command(usage='@Player <New Trophies Value>')
+    @commands.command(usage='@Player <New Trophies Value>', hidden=True)
     @settings.is_mod_check()
     async def ptrophies(self, ctx, *, args=None):
         """*Mod*: Set the trophies earned during the 2021 Polympics. Can only be used by mods on the server that the bot has tagged as named "Polympics"
