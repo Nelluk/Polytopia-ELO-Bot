@@ -35,6 +35,7 @@ class administration(commands.Cog):
                 return False
 
     @commands.is_owner()
+    # @settings.is_mod_check()
     @commands.command(aliases=['quit', 'restart_force'])
     async def restart(self, ctx):
         """ *Owner*: Close database connection and quit bot gracefully """

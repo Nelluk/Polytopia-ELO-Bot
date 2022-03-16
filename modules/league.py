@@ -1050,7 +1050,7 @@ class league(commands.Cog):
             file = discord.File(file, filename=filename)
             await ctx.send(f'{ctx.author.mention}, your export is complete. Wrote to `{filename}`', file=file)
 
-    @tasks.loop(minutes=30.0)
+    @tasks.loop(minutes=120.0)
     async def task_send_polychamps_invite(self):
         await self.bot.wait_until_ready()
 
