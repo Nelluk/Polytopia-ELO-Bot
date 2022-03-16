@@ -34,8 +34,8 @@ class administration(commands.Cog):
                 await ctx.send('You do not have permission to use this command.')
                 return False
 
-    @commands.is_owner()
-    # @settings.is_mod_check()
+    # @commands.is_owner()
+    @settings.is_mod_check()
     @commands.command(aliases=['quit', 'restart_force'])
     async def restart(self, ctx):
         """ *Owner*: Close database connection and quit bot gracefully """
