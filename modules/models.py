@@ -1856,10 +1856,11 @@ class Game(BaseModel):
                             p.change_elo_after_game(side_win_chances_alltime[i], is_winner, alltime=True, moonrise=False)
                             p.change_elo_after_game(side_win_chances_discord_alltime[i], is_winner, by_discord_member=True, alltime=True, moonrise=False)
                             if self.is_post_moonrise():
-                                if smallest_side == 1 and self.guild_id in [settings.server_ids['polychampions']]:
-                                    logger.info('Skipping local ELO for non-team game (polychampions-specific rule')
-                                else:
-                                    p.change_elo_after_game(side_win_chances[i], is_winner, alltime=False, moonrise=True)
+                                # if smallest_side == 1 and self.guild_id in [settings.server_ids['polychampions']]:
+                                #     logger.info('Skipping local ELO for non-team game (polychampions-specific rule') (reverted March 2022)
+                                # else:
+                                #     p.change_elo_after_game(side_win_chances[i], is_winner, alltime=False, moonrise=True)
+                                p.change_elo_after_game(side_win_chances[i], is_winner, alltime=False, moonrise=True)
                                 p.change_elo_after_game(side_win_chances_discord[i], is_winner, by_discord_member=True, alltime=False, moonrise=True)
                                 logger.info(f'Game date {self.date} is after ELO reset date of {settings.moonrise_reset_date}. Counts towards POST-Moonrise ELO')
                             else:
