@@ -928,9 +928,12 @@ class league(commands.Cog):
 
         if ctx.invoked_with == 'freeagents':
             args = [free_agent_role_name]
-        elif ctx.invoked_with == 'roleelo':
-            if not args:
-                return await ctx.send(f'No role name was supplied.\n{usage}')
+        else:
+            if not settings.is_staff(member):
+                return await ctx.send(f'You\'re not permitted to use this command. Only staff & Team Leaders may use this command.')
+            if ctx.invoked_with == 'roleelo':
+                if not args:
+                    return await ctx.send(f'No role name was supplied.\n{usage}')
 
         player_list = []
         player_obj_list, member_obj_list = [], []
