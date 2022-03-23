@@ -1548,7 +1548,7 @@ class polygames(commands.Cog):
                 if warnings:
                     await ctx.send('\n'.join(warnings))
                 host_player, _ = Player.get_by_discord_id(
-                    discord_id=ctx.author.id, guild_id=ctx.guild.id
+                    discord_id=ctx.author.id, guild_id=ctx.guild.id, discord_name=ctx.author.name, discord_nick=ctx.author.nick
                 )
                 if host_player:
                     newgame.host = host_player

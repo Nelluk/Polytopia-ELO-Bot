@@ -713,7 +713,7 @@ class Player(BaseModel):
         logger.debug(f'get_or_except matched string {player_string} to player {results[0].id} {results[0].name} - team {results[0].team_id}')
         return results[0]
 
-    def get_by_discord_id(discord_id: int, guild_id: int, discord_nick: str = None, discord_name: str = None):
+    def get_by_discord_id(discord_id: int, guild_id: int, discord_nick: str = "", discord_name: str = ""):
         # if no matching player, will check to see if there is already a DiscordMember created from another guild's player
         # if exists, Player will be upserted
         # return PlayerObj, Bool. bool = True if player was upserted
