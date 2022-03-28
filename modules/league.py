@@ -929,7 +929,7 @@ class league(commands.Cog):
         if ctx.invoked_with == 'freeagents':
             args = [free_agent_role_name]
         else:
-            if not settings.is_staff(member):
+            if not settings.is_staff(ctx.author):
                 return await ctx.send(f'You\'re not permitted to use this command. Only staff & Team Leaders may use this command.')
             if ctx.invoked_with == 'roleelo':
                 if not args:
