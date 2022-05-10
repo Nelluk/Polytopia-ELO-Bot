@@ -30,7 +30,7 @@ league_teams = [
     ('Ronin', ['The Ronin', 'The Bandits']),
     ('Jets', ['The Jets', 'The Cropdusters']),
     ('Bombers', ['The Bombers', 'The Dynamite']),
-    ('Lightning', ['The Lightning', 'The Thunder']),
+    ('Lightning', ['The Lightning', 'The ThunderCats']),
     ('Vikings', ['The Vikings', 'The Valkyries']),
     ('Crawfish', ['The Crawfish', 'The Shrimps']),
     ('Sparkies', ['The Sparkies', 'The Pups']),
