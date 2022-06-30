@@ -108,7 +108,7 @@ def is_valid_poly_gamename(input: str):
                  "Aliens", "Plains", "Volcano", "Cliff", "Rapids", "Reef", "Plateau", "Basin", "Oasis", "Marsh", "Swamp",
                  "Monsoon", "Atoll", "Fjord", "Tundra", "Map", "Strait", "Savanna", "Butte", "Bay", "Giants", "Warriors",
                  "Archers", "Defenders", "Catapults", "Riders", "Sleds", "Explorers", "Priests", "Ships", "Dragons", "Crabs",
-                 "Rebellion", "Sponge", "Gherkins"]
+                 "Rebellion", "Sponge", "Gherkins", "Discuss", "Discussion", "Chat"]
     return any(word.upper() in input.upper() for word in key_words)
 
 
