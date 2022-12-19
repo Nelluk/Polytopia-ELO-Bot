@@ -1282,7 +1282,8 @@ class Game(BaseModel):
                 # Winner is individual player
                 winning_discord_member = guild.get_member(self.winner.lineup[0].player.discord_member.discord_id)
                 if winning_discord_member is not None:
-                    embed.set_thumbnail(url=winning_discord_member.avatar_url_as(size=512))
+                    embed.set_thumbnail(url=winning_discord_member.display_avatar.replace(size=512, format='webp'))
+                    
             elif self.winner.team and self.winner.team.image_url:
                 # Winner is a team of players - use team image if present
                 embed.set_thumbnail(url=self.winner.team.image_url)

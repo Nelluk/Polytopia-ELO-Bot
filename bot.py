@@ -79,7 +79,6 @@ class MyBot(commands.Bot):
             'modules.api_cog'
         ]
         for extension in initial_extensions:
-            print('here load_extension')
             await self.load_extension(extension)
 
 def get_prefix(bot, message):

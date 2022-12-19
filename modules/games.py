@@ -780,7 +780,8 @@ class polygames(commands.Cog):
 
             guild_member = ctx.guild.get_member(player.discord_member.discord_id)
             if guild_member:
-                embed.set_thumbnail(url=guild_member.avatar_url_as(size=512))
+                # embed.set_thumbnail(url=guild_member.avatar_url_as(size=512))
+                embed.set_thumbnail(url=guild_member.display_avatar.replace(size=512, format='webp'))
 
             if player.team:
                 team_str = f'{player.team.name} {player.team.emoji}' if player.team.emoji else player.team.name

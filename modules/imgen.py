@@ -153,11 +153,12 @@ def player_draft_card(
     team_colour = str(team_role.colour)
     selecting_string = selecting_string if selecting_string else team.name
     title = f'{selecting_string.upper()} SELECT'
-    player_avatar = fetch_image(str(member.avatar_url_as(
-        format='png', size=256
-    )))
-    if not member.avatar:
-        player_avatar = player_avatar.convert("RGB")
+    # player_avatar = fetch_image(str(member.avatar_url_as(
+    #     format='png', size=256
+    # )))
+    # if not member.avatar:
+    #     player_avatar = player_avatar.convert("RGB")
+    player_avatar = fetch_image(str(member.display_avatar.replace(size=256, format='png')))
     name = member.name.upper()
     summary = get_player_summary(member)
     wordmark = Image.open('res/pc_wordmark.png')
