@@ -2243,6 +2243,6 @@ def parse_players_and_teams(input_list, guild_id: int):
     return player_matches, team_matches, input_list
 
 
-def setup(bot):
-    bot.add_cog(polygames(bot))
+async def setup(bot):
+    await bot.add_cog(polygames(bot))
     # bot.load_extension('modules.games')

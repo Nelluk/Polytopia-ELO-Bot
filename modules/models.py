@@ -5,19 +5,17 @@ import datetime
 import logging
 import os
 import re
+import statistics
 from typing import Any, Dict, List
 
 import discord
 from discord.ext import commands
-
 from peewee import *
 from playhouse.postgres_ext import *
 from psycopg2.errors import DuplicateObject
 
 import settings
-import statistics
 from modules import channels, exceptions
-
 
 logger = logging.getLogger('polybot.' + __name__)
 elo_logger = logging.getLogger('polybot.elo')

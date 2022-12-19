@@ -1244,5 +1244,5 @@ class matchmaking(commands.Cog):
                 game.delete_game()
 
 
-def setup(bot):
-    bot.add_cog(matchmaking(bot))
+async def setup(bot):
+    await bot.add_cog(matchmaking(bot))

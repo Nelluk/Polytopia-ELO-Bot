@@ -30,7 +30,7 @@ class MyHelpCommand(commands.MinimalHelpCommand):
 
     def get_command_signature(self, command):
         # top line of '$help <command>' output
-        return '`{0.clean_prefix}{1.qualified_name} {1.signature}`'.format(self, command)
+        return '`{0.context.clean_prefix}{1.qualified_name} {1.signature}`'.format(self, command)
 
     def add_indented_commands(self, commands, *, heading, max_size=None):
         """Indents a list of commands after the specified heading.
@@ -62,7 +62,7 @@ class MyHelpCommand(commands.MinimalHelpCommand):
         for command in commands:
             name = command.name
             width = max_size - (get_width(name) - len(name))
-            entry = '{0}{1:<{width}} {2}'.format(self.indent * ' ', name, command.short_doc.replace('[p]', self.clean_prefix), width=width)
+            entry = '{0}{1:<{width}} {2}'.format(self.indent * ' ', name, command.short_doc.replace('[p]', self.context.clean_prefix), width=width)
             self.paginator.add_line(self.shorten_text(entry))
 
     def add_bot_commands_formatting(self, commands, heading):
@@ -75,8 +75,8 @@ class MyHelpCommand(commands.MinimalHelpCommand):
 
             for c in commands:
 
-                c_name = f'__**`{self.clean_prefix}{c.qualified_name}`**__'  # formatted prefix + command name
-                c_desc = c.short_doc.replace('[p]', self.clean_prefix) if c.short_doc else ''
+                c_name = f'__**`{self.context.clean_prefix}{c.qualified_name}`**__'  # formatted prefix + command name
+                c_desc = c.short_doc.replace('[p]', self.context.clean_prefix) if c.short_doc else ''
                 self.paginator.add_line(f'{c_name} \u200b \N{EN DASH} \u200b {c_desc}')
 
     def add_subcommand_formatting(self, command):
@@ -92,7 +92,7 @@ class MyHelpCommand(commands.MinimalHelpCommand):
 
         # this is for the list output of '$help administration', for example
         fmt = '__**`{0}{1}`**__ \N{EN DASH} {2}' if command.short_doc else '__**`{0}{1}`**__'
-        self.paginator.add_line(fmt.format(self.clean_prefix, command.qualified_name, command.short_doc.replace('[p]', self.clean_prefix)))
+        self.paginator.add_line(fmt.format(self.context.clean_prefix, command.qualified_name, command.short_doc.replace('[p]', self.context.clean_prefix)))
 
     def add_command_formatting(self, command):
         """A utility function to format the non-indented block of commands and groups.
@@ -116,12 +116,12 @@ class MyHelpCommand(commands.MinimalHelpCommand):
                 # This adds the body of the content in /help commandname. not sure under what circumstances an Exception would trigger
                 if self.context.guild.id == settings.server_ids['polychampions']:
                     # Any bit of shortdoc after <START POLYCHAMPS>\n will be truncated if current server is not polychampions
-                    self.paginator.add_line(command.help.replace('[p]', self.clean_prefix).replace('<START POLYCHAMPS>\n', ''), empty=True)
+                    self.paginator.add_line(command.help.replace('[p]', self.context.clean_prefix).replace('<START POLYCHAMPS>\n', ''), empty=True)
                 else:
-                    self.paginator.add_line(command.help.replace('[p]', self.clean_prefix).split('<START POLYCHAMPS>\n', 1)[0], empty=True)
+                    self.paginator.add_line(command.help.replace('[p]', self.context.clean_prefix).split('<START POLYCHAMPS>\n', 1)[0], empty=True)
 
             except RuntimeError:
-                for line in command.help.replace('[p]', self.clean_prefix).splitlines():
+                for line in command.help.replace('[p]', self.context.clean_prefix).splitlines():
                     self.paginator.add_line(line)
                 self.paginator.add_line()
 
@@ -133,8 +133,8 @@ class MyHelpCommand(commands.MinimalHelpCommand):
         """
         command_name = self.invoked_with
         return "Use `{0}{1} [command]` for more info on a command.\n" \
-               "Use `{0}guide` for a general bot overview.".format(self.clean_prefix, command_name)
-        # return "Use `{0}{1} [command]` for more info on a command.\n".format(self.clean_prefix, command_name)
+               "Use `{0}guide` for a general bot overview.".format(self.context.clean_prefix, command_name)
+        # return "Use `{0}{1} [command]` for more info on a command.\n".format(self.context.clean_prefix, command_name)
 
 
 class CustomHelp(commands.Cog):
@@ -147,5 +147,5 @@ class CustomHelp(commands.Cog):
         self.bot.help_command = self._original_help_command
 
 
-def setup(bot):
-    bot.add_cog(CustomHelp(bot))
+async def setup(bot):
+    await bot.add_cog(CustomHelp(bot))

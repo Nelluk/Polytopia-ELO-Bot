@@ -1112,5 +1112,5 @@ def populate_league_team_channels():
     return len(league_team_channels)
 
 
-def setup(bot):
-    bot.add_cog(league(bot))
+async def setup(bot):
+    await bot.add_cog(league(bot))

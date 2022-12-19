@@ -682,5 +682,5 @@ class misc(commands.Cog):
             await asyncio.sleep(sleep_cycle)
 
 
-def setup(bot):
-    bot.add_cog(misc(bot))
+async def setup(bot):
+    await bot.add_cog(misc(bot))

@@ -3,67 +3,19 @@ import asyncio
 import logging
 import sys
 import traceback
-from logging.handlers import RotatingFileHandler
 from timeit import default_timer as timer
 from typing import List
 
 import discord
 from discord.ext import commands
 
-import settings
+import logging_config
 import modules.exceptions as exceptions
+import settings
 from modules import initialize_data, models, utilities
 
-
-# Logger config is a bit of a mess and probably could be simplified a lot, but works. debug and above sent to file / error above sent to stderr
-handler = RotatingFileHandler(filename='logs/full_bot.log', encoding='utf-8', maxBytes=1024 * 1024 * 2, backupCount=10)
-partial_handler = RotatingFileHandler(filename='logs/discord.log', encoding='utf-8', maxBytes=1024 * 1024 * 2, backupCount=10)  # without peewee logging
-elo_handler = RotatingFileHandler(filename='logs/elo.log', encoding='utf-8', maxBytes=1024 * 1024 * 2, backupCount=5)
-api_handler = RotatingFileHandler(filename='logs/api.log', encoding='utf-8', maxBytes=1024 * 1024 * 2, backupCount=5)
-
-handler.setFormatter(logging.Formatter('%(asctime)s:%(levelname)s:%(name)s: %(message)s'))
-partial_handler.setFormatter(logging.Formatter('%(asctime)s:%(levelname)s:%(name)s: %(message)s'))
-elo_handler.setFormatter(logging.Formatter('%(asctime)s:%(levelname)s:%(name)s: %(message)s'))
-api_handler.setFormatter(logging.Formatter('%(asctime)s:%(levelname)s:%(name)s: %(message)s'))
-
-my_logger = logging.getLogger('polybot')
-my_logger.setLevel(logging.DEBUG)
-my_logger.addHandler(handler)  # root handler for app. module-specific loggers will inherit this
-my_logger.addHandler(partial_handler)
-
-elo_logger = logging.getLogger('polybot.elo')
-elo_logger.setLevel(logging.DEBUG)
-elo_logger.addHandler(elo_handler)
-
-api_logger = logging.getLogger('polybot.api')
-api_logger.setLevel(logging.DEBUG)
-api_logger.addHandler(api_handler)
-
-err = logging.StreamHandler(sys.stderr)
-err.setLevel(logging.ERROR)
-err.setFormatter(logging.Formatter('%(asctime)s:%(levelname)s:%(name)s: %(message)s'))
-my_logger.addHandler(err)
-
-
-discord_logger = logging.getLogger('discord')
-discord_logger.setLevel(logging.INFO)
-
-if (discord_logger.hasHandlers()):
-    discord_logger.handlers.clear()
-
-discord_logger.addHandler(handler)
-discord_logger.addHandler(partial_handler)
-
-logger_peewee = logging.getLogger('peewee')
-logger_peewee.setLevel(logging.DEBUG)
-
-if (logger_peewee.hasHandlers()):
-    logger_peewee.handlers.clear()
-
-logger_peewee.addHandler(handler)
-
 logger = logging.getLogger('polybot.' + __name__)
-
+# https://discord.com/channels/336642139381301249/1042604006226280468/1042645381143613532
 
 def main(args: List[str] = None):
     parser = argparse.ArgumentParser()
@@ -107,6 +59,28 @@ def main(args: List[str] = None):
             )
             logger.info(f'{query.execute()} polytopia IDs are banned')
 
+class MyBot(commands.Bot):
+    intents = discord.Intents().all()
+    intents.typing = False
+    def __init__(self):
+        super().__init__(command_prefix=get_prefix,
+                         owner_id=settings.owner_id,
+                         allowed_mentions=discord.AllowedMentions(everyone=False),
+                         intents=self.intents,
+                         activity=discord.Activity(name='$guide', type=discord.ActivityType.playing))
+        settings.bot = self
+        self.purgable_messages = []  # auto-deleting messages to get cleaned up by Administraton.quit  (guild, channel, message) tuple list
+        self.locked_game_records = set()  # Games which cannot be written to since another command is working on them right now. Ugly hack to do what should be done at the DB level
+
+    async def setup_hook(self):
+        initial_extensions = [
+            'modules.games', 'modules.customhelp', 'modules.matchmaking',
+            'modules.administration', 'modules.misc', 'modules.league',
+            'modules.api_cog'
+        ]
+        for extension in initial_extensions:
+            print('here load_extension')
+            await self.load_extension(extension)
 
 def get_prefix(bot, message):
     # Guild-specific command prefixes
@@ -131,18 +105,7 @@ def get_prefix(bot, message):
 def init_bot(loop: asyncio.AbstractEventLoop = None, args: List[str] = None):
     main(args)
     utilities.connect()
-    am = discord.AllowedMentions(everyone=False)
-    intents = discord.Intents().all()
-    intents.typing = False
-    bot = commands.Bot(command_prefix=get_prefix,
-                       owner_id=settings.owner_id,
-                       allowed_mentions=am,
-                       intents=intents,
-                       activity=discord.Activity(name='$guide', type=discord.ActivityType.playing),
-                       loop=loop)
-    settings.bot = bot
-    bot.purgable_messages = []  # auto-deleting messages to get cleaned up by Administraton.quit  (guild, channel, message) tuple list
-    bot.locked_game_records = set()  # Games which cannot be written to since another command is working on them right now. Ugly hack to do what should be done at the DB level
+    bot = MyBot()
 
     cooldown = commands.CooldownMapping.from_cooldown(6, 30.0, commands.BucketType.user)
 
@@ -200,20 +163,12 @@ def init_bot(loop: asyncio.AbstractEventLoop = None, args: List[str] = None):
         else:
             exception_str = ''.join(traceback.format_exception(etype=type(exc), value=exc, tb=exc.__traceback__))
             logger.critical(f'Ignoring exception in command {ctx.command}: {exc} {exception_str}', exc_info=True)
-            await ctx.send(f'Unhandled error (notifying <@{settings.owner_id}>): {exc}')
+            await ctx.send(f'Unhandled error (notifying <@{settings.owner_id}> and <@608290258978865174>): {exc}')  #added legorooj to notification
 
     @bot.before_invoke
     async def pre_invoke_setup(ctx):
         utilities.connect()
         logger.debug(f'Command invoked: {ctx.message.clean_content}. By {ctx.message.author.name} in {ctx.channel.id} {ctx.channel.name} on {ctx.guild.name}')
-
-    initial_extensions = [
-        'modules.games', 'modules.customhelp', 'modules.matchmaking',
-        'modules.administration', 'modules.misc', 'modules.league',
-        'modules.api_cog'
-    ]
-    for extension in initial_extensions:
-        bot.load_extension(extension)
 
     @bot.event
     async def on_message(message):

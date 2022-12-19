@@ -154,6 +154,6 @@ class Api(commands.Cog, name='api'):
         await ctx.send(f'Reset token for **{app.name}**!')
 
 
-def setup(bot: commands.Bot):
+async def setup(bot: commands.Bot):
     """Add the cog to a bot."""
-    bot.add_cog(Api(bot))
+    await bot.add_cog(Api(bot))

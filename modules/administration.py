@@ -1176,5 +1176,5 @@ class administration(commands.Cog):
                 return await ctx.send(f'Error during execution: {str(process.stderr)}')
 
 
-def setup(bot):
-    bot.add_cog(administration(bot))
+async def setup(bot):
+    await bot.add_cog(administration(bot))
