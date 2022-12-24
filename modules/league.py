@@ -799,7 +799,7 @@ class league(commands.Cog):
                     guild_matches = await utilities.get_guild_member(ctx, image_arg)
                     if len(guild_matches) == 1:
                         # passed member mention. use profile picture/avatar
-                        return guild_matches[0].avatar_url_as(size=256, format='png'), \
+                        return guild_matches[0].display_avatar.replace(size=512, format='webp'), \
                             '#00ff00' if position == 0 else '#ff0000'
                     else:
                         raise ValueError(f'Cannot convert *{image_arg}* to an image.')
