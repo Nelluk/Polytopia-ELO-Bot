@@ -71,7 +71,7 @@ class misc(commands.Cog):
             f'For example if Nelluk wins game 10150, he would type __`{ctx.prefix}win 10150 nelluk`__. The losing player can confirm using the same command. '
             'Games are auto-confirmed after 24 hours, or sooner if the losing side manually confirms.', inline=False)
 
-        embed.set_thumbnail(url=self.bot.user.avatar_url_as(size=512))
+        embed.set_thumbnail(url=self.bot.user.display_avatar.replace(size=512, format='webp'))
         embed.set_footer(text='Developer: Nelluk')
         await ctx.send(embed=embed)
 
@@ -86,9 +86,9 @@ class misc(commands.Cog):
         embed.add_field(name='Developer', value='Nelluk')
         embed.add_field(name='Source code', value='https://github.com/Nelluk/Polytopia-ELO-Bot')
 
-        embed.add_field(name='Contributions', value='rickdaheals, koric, Gerenuk, alphaSeahorse, Octo, Artemis, theoldlove', inline=False)
+        embed.add_field(name='Contributions', value='rickdaheals, koric, Gerenuk, alphaSeahorse, Octo, Artemis, Legorooj,  theoldlove', inline=False)
 
-        embed.set_thumbnail(url=self.bot.user.avatar_url_as(size=512))
+        embed.set_thumbnail(url=self.bot.user.display_avatar.replace(size=512, format='webp'))
         await ctx.send(embed=embed)
 
     @commands.command()
