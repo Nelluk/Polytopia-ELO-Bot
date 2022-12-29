@@ -318,8 +318,7 @@ def export_player_data(player_list, member_list):
 
             row = [player.name, dm.discord_id, player.team.name if player.team else '', player.elo, player.elo_max,
                    dm.elo, dm.elo_max, f'{p_record[0]} / {p_record[1]}', f'{dm_record[0]} / {dm_record[1]}',
-                   recent_games, dm.polytopia_id, dm.polytopia_name, member.avatar_url_as(format='png', size=512)]
-
+                   recent_games, dm.polytopia_id, dm.polytopia_name, member.display_avatar.replace(format='png', size=512)]
             game_writer.writerow(row)
 
     print(f'Game data written to file {filename} in bot.py directory')
