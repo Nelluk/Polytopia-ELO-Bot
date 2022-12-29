@@ -480,7 +480,7 @@ class misc(commands.Cog):
     async def roleelo(self, ctx: commands.Context, *, arg=None):
         """Prints list of players with a given role and their ELO stats
 
-        You can check more tha one role at a time by separating them with a comma.
+        You can check more than one role at a time by separating them with a comma.
         By default, will return members with ALL the specified roles.
         Use `[p]roleeloany` to list members with ANY of the roles.
 
@@ -500,7 +500,7 @@ class misc(commands.Cog):
         `[p]roleelo novas` - List all members with a role matching 'novas'
         `[p]roleelo novas -file` - Load all 'nova' members into a CSV file
         `[p]roleelo elo novas` - List all members with a role matching 'novas', sorted by local elo
-        `[p]roleelo g_elo crawfish, ronin` - List all members with any of two roles, sorted by global elo
+        `[p]roleeloany g_elo crawfish, ronin` - List all members with any of two roles, sorted by global elo
         """
         args = arg.split() if arg else []
         usage = (f'**Example usage:** `{ctx.prefix}roleelo Ronin`\n'
