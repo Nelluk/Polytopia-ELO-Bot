@@ -21,7 +21,7 @@ except KeyError:
     exit(0)
 
 pastebin_key = config['DEFAULT'].get('pastebin_key', None)
-
+# github test change
 server_ids = server_settings.server_shortcut_ids
 # server_ids = {'main': 283436219780825088, 'polychampions': 447883341463814144, 'test': 478571892832206869, 'beta': 274660262873661442}
 bot_id_beta = 479029527553638401
