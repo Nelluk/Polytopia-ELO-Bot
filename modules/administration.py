@@ -715,7 +715,7 @@ class administration(commands.Cog):
                            discord.utils.get(ctx.guild.roles, name='Team Leader'), discord.utils.get(ctx.guild.roles, name='Team Co-Leader'),
                            discord.utils.get(ctx.guild.roles, name='PrOPhEt oF MiDJiWaN')]
 
-        activity_time = (datetime.datetime.now() + datetime.timedelta(days=-60))
+        activity_time = (discord.utils.utcnow() + datetime.timedelta(days=-60))
         if not inactive_role:
             return await ctx.send('Error loading Inactive role')
 
@@ -773,8 +773,8 @@ class administration(commands.Cog):
 
         total_kicked_count, team_kicked_count = 0, 0
         team_kicked_list = []
-        last_week = (datetime.datetime.now() + datetime.timedelta(days=-7))
-        last_month = (datetime.datetime.now() + datetime.timedelta(days=-30))
+        last_week = (discord.utils.utcnow() + datetime.timedelta(days=-7))
+        last_month = (discord.utils.utcnow() + datetime.timedelta(days=-30))
         inactive_role = discord.utils.get(ctx.guild.roles, name=settings.guild_setting(ctx.guild.id, 'inactive_role'))
         if not inactive_role:
             logger.warning(f'Could not load Inactive role by name {settings.guild_setting(ctx.guild.id, "inactive_role")}')
