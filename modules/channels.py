@@ -115,7 +115,7 @@ async def create_game_channel(guild, game, player_list, team_name: str = None, u
         # Both chans going into a central ELO Games category. Set a default permissions to ensure it isnt world-readable
         chan_permissions[guild.default_role] = discord.PermissionOverwrite(read_messages=False)
 
-    perm = discord.PermissionOverwrite(read_messages=True, add_reactions=True, send_messages=True, attach_files=True, manage_messages=True)
+    perm = discord.PermissionOverwrite(read_messages=True, add_reactions=True, send_messages=True, attach_files=True, manage_messages=True, create_public_threads=True)
 
     for m in chan_members + [guild.me]:
         chan_permissions[m] = perm
@@ -138,7 +138,7 @@ async def add_member_to_channel(channel, member):
     # Specifically add one given DiscordMember to a channel's permission overwrites
     # used when a player rejoins a server with games pending to get re-added to the channels
     overwrites = channel.overwrites
-    overwrites[member] = discord.PermissionOverwrite(read_messages=True, add_reactions=True, send_messages=True, attach_files=True, manage_messages=True)
+    overwrites[member] = discord.PermissionOverwrite(read_messages=True, add_reactions=True, send_messages=True, attach_files=True, manage_messages=True, create_public_threads=True)
 
     await channel.edit(overwrites=overwrites)
 
