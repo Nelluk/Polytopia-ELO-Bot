@@ -113,7 +113,7 @@ class administration(commands.Cog):
 
         await ctx.send(f'Returned {len(channels)} channels (of {len(potential_channels)} potential channels)')
 
-        old_30d = (datetime.datetime.today() + datetime.timedelta(days=-30))
+        old_30d = (discord.utils.utcnow() + datetime.timedelta(days=-30))
 
         async def delete_channel(channel, game=None):
             nonlocal purged_channels
@@ -149,7 +149,8 @@ class administration(commands.Cog):
                     continue
                 if chan.last_message_id:
                     try:
-                        messages = await chan.history(limit=5, oldest_first=False).flatten()
+                        # messages = await chan.history(limit=5, oldest_first=False).flatten()
+                        messages = [message async for message in chan.history(limit=5, oldest_first=False)]
                     except discord.DiscordException as e:
                         logger.error(f'Could not load channel history: {e}')
                         continue
