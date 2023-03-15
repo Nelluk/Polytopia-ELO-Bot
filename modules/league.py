@@ -1054,15 +1054,22 @@ async def auto_grad_novas(ctx, game):
             continue
 
         qualifying_games = []
+        has_completed_game = False
 
         for lineup in player.games_played():
             game = lineup.game
             if game.smallest_team() > 1:
                 if not game.is_pending:
                     qualifying_games.append(str(game.id))
+                if game.is_completed:
+                    has_completed_game = True
 
         if len(qualifying_games) < 2:
             logger.debug(f'Player {player.name} has insufficient qualifying games. Games that qualified: {qualifying_games}')
+            continue
+    
+        if not has_completed_game:
+            logger.debug(f'Player {player.name} has no completed team games.')
             continue
 
         wins, losses = dm.get_record()
