@@ -161,9 +161,9 @@ class administration(commands.Cog):
                         logger.debug(f'{chan.name} not eligible for deletion - has a recent message in history')
                         continue
                     logger.warning(f'{chan.name} {chan.id} is eligible for deletion - few messages and no recent messages in history')
-                    await ctx.send(f'DELETING DISABLED - DRY RUN Deleting channel **{chan.name}** - few messages and no recent messages in history')
-                    # await delete_channel(chan, game)
-                    # models.GameLog.write(game_id=game, guild_id=ctx.guild.id, message=f'Game channel *{chan.name}* deleted during purge of unused or unneeded channels.')
+                    await ctx.send(f'Deleting channel **{chan.name}** - few messages and no recent messages in history')
+                    await delete_channel(chan, game)
+                    models.GameLog.write(game_id=game, guild_id=ctx.guild.id, message=f'Game channel *{chan.name}* deleted during purge of unused or unneeded channels.')
                 else:
                     logger.debug(f'Channel {chan.name} {chan.id} has no last_message_id. deleting.')
                     await delete_channel(chan, game)
