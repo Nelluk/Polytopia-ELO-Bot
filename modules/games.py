@@ -1686,11 +1686,11 @@ class polygames(commands.Cog):
                 # try/except block is attempt at a bandaid where sometimes an InterfaceError/Cursor Closed exception would hit here, probably due to issues with async code
 
                 try:
-                    await post_win_messaging(ctx.guild, ctx.prefix, ctx.channel, winning_game)
+                    await post_win_messaging(ctx, ctx.prefix, ctx.channel, winning_game)
                 except peewee.PeeweeException as e:
                     logger.error(f'Error during win command triggering post_win_messaging - trying to reopen and run again: {e}')
                     db.connect(reuse_if_open=True)
-                    await post_win_messaging(ctx.guild, ctx.prefix, ctx.channel, winning_game)
+                    await post_win_messaging(ctx, ctx.prefix, ctx.channel, winning_game)
 
     @settings.in_bot_channel()
     @models.is_registered_member()
@@ -2134,7 +2134,8 @@ class polygames(commands.Cog):
             await asyncio.sleep(60 * 60 * 2)
 
 
-async def post_win_messaging(guild, prefix, current_chan, winning_game):
+async def post_win_messaging(ctx, prefix, current_chan, winning_game):
+    guild = ctx.guild
 
     purge_message = '*This channel will be purged soon.* Purging will be skipped if the channel or its category has "archive" in the name, or has "Manage Channel" denied to me.'
     reminder_message = ''
@@ -2160,6 +2161,8 @@ async def post_win_messaging(guild, prefix, current_chan, winning_game):
 
     await current_chan.send(f'Game concluded! Congrats **{winning_game.winner.name()}**. Roster: {" ".join(winning_game.mentions())}{reminder_message}')
     await current_chan.send(embed=embed, content=content)
+
+    await auto_grad_novas(ctx, winning_game)
 
 
 async def post_unwin_messaging(guild, prefix, current_chan, game, previously_confirmed: bool = False):
