@@ -285,10 +285,14 @@ class administration(commands.Cog):
                         logger.debug(f'Could not load log_channel for server {guild.id} - skipping')
                         continue
 
+                    logger.debug(f'Loaded log_channel for server {guild.id}')
                     prefix = settings.guild_setting(guild.id, 'command_prefix')
                     (unconfirmed_count, games_confirmed) = await self.confirm_auto(guild, prefix, staff_output_channel)
                     if games_confirmed:
                         await staff_output_channel.send(f'Autoconfirm process complete. {games_confirmed} games auto-confirmed. {unconfirmed_count - games_confirmed} games left unconfirmed.')
+                        logger.debug(f'Autoconfirm process for guild {guild.id} complete. {games_confirmed} games auto-confirmed. {unconfirmed_count - games_confirmed} games left unconfirmed.')
+                    else:
+                        logger.debug(f'No games_confirmed for guild {guild.id}')
 
             await asyncio.sleep(sleep_cycle)
 
