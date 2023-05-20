@@ -214,7 +214,7 @@ class administration(commands.Cog):
         await ctx.send(f'**Game {winning_game.id}** winner has been confirmed as **{winning_game.winner.name()}**')  # Added here to try to fix InterfaceError Cursor Closed - seems to fix if there is output at the end
 
     async def confirm_auto(self, guild, prefix, current_channel):
-        logger.debug('in confirm_auto')
+        logger.info(f'in confirm_auto with guild {guild} prefix {prefix} current_channel {current_channel}')
 
         if settings.recalculation_mode:
             logger.info('Skipping confirm_auto due to settings.recalculation_mode')
@@ -228,6 +228,7 @@ class administration(commands.Cog):
 
         for game in game_query:
 
+            logger.debug(f'auto_confirm checking game {game.id}')
             (confirmed_count, side_count, _) = game.confirmations_count()
 
             if not game.win_claimed_ts:
@@ -284,10 +285,14 @@ class administration(commands.Cog):
                         logger.debug(f'Could not load log_channel for server {guild.id} - skipping')
                         continue
 
+                    logger.debug(f'Loaded log_channel for server {guild.id}')
                     prefix = settings.guild_setting(guild.id, 'command_prefix')
                     (unconfirmed_count, games_confirmed) = await self.confirm_auto(guild, prefix, staff_output_channel)
                     if games_confirmed:
                         await staff_output_channel.send(f'Autoconfirm process complete. {games_confirmed} games auto-confirmed. {unconfirmed_count - games_confirmed} games left unconfirmed.')
+                        logger.debug(f'Autoconfirm process complete. {games_confirmed} games auto-confirmed. {unconfirmed_count - games_confirmed} games left unconfirmed.')
+                    else:
+                        logger.debug(f'No games_confirmed for guild {guild.id}')
 
             await asyncio.sleep(sleep_cycle)
 
