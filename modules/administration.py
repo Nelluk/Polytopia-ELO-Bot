@@ -214,7 +214,7 @@ class administration(commands.Cog):
         await ctx.send(f'**Game {winning_game.id}** winner has been confirmed as **{winning_game.winner.name()}**')  # Added here to try to fix InterfaceError Cursor Closed - seems to fix if there is output at the end
 
     async def confirm_auto(self, guild, prefix, current_channel):
-        logger.debug('in confirm_auto')
+        logger.info(f'in confirm_auto with guild {guild} prefix {prefix} current_channel {current_channel}')
 
         if settings.recalculation_mode:
             logger.info('Skipping confirm_auto due to settings.recalculation_mode')
@@ -227,6 +227,7 @@ class administration(commands.Cog):
         unconfirmed_count = len(game_query)
 
         for game in game_query:
+            logger.debug(f'auto_confirm checking game {game.id}')
 
             (confirmed_count, side_count, _) = game.confirmations_count()
 
