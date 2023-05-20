@@ -1686,11 +1686,11 @@ class polygames(commands.Cog):
                 # try/except block is attempt at a bandaid where sometimes an InterfaceError/Cursor Closed exception would hit here, probably due to issues with async code
 
                 try:
-                    await post_win_messaging(ctx, ctx.prefix, ctx.channel, winning_game)
+                    await post_win_messaging(ctx.guild, ctx.prefix, ctx.channel, winning_game)
                 except peewee.PeeweeException as e:
                     logger.error(f'Error during win command triggering post_win_messaging - trying to reopen and run again: {e}')
                     db.connect(reuse_if_open=True)
-                    await post_win_messaging(ctx, ctx.prefix, ctx.channel, winning_game)
+                    await post_win_messaging(ctx.guild, ctx.prefix, ctx.channel, winning_game)
 
     @settings.in_bot_channel()
     @models.is_registered_member()
