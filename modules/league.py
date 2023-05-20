@@ -1021,14 +1021,14 @@ async def broadcast_team_game_to_server(ctx, game):
         logger.debug(f'broadcast_team_game_to_server - sending message to channel {team_channel.name} on server {team_server.name}\n{message_content}')
 
 
-async def auto_grad_novas(ctx, game):
+async def auto_grad_novas(guild, game, output_channel = None):
     # called from post_newgame_messaging() - check if any member of the newly-started game now meets Nova graduation requirements
 
-    if ctx.guild.id not in [settings.server_ids['polychampions'], settings.server_ids['test']]:
+    if guild.id not in [settings.server_ids['polychampions'], settings.server_ids['test']]:
         return
 
-    role = discord.utils.get(ctx.guild.roles, name=novas_role_name)
-    grad_role = discord.utils.get(ctx.guild.roles, name=grad_role_name)
+    role = discord.utils.get(guild.roles, name=novas_role_name)
+    grad_role = discord.utils.get(guild.roles, name=grad_role_name)
 
     if not role or not grad_role:
         logger.warning('Could not load required roles to complete auto_grad_novas')
@@ -1036,7 +1036,7 @@ async def auto_grad_novas(ctx, game):
 
     player_id_list = [l.player.discord_member.discord_id for l in game.lineup]
     for player_id in player_id_list:
-        member = ctx.guild.get_member(player_id)
+        member = guild.get_member(player_id)
         if not member:
             logger.warning(f'Could not load guild member matching discord_id {player_id} for game {game.id} in auto_grad_novas')
             continue
@@ -1048,7 +1048,7 @@ async def auto_grad_novas(ctx, game):
 
         try:
             dm = models.DiscordMember.get(discord_id=member.id)
-            player = models.Player.get(discord_member=dm, guild_id=ctx.guild.id)
+            player = models.Player.get(discord_member=dm, guild_id=guild.id)
         except peewee.DoesNotExist:
             logger.warning(f'Player {member.name} not registered.')
             continue
@@ -1081,11 +1081,11 @@ async def auto_grad_novas(ctx, game):
             logger.error(f'Could not assign league graduation role: {e}')
             break
 
-        config, _ = models.Configuration.get_or_create(guild_id=ctx.guild.id)
+        config, _ = models.Configuration.get_or_create(guild_id=guild.id)
         announce_str = 'Free Agent signups open regularly - pay attention to server announcements for a notification of the next one.'
         if config.polychamps_draft['draft_open']:
             try:
-                channel = ctx.guild.get_channel(config.polychamps_draft['announcement_channel'])
+                channel = guild.get_channel(config.polychamps_draft['announcement_channel'])
                 if channel and await channel.fetch_message(config.polychamps_draft['announcement_message']):
                     announce_str = f'Free Agent signups are currently open in <#{channel.id}>'
             except discord.NotFound:
@@ -1097,8 +1097,9 @@ async def auto_grad_novas(ctx, game):
                 f'has met the qualifications and is now a **{grad_role.name}**\n'
                 f'{announce_str}')
 
-        await ctx.send(grad_announcement)
-        await utilities.send_to_log_channel(ctx.guild, grad_announcement)
+        await utilities.send_to_log_channel(guild, grad_announcement)
+        if output_channel:
+            await output_channel.send(grad_announcement)
 
 
 def populate_league_team_channels():

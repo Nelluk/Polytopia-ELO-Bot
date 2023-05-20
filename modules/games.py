@@ -2134,8 +2134,7 @@ class polygames(commands.Cog):
             await asyncio.sleep(60 * 60 * 2)
 
 
-async def post_win_messaging(ctx, prefix, current_chan, winning_game):
-    guild = ctx.guild
+async def post_win_messaging(guild, prefix, current_chan, winning_game):
 
     purge_message = '*This channel will be purged soon.* Purging will be skipped if the channel or its category has "archive" in the name, or has "Manage Channel" denied to me.'
     reminder_message = ''
@@ -2162,7 +2161,7 @@ async def post_win_messaging(ctx, prefix, current_chan, winning_game):
     await current_chan.send(f'Game concluded! Congrats **{winning_game.winner.name()}**. Roster: {" ".join(winning_game.mentions())}{reminder_message}')
     await current_chan.send(embed=embed, content=content)
 
-    await auto_grad_novas(ctx, winning_game)
+    await auto_grad_novas(guild, winning_game, current_chan)
 
 
 async def post_unwin_messaging(guild, prefix, current_chan, game, previously_confirmed: bool = False):
@@ -2218,7 +2217,7 @@ async def post_newgame_messaging(ctx, game):
     if game.guild_id == settings.server_ids['polychampions'] and game.smallest_team() > 1:
         populate_league_team_channels()
 
-    await auto_grad_novas(ctx, game)
+    await auto_grad_novas(ctx.guild, game, ctx)
 
 
 def parse_players_and_teams(input_list, guild_id: int):
