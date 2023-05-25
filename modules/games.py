@@ -2101,15 +2101,14 @@ class polygames(commands.Cog):
         await self.bot.wait_until_ready()
         while not self.bot.is_closed():
             # purge game channels from games that were concluded at least 24 hours ago
-            # restricted games to those that concluded less than 7 days ago because otherwise task takes ~15 minutes to run and makes the bot freeze
-
-            # await asyncio.sleep(900)
-            await asyncio.sleep(15)
+            # restricted games to those that concluded less than 14 days ago
+            # previously was limiting it to 7 days, but made a change May 2023 to check season game status more efficiently instead of
+            # once per game, which should make this task more efficient.
+            
+            await asyncio.sleep(900)
             logger.debug('Task running: task_purge_game_channels')
-            # yesterday = (datetime.datetime.now() + datetime.timedelta(hours=-24))
-            # last_week = (datetime.datetime.now() + datetime.timedelta(days=-7))
-            yesterday = (datetime.datetime.now() + datetime.timedelta(days=-7))
-            last_week = (datetime.datetime.now() + datetime.timedelta(days=-90))
+            yesterday = (datetime.datetime.now() + datetime.timedelta(hours=-24))
+            last_week = (datetime.datetime.now() + datetime.timedelta(days=-14))
 
             utilities.connect()
             old_games = Game.select().join(GameSide, on=(GameSide.game == Game.id)).where(
@@ -2120,6 +2119,8 @@ class polygames(commands.Cog):
             logger.info(f'running task_purge_game_channels on {len(old_games)} games')
             
             season_games = Game.polychamps_season_games()[0]
+            # Doing one pre-emptive load of season games here so it isn't done once per season game per task run
+
             for game in old_games:
                 if game in season_games:
                     logger.debug(f'Skipping purge of game {game.id} since it is a season game')
