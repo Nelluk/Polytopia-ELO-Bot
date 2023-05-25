@@ -2103,10 +2103,13 @@ class polygames(commands.Cog):
             # purge game channels from games that were concluded at least 24 hours ago
             # restricted games to those that concluded less than 7 days ago because otherwise task takes ~15 minutes to run and makes the bot freeze
 
-            await asyncio.sleep(900)
+            # await asyncio.sleep(900)
+            await asyncio.sleep(15)
             logger.debug('Task running: task_purge_game_channels')
-            yesterday = (datetime.datetime.now() + datetime.timedelta(hours=-24))
-            last_week = (datetime.datetime.now() + datetime.timedelta(days=-7))
+            # yesterday = (datetime.datetime.now() + datetime.timedelta(hours=-24))
+            # last_week = (datetime.datetime.now() + datetime.timedelta(days=-7))
+            yesterday = (datetime.datetime.now() + datetime.timedelta(days=-7))
+            last_week = (datetime.datetime.now() + datetime.timedelta(days=-90))
 
             utilities.connect()
             old_games = Game.select().join(GameSide, on=(GameSide.game == Game.id)).where(
