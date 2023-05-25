@@ -2119,6 +2119,9 @@ class polygames(commands.Cog):
 
             logger.info(f'running task_purge_game_channels on {len(old_games)} games')
             for game in old_games:
+                if game.is_season_game():
+                    logger.debug(f'Skipping purge of game {game.id} since it is a season game')
+                    continue
                 guild = self.bot.get_guild(game.guild_id)
                 if guild:
                     await game.delete_game_channels(self.bot.guilds, game.guild_id)
