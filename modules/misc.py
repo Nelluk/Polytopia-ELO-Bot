@@ -22,7 +22,9 @@ def roleelo_server_check():
     def predicate(ctx):
         if ctx.guild.id == settings.server_ids['polychampions']:
             return True
-        elif ctx.guild.id == settings.server_ids['main'] and settings.is_staff(ctx.author):
+        # elif ctx.guild.id == settings.server_ids['main'] and settings.is_staff(ctx.author):
+        #     return True
+        elif settings.is_staff(ctx.author):
             return True
         return False
     return commands.check(predicate)
