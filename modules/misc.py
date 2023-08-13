@@ -410,50 +410,41 @@ class misc(commands.Cog):
 
     @commands.command(hidden=True, aliases=['random_tribes', 'rtribe'], usage='game_size [-banned_tribe ...]')
     @settings.in_bot_channel()
-    async def rtribes(self, ctx, size='1v1', *args):
-        """Show a random tribe combination for a given game size.
-        This tries to keep the sides roughly equal in power.
+    async def rtribes(self, ctx, n=1, *args):
+        """Select a random set of n tribes.
         **Example:**
-        `[p]rtribes 2v2` - Shows Ai-mo/Imperius & Xin-xi/Luxidoor
-        `[p]rtribes 2v2 -hoodrick -aquarion` - Remove Hoodrick and Aquarion from the random pool. This could cause problems if lots of tribes are removed.
+        `[p]rtribes 4` - Shows 4 random tribes.
+        `[p]rtribes 6 -hoodrick -aquarion` - Remove Hoodrick and Aquarion from the random pool. This could cause problems if lots of tribes are removed.
         """
 
-        m = re.match(r"(\d+)v(\d+)", size.lower())
-        if m:
-            # arg looks like '3v3'
-            if int(m[1]) != int(m[2]):
-                return await ctx.send(f'Invalid match format {size}. Sides must be equal.')
-            if not 0 < int(m[1]) < 7:
-                return await ctx.send(f'Invalid match size {size}. Accepts 1v1 through 6v6')
-            team_size = int(m[1])
-        else:
-            team_size = 1
-            args = list(args) + [size]
-            # Handle case of no size argument, but with tribe bans
-
-        tribes = [
-            ('Bardur', 1),
-            ('Kickoo', 1),
-            ('Luxidoor', 1),
-            ('Imperius', 1),
-            ('Elyrion', 2),
-            ('Yadakk', 2),
-            ('Zebasi', 2),
-            ('Hoodrick', 2),
-            ('Aquarion', 2),
-            ('Oumaji', 3),
-            ('Quetzali', 3),
-            ('Vengir', 3),
-            ('Ai-mo', 3),
-            ('Xin-xi', 3)
-        ]
+        if n > 16 or n < 1
+            return await ctx.send(f'Invalid number of tribes selected {n}. Must be between 1 and 16')
+        
+        free_tribes = ['Xin-xi',
+                       'Imperius',
+                       'Bardur',
+                       'Oumaji']
+        all_tribes = free_tribes + ['Kickoo',
+                                    'Hoodrick',
+                                    'Luxidoor',
+                                    'Vengir',
+                                    'Zebasi',
+                                    'Ai-mo',
+                                    'Quetzali',
+                                    'Yadakk',
+                                    'Aquarion',
+                                    'Elyrion',
+                                    'Polaris',
+                                    'Cymanti']
+        
         for arg in args:
             # Remove tribes from tribe list. This could cause problems if too many tribes are removed.
             if arg[0] != '-':
                 continue
-            removal = next(t for t in tribes if t[0].upper() == arg[1:].upper())
-            tribes.remove(removal)
+            removal = next(t for t in all_tribes if t.upper() == arg[1:].upper())
+            all_tribes.remove(removal)
 
+        #TODO----resume editing here
         team_home, team_away = [], []
 
         tribe_groups = {}
