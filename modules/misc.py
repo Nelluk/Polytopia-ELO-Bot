@@ -455,7 +455,7 @@ class misc(commands.Cog):
         else:
             if len(tribes) < n:
                 return await ctx.send(f'Invalid number of tribes selected {n} is greater than the number of unbanned tribes.')
-            await ctx.send('', '.join(sorted(random.sample(tribes,k=n))))
+            await ctx.send(', '.join(sorted(random.sample(tribes,k=n))))
 
     @commands.command(aliases=['freeagents', 'roleeloany'], usage='[sort] [role name list]')
     @roleelo_server_check()
