@@ -408,63 +408,54 @@ class misc(commands.Cog):
         models.GameLog.write(game_id=game_id, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} requested staffhelp: *{message}*')
         await ctx.send('Your message has been sent to server staff. Please wait patiently or send additional information on your issue.')
 
-    @commands.command(hidden=True, aliases=['random_tribes', 'rtribe'], usage='game_size [-banned_tribe ...]')
+    @commands.command(hidden=False, aliases=['random_tribes', 'rtribe'], usage='game_size [-banned_tribe ...]')
     @settings.in_bot_channel()
-    async def rtribes(self, ctx, n=1, *args):
+    async def rtribes(self, ctx, n=1, allow_duplicates=False, seed=None, force_free=0, *args):
         """Select a random set of n tribes.
         **Example:**
         `[p]rtribes 4` - Shows 4 random tribes.
-        `[p]rtribes 6 -hoodrick -aquarion` - Remove Hoodrick and Aquarion from the random pool. This could cause problems if lots of tribes are removed.
+        `[p]rtribes 6 -hoodrick -aquarion` - Remove Hoodrick and Aquarion from the random pool.
+        `[p]rtribes 7 seed:12345` - Fix the seed of the random number generator to give the same output each time
+        `[p]rtribes 7 force_free:2` - Force selection of at least 2 free tribes [NOT IMPLEMENTED]
+        `[p]rtribes 7 allow_duplicates` - Allow multiples of the same tribe to show up in the selection
         """
 
-        if n > 16 or n < 1
+        if n > 16 or n < 1:
             return await ctx.send(f'Invalid number of tribes selected {n}. Must be between 1 and 16')
         
         free_tribes = ['Xin-xi',
                        'Imperius',
                        'Bardur',
                        'Oumaji']
-        all_tribes = free_tribes + ['Kickoo',
-                                    'Hoodrick',
-                                    'Luxidoor',
-                                    'Vengir',
-                                    'Zebasi',
-                                    'Ai-mo',
-                                    'Quetzali',
-                                    'Yadakk',
-                                    'Aquarion',
-                                    'Elyrion',
-                                    'Polaris',
-                                    'Cymanti']
+        tribes = free_tribes + ['Kickoo',
+                                'Hoodrick',
+                                'Luxidoor',
+                                'Vengir',
+                                'Zebasi',
+                                'Ai-mo',
+                                'Quetzali',
+                                'Yadakk',
+                                'Aquarion',
+                                'Elyrion',
+                                'Polaris',
+                                'Cymanti']
         
         for arg in args:
             # Remove tribes from tribe list. This could cause problems if too many tribes are removed.
+            # todo: match by first letter(s) provided?
             if arg[0] != '-':
                 continue
-            removal = next(t for t in all_tribes if t.upper() == arg[1:].upper())
-            all_tribes.remove(removal)
+            removal = next(t for t in tribes if t.upper() == arg[1:].upper())
+            tribes.remove(removal)
 
-        #TODO----resume editing here
-        team_home, team_away = [], []
+        random.seed(seed) #if None defaults to system time
 
-        tribe_groups = {}
-        for tribe, group in tribes:
-            tribe_groups.setdefault(group, set()).add(tribe)
-
-        available_tribe_groups = list(tribe_groups.values())
-        for _ in range(team_size):
-            available_tribe_groups = [tg for tg in available_tribe_groups if len(tg) >= 2]
-
-            this_tribe_group = random.choice(available_tribe_groups)
-
-            new_home, new_away = random.sample(this_tribe_group, 2)
-            this_tribe_group.remove(new_home)
-            this_tribe_group.remove(new_away)
-
-            team_home.append(new_home)
-            team_away.append(new_away)
-
-        await ctx.send(f'Home Team: {" / ".join(team_home)}\nAway Team: {" / ".join(team_away)}')
+        if allow_duplicates:
+            await ctx.send(', '.join(sorted(random.choices(tribes,k=n))))
+        else:
+            if len(tribes) < n:
+                return await ctx.send(f'Invalid number of tribes selected {n} is greater than the number of unbanned tribes.')
+            await ctx.send('', '.join(sorted(random.sample(tribes,k=n))))
 
     @commands.command(aliases=['freeagents', 'roleeloany'], usage='[sort] [role name list]')
     @roleelo_server_check()
