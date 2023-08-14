@@ -414,7 +414,7 @@ class misc(commands.Cog):
         """Select a random set of n tribes.
         **Example:**
         `[p]rtribes 4` - Shows 4 random tribes.
-        `[p]rtribes 6 -hoodrick -aquarion` - Remove Hoodrick and Aquarion from the random pool.
+        `[p]rtribes 6 -hoooodrick -aq` - Remove Hoodrick and Aquarion from the random pool. Matches by first 2 letters.
         `[p]rtribes 7 seed=12345` - Fix the seed of the random number generator to give the same output each time
         `[p]rtribes 7 force_free=2` - Force selection of at least 2 free tribes [NOT IMPLEMENTED]
         `[p]rtribes 7 allow_duplicates` - Allow multiples of the same tribe to show up in the selection
@@ -437,7 +437,7 @@ class misc(commands.Cog):
             except ValueError:
                 pass
             if a[0]=='-':
-                banned_tribes.append(a[2:])
+                banned_tribes.append(a[1:])
             elif a[0:4]=='seed':
                 try:
                     seed=int(a[5:])
@@ -476,16 +476,20 @@ class misc(commands.Cog):
                                 'Cymanti']
         
         for ban in banned_tribes:
-            # Remove tribes from tribe list. This could cause problems if too many tribes are removed.
-            # todo: match by first letter(s) provided?
-            removal = next(t for t in tribes if t.upper() == ban.upper())
-            tribes.remove(removal)
+            # Remove tribes from tribe list.
+            match=False
+            for t in tribes:
+                if t[0:2].upper() == ban[0:2].upper():
+                    tribes.remove(t)
+                    match=True
+            if match==False:
+                await ctx.send(f'Warning: did not ban {ban} because no match was found.')
 
         if allow_duplicates:
             await ctx.send(', '.join(sorted(random.choices(tribes,k=n))))
         else:
             if len(tribes) < n:
-                return await ctx.send(f'Invalid number of tribes selected {n} is greater than the number of unbanned tribes.')
+                return await ctx.send(f'Invalid number of tribes selected, {n}, is greater than the number of unbanned tribes.')
             await ctx.send(', '.join(sorted(random.sample(tribes,k=n))))
 
     @commands.command(aliases=['freeagents', 'roleeloany'], usage='[sort] [role name list]')
