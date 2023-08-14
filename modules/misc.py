@@ -431,17 +431,20 @@ class misc(commands.Cog):
 
         # override default params if provided
         for a in args:
-            if isinstance(a, int):
-                n=a
-            elif a[0]=='-':
+            print(a)
+            try:
+                n = int(a)
+            except ValueError:
+                pass
+            if a[0]=='-':
                 banned_tribes.append(a[2:])
-            elif a[0:3]=='seed':
+            elif a[0:4]=='seed':
                 try:
                     seed=int(a[5:])
                 except:
                     return await ctx.send(f'The seed provided must be an integer.')
-                random,seed(seed)
-            elif a[0:9]=='force_free':
+                random.seed(seed)
+            elif a[0:10]=='force_free':
                 try:
                     force_free=int(a[11:])
                 except:
@@ -451,6 +454,7 @@ class misc(commands.Cog):
             elif a=='allow_duplicates':
                 allow_duplicates=True
 
+        print(n)
         if n > 16 or n < 1:
             return await ctx.send(f'Invalid number of tribes selected, {n}. Must be between 1 and 16')
         
