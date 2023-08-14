@@ -441,7 +441,7 @@ class misc(commands.Cog):
                 except:
                     return await ctx.send(f'The seed provided must be an integer.')
                 random,seed(seed)
-            elif a[0:9]=='force_free'
+            elif a[0:9]=='force_free':
                 try:
                     force_free=int(a[11:])
                 except:
