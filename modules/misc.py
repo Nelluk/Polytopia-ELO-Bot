@@ -410,18 +410,48 @@ class misc(commands.Cog):
 
     @commands.command(hidden=False, aliases=['random_tribes', 'rtribe'], usage='game_size [-banned_tribe ...]')
     @settings.in_bot_channel()
-    async def rtribes(self, ctx, n=1, allow_duplicates=False, seed=None, force_free=0, *args):
+    async def rtribes(self, ctx, *, arg):
         """Select a random set of n tribes.
         **Example:**
         `[p]rtribes 4` - Shows 4 random tribes.
         `[p]rtribes 6 -hoodrick -aquarion` - Remove Hoodrick and Aquarion from the random pool.
-        `[p]rtribes 7 seed:12345` - Fix the seed of the random number generator to give the same output each time
-        `[p]rtribes 7 force_free:2` - Force selection of at least 2 free tribes [NOT IMPLEMENTED]
+        `[p]rtribes 7 seed=12345` - Fix the seed of the random number generator to give the same output each time
+        `[p]rtribes 7 force_free=2` - Force selection of at least 2 free tribes [NOT IMPLEMENTED]
         `[p]rtribes 7 allow_duplicates` - Allow multiples of the same tribe to show up in the selection
         """
+        
+        args = arg.split() if arg else []
+
+        # set default params
+        n: int = 1
+        allow_duplicates=False
+        seed=None
+        force_free: int = 0
+        banned_tribes=[]
+
+        # override default params if provided
+        for a in args:
+            if isinstance(a, int):
+                n=a
+            elif a[0]=='-':
+                banned_tribes.append(a[2:])
+            elif a[0:3]=='seed':
+                try:
+                    seed=int(a[5:])
+                except:
+                    return await ctx.send(f'The seed provided must be an integer.')        
+            elif a[0:9]=='force_free'
+                try:
+                    force_free=int(a[11:])
+                except:
+                    return await ctx.send(f'You can only force 0 through 4 free tribes.')
+                if force_free<0 or force_free>4:
+                    return await ctx.send(f'You can only force 0 through 4 free tribes.')
+            elif a=='allow_duplicates':
+                allow_duplicates=True
 
         if n > 16 or n < 1:
-            return await ctx.send(f'Invalid number of tribes selected {n}. Must be between 1 and 16')
+            return await ctx.send(f'Invalid number of tribes selected, {n}. Must be between 1 and 16')
         
         free_tribes = ['Xin-xi',
                        'Imperius',
@@ -440,15 +470,11 @@ class misc(commands.Cog):
                                 'Polaris',
                                 'Cymanti']
         
-        for arg in args:
+        for ban in banned_tribes:
             # Remove tribes from tribe list. This could cause problems if too many tribes are removed.
             # todo: match by first letter(s) provided?
-            if arg[0] != '-':
-                continue
-            removal = next(t for t in tribes if t.upper() == arg[1:].upper())
+            removal = next(t for t in tribes if t.upper() == ban.upper())
             tribes.remove(removal)
-
-        random.seed(seed) #if None defaults to system time
 
         if allow_duplicates:
             await ctx.send(', '.join(sorted(random.choices(tribes,k=n))))
