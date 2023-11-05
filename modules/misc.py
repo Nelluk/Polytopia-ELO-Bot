@@ -416,81 +416,113 @@ class misc(commands.Cog):
         `[p]rtribes 4` - Shows 4 random tribes.
         `[p]rtribes 6 -hoooodrick -aq` - Remove Hoodrick and Aquarion from the random pool. Matches by first 2 letters.
         `[p]rtribes 7 seed=12345` - Fix the seed of the random number generator to give the same output each time
-        `[p]rtribes 7 force_free=2` - Force selection of at least 2 free tribes [NOT IMPLEMENTED]
+        `[p]rtribes 7 force_free=2` - Force selection of at least 2 free tribes
         `[p]rtribes 7 allow_duplicates` - Allow multiples of the same tribe to show up in the selection
         """
-        
+            
         args = arg.split() if arg else []
-
+    
         # set default params
         n: int = 1
-        allow_duplicates=False
-        seed=None
+        allow_duplicates = False
+        seed = None
         force_free: int = 0
-        banned_tribes=[]
-
+        banned_tribes = []
+    
         # override default params if provided
         for a in args:
-            print(a)
             try:
                 n = int(a)
             except ValueError:
                 pass
-            if a[0]=='-':
-                banned_tribes.append(a[1:])
-            elif a[0:4]=='seed':
+            if a[0] == '-':
+                banned_tribes.append(a[1:3].lower())
+            elif a[0:4] == 'seed':
                 try:
-                    seed=int(a[5:])
+                    seed = int(a[5:])
+                    if seed is not None: random.seed(seed)
                 except:
-                    return await ctx.send(f'The seed provided must be an integer.')
-                random.seed(seed)
-            elif a[0:10]=='force_free':
+                    await ctx.send(f'Warning: the seed provided must be an integer. Ignoring the seed parameter.')
+            elif a[0:10] == 'force_free':
                 try:
-                    force_free=int(a[11:])
+                    force_free = int(a[11:])
                 except:
-                    return await ctx.send(f'You can only force 0 through 4 free tribes.')
-                if force_free<0 or force_free>4:
-                    return await ctx.send(f'You can only force 0 through 4 free tribes.')
-            elif a=='allow_duplicates':
-                allow_duplicates=True
-
-        print(n)
+                    return await ctx.send(f'Error: force_free must be set to an integer between 0 through 4.')
+                if force_free < 0 or force_free > 4:
+                    return await ctx.send(f'Error: you can only force 0 through 4 free tribes.')
+            elif a == 'allow_duplicates':
+                allow_duplicates = True
+    
         if n > 16 or n < 1:
-            return await ctx.send(f'Invalid number of tribes selected, {n}. Must be between 1 and 16')
-        
-        free_tribes = ['Xin-xi',
+            return await ctx.send(f'Error: invalid number of tribes selected, {n}. Must be between 1 and 16')
+    
+        FREE_TRIBES = ['Xin-xi',
                        'Imperius',
                        'Bardur',
                        'Oumaji']
-        tribes = free_tribes + ['Kickoo',
-                                'Hoodrick',
-                                'Luxidoor',
-                                'Vengir',
-                                'Zebasi',
-                                'Ai-mo',
-                                'Quetzali',
-                                'Yadakk',
-                                'Aquarion',
-                                'Elyrion',
-                                'Polaris',
-                                'Cymanti']
-        
-        for ban in banned_tribes:
-            # Remove tribes from tribe list.
-            match=False
-            for t in tribes:
-                if t[0:2].upper() == ban[0:2].upper():
-                    tribes.remove(t)
-                    match=True
-            if match==False:
-                await ctx.send(f'Warning: did not ban {ban} because no match was found.')
-
+        PAID_TRIBES = ['Kickoo',
+                       'Hoodrick',
+                       'Luxidoor',
+                       'Vengir',
+                       'Zebasi',
+                       'Ai-mo',
+                       'Quetzali',
+                       'Yadakk',
+                       'Aquarion',
+                       'Elyrion',
+                       'Polaris',
+                       'Cymanti']
+    
+        available_free_tribes = [
+            tribe for tribe in FREE_TRIBES
+            if not any(tribe.lower().startswith(prefix) for prefix in banned_tribes)
+        ]
+        available_paid_tribes = [
+            tribe for tribe in PAID_TRIBES
+            if not any(tribe.lower().startswith(prefix) for prefix in banned_tribes)
+        ]
+    
+        # error checking force_free input
+        if not allow_duplicates and len(available_free_tribes) < force_free:
+            await ctx.send(f'Warning: too many free tribes banned to satisfy force_free={force_free}. Selecting all unbanned free tribes.')
+            force_free=len(available_free_tribes)
+    
+        if allow_duplicates and force_free > 0 and not available_free_tribes:
+            await ctx.send(f'Warning: all free tribes have been banned, but force_free was above zero. Ignoring force_free parameter.')
+            force_free=0
+    
+        # Select the required number of free tribes
         if allow_duplicates:
-            await ctx.send(', '.join(sorted(random.choices(tribes,k=n))))
+            # With duplicates allowed, if we have at least one tribe, we can pick any number of times from it
+            selected_tribes = random.choices(available_free_tribes, k=force_free) if available_free_tribes else []
         else:
-            if len(tribes) < n:
-                return await ctx.send(f'Invalid number of tribes selected, {n}, is greater than the number of unbanned tribes.')
-            await ctx.send(', '.join(sorted(random.sample(tribes,k=n))))
+            # Without duplicates, we ensure we have enough unique tribes to pick from
+            if len(available_free_tribes) < force_free:
+                return await ctx.send(f"Error: too many free tribes banned to satisfy force_free requirement.")
+            selected_tribes = random.sample(available_free_tribes, k=force_free)
+    
+        # Calculate how many more tribes to select after these free ones have been selected
+        remaining_slots = n - len(selected_tribes)
+        if remaining_slots == 0: return await ctx.send(', '.join(selected_tribes))
+    
+        # Set the list of available tribes for the remaining selections
+        remaining_tribes = available_free_tribes + available_paid_tribes
+        if not allow_duplicates:
+            remaining_tribes = [tribe for tribe in remaining_tribes if tribe not in selected_tribes]
+    
+        # Check if there are enough tribes left to select the requested amount
+        if not allow_duplicates and remaining_slots > len(remaining_tribes):
+            return await ctx.send(f"Error: not enough unbanned tribes to select the requested {n} tribes.")
+    
+        # Select from the remaining tribes
+        if remaining_slots > 0:
+            if allow_duplicates:
+                selected_tribes += random.choices(remaining_tribes, k=remaining_slots)
+            else:
+                selected_tribes += random.sample(remaining_tribes, k=remaining_slots)
+    
+        return await ctx.send(', '.join(selected_tribes))
+
 
     @commands.command(aliases=['freeagents', 'roleeloany'], usage='[sort] [role name list]')
     @roleelo_server_check()
