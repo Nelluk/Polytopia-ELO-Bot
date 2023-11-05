@@ -447,11 +447,12 @@ class misc(commands.Cog):
                 try:
                     force_free = int(a[11:])
                 except:
-                    return await ctx.send(f'Error: force_free must be set to an integer between 0 through 4.')
-                if force_free < 0 or force_free > 4:
-                    return await ctx.send(f'Error: you can only force 0 through 4 free tribes.')
+                    return await ctx.send(f'Error: force_free must be set to an integer.')
             elif a == 'allow_duplicates':
                 allow_duplicates = True
+
+        if force_free < 0: return await ctx.send(f'Error: you can\'t force a negative number of free tribes to appear.')
+        if not allow_duplicates and force_free > 4: return await ctx.send(f'Error: you can\'t force more than 4 free tribes without allowing duplicates.')           
     
         if n > 16 or n < 1:
             return await ctx.send(f'Error: invalid number of tribes selected, {n}. Must be between 1 and 16')
@@ -503,24 +504,23 @@ class misc(commands.Cog):
     
         # Calculate how many more tribes to select after these free ones have been selected
         remaining_slots = n - len(selected_tribes)
-        if remaining_slots == 0: return await ctx.send(', '.join(selected_tribes))
-    
-        # Set the list of available tribes for the remaining selections
-        remaining_tribes = available_free_tribes + available_paid_tribes
-        if not allow_duplicates:
-            remaining_tribes = [tribe for tribe in remaining_tribes if tribe not in selected_tribes]
-    
-        # Check if there are enough tribes left to select the requested amount
-        if not allow_duplicates and remaining_slots > len(remaining_tribes):
-            return await ctx.send(f"Error: not enough unbanned tribes to select the requested {n} tribes.")
-    
-        # Select from the remaining tribes
-        if remaining_slots > 0:
+        
+        if remaining_slots > 0: 
+            # Set the list of available tribes for the remaining selections
+            remaining_tribes = available_free_tribes + available_paid_tribes
+            if not allow_duplicates:
+                remaining_tribes = [tribe for tribe in remaining_tribes if tribe not in selected_tribes]
+        
+            # Check if there are enough tribes left to select the requested amount
+            if not allow_duplicates and remaining_slots > len(remaining_tribes):
+                return await ctx.send(f"Error: not enough unbanned tribes to select the requested {n} tribes.")
+        
+            # Select from the remaining tribes
             if allow_duplicates:
                 selected_tribes += random.choices(remaining_tribes, k=remaining_slots)
             else:
                 selected_tribes += random.sample(remaining_tribes, k=remaining_slots)
-    
+        
         return await ctx.send(', '.join(selected_tribes))
 
 
