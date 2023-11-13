@@ -408,16 +408,17 @@ class misc(commands.Cog):
         models.GameLog.write(game_id=game_id, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} requested staffhelp: *{message}*')
         await ctx.send('Your message has been sent to server staff. Please wait patiently or send additional information on your issue.')
 
-    @commands.command(hidden=False, aliases=['random_tribes', 'rtribe'], usage='game_size [-banned_tribe ...]')
+    @commands.command(hidden=False, aliases=['random_tribes', 'rtribe'], usage='n_tribes [-banned_tribe ...]')
     @settings.in_bot_channel()
     async def rtribes(self, ctx, *, arg):
-        """Select a random set of n tribes.
-        **Example:**
-        `[p]rtribes 4` - Shows 4 random tribes.
-        `[p]rtribes 6 -hoooodrick -aq` - Remove Hoodrick and Aquarion from the random pool. Matches by first 2 letters.
-        `[p]rtribes 7 seed=12345` - Fix the seed of the random number generator to give the same output each time
-        `[p]rtribes 7 force_free=2` - Force selection of at least 2 free tribes
-        `[p]rtribes 7 allow_duplicates` - Allow multiples of the same tribe to show up in the selection
+        """
+        Selects a random set of n tribes. As shown in the examples below, you may add options to ban tribes, fix the random seed, require selection of free tribes, or allow duplicate tribes to be selected.
+        **Examples:**
+        `[p]rtribes 4` - Selects 4 random tribes.
+        `[p]rtribes 6 -ho -aq` - Selects 6 random tribes, excluding Hoodrick and Aquarion. Matches by first 2 letters.
+        `[p]rtribes 7 seed=12345` - Providing a seed guarantees the same selections each time. For example, use your game ID as the seed.
+        `[p]rtribes 7 force_free=2` - Forces selection of at least 2 free tribes.
+        `[p]rtribes 7 allow_duplicates` - Allows multiples of the same tribe to be selected.
         """
             
         args = arg.split() if arg else []
