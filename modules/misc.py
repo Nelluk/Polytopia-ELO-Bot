@@ -424,36 +424,44 @@ class misc(commands.Cog):
         args = arg.split() if arg else []
     
         # set default params
-        n: int = 1
+        n: int = None
         allow_duplicates = False
-        seed = None
+        seed: int = None
         force_free: int = 0
         banned_tribes = []
+
+        # Set a flag to track if the number of tribes has been set
+        n_set = False
     
-        # override default params if provided
+        # parse inputs
         for a in args:
-            try:
-                n = int(a)
-            except ValueError:
-                pass
-            if a[0] == '-':
+            if a.isdigit():
+                if n_set:
+                    return await ctx.send(f'Error: number of tribes has been specified as both {n} and {a}. Please include only one value for the number of tribes to select.')
+                else:
+                    n = int(a)
+                    n_set = True
+            elif a.startswith('-'):
                 banned_tribes.append(a[1:3].lower())
-            elif a[0:4] == 'seed':
+            elif a.startswith('seed='):
                 try:
-                    seed = int(a[5:])
+                    seed = int(a.split('=')[1])
                     if seed is not None: random.seed(seed)
-                except:
+                except ValueError:
                     await ctx.send(f'Warning: the seed provided must be an integer. Ignoring the seed parameter.')
-            elif a[0:10] == 'force_free':
+            elif a.startswith('force_free'):
                 try:
-                    force_free = int(a[11:])
-                except:
+                    force_free = int(a.split('=')[1])
+                except ValueError:
                     return await ctx.send(f'Error: force_free must be set to an integer.')
             elif a == 'allow_duplicates':
                 allow_duplicates = True
-
+            else:
+                await ctx.send(f'Warning: unrecognized parameter \'{a}\'. Ignoring it.')
+        
         if force_free < 0: return await ctx.send(f'Error: you can\'t force a negative number of free tribes to appear.')
-        if not allow_duplicates and force_free > 4: return await ctx.send(f'Error: you can\'t force more than 4 free tribes without allowing duplicates.')           
+        if not allow_duplicates and force_free > 4: return await ctx.send(f'Error: you can\'t force more than 4 free tribes without allowing duplicates.')
+        if n_set is False: n=1
     
         if n > 16 or n < 1:
             return await ctx.send(f'Error: invalid number of tribes selected, {n}. Must be between 1 and 16')
