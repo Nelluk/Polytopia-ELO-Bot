@@ -529,8 +529,15 @@ class misc(commands.Cog):
                 selected_tribes += random.choices(remaining_tribes, k=remaining_slots)
             else:
                 selected_tribes += random.sample(remaining_tribes, k=remaining_slots)
-        
-        return await ctx.send(', '.join(selected_tribes))
+
+        await ctx.send(', '.join(selected_tribes))
+        emojis = []
+        for tribe_name in selected_tribes:
+            tribe = Tribe.get_by_name(tribe_name)
+            if tribe and tribe.emoji:
+                emojis.append(tribe.emoji)
+            else emojis.append(tribe_name)
+        return await ctx.send(''.join(emojis))
 
 
     @commands.command(aliases=['freeagents', 'roleeloany'], usage='[sort] [role name list]')
