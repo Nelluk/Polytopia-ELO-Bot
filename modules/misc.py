@@ -536,7 +536,8 @@ class misc(commands.Cog):
             tribe = Tribe.get_by_name(tribe_name)
             if tribe and tribe.emoji:
                 emojis.append(tribe.emoji)
-            else emojis.append(tribe_name)
+            else:
+                emojis.append(tribe_name)
         return await ctx.send(''.join(emojis))
 
 
