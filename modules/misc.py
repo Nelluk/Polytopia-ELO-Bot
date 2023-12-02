@@ -533,7 +533,7 @@ class misc(commands.Cog):
         await ctx.send(', '.join(selected_tribes))
         emojis = []
         for tribe_name in selected_tribes:
-            tribe = Tribe.get_by_name(tribe_name)
+            tribe = models.Tribe.get_by_name(tribe_name)
             if tribe and tribe.emoji:
                 emojis.append(tribe.emoji)
             else:
