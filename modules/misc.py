@@ -443,17 +443,18 @@ class misc(commands.Cog):
                     n_set = True
             elif a.startswith('-'):
                 banned_tribes.append(a[1:3].lower())
-            elif a.startswith('seed='):
-                try:
-                    seed = int(a.split('=')[1])
-                    if seed is not None: random.seed(seed)
-                except ValueError:
-                    await ctx.send(f'Warning: the seed provided must be an integer. Ignoring the seed parameter.')
+            elif a.startswith('seed'):
+                parts = a.split('=')
+                if len(parts) < 2 or not parts[1].isdigit():
+                    await ctx.send(f'Warning: the seed provided must be an integer (e.g. `seed=12345`). Ignoring the seed parameter.')
+                else:
+                    seed = int(parts[1])
+                    random.seed(seed)
             elif a.startswith('force_free'):
-                try:
-                    force_free = int(a.split('=')[1])
-                except ValueError:
-                    return await ctx.send(f'Error: force_free must be set to an integer.')
+                parts = a.split('=')
+                if len(parts) < 2 or not parts[1].isdigit():
+                    return await ctx.send(f'Error: force_free must be set to an integer (e.g. `force_free=2`).')
+                force_free = int(parts[1])
             elif a == 'allow_duplicates':
                 allow_duplicates = True
             else:
