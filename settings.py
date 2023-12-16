@@ -249,7 +249,7 @@ def is_mod_check():
 
 def draft_check():
     def predicate(ctx: commands.Context):
-        return is_mod(ctx.author) or discord.utils.get(ctx.guild.roles, name='Drafter') in ctx.author.roles
+        return is_mod(ctx.author) or is_staff(ctx.author) or discord.utils.get(ctx.guild.roles, name='Drafter') in ctx.author.roles
     return commands.check(predicate)
 
 
