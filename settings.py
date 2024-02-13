@@ -231,6 +231,17 @@ def is_mod(member):
     return len(target_match) > 0
 
 
+def is_superuser(member):
+    return member.id in [owner_id, 429740472416731147, 608290258978865174]
+    # owner, Legorooj, e_spark
+
+
+def is_superuser_check():
+    def predicate(ctx):
+        return is_superuser(ctx.author)
+    return commands.check(predicate)
+
+
 def is_staff_check():
     # restrict commands to is_staff with syntax like @settings.is_staff_check()
 

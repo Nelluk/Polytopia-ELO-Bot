@@ -34,8 +34,7 @@ class administration(commands.Cog):
                 await ctx.send('You do not have permission to use this command.')
                 return False
 
-    # @commands.check_any(commands.is_owner(), lambda ctx: ctx.author.id == 608290258978865174)
-    @settings.is_mod_check()
+    @settings.is_superuser_check()
     @commands.command(aliases=['quit', 'restart_force'])
     async def restart(self, ctx):
         """ *Owner*: Close database connection and quit bot gracefully """
@@ -1063,7 +1062,7 @@ class administration(commands.Cog):
             settings.recalculation_mode = False
 
     @commands.command(aliases=['migrate'])
-    @commands.is_owner()
+    @commands.is_superuser_check()
     async def migrate_player(self, ctx, from_string: str, to_string: str):
         """*Owner*: Migrate games from player's old account to new account
         Target player cannot have any completed games associated with their profile. Use a @Mention or raw user ID as an argument.
