@@ -1062,7 +1062,7 @@ class administration(commands.Cog):
             settings.recalculation_mode = False
 
     @commands.command(aliases=['migrate'])
-    @commands.is_superuser_check()
+    @settings.is_superuser_check()
     async def migrate_player(self, ctx, from_string: str, to_string: str):
         """*Owner*: Migrate games from player's old account to new account
         Target player cannot have any completed games associated with their profile. Use a @Mention or raw user ID as an argument.
