@@ -14,7 +14,7 @@ from modules.models import Player, Team
 def fetch_image(url: str) -> Image:
     """Get an image from a URL."""
     response = requests.get(url)
-    return Image.open(BytesIO(response.content))
+    return Image.open(BytesIO(response.content)).convert("RGBA")
 
 
 def get_player_summary(member: discord.Member) -> str:
