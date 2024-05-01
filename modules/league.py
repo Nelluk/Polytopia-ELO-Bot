@@ -42,6 +42,7 @@ league_teams = [
     ('Kraken', ['The Kraken', 'The Squids']),
     ('ArcticWolves', ['The ArcticWolves', 'The Huskies']),
     ('Plague', ['The Plague', 'The Reapers']),
+    ('Tempest', ['The Tempest', 'The Rainclouds']),
 ]
 
 league_team_channels = []
