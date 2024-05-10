@@ -1,6 +1,7 @@
 """Image generation code."""
 from io import BytesIO
 import typing
+import logging
 
 from PIL import Image, ImageDraw, ImageFont
 
@@ -10,10 +11,25 @@ import requests
 
 from modules.models import Player, Team
 
+logger = logging.getLogger('polybot.' + __name__)
 
 def fetch_image(url: str) -> Image:
     """Get an image from a URL."""
-    response = requests.get(url)
+
+    headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.9'
+        }
+    
+    logger.debug(f'fetch_image {url}')
+    response = requests.get(url, headers=headers)
+    if response.status_code == 200:
+        logger.debug(f'Status code 200')
+    else:
+        logger.warn(f'Status code {response.status_code}')
+        logger.debug(f'Response headers: {response.headers}')
+        logger.debug(f'Request headers: {response.request.headers}')
     return Image.open(BytesIO(response.content)).convert("RGBA")
 
 
@@ -37,10 +53,11 @@ def draw_text(
         top: int = 0, colour: str = None):
     """Draw some text."""
     # load the font
-    font = ImageFont.truetype(
-        'res/font.ttf', size,
-        layout_engine=ImageFont.LAYOUT_BASIC
-    )
+    # font = ImageFont.truetype(
+    #     'res/font.ttf', size,
+    #     layout_engine=ImageFont.LAYOUT_BASIC
+    # )
+    font = ImageFont.truetype('res/font.ttf', size, layout_engine="basic")
     # draw the text
     draw = ImageDraw.Draw(image)
     draw.text((left, top), text, colour or '#fff', font)
@@ -50,10 +67,7 @@ def draw_inverse_text(
         image: Image.Image, text: str, *, size: int = 50, left: int = 0,
         top: int = 0):
     """Draw transparent text on a white background."""
-    width, height = ImageFont.truetype(
-        'res/font.ttf', size,
-        layout_engine=ImageFont.LAYOUT_BASIC
-    ).getsize(text)
+    width, height = ImageFont.truetype('res/font.ttf', size, layout_engine="basic").getsize(text)
     mask = Image.new('1', (width + 40, height + 30))
     draw_text(mask, text, size=size, top=10, left=5)
     mask_data = list(mask.getdata())
@@ -69,10 +83,7 @@ def draw_inverse_text(
 
 def get_text_width(text: str, font_size: int) -> int:
     """Get the width of some text."""
-    return ImageFont.truetype(
-        'res/font2.ttf', font_size,
-        layout_engine=ImageFont.LAYOUT_BASIC
-    ).getsize(text)[0]
+    return ImageFont.truetype('res/font.ttf', font_size, layout_engine="basic").getsize(text)[0]
 
 
 def paste_image(
@@ -197,6 +208,7 @@ def arrow_card(
 
         [('l', '#ff0000'), ('r', '#00ff00')]
     """
+    logger.debug(f'arrow_card left_image: {left_image} right_image {right_image} arrows: {arrows}')
     # Create the base with a background gradient.
     height, width = 573, 836
     im = generate_gradient('#4e459d', '#b03045', width, height)

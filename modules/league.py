@@ -818,8 +818,9 @@ class league(commands.Cog):
 
         try:
             fs = imgen.arrow_card(top_string, bottom_string, left_image, right_image, arrows)
-        except UnidentifiedImageError:
-            return await ctx.send(f'Image is formatted incorrectly. Use an image URL that links directly to a file.')
+        except UnidentifiedImageError as e:
+            logger.warn(f'UnidentifiedImageError: {e}')
+            return await ctx.send(f'Image is formatted incorrectly. Use an image URL that links directly to a file. {e}')
         await ctx.send(file=fs)
 
     @commands.command(usage='@Draftee TeamName')
