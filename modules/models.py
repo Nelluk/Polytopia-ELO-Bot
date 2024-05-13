@@ -97,7 +97,15 @@ class Configuration(BaseModel):
     guild_id = BitField(unique=True, null=False)
 
 
+class House(BaseModel):
+    name = TextField(unique=False, null=False)
+    emoji = TextField(null=False, default='')
+    image_url = TextField(null=True)
+    server_id = BitField(unique=False, null=True)
+    league_tokens = SmallIntegerField(default=0, null=False)
+
 class Team(BaseModel):
+    team = ForeignKeyField(House, null=True, backref='teams', on_delete='RESTRICT')
     name = TextField(unique=False, null=False)
     elo = SmallIntegerField(default=1000)
     elo_alltime = SmallIntegerField(default=1000)
@@ -108,6 +116,7 @@ class Team(BaseModel):
     is_archived = BooleanField(default=False)           # True = a previously-active team that is no longer used. Will be hidden in various displays
     pro_league = BooleanField(default=True)
     external_server = BitField(unique=False, null=True)
+    league_tier = SmallIntegerField(default=None, null=True)
 
     class Meta:
         indexes = ((('name', 'guild_id'), True),)   # Trailing comma is required
@@ -953,6 +962,8 @@ class Game(BaseModel):
     game_chan = BitField(default=None, null=True)
     size = ArrayField(SmallIntegerField, default=[0])
     is_mobile = BooleanField(default=True)
+    league_tier = SmallIntegerField(default=None, null=True)
+    league_season = SmallIntegerField(default=None, null=True)
 
     def as_json(self, include_users: bool = False) -> Dict[str, Any]:
         """Get the game as a dict for returning from the API."""
