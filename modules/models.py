@@ -98,10 +98,9 @@ class Configuration(BaseModel):
 
 
 class House(BaseModel):
-    name = TextField(unique=False, null=False)
+    name = TextField(unique=False, null=False, default='')
     emoji = TextField(null=False, default='')
     image_url = TextField(null=True)
-    server_id = BitField(unique=False, null=True)
     league_tokens = SmallIntegerField(default=0, null=False)
 
 class Team(BaseModel):
@@ -114,7 +113,7 @@ class Team(BaseModel):
     guild_id = BitField(unique=False, null=False)
     is_hidden = BooleanField(default=False)             # True = generic team ie Home/Away, False = server team like Ronin
     is_archived = BooleanField(default=False)           # True = a previously-active team that is no longer used. Will be hidden in various displays
-    pro_league = BooleanField(default=True)
+    pro_league = BooleanField(default=True)  # TODO: Migrate boolean value to a numeric league_tier and then delete this field
     external_server = BitField(unique=False, null=True)
     league_tier = SmallIntegerField(default=None, null=True)
 
