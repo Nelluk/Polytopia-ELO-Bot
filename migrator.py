@@ -81,7 +81,10 @@ db.connect(reuse_if_open=True)
 
 # trophies = ArrayField(CharField, null=True)
 # trophies = BinaryJSONField(null=True, default=None)
-is_archived = BooleanField(default=False)
+# is_archived = BooleanField(default=False)
+team_house_ref = ForeignKeyField(models.House, null=True, on_delete='SET NULL', field=models.House.id, backref='teams')
+league_tier = SmallIntegerField(default=None, null=True)
+league_season = SmallIntegerField(default=None, null=True)
 
 
 migrate(
@@ -123,7 +126,13 @@ migrate(
     # migrator.drop_column('player', 'trophies'),
     # migrator.add_column('discordmember', 'trophies', trophies),
     # migrator.add_column('player', 'trophies', trophies),
-    migrator.add_column('team', 'is_archived', is_archived),
+    # migrator.add_column('team', 'is_archived', is_archived),
+
+    migrator.add_column('team', 'house_id', team_house_ref),
+    migrator.add_column('team', 'league_tier', league_tier),
+    migrator.add_column('game', 'league_tier', league_tier),
+    migrator.add_column('game', 'league_season', league_season)
+
 
 )
 

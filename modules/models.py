@@ -104,7 +104,7 @@ class House(BaseModel):
     league_tokens = SmallIntegerField(default=0, null=False)
 
 class Team(BaseModel):
-    team = ForeignKeyField(House, null=True, backref='teams', on_delete='RESTRICT')
+    house = ForeignKeyField(House, null=True, backref='teams', on_delete='SET NULL')
     name = TextField(unique=False, null=False)
     elo = SmallIntegerField(default=1000)
     elo_alltime = SmallIntegerField(default=1000)
@@ -3363,7 +3363,7 @@ class ApiApplication(BaseModel):
 
 with db.connection_context():
     db.create_tables([
-        Configuration, Team, DiscordMember, Game, Player, Tribe, Squad,
+        Configuration, House, Team, DiscordMember, Game, Player, Tribe, Squad,
         GameSide, SquadMember, Lineup, GameLog, TeamServerBroadcastMessage,
         ApiApplication
     ])
