@@ -97,11 +97,39 @@ class Configuration(BaseModel):
     guild_id = BitField(unique=True, null=False)
 
 
-class House(BaseModel):
-    name = TextField(unique=False, null=False, default='')
+class House(BaseModel):  # An affiliation of Teams (probably only used for PolyChampions)
+    # name = TextField(unique=True, default='')
     emoji = TextField(null=False, default='')
     image_url = TextField(null=True)
     league_tokens = SmallIntegerField(default=0, null=False)
+
+    # def upsert(name='', emoji='', imague_url=None, tokens=0):
+    #     try:
+    #         with db.atomic():
+    #             house = House.create(discord_id=discord_id, name=discord_name)
+    #     except IntegrityError:
+    #         discord_member = DiscordMember.get(discord_id=discord_id)
+    #         discord_member.name = discord_name
+    #         discord_member.save()
+
+    #     try:
+    #         with db.atomic():
+    #             player = Player.create(discord_member=discord_member, guild_id=guild_id, nick=discord_nick, name=display_name, team=team)
+    #         created = True
+    #         logger.debug(f'Inserting new player id {player.id} {display_name} on team {team}')
+    #     except IntegrityError:
+    #         created = False
+    #         player = Player.get(discord_member=discord_member, guild_id=guild_id)
+    #         logger.debug(f'Updating existing player id {player.id} {player.name}')
+    #         if display_name:
+    #             player.name = display_name
+    #         if team:
+    #             player.team = team
+    #             logger.debug(f'Setting player team to {team.id} {team.name}')
+    #         if discord_nick:
+    #             player.nick = discord_nick
+    #         player.save()
+
 
 class Team(BaseModel):
     house = ForeignKeyField(House, null=True, backref='teams', on_delete='SET NULL')

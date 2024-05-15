@@ -85,8 +85,8 @@ db.connect(reuse_if_open=True)
 # team_house_ref = ForeignKeyField(models.House, null=True, on_delete='SET NULL', field=models.House.id, backref='teams')
 # league_tier = SmallIntegerField(default=None, null=True)
 # league_season = SmallIntegerField(default=None, null=True)
-league_playoff = BooleanField(default=False)
-
+# league_playoff = BooleanField(default=False)
+house_name = TextField(unique=True, default='')
 
 migrate(
     # migrator.add_column('discordmember', 'elo_max', elo_max),
@@ -134,8 +134,10 @@ migrate(
     # migrator.add_column('game', 'league_tier', league_tier),
 
 
-    migrator.add_column('game', 'league_playoff', league_playoff)
-    # migrator.drop_column('game', 'league_playoff'),
+    # migrator.add_column('game', 'league_playoff', league_playoff)
+    
+    # migrator.drop_column('house', 'name'),
+    migrator.add_column('house', 'name', house_name),
 
 
 )
