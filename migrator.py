@@ -132,7 +132,10 @@ migrate(
     # migrator.add_column('team', 'house_id', team_house_ref),
     # migrator.add_column('team', 'league_tier', league_tier),
     # migrator.add_column('game', 'league_tier', league_tier),
-    migrator.add_column('game', 'league_playoff', league_playoff)
+
+
+    # migrator.add_column('game', 'league_playoff', league_playoff)
+    migrator.drop_column('game', 'league_playoff'),
 
 
 )

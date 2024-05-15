@@ -899,6 +899,72 @@ class league(commands.Cog):
             file = discord.File(file, filename=filename)
             await ctx.send(f'{ctx.author.mention}, your export is complete. Wrote to `{filename}`', file=file)
 
+    @settings.is_superuser_check()
+    @commands.command()
+    async def migrate_teams(self, ctx):
+
+        import re
+        pro_role_names = [a[1][0] for a in league_teams]
+        junior_role_names = [a[1][1] for a in league_teams]
+        team_role_names = [a[0] for a in league_teams]
+
+        async with ctx.typing():
+            logger.info('Migrating Polychampions teams and games')
+            poly_teams = models.Team.select().where(
+                (models.Team.guild_id == settings.server_ids['polychampions']) & (models.Team.is_hidden == 0) 
+            )
+
+            full_season_games, regular_season_games, post_season_games = models.Game.polychamps_season_games(league='all', season=None)
+            saved_counter = 0
+
+            with models.db.atomic():
+                for team in poly_teams:
+                    if team.pro_league:
+                        team.league_tier = 2
+                        if team.name in pro_role_names:
+                            house_name = team_role_names[pro_role_names.index(team.name)]
+                            print(house_name)
+                        else:
+                            print(f'No pro role for team {team.name}')
+                    else:
+                        team.league_tier = 3
+                    logger.info(f'Setting team {team.name} tier to {team.league_tier}')
+                    team.save()
+
+
+
+                for rsgame in full_season_games:
+                    break
+                    logger.info(f'Checking {rsgame.id} {rsgame.name}')
+                    rsgame.league_playoff = False
+                    m = re.match(r"([PJ]?)S(\d+)", rsgame.name.upper())
+                    if not m:
+                        logger.warn(f'Could not parse name for game {rsgame.id} {rsgame.name}, skipping')
+                        continue
+                    season = int(m[2])
+                    if season <= 4:
+                        league = 'P'
+                    else:
+                        league = m[1].upper()
+                    if league == 'P':
+                        tier = 3
+                    elif league == 'J':
+                        tier = 2
+                    else:
+                        logger.warn(f'Could not detect season status for game {rsgame.id}')
+                        continue
+
+                    if rsgame in post_season_games:
+                        rsgame.league_playoff = True
+                    logger.info(f'Setting game {rsgame.id} {rsgame.name} to tier {tier} and season {season} playoff {rsgame.league_playoff}')
+                    rsgame.league_tier = tier
+                    rsgame.league_season = season
+                    rsgame.save()
+                    saved_counter += 1
+
+            await ctx.send(f'Updated database fields for {saved_counter} out of {len(full_season_games)} possible games')  
+
+    
     @tasks.loop(minutes=120.0)
     async def task_send_polychamps_invite(self):
         await self.bot.wait_until_ready()
