@@ -134,8 +134,8 @@ migrate(
     # migrator.add_column('game', 'league_tier', league_tier),
 
 
-    # migrator.add_column('game', 'league_playoff', league_playoff)
-    migrator.drop_column('game', 'league_playoff'),
+    migrator.add_column('game', 'league_playoff', league_playoff)
+    # migrator.drop_column('game', 'league_playoff'),
 
 
 )
