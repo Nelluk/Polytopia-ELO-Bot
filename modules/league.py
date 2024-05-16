@@ -29,16 +29,16 @@ jr_member_role_name = 'Junior Player'  # Umbrella role for all Junior memebrs
 league_teams = [
     ('Ronin', ['The Ronin', 'The Bandits']),
     ('Jets', ['The Jets', 'The Cropdusters']),
-    ('Bombers', ['The Bombers', 'The Dynamite']),
+    # ('Bombers', ['The Bombers', 'The Dynamite']),
     ('Lightning', ['The Lightning', 'The ThunderCats']),
     ('Vikings', ['The Vikings', 'The Valkyries']),
-    ('Crawfish', ['The Crawfish', 'The Shrimps']),
-    ('Sparkies', ['The Sparkies', 'The Pups']),
+    # ('Crawfish', ['The Crawfish', 'The Shrimps']),
+    # ('Sparkies', ['The Sparkies', 'The Pups']),
     ('Wildfire', ['The Wildfire', 'The Flames']),
-    ('Mallards', ['The Mallards', 'The Drakes']),
-    ('OldPlague', ['The OldPlague', 'The Rats']),
+    # ('Mallards', ['The Mallards', 'The Drakes']),
+    # ('OldPlague', ['The OldPlague', 'The Rats']),
     ('Dragons', ['The Dragons', 'The Narwhals']),
-    ('Jalapenos', ['The OldReapers', 'The Jalapenos']),
+    # ('Jalapenos', ['The OldReapers', 'The Jalapenos']),
     ('Kraken', ['The Kraken', 'The Squids']),
     ('ArcticWolves', ['The ArcticWolves', 'The Huskies']),
     ('Plague', ['The Plague', 'The Reapers']),
@@ -919,22 +919,31 @@ class league(commands.Cog):
 
             with models.db.atomic():
                 for team in poly_teams:
+                    logger.info(f'Checking team {team.name}')
                     if team.pro_league:
                         team.league_tier = 2
                         if team.name in pro_role_names:
                             house_name = team_role_names[pro_role_names.index(team.name)]
-                            print(house_name)
+                            house = models.House.upsert(name=house_name)
+                            team.house = house
+                            logger.debug(f'Associating team with house {house.name} is_archived: {team.is_archived}')
                         else:
-                            print(f'No pro role for team {team.name}')
+                            logger.warn(f'No pro role for team {team.name}')
                     else:
                         team.league_tier = 3
+                        if team.name in junior_role_names:
+                            house_name = team_role_names[junior_role_names.index(team.name)]
+                            house = models.House.upsert(name=house_name)
+                            team.house = house
+                            logger.debug(f'Associating team with house {house.name}')
+                        else:
+                            logger.warn(f'No junior role for team {team.name} - is_archived: {team.is_archived}')
                     logger.info(f'Setting team {team.name} tier to {team.league_tier}')
                     team.save()
 
 
 
                 for rsgame in full_season_games:
-                    break
                     logger.info(f'Checking {rsgame.id} {rsgame.name}')
                     rsgame.league_playoff = False
                     m = re.match(r"([PJ]?)S(\d+)", rsgame.name.upper())

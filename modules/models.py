@@ -98,37 +98,31 @@ class Configuration(BaseModel):
 
 
 class House(BaseModel):  # An affiliation of Teams (probably only used for PolyChampions)
-    # name = TextField(unique=True, default='')
+    name = TextField(unique=True, default='')
     emoji = TextField(null=False, default='')
     image_url = TextField(null=True)
     league_tokens = SmallIntegerField(default=0, null=False)
 
-    # def upsert(name='', emoji='', imague_url=None, tokens=0):
-    #     try:
-    #         with db.atomic():
-    #             house = House.create(discord_id=discord_id, name=discord_name)
-    #     except IntegrityError:
-    #         discord_member = DiscordMember.get(discord_id=discord_id)
-    #         discord_member.name = discord_name
-    #         discord_member.save()
+    def upsert(name='', emoji='', image_url=None, tokens=0):
+            
+        house, created = House.get_or_create(name=name)
+        if created:
+            logger.debug(f'models.House "{name}" inserted')
+        else:
+            logger.debug(f'existing models.House "{name}" found')
 
-    #     try:
-    #         with db.atomic():
-    #             player = Player.create(discord_member=discord_member, guild_id=guild_id, nick=discord_nick, name=display_name, team=team)
-    #         created = True
-    #         logger.debug(f'Inserting new player id {player.id} {display_name} on team {team}')
-    #     except IntegrityError:
-    #         created = False
-    #         player = Player.get(discord_member=discord_member, guild_id=guild_id)
-    #         logger.debug(f'Updating existing player id {player.id} {player.name}')
-    #         if display_name:
-    #             player.name = display_name
-    #         if team:
-    #             player.team = team
-    #             logger.debug(f'Setting player team to {team.id} {team.name}')
-    #         if discord_nick:
-    #             player.nick = discord_nick
-    #         player.save()
+        # try:
+        #     house = House.create(name=name)
+        #     logger.debug(f'models.House "{name}" inserted')
+        # except (IntegrityError, UniqueViolation) as e:
+        #     house = House.get(name=name)
+        #     logger.debug(f'existing models.House "{name}" found')
+        
+        house.emoji = emoji
+        house.image_url = image_url
+        house.tokens = tokens
+        house.save()
+        return house
 
 
 class Team(BaseModel):
