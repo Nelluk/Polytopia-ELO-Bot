@@ -536,6 +536,9 @@ class league(commands.Cog):
         houses_with_teams = peewee.prefetch(models.House.select(), models.Team.select())
         house_list = []
 
+        # TODO: logging messages, error handling, sort Teams by league_tier with an ORDER BY clause in the query,
+        # alternate command to focus display on one house `$house dragons`? (if there is any utility there)
+
         for house in houses_with_teams:
             team_list, team_message = [], ''
             if house.teams:
