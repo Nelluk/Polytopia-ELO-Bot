@@ -529,6 +529,27 @@ class league(commands.Cog):
         self.announcement_message = announcement_message.id
         self.save_draft_config(ctx.guild.id, draft_config)
 
+    @commands.command()
+    @settings.in_bot_channel()
+    @commands.cooldown(1, 5, commands.BucketType.channel)
+    async def houses(self, ctx, *, arg=None):
+        houses_with_teams = peewee.prefetch(models.House.select(), models.Team.select())
+        house_list = []
+
+        for house in houses_with_teams:
+            team_list, team_message = [], ''
+            if house.teams:
+                for hteam in house.teams:
+                    team_list.append(f'- {hteam.name} {hteam.emoji} - Tier {hteam.league_tier} - ELO: {hteam.elo}')
+                team_message = '\n'.join(team_list)
+            else:
+                team_message = '*No related Teams*'
+            house_message = f'House {house.name} {house.emoji} - Tokens: {house.league_tokens} \n {team_message}'
+            house_list.append(f'{house_message}\n')
+        
+        async with ctx.typing():
+            await utilities.buffered_send(destination=ctx, content='\n'.join(house_list))
+    
     @commands.command(aliases=['league_balance'])
     @settings.in_bot_channel()
     @commands.cooldown(1, 5, commands.BucketType.channel)
