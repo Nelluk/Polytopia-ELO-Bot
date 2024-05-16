@@ -103,6 +103,22 @@ class House(BaseModel):  # An affiliation of Teams (probably only used for PolyC
     image_url = TextField(null=True)
     league_tokens = SmallIntegerField(default=0, null=False)
 
+    def update_tokens(self, new_count):
+        logger.debug(f'Updating league_tokens on {self.name} {self.id} from {self.league_tokens} to {new_count}')
+        old_count = self.league_tokens
+        self.league_tokens = new_count
+        self.save()
+        return (old_count, new_count)
+    
+    def get_or_except(house_name: str):
+        houses = House.select().where(House.name.contains(house_name))
+        if len(houses) == 0:
+            raise exceptions.NoMatches(f'No matching house was found for "{house_name}"')
+        if len(houses) > 1:
+            raise exceptions.TooManyMatches(f'More than one matching house was found for "{house_name}"')
+        
+        return houses[0]
+
     def upsert(name='', emoji='', image_url=None, tokens=0):
             
         house, created = House.get_or_create(name=name)

@@ -530,6 +530,42 @@ class league(commands.Cog):
         self.save_draft_config(ctx.guild.id, draft_config)
 
     @commands.command()
+    @settings.is_mod_check()
+    async def tokens(self, ctx, *, arg=None):
+        args = arg.split() if arg else []
+
+        if len(args) == 0:
+            logger.debug('Summarizing league tokens')
+            message = []
+            houses = models.House().select().order_by(models.House.league_tokens)
+            for house in houses:
+                message.append(f'House {house.name} - {house.league_tokens} tokens')
+            await ctx.send('\n'.join(message))
+
+            return await ctx.send(f'League tokens summary')
+        if len(args) != 2:
+            return await ctx.send(f'Incorrect number of arguments. Example: `{ctx.prefix}{ctx.invoked_with} housename 5` to set tokens to 5.')
+        try:
+            logger.debug(f'Attempting to load house "{args[0]}" and update tokens to {args[1]}')
+            house = models.House.get_or_except(house_name=args[0])
+        except exceptions.TooManyMatches:
+            return await ctx.send(f'Too many matches found for house *{args[0]}*. Be more specific')
+        except exceptions.NoMatches:
+            return await ctx.send(f'No matches found for house *{args[0]}*.')
+        
+        if settings.get_user_level(ctx.author) <= 4:
+            return await ctx.send(f'You are not authorized to use this command.')
+        
+        try:
+            old_count, new_count = house.update_tokens(int(args[1]))
+        except ValueError:
+            return await ctx.send(f'Could not translate "{args[1]}" into an integer.')
+        
+        models.GameLog.write(guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} updated league tokens (FATs) for House {house.name} from {old_count} to {new_count}')
+        return await ctx.send(f'House {house.name} has {old_count} tokens. Updating to {new_count}')
+
+    
+    @commands.command()
     @settings.in_bot_channel()
     @commands.cooldown(1, 5, commands.BucketType.channel)
     async def houses(self, ctx, *, arg=None):
