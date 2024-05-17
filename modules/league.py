@@ -646,7 +646,8 @@ class league(commands.Cog):
         `[p]team_house ronin NONE` - Remove team Ronin from any house affiliation. NONE must be in all caps.
         `[p]team_edit ronin ARCHIVE` - Mark a defunct team as archived. This cannot be undone via the bot. Team must first have no house affiliation and no incomplete games.
         `[p]team_tier ronin 2` - Change league tier of team. Does not impact current or past games from this team.
-        `[p]team_name ronin "The Samurai" (related command)
+        
+        See also: `team_add`, `team_name`, `team_server`, `team_image`, `team_emoji`, `house_add`, `house_rename`
         """
         args = arg.split() if arg else []
         if not args or len(args) != 2:
@@ -678,7 +679,8 @@ class league(commands.Cog):
             team.house = new_house
             team.save()
             models.GameLog.write(guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} set the House affiliation of Team {team.name} to {new_house_name} from {old_house_name}')
-            return await ctx.send(f'Changed House affiliation of team  **{team.name}** to {new_house_name}. Previous affiliation was "{old_house_name}".')
+            tier_warning = '' if team.league_tier else f'\n:warning:Team tier not set. You probably want to set one with `{ctx.prefix}team_tier`'
+            return await ctx.send(f'Changed House affiliation of team  **{team.name}** to {new_house_name}. Previous affiliation was "{old_house_name}".{tier_warning}')
 
         if ctx.invoked_with == 'team_tier':
             try:
