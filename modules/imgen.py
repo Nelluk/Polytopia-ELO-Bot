@@ -224,9 +224,10 @@ def arrow_card(
     # Draw the images with their outlines.
     draw.rectangle([98, 234, 331, 467], width=2)
     paste_image(im, fetch_image(left_image), 100, 236, 230)
-    
-    # draw.rectangle([width - 100, 234, width - 331, 467], width=2)  
-    ## FIXME: This was in use for a long time, but started causing errors of 'ValueError: x1 must be greater than or equal to x0'
+
+    draw.rectangle([width - 331, 234, width - 100, 467], width=2)  
+    ## Prior to May 2024 the 331 and 100 were swapped and working, then started throwing an error. Swapping those two parameters
+    # seemed to have bypassed the error but not really sure why, especially if the other rectangle() calls are untouched
 
     paste_image(im, fetch_image(right_image), width - 330, 236, 230)
     # Draw the bottom text.
