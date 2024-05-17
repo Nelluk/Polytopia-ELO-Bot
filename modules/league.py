@@ -13,7 +13,7 @@ import modules.exceptions as exceptions
 import datetime
 import peewee
 import typing
-import random
+# import random
 import modules.imgen as imgen
 
 logger = logging.getLogger('polybot.' + __name__)
@@ -529,47 +529,6 @@ class league(commands.Cog):
         self.announcement_message = announcement_message.id
         self.save_draft_config(ctx.guild.id, draft_config)
 
-    @commands.command(aliases=['house_rename'])
-    @settings.is_mod_check()
-    async def house_add(self, ctx, *, arg=None):
-        """*Mod*: Create or rename a league House
-        **Example:**
-        `[p]house_add Amphibian Party` - Add a new house named "Amphibian Party"
-        `[p]house_rename amphibian Mammal Kingdom` - Rename them to "Mammal Kingdom"
-        """
-        args = arg.split() if arg else []
-        if not args:
-            return await ctx.send(f'See {ctx.prefix}help {ctx.invoked_with} for usage examples.')
-        
-        if ctx.invoked_with == 'house_add':
-            house_name = ' '.join(args)
-            try:
-                logger.debug(f'Trying to create a house with name {house_name}')
-                house = models.House.create(name=house_name)
-            except peewee.IntegrityError:
-                return await ctx.send(f':warning: There is already a House with the name "{house_name}". No changes saved.')
-            models.GameLog.write(guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} created a new House with name "{house.name}"')
-            return await ctx.send(f'New league House created with name "{house.name}". You can add a team to it using `{ctx.prefix}house_team`.')
-        
-        if ctx.invoked_with == 'house_rename':
-            example_string = f'**Example**: `{ctx.prefix}{ctx.invoked_with} ronin New Team Name`'
-            if len(args) < 2:
-                return await ctx.send(f'The first argument should be a single word identifying an existing House. The rest will be used for the new name. {example_string}')
-            house_identifier, house_newname = args[0], ' '.join(args[1:])
-            logger.debug(f'Attempting to rename house identified by string "{house_identifier}" to "{house_newname}"')
-
-            try:
-                house = models.House.get_or_except(house_name=house_identifier)
-            except (exceptions.TooManyMatches, exceptions.NoMatches) as e:
-                return await ctx.send(e)
-            
-            house_oldname = house.name
-            house.name = house_newname
-            house.save()
-            models.GameLog.write(guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} renamed a House from "{house_oldname}" to "{house_newname}"')
-
-            return await ctx.send(f'Successfully renamed a House from "{house_oldname}" to "{house_newname}". It has {house.league_tokens} tokens.')
-
     @commands.command()
     # @settings.is_mod_check()
     async def tokens(self, ctx, *, arg=None):
@@ -616,6 +575,7 @@ class league(commands.Cog):
     @settings.in_bot_channel()
     @commands.cooldown(1, 5, commands.BucketType.channel)
     async def houses(self, ctx, *, arg=None):
+        
         houses_with_teams = peewee.prefetch(models.House.select(), models.Team.select().order_by(models.Team.league_tier))
         house_list = []
 
@@ -635,6 +595,123 @@ class league(commands.Cog):
         
         async with ctx.typing():
             await utilities.buffered_send(destination=ctx, content='\n'.join(house_list))
+    
+    @commands.command(aliases=['house_rename'])
+    @settings.is_mod_check()
+    async def house_add(self, ctx, *, arg=None):
+        """*Mod*: Create or rename a league House
+        **Example:**
+        `[p]house_add Amphibian Party` - Add a new house named "Amphibian Party"
+        `[p]house_rename amphibian Mammal Kingdom` - Rename them to "Mammal Kingdom"
+        """
+        args = arg.split() if arg else []
+        if not args:
+            return await ctx.send(f'See {ctx.prefix}help {ctx.invoked_with} for usage examples.')
+        
+        if ctx.invoked_with == 'house_add':
+            house_name = ' '.join(args)
+            try:
+                logger.debug(f'Trying to create a house with name {house_name}')
+                house = models.House.create(name=house_name)
+            except peewee.IntegrityError:
+                return await ctx.send(f':warning: There is already a House with the name "{house_name}". No changes saved.')
+            models.GameLog.write(guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} created a new House with name "{house.name}"')
+            return await ctx.send(f'New league House created with name "{house.name}". You can add a team to it using `{ctx.prefix}house_team`.')
+        
+        if ctx.invoked_with == 'house_rename':
+            example_string = f'**Example**: `{ctx.prefix}{ctx.invoked_with} ronin New Team Name`'
+            if len(args) < 2:
+                return await ctx.send(f'The first argument should be a single word identifying an existing House. The rest will be used for the new name. {example_string}')
+            house_identifier, house_newname = args[0], ' '.join(args[1:])
+            logger.debug(f'Attempting to rename house identified by string "{house_identifier}" to "{house_newname}"')
+
+            try:
+                house = models.House.get_or_except(house_name=house_identifier)
+            except (exceptions.TooManyMatches, exceptions.NoMatches) as e:
+                return await ctx.send(e)
+            
+            house_oldname = house.name
+            house.name = house_newname
+            house.save()
+            models.GameLog.write(guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} renamed a House from "{house_oldname}" to "{house_newname}"')
+
+            return await ctx.send(f'Successfully renamed a House from "{house_oldname}" to "{house_newname}". It has {house.league_tokens} tokens.')
+
+    @commands.command(aliases=['team_house', 'team_tier'], usage='team_name arguments')
+    @settings.is_mod_check()
+    async def team_edit(self, ctx, *, arg=None):
+        """*Mod*: Edit a team's house affiliation or league tier
+        **Example:**
+        `[p]team_house ronin Ninjas` - Put team Ronin into house Ninjas
+        `[p]team_house ronin NONE` - Remove team Ronin from any house affiliation. NONE must be in all caps.
+        `[p]team_edit ronin ARCHIVE` - Mark a defunct team as archived. This cannot be undone via the bot. Team must first have no house affiliation and no incomplete games.
+        `[p]team_tier ronin 2` - Change league tier of team. Does not impact current or past games from this team.
+        `[p]team_name ronin "The Samurai" (related command)
+        """
+        args = arg.split() if arg else []
+        if not args or len(args) != 2:
+            return await ctx.send(f'See `{ctx.prefix}help {ctx.invoked_with}` for usage examples. Teams and Houses must be each identified by a single word.')
+        
+        try:
+            team = models.Team.get_or_except(team_name = args[0], guild_id=ctx.guild.id)
+        except (exceptions.TooManyMatches, exceptions.NoMatches) as e:
+            return await ctx.send(e)
+        
+        logger.debug(f'Loaded team {team.name} for editing')
+        if team.is_archived:
+            logger.warn('Team is_archive is True')
+            return await ctx.send(f'Team **{team.name}** is **archived**. If it *really* needs to be unarchived, ask the bot owner.')
+        
+        if ctx.invoked_with == 'team_house':
+            old_house_name = team.house.name if team.house else 'NONE'
+            if args[1] == 'NONE':
+                logger.info(f'Processing house removal')
+                new_house, new_house_name = None, 'NONE'
+            else:
+                logger.info(f'Processing house affiliation change')
+                try:
+                    new_house = models.House.get_or_except(house_name=args[1])
+                    new_house_name = new_house.name
+                except (exceptions.TooManyMatches, exceptions.NoMatches) as e:
+                    return await ctx.send(e)
+        
+            team.house = new_house
+            team.save()
+            models.GameLog.write(guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} set the House affiliation of Team {team.name} to {new_house_name} from {old_house_name}')
+            return await ctx.send(f'Changed House affiliation of team  **{team.name}** to {new_house_name}. Previous affiliation was "{old_house_name}".')
+
+        if ctx.invoked_with == 'team_tier':
+            try:
+                new_tier = int(args[1])
+            except ValueError:
+                return await ctx.send(f'Second argument should be an integer representing the new tier.')
+            
+            if not team.house:
+                return await ctx.send(f'Team **{team.name}** does not have a House affiliation. Set one with `{ctx.prefix}team_house` first.')
+            
+            logger.debug(f'Processing tier change for team {team.name}')
+            old_tier = str(team.league_tier) if team.league_tier else 'NONE'
+            team.league_tier = new_tier
+            team.save()
+            models.GameLog.write(guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} set the league tier of Team {team.name} to {new_tier} from {old_tier}')
+            return await ctx.send(f'Changed league tier of team  **{team.name}** to {new_tier}. Previous tier was {old_tier}.')
+
+        if ctx.invoked_with == 'team_edit' and args[1] == 'ARCHIVE':
+            logger.debug(f'Attempting to archive team {team.name}')
+            if team.house:
+               logger.warn(f'Cannot archive due to house affiliation')
+               return await ctx.send(f'Remove the house affiliation of team **{team.name}** first with `{ctx.prefix}team_house {args[0]} NONE`. Currently in {team.house.name}.')
+            incomplete_game_count = models.Game.search(team_filter=[team], status_filter=2).count()
+            if incomplete_game_count > 0:
+                logger.warn(f'Cannot archive due to {incomplete_game_count} incomplete games')
+                return await ctx.send(f'Team **{team.name}** has {incomplete_game_count} incomplete games. Cannot archive unless there are zero incomplete games.')
+            
+            team.is_archived = True
+            team.save()
+            models.GameLog.write(guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} archived Team {team.name} ID {team.id}')
+            return await ctx.send(f':warning: Team **{team.name}** has been successfully **archived**. May it be long remembered, but never again used.')
+        
+        return await ctx.send(f'See `{ctx.prefix}help {ctx.invoked_with}` for usage examples. Teams and Houses must be each identified by a single word.')
     
     @commands.command(aliases=['league_balance'])
     @settings.in_bot_channel()

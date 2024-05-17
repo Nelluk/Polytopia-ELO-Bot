@@ -674,6 +674,7 @@ class administration(commands.Cog):
         team.name = new_team_name
         team.save()
 
+        models.GameLog.write(guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} set the renamed team ID {team.id} from {old_name} to {new_team_name}.')
         await ctx.send(f'Team **{old_name}** has been renamed to **{team.name}**.')
 
     @commands.command(usage='team_name server_id')

@@ -116,7 +116,7 @@ class House(BaseModel):  # An affiliation of Teams (probably only used for PolyC
             logger.warn('Raising NoMatches exception')
             raise exceptions.NoMatches(f'No matching house was found for "{house_name}"')
         if len(houses) > 1:
-            logger.warn('Raising TooManyMatches error')
+            logger.warn('Raising TooManyMatches exception')
             raise exceptions.TooManyMatches(f'More than one matching house was found for "{house_name}"')
         
         return houses[0]
