@@ -596,7 +596,7 @@ class league(commands.Cog):
         async with ctx.typing():
             await utilities.buffered_send(destination=ctx, content='\n'.join(house_list))
     
-    @commands.command(aliases=['house_rename'])
+    @commands.command(aliases=['house_rename'], usage='')
     @settings.is_mod_check()
     async def house_add(self, ctx, *, arg=None):
         """*Mod*: Create or rename a league House
