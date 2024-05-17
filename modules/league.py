@@ -43,7 +43,7 @@ league_teams = [
     ('ArcticWolves', ['The ArcticWolves', 'The Huskies']),
     ('Plague', ['The Plague', 'The Reapers']),
     ('Tempest', ['The Tempest', 'The Rainclouds']),
-]
+] ## TODO: Should be able to remove this hardcoding with May 2024 changes - will need to update the code that relies on this
 
 league_team_channels = []
 
@@ -529,20 +529,67 @@ class league(commands.Cog):
         self.announcement_message = announcement_message.id
         self.save_draft_config(ctx.guild.id, draft_config)
 
-    @commands.command()
+    @commands.command(aliases=['house_rename'])
     @settings.is_mod_check()
+    async def house_add(self, ctx, *, arg=None):
+        """*Mod*: Create or rename a league House
+        **Example:**
+        `[p]house_add Amphibian Party` - Add a new house named "Amphibian Party"
+        `[p]house_rename amphibian Mammal Kingdom` - Rename them to "Mammal Kingdom"
+        """
+        args = arg.split() if arg else []
+        if not args:
+            return await ctx.send(f'See {ctx.prefix}help {ctx.invoked_with} for usage examples.')
+        
+        if ctx.invoked_with == 'house_add':
+            house_name = ' '.join(args)
+            try:
+                logger.debug(f'Trying to create a house with name {house_name}')
+                house = models.House.create(name=house_name)
+            except peewee.IntegrityError:
+                return await ctx.send(f':warning: There is already a House with the name "{house_name}". No changes saved.')
+            models.GameLog.write(guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} created a new House with name "{house.name}"')
+            return await ctx.send(f'New league House created with name "{house.name}". You can add a team to it using `{ctx.prefix}house_team`.')
+        
+        if ctx.invoked_with == 'house_rename':
+            example_string = f'**Example**: `{ctx.prefix}{ctx.invoked_with} ronin New Team Name`'
+            if len(args) < 2:
+                return await ctx.send(f'The first argument should be a single word identifying an existing House. The rest will be used for the new name. {example_string}')
+            house_identifier, house_newname = args[0], ' '.join(args[1:])
+            logger.debug(f'Attempting to rename house identified by string "{house_identifier}" to "{house_newname}"')
+
+            try:
+                house = models.House.get_or_except(house_name=house_identifier)
+            except (exceptions.TooManyMatches, exceptions.NoMatches) as e:
+                return await ctx.send(e)
+            
+            house_oldname = house.name
+            house.name = house_newname
+            house.save()
+            models.GameLog.write(guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} renamed a House from "{house_oldname}" to "{house_newname}"')
+
+            return await ctx.send(f'Successfully renamed a House from "{house_oldname}" to "{house_newname}". It has {house.league_tokens} tokens.')
+
+    @commands.command()
+    # @settings.is_mod_check()
     async def tokens(self, ctx, *, arg=None):
+        """
+        Display or update house tokens
+
+        **Examples**
+        `[p]tokens` Summarize tokens for all Houses
+        `[p]tokens ronin 5` Set tokens for House Ronin to 5
+        """
         args = arg.split() if arg else []
 
         if len(args) == 0:
             logger.debug('Summarizing league tokens')
-            message = []
+            message = ['**League Tokens Summary**']
             houses = models.House().select().order_by(models.House.league_tokens)
             for house in houses:
                 message.append(f'House {house.name} - {house.league_tokens} tokens')
-            await ctx.send('\n'.join(message))
+            return await ctx.send('\n'.join(message))
 
-            return await ctx.send(f'League tokens summary')
         if len(args) != 2:
             return await ctx.send(f'Incorrect number of arguments. Example: `{ctx.prefix}{ctx.invoked_with} housename 5` to set tokens to 5.')
         try:
@@ -569,10 +616,10 @@ class league(commands.Cog):
     @settings.in_bot_channel()
     @commands.cooldown(1, 5, commands.BucketType.channel)
     async def houses(self, ctx, *, arg=None):
-        houses_with_teams = peewee.prefetch(models.House.select(), models.Team.select())
+        houses_with_teams = peewee.prefetch(models.House.select(), models.Team.select().order_by(models.Team.league_tier))
         house_list = []
 
-        # TODO: logging messages, error handling, sort Teams by league_tier with an ORDER BY clause in the query,
+        # TODO: logging messages, error handling, help text, clean up output a little
         # alternate command to focus display on one house `$house dragons`? (if there is any utility there)
 
         for house in houses_with_teams:

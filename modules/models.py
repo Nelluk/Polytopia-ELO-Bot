@@ -113,8 +113,10 @@ class House(BaseModel):  # An affiliation of Teams (probably only used for PolyC
     def get_or_except(house_name: str):
         houses = House.select().where(House.name.contains(house_name))
         if len(houses) == 0:
+            logger.warn('Raising NoMatches exception')
             raise exceptions.NoMatches(f'No matching house was found for "{house_name}"')
         if len(houses) > 1:
+            logger.warn('Raising TooManyMatches error')
             raise exceptions.TooManyMatches(f'More than one matching house was found for "{house_name}"')
         
         return houses[0]
