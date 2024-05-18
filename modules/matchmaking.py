@@ -1026,7 +1026,13 @@ class matchmaking(commands.Cog):
             game.is_pending = False
             game.save()
 
-        logger.info(f'Game {game.id} closed and being tracked for ELO')
+            game.update_league_fields()
+            if game.league_season:
+                league_warning = f'\n:warning: Detected season game information. Status is:\nGame season: `{game.league_season}`, Team tier: `{game.league_tier}`,  Playoff game? `{game.league_playoff}`'
+            else:
+                league_warning = ''
+
+        logger.info(f'Game {game.id} closed and being tracked for ELO{league_warning}')
         models.GameLog.write(game_id=game, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} started game with name *{discord.utils.escape_markdown(game.name)}*')
         await game.update_external_broadcasts(deleted=False)
         await post_newgame_messaging(ctx, game=game)

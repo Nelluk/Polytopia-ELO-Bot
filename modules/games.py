@@ -1926,6 +1926,11 @@ class polygames(commands.Cog):
             return await ctx.send('Error loading guild associated with this game. Please contact the bot owner.')
 
         game.save()
+        if game.update_league_fields():
+            league_warning = f'\n:warning: Detected a difference in the season game status. New status is:\nGame season: `{game.league_season}`, Team tier: `{game.league_tier}`,  Playoff game? `{game.league_playoff}`'
+        else:
+            league_warning = ''
+
         await game.update_squad_channels(self.bot.guilds, game_guild.id)
         await game.update_announcement(guild=game_guild, prefix=ctx.prefix)
         models.GameLog.write(game_id=game, guild_id=game.guild_id, message=f'{models.GameLog.member_string(ctx.author)} renamed the game to *{discord.utils.escape_markdown(str(new_game_name))}*')
@@ -1933,7 +1938,7 @@ class polygames(commands.Cog):
         new_game_name = game.name if game.name else 'None'
         old_game_name = old_game_name if old_game_name else 'None'
 
-        await ctx.send(f'Game ID {game.id} has been renamed to "**{new_game_name}**" from "**{old_game_name}**"')
+        await ctx.send(f'Game ID {game.id} has been renamed to "**{new_game_name}**" from "**{old_game_name}**"{league_warning}')
 
     @commands.command(aliases=['settribes'], usage='game_id player_name tribe_name [player2 tribe2 ... ]')
     @models.is_registered_member()
@@ -2188,7 +2193,8 @@ async def post_newgame_messaging(ctx, game):
 
     season, season_str = game.is_season_game(), ''
     if season:
-        season_str = f'**{"Pro" if season[1] == "P" else "Junior"} Season {season[0]}** '
+        season_str = f'**{"Gold" if season[1] == 2 else "Silver"} Season {season[0]}** '
+        # TODO: Better handling of arbitrary number of tiers. Probably will hardcode a list 1-10 in league file
 
     embed, content = game.embed(guild=ctx.guild, prefix=ctx.prefix)
     ranked_str = 'unranked ' if not game.is_ranked else ''

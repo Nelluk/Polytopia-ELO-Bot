@@ -1412,7 +1412,12 @@ class Game(BaseModel):
         else:
             completed_str = ''
 
-        embed.set_footer(text=f'{self.platform_emoji()} {status_str} - Created {str(self.date)}{completed_str}{host_str}')
+        if self.league_season:
+            season_str = f' - {self.get_season_status_string()}'
+        else:
+            season_str = ''
+
+        embed.set_footer(text=f'{self.platform_emoji()} {status_str} - Created {str(self.date)}{completed_str}{host_str}{season_str}')
 
         return embed, embed_content
 
@@ -1521,6 +1526,12 @@ class Game(BaseModel):
         # \u00a0 is used as an invisible delimeter so game_name can be split out easily
         return f'Game {self.id}   {full_squad_string}{game_name}'
 
+    def get_season_status_string(self):
+        if not self.league_season:
+            return ''
+        playoff = 'playoff game' if self.league_playoff else 'game'
+        return f'PolyChampions Season {self.league_season} {playoff}'
+    
     def largest_team(self):
         return max(self.size)
 
@@ -2713,6 +2724,8 @@ class Game(BaseModel):
         # default season=None returns all seasons (any digit character). Otherwise pass an integer representing season #
         # Returns three lists: ([All season games], [Regular season games], [Post season games])
 
+        # TODO: Update this to use new league database fields
+
         logger.debug(f'in polychamps_season_games for league {league} and season {season}')
         if season:
             season_str = str(season)
@@ -2753,18 +2766,19 @@ class Game(BaseModel):
 
         return (full_season, regular_season, post_season)
 
-    def is_league_game(self):
-        # return True if one of the teams participating in the game is a League team like Ronin, etc (is_hidden == 0)
-        # seems like I should be able to do it with one less query but could not get it to return the correct result that way
-        league_teams = Team.select().where(
-            (Team.guild_id == settings.server_ids['polychampions']) & (Team.is_hidden == 0)
-        )
+    # def is_league_game(self):
+    #     # Apparently unused as of May 2024 updates
+    #     # return True if one of the teams participating in the game is a League team like Ronin, etc (is_hidden == 0)
+    #     # seems like I should be able to do it with one less query but could not get it to return the correct result that way
+    #     league_teams = Team.select().where(
+    #         (Team.guild_id == settings.server_ids['polychampions']) & (Team.is_hidden == 0)
+    #     )
 
-        team_subq = GameSide.select(GameSide.game).join(Game).where(
-            (GameSide.team.in_(league_teams)) & (GameSide.size > 1)
-        ).group_by(GameSide.game)
+    #     team_subq = GameSide.select(GameSide.game).join(Game).where(
+    #         (GameSide.team.in_(league_teams)) & (GameSide.size > 1)
+    #     ).group_by(GameSide.game)
 
-        league_games = Game.select(Game).where(Game.id.in_(team_subq))
+    #     league_games = Game.select(Game).where(Game.id.in_(team_subq))
 
         if self in league_games:
             return True
@@ -2772,31 +2786,13 @@ class Game(BaseModel):
 
     def is_season_game(self):
 
-        # If game is a PolyChamps season game, return tuple like (5, 'P') indicating season 5, pro league (or 'J' for junior)
+        # If game is a PolyChamps season game, return tuple like (5, 2, True) indicating season 5, Tier 2, Playoff=True
         # If not, return empty tuple (which has a False boolean value)
-
-        if self.guild_id != settings.server_ids['polychampions']:
-            return ()
-
-        if self not in Game.polychamps_season_games()[0]:
-            # Making sure game is caught by the polychamps_season_games regexp first
-            return ()
-
-        m = re.match(r"([PJ]?)S(\d+)", self.name.upper())
-        if not m:
-            logger.error(f'Game {self.id} matched regexp in polychamps_season_games() but not is_season_game() - {self.name}')
-            return ()
-
-        season = int(m[2])
-        if season <= 4:
-            league = 'P'
-        else:
-            league = m[1].upper()
-
-        return (season, league)
+        return (self.league_season, self.league_tier, self.league_playoff)
 
     def is_uncaught_season_game(self):
         # Look for games that have a season tag in the notes or not at the beginning of name
+        # TODO: Update this to look for new type of tags (that don't rely on pro/junior)
         if self.guild_id != settings.server_ids['polychampions']:
             return False
 
@@ -2815,6 +2811,68 @@ class Game(BaseModel):
         # if True, use moonrise ELO fields such as elo_moonrise / elo_after_game_global_moonrise
         # if False, use the old/archived fields such as elo / elo_after_game_global
         return bool(self.date >= settings.moonrise_reset_date)
+    
+    def update_league_fields(self) -> bool:
+        # Call when a game.name is updated via $rename or $start. 
+        # Return True if there is any change to fields so that user can be warned
+        
+        original_fields = (self.league_season, self.league_tier, self.league_playoff)
+        new_fields_result = self.parse_name_for_season_fields()
+        new_fields = new_fields_result if new_fields_result else (None, None, False)
+
+        if original_fields == new_fields:
+            # no change in fields
+            return False
+        
+        self.league_season = new_fields[0]
+        self.league_tier = new_fields[1]
+        self.league_playoff = new_fields[2]
+        self.save()
+        logger.info(f'Changing league fields of game {self.id} {self.name} from {original_fields} to {new_fields}')
+        return True
+
+    def parse_name_for_season_fields(self) -> tuple:
+        # Parse season tag in name, return an empty tuple () if not a season game, or a tuple that contains parsed season info:
+        # (league_season: int, league_tier: int, league_playoff: bool)
+        # Season game requirements:
+        # - guild.id is polychampions
+        # - game is 2v2 or 3v3 and is_ranked = True
+        # - game.name starts with a string like S15W or S15Semis or S15Finals
+        # - Each team involved has a tier, and both tiers are the same
+        # - special case for tied season, 1v1 game with tag like S15Showdown
+
+        if self.guild_id != settings.server_ids['polychampions'] or self.is_ranked is False:
+            return ()
+        
+        if self.size not in [[1, 1], [2, 2], [3, 3]]:
+            return ()
+        
+        if self.size == [1, 1] and 'SHOWDOWN' not in self.name:
+            # Quick filter to avoid unnecessary database calls
+            return ()
+        
+        tier_list = [self.gamesides[0].team.league_tier, self.gamesides[1].team.league_tier]
+        if None in tier_list or tier_list[0] != tier_list[1]:
+            # Team tiers mismatched or has an unranked team
+            return ()
+        
+        m = re.match(r"S(\d\d)(W|SHOWDOWN|FINALS|SEMIS)", self.name.upper().replace(' ', ''))
+        if not m:
+            logger.debug(f'Game {self.id} {self.name} passed initial is_season_game checks but failed regular expression')
+            return ()
+        game_tier = int(tier_list[0])
+        game_season = int(m[1])
+
+        if m[2] == 'SHOWDOWN':
+            if self.size != [1, 1]:
+                logger.warn(f'Game {self.id} {self.name} looked like a "Showdown" season game but is not a 1v1')
+                return ()
+            game_playoffs = True
+        else:
+            game_playoffs = True if m[2] in ['FINALS', 'SEMIS'] else False
+            
+        logger.info(f'Game {self.id} {self.name} looks like a season game: {game_season} {game_tier} {game_playoffs}')
+        return (game_season, game_tier, game_playoffs)
 
 
 class Squad(BaseModel):

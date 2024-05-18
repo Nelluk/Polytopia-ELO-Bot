@@ -637,6 +637,14 @@ class league(commands.Cog):
 
             return await ctx.send(f'Successfully renamed a House from "{house_oldname}" to "{house_newname}". It has {house.league_tokens} tokens.')
 
+    @commands.command()
+    @settings.is_mod_check()
+    async def gtest(self, ctx, *, arg=None):
+        args = arg.split() if arg else []
+        gid = int(args[0])
+        game = models.Game.get_by_id(gid)
+        print(game.is_season_game_new())
+    
     @commands.command(aliases=['team_house', 'team_tier'], usage='team_name arguments')
     @settings.is_mod_check()
     async def team_edit(self, ctx, *, arg=None):
