@@ -2857,20 +2857,38 @@ class Game(BaseModel):
             return ()
         
         m = re.match(r"S(\d\d)(W|SHOWDOWN|FINALS|SEMIS)", self.name.upper().replace(' ', ''))
-        if not m:
+        old_match = re.match(r"([PJ]?)S(\d+)", self.name.upper())
+
+        if not m and not old_match:
             logger.debug(f'Game {self.id} {self.name} passed initial is_season_game checks but failed regular expression')
             return ()
-        game_tier = int(tier_list[0])
-        game_season = int(m[1])
+        
+        if m:
+            logger.debug(f'Game {self.id} {self.name} passed new-style regexp for season fields')
+            game_tier = int(tier_list[0])
+            game_season = int(m[1])
 
-        if m[2] == 'SHOWDOWN':
-            if self.size != [1, 1]:
-                logger.warn(f'Game {self.id} {self.name} looked like a "Showdown" season game but is not a 1v1')
-                return ()
-            game_playoffs = True
-        else:
-            game_playoffs = True if m[2] in ['FINALS', 'SEMIS'] else False
-            
+            if m[2] == 'SHOWDOWN':
+                if self.size != [1, 1]:
+                    logger.warn(f'Game {self.id} {self.name} looked like a "Showdown" season game but is not a 1v1')
+                    return ()
+                game_playoffs = True
+            else:
+                game_playoffs = True if m[2] in ['FINALS', 'SEMIS'] else False
+                
+        if old_match:
+            logger.debug(f'Game {self.id} {self.name} matched old-style regexp for season fields')
+            game_season = int(m[2])
+
+            if game_season <= 4:
+                game_tier = 2
+            else:
+                game_tier = 2 if m[1].upper() == 'P' else 3
+            if 'SEMIS' in self.name.upper() or 'FINALS' in self.name.upper():
+                game_playoffs = True
+            else:
+                game_playoffs = False
+                
         logger.info(f'Game {self.id} {self.name} looks like a season game: {game_season} {game_tier} {game_playoffs}')
         return (game_season, game_tier, game_playoffs)
 
