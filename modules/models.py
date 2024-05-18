@@ -2878,17 +2878,17 @@ class Game(BaseModel):
                 
         if old_match:
             logger.debug(f'Game {self.id} {self.name} matched old-style regexp for season fields')
-            game_season = int(m[2])
+            game_season = int(old_match[2])
 
             if game_season <= 4:
                 game_tier = 2
             else:
-                game_tier = 2 if m[1].upper() == 'P' else 3
+                game_tier = 2 if old_match[1].upper() == 'P' else 3
             if 'SEMIS' in self.name.upper() or 'FINALS' in self.name.upper():
                 game_playoffs = True
             else:
                 game_playoffs = False
-                
+
         logger.info(f'Game {self.id} {self.name} looks like a season game: {game_season} {game_tier} {game_playoffs}')
         return (game_season, game_tier, game_playoffs)
 
