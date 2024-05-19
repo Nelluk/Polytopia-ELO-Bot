@@ -1530,8 +1530,12 @@ class Game(BaseModel):
     def get_season_status_string(self):
         if not self.league_season:
             return ''
+        try:
+            tier_name = settings.tier_lookup(tier=self.league_tier)[1]
+        except exceptions.NoMatches:
+            tier_name = 'Unknown'
         playoff = 'playoff game' if self.league_playoff else 'game'
-        return f'PolyChampions Season {self.league_season} {playoff}'
+        return f'PolyChampions {tier_name} Tier Season {self.league_season} {playoff}'
     
     def largest_team(self):
         return max(self.size)

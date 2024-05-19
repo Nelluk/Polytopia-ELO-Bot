@@ -128,6 +128,34 @@ assert bool(len(generic_teams_long) == max_game_size), 'generic_teams_long must 
 
 date_cutoff = datetime.datetime.today() - datetime.timedelta(days=90)  # Players who haven't played since cutoff are not included in leaderboards
 
+league_tiers = [
+    # Exclusively used for PolyChampions leagues
+    (1, 'Platinum'),
+    (2, 'Gold'),
+    (3, 'Silver'),
+    (4, 'Bronze'),
+    (5, 'Copper'),
+    (6, 'Wood'),
+    (7, 'Paper')
+]
+
+def tier_lookup(name: str = None, tier: int = None):
+    logger.debug(f'tier_lookup name "{name}" tier "{tier}"')
+    if not name and not tier:
+        raise ValueError('Need either a name or tier argument')
+    
+    if tier:
+        for league_tier in league_tiers:
+            if league_tier[0] == int(tier):
+                return league_tier
+    if name:
+        for league_tier in league_tiers:
+            if name.upper() in league_tier[1].upper():
+                return league_tier
+            
+    logger.warn(f'Unsuccessful lookup in tier_lookup')
+    raise exceptions.NoMatches('No matching tier found.')
+
 
 def get_setting(setting_name):
     return config['default'][setting_name]

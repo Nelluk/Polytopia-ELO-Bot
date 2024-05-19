@@ -45,16 +45,6 @@ league_teams = [
     ('Tempest', ['The Tempest', 'The Rainclouds']),
 ] ## TODO: Should be able to remove this hardcoding with May 2024 changes - will need to update the code that relies on this
 
-league_tiers = [
-    (1, 'Platinum'),
-    (2, 'Gold'),
-    (3, 'Silver'),
-    (4, 'Bronze'),
-    (5, 'Copper'),
-    (6, 'Wood'),
-    (7, 'Paper')
-]
-
 league_team_channels = []
 
 def get_league_roles(guild=None):
@@ -743,27 +733,13 @@ class league(commands.Cog):
     @settings.is_mod_check()
     async def gtest(self, ctx, *, arg=None):
         args = arg.split() if arg else []
-        # gid = int(args[0])
-        # game = models.Game.get_by_id(gid)
         
-        messages = ['New search']
-        full_season1, regular_season, post_season = models.Game.polychamps_season_games_new()
-        messages.append(f'{len(full_season1)} {len(regular_season)} {len(post_season)}')
-        messages.append('old search')
-        full_season2, regular_season, post_season = models.Game.polychamps_season_games()
-        messages.append(f'{len(full_season2)} {len(regular_season)} {len(post_season)}')
-
-        test_set = models.Game.select().where(
-            (models.Game.id.in_(full_season2) & ~models.Game.id.in_(full_season1))
-
-        )
-        messages.append(f'{len(test_set)} mis-matched')
-        for g in test_set:
-            messages.append(f'{g.id} {g.name}')
-
-
-        await utilities.buffered_send(destination=ctx, content='\n'.join(messages))
-
+        try:
+            tier_result = tier_lookup(tier=int(arg[0]))
+        except ValueError:
+            tier_result = tier_lookup(name=arg[0])
+        
+        await ctx.send(f'{tier_result[0]} {tier_result[1]}')
     
     @commands.command(aliases=['team_house', 'team_tier'], usage='team_name arguments')
     @settings.is_mod_check()
