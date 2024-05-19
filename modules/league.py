@@ -45,6 +45,16 @@ league_teams = [
     ('Tempest', ['The Tempest', 'The Rainclouds']),
 ] ## TODO: Should be able to remove this hardcoding with May 2024 changes - will need to update the code that relies on this
 
+league_tiers = [
+    (1, 'Platinum'),
+    (2, 'Gold'),
+    (3, 'Silver'),
+    (4, 'Bronze'),
+    (5, 'Copper'),
+    (6, 'Wood'),
+    (7, 'Paper')
+]
+
 league_team_channels = []
 
 def get_league_roles(guild=None):
@@ -447,6 +457,81 @@ class league(commands.Cog):
         return q.execute()
 
 
+    @settings.is_superuser_check()
+    @commands.command()
+    async def migrate_teams(self, ctx):
+
+        import re
+        pro_role_names = [a[1][0] for a in league_teams]
+        junior_role_names = [a[1][1] for a in league_teams]
+        team_role_names = [a[0] for a in league_teams]
+
+        async with ctx.typing():
+            logger.info('Migrating Polychampions teams and games')
+            poly_teams = models.Team.select().where(
+                (models.Team.guild_id == settings.server_ids['polychampions']) & (models.Team.is_hidden == 0) 
+            )
+
+            full_season_games, regular_season_games, post_season_games = models.Game.polychamps_season_games()
+            saved_counter = 0
+
+            with models.db.atomic():
+                # for team in poly_teams:
+                #     logger.info(f'Checking team {team.name}')
+                #     if team.pro_league:
+                #         team.league_tier = 2
+                #         if team.name in pro_role_names:
+                #             house_name = team_role_names[pro_role_names.index(team.name)]
+                #             house = models.House.upsert(name=house_name)
+                #             team.house = house
+                #             logger.debug(f'Associating team with house {house.name} is_archived: {team.is_archived}')
+                #         else:
+                #             logger.warn(f'No pro role for team {team.name}')
+                #     else:
+                #         team.league_tier = 3
+                #         if team.name in junior_role_names:
+                #             house_name = team_role_names[junior_role_names.index(team.name)]
+                #             house = models.House.upsert(name=house_name)
+                #             team.house = house
+                #             logger.debug(f'Associating team with house {house.name}')
+                #         else:
+                #             logger.warn(f'No junior role for team {team.name} - is_archived: {team.is_archived}')
+                #     logger.info(f'Setting team {team.name} tier to {team.league_tier}')
+                #     team.save()
+
+
+
+                for rsgame in full_season_games:
+                    logger.info(f'Checking {rsgame.id} {rsgame.name}')
+                    # rsgame.league_playoff = False
+                    m = re.match(r"([PJ]?)S(\d+)", rsgame.name.upper())
+                    if not m:
+                        logger.warn(f'Could not parse name for game {rsgame.id} {rsgame.name}, skipping')
+                        continue
+                    season = int(m[2])
+                    if season <= 4:
+                        league = 'P'
+                    else:
+                        league = m[1].upper()
+                    if league == 'P':
+                        tier = 2
+                    elif league == 'J':
+                        tier = 3
+                    else:
+                        logger.warn(f'Could not detect season status for game {rsgame.id}')
+                        continue
+
+                    if rsgame in post_season_games:
+                        rsgame.league_playoff = True
+                    logger.info(f'Setting game {rsgame.id} {rsgame.name} to tier {tier} and season {season} playoff {rsgame.league_playoff}')
+                    rsgame.league_tier = tier
+                    rsgame.league_season = season
+                    rsgame.save()
+                    saved_counter += 1
+
+            await ctx.send(f'Updated database fields for {saved_counter} out of {len(full_season_games)} possible games')  
+
+    
     @commands.command(usage=None)
     @settings.is_mod_check()
     async def newfreeagent(self, ctx, channel_override: typing.Optional[discord.TextChannel], *, added_message: str = ''):
@@ -885,6 +970,8 @@ class league(commands.Cog):
         `[p]season 7` Records for a specific season (Pro teams)
         `[p]jrseason 7` Records for a specific season (Junior teams)
         """
+
+        # TODO: Update to work with multiple tiers
 
         if season:
             try:
