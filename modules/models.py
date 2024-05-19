@@ -437,9 +437,10 @@ class DiscordMember(BaseModel):
         except exceptions.NoSingleMatch:
             return None
 
-        all_season_games = Game.polychamps_season_games(league='all')[0]
-        pro_season_games = Game.polychamps_season_games(league='pro')[0]
-        junior_season_games = Game.polychamps_season_games(league='junior')[0]
+        # TODO: Update for flexible tiers
+        all_season_games = Game.polychamps_season_games()[0]
+        pro_season_games = Game.polychamps_season_games(tier=2)[0]
+        junior_season_games = Game.polychamps_season_games(tier=3)[0]
 
         losses = Game.search(status_filter=4, player_filter=[pc_player])
         wins = Game.search(status_filter=3, player_filter=[pc_player])
