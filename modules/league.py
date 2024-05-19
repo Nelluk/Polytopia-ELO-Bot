@@ -536,7 +536,7 @@ class league(commands.Cog):
         Display or update house tokens. The house name must be identified by a single word.
 
         **Examples**
-        `[p]tokens` Summarize tokens for all Houses
+        `[p]tokens` Summarize tokens for all Houses and list last 5 changes
         `[p]tokens ronin` Print log of all token updates regarding house Ronin
         `[p]tokens ronin 5 removed bonus` Set tokens for House Ronin to 5, and log an optional note
         """
@@ -547,7 +547,12 @@ class league(commands.Cog):
             message = ['**League Tokens Summary**']
             houses = models.House().select().order_by(models.House.league_tokens)
             for house in houses:
-                message.append(f'House {house.name} - {house.league_tokens} tokens')
+                message.append(f'House **{house.name}** {house.emoji} - {house.league_tokens} tokens')
+            
+            entries = models.GameLog.search(keywords=f'FATS id=', guild_id=ctx.guild.id, limit=5)
+            message.append('\n**Last 5 changes:**')
+            for entry in entries:
+                message.append(f'`- {entry.message_ts.strftime("%Y-%m-%d %H:%M")}` {entry.message[:500]}')
             return await ctx.send('\n'.join(message))
 
         try:
