@@ -235,7 +235,7 @@ class Team(BaseModel):
         if self.guild_id != settings.server_ids['polychampions'] or self.is_hidden:
             return ()
 
-        full_season_games, regular_season_games, post_season_games = Game.polychamps_season_games(league='all', season=season)
+        _, regular_season_games, post_season_games = Game.polychamps_season_games(tier=None, season=season)
 
         losses = Game.search(status_filter=4, team_filter=[self])
         wins = Game.search(status_filter=3, team_filter=[self])
@@ -2717,7 +2717,10 @@ class Game(BaseModel):
 
         return (confirmed_count, side_count, fully_confirmed)
 
-    def polychamps_season_games_new(tier=None, season=None):
+    def polychamps_season_games(tier=None, season=None):
+        # season fields are set when game is started or renamed by parsing the game.name in update_league_fields()
+        # default season=None returns all seasons. Otherwise pass an integer representing season #
+        # Returns three lists: ([All season games], [Regular season games], [Post season games])
 
         if tier:
             tier_filter = Game.select(Game.id).where(
@@ -2743,73 +2746,6 @@ class Game(BaseModel):
 
         return (full_season, regular_season, post_season)
     
-    def polychamps_season_games(league='all', season=None):
-        # infers polychampions season games based on Game.name, something like "PS8W7 Blah Blah" or "JS8 Finals Foo"
-        # Junior seasons began with S4
-        # relies on name being set reliably
-        # default season=None returns all seasons (any digit character). Otherwise pass an integer representing season #
-        # Returns three lists: ([All season games], [Regular season games], [Post season games])
-
-        # TODO: Update this to use new league database fields
-
-        logger.debug(f'in polychamps_season_games for league {league} and season {season}')
-        if season:
-            season_str = str(season)
-        else:
-            season_str = '\\d'
-
-        pc_games = Game.select(Game.id).where(
-            ((Game.guild_id == settings.server_ids['polychampions']) & ((Game.size == [2, 2]) | (Game.size == [3, 3])))
-        )
-
-        if league == 'all':
-            full_season = Game.select().where(
-                Game.name.iregexp(f'[PJ]?S{season_str}') & Game.id.in_(pc_games)  # matches S5 or PS5 or any S#
-            )
-        elif league == 'pro':
-            if not season:
-                early_season_str = 'S[1234][^\\d]'  # pro seasons before S5 had no 'P' designator
-            elif season and season <= 4:
-                early_season_str = f'S{str(season)}[^\\d]'
-            else:
-                early_season_str = None
-
-            full_season = Game.select().where(
-                (Game.name.iregexp(f'PS{season_str}') | Game.name.iregexp(early_season_str)) & Game.id.in_(pc_games)  # matches PS5 or S3 (before juniors started)
-            )
-        elif league == 'junior':
-            full_season = Game.select().where(
-                Game.name.iregexp(f'JS{season_str}') & Game.id.in_(pc_games)  # matches JS5
-            )
-        else:
-            return ([], [], [])
-
-        playoff_filter = Game.select(Game.id).where(Game.name.contains('FINAL') | Game.name.contains('SEMI'))
-
-        regular_season = Game.select().where(Game.id.in_(full_season) & ~Game.id.in_(playoff_filter))
-
-        post_season = Game.select().where(Game.id.in_(full_season) & Game.id.in_(playoff_filter))
-
-        return (full_season, regular_season, post_season)
-
-    # def is_league_game(self):
-    #     # Apparently unused as of May 2024 updates
-    #     # return True if one of the teams participating in the game is a League team like Ronin, etc (is_hidden == 0)
-    #     # seems like I should be able to do it with one less query but could not get it to return the correct result that way
-    #     league_teams = Team.select().where(
-    #         (Team.guild_id == settings.server_ids['polychampions']) & (Team.is_hidden == 0)
-    #     )
-
-    #     team_subq = GameSide.select(GameSide.game).join(Game).where(
-    #         (GameSide.team.in_(league_teams)) & (GameSide.size > 1)
-    #     ).group_by(GameSide.game)
-
-    #     league_games = Game.select(Game).where(Game.id.in_(team_subq))
-
-        if self in league_games:
-            return True
-        return False
-
     def is_season_game(self):
 
         # If game is a PolyChamps season game, return tuple like (5, 2, True) indicating season 5, Tier 2, Playoff=True
