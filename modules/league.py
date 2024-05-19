@@ -658,9 +658,27 @@ class league(commands.Cog):
     @settings.is_mod_check()
     async def gtest(self, ctx, *, arg=None):
         args = arg.split() if arg else []
-        gid = int(args[0])
-        game = models.Game.get_by_id(gid)
-        print(game.is_season_game_new())
+        # gid = int(args[0])
+        # game = models.Game.get_by_id(gid)
+        
+        messages = ['New search']
+        full_season1, regular_season, post_season = models.Game.polychamps_season_games_new()
+        messages.append(f'{len(full_season1)} {len(regular_season)} {len(post_season)}')
+        messages.append('old search')
+        full_season2, regular_season, post_season = models.Game.polychamps_season_games()
+        messages.append(f'{len(full_season2)} {len(regular_season)} {len(post_season)}')
+
+        test_set = models.Game.select().where(
+            (models.Game.id.in_(full_season2) & ~models.Game.id.in_(full_season1))
+
+        )
+        messages.append(f'{len(test_set)} mis-matched')
+        for g in test_set:
+            messages.append(f'{g.id} {g.name}')
+
+
+        await utilities.buffered_send(destination=ctx, content='\n'.join(messages))
+
     
     @commands.command(aliases=['team_house', 'team_tier'], usage='team_name arguments')
     @settings.is_mod_check()

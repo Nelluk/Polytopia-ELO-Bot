@@ -2717,6 +2717,32 @@ class Game(BaseModel):
 
         return (confirmed_count, side_count, fully_confirmed)
 
+    def polychamps_season_games_new(tier=None, season=None):
+
+        if tier:
+            tier_filter = Game.select(Game.id).where(
+                ((Game.guild_id == settings.server_ids['polychampions']) & (Game.league_tier == tier))
+            )
+        else:
+            tier_filter = Game.select(Game.id).where(
+                ((Game.guild_id == settings.server_ids['polychampions']) & (Game.league_tier.is_null(False)))
+            )
+
+        if season:
+            season_filter = Game.select(Game.id).where(
+                ((Game.guild_id == settings.server_ids['polychampions']) & (Game.league_season == season))
+            )
+        else:
+            season_filter = Game.select(Game.id).where(
+                ((Game.guild_id == settings.server_ids['polychampions']) & (Game.league_season.is_null(False)))
+            )
+
+        full_season = Game.select().where(Game.id.in_(season_filter) & Game.id.in_(tier_filter))
+        regular_season = Game.select().where(Game.id.in_(season_filter) & Game.id.in_(tier_filter) & (Game.league_playoff == False))
+        post_season = Game.select().where(Game.id.in_(season_filter) & Game.id.in_(tier_filter) & (Game.league_playoff == True))
+
+        return (full_season, regular_season, post_season)
+    
     def polychamps_season_games(league='all', season=None):
         # infers polychampions season games based on Game.name, something like "PS8W7 Blah Blah" or "JS8 Finals Foo"
         # Junior seasons began with S4
