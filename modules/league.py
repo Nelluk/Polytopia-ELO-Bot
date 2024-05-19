@@ -529,15 +529,16 @@ class league(commands.Cog):
         self.announcement_message = announcement_message.id
         self.save_draft_config(ctx.guild.id, draft_config)
 
-    @commands.command()
+    @commands.command(usage='team_name new_tokens [optional_note]')
     # @settings.is_mod_check()
     async def tokens(self, ctx, *, arg=None):
         """
-        Display or update house tokens
+        Display or update house tokens. The house name must be identified by a single word.
 
         **Examples**
         `[p]tokens` Summarize tokens for all Houses
-        `[p]tokens ronin 5` Set tokens for House Ronin to 5
+        `[p]tokens ronin` Print log of all token updates regarding house Ronin
+        `[p]tokens ronin 5 removed bonus` Set tokens for House Ronin to 5, and log an optional note
         """
         args = arg.split() if arg else []
 
@@ -549,26 +550,37 @@ class league(commands.Cog):
                 message.append(f'House {house.name} - {house.league_tokens} tokens')
             return await ctx.send('\n'.join(message))
 
-        if len(args) != 2:
-            return await ctx.send(f'Incorrect number of arguments. Example: `{ctx.prefix}{ctx.invoked_with} housename 5` to set tokens to 5.')
         try:
-            logger.debug(f'Attempting to load house "{args[0]}" and update tokens to {args[1]}')
+            logger.debug(f'Attempting to load house "{args[0]}"')
             house = models.House.get_or_except(house_name=args[0])
         except exceptions.TooManyMatches:
-            return await ctx.send(f'Too many matches found for house *{args[0]}*. Be more specific')
+            return await ctx.send(f'Too many matches found for house *{args[0]}*. The first argument must be a single word identifying a House.')
         except exceptions.NoMatches:
-            return await ctx.send(f'No matches found for house *{args[0]}*.')
+            return await ctx.send(f'No matches found for house *{args[0]}*. The first argument must be a single word identifying a House.')
         
+        # if len(args) != 2:
+        #     return await ctx.send(f'Incorrect number of arguments. Example: `{ctx.prefix}{ctx.invoked_with} housename 5` to set tokens to 5.')
+
+        if len(args) == 1:
+            # Just a house name supplied. Print gamelogs for token updates for that house.
+            entries = models.GameLog.search(keywords=f'FATS id={house.id}', guild_id=ctx.guild.id)
+            paginated_message_list = []
+            for entry in entries:
+                paginated_message_list.append((f'`{entry.message_ts.strftime("%Y-%m-%d %H:%M:%S")}`', entry.message[:500]))
+
+            return await utilities.paginate(self.bot, ctx, title=f'Searched logs for token updates on House ID={house.id}', message_list=paginated_message_list, page_start=0, page_end=10, page_size=10)
         if settings.get_user_level(ctx.author) <= 4:
-            return await ctx.send(f'You are not authorized to use this command.')
+            return await ctx.send(f'You are not authorized to alter tokens.')
         
+        token_notes = f' - Note: {" ".join(args[2:])}' if len(args) > 2 else ''
+        logger.debug(f'Attempting to update tokens for house ID {house.id} to {args[1]} {token_notes}')
         try:
             old_count, new_count = house.update_tokens(int(args[1]))
         except ValueError:
             return await ctx.send(f'Could not translate "{args[1]}" into an integer.')
         
-        models.GameLog.write(guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} updated league tokens (FATs) for House {house.name} from {old_count} to {new_count}')
-        return await ctx.send(f'House {house.name} has {old_count} tokens. Updating to {new_count}')
+        models.GameLog.write(guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} updated league tokens (FATs) for House ID={house.id} {house.name} from {old_count} to {new_count} {token_notes}')
+        return await ctx.send(f'House **{house.name}** has {old_count} tokens. Updating to {new_count}. :coin: {token_notes}')
 
     
     @commands.command()

@@ -3280,6 +3280,8 @@ class GameLog(BaseModel):
         return GameLog.create(guild_id=guild_id, message=message, is_protected=is_protected)
 
     def search(keywords=None, negative_keyword=None, guild_id=None, limit=500):
+        logger.debug(f'GameLog.search() keywords: {keywords}, neg: {negative_keyword}, guild_id: {guild_id}')
+
         if not keywords:
             keywords = '%'  # Wildcard/return all matches
         else:
