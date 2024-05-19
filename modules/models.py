@@ -2788,7 +2788,10 @@ class Game(BaseModel):
 
         # If game is a PolyChamps season game, return tuple like (5, 2, True) indicating season 5, Tier 2, Playoff=True
         # If not, return empty tuple (which has a False boolean value)
-        return (self.league_season, self.league_tier, self.league_playoff)
+        season_tuple = (self.league_season, self.league_tier, self.league_playoff)
+        if season_tuple:
+            return season_tuple
+        return ()
 
     def is_uncaught_season_game(self):
         # Look for games that have a season tag in the notes or not at the beginning of name
