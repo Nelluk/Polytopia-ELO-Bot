@@ -228,6 +228,14 @@ class Team(BaseModel):
 
         return (wins, losses)
 
+    def get_season_record_new(self=None, league_season=None):
+        participating_teams = (Team
+                           .select(Team, fn.COUNT(GameSide.id).alias('total_games'))
+                           .join(GameSide)
+                           .join(Game)
+                           .where(Game.league_season == league_season)
+                           .group_by(Team))
+        
     def get_season_record(self, season=None):
 
         logger.debug(f'in get_season_record season {season}')
@@ -2756,7 +2764,7 @@ class Game(BaseModel):
         # If game is a PolyChamps season game, return tuple like (5, 2, True) indicating season 5, Tier 2, Playoff=True
         # If not, return empty tuple (which has a False boolean value)
         season_tuple = (self.league_season, self.league_tier, self.league_playoff)
-        if season_tuple:
+        if season_tuple[0]:
             return season_tuple
         return ()
 
