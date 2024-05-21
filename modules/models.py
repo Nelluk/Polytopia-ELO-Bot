@@ -228,13 +228,64 @@ class Team(BaseModel):
 
         return (wins, losses)
 
-    def get_season_record_new(self=None, league_season=None):
-        participating_teams = (Team
-                           .select(Team, fn.COUNT(GameSide.id).alias('total_games'))
-                           .join(GameSide)
-                           .join(Game)
-                           .where(Game.league_season == league_season)
-                           .group_by(Team))
+    def get_tier_season_records(self=None, *, league_season=None, guild_id=None, league_tier):
+        # Queries the regular/post win/loss/incomplete records of teams that participated in a specific league_tier
+        # if called as a specific instance method will only query the record of that team
+        # if league_season == None then all seasons will be considered for a full history of games played -at that tier-
+        # by default as of implementation league_tier == 2 for what used to be 'Pro' and == 3 for what used to be 'Junior'
+
+        # Thanks to @Amlethus for the query https://discord.com/channels/447883341463814144/722942707403849749/1241939685291593768
+
+        logger.debug(f'get_tier_season_records for league_season {league_season} tier {league_tier} ')
+        if self and (self.guild_id != settings.server_ids['polychampions'] or self.is_hidden):
+            return ()
+        
+        season_filter = (Game.league_season == league_season) if league_season else (Game.league_season.is_null(False))
+        team_filter = (Team.id == self.id) if self else (Team.id.is_null(False))
+
+        regular_season_wins = fn.SUM(
+            Case(None, [((GameSide.id == Game.winner) & (~Game.league_playoff) & (Game.is_confirmed), 1)], 0)
+        ).alias('regular_season_wins')
+
+        regular_season_losses = fn.SUM(
+            Case(None, [((GameSide.id != Game.winner) & (~Game.league_playoff) & (Game.is_confirmed), 1)], 0)
+        ).alias('regular_season_losses')
+
+        regular_season_incomplete = fn.SUM(
+            Case(None, [((~Game.is_confirmed) & (~Game.league_playoff), 1)], 0)
+        ).alias('regular_season_incomplete')
+
+        post_season_wins = fn.SUM(
+            Case(None, [((GameSide.id == Game.winner) & (Game.league_playoff) & (Game.is_confirmed), 1)], 0)
+        ).alias('post_season_wins')
+
+        post_season_losses = fn.SUM(
+            Case(
+                None, [((GameSide.id != Game.winner) & (Game.league_playoff) & (Game.is_confirmed), 1)], 0)
+        ).alias('post_season_losses')
+
+        post_season_incomplete = fn.SUM(
+            Case(None, [((~Game.is_confirmed) & (Game.league_playoff), 1)], 0)
+        ).alias('post_season_incomplete')
+
+        query = (
+            Team
+            .select(
+                Team, regular_season_wins, regular_season_losses, regular_season_incomplete, post_season_wins, post_season_losses, post_season_incomplete
+            )
+            .join(GameSide, on=(Team.id == GameSide.team_id))
+            .join(Game, on=(GameSide.game_id == Game.id))
+            .where(
+                (Game.league_tier == league_tier) & (Game.is_pending == False) & (season_filter) & (team_filter)
+            )
+            .group_by(Team.id)
+            .order_by(
+                post_season_wins.desc(), regular_season_wins.desc()
+            )
+        )
+
+        return query
+    
         
     def get_season_record(self, season=None):
 
@@ -993,7 +1044,7 @@ class Tribe(BaseModel):
 
 class Game(BaseModel):
     is_completed = BooleanField(default=False)
-    is_confirmed = BooleanField(default=False)
+    is_confirmed = BooleanField(default=False)  # game can be is_completed==True but is_confirmed==False but should not be able to be vice versa
     announcement_message = BitField(default=None, null=True)
     announcement_channel = BitField(default=None, null=True)
     date = DateField(default=datetime.datetime.today)
