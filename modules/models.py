@@ -377,41 +377,56 @@ class DiscordMember(BaseModel):
 
         server_list = settings.servers_included_in_global_lb()
 
-        ranked_games_played = Game.select().join(Lineup).join(Player).where(
-            (Player.discord_member == self) &
-            (Game.is_completed == 1) &
-            (Game.is_ranked == 1) &
-            (Game.is_confirmed == 1) &
-            (Game.guild_id.in_(server_list))
-        ).order_by(Game.completed_ts).prefetch(GameSide, Lineup, Player)
+        logger.debug(f'Begin new code')
+        SubqueryFirstLineup = (Lineup
+                           .select(Lineup.player_id)
+                           .where(Lineup.game == Game.id)
+                           .order_by(Lineup.id)
+                           .limit(1))
+        host_status = Case(
+            None,
+            ((Player.id == SubqueryFirstLineup, True),),
+            False
+        ).alias('host_status')
+            
+        win_status = Case(
+            None,
+            ((GameSide.id == Game.winner_id, True),),
+            False
+        ).alias('win_status')
+
+        ranked_games_played_alt = (Game.select(Game, GameSide, Lineup, Player, win_status, host_status).join(
+                GameSide, on=(Game.id == GameSide.game)
+            )
+                .join(Lineup, on=(GameSide.id == Lineup.gameside))
+                .join(Player, on=(Lineup.player == Player.id))
+                .where(
+                    (Player.discord_member == self) & 
+                    (Game.is_completed == 1) &
+                    (Game.is_ranked == 1) &
+                    (Game.is_confirmed == 1) &
+                    (Game.guild_id.in_(server_list))
+                ).order_by(Game.completed_ts)
+                .prefetch(GameSide, Lineup, Player)
+        )
 
         winning_streak, losing_streak, longest_winning_streak, longest_losing_streak = 0, 0, 0, 0
         v2_count, v3_count = 0, 0  # wins of 1v2 or 1v3 games
         duel_wins, duel_losses = 0, 0  # 1v1 matchup stats
         wins_as_host = 0
         last_win, last_loss = False, False
-
-        for game in ranked_games_played:
-
-            is_winner = False
-            won_as_host = False
-            gamesides = game.ordered_side_list()
-            for gs in gamesides:
-                # going through in this way uses the results already in memory rather than a bunch of new DB queries
-                if gs.id == game.winner_id:
-                    winner = gs
-                    first_loop = True
-                    for l in gs.ordered_player_list():
-                        if l.player.discord_member_id == self.id:
-                            is_winner = True
-                            if first_loop:
-                                won_as_host = True
-                        first_loop = False
-                    break
-
-            logger.debug(f'Game {game.id} completed_ts {game.completed_ts} is a {"win" if is_winner else "loss"} WS: {winning_streak} LS: {losing_streak} last_win: {last_win} last_loss: {last_loss}')
-            if is_winner:
-                if won_as_host:
+        for game in ranked_games_played_alt:
+            # logger.debug(f'Game {game.id} completed_ts {game.completed_ts} is a {"win" if game.win_status else "loss"} WS: {winning_streak} LS: {losing_streak} last_win: {last_win} last_loss: {last_loss}')
+            if game.win_status:
+                if game.size == [1, 1]:
+                    duel_wins += 1
+                if game.size == [1, 2] or game.size == [2, 1]:
+                    if game.winner.size == 1:
+                        v2_count += 1
+                elif game.size == [1, 3] or game.size == [3, 1]:
+                    if game.winner.size == 1:
+                        v3_count += 1
+                if game.host_status:
                     wins_as_host += 1
                 if last_win:
                     # winning streak is extended
@@ -421,29 +436,19 @@ class DiscordMember(BaseModel):
                     # winning streak is broken
                     winning_streak = 1
                     last_win, last_loss = True, False
-                if len(winner.lineup) == 1 and len(gamesides) == 2:
-                    size_of_opponent = game.largest_team()
-
-                    if size_of_opponent == 1:
-                        duel_wins += 1
-                    elif size_of_opponent == 2:
-                        v2_count += 1
-                    elif size_of_opponent == 3:
-                        v3_count += 1
             else:
+                if game.size == [1, 1]:
+                    duel_losses += 1
                 if last_loss:
                     # losing streak is extended
                     losing_streak += 1
                     longest_losing_streak = losing_streak if losing_streak > longest_losing_streak else longest_losing_streak
                 else:
-                    # winning streak is broken
+                    # losing streak is broken
                     losing_streak = 1
                     last_win, last_loss = False, True
 
-                if len(game.gamesides) == 2 and game.largest_team() == 1 and game.smallest_team() == 1:
-                    duel_losses += 1
-
-        return (longest_winning_streak, longest_losing_streak, v2_count, v3_count, duel_wins, duel_losses, wins_as_host, len(ranked_games_played))
+        return (longest_winning_streak, longest_losing_streak, v2_count, v3_count, duel_wins, duel_losses, wins_as_host, len(ranked_games_played_alt))
 
     def update_name(self, new_name: str):
         self.name = new_name
@@ -520,14 +525,14 @@ class DiscordMember(BaseModel):
         junior_loss_count = Game.select(Game.id).where(Game.id.in_(losses) & Game.id.in_(junior_season_games)).count()
 
         # DEBUG - REMOVE BLOCK
-        pro_season_games_list = Game.select(Game.id).where(
-            ((Game.id.in_(wins)) | (Game.id.in_(losses))) & Game.id.in_(pro_season_games)
-        )
-        logger.debug(f'pro season games: {[g.id for g in pro_season_games_list]}')
-        jr_season_games_list = Game.select(Game.id).where(
-            ((Game.id.in_(wins)) | (Game.id.in_(losses))) & Game.id.in_(junior_season_games)
-        )
-        logger.debug(f'junior season games: {[g.id for g in jr_season_games_list]}')
+        # pro_season_games_list = Game.select(Game.id).where(
+        #     ((Game.id.in_(wins)) | (Game.id.in_(losses))) & Game.id.in_(pro_season_games)
+        # )
+        # logger.debug(f'pro season games: {[g.id for g in pro_season_games_list]}')
+        # jr_season_games_list = Game.select(Game.id).where(
+        #     ((Game.id.in_(wins)) | (Game.id.in_(losses))) & Game.id.in_(junior_season_games)
+        # )
+        # logger.debug(f'junior season games: {[g.id for g in jr_season_games_list]}')
 
         return {
             'full_record': (total_win_count, total_loss_count),
