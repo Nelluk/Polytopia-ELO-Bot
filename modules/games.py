@@ -806,10 +806,16 @@ class polygames(commands.Cog):
                 embed.add_field(value=offset_str, name='Timezone Offset', inline=True)
 
             if polychamps_record:
-                pc_record_str = f'Pro Games: {polychamps_record["pro_record"][0]}W / {polychamps_record["pro_record"][1]}L'
-                if polychamps_record["junior_record"][0] or polychamps_record["junior_record"][1]:
-                    pc_record_str += f'\nJunior Games: {polychamps_record["junior_record"][0]}W / {polychamps_record["junior_record"][1]}L'
-                embed.add_field(value=pc_record_str, name='PolyChampions Record', inline=True)
+
+                # Limiting record to first 4 entries; full season plus highest three tiers
+                record_truncated = list(polychamps_record.items())[:4]
+                pc_record_str_list = []
+                for rec in record_truncated[1:4]:
+                    tier_name = settings.tier_lookup(tier=rec[0])[1]
+                    pc_record_str_list.append(f'{tier_name} Tier: {rec[1][0]}W / {rec[1][1]}L')
+
+                embed.add_field(value='\n'.join(pc_record_str_list), name=f'PolyChampions Record {record_truncated[0][1][0]}W / {record_truncated[0][1][1]}L ', inline=True)
+
 
             misc_stats = []
             (winning_streak, losing_streak, v2_count, v3_count, duel_wins, duel_losses, wins_as_host, ranked_games_played) = player.discord_member.advanced_stats()

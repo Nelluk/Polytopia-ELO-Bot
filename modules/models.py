@@ -286,7 +286,6 @@ class Team(BaseModel):
 
         return query
     
-        
     def get_season_record(self, season=None):
 
         logger.debug(f'in get_season_record season {season}')
@@ -377,7 +376,6 @@ class DiscordMember(BaseModel):
 
         server_list = settings.servers_included_in_global_lb()
 
-        logger.debug(f'Begin new code')
         SubqueryFirstLineup = (Lineup
                            .select(Lineup.player_id)
                            .where(Lineup.game == Game.id)
@@ -495,50 +493,25 @@ class DiscordMember(BaseModel):
         return (self.wins(version=version).count(), self.losses(version=version).count())
 
     def get_polychamps_record(self):
-
+        # Gets a dictionary detailing the win/loss record for a player's polychampions career
+        # {'full_record': (8, 10), 2: (8, 9), 4: (0, 1)} represents an 8/10 total record, of which 8/9 were in tier 2, 
+        # and 0/1 in tier 4
+        logger.debug(f'get_polychamps_record for DM.{self.id} {self.name}')
         try:
             pc_player = Player.get_or_except(player_string=self.discord_id, guild_id=settings.server_ids['polychampions'])
         except exceptions.NoSingleMatch:
             return None
 
-        # TODO: Update for flexible tiers
-        all_season_games = Game.polychamps_season_games()[0]
-        pro_season_games = Game.polychamps_season_games(tier=2)[0]
-        junior_season_games = Game.polychamps_season_games(tier=3)[0]
+        win_count, loss_count = pc_player.polychamps_tier_record(league_tier=None)
+        records_obj = {'full_record': (win_count, loss_count)}
+        for tier_number, tier_name in settings.league_tiers:
+            win_count, loss_count = pc_player.polychamps_tier_record(league_tier=tier_number)
+            if win_count or loss_count:
+                records_obj[tier_number] = (win_count, loss_count)
+            
 
-        losses = Game.search(status_filter=4, player_filter=[pc_player])
-        wins = Game.search(status_filter=3, player_filter=[pc_player])
-
-        total_win_count = Game.select(Game.id).where(Game.id.in_(wins) & Game.id.in_(all_season_games)).count()
-
-        total_loss_count = Game.select(Game.id).where(Game.id.in_(losses) & Game.id.in_(all_season_games)).count()
-
-        if not total_win_count and not total_loss_count:
-            return None
-
-        pro_win_count = Game.select(Game.id).where(Game.id.in_(wins) & Game.id.in_(pro_season_games)).count()
-
-        pro_loss_count = Game.select(Game.id).where(Game.id.in_(losses) & Game.id.in_(pro_season_games)).count()
-
-        junior_win_count = Game.select(Game.id).where(Game.id.in_(wins) & Game.id.in_(junior_season_games)).count()
-
-        junior_loss_count = Game.select(Game.id).where(Game.id.in_(losses) & Game.id.in_(junior_season_games)).count()
-
-        # DEBUG - REMOVE BLOCK
-        # pro_season_games_list = Game.select(Game.id).where(
-        #     ((Game.id.in_(wins)) | (Game.id.in_(losses))) & Game.id.in_(pro_season_games)
-        # )
-        # logger.debug(f'pro season games: {[g.id for g in pro_season_games_list]}')
-        # jr_season_games_list = Game.select(Game.id).where(
-        #     ((Game.id.in_(wins)) | (Game.id.in_(losses))) & Game.id.in_(junior_season_games)
-        # )
-        # logger.debug(f'junior season games: {[g.id for g in jr_season_games_list]}')
-
-        return {
-            'full_record': (total_win_count, total_loss_count),
-            'pro_record': (pro_win_count, pro_loss_count),
-            'junior_record': (junior_win_count, junior_loss_count)
-        }
+        logger.debug(records_obj)
+        return records_obj
 
     def games_played(self, in_days: int = None):
 
@@ -922,6 +895,37 @@ class Player(BaseModel):
     def get_record(self, version: str = None):
 
         return (self.wins(version=version).count(), self.losses(version=version).count())
+
+    def polychamps_tier_record(self, league_tier: int = None):
+        # Returns a tuples of (wins, losses) for this player for season games played at a given league_tier, or all
+        # league games if no tier
+        #gtest
+
+        logger.debug(f'polychamps_tier_record for player {self.id} and tier {league_tier}')
+        tier_filter = (Game.league_tier == league_tier) if league_tier else (Game.league_tier.is_null(False))
+
+        win_status = Case(
+            None,
+            ((GameSide.id == Game.winner_id, 1),),
+            0
+        )
+
+        query = (Game
+             .select(
+                 fn.SUM(win_status).alias('win_count'),
+                 fn.SUM(1 - win_status).alias('loss_count')
+             )
+             .join(GameSide, on=(Game.id == GameSide.game))
+             .join(Lineup, on=(GameSide.id == Lineup.gameside))
+             .join(Player, on=(Lineup.player == Player.id))
+             .where(
+                 (Player.id == self.id) &
+                 (Game.is_completed == True) &
+                 (Game.is_confirmed == True) &
+                 (tier_filter)
+             ))
+        
+        return query.tuples()[0]  ## (wins: int, losses:int)
 
     def leaderboard_rank(self, date_cutoff):
         # TODO: This could be replaced with Postgresql Window functions to have the DB calculate the rank.
