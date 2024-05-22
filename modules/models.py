@@ -228,7 +228,7 @@ class Team(BaseModel):
 
         return (wins, losses)
 
-    def get_tier_season_records(self=None, *, league_season=None, guild_id=None, league_tier):
+    def polychamps_tier_records(self=None, *, league_season=None, league_tier):
         # Queries the regular/post win/loss/incomplete records of teams that participated in a specific league_tier
         # if called as a specific instance method will only query the record of that team
         # if league_season == None then all seasons will be considered for a full history of games played -at that tier-
@@ -2781,6 +2781,21 @@ class Game(BaseModel):
 
         return (confirmed_count, side_count, fully_confirmed)
 
+    def polychamps_tiers_by_season(season=None):
+        # Returns a list of integers representing the league_tiers that participated in a season,
+        # for example season 8 probably only had games played from tier 2 and tier 3.
+        logger.debug(f'polychamps_tiers_by_season season={season}')
+        if season:
+            query = (Game
+                .select(Game.league_tier).distinct().where(
+                    (Game.league_season == season) & (Game.guild_id == settings.server_ids['polychampions']))).order_by(Game.league_tier).tuples()
+        else:
+            query = (Game
+                .select(Game.league_tier).distinct().where(
+                    (Game.league_season.is_null(False)) & (Game.guild_id == settings.server_ids['polychampions']))).order_by(Game.league_tier).tuples()
+
+        return([a[0] for a in query])
+     
     def polychamps_season_games(tier=None, season=None):
         # season fields are set when game is started or renamed by parsing the game.name in update_league_fields()
         # default season=None returns all seasons. Otherwise pass an integer representing season #

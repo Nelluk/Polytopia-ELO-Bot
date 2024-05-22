@@ -733,13 +733,30 @@ class league(commands.Cog):
     @settings.is_mod_check()
     async def gtest(self, ctx, *, arg=None):
         args = arg.split() if arg else []
+        team_id = int(args[0])
         
-        try:
-            tier_result = tier_lookup(tier=int(arg[0]))
-        except ValueError:
-            tier_result = tier_lookup(name=arg[0])
+        league_season = None if args[1].upper() == 'NONE' else int(args[1])
+
+        # total_games = (models.GameSide
+        #            .select()
+        #            .join(models.Game)
+        #            .where((models.GameSide.team_id == team_id) &
+        #                   (models.Game.league_season == league_season))
+        #            )
         
-        await ctx.send(f'{tier_result[0]} {tier_result[1]}')
+        # for g in total_games:
+        #     print(g.id, g.game.id, g.game.name)
+        # await ctx.send(len(total_games))
+
+        team = models.Team.get(team_id)
+        # records = team.get_season_record(season=league_season)
+
+        records = team.get_tier_season_records(guild_id=447883341463814144, league_tier=2, league_season=league_season)
+        # records = models.Team.get_tier_season_records(guild_id=447883341463814144, league_tier=2, league_season=league_season)
+        print(records)
+        print(len(records))
+        for record in records:
+            print(record.name, record.id, record.emoji, record.regular_season_wins, record.regular_season_losses, record.regular_season_incomplete, record.post_season_wins, record.post_season_losses, record.post_season_incomplete)
     
     @commands.command(aliases=['team_house', 'team_tier'], usage='team_name arguments')
     @settings.is_mod_check()
@@ -934,6 +951,60 @@ class league(commands.Cog):
 
         await ctx.send(embed=embed)
 
+    @commands.command(aliases=['ttest'])
+    @settings.in_bot_channel()
+    async def season_new(self, ctx, *, season: str = None):
+        """
+        Display team records for one or all seasons
+
+        **Examples**
+        `[p]season` Records for all seasons
+        `[p]season 14` Records for a specific season
+        """
+        # Platinum Tier
+        # - Ronin W L I / W L I 
+        # - Sparkies W L I / W L I 
+        # Gold Tier 
+        # - 
+        # -
+        # Silver Tier 
+        # -
+        # -
+
+        if season:
+            try:
+                season = int(season)
+            except ValueError:
+                return await ctx.send(f'Invalid argument. Leave blank for all seasons or use an integer like `{ctx.prefix}{ctx.invoked_with} 13`')
+
+        if season and (season == 1 or season == 2):
+            return await ctx.send('Records from the first two seasons (ie. the dark ages when I did not exist) are mostly lost to antiquity, but some information remains:\n'
+                '**The Sparkies** won Season 1 and **The Jets** won season 2, and if you squint you can just make out the records below:\nhttps://i.imgur.com/L7FPr1d.png')
+        
+        if season:
+            title = f'Season {season} Records'
+        else:
+            title = f'League Records - All Seasons'
+
+        tiers_list = models.Game.polychamps_tiers_by_season(season=season)  # List of league_tiers that had games in the given season
+        output = [f'__**{title}**__']
+        for tier in tiers_list:
+
+            print(f'Tier {tier}')
+            tier_name = settings.tier_lookup(tier=tier)[1]
+            output.append(f'\n__**{tier_name} Tier**__\n`Regular \u200b \u200b \u200b \u200b \u200b Post-Season`')
+            season_records = models.Team.polychamps_tier_records(league_tier=tier, league_season=season)
+            for sr in season_records:
+                print(sr.name, sr.regular_season_wins)
+                team_str = f'{sr.emoji} {sr.name}\n'
+                line = f'{team_str}`{str(sr.regular_season_wins) + "W":.<3} {str(sr.regular_season_losses) + "L":.<3} {str(sr.regular_season_incomplete) + "I":.<3} - {str(sr.post_season_wins) + "W":.<3} {str(sr.post_season_losses) + "L":.<3} {sr.post_season_incomplete}I`'
+                output.append(line.replace(".", "\u200b "))
+
+        print('\n'.join(output))
+        async with ctx.typing():
+            await utilities.buffered_send(destination=ctx, content='\n'.join(output))
+
+    
     @commands.command(aliases=['jrseason', 'ps', 'js', 'seasonjr'], usage='[season #]')
     @settings.in_bot_channel()
     async def season(self, ctx, *, season: str = None):
@@ -947,7 +1018,7 @@ class league(commands.Cog):
         `[p]jrseason 7` Records for a specific season (Junior teams)
         """
 
-        # TODO: Update to work with multiple tiers
+        # TODO: Update to work with multiple tiers. Probably just do all tiers per season, and use buffered_send to send as one huge message
 
         if season:
             try:
