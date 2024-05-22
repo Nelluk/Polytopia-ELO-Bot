@@ -557,8 +557,34 @@ class DiscordMember(BaseModel):
         # But no idea how to write the query :/
         # http://docs.peewee-orm.com/en/latest/peewee/query_examples.html#find-the-top-three-revenue-generating-facilities
 
-        query = DiscordMember.leaderboard(date_cutoff=date_cutoff)
+        # # Below is a semi-working query using a window function, generated with ChatGPT. query.rank outputs a 
+        # # plausible number. Should be able to get fully working with more conditions on the leaderboard.
+        # #
 
+        # rank_subquery = (Player
+        #              .select(
+        #                  Player.id,
+        #                  Player.name,
+        #                  Player.elo,
+        #                  fn.RANK().over(order_by=[Player.elo.desc()]).alias('rank')
+        #              )
+        #              .alias('ranked_players'))
+
+        # query = (Player
+        #      .select(
+        #          rank_subquery.c.id,
+        #          rank_subquery.c.name,
+        #          rank_subquery.c.elo,
+        #          rank_subquery.c.rank
+        #      )
+        #      .from_(rank_subquery)
+        #      .where(rank_subquery.c.id == self.id)
+        #      .get())
+        
+        # print(query.rank)
+        
+        query = DiscordMember.leaderboard(date_cutoff=date_cutoff)
+        print(len(query))
         is_found = False
         for counter, p in enumerate(query.tuples()):
             if p[0] == self.id:

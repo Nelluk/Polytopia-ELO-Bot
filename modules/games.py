@@ -782,20 +782,16 @@ class polygames(commands.Cog):
             if guild_member:
                 # embed.set_thumbnail(url=guild_member.avatar_url_as(size=512))
                 embed.set_thumbnail(url=guild_member.display_avatar.replace(size=512, format='webp'))
-
+            
+            content_str = ''
             if player.team:
                 team_str = f'{player.team.name} {player.team.emoji}' if player.team.emoji else player.team.name
                 embed.add_field(name='**Last-known Team**', value=team_str)
             if player.discord_member.polytopia_name:
                 embed.add_field(name='Polytopia Game Name', value=player.discord_member.polytopia_name)
+                content_str = player.discord_member.polytopia_name  # Used as a single message before player card so users can easily copy/paste Poly ID
             if player.discord_member.name_steam:
                 embed.add_field(name='Steam Name', value=player.discord_member.name_steam)
-            if player.discord_member.polytopia_id:
-                embed.add_field(name='Polytopia ID', value=player.discord_member.polytopia_id)
-                content_str = player.discord_member.polytopia_id
-                # Used as a single message before player card so users can easily copy/paste Poly ID
-            else:
-                content_str = ''
 
             if player.discord_member.trophies:
                 if 'polympics2021' in player.discord_member.trophies:
