@@ -951,26 +951,18 @@ class league(commands.Cog):
 
         await ctx.send(embed=embed)
 
-    @commands.command(aliases=['ttest'])
+    @commands.command(aliases=['jrseason', 'ps', 'js', 'seasonjr'], usage='[season #]')
     @settings.in_bot_channel()
-    async def season_new(self, ctx, *, season: str = None):
+    async def season(self, ctx, *, season: str = None):
         """
-        Display team records for one or all seasons
+        Display team records for one or all seasons. All active tiers that participated in that season will be shown.
 
         **Examples**
         `[p]season` Records for all seasons
         `[p]season 14` Records for a specific season
         """
-        # Platinum Tier
-        # - Ronin W L I / W L I 
-        # - Sparkies W L I / W L I 
-        # Gold Tier 
-        # - 
-        # -
-        # Silver Tier 
-        # -
-        # -
 
+        # TODO: Could add option for `$season teamname` to show season record history for a team
         if season:
             try:
                 season = int(season)
@@ -990,100 +982,17 @@ class league(commands.Cog):
         output = [f'__**{title}**__']
         for tier in tiers_list:
 
-            print(f'Tier {tier}')
             tier_name = settings.tier_lookup(tier=tier)[1]
             output.append(f'\n__**{tier_name} Tier**__\n`Regular \u200b \u200b \u200b \u200b \u200b Post-Season`')
             season_records = models.Team.polychamps_tier_records(league_tier=tier, league_season=season)
             for sr in season_records:
-                print(sr.name, sr.regular_season_wins)
                 team_str = f'{sr.emoji} {sr.name}\n'
                 line = f'{team_str}`{str(sr.regular_season_wins) + "W":.<3} {str(sr.regular_season_losses) + "L":.<3} {str(sr.regular_season_incomplete) + "I":.<3} - {str(sr.post_season_wins) + "W":.<3} {str(sr.post_season_losses) + "L":.<3} {sr.post_season_incomplete}I`'
                 output.append(line.replace(".", "\u200b "))
 
-        print('\n'.join(output))
         async with ctx.typing():
             await utilities.buffered_send(destination=ctx, content='\n'.join(output))
 
-    
-    @commands.command(aliases=['jrseason', 'ps', 'js', 'seasonjr'], usage='[season #]')
-    @settings.in_bot_channel()
-    async def season(self, ctx, *, season: str = None):
-        """
-        Display team records for one or all seasons
-
-        **Examples**
-        `[p]season` Records for all seasons (Pro teams)
-        `[p]jrseason` Records for all seasons (Junior teams)
-        `[p]season 7` Records for a specific season (Pro teams)
-        `[p]jrseason 7` Records for a specific season (Junior teams)
-        """
-
-        # TODO: Update to work with multiple tiers. Probably just do all tiers per season, and use buffered_send to send as one huge message
-
-        if season:
-            try:
-                season = int(season)
-            except ValueError:
-                return await ctx.send(f'Invalid argument. Leave blank for all seasons or use an integer like `{ctx.prefix}{ctx.invoked_with} 8`')
-
-        if season and (season == 1 or season == 2):
-            return await ctx.send('Records from the first two seasons (ie. the dark ages when I did not exist) are mostly lost to antiquity, but some information remains:\n'
-                '**The Sparkies** won Season 1 and **The Jets** won season 2, and if you squint you can just make out the records below:\nhttps://i.imgur.com/L7FPr1d.png')
-        if ctx.invoked_with in ['jrseason', 'js', 'seasonjr']:
-            pro_value = 0
-            pro_str = 'Junior'
-        else:
-            pro_value = 1
-            pro_str = 'Pro'
-
-        if season:
-            title = f'Season {season} {pro_str} Records'
-        else:
-            title = f'{pro_str} Records - All Seasons'
-
-        poly_teams = models.Team.select().where(
-            (models.Team.guild_id == settings.server_ids['polychampions']) & (models.Team.is_hidden == 0) & (models.Team.pro_league == pro_value)
-        )
-
-        async def calc():
-            async with ctx.typing():
-                standings = []
-
-                # regular standings summary
-                for team in poly_teams:
-                    season_record = team.get_season_record(season=season)  # (win_count_reg, loss_count_reg, incomplete_count_reg, win_count_post, loss_count_post, incomplete_count_post)
-
-                    if season_record == (0, 0, 0, 0, 0, 0) and team.is_archived:
-                        continue
-
-                    if not season_record:
-                        logger.warning(f'No season record returned for team {team.name}')
-                        continue
-
-                    standings.append((team, season_record[0], season_record[1], season_record[2], season_record[3], season_record[4], season_record[5]))
-
-                standings = sorted(standings, key=lambda x: (-x[4], -x[1], x[2]))  # should sort first by post-season wins desc, then wins descending then losses ascending
-
-                output = [f'__**{title}**__\n`Regular \u200b \u200b \u200b \u200b \u200b Post-Season`']
-
-                for standing in standings:
-                    team_str = f'{standing[0].emoji} {standing[0].name}\n'
-                    line = f'{team_str}`{str(standing[1]) + "W":.<3} {str(standing[2]) + "L":.<3} {str(standing[3]) + "I":.<3} - {str(standing[4]) + "W":.<3} {str(standing[5]) + "L":.<3} {standing[6]}I`'
-                    output.append(line.replace(".", "\u200b "))
-
-                return '\n'.join(output)
-
-        elos = [t.elo for t in poly_teams]
-
-        # If the team elos haven't changed, then check the cache
-        if elos == self.last_team_elos[pro_value, season]:
-            if output := self.season_standings_cache.get((pro_value, season)):
-                # Send the cached results for the request league + season
-                return await ctx.send(output)
-        # Calculate the results for the requested season, cache them, then send them
-        output = self.season_standings_cache[pro_value, season] = await calc()
-        self.last_team_elos[pro_value, season] = elos
-        await ctx.send(output)
 
     @commands.command(aliases=['joinnovas'])
     async def novas(self, ctx, *, arg=None):
