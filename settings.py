@@ -139,18 +139,25 @@ league_tiers = [
     (7, 'Paper')
 ]
 
-def tier_lookup(name: str = None, tier: int = None):
-    logger.debug(f'tier_lookup name "{name}" tier "{tier}"')
-    if not name and not tier:
-        raise ValueError('Need either a name or tier argument')
+def tier_lookup(lookup_key):
+    logger.debug(f'tier_lookup by "{lookup_key}"')
     
-    if tier:
+    try:
+        tier_number = int(lookup_key)
+        tier_name = None
+        logger.debug('Searching by tier number')
+    except ValueError:
+        tier_name = lookup_key
+        tier_number = None
+        logger.debug('Searching by tier name')
+
+    if tier_number:
         for league_tier in league_tiers:
-            if league_tier[0] == int(tier):
+            if league_tier[0] == tier_number:
                 return league_tier
-    if name:
+    if tier_name:
         for league_tier in league_tiers:
-            if name.upper() in league_tier[1].upper():
+            if tier_name.upper() in league_tier[1].upper():
                 return league_tier
             
     logger.warn(f'Unsuccessful lookup in tier_lookup')

@@ -982,7 +982,7 @@ class league(commands.Cog):
         output = [f'__**{title}**__']
         for tier in tiers_list:
 
-            tier_name = settings.tier_lookup(tier=tier)[1]
+            tier_name = settings.tier_lookup(tier)[1]
             output.append(f'\n__**{tier_name} Tier**__\n`Regular \u200b \u200b \u200b \u200b \u200b Post-Season`')
             season_records = models.Team.polychamps_tier_records(league_tier=tier, league_season=season)
             for sr in season_records:

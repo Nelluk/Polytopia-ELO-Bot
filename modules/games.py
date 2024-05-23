@@ -383,6 +383,7 @@ class polygames(commands.Cog):
         `[p]lbteam old` - Include old (archived) teams in the leaderboard.
         `[p]lbteamjr` - Display team leaderboard for Junior teams
         """
+        # args = args.split() if args else []
 
         if ctx.invoked_with == 'lbteamjr':
             pro_flag = 0
@@ -807,7 +808,7 @@ class polygames(commands.Cog):
                 record_truncated = list(polychamps_record.items())[:4]
                 pc_record_str_list = []
                 for rec in record_truncated[1:4]:
-                    tier_name = settings.tier_lookup(tier=rec[0])[1]
+                    tier_name = settings.tier_lookup(rec[0])[1]
                     pc_record_str_list.append(f'{tier_name} Tier: {rec[1][0]}W / {rec[1][1]}L')
 
                 embed.add_field(value='\n'.join(pc_record_str_list), name=f'PolyChampions Record {record_truncated[0][1][0]}W / {record_truncated[0][1][1]}L ', inline=True)

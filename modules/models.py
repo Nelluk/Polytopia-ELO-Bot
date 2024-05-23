@@ -1625,7 +1625,7 @@ class Game(BaseModel):
         if not self.league_season:
             return ''
         try:
-            tier_name = settings.tier_lookup(tier=self.league_tier)[1]
+            tier_name = settings.tier_lookup(self.league_tier)[1]
         except exceptions.NoMatches:
             tier_name = 'Unknown'
         playoff = 'playoff game' if self.league_playoff else 'game'
