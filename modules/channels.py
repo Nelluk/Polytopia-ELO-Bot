@@ -48,6 +48,7 @@ def get_channel_category(guild, team_name: str = None, using_team_server_flag: b
         # first seek a category named something like 'Polychamps Ronin Games', fallback to any category with 'Ronin' in the name.
         # TODO: perm check in each fall back condition to make sure bot actually has permissions
         for cat in guild.categories:
+            logger.debug(f'1 Checking category {cat.name}')
             if 'polychamp' in cat.name.lower() and team_name_lc in cat.name.lower():
                 logger.debug(f'Using {cat.id} - {cat.name} as a team channel category')
                 if len(cat.channels) >= 50:
@@ -55,6 +56,7 @@ def get_channel_category(guild, team_name: str = None, using_team_server_flag: b
                     continue
                 return cat, True
         for cat in guild.categories:
+            logger.debug(f'2 Checking category {cat.name}')
             if team_name_lc in cat.name.lower():
                 logger.debug(f'Using {cat.id} - {cat.name} as a team channel category')
                 if len(cat.channels) >= 50:
@@ -63,6 +65,7 @@ def get_channel_category(guild, team_name: str = None, using_team_server_flag: b
                 return cat, True
         if team_name in list_of_generic_team_names and using_team_server_flag:
             for cat in guild.categories:
+                logger.debug(f'3 Checking category {cat.name}')
                 if 'polychamp' in cat.name.lower() and 'other' in cat.name.lower():
                     logger.debug(f'Mixed team - Using {cat.id} - {cat.name} as a team channel category')
                     if len(cat.channels) >= 50:
