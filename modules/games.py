@@ -379,56 +379,47 @@ class polygames(commands.Cog):
 
         Examples:
         `[p]lbteam` - Default team leaderboard, which resets occasionally
-        `[p]lbteam all` - All-time team leaderboard including all game history
+        `[p]lbteam silver` - Team leaderboard only including teams in the Silver league tier.
         `[p]lbteam old` - Include old (archived) teams in the leaderboard.
         `[p]lbteamjr` - Display team leaderboard for Junior teams
         """
-        # args = args.split() if args else []
+        args = arg.lower().split() if arg else []
+        alltime = False  # Removed option to show pre-reset ELO during refactor May 2024
+        
+        tier_number, tier_name, tier_string = None, None, ''
+        archived_arg = (Team.is_archived == 0)
 
-        if ctx.invoked_with == 'lbteamjr':
-            pro_flag = 0
-            jr_string = 'Junior '
-        else:
-            pro_flag = 1
-            jr_string = ''
+        #TODO: Logic doesn't work if multiple arguments
+        if 'old' in args:
+            archived_arg = (True)
 
+        remaining_args = [arg for arg in args if arg not in ['old']]
+
+        if len(remaining_args) > 0:
+            try:
+                tier_number, tier_name = settings.tier_lookup(remaining_args[0])
+                tier_string = f' - {tier_name} Tier '
+            except exceptions.NoMatches as e:
+                return await ctx.send(f'Could not match "**{remaining_args[0]}**" to the name or number of a League tier. See `{ctx.prefix}help {ctx.invoked_with}` for usage examples.')
+
+        embed = discord.Embed(title=f'**Team Leaderboard{tier_string}**')
         fig, ax = plt.subplots(figsize=(12, 8))
         plt.style.use('default')
-
-        old = False
-
-        if arg and arg.lower()[:3] == 'all':
-            # date_cutoff = datetime.date.min
-            embed = discord.Embed(title=f'**Alltime {jr_string}Team Leaderboard**')
-            fig.suptitle('Team ELO History (Alltime)', fontsize=16)
-            alltime = True
-            sort_field = Team.elo_alltime
-        elif arg and arg.lower()[:3] == 'old':
-            embed = discord.Embed(title=f'**{jr_string}Team Leaderboard (Inc. Archived Teams)**')
-            fig.suptitle('Team ELO History since ' + settings.team_elo_reset_date, fontsize=16)
-            alltime = False
-            old = True
-            sort_field = Team.elo
-        else:
-            # date_cutoff = datetime.datetime.strptime(settings.team_elo_reset_date, "%m/%d/%Y").date()
-            embed = discord.Embed(title=f'**{jr_string}Team Leaderboard since {settings.team_elo_reset_date}**')
-            fig.suptitle('Team ELO History since ' + settings.team_elo_reset_date, fontsize=16)
-            alltime = False
-            sort_field = Team.elo
-
+        fig.suptitle('Team ELO History', fontsize=16)
         fig.autofmt_xdate()
 
         guild_check = settings.server_ids['polychampions'] if ctx.guild.id == settings.server_ids['test'] else ctx.guild.id
 
-        if old:
+        if tier_number:
             query = Team.select().where(
-                (Team.is_hidden == 0) & (Team.guild_id == guild_check) & (Team.pro_league == pro_flag)
-            ).order_by(-sort_field)
+                (Team.is_hidden == 0) & (archived_arg) & 
+                (Team.guild_id == guild_check) & (Team.league_tier == tier_number)
+            ).order_by(-Team.elo)
         else:
             query = Team.select().where(
-                (Team.is_hidden == 0) & (Team.is_archived == 0) &
-                (Team.guild_id == guild_check) & (Team.pro_league == pro_flag)
-            ).order_by(-sort_field)
+                (Team.is_hidden == 0) & (archived_arg) &
+                (Team.guild_id == guild_check) & (Team.league_tier.is_null(False))
+            ).order_by(-Team.elo)
 
         async with ctx.typing():
             for counter, team in enumerate(query):

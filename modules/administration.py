@@ -574,29 +574,15 @@ class administration(commands.Cog):
         The team should have a Role with an identical name.
         **Example:**
         `[p]team_add The Amazeballs`
-        `[p]team_add The Amazeballs hidden` - Team will be excluded from leaderboards
-        `[p]team_add_junior The Little Amazeballs` - Team added in "junior" league
         """
-        if ' hidden' in team_name:
-            hidden_flag = True
-            team_name = team_name.replace('hidden', '').strip()
-        else:
-            hidden_flag = False
-
-        if ctx.invoked_with == 'team_add_junior':
-            pro_league = False
-            pro_str = 'Junior '
-        else:
-            pro_league = True
-            pro_str = ''
-
         try:
-            team = models.Team.create(name=team_name, guild_id=ctx.guild.id, is_hidden=hidden_flag, pro_league=pro_league)
+            logger.debug(f'team_add with name {team_name}')
+            team = models.Team.create(name=team_name, guild_id=ctx.guild.id, is_hidden=False)
         except peewee.IntegrityError:
             return await ctx.send('That team already exists!')
 
-        await ctx.send(f'{pro_str}Team {team_name} created! Starting ELO: {team.elo}. Players with a Discord Role exactly matching \"{team_name}\" will be considered team members. '
-                f'You can now set the team flair with `{ctx.prefix}team_emoji` and `{ctx.prefix}team_image`.')
+        await ctx.send(f'Team {team_name} created! Starting ELO: {team.elo}. Players with a Discord Role exactly matching \"{team_name}\" will be considered team members. '
+                f'See `{ctx.prefix}help team_edit` for other commands to set up a new team.')
 
     @commands.command(usage='team_name new_emoji')
     @settings.is_mod_check()
@@ -634,6 +620,7 @@ class administration(commands.Cog):
 
         **Example:**
         `[p]team_image Ronin http://www.path.to/image.png`
+        -- `imgbox.com` is the recommended host as it reliably links directly to an image file.
         `[p]team_image Ronin` - Display currently saved image
         """
         try:
@@ -686,7 +673,7 @@ class administration(commands.Cog):
         **Example:**
         `[p]team_server Ronin 572885616656908288`
         """
-
+        # TODO: better input handling (display server_id if new ID not provided)
         try:
             team = models.Team.get_or_except(team_name, ctx.guild.id)
         except exceptions.NoSingleMatch as ex:
