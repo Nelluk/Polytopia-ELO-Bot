@@ -163,6 +163,7 @@ class Team(BaseModel):
 
     @staticmethod
     def get_by_name(team_name: str, guild_id: int, require_exact: bool = False):
+        logger.debug(f'Team.get_by_name {team_name}')
         if require_exact:
             teams = Team.select().where((Team.name == team_name) & (Team.guild_id == guild_id) & (Team.is_hidden == 0))
         else:
@@ -186,6 +187,7 @@ class Team(BaseModel):
         if len(results) > 1:
             raise exceptions.TooManyMatches(f'More than one matching team was found for "{team_name}"')
 
+        logger.debug(f'Found team {results[0].id} {results[0].name}')
         return results[0]
 
     def completed_game_count(self):

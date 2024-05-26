@@ -65,6 +65,48 @@ def get_league_roles(guild=None):
 
     return team_roles, pro_roles, junior_roles
 
+def get_team_roles(guild=None):
+    if not guild:
+        guild = settings.bot.get_guild(settings.server_ids['polychampions']) or settings.bot.get_guild(settings.server_ids['test'])
+
+    teams = models.Team.select(models.Team.name).where(
+                (models.Team.guild_id == guild.id) & (models.Team.is_hidden == 0) & (models.Team.is_archived == 0)
+            )
+    
+    team_names = [house.name for house in teams]
+    team_roles = [discord.utils.get(guild.roles, name=r) for r in team_names]
+    if None in team_roles:
+        logger.warning(f'Problem loading at least one role in get_house_roles: {team_roles} / {team_names}')
+    
+    logger.debug(f'get_team_roles: {team_roles}')
+    return team_roles
+
+def get_tier_roles(guild=None):
+    if not guild:
+        guild = settings.bot.get_guild(settings.server_ids['polychampions']) or settings.bot.get_guild(settings.server_ids['test'])
+
+    tier_names = [tier[1] for tier in settings.league_tiers]
+    tier_roles = [discord.utils.get(guild.roles, name=f'{r} Player') for r in tier_names]
+    
+    if None in tier_roles:
+        logger.warning(f'Problem loading at least one role in get_tier_roles: {tier_roles} / {tier_names}')
+    
+    logger.debug(f'get_tier_roles: {tier_roles}')
+    return tier_roles
+
+def get_house_roles(guild=None):
+    houses = models.House.select(models.House.name)
+    if not guild:
+        guild = settings.bot.get_guild(settings.server_ids['polychampions']) or settings.bot.get_guild(settings.server_ids['test'])
+
+    house_names = [house.name for house in houses]
+    house_roles = [discord.utils.get(guild.roles, name=r) for r in house_names]
+    if None in house_roles:
+        logger.warning(f'Problem loading at least one role in get_house_roles: {house_roles} / {house_names}')
+    
+    logger.debug(f'get_house_roles: {house_roles}')
+    return house_roles
+
 
 def get_umbrella_team_role(team_name: str):
     # given a team name like 'The Ronin' return the correspondng 'umbrella' team role object (Ronin)
@@ -166,14 +208,14 @@ class league(commands.Cog):
         if after.guild.id not in [settings.server_ids['polychampions'], settings.server_ids['test']]:
             return
 
-        team_roles, pro_roles, junior_roles = get_league_roles(after.guild)
+        team_roles = get_team_roles(after.guild)
         league_role = discord.utils.get(after.guild.roles, name=league_role_name)
-        pro_member_role = discord.utils.get(after.guild.roles, name=pro_member_role_name)
-        jr_member_role = discord.utils.get(after.guild.roles, name=jr_member_role_name)
+        # pro_member_role = discord.utils.get(after.guild.roles, name=pro_member_role_name)
+        # jr_member_role = discord.utils.get(after.guild.roles, name=jr_member_role_name)
         player, team = None, None
 
-        before_member_team_roles = [x for x in before.roles if x in pro_roles or x in junior_roles]
-        member_team_roles = [x for x in after.roles if x in pro_roles or x in junior_roles]
+        before_member_team_roles = [x for x in before.roles if x in team_roles]
+        member_team_roles = [x for x in after.roles if x in team_roles]
 
         if before_member_team_roles == member_team_roles:
             return
@@ -181,7 +223,10 @@ class league(commands.Cog):
         if len(member_team_roles) > 1:
             return logger.debug(f'Member has more than one team role. Abandoning League.on_member_update. {member_team_roles}')
 
-        roles_to_remove = team_roles + [jr_member_role] + [pro_member_role] + [league_role]
+        tier_roles = get_tier_roles(after.guild)
+        house_roles = get_house_roles(after.guild)
+        roles_to_remove = team_roles + tier_roles + house_roles + [league_role]
+        logger.debug(f'on_member_update roles_to_remove: {roles_to_remove}')
 
         if member_team_roles:
             try:
@@ -189,17 +234,16 @@ class league(commands.Cog):
                 team = models.Team.get_or_except(team_name=member_team_roles[0].name, guild_id=after.guild.id)
                 player.team = team
                 player.save()
+                house_name = team.house.name if team.house else None
+                team_tier = team.league_tier
+                house_role = discord.utils.get(after.guild.roles, name=house_name) if house_name else None
+                tier_role = tier_roles[team_tier - 1]
             except exceptions.NoSingleMatch as e:
                 logger.warning(f'League.on_member_update: could not load Player or Team for changing league member {after.display_name}: {e}')
+                house_name, team_tier, house_role, tier_role = None, None, None, None
 
-            if member_team_roles[0] in pro_roles:
-                team_umbrella_role = team_roles[pro_roles.index(member_team_roles[0])]
-                roles_to_add = [team_umbrella_role, pro_member_role, league_role]
-                log_message = f'{models.GameLog.member_string(after)} had pro team role **{member_team_roles[0].name}** added.'
-            elif member_team_roles[0] in junior_roles:
-                team_umbrella_role = team_roles[junior_roles.index(member_team_roles[0])]
-                roles_to_add = [team_umbrella_role, jr_member_role, league_role]
-                log_message = f'{models.GameLog.member_string(after)} had junior team role **{member_team_roles[0].name}** added.'
+            roles_to_add = [house_role, tier_role, league_role]
+            log_message = f'{models.GameLog.member_string(after)} had tier {team_tier} team role **{member_team_roles[0].name}** added.'
         else:
             roles_to_add = []  # No team role
             log_message = f'{models.GameLog.member_string(after)} had team role **{before_member_team_roles[0].name}** removed and is teamless.'
@@ -208,6 +252,7 @@ class league(commands.Cog):
         member_roles = [r for r in member_roles if r not in roles_to_remove]
 
         roles_to_add = [r for r in roles_to_add if r]  # remove any Nones
+        logger.debug(f'on_member_update roles_to_add: {roles_to_add}')
         if roles_to_add:
             member_roles = member_roles + roles_to_add
 
@@ -733,9 +778,17 @@ class league(commands.Cog):
     @settings.is_mod_check()
     async def gtest(self, ctx, *, arg=None):
         args = arg.split() if arg else []
-        team_id = int(args[0])
-        
-        league_season = None if args[1].upper() == 'NONE' else int(args[1])
+        tr = get_team_roles()
+        print(tr)
+        hr = get_house_roles()
+        print(hr)
+        tier_roles = get_tier_roles()
+        print(tier_roles)
+
+        tier = 3
+        # tier_lookup
+        print(tier_roles[tier - 1])
+        return
 
         # total_games = (models.GameSide
         #            .select()
