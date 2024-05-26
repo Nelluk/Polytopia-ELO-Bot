@@ -103,10 +103,10 @@ def get_team_leadership(team):
 
     guild = settings.bot.get_guild(settings.server_ids['polychampions']) or settings.bot.get_guild(settings.server_ids['test'])
 
-    leader_role = utilities.guild_role_by_name(guild, name='Team Leader', allow_partial=False)
-    coleader_role = utilities.guild_role_by_name(guild, name='Team Co-Leader', allow_partial=False)
+    leader_role = utilities.guild_role_by_name(guild, name='House Leader', allow_partial=False)
+    coleader_role = utilities.guild_role_by_name(guild, name='House Co-Leader', allow_partial=False)
     recruiter_role = utilities.guild_role_by_name(guild, name='Team Recruiter', allow_partial=False)
-    logger.debug(f'get_team_leadership: {leader_role} {coleader_role} {recruiter_role}')
+    # logger.debug(f'get_team_leadership: {leader_role} {coleader_role} {recruiter_role}')
     
     for member in house_roles[0].members:
         if leader_role in member.roles:
@@ -116,7 +116,7 @@ def get_team_leadership(team):
         if recruiter_role in member.roles:
             recruiters.append(member)
 
-    logger.debug(f'get_team_leadership: leaders {leaders} coleaders {coleaders} recruiters {recruiters}')
+    # logger.debug(f'get_team_leadership: leaders {leaders} coleaders {coleaders} recruiters {recruiters}')
     return leaders, coleaders, recruiters
 
 

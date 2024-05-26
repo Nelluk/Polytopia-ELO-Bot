@@ -1007,9 +1007,9 @@ class polygames(commands.Cog):
             await ctx.send(f':no_entry_sign: No matching discord role "{team.name}" could be found. Player membership cannot be detected.')
 
         if leaders_list:
-            embed.add_field(name='**Team Leader**', value=', '.join(leaders_list), inline=True)
+            embed.add_field(name='**House Leader**', value=', '.join(leaders_list), inline=True)
         if coleaders_list:
-            embed.add_field(name='**Team Co-Leaders**', value=', '.join(coleaders_list), inline=True)
+            embed.add_field(name='**House Co-Leaders**', value=', '.join(coleaders_list), inline=True)
         if recruiters_list:
             embed.add_field(name='**Team Recruiters**', value=', '.join(recruiters_list), inline=True)
         if team.image_url:
