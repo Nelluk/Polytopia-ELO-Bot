@@ -107,34 +107,15 @@ def get_house_roles(guild=None):
     logger.debug(f'get_house_roles: {house_roles}')
     return house_roles
 
+def get_team_leadership(team):
 
-def get_umbrella_team_role(team_name: str):
-    # given a team name like 'The Ronin' return the correspondng 'umbrella' team role object (Ronin)
-    league_guild = settings.bot.get_guild(settings.server_ids['polychampions']) or settings.bot.get_guild(settings.server_ids['test'])
-    if not league_guild:
-        raise exceptions.CheckFailedError('PolyChampions guild not loaded in `league.py`')
-
-    target_team_role = utilities.guild_role_by_name(league_guild, name=team_name, allow_partial=False)
-    if not target_team_role:
-        raise ValueError(f'No matching role found for team name "{team_name}"')
-
-    team_roles, pro_roles, junior_roles = get_league_roles()
-
-    if target_team_role in pro_roles:
-        team_umbrella_role = team_roles[pro_roles.index(target_team_role)]
-    elif target_team_role in junior_roles:
-        team_umbrella_role = team_roles[junior_roles.index(target_team_role)]
+    if team.house:
+        house_roles = [hr for hr in get_house_roles() if hr and hr.name == team.house.name]
+        if not house_roles: 
+            logger.warning(f'get_team_leadership: no house role connected to house {team.house.name}')
+            return [], [], []
     else:
-        raise exceptions.CheckFailedError(f'Unexpected error in get_umbrella_team_role for input "{team_name}')
-
-    return team_umbrella_role
-
-def get_team_leadership(team_role):
-
-    try:
-        umbrella_role = get_umbrella_team_role(team_role.name)
-    except exceptions.CheckFailedError as e:
-        logger.warning(f'Could not get_team_leadership for team role {team_role}: {e}')
+        logger.warning(f'get_team_leadership: no house connected to team {team.name}')
         return [], [], []
 
     leaders, coleaders, recruiters = [], [], []
@@ -143,7 +124,7 @@ def get_team_leadership(team_role):
     coleader_role = utilities.guild_role_by_name(team_role.guild, name='Team Co-Leader', allow_partial=False)
     recruiter_role = utilities.guild_role_by_name(team_role.guild, name='Team Recruiter', allow_partial=False)
 
-    for member in umbrella_role.members:
+    for member in house_roles[0].members:
         if leader_role in member.roles:
             leaders.append(member)
         if coleader_role in member.roles:
@@ -779,16 +760,9 @@ class league(commands.Cog):
     @settings.is_mod_check()
     async def gtest(self, ctx, *, arg=None):
         args = arg.split() if arg else []
-        tr = get_team_roles()
-        print(tr)
-        hr = get_house_roles()
-        print(hr)
-        tier_roles = get_tier_roles()
-        print(tier_roles)
-
-        tier = 3
-        # tier_lookup
-        print(tier_roles[tier - 1])
+        print(get_house_roles())
+        house_roles = [hr for hr in get_house_roles() if hr and hr.name == 'Ronin']
+        print(house_roles)
         return
 
         # total_games = (models.GameSide
@@ -1180,14 +1154,13 @@ class league(commands.Cog):
         if not draft_team_role:
             return await ctx.send(f'Found matching team but no matching role with name *{team.name}*!')
 
-        if draft_team_role in pro_roles:
-            team_umbrella_role = team_roles[pro_roles.index(draft_team_role)]
-        elif draft_team_role in junior_roles:
-            team_umbrella_role = team_roles[junior_roles.index(draft_team_role)]
+        if team.house:
+            house_roles = [hr for hr in get_house_roles() if hr and hr.name == team.house.name]
+            house_role = house_roles[0] if house_roles else None
         else:
-            return await ctx.send(f'Found matching team and role but `league_teams` is misconfigured. Notify <@{settings.owner_id}>.')
+            house_role = None
 
-        selecting_string = team_umbrella_role.name if team_umbrella_role else draft_team_role.name
+        selecting_string = house_role.name if house_role else draft_team_role.name
         fs = imgen.player_draft_card(member=draftee, team_role=draft_team_role, selecting_string=selecting_string)
 
         await ctx.send(file=fs)
