@@ -47,24 +47,6 @@ league_teams = [
 
 league_team_channels = []
 
-def get_league_roles(guild=None):
-
-    if not guild:
-        guild = settings.bot.get_guild(settings.server_ids['polychampions']) or settings.bot.get_guild(settings.server_ids['test'])
-
-    pro_role_names = [a[1][0] for a in league_teams]
-    junior_role_names = [a[1][1] for a in league_teams]
-    team_role_names = [a[0] for a in league_teams]
-
-    pro_roles = [discord.utils.get(guild.roles, name=r) for r in pro_role_names]
-    junior_roles = [discord.utils.get(guild.roles, name=r) for r in junior_role_names]
-    team_roles = [discord.utils.get(guild.roles, name=r) for r in team_role_names]
-
-    if None in pro_roles or None in junior_roles or None in team_roles:
-        logger.warning(f'Problem loading at least one role in get_league_roles: {pro_roles} {junior_roles} {team_roles}')
-
-    return team_roles, pro_roles, junior_roles
-
 def get_team_roles(guild=None):
     if not guild:
         guild = settings.bot.get_guild(settings.server_ids['polychampions']) or settings.bot.get_guild(settings.server_ids['test'])
@@ -120,9 +102,10 @@ def get_team_leadership(team):
 
     leaders, coleaders, recruiters = [], [], []
 
-    leader_role = utilities.guild_role_by_name(team_role.guild, name='Team Leader', allow_partial=False)
-    coleader_role = utilities.guild_role_by_name(team_role.guild, name='Team Co-Leader', allow_partial=False)
-    recruiter_role = utilities.guild_role_by_name(team_role.guild, name='Team Recruiter', allow_partial=False)
+    guild = settings.bot.get_guild(settings.server_ids['polychampions']) or settings.bot.get_guild(settings.server_ids['test'])
+    leader_role = utilities.guild_role_by_name(guild, name='Team Leader', allow_partial=False)
+    coleader_role = utilities.guild_role_by_name(guild, name='Team Co-Leader', allow_partial=False)
+    recruiter_role = utilities.guild_role_by_name(guild, name='Team Recruiter', allow_partial=False)
 
     for member in house_roles[0].members:
         if leader_role in member.roles:
@@ -1148,8 +1131,8 @@ class league(commands.Cog):
         except exceptions.NoSingleMatch as e:
             return await ctx.send(f'Error looking up team: {e}\n{usage}')
 
-        team_roles, pro_roles, junior_roles = get_league_roles(ctx.guild)
-
+        if not team.image_url:
+            return await ctx.send(f'Team **{team.name}** does not have an image set. Use `{ctx.prefix}team_image` first.')
         draft_team_role = utilities.guild_role_by_name(ctx.guild, name=team.name, allow_partial=False)
         if not draft_team_role:
             return await ctx.send(f'Found matching team but no matching role with name *{team.name}*!')
