@@ -960,7 +960,7 @@ class polygames(commands.Cog):
         # leader_role = discord.utils.get(ctx.guild.roles, name='Team Leader')
         # coleader_role = discord.utils.get(ctx.guild.roles, name='Team Co-Leader')
         member_stats = []
-        leaders_list, coleaders_list, recruiters_list = [], [], []
+        leaders_list, coleaders_list, recruiters_list, captains_list = [], [], [], []
         image = None
 
         wins, losses = team.get_record(alltime=False)
@@ -973,6 +973,7 @@ class polygames(commands.Cog):
                     leaders_list = [member.mention for member in leaders_list]
                     coleaders_list = [member.mention for member in coleaders_list]
                     recruiters_list = [member.mention for member in recruiters_list]
+                    captains_list = [member.mention for member in captains_list]
 
                 if completed_flag:
                     header_str = '__Player - ELO - Ranking - Completed Games__'
