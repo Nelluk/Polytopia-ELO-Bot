@@ -202,7 +202,7 @@ class league(commands.Cog):
         # if a a team role ('The Ronin') is added or removed, set or remove related roles on member (League Member, Pro Player, Ronin, etc)
         # this update will never touch a specific junior or pro team role ('The Ronin'), partially because that would trigger further on_member_updates
 
-        logger.debug(f'before roles: {before.roles} / after roles: {after.roles}')
+        # logger.debug(f'before roles: {before.roles} / after roles: {after.roles}')
         if before.roles == after.roles:
             return
 
@@ -226,7 +226,7 @@ class league(commands.Cog):
 
         tier_roles = get_tier_roles(after.guild)
         house_roles = get_house_roles(after.guild)
-        roles_to_remove = team_roles + tier_roles + house_roles + [league_role]
+        roles_to_remove =  tier_roles + house_roles + [league_role]
         logger.debug(f'on_member_update roles_to_remove: {roles_to_remove}')
 
         if member_team_roles:
