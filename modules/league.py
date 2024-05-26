@@ -202,6 +202,7 @@ class league(commands.Cog):
         # if a a team role ('The Ronin') is added or removed, set or remove related roles on member (League Member, Pro Player, Ronin, etc)
         # this update will never touch a specific junior or pro team role ('The Ronin'), partially because that would trigger further on_member_updates
 
+        logger.debug(f'before roles: {before.roles} / after roles: {after.roles}')
         if before.roles == after.roles:
             return
 
