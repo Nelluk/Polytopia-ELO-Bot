@@ -2119,12 +2119,9 @@ class polygames(commands.Cog):
             )
 
             logger.info(f'running task_purge_game_channels on {len(old_games)} games')
-            
-            season_games = Game.polychamps_season_games()[0]
-            # Doing one pre-emptive load of season games here so it isn't done once per season game per task run
 
             for game in old_games:
-                if game in season_games:
+                if game.league_season:
                     logger.debug(f'Skipping purge of game {game.id} since it is a season game')
                     continue
                 guild = self.bot.get_guild(game.guild_id)
