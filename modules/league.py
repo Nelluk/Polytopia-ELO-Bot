@@ -101,7 +101,7 @@ def get_team_leadership(team):
     team_role = utilities.guild_role_by_name(guild, name=team.name, allow_partial=False)
     leader_role = utilities.guild_role_by_name(guild, name='House Leader', allow_partial=False)
     coleader_role = utilities.guild_role_by_name(guild, name='House Co-Leader', allow_partial=False)
-    recruiter_role = utilities.guild_role_by_name(guild, name='Team Recruiter', allow_partial=False)
+    recruiter_role = utilities.guild_role_by_name(guild, name='House Recruiter', allow_partial=False)
     captain_role = utilities.guild_role_by_name(guild, name='Team Captain', allow_partial=False)
     # logger.debug(f'get_team_leadership: {leader_role} {coleader_role} {recruiter_role} {captain_role}')
     
