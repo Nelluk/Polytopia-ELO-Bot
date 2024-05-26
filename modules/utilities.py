@@ -123,6 +123,16 @@ def string_to_user_id(input):
         return None
 
 
+async def cache_guild_members(guild, member_id_list):
+    for member_id in member_id_list:
+        try:
+            await guild.fetch_member(member_id)
+            logger.debug(f"cache_guild_members Member {member_id} cached")
+        except discord.NotFound:
+            logger.debug(f"cache_guild_members Member {member_id} not found")
+        except discord.HTTPException as e:
+            logger.debug(f"cache_guild_members Failed to fetch member {member_id}: {e}")
+
 async def get_guild_member(ctx, input):
 
     # Find matching Guild member by @Mention or Name. Fall back to case-insensitive search

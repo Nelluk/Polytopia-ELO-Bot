@@ -89,8 +89,9 @@ def get_house_roles(guild=None):
     logger.debug(f'get_house_roles: {house_roles}')
     return house_roles
 
-def get_team_leadership(team):
+async def get_team_leadership(team):
     leaders, coleaders, recruiters, captains = [], [], [], []
+    cache_list = []
     guild = settings.bot.get_guild(team.guild_id)
 
     if team.house:
@@ -109,14 +110,20 @@ def get_team_leadership(team):
         for member in house_role.members:
             if leader_role in member.roles:
                 leaders.append(member)
+                cache_list.append(member.id)
             if coleader_role in member.roles:
                 coleaders.append(member)
+                cache_list.append(member.id)
             if recruiter_role in member.roles:
                 recruiters.append(member)
+                cache_list.append(member.id)
     
     for member in team_role.members:
         if captain_role in member.roles:
             captains.append(member)
+            cache_list.append(member.id)
+
+    await utilities.cache_guild_members(guild,set(cache_list))
 
     # logger.debug(f'get_team_leadership: leaders {leaders} coleaders {coleaders} recruiters {recruiters} captains {captains}')
     return leaders, coleaders, recruiters, captains

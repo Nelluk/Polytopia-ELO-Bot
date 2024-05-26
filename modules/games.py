@@ -969,7 +969,7 @@ class polygames(commands.Cog):
         if team_role:
             async with ctx.typing():
                 if ctx.guild.id == settings.server_ids['polychampions'] or ctx.guild.id == settings.server_ids['test']:
-                    leaders_list, coleaders_list, recruiters_list, captains_list = get_team_leadership(team)
+                    leaders_list, coleaders_list, recruiters_list, captains_list = await get_team_leadership(team)
                     leaders_list = [member.mention for member in leaders_list]
                     coleaders_list = [member.mention for member in coleaders_list]
                     recruiters_list = [member.mention for member in recruiters_list]
