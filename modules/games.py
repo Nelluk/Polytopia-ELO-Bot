@@ -969,7 +969,7 @@ class polygames(commands.Cog):
         if team_role:
             async with ctx.typing():
                 if ctx.guild.id == settings.server_ids['polychampions'] or ctx.guild.id == settings.server_ids['test']:
-                    leaders_list, coleaders_list, recruiters_list = get_team_leadership(team)
+                    leaders_list, coleaders_list, recruiters_list, captains_list = get_team_leadership(team)
                     leaders_list = [member.mention for member in leaders_list]
                     coleaders_list = [member.mention for member in coleaders_list]
                     recruiters_list = [member.mention for member in recruiters_list]
@@ -1012,6 +1012,8 @@ class polygames(commands.Cog):
             embed.add_field(name='**House Co-Leaders**', value=', '.join(coleaders_list), inline=True)
         if recruiters_list:
             embed.add_field(name='**Team Recruiters**', value=', '.join(recruiters_list), inline=True)
+        if captains_list:
+            embed.add_field(name='**Team Captains**', value=', '.join(captains_list), inline=True)
         if team.image_url:
             embed.set_thumbnail(url=team.image_url)
 

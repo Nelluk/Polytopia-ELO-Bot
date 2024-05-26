@@ -90,34 +90,36 @@ def get_house_roles(guild=None):
     return house_roles
 
 def get_team_leadership(team):
+    leaders, coleaders, recruiters, captains = [], [], [], []
+    guild = settings.bot.get_guild(team.guild_id)
+
     if team.house:
-        house_roles = [hr for hr in get_house_roles() if hr and hr.name == team.house.name]
-        if not house_roles: 
-            logger.warning(f'get_team_leadership: no house role connected to house {team.house.name}')
-            return [], [], []
+        house_role = utilities.guild_role_by_name(guild, name=team.house.name, allow_partial=False)
     else:
-        logger.warning(f'get_team_leadership: no house connected to team {team.name}')
-        return [], [], []
+        house_role = None 
 
-    leaders, coleaders, recruiters = [], [], []
-
-    guild = settings.bot.get_guild(settings.server_ids['polychampions']) or settings.bot.get_guild(settings.server_ids['test'])
-
+    team_role = utilities.guild_role_by_name(guild, name=team.name, allow_partial=False)
     leader_role = utilities.guild_role_by_name(guild, name='House Leader', allow_partial=False)
     coleader_role = utilities.guild_role_by_name(guild, name='House Co-Leader', allow_partial=False)
     recruiter_role = utilities.guild_role_by_name(guild, name='Team Recruiter', allow_partial=False)
-    # logger.debug(f'get_team_leadership: {leader_role} {coleader_role} {recruiter_role}')
+    captain_role = utilities.guild_role_by_name(guild, name='Team Captain', allow_partial=False)
+    # logger.debug(f'get_team_leadership: {leader_role} {coleader_role} {recruiter_role} {captain_role}')
     
-    for member in house_roles[0].members:
-        if leader_role in member.roles:
-            leaders.append(member)
-        if coleader_role in member.roles:
-            coleaders.append(member)
-        if recruiter_role in member.roles:
-            recruiters.append(member)
+    if house_role:
+        for member in house_role.members:
+            if leader_role in member.roles:
+                leaders.append(member)
+            if coleader_role in member.roles:
+                coleaders.append(member)
+            if recruiter_role in member.roles:
+                recruiters.append(member)
+    
+    for member in team_role.members:
+        if captain_role in member.roles:
+            captains.append(member)
 
-    # logger.debug(f'get_team_leadership: leaders {leaders} coleaders {coleaders} recruiters {recruiters}')
-    return leaders, coleaders, recruiters
+    # logger.debug(f'get_team_leadership: leaders {leaders} coleaders {coleaders} recruiters {recruiters} captains {captains}')
+    return leaders, coleaders, recruiters, captains
 
 
 class league(commands.Cog):
