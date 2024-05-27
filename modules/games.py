@@ -2134,7 +2134,7 @@ class polygames(commands.Cog):
         await self.bot.wait_until_ready()
         while not self.bot.is_closed():
 
-            await asyncio.sleep(7)
+            await asyncio.sleep(97)
             logger.debug('Task running: task_set_champion_role')
             utilities.connect()
             await achievements.set_champion_role()
