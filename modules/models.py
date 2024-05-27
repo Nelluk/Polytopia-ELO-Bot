@@ -131,7 +131,7 @@ class House(BaseModel):  # An affiliation of Teams (probably only used for PolyC
         # Sort both lists by Player.elo
 
         for member, player in sorted_zipped_lists:
-            print(member.name, member.id, player.elo, player.id)
+            logger.debug(member.name, member.id, player.elo, player.id)
         # print(list(active_players_query))
 
     def update_tokens(self, new_count):
