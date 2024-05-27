@@ -93,11 +93,7 @@ def get_team_leadership(team):
     leaders, coleaders, recruiters, captains = [], [], [], []
     guild = settings.bot.get_guild(team.guild_id)
 
-    if team.house:
-        house_role = utilities.guild_role_by_name(guild, name=team.house.name, allow_partial=False)
-    else:
-        house_role = None 
-
+    house_role = utilities.guild_role_by_name(guild, name=team.house.name, allow_partial=False)
     team_role = utilities.guild_role_by_name(guild, name=team.name, allow_partial=False)
     leader_role = utilities.guild_role_by_name(guild, name='House Leader', allow_partial=False)
     coleader_role = utilities.guild_role_by_name(guild, name='House Co-Leader', allow_partial=False)
@@ -677,6 +673,61 @@ class league(commands.Cog):
         return await ctx.send(f'House **{house.name}** has {old_count} tokens. Updating to {new_count}. :coin: {token_notes}')
 
     
+    @commands.command()
+    @settings.in_bot_channel()
+    @commands.cooldown(1, 5, commands.BucketType.channel)
+    async def house(self, ctx, *, arg=None):
+        # args = arg.split() if arg else []
+        if not arg:
+            return await ctx.send(f'House name not provided. *Example:* `{ctx.prefix}{ctx.invoked_with} ronin`')
+        try:
+            house = models.House.get_or_except(house_name=arg)
+        except (exceptions.TooManyMatches, exceptions.NoMatches) as e:
+            return await ctx.send(e)
+        
+        house.active_members(guild=ctx.guild, inactive_role_name=settings.guild_setting(ctx.guild.id, 'inactive_role'))
+        return
+        house_role = utilities.guild_role_by_name(ctx.guild, name=house.name, allow_partial=False)
+        leader_role = utilities.guild_role_by_name(ctx.guild, name='House Leader', allow_partial=False)
+        coleader_role = utilities.guild_role_by_name(ctx.guild, name='House Co-Leader', allow_partial=False)
+        recruiter_role = utilities.guild_role_by_name(ctx.guild, name='House Recruiter', allow_partial=False)
+        captain_role = utilities.guild_role_by_name(ctx.guild, name='Team Captain', allow_partial=False)
+        inactive_role = utilities.guild_role_by_name(ctx.guild, name=settings.guild_setting(ctx.guild.id, 'inactive_role'))
+        
+
+        house_query = models.House.select().where(models.House.id == house.id)
+        team_query = (models.Team
+                    .select()
+                    .where((models.Team.house == house) & (models.Team.is_archived == 0))
+                    .order_by(models.Team.league_tier))
+
+        player_query = (models.Player
+                        .select()
+                        .join(models.Team)  # Join Player with Team
+                        .order_by(-models.Player.elo))  # Sorting players by ELO in descending order
+
+        # Prefetch the related objects
+        house_with_relations = peewee.prefetch(house_query, team_query, player_query)
+
+        # Get the preloaded house from the query result
+        preloaded_house = house_with_relations[0]
+        print(preloaded_house.name)
+
+        for t in preloaded_house.teams:
+            print(t.name)
+            for p in t.player:
+                print(p.name, p.elo)
+
+        # for team in teams:
+        #     print(f'Processing team {team.name}')
+        #     team_members = []
+        #     team_role = utilities.guild_role_by_name(ctx.guild, name=team.name, allow_partial=False)
+        #     # for member in team_role.members if team_role else []:
+        #     #     team_members.append(member)
+        #     for member in team.player:
+        #         print(member.id, member.name)
+        #     print(team_members)
+
     @commands.command()
     @settings.in_bot_channel()
     @commands.cooldown(1, 5, commands.BucketType.channel)
