@@ -707,9 +707,9 @@ class league(commands.Cog):
                 if recruiter_role in member.roles:
                     recruiters.append(f'{member.display_name} ({member.mention})')
 
-        message_list.append(f'**Leaders**: {",".join(leaders)}')
-        message_list.append(f'**Co-Leaders**: {",".join(coleaders)}')
-        message_list.append(f'**Recruiters**: {",".join(recruiters)}')
+        message_list.append(f'**Leaders**: {", ".join(leaders)}')
+        message_list.append(f'**Co-Leaders**: {", ".join(coleaders)}')
+        message_list.append(f'**Recruiters**: {", ".join(recruiters)}')
 
         for team in house_teams:
             captains, player_list = [], []
@@ -722,7 +722,7 @@ class league(commands.Cog):
                 if captain_role in member.roles:
                     captains.append(f'{member.display_name} ({member.mention})')
                 player_list.append(f'{member.display_name} (ELO: {player.elo})')
-            message_list.append(f'**Team Captains**: {",".join(captains)}')
+            message_list.append(f'**Team Captains**: {", ".join(captains)}')
             message_list = message_list + player_list
         
         async with ctx.typing():
