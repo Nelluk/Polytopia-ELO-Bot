@@ -173,7 +173,7 @@ async def get_guild_member(ctx, input):
 
 
 def get_matching_roles(discord_member, list_of_role_names):
-    # Given a Discord.Member and a ['List of', 'Role names'], return set of role names that the Member has.polytopia_id
+    # Given a Discord.Member and a ['List of', 'Role names'], return set of role names that the Member has.
     member_roles = [x.name for x in discord_member.roles]
     return set(member_roles).intersection(list_of_role_names)
 

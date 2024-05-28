@@ -699,7 +699,7 @@ class league(commands.Cog):
         house_teams = models.Team.select().where((models.Team.house == house) & (models.Team.is_archived == 0)).order_by(models.Team.league_tier)
         
         def em(text):
-            return discord.utils.escape_markdown(text, as_needed=True)
+            return discord.utils.escape_markdown(text, as_needed=False)
             
         if house_role:
             for member in house_role.members:
@@ -739,12 +739,18 @@ class league(commands.Cog):
         
         houses_with_teams = peewee.prefetch(models.House.select(), models.Team.select().order_by(models.Team.league_tier))
         house_list = []
+        leader_role = utilities.guild_role_by_name(ctx.guild, name='House Leader', allow_partial=False)
 
         # TODO: logging messages, error handling, help text, clean up output a little
         # alternate command to focus display on one house `$house dragons`? (if there is any utility there)
 
         for house in houses_with_teams:
+            house_role = utilities.guild_role_by_name(ctx.guild, name=house.name, allow_partial=False)
+            house_leaders = [f'{member.display_name}' for member in leader_role.members if house_role in member.roles]
             team_list, team_message = [], ''
+            if house_leaders:
+                leaders_str = ''
+
             if house.teams:
                 for hteam in house.teams:
                     team_list.append(f'- {hteam.name} {hteam.emoji} - Tier {hteam.league_tier} - ELO: {hteam.elo}')
