@@ -25,6 +25,13 @@ novas_role_name = 'The Novas'          # Umbrella newbie role that all of above 
 league_role_name = 'League Member'     # Umbrella role for all Pro+Junior members
 pro_member_role_name = 'Pro Player'    # Umbrella role for all Pro members
 jr_member_role_name = 'Junior Player'  # Umbrella role for all Junior memebrs
+pc_emoji = '<:PolyChampions:488510815893323787>'
+leader_role_name = 'House Leader'
+coleader_role_name = 'House Co-Leader'
+recruiter_role_name = 'House Recruiter'
+captain_role_name = 'Team Captain'
+
+
 
 league_teams = [
     ('Ronin', ['The Ronin', 'The Bandits']),
@@ -95,10 +102,10 @@ def get_team_leadership(team):
 
     house_role = utilities.guild_role_by_name(guild, name=team.house.name, allow_partial=False)
     team_role = utilities.guild_role_by_name(guild, name=team.name, allow_partial=False)
-    leader_role = utilities.guild_role_by_name(guild, name='House Leader', allow_partial=False)
-    coleader_role = utilities.guild_role_by_name(guild, name='House Co-Leader', allow_partial=False)
-    recruiter_role = utilities.guild_role_by_name(guild, name='House Recruiter', allow_partial=False)
-    captain_role = utilities.guild_role_by_name(guild, name='Team Captain', allow_partial=False)
+    leader_role = utilities.guild_role_by_name(guild, name=leader_role_name, allow_partial=False)
+    coleader_role = utilities.guild_role_by_name(guild, name=leader_role_name, allow_partial=False)
+    recruiter_role = utilities.guild_role_by_name(guild, name=leader_role_name, allow_partial=False)
+    captain_role = utilities.guild_role_by_name(guild, name=leader_role_name, allow_partial=False)
     # logger.debug(f'get_team_leadership: {leader_role} {coleader_role} {recruiter_role} {captain_role}')
     
     if house_role:
@@ -690,14 +697,14 @@ class league(commands.Cog):
         leaders, coleaders, recruiters = [], [], []
         
         house_role = utilities.guild_role_by_name(ctx.guild, name=house.name, allow_partial=False)
-        leader_role = utilities.guild_role_by_name(ctx.guild, name='House Leader', allow_partial=False)
-        coleader_role = utilities.guild_role_by_name(ctx.guild, name='House Co-Leader', allow_partial=False)
-        recruiter_role = utilities.guild_role_by_name(ctx.guild, name='House Recruiter', allow_partial=False)
-        captain_role = utilities.guild_role_by_name(ctx.guild, name='Team Captain', allow_partial=False)
+        leader_role = utilities.guild_role_by_name(ctx.guild, name=leader_role_name, allow_partial=False)
+        coleader_role = utilities.guild_role_by_name(ctx.guild, name=leader_role_name, allow_partial=False)
+        recruiter_role = utilities.guild_role_by_name(ctx.guild, name=leader_role_name, allow_partial=False)
+        captain_role = utilities.guild_role_by_name(ctx.guild, name=leader_role_name, allow_partial=False)
 
         # inactive_role = utilities.guild_role_by_name(ctx.guild, name=settings.guild_setting(ctx.guild.id, 'inactive_role'))
         
-        message_list = [f'<:PolyChampions:488510815893323787> PolyChampions House <:PolyChampions:488510815893323787> - {house_role.mention} {house.emoji}']
+        message_list = [f'{pc_emoji} {house.emoji} House {house_role.mention} {house.emoji} {pc_emoji}']
         house_teams = models.Team.select().where((models.Team.house == house) & (models.Team.is_archived == 0)).order_by(models.Team.league_tier)
         
         def em(text):
@@ -740,8 +747,8 @@ class league(commands.Cog):
     async def houses(self, ctx, *, arg=None):
         
         houses_with_teams = peewee.prefetch(models.House.select(), models.Team.select().order_by(models.Team.league_tier))
-        house_list = ['<:PolyChampions:488510815893323787> **PolyChampions Houses** <:PolyChampions:488510815893323787>']
-        leader_role = utilities.guild_role_by_name(ctx.guild, name='House Leader', allow_partial=False)
+        house_list = ['{pc_emoji} **PolyChampions Houses** {pc_emoji}']
+        leader_role = utilities.guild_role_by_name(ctx.guild, name=leader_role_name, allow_partial=False)
 
         # TODO: logging messages, error handling, help text, clean up output a little
         # alternate command to focus display on one house `$house dragons`? (if there is any utility there)
