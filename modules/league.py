@@ -740,7 +740,7 @@ class league(commands.Cog):
     async def houses(self, ctx, *, arg=None):
         
         houses_with_teams = peewee.prefetch(models.House.select(), models.Team.select().order_by(models.Team.league_tier))
-        house_list = []
+        house_list = ['<:PolyChampions:488510815893323787> **PolyChampions Houses** <:PolyChampions:488510815893323787>']
         leader_role = utilities.guild_role_by_name(ctx.guild, name='House Leader', allow_partial=False)
 
         # TODO: logging messages, error handling, help text, clean up output a little
@@ -751,16 +751,16 @@ class league(commands.Cog):
 
             house_role = utilities.guild_role_by_name(ctx.guild, name=house.name, allow_partial=False)
             house_leaders = [f'{member.display_name}' for member in leader_role.members if house_role in member.roles] if (house_role and leader_role) else []
-            leaders_str = f'\nHouse Leader: {", ".join(house_leaders)}' if house_leaders else ''
+            leaders_str = f'\n**House Leader:** {", ".join(house_leaders)}' if house_leaders else ''
 
             if house.teams:
-                team_role = utilities.guild_role_by_name(ctx.guild, name=hteam.name, allow_partial=False)
                 for hteam in house.teams:
+                    team_role = utilities.guild_role_by_name(ctx.guild, name=hteam.name, allow_partial=False)
                     team_list.append(f'- {team_role.mention if team_role else hteam.name} {hteam.emoji} - Tier {hteam.league_tier} - ELO: {hteam.elo}')
                 team_message = '\n'.join(team_list)
             else:
                 team_message = '*No related Teams*'
-            house_message = f'House {house_role.mention if house_role else house.name} {house.emoji} - Tokens: {house.league_tokens}{leaders_str} \n {team_message}'
+            house_message = f'**House** {house_role.mention if house_role else house.name} {house.emoji} - Tokens: {house.league_tokens}{leaders_str} \n {team_message}'
             house_list.append(f'{house_message}\n')
         
         async with ctx.typing():
