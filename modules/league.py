@@ -771,8 +771,9 @@ class league(commands.Cog):
 
             if house.teams:
                 for hteam in house.teams:
+                    tier_name = settings.tier_lookup(hteam.league_tier)[1]
                     team_role = utilities.guild_role_by_name(ctx.guild, name=hteam.name, allow_partial=False)
-                    team_list.append(f'- {team_role.mention if team_role else hteam.name} {hteam.emoji} - Tier {hteam.league_tier} - ELO: {hteam.elo}')
+                    team_list.append(f'- {team_role.mention if team_role else hteam.name} {hteam.emoji} - {tier_name} Tier - ELO: {hteam.elo}')
                 team_message = '\n'.join(team_list)
             else:
                 team_message = '*No related Teams*'
