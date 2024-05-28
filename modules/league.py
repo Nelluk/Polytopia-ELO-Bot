@@ -862,7 +862,7 @@ class league(commands.Cog):
         `[p]team_house ronin Ninjas` - Put team Ronin into house Ninjas
         `[p]team_house ronin NONE` - Remove team Ronin from any house affiliation. NONE must be in all caps.
         `[p]team_edit ronin ARCHIVE` - Mark a defunct team as archived. This cannot be undone via the bot. Team must first have no house affiliation and no incomplete games.
-        `[p]team_tier ronin 2` - Change league tier of team. Does not impact current or past games from this team.
+        `[p]team_tier ronin gold` - Change league tier of team. Does not impact current or past games from this team.
         
         See also: `team_add`, `team_name`, `team_server`, `team_image`, `team_emoji`, `house_add`, `house_rename`
         """
@@ -901,9 +901,9 @@ class league(commands.Cog):
 
         if ctx.invoked_with == 'team_tier':
             try:
-                new_tier = int(args[1])
-            except ValueError:
-                return await ctx.send(f'Second argument should be an integer representing the new tier.')
+                new_tier, new_tier_name = settings.tier_lookup(args[1])
+            except exceptions.NoMatches:
+                return await ctx.send(f'Could not set team tier based on "{args[1]}". You can use a name ("gold") or tier number ("2"). ')
             
             if not team.house:
                 return await ctx.send(f'Team **{team.name}** does not have a House affiliation. Set one with `{ctx.prefix}team_house` first.')
@@ -913,7 +913,7 @@ class league(commands.Cog):
             team.league_tier = new_tier
             team.save()
             models.GameLog.write(guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} set the league tier of Team {team.name} to {new_tier} from {old_tier}')
-            return await ctx.send(f'Changed league tier of team  **{team.name}** to {new_tier}. Previous tier was {old_tier}.')
+            return await ctx.send(f'Changed league tier of team  **{team.name}** to {new_tier_name} ({new_tier}). Previous tier was {old_tier}.')
 
         if ctx.invoked_with == 'team_edit' and args[1] == 'ARCHIVE':
             logger.debug(f'Attempting to archive team {team.name}')
