@@ -680,11 +680,17 @@ class league(commands.Cog):
         return await ctx.send(f'House **{house.name}** has {old_count} tokens. Updating to {new_count}. :coin: {token_notes}')
 
     
-    @commands.command()
+    @commands.command(usage='house_name')
     @settings.in_bot_channel()
     @commands.cooldown(1, 5, commands.BucketType.channel)
     async def house(self, ctx, *, arg=None):
-        # args = arg.split() if arg else []
+        """
+        Details on a House structure
+        See also `[p]houses`
+        **Examples**
+        `[p]house ronin`
+        """
+
         if not arg:
             return await ctx.send(f'House name not provided. *Example:* `{ctx.prefix}{ctx.invoked_with} ronin`')
         try:
@@ -741,17 +747,20 @@ class league(commands.Cog):
         async with ctx.typing():
             await utilities.buffered_send(destination=ctx, content='\n'.join(message_list), allowed_mentions=discord.AllowedMentions(everyone=False, users=False, roles=False))
 
-    @commands.command()
+    @commands.command(usage='')
     @settings.in_bot_channel()
     @commands.cooldown(1, 5, commands.BucketType.channel)
     async def houses(self, ctx, *, arg=None):
+        """
+        Summarize League structure
+        See also `[p]house house_name`
+        **Examples**
+        `[p]houses`
+        """
         
         houses_with_teams = peewee.prefetch(models.House.select(), models.Team.select().order_by(models.Team.league_tier))
-        house_list = ['{pc_emoji} **PolyChampions Houses** {pc_emoji}']
+        house_list = [f'{pc_emoji} **PolyChampions Houses** {pc_emoji}']
         leader_role = utilities.guild_role_by_name(ctx.guild, name=leader_role_name, allow_partial=False)
-
-        # TODO: logging messages, error handling, help text, clean up output a little
-        # alternate command to focus display on one house `$house dragons`? (if there is any utility there)
 
         for house in houses_with_teams:
             team_list, team_message = [], ''
@@ -814,7 +823,7 @@ class league(commands.Cog):
 
             return await ctx.send(f'Successfully renamed a House from "{house_oldname}" to "{house_newname}". It has {house.league_tokens} tokens.')
 
-    @commands.command()
+    @commands.command(hidden=True)
     @settings.is_mod_check()
     async def gtest(self, ctx, *, arg=None):
         args = arg.split() if arg else []
