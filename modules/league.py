@@ -746,7 +746,7 @@ class league(commands.Cog):
         # TODO: logging messages, error handling, help text, clean up output a little
         # alternate command to focus display on one house `$house dragons`? (if there is any utility there)
         for emoji in ctx.guild.emojis:
-            logger.info(emoji, emoji.id)
+            logger.info(f'{emoji} {emoji.id}')
 
         for house in houses_with_teams:
             team_list, team_message = [], ''
