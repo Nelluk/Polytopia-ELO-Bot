@@ -103,9 +103,9 @@ def get_team_leadership(team):
     house_role = utilities.guild_role_by_name(guild, name=team.house.name, allow_partial=False)
     team_role = utilities.guild_role_by_name(guild, name=team.name, allow_partial=False)
     leader_role = utilities.guild_role_by_name(guild, name=leader_role_name, allow_partial=False)
-    coleader_role = utilities.guild_role_by_name(guild, name=leader_role_name, allow_partial=False)
-    recruiter_role = utilities.guild_role_by_name(guild, name=leader_role_name, allow_partial=False)
-    captain_role = utilities.guild_role_by_name(guild, name=leader_role_name, allow_partial=False)
+    coleader_role = utilities.guild_role_by_name(guild, name=coleader_role_name, allow_partial=False)
+    recruiter_role = utilities.guild_role_by_name(guild, name=recruiter_role_name, allow_partial=False)
+    captain_role = utilities.guild_role_by_name(guild, name=captain_role_name, allow_partial=False)
     # logger.debug(f'get_team_leadership: {leader_role} {coleader_role} {recruiter_role} {captain_role}')
     
     if house_role:
@@ -704,9 +704,9 @@ class league(commands.Cog):
         
         house_role = utilities.guild_role_by_name(ctx.guild, name=house.name, allow_partial=False)
         leader_role = utilities.guild_role_by_name(ctx.guild, name=leader_role_name, allow_partial=False)
-        coleader_role = utilities.guild_role_by_name(ctx.guild, name=leader_role_name, allow_partial=False)
-        recruiter_role = utilities.guild_role_by_name(ctx.guild, name=leader_role_name, allow_partial=False)
-        captain_role = utilities.guild_role_by_name(ctx.guild, name=leader_role_name, allow_partial=False)
+        coleader_role = utilities.guild_role_by_name(ctx.guild, name=coleader_role_name, allow_partial=False)
+        recruiter_role = utilities.guild_role_by_name(ctx.guild, name=recruiter_role_name, allow_partial=False)
+        captain_role = utilities.guild_role_by_name(ctx.guild, name=captain_role_name, allow_partial=False)
 
         # inactive_role = utilities.guild_role_by_name(ctx.guild, name=settings.guild_setting(ctx.guild.id, 'inactive_role'))
         
