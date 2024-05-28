@@ -694,6 +694,7 @@ class league(commands.Cog):
         coleader_role = utilities.guild_role_by_name(ctx.guild, name='House Co-Leader', allow_partial=False)
         recruiter_role = utilities.guild_role_by_name(ctx.guild, name='House Recruiter', allow_partial=False)
         captain_role = utilities.guild_role_by_name(ctx.guild, name='Team Captain', allow_partial=False)
+
         # inactive_role = utilities.guild_role_by_name(ctx.guild, name=settings.guild_setting(ctx.guild.id, 'inactive_role'))
         
         message_list = [f':PolyChampions: PolyChampions House :PolyChampions:\n{house_role.mention} {house.emoji}']
@@ -744,13 +745,15 @@ class league(commands.Cog):
 
         # TODO: logging messages, error handling, help text, clean up output a little
         # alternate command to focus display on one house `$house dragons`? (if there is any utility there)
+        for emoji in ctx.guild.emojis:
+            logger.info(emoji, emoji.id)
 
         for house in houses_with_teams:
             team_list, team_message = [], ''
 
             house_role = utilities.guild_role_by_name(ctx.guild, name=house.name, allow_partial=False)
             house_leaders = [f'{member.display_name}' for member in leader_role.members if house_role in member.roles] if (house_role and leader_role) else []
-            leaders_str = f'\nHouse Leader: ", ".join({house_leaders})' if house_leaders else ''
+            leaders_str = f'\nHouse Leader: {", ".join(house_leaders)}' if house_leaders else ''
 
             if house.teams:
                 for hteam in house.teams:
