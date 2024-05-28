@@ -697,7 +697,7 @@ class league(commands.Cog):
 
         # inactive_role = utilities.guild_role_by_name(ctx.guild, name=settings.guild_setting(ctx.guild.id, 'inactive_role'))
         
-        message_list = [f':PolyChampions: PolyChampions House :PolyChampions:\n{house_role.mention} {house.emoji}']
+        message_list = [f'<:PolyChampions:488510815893323787> PolyChampions House <:PolyChampions:488510815893323787> - {house_role.mention} {house.emoji}']
         house_teams = models.Team.select().where((models.Team.house == house) & (models.Team.is_archived == 0)).order_by(models.Team.league_tier)
         
         def em(text):
@@ -745,8 +745,6 @@ class league(commands.Cog):
 
         # TODO: logging messages, error handling, help text, clean up output a little
         # alternate command to focus display on one house `$house dragons`? (if there is any utility there)
-        for emoji in ctx.guild.emojis:
-            logger.info(f'{emoji} {emoji.id}')
 
         for house in houses_with_teams:
             team_list, team_message = [], ''
@@ -756,8 +754,9 @@ class league(commands.Cog):
             leaders_str = f'\nHouse Leader: {", ".join(house_leaders)}' if house_leaders else ''
 
             if house.teams:
+                team_role = utilities.guild_role_by_name(ctx.guild, name=hteam.name, allow_partial=False)
                 for hteam in house.teams:
-                    team_list.append(f'- {hteam.name} {hteam.emoji} - Tier {hteam.league_tier} - ELO: {hteam.elo}')
+                    team_list.append(f'- {team_role.mention if team_role else hteam.name} {hteam.emoji} - Tier {hteam.league_tier} - ELO: {hteam.elo}')
                 team_message = '\n'.join(team_list)
             else:
                 team_message = '*No related Teams*'
