@@ -685,7 +685,7 @@ class league(commands.Cog):
         except (exceptions.TooManyMatches, exceptions.NoMatches) as e:
             return await ctx.send(e)
         
-        house.active_members(guild=ctx.guild, inactive_role_name=settings.guild_setting(ctx.guild.id, 'inactive_role'))
+        utilities.active_members_and_players(ctx.guild, active_role_name=house.name, inactive_role_name=settings.guild_setting(ctx.guild.id, 'inactive_role'))
         return
         house_role = utilities.guild_role_by_name(ctx.guild, name=house.name, allow_partial=False)
         leader_role = utilities.guild_role_by_name(ctx.guild, name='House Leader', allow_partial=False)

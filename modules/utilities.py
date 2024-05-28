@@ -407,3 +407,43 @@ async def paginate(bot, ctx, title, message_list, page_start=0, page_end=10, pag
                 page_start = page_end - page_size if (page_end - page_size) >= 0 else 0
 
             first_loop = False
+
+def active_members_and_players(guild, active_role_name: str, inactive_role_name: str = None):
+    # Returns [List of Discord Members], [List of Matching models.Players()]
+    # where each member has the active role but optionally does not have the inactive role
+    # for example, give the name of a Team role, and get back all discord members with that role as well as their equivalent player objects
+    # For now this is sorted by player.elo, descending.
+
+    logger.info('active_members_and_players()')
+    active_role = discord.utils.get(guild.roles, name=active_role_name)
+    if not active_role:
+        logger.error(f'active_members_and_players: Could not find matching role for active_role_name {active_role_name}')
+        raise exceptions.CheckFailedError(f'No matching guild role with name "{active_role_name}"')
+    inactive_role = discord.utils.get(guild.roles, name=inactive_role_name) if inactive_role_name else None
+
+    members_by_id = sorted([member for member in active_role.members if inactive_role not in member.roles], key=lambda member: member.id)
+    # All discord members with role and not Inactive role, sorted by ID
+
+    sorted_ids = [member.id for member in members_by_id]
+
+    players_by_id = list((models.Player.select() .join(models.DiscordMember)
+                    .where(
+                        (models.DiscordMember.discord_id.in_(sorted_ids)) & (models.Player.guild_id == guild.id)
+                    ) .order_by(models.DiscordMember.discord_id)))
+    
+    if len(members_by_id) != len(players_by_id):
+        logger.warning(f'Mismatched lengths of members_by_id and players_by_id')
+
+    logger.debug([member.name for member in members_by_id])
+    logger.debug([player.name for player in players_by_id])
+
+    sorted_zipped_lists = sorted(zip(members_by_id, players_by_id), key=lambda x: x[1].elo, reverse=True)
+    # Sort both lists by Player.elo
+
+    for member, player in sorted_zipped_lists:
+        logger.debug(f'{member.name} {member.id} {player.elo} {player.id}')
+    
+    members_by_id_sorted = [item[0] for item in sorted_zipped_lists]
+    players_by_id_sorted = [item[1] for item in sorted_zipped_lists]
+
+    return members_by_id_sorted, players_by_id_sorted

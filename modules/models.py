@@ -103,37 +103,6 @@ class House(BaseModel):  # An affiliation of Teams (probably only used for PolyC
     image_url = TextField(null=True)
     league_tokens = SmallIntegerField(default=0, null=False)
 
-    def active_members(self, guild, inactive_role_name=None):
-        logger.info('House.active_members()')
-        house_role = discord.utils.get(guild.roles, name=self.name)
-        if not house_role:
-            logger.error(f'House.active_members: Could not find matching role for team {self.name}')
-            raise exceptions.CheckFailedError(f'No matching guild role with name "{self.name}"')
-        inactive_role = discord.utils.get(guild.roles, name=inactive_role_name) if inactive_role_name else None
-
-        members_by_id = sorted([member for member in house_role.members if inactive_role not in member.roles], key=lambda member: member.id)
-        # All discord members with House role and not Inactive role, sorted by ID
-
-        sorted_ids = [member.id for member in members_by_id]
-
-        players_by_id = list((Player.select() .join(DiscordMember)
-                        .where(
-                            (DiscordMember.discord_id.in_(sorted_ids)) & (Player.guild_id == guild.id)
-                        ) .order_by(DiscordMember.discord_id)))
-        
-        if len(members_by_id) != len(players_by_id):
-            logger.warning(f'Mismatched lengths of members_by_id and players_by_id')
-
-        logger.debug([member.name for member in members_by_id])
-        logger.debug([player.name for player in players_by_id])
-
-        sorted_zipped_lists = sorted(zip(members_by_id, players_by_id), key=lambda x: x[1].elo, reverse=True)
-        # Sort both lists by Player.elo
-
-        for member, player in sorted_zipped_lists:
-            logger.debug(f'{member.name} {member.id} {player.elo} {player.id}')
-        # print(list(active_players_query))
-
     def update_tokens(self, new_count):
         logger.debug(f'Updating league_tokens on {self.name} {self.id} from {self.league_tokens} to {new_count}')
         old_count = self.league_tokens
