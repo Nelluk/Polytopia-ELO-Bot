@@ -954,7 +954,8 @@ class polygames(commands.Cog):
         except exceptions.NoSingleMatch:
             return await ctx.send(f'Couldn\'t find a team name matching *{discord.utils.escape_mentions(team_string)}*. Check spelling or be more specific. **Example:** `{ctx.prefix}team Ronin`')
 
-        embed = discord.Embed(title=f'Team card for **{team.name}** {team.emoji}')
+        house_str = f'\nHouse {team.house.name} {team.house.emoji}' if team.house and team.house.name else ''
+        embed = discord.Embed(title=f'Team card for **{team.name}** {team.emoji}{house_str}')
         team_role = discord.utils.get(ctx.guild.roles, name=team.name)
         mia_role = discord.utils.get(ctx.guild.roles, name=settings.guild_setting(ctx.guild.id, 'inactive_role'))
         # leader_role = discord.utils.get(ctx.guild.roles, name='Team Leader')
