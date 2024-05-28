@@ -100,7 +100,7 @@ def get_team_leadership(team):
     leaders, coleaders, recruiters, captains = [], [], [], []
     guild = settings.bot.get_guild(team.guild_id)
 
-    house_role = utilities.guild_role_by_name(guild, name=team.house.name, allow_partial=False)
+    house_role = utilities.guild_role_by_name(guild, name=team.house.name, allow_partial=False) if team.house else None
     team_role = utilities.guild_role_by_name(guild, name=team.name, allow_partial=False)
     leader_role = utilities.guild_role_by_name(guild, name=leader_role_name, allow_partial=False)
     coleader_role = utilities.guild_role_by_name(guild, name=coleader_role_name, allow_partial=False)
