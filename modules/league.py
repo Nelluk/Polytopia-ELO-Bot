@@ -709,11 +709,13 @@ class league(commands.Cog):
 
         message_list.append(f'**Leaders**: {",".join(leaders)}')
         message_list.append(f'**Co-Leaders**: {",".join(coleaders)}')
-        message_list.append(f'**Recruiters**: {",".join(recruiters)}\n')
+        message_list.append(f'**Recruiters**: {",".join(recruiters)}')
 
         for team in house_teams:
             captains, player_list = [], []
-            message_list.append(f'__Team {team.name} {team.emoji} / Tier {team.league_tier} / {team.elo} ELO__')
+            tier_name = settings.tier_lookup(team.league_tier)[1]
+            team_role = utilities.guild_role_by_name(ctx.guild, name=team.name, allow_partial=False)
+            message_list.append(f'\n__{tier_name} Tier Team__ {team_role.mention if team_role else team.name} {team.emoji} / {team.elo} ELO')
 
             members, players = await utilities.active_members_and_players(ctx.guild, active_role_name=team.name, inactive_role_name=settings.guild_setting(ctx.guild.id, 'inactive_role'))
             for member, player in zip(members, players):
@@ -724,7 +726,7 @@ class league(commands.Cog):
             message_list = message_list + player_list
         
         async with ctx.typing():
-            await utilities.buffered_send(destination=ctx, content='\n'.join(message_list))
+            await utilities.buffered_send(destination=ctx, content='\n'.join(message_list), allowed_mentions=discord.AllowedMentions(everyone=False, users=False, roles=False))
 
     @commands.command()
     @settings.in_bot_channel()
