@@ -1233,13 +1233,13 @@ class league(commands.Cog):
         await ctx.send(file=fs)
 
     @commands.command()
-    # @settings.in_bot_channel()
+    @settings.is_staff_check()
     @commands.cooldown(1, 120, commands.BucketType.channel)
     async def league_export(self, ctx, *, arg=None):
         """
-        Export all league games to a CSV file
+        *Staff:* Export all league games to a compressed CSV file
 
-        Specifically includes all ranked 2v2 or 3v3 games
+        Specifically includes all ranked 2v2 or 3v3 games. This takes several minutes to run. You will be pinged upon completion.
         """
 
         import io
@@ -1254,7 +1254,7 @@ class league(commands.Cog):
             return filename
 
         if query:
-            await ctx.send(f'Exporting {len(query)} game records. This might take a little while...')
+            await ctx.send(f'Exporting {len(query)} game records. This might take over an hour to run. I will ping you once the file is ready.')
         else:
             return await ctx.send('No matching games found.')
 
