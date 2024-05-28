@@ -688,7 +688,7 @@ class league(commands.Cog):
         # members, players = utilities.active_members_and_players(ctx.guild, active_role_name=house.name, inactive_role_name=settings.guild_setting(ctx.guild.id, 'inactive_role'))
 
         leaders, coleaders, recruiters = [], [], []
-        message_list = [f'House **{house.name}** {house.emoji}']
+        
         house_role = utilities.guild_role_by_name(ctx.guild, name=house.name, allow_partial=False)
         leader_role = utilities.guild_role_by_name(ctx.guild, name='House Leader', allow_partial=False)
         coleader_role = utilities.guild_role_by_name(ctx.guild, name='House Co-Leader', allow_partial=False)
@@ -696,6 +696,7 @@ class league(commands.Cog):
         captain_role = utilities.guild_role_by_name(ctx.guild, name='Team Captain', allow_partial=False)
         # inactive_role = utilities.guild_role_by_name(ctx.guild, name=settings.guild_setting(ctx.guild.id, 'inactive_role'))
         
+        message_list = [f':PolyChampions: PolyChampions House :PolyChampions:\n{house_role.mention} {house.emoji}']
         house_teams = models.Team.select().where((models.Team.house == house) & (models.Team.is_archived == 0)).order_by(models.Team.league_tier)
         
         def em(text):
@@ -711,8 +712,8 @@ class league(commands.Cog):
                     recruiters.append(f'{em(member.display_name)} ({member.mention})')
 
         message_list.append(f'**Leaders**: {", ".join(leaders)}')
-        message_list.append(f'**Co-Leaders**: {", ".join(coleaders)}')
-        message_list.append(f'**Recruiters**: {", ".join(recruiters)}')
+        message_list.append(f'\n**Co-Leaders**: {", ".join(coleaders)}')
+        message_list.append(f'\n**Recruiters**: {", ".join(recruiters)}')
 
         for team in house_teams:
             captains, player_list = [], []
@@ -745,11 +746,11 @@ class league(commands.Cog):
         # alternate command to focus display on one house `$house dragons`? (if there is any utility there)
 
         for house in houses_with_teams:
-            house_role = utilities.guild_role_by_name(ctx.guild, name=house.name, allow_partial=False)
-            house_leaders = [f'{member.display_name}' for member in leader_role.members if house_role in member.roles]
             team_list, team_message = [], ''
-            if house_leaders:
-                leaders_str = ''
+
+            house_role = utilities.guild_role_by_name(ctx.guild, name=house.name, allow_partial=False)
+            house_leaders = [f'{member.display_name}' for member in leader_role.members if house_role in member.roles] if (house_role and leader_role) else []
+            leaders_str = f'\nHouse Leader: ", ".join({house_leaders})' if house_leaders else ''
 
             if house.teams:
                 for hteam in house.teams:
@@ -757,11 +758,11 @@ class league(commands.Cog):
                 team_message = '\n'.join(team_list)
             else:
                 team_message = '*No related Teams*'
-            house_message = f'House {house.name} {house.emoji} - Tokens: {house.league_tokens} \n {team_message}'
+            house_message = f'House {house_role.mention if house_role else house.name} {house.emoji} - Tokens: {house.league_tokens}{leaders_str} \n {team_message}'
             house_list.append(f'{house_message}\n')
         
         async with ctx.typing():
-            await utilities.buffered_send(destination=ctx, content='\n'.join(house_list))
+            await utilities.buffered_send(destination=ctx, content='\n'.join(house_list), allowed_mentions=discord.AllowedMentions(everyone=False, users=False, roles=False))
     
     @commands.command(aliases=['house_rename'], usage='')
     @settings.is_mod_check()
