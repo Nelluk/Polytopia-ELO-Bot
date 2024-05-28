@@ -685,48 +685,46 @@ class league(commands.Cog):
         except (exceptions.TooManyMatches, exceptions.NoMatches) as e:
             return await ctx.send(e)
         
-        utilities.active_members_and_players(ctx.guild, active_role_name=house.name, inactive_role_name=settings.guild_setting(ctx.guild.id, 'inactive_role'))
-        return
+        # members, players = utilities.active_members_and_players(ctx.guild, active_role_name=house.name, inactive_role_name=settings.guild_setting(ctx.guild.id, 'inactive_role'))
+
+        leaders, coleaders, recruiters = [], [], []
+        message_list = [f'House **{house.name}** {house.emoji}']
         house_role = utilities.guild_role_by_name(ctx.guild, name=house.name, allow_partial=False)
         leader_role = utilities.guild_role_by_name(ctx.guild, name='House Leader', allow_partial=False)
         coleader_role = utilities.guild_role_by_name(ctx.guild, name='House Co-Leader', allow_partial=False)
         recruiter_role = utilities.guild_role_by_name(ctx.guild, name='House Recruiter', allow_partial=False)
         captain_role = utilities.guild_role_by_name(ctx.guild, name='Team Captain', allow_partial=False)
-        inactive_role = utilities.guild_role_by_name(ctx.guild, name=settings.guild_setting(ctx.guild.id, 'inactive_role'))
+        # inactive_role = utilities.guild_role_by_name(ctx.guild, name=settings.guild_setting(ctx.guild.id, 'inactive_role'))
         
+        house_teams = models.Team.select().where((models.Team.house == house) & (models.Team.is_archived == 0)).order_by(models.Team.league_tier)
+        
+        if house_role:
+            for member in house_role.members:
+                if leader_role in member.roles:
+                    leaders.append(f'{member.display_name} ({member.mention})')
+                if coleader_role in member.roles:
+                    coleaders.append(f'{member.display_name} ({member.mention})')
+                if recruiter_role in member.roles:
+                    recruiters.append(f'{member.display_name} ({member.mention})')
 
-        house_query = models.House.select().where(models.House.id == house.id)
-        team_query = (models.Team
-                    .select()
-                    .where((models.Team.house == house) & (models.Team.is_archived == 0))
-                    .order_by(models.Team.league_tier))
+        message_list.append(f'**Leaders**: {",".join(leaders)}')
+        message_list.append(f'**Co-Leaders**: {",".join(coleaders)}')
+        message_list.append(f'**Recruiters**: {",".join(recruiters)}\n')
 
-        player_query = (models.Player
-                        .select()
-                        .join(models.Team)  # Join Player with Team
-                        .order_by(-models.Player.elo))  # Sorting players by ELO in descending order
+        for team in house_teams:
+            captains, player_list = [], []
+            message_list.append(f'__Team {team.name} {team.emoji} / Tier {team.league_tier} / {team.elo} ELO__')
 
-        # Prefetch the related objects
-        house_with_relations = peewee.prefetch(house_query, team_query, player_query)
-
-        # Get the preloaded house from the query result
-        preloaded_house = house_with_relations[0]
-        print(preloaded_house.name)
-
-        for t in preloaded_house.teams:
-            print(t.name)
-            for p in t.player:
-                print(p.name, p.elo)
-
-        # for team in teams:
-        #     print(f'Processing team {team.name}')
-        #     team_members = []
-        #     team_role = utilities.guild_role_by_name(ctx.guild, name=team.name, allow_partial=False)
-        #     # for member in team_role.members if team_role else []:
-        #     #     team_members.append(member)
-        #     for member in team.player:
-        #         print(member.id, member.name)
-        #     print(team_members)
+            members, players = await utilities.active_members_and_players(ctx.guild, active_role_name=team.name, inactive_role_name=settings.guild_setting(ctx.guild.id, 'inactive_role'))
+            for member, player in zip(members, players):
+                if captain_role in member.roles:
+                    captains.append(f'{member.display_name} ({member.mention})')
+                player_list.append(f'{member.display_name} (ELO: {player.elo})')
+            message_list.append(f'**Team Captains**: {",".join(captains)}')
+            message_list = message_list + player_list
+        
+        async with ctx.typing():
+            await utilities.buffered_send(destination=ctx, content='\n'.join(message_list))
 
     @commands.command()
     @settings.in_bot_channel()
