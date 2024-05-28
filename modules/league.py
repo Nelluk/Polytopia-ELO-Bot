@@ -739,7 +739,7 @@ class league(commands.Cog):
             for member, player in zip(members, players):
                 if captain_role in member.roles:
                     captains.append(f'{em(member.display_name)} ({member.mention})')
-                player_list.append(f'{em(member.display_name)} `{player.elo}`')
+                player_list.append(f'{em(member.display_name)} `{player.elo_moonrise}`')
             if captains:
                 message_list.append(f'**Team Captains**: {", ".join(captains)}')
             message_list = message_list + player_list

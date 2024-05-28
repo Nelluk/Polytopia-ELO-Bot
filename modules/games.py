@@ -352,7 +352,7 @@ class polygames(commands.Cog):
             for counter, discord_member in enumerate(query[:1000]):
                 wins, losses = discord_member.get_record()
                 leaderboard.append(
-                    (f'{(counter + 1):>3}. {discord_member.name}', f'`ELO {discord_member.elo}\u00A0\u00A0\u00A0\u00A0Games Played {discord_member.count}`')
+                    (f'{(counter + 1):>3}. {discord_member.name}', f'`ELO {discord_member.elo_moonrise}\u00A0\u00A0\u00A0\u00A0Games Played {discord_member.count}`')
                 )
             title = '**Most active players of all time**'
         else:
@@ -360,7 +360,7 @@ class polygames(commands.Cog):
                 wins, losses = player.get_record()
                 emoji_str = player.team.emoji if player.team else ''
                 leaderboard.append(
-                    (f'{(counter + 1):>3}. {emoji_str}{player.name}', f'`ELO {player.elo}\u00A0\u00A0\u00A0\u00A0Recent Games {player.count}`')
+                    (f'{(counter + 1):>3}. {emoji_str}{player.name}', f'`ELO {player.elo_moonrise}\u00A0\u00A0\u00A0\u00A0Recent Games {player.count}`')
                 )
             title = f'**Most Active Recent Players**\n{query.count()} players in past 30 days'
 
