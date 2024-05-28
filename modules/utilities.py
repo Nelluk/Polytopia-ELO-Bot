@@ -439,7 +439,7 @@ async def active_members_and_players(guild, active_role_name: str, inactive_role
     logger.debug([member.name for member in members_by_id])
     logger.debug([player.name for player in players_by_id])
 
-    sorted_zipped_lists = sorted(zip(members_by_id, players_by_id), key=lambda x: x[1].elo, reverse=True)
+    sorted_zipped_lists = sorted(zip(members_by_id, players_by_id), key=lambda x: x[1].elo_moonrise, reverse=True)
     # Sort both lists by Player.elo
 
     for member, player in sorted_zipped_lists:
