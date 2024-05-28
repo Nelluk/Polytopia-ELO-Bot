@@ -698,14 +698,17 @@ class league(commands.Cog):
         
         house_teams = models.Team.select().where((models.Team.house == house) & (models.Team.is_archived == 0)).order_by(models.Team.league_tier)
         
+        def em(text):
+            return discord.utils.escape_markdown(text, as_needed=True)
+            
         if house_role:
             for member in house_role.members:
                 if leader_role in member.roles:
-                    leaders.append(f'{member.display_name} ({member.mention})')
+                    leaders.append(f'{em(member.display_name)} ({member.mention})')
                 if coleader_role in member.roles:
-                    coleaders.append(f'{member.display_name} ({member.mention})')
+                    coleaders.append(f'{em(member.display_name)} ({member.mention})')
                 if recruiter_role in member.roles:
-                    recruiters.append(f'{member.display_name} ({member.mention})')
+                    recruiters.append(f'{em(member.display_name)} ({member.mention})')
 
         message_list.append(f'**Leaders**: {", ".join(leaders)}')
         message_list.append(f'**Co-Leaders**: {", ".join(coleaders)}')
@@ -715,13 +718,13 @@ class league(commands.Cog):
             captains, player_list = [], []
             tier_name = settings.tier_lookup(team.league_tier)[1]
             team_role = utilities.guild_role_by_name(ctx.guild, name=team.name, allow_partial=False)
-            message_list.append(f'\n__{tier_name} Tier Team__ {team_role.mention if team_role else team.name} {team.emoji} / {team.elo} ELO')
+            message_list.append(f'\n__{tier_name} Tier Team__ {team_role.mention if team_role else team.name} {team.emoji} `{team.elo} ELO`')
 
             members, players = await utilities.active_members_and_players(ctx.guild, active_role_name=team.name, inactive_role_name=settings.guild_setting(ctx.guild.id, 'inactive_role'))
             for member, player in zip(members, players):
                 if captain_role in member.roles:
-                    captains.append(f'{member.display_name} ({member.mention})')
-                player_list.append(f'{member.display_name} ({player.elo})')
+                    captains.append(f'{em(member.display_name)} ({member.mention})')
+                player_list.append(f'{em(member.display_name)} `{player.elo}`')
             if captains:
                 message_list.append(f'**Team Captains**: {", ".join(captains)}')
             message_list = message_list + player_list
