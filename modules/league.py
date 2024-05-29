@@ -1332,31 +1332,31 @@ async def broadcast_team_game_to_server(ctx, game):
     if not roles:
         return
 
-    pro_role_names = [a[1][0] for a in league_teams]
-    junior_role_names = [a[1][1] for a in league_teams]
-    team_role_names = [a[0] for a in league_teams]
+    # pro_role_names = [a[1][0] for a in league_teams]
+    # junior_role_names = [a[1][1] for a in league_teams]
+    # team_role_names = [a[0] for a in league_teams]
 
+    house_roles = get_house_roles(guild=ctx.guild)
+    team_roles = get_team_roles(guild=ctx.guild)
+    
     for role in roles:
-        if role.name in pro_role_names:
+        team_name, house_name = '', ''
+        if role in team_roles:
             team_name = role.name
-            game_type = 'Pro Team'
-        elif role.name in junior_role_names:
-            team_name = role.name
-            game_type = 'Junior Team'
-        elif role.name in team_role_names:
-            # Umbrella name like Ronin/Jets
-            game_type = 'Full Team (Pros *and* Juniors)'
-            if pro_role_names[team_role_names.index(role.name)]:
-                team_name = pro_role_names[team_role_names.index(role.name)]
-            else:
-                # For junior-only teams
-                team_name = junior_role_names[team_role_names.index(role.name)]
+            game_type = f'Team {team_name.replace("The ", "")}'
+        elif role in house_roles:
+            house_name = role.name
+            game_type = f'House {house_name}'
         else:
             logger.debug(f'broadcast_team_game_to_server: no team name found to match role {role.name}')
             continue
 
         try:
-            team = models.Team.get_or_except(team_name=team_name, guild_id=ctx.guild.id)
+            if team_name:
+                team = models.Team.get_or_except(team_name=team_name, guild_id=ctx.guild.id)
+            if house_name:
+                house = models.House.get_or_except(house_name=house_name)
+                team = house.teams[0]  # Just setting team to first related house team - this might cause problems
         except exceptions.NoSingleMatch:
             logger.warning(f'broadcast_team_game_to_server: valid team name found to match role {role.name} but no database match')
             continue
