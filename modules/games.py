@@ -780,7 +780,7 @@ class polygames(commands.Cog):
                 team_str = f'{player.team.name} {player.team.emoji}' if player.team.emoji else player.team.name
                 embed.add_field(name='**Last-known Team**', value=team_str)
             if player.discord_member.polytopia_name:
-                embed.add_field(name='Polytopia Game Name', value=player.discord_member.polytopia_name)
+                embed.add_field(name='Polytopia Game Name', value=player.discord_member.polytopia_name[:1000])
                 content_str = player.discord_member.polytopia_name  # Used as a single message before player card so users can easily copy/paste Poly ID
             if player.discord_member.name_steam:
                 embed.add_field(name='Steam Name', value=player.discord_member.name_steam)
@@ -801,7 +801,7 @@ class polygames(commands.Cog):
                 for rec in record_truncated[1:4]:
                     tier_name = settings.tier_lookup(rec[0])[1]
                     pc_record_str_list.append(f'{tier_name} Tier: {rec[1][0]}W / {rec[1][1]}L')
-                logger.debug(f'testhere: {pc_record_str_list}')
+
                 embed.add_field(value='\n'.join(pc_record_str_list), name=f'PolyChampions Record {record_truncated[0][1][0]}W / {record_truncated[0][1][1]}L', inline=True)
 
 
@@ -1159,11 +1159,11 @@ class polygames(commands.Cog):
             register_str = f'{code_type} `{player.discord_member.polytopia_id}`'
             warning_str = f':warning: Also set your mobile in-game name with `{ctx.prefix}setname Your Mobile Name` - This will be required soon.\n'
         elif ctx.invoked_with == 'steamname':
-            player.discord_member.name_steam = discord.utils.escape_mentions(new_id) if new_id else None
+            player.discord_member.name_steam = discord.utils.escape_mentions(new_id[:200]) if new_id else None
             register_str = f'{code_type} `{player.discord_member.name_steam}`'
             warning_str = ''
         elif ctx.invoked_with == 'setname':
-            player.discord_member.polytopia_name = discord.utils.escape_mentions(new_id) if new_id else None
+            player.discord_member.polytopia_name = discord.utils.escape_mentions(new_id[:200]) if new_id else None
             register_str = f'{code_type} `{player.discord_member.polytopia_name}`'
             warning_str = ''
 
