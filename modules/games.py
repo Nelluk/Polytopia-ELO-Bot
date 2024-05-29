@@ -801,8 +801,8 @@ class polygames(commands.Cog):
                 for rec in record_truncated[1:4]:
                     tier_name = settings.tier_lookup(rec[0])[1]
                     pc_record_str_list.append(f'{tier_name} Tier: {rec[1][0]}W / {rec[1][1]}L')
-
-                embed.add_field(value='\n'.join(pc_record_str_list), name=f'PolyChampions Record {record_truncated[0][1][0]}W / {record_truncated[0][1][1]}L ', inline=True)
+                logger.debug(f'testhere: {pc_record_str_list}')
+                embed.add_field(value='\n'.join(pc_record_str_list), name=f'PolyChampions Record {record_truncated[0][1][0]}W / {record_truncated[0][1][1]}L', inline=True)
 
 
             misc_stats = []
@@ -922,6 +922,12 @@ class polygames(commands.Cog):
         async with ctx.typing():
             content_str, embed, image, matchup_games = await self.bot.loop.run_in_executor(None, async_create_player_embed)
 
+        print(embed.fields)
+        field_counter = 0
+        for field in embed.fields:
+            print(field_counter, field.name, field.value)
+            print(f'next')
+            field_counter += 1
         await ctx.send(content=content_str, file=image, embed=embed)
 
         if matchup_games:

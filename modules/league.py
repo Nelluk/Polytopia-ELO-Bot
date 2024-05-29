@@ -1332,10 +1332,6 @@ async def broadcast_team_game_to_server(ctx, game):
     if not roles:
         return
 
-    # pro_role_names = [a[1][0] for a in league_teams]
-    # junior_role_names = [a[1][1] for a in league_teams]
-    # team_role_names = [a[0] for a in league_teams]
-
     house_roles = get_house_roles(guild=ctx.guild)
     team_roles = get_team_roles(guild=ctx.guild)
     
