@@ -422,7 +422,10 @@ class polygames(commands.Cog):
             ).order_by(-Team.elo)
 
         async with ctx.typing():
-            for counter, team in enumerate(query)[:24]:
+            for counter, team in enumerate(query):
+                if counter > 24:
+                    logger.warning('Truncated lbteam')
+                    continue
                 team_role = discord.utils.get(ctx.guild.roles, name=team.name)
                 if not team_role:
                     logger.error(f'Could not find matching role for team {team.name}')
