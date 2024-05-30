@@ -388,8 +388,8 @@ class polygames(commands.Cog):
         
         tier_number, tier_name, tier_string = None, None, ''
         archived_arg = (Team.is_archived == 0)
+        footer_message = ''
 
-        #TODO: Logic doesn't work if multiple arguments
         if 'old' in args:
             archived_arg = (True)
 
@@ -424,7 +424,7 @@ class polygames(commands.Cog):
         async with ctx.typing():
             for counter, team in enumerate(query):
                 if counter > 24:
-                    logger.warning('Truncated lbteam')
+                    footer_message = f'Only first 25 teams shown. You can specify a tier, example: {ctx.prefix}lb platinum'
                     continue
                 team_role = discord.utils.get(ctx.guild.roles, name=team.name)
                 if not team_role:
@@ -481,6 +481,8 @@ class polygames(commands.Cog):
 
         image = discord.File(file, filename='graph.png')
 
+        if footer_message:
+            embed.set_footer(text=footer_message)
         await ctx.send(embed=embed, file=image)
 
     @settings.in_bot_channel_strict()
