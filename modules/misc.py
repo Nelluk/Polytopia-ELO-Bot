@@ -412,7 +412,8 @@ class misc(commands.Cog):
     @settings.in_bot_channel()
     async def rtribes(self, ctx, *, arg):
         """
-        Selects a random set of n tribes. As shown in the examples below, you may add options to ban tribes, fix the random seed, require selection of free tribes, or allow duplicate tribes to be selected.
+        Selects a random set of n tribes. 
+        As shown in the examples below, you may add options to ban tribes, fix the random seed, require selection of free tribes, or allow duplicate tribes to be selected.
         **Examples:**
         `[p]rtribes 4` - Selects 4 random tribes.
         `[p]rtribes 6 -ho -aq` - Selects 6 random tribes, excluding Hoodrick and Aquarion. Matches by first 2 letters.

@@ -625,7 +625,8 @@ class league(commands.Cog):
     # @settings.is_mod_check()
     async def tokens(self, ctx, *, arg=None):
         """
-        Display or update house tokens. The house name must be identified by a single word.
+        *Mod:* Display or update house tokens. 
+        The house name must be identified by a single word.
 
         **Examples**
         `[p]tokens` Summarize tokens for all Houses and list last 5 changes
