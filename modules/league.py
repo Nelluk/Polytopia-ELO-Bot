@@ -710,7 +710,7 @@ class league(commands.Cog):
 
         # inactive_role = utilities.guild_role_by_name(ctx.guild, name=settings.guild_setting(ctx.guild.id, 'inactive_role'))
         
-        message_list = [f'{pc_emoji} {house.emoji} House {house_role.mention} {house.emoji} {pc_emoji}']
+        message_list = [f'{pc_emoji} {house.emoji} House {house_role.mention if house_role else house.name} {house.emoji} {pc_emoji}']
         house_teams = models.Team.select().where((models.Team.house == house) & (models.Team.is_archived == 0)).order_by(models.Team.league_tier)
         
         def em(text):
