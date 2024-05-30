@@ -581,7 +581,7 @@ class administration(commands.Cog):
         except peewee.IntegrityError:
             return await ctx.send('That team already exists!')
 
-        await ctx.send(f'Team {team_name} created! Starting ELO: {team.elo}. Players with a Discord Role exactly matching \"{team_name}\" will be considered team members. '
+        await ctx.send(f'Team **{team_name}** created! Starting ELO: {team.elo}. Players with a Discord Role exactly matching \"*{team_name}*\" will be considered team members. '
                 f'See `{ctx.prefix}help team_edit` for other commands to set up a new team.')
 
     @commands.command(usage='team_name new_emoji')
@@ -610,6 +610,7 @@ class administration(commands.Cog):
         team.emoji = emoji
         team.save()
 
+        logger.info(f'team_emoji set for {team.id} {team.name} to {team.emoji}')
         await ctx.send(f'Team **{team.name}** updated with new emoji: {team.emoji}')
 
     @commands.command(usage='team_name image_url')
@@ -638,6 +639,7 @@ class administration(commands.Cog):
         team.image_url = image_url
         team.save()
 
+        logger.info(f'team_image set for {team.id} {team.name} to {team.image_url}')
         await ctx.send(f'Team {team.name} updated with new image_url (image should appear below)')
         await ctx.send(team.image_url)
 
@@ -667,18 +669,23 @@ class administration(commands.Cog):
     @commands.command(usage='team_name server_id')
     @settings.is_mod_check()
     @settings.guild_has_setting(setting_name='allow_teams')
-    async def team_server(self, ctx, team_name: str, team_server_id: str):
+    async def team_server(self, ctx, team_name: str = None, team_server_id: str = None):
         """*Mod*: Change a team's external server
 
         **Example:**
-        `[p]team_server Ronin 572885616656908288`
+        `[p]team_server Ronin` Check existing server setting
+        `[p]team_server Ronin 572885616656908288` Update the server setting
         """
         # TODO: better input handling (display server_id if new ID not provided)
+        if not team_name:
+            return await ctx.send(f'Example: `{ctx.prefix}team_server \"Team Name\" 447883341463814144` (Use the raw numeric ID of the team\'s server)')
         try:
             team = models.Team.get_or_except(team_name, ctx.guild.id)
         except exceptions.NoSingleMatch as ex:
             return await ctx.send(f'{ex}\nExample: `{ctx.prefix}team_server \"Team Name\" 447883341463814144` (Use the raw numeric ID of the team\'s server)')
 
+        if not team_server_id:
+            return await ctx.send(f'Team **{team.name}** has been assigned an external server of `{team.external_server}`.')
         try:
             server_id = int(team_server_id)
         except ValueError:
@@ -688,6 +695,7 @@ class administration(commands.Cog):
         team.external_server = server_id
         team.save()
 
+        logger.info(f'team_server updating {team.id} {team.name} to {server_id} from {old_server}')
         await ctx.send(f'Team **{team.name}** has been assigned an external server of `{server_id}`. Previous value was `{old_server}`.')
 
     @commands.command(aliases=['deactivate'])
