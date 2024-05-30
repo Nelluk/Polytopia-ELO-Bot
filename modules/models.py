@@ -1409,6 +1409,9 @@ class Game(BaseModel):
         return picks
 
     def ordered_side_list(self):
+
+        # tried to improve this May 2024 by pre-fetching related tables but couldn't crack it
+        # test games somehow used even more queries or ran into errors with objects not existing
         return GameSide.select().where(GameSide.game == self).order_by(GameSide.position)
 
     def platform_emoji(self):
@@ -1970,7 +1973,6 @@ class Game(BaseModel):
                     team_elos_alltime = [s.team.elo_alltime if s.team else None for s in gamesides]
 
                     squad_elos = [s.squad.elo if s.squad else None for s in gamesides]
-
                     if self.date >= settings.elo_calc_v2_date:
                         # added two adjustments for games starting 8/2/20:
                         # 50 elo point host advantage for 1-player host sides (1 v X)
@@ -3233,6 +3235,7 @@ class GameSide(BaseModel):
 
     def average_elo(self, by_discord_member: bool = False, alltime: bool = False):
 
+        logger.debug('average_elo start')
         if by_discord_member and alltime:
             elo_list = [l.player.discord_member.elo_alltime for l in self.lineup]
         elif by_discord_member and not alltime:
@@ -3244,6 +3247,7 @@ class GameSide(BaseModel):
         else:
             raise ValueError('average_elo: should not be here!')
 
+        logger.debug('average_elo end')
         return int(round(sum(elo_list) / len(elo_list)))
 
     def adjusted_elo(self, missing_players: int, own_elo: int, opponent_elos: int, calc_version: int = 1):
