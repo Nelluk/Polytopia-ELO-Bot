@@ -1410,9 +1410,22 @@ class Game(BaseModel):
 
     def ordered_side_list(self):
 
+        # attempt to improve original function May 2024 by joining in related tables 
+        query = (GameSide.select(GameSide, Lineup, Player, DiscordMember)
+             .join(Lineup, JOIN.LEFT_OUTER, on=(Lineup.gameside == GameSide.id))
+             .join(Player, JOIN.LEFT_OUTER, on=(Lineup.player == Player.id))
+             .join(DiscordMember, JOIN.LEFT_OUTER, on=(Player.discord_member == DiscordMember.id))
+             .where(GameSide.game == self)
+             .order_by(GameSide.position))
+
+    
+        query = prefetch(query, Lineup, Player, DiscordMember)
+        return query
+    
         # tried to improve this May 2024 by pre-fetching related tables but couldn't crack it
         # test games somehow used even more queries or ran into errors with objects not existing
-        return GameSide.select().where(GameSide.game == self).order_by(GameSide.position)
+        # original below
+        # return GameSide.select().where(GameSide.game == self).order_by(GameSide.position)
 
     def platform_emoji(self):
         return '' if self.is_mobile else '🖥'
@@ -1823,6 +1836,99 @@ class Game(BaseModel):
                     Lineup.create(game=newgame, gameside=gameside, player=player)
 
         return newgame, warnings
+
+    def reverse_elo_changes_gpt(self):
+        # ChatGPT-suggested alternative to reverse_elo_changes() to reduce queries
+        # It does indeed reduce SELECT queries, but have not tested this for accuracy
+
+        # Prefetch related data
+        lineups = Lineup.select().where(Lineup.game == self).prefetch(Player, DiscordMember)
+        gamesides = GameSide.select().where(GameSide.game == self).prefetch(Team)
+
+        logger.debug(f'GPT reverse_elo_changes for game {self.id}')
+
+        players_to_update = []
+        discord_members_to_update = []
+        lineups_to_update = []
+        teams_to_update = []
+        gamesides_to_update = []
+
+        # Process lineups
+        for lineup in lineups:
+            player = lineup.player
+            discord_member = player.discord_member
+
+            player.elo += lineup.elo_change_player * -1
+            player.elo_alltime += lineup.elo_change_player_alltime * -1
+            player.elo_moonrise += lineup.elo_change_player_moonrise * -1
+
+            if player not in players_to_update:
+                players_to_update.append(player)
+
+            lineup.elo_change_player = 0
+            lineup.elo_change_player_alltime = 0
+            lineup.elo_change_player_moonrise = 0
+            lineup.elo_after_game = None
+            lineup.elo_after_game_alltime = None
+            lineup.elo_after_game_global = None
+            lineup.elo_after_game_global_alltime = None
+            lineup.elo_after_game_moonrise = None
+            lineup.elo_after_game_global_moonrise = None
+
+            if (lineup.elo_change_discordmember_alltime or
+                lineup.elo_change_discordmember or
+                lineup.elo_change_discordmember_moonrise):
+                discord_member.elo += lineup.elo_change_discordmember * -1
+                discord_member.elo_alltime += lineup.elo_change_discordmember_alltime * -1
+                discord_member.elo_moonrise += lineup.elo_change_discordmember_moonrise * -1
+
+                if discord_member not in discord_members_to_update:
+                    discord_members_to_update.append(discord_member)
+
+                lineup.elo_change_discordmember = 0
+                lineup.elo_change_discordmember_alltime = 0
+                lineup.elo_change_discordmember_moonrise = 0
+
+            if lineup not in lineups_to_update:
+                lineups_to_update.append(lineup)
+
+        # Process gamesides
+        for gameside in gamesides:
+            team = gameside.team
+            if team:
+                if gameside.elo_change_team:
+                    team.elo += (gameside.elo_change_team * -1)
+                    gameside.elo_change_team = 0
+
+                if gameside.elo_change_team_alltime:
+                    team.elo_alltime += (gameside.elo_change_team_alltime * -1)
+                    gameside.elo_change_team_alltime = 0
+
+                if team not in teams_to_update:
+                    teams_to_update.append(team)
+
+            gameside.team_elo_after_game = None
+            gameside.team_elo_after_game_alltime = None
+
+            if gameside not in gamesides_to_update:
+                gamesides_to_update.append(gameside)
+
+        # Save updates in bulk
+        with db.atomic():
+            for player in players_to_update:
+                player.save()
+
+            for discord_member in discord_members_to_update:
+                discord_member.save()
+
+            for lineup in lineups_to_update:
+                lineup.save()
+
+            for team in teams_to_update:
+                team.save()
+
+            for gameside in gamesides_to_update:
+                gameside.save()
 
     def reverse_elo_changes(self):
         logger.debug(f'reverse_elo_changes for game {self.id}')
@@ -2527,11 +2633,21 @@ class Game(BaseModel):
         db.connect(reuse_if_open=True)
         games = Game.select().where(
             (Game.is_completed == 1) & (Game.is_confirmed == 1) & (Game.completed_ts >= timestamp) & (Game.winner.is_null(False)) & (Game.is_ranked == 1)
-        ).order_by(Game.completed_ts).prefetch(GameSide, Lineup)
+        ).order_by(Game.completed_ts).prefetch(GameSide, Lineup, Player, DiscordMember)
+        # games_q = Game.select().where(
+        #     (Game.is_completed == 1) & (Game.is_confirmed == 1) & (Game.completed_ts >= timestamp) & (Game.winner.is_null(False)) & (Game.is_ranked == 1)
+        # )
 
+        # games = prefetch(
+        #     games_q,
+        #     GameSide,
+        #     Lineup,
+        #     Player,
+        #     DiscordMember
+        # )
         elo_logger.debug(f'recalculate_elo_since {timestamp}')
         for g in games:
-            g.reverse_elo_changes()
+            g.reverse_elo_changes_gpt()
             g.is_completed = 0  # To have correct completed game counts for new ELO calculations
             g.is_confirmed = 0
             g.save()

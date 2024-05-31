@@ -829,32 +829,10 @@ class league(commands.Cog):
     @settings.is_mod_check()
     async def gtest(self, ctx, *, arg=None):
         args = arg.split() if arg else []
-        print(get_house_roles())
-        house_roles = [hr for hr in get_house_roles() if hr and hr.name == 'Ronin']
-        print(house_roles)
-        return
-
-        # total_games = (models.GameSide
-        #            .select()
-        #            .join(models.Game)
-        #            .where((models.GameSide.team_id == team_id) &
-        #                   (models.Game.league_season == league_season))
-        #            )
+        settings.recalculation_mode = True
+        models.Game.recalculate_elo_since(timestamp='2024-04-30 09:02:36.301574')
+        settings.recalculation_mode = False
         
-        # for g in total_games:
-        #     print(g.id, g.game.id, g.game.name)
-        # await ctx.send(len(total_games))
-
-        team = models.Team.get(team_id)
-        # records = team.get_season_record(season=league_season)
-
-        records = team.get_tier_season_records(guild_id=447883341463814144, league_tier=2, league_season=league_season)
-        # records = models.Team.get_tier_season_records(guild_id=447883341463814144, league_tier=2, league_season=league_season)
-        print(records)
-        print(len(records))
-        for record in records:
-            print(record.name, record.id, record.emoji, record.regular_season_wins, record.regular_season_losses, record.regular_season_incomplete, record.post_season_wins, record.post_season_losses, record.post_season_incomplete)
-    
     @commands.command(aliases=['team_house', 'team_tier'], usage='team_name arguments')
     @settings.is_mod_check()
     async def team_edit(self, ctx, *, arg=None):
