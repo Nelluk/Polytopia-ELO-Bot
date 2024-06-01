@@ -1243,20 +1243,22 @@ class polygames(commands.Cog):
 
     @commands.command(aliases=['names', 'codes', 'getcodes'], usage='game_id')
     @models.is_registered_member()
-    async def getnames(self, ctx, *, arg=None):
+    async def getnames(self, ctx, *, arg=''):
         """Print all player names associated with a game ID
         The names will be printed on separate line for ease of copying, and in the order that players should be added to the game.
         **Examples:**
         `[p]getnames 1250` - Get all player codes for players in game 1250
         `[p]names` - Get player names for the game associated with the current channel
         """
-        args = arg.split() if arg else []
-
-        try:
-            game_id = int(args[0])
-        except ValueError:
-            game_id = None
         
+        if arg:
+            try:
+                game_id = int(arg)
+            except ValueError:
+                game_id = None
+        else:
+            game_id = None
+
         inferred_game = None
         if not game_id:
             try:
