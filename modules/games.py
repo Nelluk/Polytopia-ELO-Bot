@@ -1243,15 +1243,33 @@ class polygames(commands.Cog):
 
     @commands.command(aliases=['names', 'codes', 'getcodes'], usage='game_id')
     @models.is_registered_member()
-    async def getnames(self, ctx, *, game: PolyGame = None):
+    async def getnames(self, ctx, *, arg=None):
         """Print all player names associated with a game ID
         The names will be printed on separate line for ease of copying, and in the order that players should be added to the game.
         **Examples:**
         `[p]getnames 1250` - Get all player codes for players in game 1250
+        `[p]names` - Get player names for the game associated with the current channel
         """
+        args = arg.split() if arg else []
 
-        if not game:
-            return await ctx.send(f'Game ID not provided. Usage: __`{ctx.prefix}{ctx.invoked_with} GAME_ID`__')
+        try:
+            game_id = int(args[0])
+        except ValueError:
+            game_id = None
+        
+        inferred_game = None
+        if not game_id:
+            try:
+                inferred_game = models.Game.by_channel_id(chan_id=ctx.message.channel.id)
+            except exceptions.NoSingleMatch as e:
+                logger.error(f'Could not infer game from channel: {e}')
+                return await ctx.send(f'Game ID not provided and cannot detect a game channel. Usage: __`{ctx.prefix}{ctx.invoked_with} GAME_ID`__')
+            logger.debug(f'Inferring game {inferred_game.id} from getnames command used in channel {ctx.message.channel.id}')
+        
+        if inferred_game:
+            game = inferred_game
+        else:
+            game = await PolyGame().convert(ctx, int(game_id), allow_cross_guild=True)
 
         try:
             ordered_player_list = game.draft_order()
