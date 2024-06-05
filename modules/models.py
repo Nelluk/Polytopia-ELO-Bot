@@ -2925,18 +2925,22 @@ class Game(BaseModel):
         # - special case for tied season, 1v1 game with tag like S15Showdown
 
         if self.guild_id != settings.server_ids['polychampions'] or self.is_ranked is False:
+            logger.debug(f'parse_name_for_season_fields: failed guild')
             return ()
         
         if self.size not in [[1, 1], [2, 2], [3, 3]]:
+            logger.debug(f'parse_name_for_season_fields: failed self.size')
             return ()
         
         if self.size == [1, 1] and 'SHOWDOWN' not in self.name:
             # Quick filter to avoid unnecessary database calls
+            logger.debug(f'parse_name_for_season_fields: failed size/showdown')
             return ()
         
         tier_list = [self.gamesides[0].team.league_tier, self.gamesides[1].team.league_tier]
         if None in tier_list or tier_list[0] != tier_list[1]:
             # Team tiers mismatched or has an unranked team
+            logger.debug(f'parse_name_for_season_fields: failed tiers mismatched')
             return ()
         
         m = re.match(r"S(\d\d)(W|SHOWDOWN|FINALS|SEMIS)", self.name.upper().replace(' ', ''))
