@@ -2938,10 +2938,17 @@ class Game(BaseModel):
             return ()
         
         tier_list = [self.gamesides[0].team.league_tier, self.gamesides[1].team.league_tier]
-        if None in tier_list or tier_list[0] != tier_list[1]:
+        parsed_tier, inferred_tier = None, None
+
+        if None in tier_list:
             # Team tiers mismatched or has an unranked team
-            logger.debug(f'parse_name_for_season_fields: failed tiers mismatched')
+            logger.debug(f'parse_name_for_season_fields: unranked team')
             return ()
+        if tier_list[0] != tier_list[1]:
+            logger.info(f'parse_name_for_season_fields: team mismatch')
+            inferred_tier = None
+        else:
+            inferred_tier = int(tier_list[0])
         
         m = re.match(r"S(\d\d)(W|SHOWDOWN|FINALS|SEMIS)", self.name.upper().replace(' ', ''))
         old_match = re.match(r"([PJ]?)S(\d+)", self.name.upper())
@@ -2952,7 +2959,6 @@ class Game(BaseModel):
         
         if m:
             logger.debug(f'Game {self.id} {self.name} passed new-style regexp for season fields')
-            game_tier = int(tier_list[0])
             game_season = int(m[1])
 
             if m[2] == 'SHOWDOWN':
@@ -2962,7 +2968,23 @@ class Game(BaseModel):
                 game_playoffs = True
             else:
                 game_playoffs = True if m[2] in ['FINALS', 'SEMIS'] else False
-                
+            
+            for tier_num, tier_name in settings.league_tiers:
+                if tier_name.lower()[:4] in self.name.lower():
+                    parsed_tier = tier_num
+                    logger.debug(f'parse_name_for_season_fields: parsed tier_name {tier_name}')
+                    continue
+            
+            if not parsed_tier and not inferred_tier:
+                logger.warning(f'parse_name_for_season_fields: no tier found!')
+                return ()
+            if not parsed_tier:
+                logger.debug(f'parse_name_for_season_fields: using inferred_tier')
+                game_tier = inferred_tier
+            else:
+                logger.debug(f'parse_name_for_season_fields: using parsed_tier')
+                game_tier = parsed_tier
+            
         if old_match:
             logger.debug(f'Game {self.id} {self.name} matched old-style regexp for season fields')
             game_season = int(old_match[2])
