@@ -586,7 +586,7 @@ class DiscordMember(BaseModel):
         # print(query.rank)
         
         query = DiscordMember.leaderboard(date_cutoff=date_cutoff)
-        print(len(query))
+
         is_found = False
         for counter, p in enumerate(query.tuples()):
             if p[0] == self.id:
@@ -940,8 +940,8 @@ class Player(BaseModel):
 
         query = (Game
              .select(
-                 fn.SUM(win_status).alias('win_count'),
-                 fn.SUM(1 - win_status).alias('loss_count')
+                 fn.COALESCE(fn.SUM(win_status), 0).alias('win_count'),
+                 fn.COALESCE(fn.SUM(1 - win_status), 0).alias('loss_count')
              )
              .join(GameSide, on=(Game.id == GameSide.game))
              .join(Lineup, on=(GameSide.id == Lineup.gameside))
@@ -953,7 +953,7 @@ class Player(BaseModel):
                  (tier_filter)
              ))
         
-        return query.tuples()[0]  ## (wins: int, losses:int)
+        return query.tuples()[0]  ## (wins: int, losses: int)
 
     def leaderboard_rank(self, date_cutoff):
         # TODO: This could be replaced with Postgresql Window functions to have the DB calculate the rank.

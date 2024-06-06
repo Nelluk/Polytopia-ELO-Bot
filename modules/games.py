@@ -927,11 +927,8 @@ class polygames(commands.Cog):
         async with ctx.typing():
             content_str, embed, image, matchup_games = await self.bot.loop.run_in_executor(None, async_create_player_embed)
 
-        print(embed.fields)
         field_counter = 0
         for field in embed.fields:
-            print(field_counter, field.name, field.value)
-            print(f'next')
             field_counter += 1
         await ctx.send(content=content_str, file=image, embed=embed)
 
