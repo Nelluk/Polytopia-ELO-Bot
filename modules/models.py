@@ -2950,7 +2950,7 @@ class Game(BaseModel):
         else:
             inferred_tier = int(tier_list[0])
         
-        m = re.match(r"S(\d\d)(W|SHOWDOWN|FINALS|SEMIS)", self.name.upper().replace(' ', ''))
+        m = re.search(r"S(\d\d)\s*(W|SHOWDOWN|FINALS|SEMIS)", self.name.upper())
         old_match = re.match(r"([PJ]?)S(\d+)", self.name.upper())
 
         if not m and not old_match:
@@ -2970,7 +2970,8 @@ class Game(BaseModel):
                 game_playoffs = True if m[2] in ['FINALS', 'SEMIS'] else False
             
             for tier_num, tier_name in settings.league_tiers:
-                if tier_name.lower()[:4] in self.name.lower():
+                # look for tier string at beginning of name like 'Silver S17 W2'
+                if tier_name.lower()[:4] in self.name.lower()[:5]:
                     parsed_tier = tier_num
                     logger.debug(f'parse_name_for_season_fields: parsed tier_name {tier_name}')
                     continue
