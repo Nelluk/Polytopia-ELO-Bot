@@ -1707,7 +1707,7 @@ class polygames(commands.Cog):
         else:
             utilities.unlock_game(winning_game.id)
             if confirm_win:
-
+                logger.debug(f'in $win {winning_game.id} cleanup with confirm_win')
                 # Cleanup game channels and announce winners
                 # try/except block is attempt at a bandaid where sometimes an InterfaceError/Cursor Closed exception would hit here, probably due to issues with async code
 
@@ -1717,6 +1717,8 @@ class polygames(commands.Cog):
                     logger.error(f'Error during win command triggering post_win_messaging - trying to reopen and run again: {e}')
                     db.connect(reuse_if_open=True)
                     await post_win_messaging(ctx.guild, ctx.prefix, ctx.channel, winning_game)
+            else:
+                logger.debug(f'no confirm_win cleanup for game {winning_game.id}')
 
     @settings.in_bot_channel()
     @models.is_registered_member()
@@ -2198,6 +2200,7 @@ async def post_win_messaging(guild, prefix, current_chan, winning_game):
     await current_chan.send(f'Game concluded! Congrats **{winning_game.winner.name()}**. Roster: {" ".join(winning_game.mentions())}{reminder_message}')
     await current_chan.send(embed=embed, content=content)
 
+    logger.debug(f'calling auto_grad_novas from post_win_messaging for game {winning_game.id}')
     await auto_grad_novas(guild, winning_game, current_chan)
 
 

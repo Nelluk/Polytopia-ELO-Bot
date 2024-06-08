@@ -1373,7 +1373,6 @@ async def auto_grad_novas(guild, game, output_channel = None):
     # called from post_newgame_messaging() - check if any member of the newly-started game now meets Nova graduation requirements
 
     if guild.id not in [settings.server_ids['polychampions'], settings.server_ids['test']]:
-        logger.debug('failed guild check')
         return
     
     logger.debug(f'auto_grad_novas for game {game.id}')
@@ -1413,10 +1412,8 @@ async def auto_grad_novas(guild, game, output_channel = None):
             if game.smallest_team() > 1:
                 logger.debug('Team game')
                 if not game.is_pending:
-                    logger.debug('not pending - adding to qualifying_games')
                     qualifying_games.append(str(game.id))
                 if game.is_completed:
-                    logger.debug('is_completed - toggling on has_completed_game')
                     has_completed_game = True
 
         if len(qualifying_games) < 2:
