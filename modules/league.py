@@ -810,7 +810,7 @@ class league(commands.Cog):
         args = arg.split() if arg else []
         game = models.Game.get(135855)
         logger.debug(f'calling gtest on game {game.id}')
-        auto_grad_novas(guild=ctx.guild, game=game, output_channel=ctx)
+        await auto_grad_novas(guild=ctx.guild, game=game, output_channel=ctx)
 
         return
 
