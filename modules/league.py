@@ -1373,6 +1373,8 @@ async def auto_grad_novas(guild, game, output_channel = None):
 
     if guild.id not in [settings.server_ids['polychampions'], settings.server_ids['test']]:
         return
+    
+    logger.debug(f'auto_grad_novas for game {game.id}')
 
     role = discord.utils.get(guild.roles, name=novas_role_name)
     grad_role = discord.utils.get(guild.roles, name=grad_role_name)
