@@ -168,6 +168,61 @@ class league(commands.Cog):
 
         models.GameLog.write(guild_id=message.guild.id, is_protected=True, game_id=game.id, message=f'{models.GameLog.member_string(message.author)} posted images: {attachment_urls}')
 
+    async def update_member_league_roles(member):
+        # TODO: This is not completed - partially completed in order to fix problem of league roles needing refreshing when a team
+        # changes tier or house 
+        # Update member's managed league roles (tier and house roles). This is triggered from on_member_update
+        # if a member's -team- roles are changed, or triggered if the team they are in changes houses/tiers
+
+        logger.debug(f'update_member_league_roles for member {member.name}')
+        team_roles = get_team_roles(member.guild)
+        league_role = discord.utils.get(member.guild.roles, name=league_role_name)
+        player, team = None, None
+
+        member_team_roles = [x for x in member.roles if x in team_roles]
+
+        tier_roles = get_tier_roles(member.guild)
+        house_roles = get_house_roles(member.guild)
+
+        roles_to_remove = tier_roles + house_roles + [league_role]
+        # Remove all managed league roles, then later will add back those needed 
+        logger.debug(f'update_member_league_roles roles_to_remove: {roles_to_remove}')
+
+        if member_team_roles:
+            try:
+                player = models.Player.get_or_except(player_string=member.id, guild_id=member.guild.id)
+                team = models.Team.get_or_except(team_name=member_team_roles[0].name, guild_id=member.guild.id)
+                player.team = team
+                player.save()
+                house_name = team.house.name if team.house else None
+                team_tier = team.league_tier
+                house_role = discord.utils.get(member.guild.roles, name=house_name) if house_name else None
+                tier_role = tier_roles[team_tier - 1]
+            except exceptions.NoSingleMatch as e:
+                logger.warning(f'League.update_member_league_roles: could not load Player or Team for changing league member {member.display_name}: {e}')
+                house_name, team_tier, house_role, tier_role = None, None, None, None
+
+            roles_to_add = [house_role, tier_role, league_role]
+            logger.debug(f'roles_to_add: {roles_to_add}')
+        else:
+            roles_to_add = []  # No team role
+            logger.debug(f'no roles_to_add due to no member_team_roles')
+
+        member_roles = member.roles.copy()
+        member_roles = [r for r in member_roles if r not in roles_to_remove]
+
+        roles_to_add = [r for r in roles_to_add if r]  # remove any Nones
+
+        if roles_to_add:
+            member_roles = member_roles + roles_to_add
+
+        logger.debug(f'Attempting to update member {member.display_name} role set to {member_roles}')
+        # using member.edit() sets all the roles in one API call, much faster than using add_roles and remove_roles which uses one API call per role change, or two calls total if atomic=False
+        await member.edit(roles=member_roles, reason='Refreshing member\'s league roles')
+
+        # await utilities.send_to_log_channel(member.guild, log_message)
+
+    
     @commands.Cog.listener()
     async def on_member_update(self, before, after):
         # if a a team role ('The Ronin') is added or removed, set or remove related roles on member (League Member, Pro Player, Ronin, etc)
@@ -462,82 +517,6 @@ class league(commands.Cog):
     def delete_draft_config(self, guild_id):
         q = models.Configuration.delete().where(models.Configuration.guild_id == guild_id)
         return q.execute()
-
-
-    @settings.is_superuser_check()
-    @commands.command()
-    async def migrate_teams(self, ctx):
-
-        import re
-        pro_role_names = [a[1][0] for a in league_teams]
-        junior_role_names = [a[1][1] for a in league_teams]
-        team_role_names = [a[0] for a in league_teams]
-
-        async with ctx.typing():
-            logger.info('Migrating Polychampions teams and games')
-            poly_teams = models.Team.select().where(
-                (models.Team.guild_id == settings.server_ids['polychampions']) & (models.Team.is_hidden == 0) 
-            )
-
-            full_season_games, regular_season_games, post_season_games = models.Game.polychamps_season_games()
-            saved_counter = 0
-
-            with models.db.atomic():
-                # for team in poly_teams:
-                #     logger.info(f'Checking team {team.name}')
-                #     if team.pro_league:
-                #         team.league_tier = 2
-                #         if team.name in pro_role_names:
-                #             house_name = team_role_names[pro_role_names.index(team.name)]
-                #             house = models.House.upsert(name=house_name)
-                #             team.house = house
-                #             logger.debug(f'Associating team with house {house.name} is_archived: {team.is_archived}')
-                #         else:
-                #             logger.warn(f'No pro role for team {team.name}')
-                #     else:
-                #         team.league_tier = 3
-                #         if team.name in junior_role_names:
-                #             house_name = team_role_names[junior_role_names.index(team.name)]
-                #             house = models.House.upsert(name=house_name)
-                #             team.house = house
-                #             logger.debug(f'Associating team with house {house.name}')
-                #         else:
-                #             logger.warn(f'No junior role for team {team.name} - is_archived: {team.is_archived}')
-                #     logger.info(f'Setting team {team.name} tier to {team.league_tier}')
-                #     team.save()
-
-
-
-                for rsgame in full_season_games:
-                    logger.info(f'Checking {rsgame.id} {rsgame.name}')
-                    # rsgame.league_playoff = False
-                    m = re.match(r"([PJ]?)S(\d+)", rsgame.name.upper())
-                    if not m:
-                        logger.warn(f'Could not parse name for game {rsgame.id} {rsgame.name}, skipping')
-                        continue
-                    season = int(m[2])
-                    if season <= 4:
-                        league = 'P'
-                    else:
-                        league = m[1].upper()
-                    if league == 'P':
-                        tier = 2
-                    elif league == 'J':
-                        tier = 3
-                    else:
-                        logger.warn(f'Could not detect season status for game {rsgame.id}')
-                        continue
-
-                    if rsgame in post_season_games:
-                        rsgame.league_playoff = True
-                    logger.info(f'Setting game {rsgame.id} {rsgame.name} to tier {tier} and season {season} playoff {rsgame.league_playoff}')
-                    rsgame.league_tier = tier
-                    rsgame.league_season = season
-                    rsgame.save()
-                    saved_counter += 1
-
-            await ctx.send(f'Updated database fields for {saved_counter} out of {len(full_season_games)} possible games')  
-
     
     @commands.command(usage=None)
     @settings.is_mod_check()
@@ -829,9 +808,9 @@ class league(commands.Cog):
     @settings.is_mod_check()
     async def gtest(self, ctx, *, arg=None):
         args = arg.split() if arg else []
-        print(get_house_roles())
-        house_roles = [hr for hr in get_house_roles() if hr and hr.name == 'Ronin']
-        print(house_roles)
+        game = models.Game.get(135855)
+        auto_grad_novas(guild=ctx.guild, game=game, output_channel=ctx)
+
         return
 
         # total_games = (models.GameSide
@@ -1426,10 +1405,14 @@ async def auto_grad_novas(guild, game, output_channel = None):
 
         for lineup in player.games_played():
             game = lineup.game
+            logger.debug(f'Evaluating game {game.id} is_pending {game.is_pending} is_completed {game.is_completed}')
             if game.smallest_team() > 1:
+                logger.debug('Team game')
                 if not game.is_pending:
+                    logger.debug('not pending - adding to qualifying_games')
                     qualifying_games.append(str(game.id))
                 if game.is_completed:
+                    logger.debug('is_completed - toggling on has_completed_game')
                     has_completed_game = True
 
         if len(qualifying_games) < 2:
