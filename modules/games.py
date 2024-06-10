@@ -2190,6 +2190,9 @@ async def post_win_messaging(guild, prefix, current_chan, winning_game):
     for l in winning_game.lineup:
         await achievements.set_experience_role(l.player.discord_member)
 
+    logger.debug(f'calling auto_grad_novas from post_win_messaging for game {winning_game.id}')
+    await auto_grad_novas(guild, winning_game, current_chan)
+    
     if settings.guild_setting(guild.id, 'game_announce_channel') is not None:
         channel = guild.get_channel(settings.guild_setting(guild.id, 'game_announce_channel'))
         if channel is not None:
@@ -2199,9 +2202,6 @@ async def post_win_messaging(guild, prefix, current_chan, winning_game):
 
     await current_chan.send(f'Game concluded! Congrats **{winning_game.winner.name()}**. Roster: {" ".join(winning_game.mentions())}{reminder_message}')
     await current_chan.send(embed=embed, content=content)
-
-    logger.debug(f'calling auto_grad_novas from post_win_messaging for game {winning_game.id}')
-    await auto_grad_novas(guild, winning_game, current_chan)
 
 
 async def post_unwin_messaging(guild, prefix, current_chan, game, previously_confirmed: bool = False):
