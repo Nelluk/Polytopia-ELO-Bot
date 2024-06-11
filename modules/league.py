@@ -680,7 +680,7 @@ class league(commands.Cog):
         
         # members, players = utilities.active_members_and_players(ctx.guild, active_role_name=house.name, inactive_role_name=settings.guild_setting(ctx.guild.id, 'inactive_role'))
 
-        leaders, coleaders, recruiters = [], [], []
+        leaders, coleaders, recruiters, captains = [], [], [], []
         
         house_role = utilities.guild_role_by_name(ctx.guild, name=house.name, allow_partial=False)
         leader_role = utilities.guild_role_by_name(ctx.guild, name=leader_role_name, allow_partial=False)
@@ -704,24 +704,24 @@ class league(commands.Cog):
                     coleaders.append(f'{em(member.display_name)} ({member.mention})')
                 if recruiter_role in member.roles:
                     recruiters.append(f'{em(member.display_name)} ({member.mention})')
+                if captain_role in member.roles:
+                    captains.append(f'{em(member.display_name)} ({member.mention})')
 
         message_list.append(f'**Leaders**: {", ".join(leaders)}')
         message_list.append(f'\n**Co-Leaders**: {", ".join(coleaders)}')
         message_list.append(f'\n**Recruiters**: {", ".join(recruiters)}')
+        if captains:
+            message_list.append(f'\n**Captains**: {", ".join(captains)}')
 
         for team in house_teams:
-            captains, player_list = [], []
+            player_list = [], []
             tier_name = settings.tier_lookup(team.league_tier)[1]
             team_role = utilities.guild_role_by_name(ctx.guild, name=team.name, allow_partial=False)
             message_list.append(f'\n__{tier_name} Tier Team__ {team_role.mention if team_role else team.name} {team.emoji} `{team.elo} ELO`')
 
             members, players = await utilities.active_members_and_players(ctx.guild, active_role_name=team.name, inactive_role_name=settings.guild_setting(ctx.guild.id, 'inactive_role'))
             for member, player in zip(members, players):
-                if captain_role in member.roles:
-                    captains.append(f'{em(member.display_name)} ({member.mention})')
                 player_list.append(f'{em(member.display_name)} `{player.elo_moonrise}`')
-            if captains:
-                message_list.append(f'**Team Captains**: {", ".join(captains)}')
             message_list = message_list + player_list
         
         async with ctx.typing():
