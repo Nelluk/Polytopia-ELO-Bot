@@ -714,7 +714,7 @@ class league(commands.Cog):
             message_list.append(f'\n**Captains**: {", ".join(captains)}')
 
         for team in house_teams:
-            player_list = [], []
+            player_list = []
             tier_name = settings.tier_lookup(team.league_tier)[1]
             team_role = utilities.guild_role_by_name(ctx.guild, name=team.name, allow_partial=False)
             message_list.append(f'\n__{tier_name} Tier Team__ {team_role.mention if team_role else team.name} {team.emoji} `{team.elo} ELO`')
