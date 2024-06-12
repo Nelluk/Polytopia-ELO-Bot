@@ -848,11 +848,12 @@ class league(commands.Cog):
             models.GameLog.write(guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} set the House affiliation of Team {team.name} to {new_house_name} from {old_house_name}')
             tier_warning = '' if team.league_tier else f'\n:warning:Team tier not set. You probably want to set one with `{ctx.prefix}team_tier`'
             
-            for member in team_role.members:
-                logger.debug(f'team_edit updating league roles for member {member.display_name}')
-                await update_member_league_roles(member)
+            async with ctx.typing():
+                for member in team_role.members:
+                    logger.debug(f'team_edit updating league roles for member {member.display_name}')
+                    await update_member_league_roles(member)
 
-            return await ctx.send(f'Changed House affiliation of team  **{team.name}** to {new_house_name}. Previous affiliation was "{old_house_name}".{tier_warning}')
+                return await ctx.send(f'Changed House affiliation of team  **{team.name}** to {new_house_name}. Previous affiliation was "{old_house_name}".{tier_warning}. Team members have had their House roles refreshed.')
 
         if ctx.invoked_with == 'team_tier':
             try:
@@ -869,11 +870,12 @@ class league(commands.Cog):
             team.save()
             models.GameLog.write(guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} set the league tier of Team {team.name} to {new_tier} from {old_tier}')
             
-            for member in team_role.members:
-                logger.debug(f'team_edit updating league roles for member {member.display_name}')
-                await update_member_league_roles(member)
-                
-            return await ctx.send(f'Changed league tier of team  **{team.name}** to {new_tier_name} ({new_tier}). Previous tier was {old_tier}.')
+            async with ctx.typing():
+                for member in team_role.members:
+                    logger.debug(f'team_edit updating league roles for member {member.display_name}')
+                    await update_member_league_roles(member)
+
+                return await ctx.send(f'Changed league tier of team  **{team.name}** to {new_tier_name} ({new_tier}). Previous tier was {old_tier}. Team members have had their tier roles refreshed.')
 
         if ctx.invoked_with == 'team_edit' and args[1] == 'ARCHIVE':
             logger.debug(f'Attempting to archive team {team.name}')
