@@ -124,6 +124,60 @@ def get_team_leadership(team):
     # logger.debug(f'get_team_leadership: leaders {leaders} coleaders {coleaders} recruiters {recruiters} captains {captains}')
     return leaders, coleaders, recruiters, captains
 
+async def update_member_league_roles(member):
+    # TODO: This is not completed - partially completed in order to fix problem of league roles needing refreshing when a team
+    # changes tier or house 
+    # Update member's managed league roles (tier and house roles). This is triggered from on_member_update
+    # if a member's -team- roles are changed, or triggered if the team they are in changes houses/tiers
+
+    logger.debug(f'update_member_league_roles for member {member.name}')
+    team_roles = get_team_roles(member.guild)
+    league_role = discord.utils.get(member.guild.roles, name=league_role_name)
+    player, team = None, None
+
+    member_team_roles = [x for x in member.roles if x in team_roles]
+
+    tier_roles = get_tier_roles(member.guild)
+    house_roles = get_house_roles(member.guild)
+
+    roles_to_remove = tier_roles + house_roles + [league_role]
+    # Remove all managed league roles, then later will add back those needed 
+    logger.debug(f'update_member_league_roles roles_to_remove: {roles_to_remove}')
+
+    if member_team_roles:
+        if len(member_team_roles) > 1:
+            logger.warning(f'League.update_member_league_roles - more than one team role. Updated based on the first one found')
+        try:
+            player = models.Player.get_or_except(player_string=member.id, guild_id=member.guild.id)
+            team = models.Team.get_or_except(team_name=member_team_roles[0].name, guild_id=member.guild.id)
+            player.team = team
+            player.save()
+            house_name = team.house.name if team.house else None
+            team_tier = team.league_tier
+            house_role = discord.utils.get(member.guild.roles, name=house_name) if house_name else None
+            tier_role = tier_roles[team_tier - 1]
+        except exceptions.NoSingleMatch as e:
+            logger.warning(f'League.update_member_league_roles: could not load Player or Team for changing league member {member.display_name}: {e}')
+            house_name, team_tier, house_role, tier_role = None, None, None, None
+
+        roles_to_add = [house_role, tier_role, league_role]
+        logger.debug(f'roles_to_add: {roles_to_add}')
+    else:
+        roles_to_add = []  # No team role
+        logger.debug(f'no roles_to_add due to no member_team_roles')
+
+    member_roles = member.roles.copy()
+    member_roles = [r for r in member_roles if r not in roles_to_remove]
+
+    roles_to_add = [r for r in roles_to_add if r]  # remove any Nones
+
+    if roles_to_add:
+        member_roles = member_roles + roles_to_add
+
+    logger.debug(f'Attempting to update member {member.display_name} role set to {member_roles} from old roles {member.roles}')
+    # using member.edit() sets all the roles in one API call, much faster than using add_roles and remove_roles which uses one API call per role change, or two calls total if atomic=False
+    await member.edit(roles=member_roles, reason='Refreshing member\'s league roles')
+
 
 class league(commands.Cog):
     """
@@ -167,61 +221,6 @@ class league(commands.Cog):
         attachment_urls = '\n'.join([attachment.url for attachment in message.attachments])
 
         models.GameLog.write(guild_id=message.guild.id, is_protected=True, game_id=game.id, message=f'{models.GameLog.member_string(message.author)} posted images: {attachment_urls}')
-
-    async def update_member_league_roles(member):
-        # TODO: This is not completed - partially completed in order to fix problem of league roles needing refreshing when a team
-        # changes tier or house 
-        # Update member's managed league roles (tier and house roles). This is triggered from on_member_update
-        # if a member's -team- roles are changed, or triggered if the team they are in changes houses/tiers
-
-        logger.debug(f'update_member_league_roles for member {member.name}')
-        team_roles = get_team_roles(member.guild)
-        league_role = discord.utils.get(member.guild.roles, name=league_role_name)
-        player, team = None, None
-
-        member_team_roles = [x for x in member.roles if x in team_roles]
-
-        tier_roles = get_tier_roles(member.guild)
-        house_roles = get_house_roles(member.guild)
-
-        roles_to_remove = tier_roles + house_roles + [league_role]
-        # Remove all managed league roles, then later will add back those needed 
-        logger.debug(f'update_member_league_roles roles_to_remove: {roles_to_remove}')
-
-        if member_team_roles:
-            try:
-                player = models.Player.get_or_except(player_string=member.id, guild_id=member.guild.id)
-                team = models.Team.get_or_except(team_name=member_team_roles[0].name, guild_id=member.guild.id)
-                player.team = team
-                player.save()
-                house_name = team.house.name if team.house else None
-                team_tier = team.league_tier
-                house_role = discord.utils.get(member.guild.roles, name=house_name) if house_name else None
-                tier_role = tier_roles[team_tier - 1]
-            except exceptions.NoSingleMatch as e:
-                logger.warning(f'League.update_member_league_roles: could not load Player or Team for changing league member {member.display_name}: {e}')
-                house_name, team_tier, house_role, tier_role = None, None, None, None
-
-            roles_to_add = [house_role, tier_role, league_role]
-            logger.debug(f'roles_to_add: {roles_to_add}')
-        else:
-            roles_to_add = []  # No team role
-            logger.debug(f'no roles_to_add due to no member_team_roles')
-
-        member_roles = member.roles.copy()
-        member_roles = [r for r in member_roles if r not in roles_to_remove]
-
-        roles_to_add = [r for r in roles_to_add if r]  # remove any Nones
-
-        if roles_to_add:
-            member_roles = member_roles + roles_to_add
-
-        logger.debug(f'Attempting to update member {member.display_name} role set to {member_roles}')
-        # using member.edit() sets all the roles in one API call, much faster than using add_roles and remove_roles which uses one API call per role change, or two calls total if atomic=False
-        await member.edit(roles=member_roles, reason='Refreshing member\'s league roles')
-
-        # await utilities.send_to_log_channel(member.guild, log_message)
-
     
     @commands.Cog.listener()
     async def on_member_update(self, before, after):
@@ -235,12 +234,8 @@ class league(commands.Cog):
         if after.guild.id not in [settings.server_ids['polychampions'], settings.server_ids['test']]:
             return
 
+        # Check to see if Team roles changed
         team_roles = get_team_roles(after.guild)
-        league_role = discord.utils.get(after.guild.roles, name=league_role_name)
-        # pro_member_role = discord.utils.get(after.guild.roles, name=pro_member_role_name)
-        # jr_member_role = discord.utils.get(after.guild.roles, name=jr_member_role_name)
-        player, team = None, None
-
         before_member_team_roles = [x for x in before.roles if x in team_roles]
         member_team_roles = [x for x in after.roles if x in team_roles]
 
@@ -248,44 +243,16 @@ class league(commands.Cog):
             return
 
         if len(member_team_roles) > 1:
+            # If member has two team roles, usually they are in the process of having their roles edited in the UI
             return logger.debug(f'Member has more than one team role. Abandoning League.on_member_update. {member_team_roles}')
 
-        tier_roles = get_tier_roles(after.guild)
-        house_roles = get_house_roles(after.guild)
-        roles_to_remove =  tier_roles + house_roles + [league_role]
-        logger.debug(f'on_member_update roles_to_remove: {roles_to_remove}')
+        await update_member_league_roles(after)
+        # Edit after.roles with Tier/House roles that reflect current Team
 
         if member_team_roles:
-            try:
-                player = models.Player.get_or_except(player_string=after.id, guild_id=after.guild.id)
-                team = models.Team.get_or_except(team_name=member_team_roles[0].name, guild_id=after.guild.id)
-                player.team = team
-                player.save()
-                house_name = team.house.name if team.house else None
-                team_tier = team.league_tier
-                house_role = discord.utils.get(after.guild.roles, name=house_name) if house_name else None
-                tier_role = tier_roles[team_tier - 1]
-            except exceptions.NoSingleMatch as e:
-                logger.warning(f'League.on_member_update: could not load Player or Team for changing league member {after.display_name}: {e}')
-                house_name, team_tier, house_role, tier_role = None, None, None, None
-
-            roles_to_add = [house_role, tier_role, league_role]
-            log_message = f'{models.GameLog.member_string(after)} had tier {team_tier} team role **{member_team_roles[0].name}** added.'
+            log_message = f'{models.GameLog.member_string(after)} had team role **{member_team_roles[0].name}** added.'
         else:
-            roles_to_add = []  # No team role
             log_message = f'{models.GameLog.member_string(after)} had team role **{before_member_team_roles[0].name}** removed and is teamless.'
-
-        member_roles = after.roles.copy()
-        member_roles = [r for r in member_roles if r not in roles_to_remove]
-
-        roles_to_add = [r for r in roles_to_add if r]  # remove any Nones
-        logger.debug(f'on_member_update roles_to_add: {roles_to_add}')
-        if roles_to_add:
-            member_roles = member_roles + roles_to_add
-
-        logger.debug(f'Attempting to update member {after.display_name} role set to {member_roles}')
-        # using member.edit() sets all the roles in one API call, much faster than using add_roles and remove_roles which uses one API call per role change, or two calls total if atomic=False
-        await after.edit(roles=member_roles, reason='Detected change in team membership')
 
         await utilities.send_to_log_channel(after.guild, log_message)
         models.GameLog.write(guild_id=after.guild.id, message=log_message)
@@ -857,6 +824,8 @@ class league(commands.Cog):
             return await ctx.send(e)
         
         logger.debug(f'Loaded team {team.name} for editing')
+        team_role = utilities.guild_role_by_name(ctx.guild, name=team.name, allow_partial=False)
+
         if team.is_archived:
             logger.warn('Team is_archive is True')
             return await ctx.send(f'Team **{team.name}** is **archived**. If it *really* needs to be unarchived, ask the bot owner.')
@@ -878,6 +847,11 @@ class league(commands.Cog):
             team.save()
             models.GameLog.write(guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} set the House affiliation of Team {team.name} to {new_house_name} from {old_house_name}')
             tier_warning = '' if team.league_tier else f'\n:warning:Team tier not set. You probably want to set one with `{ctx.prefix}team_tier`'
+            
+            for member in team_role.members:
+                logger.debug(f'team_edit updating league roles for member {member.display_name}')
+                await update_member_league_roles(member)
+
             return await ctx.send(f'Changed House affiliation of team  **{team.name}** to {new_house_name}. Previous affiliation was "{old_house_name}".{tier_warning}')
 
         if ctx.invoked_with == 'team_tier':
@@ -894,6 +868,11 @@ class league(commands.Cog):
             team.league_tier = new_tier
             team.save()
             models.GameLog.write(guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} set the league tier of Team {team.name} to {new_tier} from {old_tier}')
+            
+            for member in team_role.members:
+                logger.debug(f'team_edit updating league roles for member {member.display_name}')
+                await update_member_league_roles(member)
+                
             return await ctx.send(f'Changed league tier of team  **{team.name}** to {new_tier_name} ({new_tier}). Previous tier was {old_tier}.')
 
         if ctx.invoked_with == 'team_edit' and args[1] == 'ARCHIVE':
