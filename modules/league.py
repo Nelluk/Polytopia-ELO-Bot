@@ -23,34 +23,11 @@ grad_role_name = 'Nova Grad'           # met graduation requirements and is elig
 free_agent_role_name = 'Free Agent'    # signed up for a prior draft but did not get drafted
 novas_role_name = 'The Novas'          # Umbrella newbie role that all of above should also have
 league_role_name = 'League Member'     # Umbrella role for all Pro+Junior members
-pro_member_role_name = 'Pro Player'    # Umbrella role for all Pro members
-jr_member_role_name = 'Junior Player'  # Umbrella role for all Junior memebrs
 pc_emoji = '<:PolyChampions:488510815893323787>'
 leader_role_name = 'House Leader'
 coleader_role_name = 'House Co-Leader'
 recruiter_role_name = 'House Recruiter'
 captain_role_name = 'Team Captain'
-
-
-
-league_teams = [
-    ('Ronin', ['The Ronin', 'The Bandits']),
-    ('Jets', ['The Jets', 'The Cropdusters']),
-    # ('Bombers', ['The Bombers', 'The Dynamite']),
-    ('Lightning', ['The Lightning', 'The ThunderCats']),
-    ('Vikings', ['The Vikings', 'The Valkyries']),
-    # ('Crawfish', ['The Crawfish', 'The Shrimps']),
-    # ('Sparkies', ['The Sparkies', 'The Pups']),
-    ('Wildfire', ['The Wildfire', 'The Flames']),
-    # ('Mallards', ['The Mallards', 'The Drakes']),
-    # ('OldPlague', ['The OldPlague', 'The Rats']),
-    ('Dragons', ['The Dragons', 'The Narwhals']),
-    # ('Jalapenos', ['The OldReapers', 'The Jalapenos']),
-    ('Kraken', ['The Kraken', 'The Squids']),
-    ('ArcticWolves', ['The ArcticWolves', 'The Huskies']),
-    ('Plague', ['The Plague', 'The Reapers']),
-    ('Tempest', ['The Tempest', 'The Rainclouds']),
-] ## TODO: Should be able to remove this hardcoding with May 2024 changes - will need to update the code that relies on this
 
 league_team_channels = []
 
@@ -694,7 +671,7 @@ class league(commands.Cog):
         async with ctx.typing():
             await utilities.buffered_send(destination=ctx, content='\n'.join(message_list), allowed_mentions=discord.AllowedMentions(everyone=False, users=False, roles=False))
 
-    @commands.command(usage='')
+    @commands.command(usage='', aliases=['balance'])
     @settings.in_bot_channel()
     @commands.cooldown(1, 5, commands.BucketType.channel)
     async def houses(self, ctx, *, arg=None):
@@ -894,120 +871,6 @@ class league(commands.Cog):
         
         return await ctx.send(f'See `{ctx.prefix}help {ctx.invoked_with}` for usage examples. Teams and Houses must be each identified by a single word.')
     
-    @commands.command(aliases=['league_balance'])
-    @settings.in_bot_channel()
-    @commands.cooldown(1, 5, commands.BucketType.channel)
-    async def balance(self, ctx, *, arg=None):
-        """ Print some stats on PolyChampions league balance
-
-            Default sort is the Draft Score. Include arguments d2 or d3 or d4 to see alternate draft scores.
-            ie: `[p]balance d3`
-        """
-        # import statistics
-
-        league_balance = []
-        indent_str = '\u00A0\u00A0 \u00A0\u00A0 \u00A0\u00A0'
-        guild_id = settings.server_ids['polychampions']
-        mia_role = discord.utils.get(ctx.guild.roles, name=settings.guild_setting(guild_id, 'inactive_role'))
-        # season_inactive_role = discord.utils.get(ctx.guild.roles, name='Season Inactive')
-
-        draft_str = 'combined alltime local ELO of top 10 players (Senior or Junior)'
-
-        async with ctx.typing():
-            for team, team_roles in league_teams:
-
-                pro_role = discord.utils.get(ctx.guild.roles, name=team_roles[0])
-                junior_role = discord.utils.get(ctx.guild.roles, name=team_roles[1])
-                junior_only_handicap = False  # Set to true for teams with a junior team but no pro team (Jalapenos)
-
-                if pro_role:
-                    pro_role_members = pro_role.members
-                else:
-                    logger.debug(f'Could not load pro role matching {team_roles[0]}')
-                    pro_role_members = []
-                if junior_role:
-                    junior_role_members = junior_role.members
-                    if not pro_role:
-                        junior_only_handicap = True
-                else:
-                    logger.warning(f'Could not load junior role matching {team_roles[1]} - skipping loop')
-                    continue
-
-                try:
-                    if junior_only_handicap:
-                        pro_team = None
-                    else:
-                        pro_team = models.Team.get_or_except(team_roles[0], guild_id)
-                    junior_team = models.Team.get_or_except(team_roles[1], guild_id)
-                except exceptions.NoSingleMatch:
-                    logger.warning(f'Could not load one team from database, using args: {team_roles}')
-                    continue
-
-                pro_members, junior_members, pro_discord_ids, junior_discord_ids, mia_count = [], [], [], [], 0
-
-                logger.debug(f'Processing team matching {team_roles[0]} {team_roles[1]}')
-                for member in pro_role_members:
-                    if mia_role in member.roles:
-                        mia_count += 1
-                    else:
-                        pro_members.append(member)
-                        pro_discord_ids.append(member.id)
-                for member in junior_role_members:
-                    if mia_role in member.roles:
-                        mia_count += 1
-                    else:
-                        junior_members.append(member)
-                        junior_discord_ids.append(member.id)
-
-                combined_elo, player_games_total = models.Player.average_elo_of_player_list(list_of_discord_ids=junior_discord_ids + pro_discord_ids, guild_id=guild_id, weighted=True)
-
-                pro_elo, _ = models.Player.average_elo_of_player_list(list_of_discord_ids=pro_discord_ids, guild_id=guild_id, weighted=False)
-                junior_elo, _ = models.Player.average_elo_of_player_list(list_of_discord_ids=junior_discord_ids, guild_id=guild_id, weighted=False)
-
-                sorted_elo_list = models.Player.discord_ids_to_elo_list(list_of_discord_ids=junior_discord_ids + pro_discord_ids, guild_id=guild_id)
-                draft_score = sum(sorted_elo_list[:10])
-                logger.debug(f'sorted_elo_list: {sorted_elo_list}')
-                if junior_only_handicap:
-                    logger.debug('Applying 20% junior_only_handicap')
-                    draft_score = int(draft_score * 1.2)
-                logger.debug(f'draft_score: {draft_score}')
-                league_balance.append(
-                    (team,  # 0
-                     pro_team,  # 1
-                     junior_team,  # 2
-                     len(pro_members),  # 3
-                     len(junior_members),  # 4
-                     mia_count,  # 5
-                     combined_elo,  # 6
-                     player_games_total,  # 7
-                     pro_elo,  # 8
-                     junior_elo,  # 9
-                     draft_score)  # 10
-                )
-
-        league_balance.sort(key=lambda tup: tup[10], reverse=True)     # sort by draft score
-
-        embed = discord.Embed(title='PolyChampions League Balance Summary')
-        for team in league_balance:
-            if team[1]:
-                # normal pro+junior entry
-                field_name = (f'{team[1].emoji} {team[0]} ({team[3] + team[4]}) {team[2].emoji}\n{indent_str} \u00A0\u00A0 ActiveELO™: {team[6]}'
-                                  f' \u00A0 - \u00A0  Draft Score: {team[10]}'
-                                  f'\n{indent_str} \u00A0\u00A0 Recent member-games: {team[7]}')
-                field_value = (f'-{indent_str}__**{team[1].name}**__ ({team[3]}) **ELO: {team[1].elo}** (Avg: {team[8]})\n'
-                       f'-{indent_str}__**{team[2].name}**__ ({team[4]}) **ELO: {team[2].elo}** (Avg: {team[9]})\n')
-            else:
-                # junior only entry
-                field_name = (f'{team[2].emoji} {team[0]} ({team[3] + team[4]}) {team[2].emoji}\n{indent_str} \u00A0\u00A0 ActiveELO™: {team[6]}'
-                                  f' \u00A0 - \u00A0  Draft Score: {team[10]}'
-                                  f'\n{indent_str} \u00A0\u00A0 Recent member-games: {team[7]}')
-                field_value = (f'-{indent_str}__**{team[2].name}**__ ({team[4]}) **ELO: {team[2].elo}** (Avg: {team[9]})\n')
-
-            embed.add_field(name=field_name, value=field_value, inline=False)
-
-        embed.set_footer(text=f'ActiveELO™ is the mean ELO of members weighted by how many games each member has played in the last 30 days. Draft Score is {draft_str}.')
-
-        await ctx.send(embed=embed)
 
     @commands.command(aliases=['jrseason', 'ps', 'js', 'seasonjr'], usage='[season #]')
     @settings.in_bot_channel()
