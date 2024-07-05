@@ -659,6 +659,9 @@ class administration(commands.Cog):
         except exceptions.NoSingleMatch as ex:
             return await ctx.send(f'{ex}\nExample: `{ctx.prefix}team_name \"Current name\" \"New Team Name\"`')
 
+        if len(new_team_name) < 5:
+            return await ctx.send(f'New team name needs to be at least 5 characters long. Be sure to enclose the name "In Quotation Marks" if it includes spaces.')
+        
         old_name = team.name
         team.name = new_team_name
         team.save()
