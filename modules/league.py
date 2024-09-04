@@ -28,6 +28,7 @@ leader_role_name = 'House Leader'
 coleader_role_name = 'House Co-Leader'
 recruiter_role_name = 'House Recruiter'
 captain_role_name = 'Team Captain'
+house_preference_channel_id = 1279094157624741889
 
 league_team_channels = []
 
@@ -169,7 +170,7 @@ class league(commands.Cog):
     season_standings_cache = {}
     last_team_elos = defaultdict(lambda: [])
 
-    draft_open_format_str = f'The league is now open for Free Agent signups! {{0}}s can react with a {emoji_draft_signup} below to sign up. {{1}} who have not graduated have until the end of the signup period to meet requirements and sign up.\n\n{{2}}'
+    draft_open_format_str = f'The league is now open for Free Agent signups! {{0}}s can react with a {emoji_draft_signup} below to sign up. {{1}} who have not graduated have until the end of the signup period to meet requirements and sign up. Once you have the {{2}} role, you may react in <#{house_preference_channel_id}>\n\n{{3}}'
     draft_closed_message = f'The league is closed to new Free Agent signups. Mods can use the {emoji_draft_conclude} reaction to clean up and delete this message.'
 
     def __init__(self, bot):
@@ -357,6 +358,7 @@ class league(commands.Cog):
         logger.debug(f'Draft close reaction added by {member.name} to draft announcement {announce_message_link}')
         grad_role = discord.utils.get(member.guild.roles, name=grad_role_name)
         novas_role = discord.utils.get(member.guild.roles, name=novas_role_name)
+        free_agent_role = discord.utils.get(member.guild.roles, name=free_agent_role_name)
 
         try:
             await message.remove_reaction(self.emoji_draft_close, member)
@@ -374,7 +376,7 @@ class league(commands.Cog):
             log_message = f'Draft status closed by {member.mention}'
             draft_config['draft_open'] = False
         else:
-            new_message = self.draft_open_format_str.format(grad_role.mention, novas_role.mention, draft_config['draft_message'])
+            new_message = self.draft_open_format_str.format(grad_role.mention, novas_role.mention, free_agent_role.mention, draft_config['draft_message'])
             log_message = f'Draft status opened by {member.mention}'
             draft_config['draft_open'] = True
 
@@ -521,8 +523,9 @@ class league(commands.Cog):
 
         grad_role = discord.utils.get(ctx.guild.roles, name=grad_role_name)
         novas_role = discord.utils.get(ctx.guild.roles, name=novas_role_name)
+        free_agent_role = discord.utils.get(ctx.guild.roles, name=free_agent_role_name)
 
-        formatted_message = self.draft_open_format_str.format(grad_role.mention, novas_role.mention, added_message)
+        formatted_message = self.draft_open_format_str.format(grad_role.mention, novas_role.mention, free_agent_role.mention, added_message)
         announcement_message = await announcement_channel.send(formatted_message)
 
         await announcement_message.add_reaction(self.emoji_draft_signup)
