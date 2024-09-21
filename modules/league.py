@@ -28,7 +28,6 @@ leader_role_name = 'House Leader'
 coleader_role_name = 'House Co-Leader'
 recruiter_role_name = 'House Recruiter'
 captain_role_name = 'Team Captain'
-house_preference_channel_id = 1279094157624741889
 
 league_team_channels = []
 
@@ -170,7 +169,7 @@ class league(commands.Cog):
     season_standings_cache = {}
     last_team_elos = defaultdict(lambda: [])
 
-    draft_open_format_str = f'The league is now open for Free Agent signups! {{0}}s can react with a {emoji_draft_signup} below to sign up. {{1}} who have not graduated have until the end of the signup period to meet requirements and sign up. Once you have the {{2}} role, you may react in <#{house_preference_channel_id}>\n\n{{3}}'
+    draft_open_format_str = f'The league is now open for Free Agent signups! {{0}}s can react with a {emoji_draft_signup} below to sign up. {{1}} who have not graduated have until the end of the signup period to meet requirements and sign up. If a **Free Agent** has a strong preference for a team, please send a message to <@742114523808399420> to let Mods know.\n\n{{3}}'
     draft_closed_message = f'The league is closed to new Free Agent signups. Mods can use the {emoji_draft_conclude} reaction to clean up and delete this message.'
 
     def __init__(self, bot):
