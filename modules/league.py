@@ -180,6 +180,7 @@ class league(commands.Cog):
 
         if settings.run_tasks:
             self.task_send_polychamps_invite.start()
+            self.task_draft_reminders.start()
 
     async def cog_check(self, ctx):
         return ctx.guild.id == settings.server_ids['polychampions'] or ctx.guild.id == settings.server_ids['test']
@@ -1095,7 +1096,34 @@ class league(commands.Cog):
             await ctx.send(f'{ctx.author.mention}, your export is complete. Wrote to `{filename}`', file=file)
 
 
-    
+    @tasks.loop(hours=1)  # Check every hour
+    async def task_draft_reminders(self):
+        now = datetime.now(datetime.timezone.utc)
+        channel_id = 447883341463814146  # mod-talk
+        channel = self.bot.get_channel(channel_id)
+
+        # Get the week number of the year (ISO week number)
+        week_num = now.isocalendar()[1]  # This returns a tuple: (year, week number, weekday)
+
+        if not channel:
+            logger.error(f"Could not find reminder channel with ID {channel_id}")
+            return
+
+        # Check if it's between 12:00 PM and 12:59 PM GMT
+        if now.hour == 12:
+            if now.weekday() == 0 and week_num % 2 == 0:  # Every other Monday
+                await channel.send(f"@here Reminder: It's time to open the draft signups. Use the `{self.bot.command_prefix}newfreeagent` command to start the process.")
+                logger.info("Sent reminder to open draft signups")
+            
+            elif now.weekday() == 4 and week_num % 2 == 0:  # The following Friday
+                await channel.send(f"@here Reminder: It's time to close the draft signups. Please review and close the current draft.")
+                logger.info("Sent reminder to close draft signups")
+            else:
+                logger.debug("Not the correct day to send a reminder")
+        else:
+            logger.debug(f"Not the correct time of day to send a reminder: {now.hour} hours")
+
+
     @tasks.loop(minutes=120.0)
     async def task_send_polychamps_invite(self):
         await self.bot.wait_until_ready()
