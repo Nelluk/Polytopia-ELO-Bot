@@ -1097,7 +1097,8 @@ class league(commands.Cog):
 
     @tasks.loop(hours=1)  # Check every hour
     async def task_draft_reminders(self):
-        now = datetime.now(datetime.timezone.utc)
+        await self.bot.wait_until_ready()
+        now = datetime.datetime.now()
         channel_id = 447883341463814146  # mod-talk
         channel = self.bot.get_channel(channel_id)
 
