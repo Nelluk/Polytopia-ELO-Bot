@@ -1103,7 +1103,8 @@ class league(commands.Cog):
 
         # Get the week number of the year (ISO week number)
         week_num = now.isocalendar()[1]  # This returns a tuple: (year, week number, weekday)
-
+        logger.debug(f"Running task_draft_reminders: {now.hour} hours, {now.weekday()} days, {week_num} weeks")
+        
         if not channel:
             logger.error(f"Could not find reminder channel with ID {channel_id}")
             return
