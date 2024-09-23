@@ -1113,7 +1113,7 @@ class league(commands.Cog):
         # Check if it's between 12:00 PM and 12:59 PM GMT
         if now.hour == 12:
             if now.weekday() == 0 and week_num % 2 == 1:  # Every other Monday
-                await channel.send(f"@here Reminder: It's time to open the draft signups. Use the `{self.bot.command_prefix}newfreeagent` command to start the process.")
+                await channel.send(f"@here Reminder: It's time to open the draft signups. Use the `$newfreeagent` command to start the process.")
                 logger.info("Sent reminder to open draft signups")
             
             elif now.weekday() == 4 and week_num % 2 == 1:  # The following Friday
