@@ -167,7 +167,10 @@ async def greet_game_channel(guild, chan, roster_names, game, player_list, full_
             f'The teams for this game are:\n{roster_names}\n\n'
             f'{match_content}'
             '*This channel will self-destruct soon after the game is marked as concluded.*')
-
+    
+    if 'nova' in game.name.lower():
+        greeting_message += 'Welcome to the Nova players! In the future this space will have some great tips to help onboard you to the league.'
+   
     try:
         await chan.send(greeting_message)
         await chan.edit(topic=greeting_message[:1024], reason='Add topic')
