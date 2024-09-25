@@ -168,7 +168,7 @@ async def greet_game_channel(guild, chan, roster_names, game, player_list, full_
             f'{match_content}'
             '*This channel will self-destruct soon after the game is marked as concluded.*')
     
-    if 'nova' in game.name.lower():
+    if 'nova' in game.name.lower() or 'nova' in game.notes.lower():
         greeting_message += 'Welcome to the Nova players! In the future this space will have some great tips to help onboard you to the league.'
    
     try:
