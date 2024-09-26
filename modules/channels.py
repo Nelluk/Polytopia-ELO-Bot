@@ -169,11 +169,18 @@ async def greet_game_channel(guild, chan, roster_names, game, player_list, full_
             '*This channel will self-destruct soon after the game is marked as concluded.*')
     
     if 'nova' in game.name.lower() or 'nova' in game.notes.lower():
-        greeting_message += 'Welcome to the Nova players! In the future this space will have some great tips to help onboard you to the league.'
-   
+        nova_message = "- :TIMEUP: Don't just skip someone if they're timed out. We have rules for that. Read -https://discordapp.com/channels/447883341463814144/1129216509739270236/1129216680627814461"
+        nova_message += "\n\n - 🛟 Have a bad spawn? You get one bonus restart per game. Just be sure to ask before the end of your third turn"
+        nova_message += "\n\n - ⌛ Don't have time to do your turn? Each side gets three 24 hour turn extensions. Ping to let your opponent know you are using it to protect yourself from getting skipped"
+        nova_message += "\n\n - :help: Need more help with the bot? There's a YT tutorial :youtube_gif: in the pins in https://discord.com/channels/447883341463814144/448317497473630229 or you can do `$help` to see a full list of commands or `$tutorial` to see the basics"
+    else:
+        nova_message = ''
+
     try:
         await chan.send(greeting_message)
         await chan.edit(topic=greeting_message[:1024], reason='Add topic')
+        if nova_message:
+            await chan.send(nova_message)
     except (discord.errors.Forbidden, discord.errors.HTTPException) as e:
         logger.error(f'Could not send to created channel:\n{e} - Status {e.status}, Code {e.code}: {e.text}')
 
