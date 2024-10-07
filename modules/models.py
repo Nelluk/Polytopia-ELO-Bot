@@ -1156,6 +1156,7 @@ class Game(BaseModel):
             logger.debug(f'Checking for external server usage for side {gameside.id} {gameside.team}: {side_external_server}')
             
             if (self.notes and 'PCPLUS' in self.notes.upper()) or (self.name and 'PCPLUS' in self.name.upper()):
+                # Special case for PolyChamps games with channels locked to a specific server
                 specific_external_server_id = 1289762588346814495  # Polychamps Plus
                 side_guild = discord.utils.get(guild_list, id=specific_external_server_id)
                 using_team_server_flag = False
