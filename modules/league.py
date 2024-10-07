@@ -465,6 +465,42 @@ class league(commands.Cog):
         return q.execute()
     
     @commands.command(usage=None)
+    # @settings.in_bot_channel_strict()
+    async def tutorial(self, ctx):
+        """
+        Show an overview of what the bot is for
+
+        Type `[p]guide` for an overview of what this bot is for and how to use it.
+        """
+        tutorial_message = (
+            "# The Basics\n"
+            "__To set your polytopia name with the bot <:Midjiwan:938642183093907496>:__\n"
+            "`$setname` followed by your polytopia in app name\n\n"
+            
+            "__To join the new starters team <:novas:531568047824306188>:__\n"
+            "`$novas`\n\n"
+            
+            "__To open a game 👋 :__\n"
+            "`$open 2v2 drylands` (Can be changed to any map type or other size games like 1v1 or 3v3)\n\n"
+            
+            "__To see a list of games you can join ⚔️ <:star:390477609131048962>:__\n"
+            "`$novagames` or `$games`\n\n"
+            
+            "__To see games you are in 👀:__\n"
+            "`$incomplete`\n\n"
+            
+            "__To start a game you created 💪:__\n"
+            "`$start 111222 prediscussion change 111222 for the game ID you want to start`\n\n"
+            
+            "__To see a full list 📜 of commands:__\n"
+            "`$help`\n\n"
+            
+            "Watch a <a:youtube_gif:844281469899636766> tutorial on how to use the PolyElo bot and the match making system "
+            "https://youtu.be/_KsDd0LT54M"
+        )
+        await ctx.send(tutorial_message)
+
+    @commands.command(usage=None)
     @settings.is_mod_check()
     async def newfreeagent(self, ctx, channel_override: typing.Optional[discord.TextChannel], *, added_message: str = ''):
 
