@@ -583,8 +583,6 @@ class DiscordMember(BaseModel):
         #      .where(rank_subquery.c.id == self.id)
         #      .get())
         
-        # print(query.rank)
-        
         query = DiscordMember.leaderboard(date_cutoff=date_cutoff)
 
         is_found = False
@@ -1156,13 +1154,20 @@ class Game(BaseModel):
 
         for gameside, side_external_server in zip(ordered_side_list, side_external_servers):
             logger.debug(f'Checking for external server usage for side {gameside.id} {gameside.team}: {side_external_server}')
-            if side_external_server and discord.utils.get(guild_list, id=side_external_server):
-                side_guild = discord.utils.get(guild_list, id=side_external_server)  # use team-specific external server
-                using_team_server_flag = True
-                logger.debug(f'using external guild {side_guild.name} to create team channel')
-            else:
-                side_guild = guild  # use current guild (ctx.guild)
+            
+            if 'PCPLUS' in self.notes.upper() or 'PCPLUS' in self.name.upper():
+                specific_external_server_id = 1289762588346814495  # Polychamps Plus
+                side_guild = discord.utils.get(guild_list, id=specific_external_server_id)
                 using_team_server_flag = False
+                logger.debug(f'Creating game on PCPLUS server')
+            else:
+                if side_external_server and discord.utils.get(guild_list, id=side_external_server):
+                    side_guild = discord.utils.get(guild_list, id=side_external_server)  # use team-specific external server
+                    using_team_server_flag = True
+                    logger.debug(f'using external guild {side_guild.name} to create team channel')
+                else:
+                    side_guild = guild  # use current guild (ctx.guild)
+                    using_team_server_flag = False
 
             player_list = [l.player for l in gameside.ordered_player_list()]
             if len(player_list) < 2:
