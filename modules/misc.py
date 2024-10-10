@@ -82,12 +82,15 @@ class misc(commands.Cog):
         await ctx.send(embed=embed)
 
     @commands.command(usage='map mode', aliases=['tp'])
-    async def tribepoints(self, ctx, map: str, mode: str):
+    async def tribepoints(self, ctx, map: str = None, mode: str = None):
         """ Display the tribe points list
 
          **Examples**
         `[p]tribepoints archi 2v2`
         """
+        if not mode:
+            return await ctx.send(f'Map or mode not provided. *Example:* `{ctx.prefix}{ctx.invoked_with} archi 2v2`')
+
         guild = self.bot.get_guild(settings.server_ids['polychampions'])
         if guild:
             aliases = {'Archipelago': 'Archi', 'Dryland': 'Dry'}       
@@ -101,11 +104,11 @@ class misc(commands.Cog):
             elif mode == '3v3':
                 points_message = await channel.fetch_message(1293614772725481535)
             else:
-                return await ctx.send('Invalid mode passed.')
+                return await ctx.send(f'Invalid mode passed. *Example:* `{ctx.prefix}{ctx.invoked_with} archi 2v2`')
 
             points_message = points_message.split(f'{map} {mode}')
             if len(points_message) == 1:
-                return await ctx.send('Invalid map passed.')
+                return await ctx.send(f'Invalid map passed. *Example:* `{ctx.prefix}{ctx.invoked_with} archi 2v2`')
 
             last_line = points_message[1].find('1:')
             end = points_message[1].find('\n', last_line)
