@@ -98,13 +98,20 @@ class misc(commands.Cog):
             map = aliases.get(map, map)
             mode = mode.lower()
 
-            channel = guild.get_channel(1293614579850674216)  # tribe-tier-lists     
-            if mode == '2v2':
-                points_message = await channel.fetch_message(1293614719659278447)
-            elif mode == '3v3':
-                points_message = await channel.fetch_message(1293614772725481535)
-            else:
-                return await ctx.send(f'Invalid mode passed. *Example:* `{ctx.prefix}{ctx.invoked_with} archi 2v2`')
+            try:
+                channel = guild.get_channel(1293614579850674216)  # tribe-tier-lists     
+                if mode == '2v2':
+                    points_message = await channel.fetch_message(1293614719659278447)
+                elif mode == '3v3':
+                    points_message = await channel.fetch_message(1293614772725481535)
+                else:
+                    return await ctx.send(f'Invalid mode passed. *Example:* `{ctx.prefix}{ctx.invoked_with} archi 2v2`')
+            except discord.NotFound:
+                logger.warning(f'NotFound in tribepoints')
+                return await ctx.send(f'*Warning!* Could not find message/channel')
+            except discord.DiscordException as e:
+                logger.warning(f'Exception in tribepoints')
+                return await ctx.send(f'Error loading message/channel: {e}')
 
             points_message = points_message.content.split(f'{map} {mode}')
             if len(points_message) == 1:
