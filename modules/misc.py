@@ -106,7 +106,7 @@ class misc(commands.Cog):
             else:
                 return await ctx.send(f'Invalid mode passed. *Example:* `{ctx.prefix}{ctx.invoked_with} archi 2v2`')
 
-            points_message = points_message.split(f'{map} {mode}')
+            points_message = points_message.content.split(f'{map} {mode}')
             if len(points_message) == 1:
                 return await ctx.send(f'Invalid map passed. *Example:* `{ctx.prefix}{ctx.invoked_with} archi 2v2`')
 
