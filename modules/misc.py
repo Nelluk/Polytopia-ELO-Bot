@@ -81,6 +81,45 @@ class misc(commands.Cog):
         embed.set_footer(text='Developer: Nelluk')
         await ctx.send(embed=embed)
 
+    @commands.command(usage='map mode', aliases=['tp'])
+    async def tribepoints(self, ctx, map: str = None, mode: str = None):
+        """ Display the tribe points list
+
+         **Examples**
+        `[p]tribepoints archi 2v2`
+        """
+        if not mode:
+            return await ctx.send(f'Map or mode not provided. *Example:* `{ctx.prefix}{ctx.invoked_with} archi 2v2`')
+
+        guild = self.bot.get_guild(settings.server_ids['polychampions'])
+        if guild:
+            aliases = {'Archipelago': 'Archi', 'Dryland': 'Dry'}       
+            map = map.title()
+            map = aliases.get(map, map)
+            mode = mode.lower()
+
+            channel = guild.get_channel(1293614579850674216)  # tribe-tier-lists     
+            if mode == '2v2':
+                points_message = await channel.fetch_message(1293614719659278447)
+            elif mode == '3v3':
+                points_message = await channel.fetch_message(1293614772725481535)
+            else:
+                return await ctx.send(f'Invalid mode passed. *Example:* `{ctx.prefix}{ctx.invoked_with} archi 2v2`')
+
+            points_message = points_message.content.split(f'{map} {mode}')
+            if len(points_message) == 1:
+                return await ctx.send(f'Invalid map passed. *Example:* `{ctx.prefix}{ctx.invoked_with} archi 2v2`')
+
+            last_line = points_message[1].find('1:')
+            end = points_message[1].find('\n', last_line)
+            if end == -1:
+                points_message = points_message[1]  # Last map, take entire message
+            else:
+                points_message = points_message[1][:end]
+
+            points_message = f'{map} {mode} Tribe Points:{points_message}'
+            await ctx.send(points_message)
+
     @commands.command(usage=None)
     @settings.in_bot_channel_strict()
     async def credits(self, ctx):
