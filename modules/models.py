@@ -1099,6 +1099,7 @@ class Game(BaseModel):
     league_tier = SmallIntegerField(default=None, null=True)
     league_season = SmallIntegerField(default=None, null=True)
     league_playoff = BooleanField(default=False)
+    map_type = TextField(null=False, default='')
 
     def as_json(self, include_users: bool = False) -> Dict[str, Any]:
         """Get the game as a dict for returning from the API."""
