@@ -31,24 +31,6 @@ captain_role_name = 'Team Captain'
 
 league_team_channels = []
 
-def get_map_type(query):
-    # Convert an abbreviation into proper map type name. Lazily doing this instead of a proper
-    # solution with a Maps database table
-
-    map_types = ['Lakes', 'Pangea', 'Dryland', 'Archipelago', 'Water World', 'Continents']
-    
-    if query.lower() == 'ww' or query.lower() == 'waterworld':
-        query = 'water world'
-
-    if len(query) < 3:
-        return None
-    
-    for map_type in map_types:
-        if query.lower() in map_type.lower():
-            return map_type
-    
-    return None
-
 def get_team_roles(guild=None):
     if not guild:
         guild = settings.bot.get_guild(settings.server_ids['polychampions']) or settings.bot.get_guild(settings.server_ids['test'])
@@ -481,65 +463,6 @@ class league(commands.Cog):
     def delete_draft_config(self, guild_id):
         q = models.Configuration.delete().where(models.Configuration.guild_id == guild_id)
         return q.execute()
-    
-    @commands.command(aliases=['setmaptype'], usage='game_id map_type')
-    @models.is_registered_member()
-    async def setmap(self, ctx, *, args: str = None):
-        """Set map type for a game
-
-        **Examples**
-        `[p]setmap 2055 arch` - Sets the map type to 'Archipelago' for game 2055
-        `[p]setmap dry` - Sets the map type while in a game-specific channel
-        `[p]setmap none` - Clear the map type for the current game
-
-        """
-
-        if not args:
-            return await ctx.send(f'No arguments provided. **Example usage:** `{ctx.prefix}{ctx.invoked_with} 1234 dry`')
-
-        arg_list = args.split()
-
-        try:
-            game = models.Game.by_channel_or_arg(chan_id=ctx.channel.id, arg=arg_list[0])
-        except (ValueError, exceptions.MyBaseException) as e:
-            return await ctx.send(f'{e}\n**Example usage:** `{ctx.prefix}{ctx.invoked_with} 1234 dry`\nYou can also omit the game ID if you use the command from a game-specific channel.')
-
-        if str(game.id) == str(arg_list[0]):
-            arg_list = arg_list[1:]  # Remove game ID from list if it was used for lookup
-            if game.guild_id != ctx.guild.id and not game.uses_channel_id(ctx.channel.id):
-                return await ctx.send(f'Game {game.id} is associated with a different discord server. Use this command from that server or a game-specific channel.')
-
-        logger.debug(f'Attempting setmap for game {game.id}')
-
-        if len(arg_list) != 1:
-            return await ctx.send(f'Wrong number of arguments. See `{ctx.prefix}help setmaptype` for usage examples.')
-
-        map_type_name = arg_list[0]
-
-        if map_type_name.upper() == 'NONE':
-            map_type = ''
-        else:
-            map_type = get_map_type(map_type_name)
-            if not map_type:
-                return await ctx.send(f'No matching map type found for "{discord.utils.escape_mentions(map_type_name)}". Check spelling or try a different name.')
-
-        lineup_match = game.player(discord_id=ctx.author.id)
-        if lineup_match and settings.get_user_level(ctx.author) > 2:
-            logger.debug(f'Authorized since ctx.author is a player in the game')
-        elif settings.get_user_level(ctx.author) > 3:
-            logger.debug(f'Authorized since ctx.author is a power user')
-        else:
-            return await ctx.send(f'You are not authorized to set the map type for this game.')
-        
-        game.map_type = map_type
-        game.save()
-
-        await ctx.send(f'Map type for game {game.id} set to "{map_type}".')
-        models.GameLog.write(game_id=game.id, guild_id=game.guild_id, message=f'{models.GameLog.member_string(ctx.author)} set map type to "{map_type}"')
-
-        game = game.load_full_game()
-        await game.update_announcement(guild=ctx.guild, prefix=ctx.prefix)
-
 
     @commands.command(usage=None)
     # @settings.in_bot_channel_strict()
