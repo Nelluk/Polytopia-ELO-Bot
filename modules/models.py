@@ -1524,7 +1524,12 @@ class Game(BaseModel):
         else:
             season_str = ''
 
-        embed.set_footer(text=f'{self.platform_emoji()} {status_str} - Created {str(self.date)}{completed_str}{host_str}{season_str}')
+        if self.map_type:
+            map_str = f' - Map: {self.map_type.name}'
+        else:  
+            map_str = ''
+
+        embed.set_footer(text=f'{map_str} {status_str} - Created {str(self.date)}{completed_str}{host_str}{season_str}')
 
         return embed, embed_content
 
