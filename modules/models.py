@@ -1525,7 +1525,7 @@ class Game(BaseModel):
             season_str = ''
 
         if self.map_type:
-            map_str = f' - Map: {self.map_type.name}'
+            map_str = f' - Map: {self.map_type}'
         else:  
             map_str = ''
 
