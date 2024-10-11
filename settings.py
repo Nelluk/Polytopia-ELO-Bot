@@ -124,6 +124,8 @@ generic_teams_long = [('Sharks', ':shark:'), ('Owls', ':owl:'), ('Eagles', ':eag
 
 max_game_size = 16
 
+map_types = ['Lakes', 'Pangea', 'Dryland', 'Archipelago', 'Water World', 'Continents']
+
 assert bool(len(generic_teams_long) == max_game_size), 'generic_teams_long must have a number of entries equal to max_game_size.'
 
 date_cutoff = datetime.datetime.today() - datetime.timedelta(days=90)  # Players who haven't played since cutoff are not included in leaderboards

@@ -2001,8 +2001,6 @@ class polygames(commands.Cog):
         def get_map_type(query):
             # Convert an abbreviation into proper map type name. Lazily doing this instead of a proper
             # solution with a Maps database table
-
-            map_types = ['Lakes', 'Pangea', 'Dryland', 'Archipelago', 'Water World', 'Continents']
             
             if query.lower() == 'ww' or query.lower() == 'waterworld':
                 query = 'water world'
@@ -2010,7 +2008,7 @@ class polygames(commands.Cog):
             if len(query) < 3:
                 return None
             
-            for map_type in map_types:
+            for map_type in settings.map_types:
                 if query.lower() in map_type.lower():
                     return map_type
             
