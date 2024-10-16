@@ -118,7 +118,6 @@ class misc(commands.Cog):
 
             points_message = points_message.content.split(f'{map} {mode}')
             if len(points_message) == 1:
-                # Map has no tier list
                 return await ctx.send(f'There is no tribe points list for {map}.')
 
             last_line = points_message[1].find('1:')
