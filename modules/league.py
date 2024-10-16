@@ -495,7 +495,7 @@ class league(commands.Cog):
             "__To see a full list 📜 of commands:__\n"
             "`$help`\n\n"
             
-            "Watch a <a:youtube_gif:844281469899636766> tutorial on how to use the PolyElo bot and the match making system "
+            "Watch a YT tutorial on how to use the PolyElo bot and the match making system "
             "https://youtu.be/_KsDd0LT54M"
         )
         await ctx.send(tutorial_message)
