@@ -111,6 +111,22 @@ def is_valid_poly_gamename(input: str):
                  "Rebellion", "Sponge", "Gherkins", "Discuss", "Discussion", "Chat"]
     return any(word.upper() in input.upper() for word in key_words)
 
+def get_map_type(query):
+    # Convert an abbreviation into proper map type name. Lazily doing this instead of a proper
+    # solution with a Maps database table
+    query = query.lower()
+    if query == 'ww' or query == 'waterworld':
+        query = 'water world'
+
+    if len(query) < 3:
+        return None
+    
+    for map_type in settings.map_types:
+        if query in map_type.lower():
+            return map_type
+    
+    return None
+
 
 def string_to_user_id(input):
     # given a user @Mention or a raw user ID, returns just the raw user ID (does not validate the ID itself, but does sanity check length)

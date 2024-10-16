@@ -1998,22 +1998,6 @@ class polygames(commands.Cog):
 
         logger.debug(f'Attempting setmap for game {game.id}')
 
-        def get_map_type(query):
-            # Convert an abbreviation into proper map type name. Lazily doing this instead of a proper
-            # solution with a Maps database table
-            
-            if query.lower() == 'ww' or query.lower() == 'waterworld':
-                query = 'water world'
-
-            if len(query) < 3:
-                return None
-            
-            for map_type in settings.map_types:
-                if query.lower() in map_type.lower():
-                    return map_type
-            
-            return None
-        
         if len(arg_list) != 1:
             return await ctx.send(f'Wrong number of arguments. See `{ctx.prefix}help setmaptype` for usage examples.')
 
@@ -2022,7 +2006,7 @@ class polygames(commands.Cog):
         if map_type_name.upper() == 'NONE':
             map_type = ''
         else:
-            map_type = get_map_type(map_type_name)
+            map_type = utilities.get_map_type(map_type_name)
             if not map_type:
                 return await ctx.send(f'No matching map type found for "{discord.utils.escape_mentions(map_type_name)}". Check spelling or try a different name.')
 
