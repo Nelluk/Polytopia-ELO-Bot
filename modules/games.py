@@ -2254,7 +2254,7 @@ async def post_win_messaging(guild, prefix, current_chan, winning_game):
     purge_message = '*This channel will be purged soon.* Purging will be skipped if the channel or its category has "archive" in the name, or has "Manage Channel" denied to me.'
     reminder_message = ''
     if winning_game.is_season_game():
-        reminder_message = f'\n:bulb: Please use `{prefix}settribes` to log the tribes that were selected.'
+        reminder_message = f'\n:bulb: Please use `{prefix}setmap` to log the map and `{prefix}settribes` to log the tribes that were selected.'
         purge_message = f'This channel will not be purged as it is a Season game.\n{reminder_message}'
     elif winning_game.is_uncaught_season_game():
         reminder_message = f'\n:bulb: This game looks like an incorrectly named **Season Game**! You might want to use `{prefix}rename` and include the season tag at the beginning.'
