@@ -93,10 +93,13 @@ class misc(commands.Cog):
 
         guild = self.bot.get_guild(settings.server_ids['polychampions'])
         if guild:
-            aliases = {'Archipelago': 'Archi', 'Dryland': 'Dry'}       
-            map = map.title()
-            map = aliases.get(map, map)
             mode = mode.lower()
+            map = utilities.get_map_type(map)
+            if not map:
+                return await ctx.send(f'Invalid map passed. *Example:* `{ctx.prefix}{ctx.invoked_with} archi 2v2`')
+
+            aliases = {'Archipelago': 'Archi', 'Dryland': 'Dry'}  
+            map = aliases.get(map, map)
 
             try:
                 channel = guild.get_channel(1293614579850674216)  # tribe-tier-lists     
@@ -115,7 +118,7 @@ class misc(commands.Cog):
 
             points_message = points_message.content.split(f'{map} {mode}')
             if len(points_message) == 1:
-                return await ctx.send(f'Invalid map passed. *Example:* `{ctx.prefix}{ctx.invoked_with} archi 2v2`')
+                return await ctx.send(f'There is no tribe points list for {map}.')
 
             last_line = points_message[1].find('1:')
             end = points_message[1].find('\n', last_line)
