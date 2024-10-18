@@ -309,32 +309,32 @@ class misc(commands.Cog):
             game_id = None
             message = ' '.join(args)
 
-        # TODO:  should prioritize inferred game above an integer. currently something like '$ping 1 city island plz restart'
-        # will try to ping game ID #1 even if done within a game channel
-
         inferred_game = None
-        if not game_id:
-            try:
-                inferred_game = models.Game.by_channel_id(chan_id=ctx.message.channel.id)
-            except exceptions.TooManyMatches:
+        try:
+            inferred_game = models.Game.by_channel_id(chan_id=ctx.message.channel.id)
+        except exceptions.TooManyMatches:
+            if not game_id:
                 logger.error(f'More than one game with matching channel {ctx.message.channel.id}')
                 return await ctx.send('Error looking up game based on current channel - please contact the bot owner.')
-            except exceptions.NoMatches:
+        except exceptions.NoMatches:
+            if not game_id:
                 ctx.command.reset_cooldown(ctx)
                 logger.debug('Could not infer game from current channel.')
                 return await ctx.send(f'Game ID was not included. {usage}')
+
+        if inferred_game:
+            game = inferred_game
             logger.debug(f'Inferring game {inferred_game.id} from ping command used in channel {ctx.message.channel.id}')
+            if game_id:
+                message = f'{game_id} {message}'
+        else:
+            game = await PolyGame().convert(ctx, int(game_id), allow_cross_guild=True)
 
         if not message:
             ctx.command.reset_cooldown(ctx)
             return await ctx.send(f'Message was not included. {usage}')
 
         message = utilities.escape_role_mentions(message)
-
-        if inferred_game:
-            game = inferred_game
-        else:
-            game = await PolyGame().convert(ctx, int(game_id), allow_cross_guild=True)
 
         if not game.player(discord_id=ctx.author.id) and not settings.is_staff(ctx.author):
             ctx.command.reset_cooldown(ctx)
