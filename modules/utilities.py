@@ -40,7 +40,8 @@ def unlock_game(game_id: int):
 
 
 def guild_role_by_name(guild, name: str, allow_partial: bool = False):
-    # match 'name' to a role in guild, ignoring case.
+    # match 'name' to a role in guild, ignoring case. Returns None if no match
+    # https://discordpy.readthedocs.io/en/latest/api.html#discord.utils.find
 
     if allow_partial:
         return discord.utils.find(lambda r: name.upper() in r.name.upper(), guild.roles)

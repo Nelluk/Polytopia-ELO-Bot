@@ -841,6 +841,8 @@ class league(commands.Cog):
         
         logger.debug(f'Loaded team {team.name} for editing')
         team_role = utilities.guild_role_by_name(ctx.guild, name=team.name, allow_partial=False)
+        if not team_role:
+            return await ctx.send(f':warning: No role matching **{team.name}**. It must have a role to edit team properties. ')
 
         if team.is_archived:
             logger.warn('Team is_archive is True')
