@@ -50,9 +50,9 @@ def guild_role_by_name(guild, name: str, allow_partial: bool = False):
         # If no exact match is found, attempt a case-insensitive match
         role = discord.utils.find(lambda r: name.upper() == r.name.upper(), guild.roles)
 
-    if allow_partial and role is None:
-        # If partial matches are allowed, try a partial match
-        role = discord.utils.find(lambda r: name.upper() in r.name.upper(), guild.roles)
+        if allow_partial and role is None:
+            # If partial matches are allowed, try a partial match
+            role = discord.utils.find(lambda r: name.upper() in r.name.upper(), guild.roles)
 
     return role
 
