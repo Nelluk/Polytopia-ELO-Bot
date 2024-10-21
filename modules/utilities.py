@@ -43,10 +43,18 @@ def guild_role_by_name(guild, name: str, allow_partial: bool = False):
     # match 'name' to a role in guild, ignoring case. Returns None if no match
     # https://discordpy.readthedocs.io/en/latest/api.html#discord.utils.find
 
-    if allow_partial:
-        return discord.utils.find(lambda r: name.upper() in r.name.upper(), guild.roles)
+    # Attempt an exact match
+    role = discord.utils.find(lambda r: name == r.name, guild.roles)
 
-    return discord.utils.find(lambda r: name.upper() == r.name.upper(), guild.roles)
+    if role is None:
+        # If no exact match is found, attempt a case-insensitive match
+        role = discord.utils.find(lambda r: name.upper() == r.name.upper(), guild.roles)
+
+    if allow_partial and role is None:
+        # If partial matches are allowed, try a partial match
+        role = discord.utils.find(lambda r: name.upper() in r.name.upper(), guild.roles)
+
+    return role
 
 
 async def buffered_send(destination, content, max_length=2000, allowed_mentions=None):
