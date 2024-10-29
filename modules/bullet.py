@@ -101,13 +101,16 @@ class bullet(commands.Cog):
         invalid = []
         for p in signups:
             if len(p) == 2 and p[1] == bracket:
+                p[0] = p[0].lower()  # All discord usernames are lowercase
                 member = discord.utils.get(ctx.guild.members, name=p[0])
                 if not member:
                     invalid.append(p[0])
                     continue
                 dm = models.DiscordMember.get(discord_id=member.id)
                 player = models.Player.get(discord_member=dm, guild_id=ctx.guild.id)
-                participants.append([p[0], player.team, player.elo_moonrise])
+                participant = [p[0], player.team, player.elo_moonrise]
+                if participant not in participants:
+                    participants.append(participants)
         
         if invalid:
             invalid = ", ".join(invalid)
