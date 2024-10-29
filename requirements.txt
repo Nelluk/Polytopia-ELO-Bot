@@ -11,3 +11,4 @@ gunicorn~=20.1
 uvloop~=0.15
 uvicorn~=0.13
 httptools~=0.1
+gspread_asyncio~=2.0
