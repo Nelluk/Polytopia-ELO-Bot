@@ -116,6 +116,7 @@ class bullet(commands.Cog):
             invalid = ", ".join(invalid)
             return await ctx.send(f"Command failed because the bot could not find all signed up members in the server!\nPlease remove or update the following names in the sheet: {invalid}")
 
+        logger.debug(f'participants: {participants}')
         participants.sort(key=lambda p: p[2], reverse=True)
         for p in participants:
             del p[2]
