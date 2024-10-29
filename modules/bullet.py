@@ -25,7 +25,7 @@ def polychampions_only():
 class bullet(commands.Cog):
     brackets = ["GMT", "EST", "SGT"]
     templates = [8, 16, 32]
-    win_words = ["win", "beat"]
+    win_words = ["win", "won", "beat"]
     lose_words = ["lose", "lost"]
 
     questionmark_emoji = "❓"
