@@ -167,9 +167,12 @@ class bullet(commands.Cog):
             return
 
         bracket_sheet = await spreadsheet.get_worksheet(1)
-        name = bracket_sheet.title.split("(")
-        template = int(name[1].split(")")[0])
-        day = int(name[0].split(" ")[2])
+        try:
+            name = bracket_sheet.title.split("(")
+            template = int(name[1].split(")")[0])
+            day = int(name[0].split(" ")[2])
+        except IndexError:
+            return
 
         if not (-1 <= datetime.datetime.now(self.form_tz).day - day <= 1):
             return
