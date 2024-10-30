@@ -108,7 +108,7 @@ class bullet(commands.Cog):
                     continue
                 dm = models.DiscordMember.get(discord_id=member.id)
                 player = models.Player.get(discord_member=dm, guild_id=ctx.guild.id)
-                house = player.team.house.name if player.team else "Novas"
+                house = player.team.house.name if player.team and player.team.house else "Novas"
                 participant = [p[0], house, player.elo_moonrise]
                 if participant not in participants:
                     participants.append(participant)
