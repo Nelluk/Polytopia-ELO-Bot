@@ -127,11 +127,12 @@ class bullet(commands.Cog):
                 template = t
                 break
         
-        logger.debug(f'template: {template}')
+        logger.debug(f'Looking to match "template {template}"')
         for sheet in all_sheets:
-            logger.debug(f'sheet: {sheet.title}')
+            logger.debug(f'sheet title: {sheet.title.lower()}')
             if sheet.title.lower() == f"template {template}":
                 template_sheet = sheet
+                logger.debug('match found')
                 break
 
         new_sheet_name = f"{bracket} {datetime.datetime.now(self.form_tz).strftime('%b %d')} ({template})"
