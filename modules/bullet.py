@@ -72,7 +72,7 @@ class bullet(commands.Cog):
         signup_sheet = await spreadsheet.get_worksheet(0)
 
         dt = datetime.datetime.now(self.form_tz).strftime("%m/%d/%Y %H:%M:%S")
-        await signup_sheet.append_row([dt, ctx.author.name, bracket])
+        await signup_sheet.append_row([dt, ctx.author.name, bracket], value_input_option="USER_ENTERED")
         await ctx.send(f'You have signed up for the {bracket} bracket!')
 
     @commands.command(hidden=True, usage='bracket startrow endrow', aliases=['startbullet'])
