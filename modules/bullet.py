@@ -127,7 +127,9 @@ class bullet(commands.Cog):
                 template = t
                 break
         
+        logger.debug(f'template: {template}')
         for sheet in all_sheets:
+            logger.debug(f'sheet: {sheet.title}')
             if sheet.title.lower() == f"template {template}":
                 template_sheet = sheet
                 break
