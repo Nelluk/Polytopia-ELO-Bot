@@ -110,7 +110,7 @@ class bullet(commands.Cog):
                 player = models.Player.get(discord_member=dm, guild_id=ctx.guild.id)
                 participant = [p[0], player.team, player.elo_moonrise]
                 if participant not in participants:
-                    participants.append(participants)
+                    participants.append(participant)
         
         if invalid:
             invalid = ", ".join(invalid)
