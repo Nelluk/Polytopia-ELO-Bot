@@ -108,7 +108,8 @@ class bullet(commands.Cog):
                     continue
                 dm = models.DiscordMember.get(discord_id=member.id)
                 player = models.Player.get(discord_member=dm, guild_id=ctx.guild.id)
-                participant = [p[0], player.team, player.elo_moonrise]
+                team = player.team.name if player.team else "Novas"
+                participant = [p[0], team, player.elo_moonrise]
                 if participant not in participants:
                     participants.append(participant)
         
@@ -116,7 +117,6 @@ class bullet(commands.Cog):
             invalid = ", ".join(invalid)
             return await ctx.send(f"Command failed because the bot could not find all signed up members in the server!\nPlease remove or update the following names in the sheet: {invalid}")
 
-        logger.debug(f'participants: {participants}')
         participants.sort(key=lambda p: p[2], reverse=True)
         for p in participants:
             del p[2]
@@ -127,12 +127,9 @@ class bullet(commands.Cog):
                 template = t
                 break
         
-        logger.debug(f'Looking to match "template {template}"')
         for sheet in all_sheets:
-            logger.debug(f'sheet title: {sheet.title.lower()}')
             if sheet.title.lower() == f"template {template}":
                 template_sheet = sheet
-                logger.debug('match found')
                 break
 
         new_sheet_name = f"{bracket} {datetime.datetime.now(self.form_tz).strftime('%b %d')} ({template})"
