@@ -63,7 +63,7 @@ class bullet(commands.Cog):
 
         bracket = bracket.upper()
         if bracket not in self.brackets:
-            return await ctx.send(f"There are no bullet brackets for {bracket}!")
+            return await ctx.send(f"There are no bullet brackets for {discord.utils.escape_mentions(bracket)}!")
 
         spreadsheet = await self.open_bullet_sheet()
         if not spreadsheet:
@@ -87,7 +87,7 @@ class bullet(commands.Cog):
         """
         bracket = bracket.upper()
         if bracket not in self.brackets:
-            return await ctx.send(f"There are no bullet brackets for {bracket}!")
+            return await ctx.send(f"There are no bullet brackets for {discord.utils.escape_mentions(bracket)}!")
 
         spreadsheet = await self.open_bullet_sheet()
         if not spreadsheet:
@@ -99,6 +99,8 @@ class bullet(commands.Cog):
         signups = await signup_sheet.get(f'B{start}:D{end}')
         participants = []
         invalid = []
+
+        champion_role = discord.utils.get(ctx.guild.roles, id=771916616077803540)
         for p in signups:
             if len(p) == 2 and p[1] == bracket:
                 p[0] = p[0].lower()  # All discord usernames are lowercase
@@ -106,10 +108,12 @@ class bullet(commands.Cog):
                 if not member:
                     invalid.append(p[0])
                     continue
+
+                is_bullet_champion = champion_role in member.roles
                 dm = models.DiscordMember.get(discord_id=member.id)
                 player = models.Player.get(discord_member=dm, guild_id=ctx.guild.id)
                 house = player.team.house.name if player.team and player.team.house else "Novas"
-                participant = [p[0], house, player.elo_moonrise]
+                participant = [p[0], house, player.elo_moonrise, is_bullet_champion]
                 if participant not in participants:
                     participants.append(participant)
         
@@ -117,9 +121,9 @@ class bullet(commands.Cog):
             invalid = ", ".join(invalid)
             return await ctx.send(f"Command failed because the bot could not find all signed up members in the server!\nPlease remove or update the following names in the sheet: {invalid}")
 
-        participants.sort(key=lambda p: p[2], reverse=True)
+        participants.sort(key=lambda p: (p[3], p[2]), reverse=True)
         for p in participants:
-            del p[2]
+            del p[2:]
 
         template = self.templates[-1]
         for t in self.templates:
