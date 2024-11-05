@@ -73,7 +73,56 @@ class bullet(commands.Cog):
 
         dt = datetime.datetime.now(self.form_tz).strftime("%m/%d/%Y %H:%M:%S")
         await signup_sheet.append_row([dt, ctx.author.name, bracket], value_input_option="USER_ENTERED")
+
+        bullet_role = discord.utils.get(ctx.guild.roles, id=794810159104131082)
+        if bullet_role not in ctx.author.roles:
+            await ctx.author.add_roles(bullet_role)
+
         await ctx.send(f'You have signed up for the {bracket} bracket!')
+
+    @commands.command(usage='bracket', aliases=['unbullet'])
+    @polychampions_only()
+    @models.is_registered_member()
+    @commands.cooldown(1, 3, commands.BucketType.user)
+    async def nobullet(self, ctx, arg: str = None):
+        """Cancel your signup in the bullet tournament
+
+        **Examples**
+        `[p]nobullet GMT`
+        `[p]nobullet role - removes the bullet role`
+        """
+        if not arg:
+            return await ctx.send(f'Bracket was not provided! *Example:* `{ctx.prefix}{ctx.invoked_with} GMT`')
+
+        if arg.lower() == 'role':
+            bullet_role = discord.utils.get(ctx.guild.roles, id=794810159104131082)
+            if bullet_role in ctx.author.roles:
+                await ctx.author.remove_roles(bullet_role)
+            
+            return await ctx.send("You no longer have the bullet role.")
+
+        bracket = arg.upper()
+        if bracket not in self.brackets:
+            return await ctx.send(f"There are no bullet brackets for {bracket}!")
+
+        spreadsheet = await self.open_bullet_sheet()
+        if not spreadsheet:
+            return await ctx.send("Something wrong happened, please contact the bot owner.")
+
+        signup_sheet = await spreadsheet.get_worksheet(0)
+        last_row = int((await signup_sheet.acell("A1")).value)
+        signups = await signup_sheet.get(f"B3:C{last_row}")
+        row = -1
+        for i, p in enumerate(reversed(signups)):
+            if p and p[0] == ctx.author.name and p[1] == bracket:
+                row = last_row - i
+                break
+        
+        if row == -1:
+            return await ctx.send(f"You have not signed up in the {bracket} bracket!")
+
+        await signup_sheet.update_acell(f"D{row}", "withdrawn")
+        await ctx.send(f'You have been removed from the {bracket} bracket.')
 
     @commands.command(hidden=True, usage='bracket startrow endrow', aliases=['startbullet'])
     @polychampions_only()
