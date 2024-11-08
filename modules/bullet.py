@@ -165,7 +165,8 @@ class bullet(commands.Cog):
                 dm = models.DiscordMember.get(discord_id=member.id)
                 player = models.Player.get(discord_member=dm, guild_id=ctx.guild.id)
                 house = player.team.house.name if player.team and player.team.house else "Novas"
-                participant = [p[0], house, player.elo_moonrise, is_bullet_champion]
+                is_league_member = house != "Novas"
+                participant = [p[0], house, player.elo_moonrise, is_bullet_champion, is_league_member]
                 if participant not in participants:
                     participants.append(participant)
 
@@ -176,7 +177,7 @@ class bullet(commands.Cog):
                 f"\nPlease remove or update the following names in the sheet: {invalid}"
             )
 
-        participants.sort(key=lambda p: (p[3], p[2]), reverse=True)
+        participants.sort(key=lambda p: (p[4], p[3], p[2]), reverse=True)
         for p in participants:
             del p[2:]
 
