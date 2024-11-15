@@ -179,9 +179,16 @@ class bullet(commands.Cog):
                 f"\nPlease remove or update the following names in the sheet: {invalid}"
             )
 
-        participants.sort(key=lambda p: (p[4], p[3], p[2]), reverse=True)
+        participants.sort(key=lambda p: p[4], reverse=True)
+        subs = participants[template:]
+        participants = participants[:template]
+
+        participants.sort(key=lambda p: (p[3], p[2]), reverse=True)
         for p in participants:
             del p[2:]
+
+        for s in subs:
+            del s[2:]
 
         template = self.templates[-1]
         for t in self.templates:
@@ -200,11 +207,9 @@ class bullet(commands.Cog):
         except gspread_asyncio.gspread.exceptions.APIError:
             return await ctx.send("There is already a sheet for this bracket!")
 
-        await bracket_sheet.update(participants[:template], f"A2:B{1 + template}")
-        if len(participants) > template:
-            await bracket_sheet.update(
-                participants[template:], f"A{4 + template}:B{4 + template + len(participants[template:])}"
-            )
+        await bracket_sheet.update(participants, f"A2:B{1 + template}")
+        if subs:
+            await bracket_sheet.update(subs, f"A{4 + template}:B{4 + template + len(subs)}")
 
         return await ctx.send(f"Bracket sheet for {bracket} have been created!")
 
