@@ -179,6 +179,12 @@ class bullet(commands.Cog):
                 f"\nPlease remove or update the following names in the sheet: {invalid}"
             )
 
+        template = self.templates[-1]
+        for t in self.templates:
+            if len(participants) < t * 1.5:
+                template = t
+                break
+
         participants.sort(key=lambda p: p[4], reverse=True)
         subs = participants[template:]
         participants = participants[:template]
@@ -189,12 +195,6 @@ class bullet(commands.Cog):
 
         for s in subs:
             del s[2:]
-
-        template = self.templates[-1]
-        for t in self.templates:
-            if len(participants) < t * 1.5:
-                template = t
-                break
 
         for sheet in all_sheets:
             if sheet.title.lower() == f"template {template}":
