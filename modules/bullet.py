@@ -154,7 +154,7 @@ class bullet(commands.Cog):
 
         champion_role = discord.utils.get(ctx.guild.roles, id=771916616077803540)
         for p in signups:
-            if len(p) == 3 and "withdraw" in p[2].lower():
+            if len(p) == 3 and "withdraw" in p[2].lower() and p[1] == bracket:
                 participants = [x for x in participants if x[0] != p[0]]
             elif len(p) == 2 and p[1] == bracket:
                 p[0] = p[0].lower()  # All discord usernames are lowercase
