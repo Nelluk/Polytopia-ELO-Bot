@@ -1104,7 +1104,7 @@ class league(commands.Cog):
         """Calculate a player's trade price
 
         **Examples:**
-        `[p]playerprice Nelluk`
+        `[p]playerprice 17 Nelluk`
         """
         guild_matches = await utilities.get_guild_member(ctx, player_name)
         if len(guild_matches) > 1:
