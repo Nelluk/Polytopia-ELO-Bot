@@ -244,6 +244,55 @@ def summarize_game_list(games_query, player_discord_id: int = None):
         # logger.debug(f'Parsed game {game_list[-1]}')
     return game_list
 
+def trade_price_formula(record, leadership):
+    # GalC4's formula for calculating trade price
+    # record is a list of (tier, games, wins) tuples of past 3 seasons
+    import math
+
+    # Variables
+    leadership_weight = 0.07 
+    played_weight = 3
+    game_nerf = 3
+    closer_avg = 0.8
+    s1_weight = 9
+    s2_weight = 8
+    s3_weight = 7
+    wr_weight = 8.35
+    seasons_played_weight = {1: 1.3, 2: 1.05, 3: 1}
+
+    def tier_weight(tier):
+        if tier == 4:
+            return 0.7
+        elif tier == 3:
+            return 2.5
+        elif tier == 2:
+            return 4
+        elif tier == 1:
+            return 5.6
+
+        # tier is None, no games played that season
+        return 0
+
+    # Unpack record
+    s1tier, s1games, s1wins = record[0]
+    s2tier, s2games, s2wins = record[1]
+    s3tier, s3games, s3wins = record[2]
+
+    # Calculations
+    leadership_weight = leadership_weight if leadership else 0
+    seasons_played = sum(1 for games in [s1games, s2games, s3games] if games > 0)
+
+    s1_w = ((((s1games + played_weight) / game_nerf) + closer_avg) * tier_weight(s1tier)) / (s1_weight * (s1games - s1wins + wr_weight))
+    s2_w = ((((s2games + played_weight) / game_nerf) + closer_avg) * tier_weight(s2tier)) / (s2_weight * (s2games - s2wins + wr_weight))
+    s3_w = ((((s3games + played_weight) / game_nerf) + closer_avg) * tier_weight(s3tier)) / (s3_weight * (s3games - s3wins + wr_weight))
+
+    a = math.sqrt(math.sqrt((s1wins + s2wins + s3wins + 1) / (s1games + s2games + s3games + 1)))
+    b = (s1_w + s2_w + s3_w) / math.sqrt(1.8 * seasons_played)
+    c = (math.sqrt(math.sqrt(b)) + leadership_weight) / 4
+    d = (a * b * c * 943) + (leadership_weight * 10)
+    e = seasons_played_weight[seasons_played] * d
+
+    return math.floor(e)
 
 def export_game_data(query=None):
     import csv

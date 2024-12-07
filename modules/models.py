@@ -953,6 +953,56 @@ class Player(BaseModel):
         
         return query.tuples()[0]  ## (wins: int, losses: int)
 
+    def polychamps_season_record(self, league_season: int):
+        logger.debug(f'polychamps_season_record for player {self.id} and season {league_season}')
+
+        win_status = Case(
+            None,
+            ((GameSide.id == Game.winner_id, 1),),
+            0
+        )
+
+        query = (Game
+             .select(
+                 fn.COALESCE(fn.SUM(win_status), 0).alias('win_count'),
+                 fn.COALESCE(fn.SUM(1 - win_status), 0).alias('loss_count')
+             )
+             .join(GameSide, on=(Game.id == GameSide.game))
+             .join(Lineup, on=(GameSide.id == Lineup.gameside))
+             .join(Player, on=(Lineup.player == Player.id))
+             .where(
+                 (Player.id == self.id) &
+                 (Game.is_completed == True) &
+                 (Game.is_confirmed == True) &
+                 (Game.league_season == league_season)
+             ))
+        
+        return query.tuples()[0]  ## (wins: int, losses: int)
+
+    def polychamps_season_tier(self, league_season: int):
+        # Returns a player's tier for the season, if they've played exactly 1 game in 2 different tiers the bottom tier is returned
+        query = (Game
+                .select(Game.league_tier, fn.COUNT(Game.league_tier).alias('tier_count'))
+                .join(GameSide, on=(Game.id == GameSide.game))
+                .join(Lineup, on=(GameSide.id == Lineup.gameside))
+                .join(Player, on=(Lineup.player == Player.id))
+                .where(
+                    (Player.id == self.id) &
+                    (Game.league_season == league_season)
+                )
+                .group_by(Game.league_tier)
+            )
+
+        tiers_played = []
+        for t in query:
+            if t.tier_count > 1:
+                return t.league_tier
+            tiers_played.append(t.league_tier)
+
+        if tiers_played:
+            return max(tiers_played)
+        return None
+
     def leaderboard_rank(self, date_cutoff):
         # TODO: This could be replaced with Postgresql Window functions to have the DB calculate the rank.
         # Advantages: Probably moderately more efficient, and will resolve ties in a sensible way

@@ -1099,6 +1099,42 @@ class league(commands.Cog):
 
         await ctx.send(file=fs)
 
+    @commands.command(aliases=['playerprice'], hidden=True)
+    async def tradeprice(self, ctx, season: int, *, player_name: str):
+        """Calculate a player's trade price
+
+        **Examples:**
+        `[p]playerprice Nelluk`
+        """
+        guild_matches = await utilities.get_guild_member(ctx, player_name)
+        if len(guild_matches) > 1:
+            return await ctx.send(f'There is more than one player found with name "{player_name}". Try specifying with a @Mention.')
+        elif len(guild_matches) == 0:
+            return await ctx.send(f'Could not find "{player_name}" on this server.')
+        else:
+            member = guild_matches[0]
+
+        player, _ = models.Player.get_by_discord_id(discord_id=member.id, discord_name=member.name, discord_nick=member.nick, guild_id=ctx.guild.id)
+        if not player:
+            # Mention user without pinging him
+            return await ctx.send(f'*{member.mention}* is not registered in the bot.', allowed_mentions=discord.AllowedMentions.none())
+
+        is_leader = len(utilities.get_matching_roles(member, [leader_role_name, coleader_role_name])) > 0
+        record = []
+        for i in range(season-2, season+1):
+            season_tier = player.polychamps_season_tier(i)
+            if season_tier:
+                season_record = player.polychamps_season_record(i)
+                record.append((season_tier, sum(season_record), season_record[0]))  # tier, total games, wins
+            else:
+                record.append((None, 0, 0))
+
+        if record.count((None, 0, 0)) == 3:
+            return await ctx.send(f'{member.display_name} has not played in the past 3 seasons.')
+
+        price = utilities.trade_price_formula(record, is_leader)
+        await ctx.send(f"Trade price for {member.display_name} is **{price}**.")
+
     @commands.command()
     @settings.is_staff_check()
     @commands.cooldown(1, 120, commands.BucketType.channel)
