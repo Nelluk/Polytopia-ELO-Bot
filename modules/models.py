@@ -2376,7 +2376,7 @@ class Game(BaseModel):
             # any season game
             season_query = Game.select(Game.id).where(Game.league_season > 0)
         else:
-            season_query = Game.select(Game.id).where(Game.league_season > season_filter)
+            season_query = Game.select(Game.id).where(Game.league_season == season_filter)
 
         if guild_id:
             guild_filter = Game.select(Game.id).where(Game.guild_id == guild_id)
