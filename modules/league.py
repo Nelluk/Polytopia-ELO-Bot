@@ -1100,12 +1100,15 @@ class league(commands.Cog):
         await ctx.send(file=fs)
 
     @commands.command(aliases=['playerprice'], hidden=True)
-    async def tradeprice(self, ctx, season: int, *, player_name: str):
+    async def tradeprice(self, ctx, season: typing.Optional[int], *, player_name: str):
         """Calculate a player's trade price
 
         **Examples:**
-        `[p]playerprice 17 Nelluk`
+        `[p]tradeprice 17 Nelluk`
         """
+        if not season:
+            return await ctx.send(f'Please specify the current season number. Example: `{ctx.prefix}{ctx.invoked_with} 17 Nelluk`')
+
         guild_matches = await utilities.get_guild_member(ctx, player_name)
         if len(guild_matches) > 1:
             return await ctx.send(f'There is more than one player found with name "{player_name}". Try specifying with a @Mention.')
