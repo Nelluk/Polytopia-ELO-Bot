@@ -1107,7 +1107,7 @@ class league(commands.Cog):
         `[p]tradeprice 17 Nelluk`
         """
         if not season:
-            return await ctx.send(f'Please specify the current season number. Example: `{ctx.prefix}{ctx.invoked_with} 17 Nelluk`')
+            return await ctx.send(f'Please specify the season number. Example: `{ctx.prefix}{ctx.invoked_with} 17 Nelluk`')
 
         guild_matches = await utilities.get_guild_member(ctx, player_name)
         if len(guild_matches) > 1:
