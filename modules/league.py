@@ -1100,11 +1100,11 @@ class league(commands.Cog):
         await ctx.send(file=fs)
 
     @commands.command(aliases=['playerprice'], hidden=True)
-    async def tradeprice(self, ctx, season: int, *, player_name: str):
+    async def tradeprice(self, ctx, season: typing.Optional[int], *, player_name: str):
         """Calculate a player's trade price
 
         **Examples:**
-        `[p]playerprice 17 Nelluk`
+        `[p]tradeprice Nelluk`
         """
         guild_matches = await utilities.get_guild_member(ctx, player_name)
         if len(guild_matches) > 1:
@@ -1118,6 +1118,14 @@ class league(commands.Cog):
         if not player:
             # Mention user without pinging him
             return await ctx.send(f'*{member.mention}* is not registered in the bot.', allowed_mentions=discord.AllowedMentions.none())
+
+        if not season:
+            current_season = models.Game.select(peewee.fn.MAX(models.Game.league_season)).scalar()
+            incomplete_games = models.Game.search(player_filter=[player], status_filter=2, season_filter=current_season).count()
+            if incomplete_games > 0:
+                season = current_season - 1
+            else:
+                season = current_season
 
         is_leader = len(utilities.get_matching_roles(member, [leader_role_name, coleader_role_name])) > 0
         record = []
