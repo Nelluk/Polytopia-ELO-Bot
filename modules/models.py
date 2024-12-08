@@ -2333,7 +2333,7 @@ class Game(BaseModel):
                 -(fn.SUM(GameSide.size) - fn.COUNT(Lineup.id))
             ).prefetch(GameSide, Lineup, Player)
 
-    def search(player_filter=None, team_filter=None, title_filter=None, status_filter: int = 0, guild_id: int = None, size_filter=None, platform_filter: int = 2):
+    def search(player_filter=None, team_filter=None, title_filter=None, status_filter: int = 0, guild_id: int = None, size_filter=None, platform_filter: int = 2, season_filter: int = -1):
         # Returns Games by almost any combination of player/team participation, and game status
         # player_filter/team_filter should be a [List, of, Player/Team, objects] (or ID #s)
         # status_filter:
@@ -2346,6 +2346,12 @@ class Game(BaseModel):
         # 1 = mobile (is_mobile == True)
         # 2 = any
         # title_filter should be a [list, of, words] to search for in game notes or title. using iregexp (case insensitive). ordering doesn't matter
+        # season_filter:
+        # -1 (default) = disabled
+        # 0 = include any season game
+        # positive int = include games from that season
+
+        # league_season = SmallIntegerField(default=None, null=True)
 
         confirmed_filter, completed_filter, pending_filter = [0, 1], [0, 1], [0, 1]
         platform_filter = [0, 1] if platform_filter == 2 else [platform_filter]
@@ -2362,6 +2368,15 @@ class Game(BaseModel):
         elif status_filter == 5:
             # Unconfirmed completed games
             completed_filter, confirmed_filter, pending_filter = [1], [0], [0]
+
+        if season_filter == -1:
+            # no filter applied
+            season_query = Game.select(Game.id)
+        elif season_filter == 0:
+            # any season game
+            season_query = Game.select(Game.id).where(Game.league_season > 0)
+        else:
+            season_query = Game.select(Game.id).where(Game.league_season > season_filter)
 
         if guild_id:
             guild_filter = Game.select(Game.id).where(Game.guild_id == guild_id)
@@ -2452,6 +2467,8 @@ class Game(BaseModel):
                 Game.id.in_(size_query)
             ) & (
                 Game.is_mobile.in_(platform_filter)
+            ) & (
+                Game.id.in_(season_query)
             ) & (
                 Game.is_pending.in_(pending_filter))
         ).order_by(-Game.completed_ts, -Game.date)
