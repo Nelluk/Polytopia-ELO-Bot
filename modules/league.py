@@ -1136,7 +1136,11 @@ class league(commands.Cog):
             season_tier = player.polychamps_season_tier(i)
             if season_tier:
                 season_record = player.polychamps_season_record(i)
-                record.append((season_tier, sum(season_record), season_record[0]))  # tier, total games, wins
+                if sum(season_record):
+                    record.append((season_tier, sum(season_record), season_record[0]))  # tier, total games, wins
+                else:
+                    # No games played
+                    record.append((None, 0, 0))
             else:
                 record.append((None, 0, 0))
 
