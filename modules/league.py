@@ -1122,6 +1122,7 @@ class league(commands.Cog):
         if not season:
             current_season = models.Game.select(peewee.fn.MAX(models.Game.league_season)).scalar()
             incomplete_games = models.Game.search(player_filter=[player], status_filter=2, season_filter=current_season).count()
+            logger.debug(f'Incomplete games for player {player}: {incomplete_games}')
             if incomplete_games > 0:
                 season = current_season - 1
                 logger.debug(f'Inferring season of {season} due to incomplete games in current season')
