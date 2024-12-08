@@ -1124,8 +1124,10 @@ class league(commands.Cog):
             incomplete_games = models.Game.search(player_filter=[player], status_filter=2, season_filter=current_season).count()
             if incomplete_games > 0:
                 season = current_season - 1
+                logger.debug(f'Inferring season of {season} due to incomplete games in current season')
             else:
                 season = current_season
+                logger.debug(f'Inferring season of {season} (current)')
 
         is_leader = len(utilities.get_matching_roles(member, [leader_role_name, coleader_role_name])) > 0
         record = []
