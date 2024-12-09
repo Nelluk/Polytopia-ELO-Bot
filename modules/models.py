@@ -1182,6 +1182,9 @@ class Game(BaseModel):
 
     async def create_game_channels(self, guild_list, guild_id):
         logger.debug(f'in create_game_channels for game {self.id}')
+        if self.notes and 'live' in self.notes.lower():
+            logger.debug(f'Skipping channel creation for live game {self.id}')
+            return
         guild = discord.utils.get(guild_list, id=guild_id)
         game_roster, side_external_servers = [], []
         ordered_side_list = list(self.ordered_side_list())
