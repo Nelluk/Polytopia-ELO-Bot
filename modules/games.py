@@ -2284,7 +2284,6 @@ async def post_newgame_messaging(ctx, game):
         except exceptions.NoMatches:
             tier_name = 'Unknown'
         season_str = f'**{tier_name} Season {season[0]}** '
-        # TODO: Better handling of arbitrary number of tiers. Probably will hardcode a list 1-10 in league file
 
     embed, content = game.embed(guild=ctx.guild, prefix=ctx.prefix)
     ranked_str = 'unranked ' if not game.is_ranked else ''
