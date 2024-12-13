@@ -2279,7 +2279,11 @@ async def post_newgame_messaging(ctx, game):
 
     season, season_str = game.is_season_game(), ''
     if season:
-        season_str = f'**{"Gold" if season[1] == 2 else "Silver"} Season {season[0]}** '
+        try:
+            tier_name = settings.tier_lookup(game.league_tier)[1]
+        except exceptions.NoMatches:
+            tier_name = 'Unknown'
+        season_str = f'**{tier_name} Season {season[0]}** '
         # TODO: Better handling of arbitrary number of tiers. Probably will hardcode a list 1-10 in league file
 
     embed, content = game.embed(guild=ctx.guild, prefix=ctx.prefix)
