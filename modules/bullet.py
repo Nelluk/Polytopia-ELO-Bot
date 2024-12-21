@@ -24,8 +24,12 @@ def polychampions_only():
 
 
 class bullet(commands.Cog):
-    brackets = ["GMT", "EST", "SGT"]
     templates = [8, 16, 32]
+    brackets = {
+        "GMT": 13,
+        "EST": 17,
+        "SGT": 21
+    }
     win_words = ["win", "won", "beat"]
     lose_words = ["lose", "lost"]
 
@@ -34,8 +38,9 @@ class bullet(commands.Cog):
 
     def __init__(self, bot):
         self.bot = bot
-        self.agcm = gspread_asyncio.AsyncioGspreadClientManager(self.get_creds)
         self.form_tz = ZoneInfo("America/Chicago")
+        self.toggle = True
+        self.initialize_gspread_client()
 
         with open("./spreadsheet_creds.json", "r", encoding="utf-8") as json_file:
             data = json.load(json_file)
@@ -65,7 +70,7 @@ class bullet(commands.Cog):
             return await ctx.send(f"Bracket was not provided! *Example:* `{ctx.prefix}bullet GMT`")
 
         bracket = bracket.upper()
-        if bracket not in self.brackets:
+        if bracket not in self.brackets.keys():
             return await ctx.send(f"There are no bullet brackets for {discord.utils.escape_mentions(bracket)}!")
 
         spreadsheet = await self.open_bullet_sheet()
@@ -105,7 +110,7 @@ class bullet(commands.Cog):
             return await ctx.send("You no longer have the bullet role.")
 
         bracket = arg.upper()
-        if bracket not in self.brackets:
+        if bracket not in self.brackets.keys():
             return await ctx.send(f"There are no bullet brackets for {discord.utils.escape_mentions(bracket)}!")
 
         spreadsheet = await self.open_bullet_sheet()
@@ -138,7 +143,7 @@ class bullet(commands.Cog):
         `[p]bulletstart GMT 1132 1190`
         """
         bracket = bracket.upper()
-        if bracket not in self.brackets:
+        if bracket not in self.brackets.keys():
             return await ctx.send(f"There are no bullet brackets for {discord.utils.escape_mentions(bracket)}!")
 
         spreadsheet = await self.open_bullet_sheet()
@@ -213,9 +218,70 @@ class bullet(commands.Cog):
 
         return await ctx.send(f"Bracket sheet for {bracket} have been created!")
 
+    @commands.command(hidden=True)
+    @polychampions_only()
+    @commands.has_role("Bullet Director")
+    async def bullettoggle(self, ctx):
+        """Toggle the bullet automation functionality"""
+        self.toggle = not self.toggle
+        if self.toggle:
+            # Refresh cache
+            self.initialize_gspread_client()
+            await ctx.send("Bullet automation is now enabled.")
+        else:
+            await ctx.send("Bullet automation is now disabled.")
+
+    @commands.command(hidden=True, aliases=["subbullet"])
+    @polychampions_only()
+    @commands.has_role("Bullet Director")
+    async def bulletsub(self, ctx, *, args: str = None):
+        """Substitute a player in the bullet tournament
+
+        **Examples**
+        `[p]bulletsub GMT @player1 @player2`
+        """
+        if len(ctx.message.mentions) != 2:
+            return await ctx.send("Please mention the substitute and the player being substituted.")
+        
+        p1, p2 = ctx.message.mentions
+
+        bracket = args.split(" ")[0].upper()
+        if bracket not in self.brackets.keys():
+            return await ctx.send(f"There are no bullet brackets for {discord.utils.escape_mentions(bracket)}!")
+
+        spreadsheet = await self.open_bullet_sheet()
+        if not spreadsheet:
+            return await ctx.send("Something wrong happened, please contact the bot owner.")
+
+        bracket_sheet = await self.get_bracket_sheet(spreadsheet, bracket)
+
+        if not bracket_sheet:
+            return await ctx.send("Something went wrong with finding the bracket sheet. Please contact the bot owner.")
+        
+        sheet, template = bracket_sheet
+        participants = [p[0] for p in await sheet.get(f"A2:A{1 + template}")]
+        if p1.name in participants and p2.name in participants:
+            return await ctx.send("Both players are already in the bracket!")    
+        elif p1.name in participants:
+            sub_out = p1
+            sub_in = p2
+        elif p2.name in participants:
+            sub_out = p2
+            sub_in = p1
+        else:
+            return await ctx.send("Neither player is in the bracket!")
+
+        dm = models.DiscordMember.get(discord_id=sub_in.id)
+        player = models.Player.get(discord_member=dm, guild_id=ctx.guild.id)
+        house = player.team.house.name if player.team and player.team.house else "Novas"
+
+        sub_out_row = participants.index(sub_out.name) + 2
+        await sheet.update([[sub_in.name, house]], f"A{sub_out_row}:B{sub_out_row}")
+        await ctx.send(f"{sub_out} has successfully been substituted with {sub_in}.")
+
     @commands.Cog.listener()
     async def on_message(self, message):
-        if message.author.bot or message.channel.id != 794885986143830037:  # bullet-results
+        if not self.toggle or message.author.bot or message.channel.id != 794885986143830037:  # bullet-results
             return
 
         if len(message.mentions) != 2:
@@ -239,16 +305,12 @@ class bullet(commands.Cog):
         if not spreadsheet:
             return
 
-        bracket_sheet = await spreadsheet.get_worksheet(1)
-        try:
-            name = bracket_sheet.title.split("(")
-            template = int(name[1].split(")")[0])
-            day = int(name[0].split(" ")[2])
-        except IndexError:
+        bracket = self.guess_current_bracket()
+        bracket_sheet = await self.get_bracket_sheet(spreadsheet, bracket)
+        if not bracket_sheet:
             return
 
-        if not (-1 <= datetime.datetime.now(self.form_tz).day - day <= 1):
-            return
+        bracket_sheet, template = bracket_sheet
 
         columns = list(" ABCDEFGHIJKLMNOPQRSTUVWXYZ")
         # Write the winner's team name to the right of the winner's name and a formula in the sheet will update the brackets
@@ -296,6 +358,9 @@ class bullet(commands.Cog):
 
         await message.add_reaction(self.checkmark_emoji)
 
+    def initialize_gspread_client(self):
+        self.agcm = gspread_asyncio.AsyncioGspreadClientManager(self.get_creds)
+
     async def open_bullet_sheet(self):
         try:
             agc = await self.agcm.authorize()
@@ -305,6 +370,30 @@ class bullet(commands.Cog):
             return None
 
         return spreadsheet
+
+    def guess_current_bracket(self):
+        now = datetime.datetime.now(self.form_tz)
+        for bracket, hour in self.brackets.items():
+            if now.hour >= hour:
+                return bracket
+
+        return bracket  # hour is back to 0, return last bracket
+
+    async def get_bracket_sheet(self, spreadsheet, bracket):
+        all_sheets = await spreadsheet.worksheets()
+        for sheet in all_sheets[:5]:
+            try:
+                name = sheet.title.split("(")
+                template = int(name[1].split(")")[0])
+                day = int(name[0].split(" ")[2])
+            except IndexError:
+                continue
+
+            if not (-1 <= datetime.datetime.now(self.form_tz).day - day <= 1):
+                continue
+
+            if sheet.title.startswith(bracket):
+                return sheet, template
 
     async def find_player_info(self, worksheet, name, template):
         participants = await worksheet.get(f"A2:D{1 + template}")
