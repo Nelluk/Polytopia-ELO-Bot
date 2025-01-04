@@ -373,11 +373,11 @@ class bullet(commands.Cog):
 
     def guess_current_bracket(self):
         now = datetime.datetime.now(self.form_tz)
-        for bracket, hour in self.brackets.items():
+        for bracket, hour in reversed(self.brackets.items()):
             if now.hour >= hour:
                 return bracket
 
-        return bracket  # hour is back to 0, return last bracket
+        return list(self.brackets.keys())[-1]  # hour is back to 0, return last bracket
 
     async def get_bracket_sheet(self, spreadsheet, bracket):
         all_sheets = await spreadsheet.worksheets()
