@@ -282,7 +282,7 @@ class Team(BaseModel):
             )
             .group_by(Team.id)
             .order_by(
-                post_season_wins.desc(), regular_season_wins.desc()
+                post_season_wins.desc(), regular_season_wins.desc(), regular_season_incomplete.desc()
             )
         )
 
