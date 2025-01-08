@@ -126,6 +126,8 @@ def get_map_type(query):
     query = query.lower()
     if query == 'ww' or query == 'waterworld':
         query = 'water world'
+    elif query == 'drylands':
+        query = 'dryland'
 
     if len(query) < 3:
         return None

@@ -102,11 +102,12 @@ class misc(commands.Cog):
             map = aliases.get(map, map)
 
             try:
+                # TODO: save the points list in the database
                 channel = guild.get_channel(1293614579850674216)  # tribe-tier-lists     
                 if mode == '2v2':
-                    points_message = await channel.fetch_message(1293614719659278447)
+                    points_message = await channel.fetch_message(1326600885937377444)
                 elif mode == '3v3':
-                    points_message = await channel.fetch_message(1293614772725481535)
+                    points_message = await channel.fetch_message(1326600895525290134)
                 else:
                     return await ctx.send(f'Invalid mode passed. *Example:* `{ctx.prefix}{ctx.invoked_with} archi 2v2`')
             except discord.NotFound:
