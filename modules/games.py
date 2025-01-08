@@ -122,7 +122,7 @@ class polygames(commands.Cog):
         for lineup in pending_lineups_with_side_channels:
 
             channel = self.bot.get_channel(lineup.gameside.team_chan)
-            if not channel:
+            if not channel or channel.guild.id != member.guild.id:
                 continue
 
             await fix_channel_perm(channel, member)
@@ -130,7 +130,7 @@ class polygames(commands.Cog):
         for lineup in pending_lineups_with_game_channels:
 
             channel = self.bot.get_channel(lineup.game.game_chan)
-            if not channel:
+            if not channel or channel.guild.id != member.guild.id:
                 continue
 
             await fix_channel_perm(channel, member)
