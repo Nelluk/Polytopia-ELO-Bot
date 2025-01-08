@@ -103,7 +103,7 @@ class misc(commands.Cog):
 
             try:
                 # TODO: save the points list in the database
-                channel = guild.get_channel(1293614579850674216)  # tribe-tier-lists     
+                channel = guild.get_channel(1326593750973153370)  # tribe-points   
                 if mode == '2v2':
                     points_message = await channel.fetch_message(1326600885937377444)
                 elif mode == '3v3':
