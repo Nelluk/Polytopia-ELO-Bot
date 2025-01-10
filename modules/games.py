@@ -115,6 +115,7 @@ class polygames(commands.Cog):
             ((GameSide.team_chan_external_server == member.guild.id) | (Game.guild_id == member.guild.id))
         )
 
+        logger.debug(f'pending_lineups_with_side_channels {len(pending_lineups_with_side_channels)} ')
         for lineup in pending_lineups_with_side_channels:
 
             logger.debug(f'on_member_join: attempting to get_channel {lineup.game.game_chan} for game {lineup.game.id} (side_channels_)')
@@ -133,7 +134,7 @@ class polygames(commands.Cog):
         pending_lineups_with_game_channels = Lineup.select().join(Game).where(
             (Game.is_completed == 0) & (Lineup.player == player) & (Game.game_chan > 0) & (Game.guild_id == member.guild.id)
         )
-
+        logger.debug(f'pending_lineups_with_game_channels {len(pending_lineups_with_game_channels)} ')
         for lineup in pending_lineups_with_game_channels:
 
             logger.debug(f'on_member_join: attempting to get_channel {lineup.game.game_chan} for game {lineup.game.id} (game_channels)')
@@ -152,7 +153,7 @@ class polygames(commands.Cog):
             (Game.is_completed == 0) & (Lineup.player == player) & (GameSide.team_chan == None) &
             ((GameSide.team_chan_external_server == member.guild.id) | (Game.guild_id == member.guild.id))
         )
-
+        logger.debug(f'pending_lineups_with_no_channels {len(pending_lineups_with_no_channels)} ')
         for lineup in pending_lineups_with_no_channels:
             logger.debug(f'on_member_join: no channel found for lineup {lineup.id} - recreating deleted channels')
             try:
