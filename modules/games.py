@@ -117,8 +117,14 @@ class polygames(commands.Cog):
 
         for lineup in pending_lineups_with_side_channels:
 
+            logger.debug(f'on_member_join: attempting to get_channel {lineup.game.game_chan} for game {lineup.game.id} (side_channels_)')
+
             channel = self.bot.get_channel(lineup.game.game_chan)
-            if not channel or channel.guild.id != member.guild.id:
+            if not channel:
+                logger.debug('no channel found')
+                continue
+            elif channel.guild.id != member.guild.id:
+                logger.debug('channel.guild.id != member.guild.id')
                 continue
 
             await fix_channel_perm(channel, member)
@@ -130,7 +136,7 @@ class polygames(commands.Cog):
 
         for lineup in pending_lineups_with_game_channels:
 
-            logger.debug(f'on_member_join: attempting to get_channel {lineup.game.game_chan} for game {lineup.game.id}')
+            logger.debug(f'on_member_join: attempting to get_channel {lineup.game.game_chan} for game {lineup.game.id} (game_channels)')
             channel = self.bot.get_channel(lineup.game.game_chan)
             if not channel:
                 logger.debug('no channel found')
