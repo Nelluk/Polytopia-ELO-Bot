@@ -118,7 +118,7 @@ class polygames(commands.Cog):
         for lineup in pending_lineups_with_side_channels:
 
             channel = self.bot.get_channel(lineup.gameside.team_chan)
-            if not channel or channel.guild.id != member.guild.id:
+            if not channel:
                 logger.debug(f'on_member_join: re-creating deleted side channel on rejoin')
                 try:
                     await lineup.game.create_game_channels(settings.bot.guilds, member.guild.id)
@@ -136,7 +136,7 @@ class polygames(commands.Cog):
         for lineup in pending_lineups_with_game_channels:
 
             channel = self.bot.get_channel(lineup.game.game_chan)
-            if not channel or channel.guild.id != member.guild.id:
+            if not channel:
                 logger.debug(f'on_member_join: re-creating deleted game channel on rejoin')
                 try:
                     await lineup.game.create_game_channels(settings.bot.guilds, member.guild.id)
