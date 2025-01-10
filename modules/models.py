@@ -1180,14 +1180,17 @@ class Game(BaseModel):
             value = value.strip('\"').strip('\'').strip('”').strip('“').title()[:35].strip() if value else value
         return super().__setattr__(name, value)
 
-    async def create_game_channels(self, guild_list, guild_id):
+    async def create_game_channels(self, guild_list, guild_id, side=None):
         logger.debug(f'in create_game_channels for game {self.id}')
         if self.notes and 'live' in self.notes.lower():
             logger.debug(f'Skipping channel creation for live game {self.id}')
             return
         guild = discord.utils.get(guild_list, id=guild_id)
         game_roster, side_external_servers = [], []
-        ordered_side_list = list(self.ordered_side_list())
+        if side:
+            ordered_side_list = [side]
+        else:
+            ordered_side_list = list(self.ordered_side_list())
         skipping_team_chans, skipping_central_chan = False, False
         exception_encountered, exception_messages = False, []
 

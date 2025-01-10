@@ -117,20 +117,12 @@ class polygames(commands.Cog):
 
         for lineup in pending_lineups_with_side_channels:
 
-            channel = self.bot.get_channel(lineup.gameside.team_chan)
-            if channel.guild.id != member.guild.id:
-                logger.debug('channel.guild != member.guild')
+            channel = self.bot.get_channel(lineup.game.game_chan)
+            if not channel or channel.guild.id != member.guild.id:
                 continue
-            elif not channel:
-                logger.debug(f'on_member_join: re-creating deleted side channel on rejoin')
-                try:
-                    await lineup.game.create_game_channels(settings.bot.guilds, member.guild.id)
-                    logger.info(f'Channel created successfully')
-                except exceptions.MyBaseException as e:
-                    logger.warning(f'Channel creation error: {e}')
-            else:
-                logger.debug(f'on_member_join: fix_channel_perm for existing channel on rejoin')
-                await fix_channel_perm(channel, member)
+
+            await fix_channel_perm(channel, member)
+            logger.debug(f'on_member_join: fix_channel_perm for existing channel on rejoin')
 
         pending_lineups_with_game_channels = Lineup.select().join(Game).where(
             (Game.is_completed == 0) & (Lineup.player == player) & (Game.game_chan > 0) & (Game.guild_id == member.guild.id)
@@ -139,19 +131,24 @@ class polygames(commands.Cog):
         for lineup in pending_lineups_with_game_channels:
 
             channel = self.bot.get_channel(lineup.game.game_chan)
-            if channel.guild.id != member.guild.id:
-                logger.debug('channel.guild != member.guild')
+            if not channel or channel.guild.id != member.guild.id:
                 continue
-            elif not channel:
-                logger.debug(f'on_member_join: re-creating deleted game channel on rejoin')
-                try:
-                    await lineup.game.create_game_channels(settings.bot.guilds, member.guild.id)
-                    logger.info(f'Channel created successfully')
-                except exceptions.MyBaseException as e:
-                    logger.warning(f'Channel creation error: {e}')
-            else:
-                await fix_channel_perm(channel, member)
-                logger.debug(f'on_member_join: fix_channel_perm for existing channel on rejoin')
+
+            await fix_channel_perm(channel, member)
+            logger.debug(f'on_member_join: fix_channel_perm for existing channel on rejoin')
+
+        pending_lineups_with_no_channels = Lineup.select().join(GameSide).join(Game).where(
+            (Game.is_completed == 0) & (Lineup.player == player) & (GameSide.team_chan == None) &
+            ((GameSide.team_chan_external_server == member.guild.id) | (Game.guild_id == member.guild.id))
+        )
+
+        for lineup in pending_lineups_with_no_channels:
+            logger.debug(f'on_member_join: no channel found for lineup {lineup.id} - recreating deleted channels')
+            try:
+                await lineup.game.create_game_channels(settings.bot.guilds, member.guild.id, side=lineup.gameside)
+            except exceptions.MyBaseException as e:
+                logger.warning(f'Channel creation error: {e}')
+
 
     @commands.Cog.listener()
     async def on_member_remove(self, member):
