@@ -118,9 +118,9 @@ class polygames(commands.Cog):
         logger.debug(f'pending_lineups_with_side_channels {len(pending_lineups_with_side_channels)} ')
         for lineup in pending_lineups_with_side_channels:
 
-            logger.debug(f'on_member_join: attempting to get_channel {lineup.game.game_chan} for game {lineup.game.id} (side_channels_)')
+            logger.debug(f'on_member_join: attempting to get_channel {lineup.gameside.team_chan} for game {lineup.game.id} (side_channels)')
 
-            channel = self.bot.get_channel(lineup.game.game_chan)
+            channel = self.bot.get_channel(lineup.gameside.team_chan)
             if not channel:
                 logger.debug('no channel found')
                 continue
