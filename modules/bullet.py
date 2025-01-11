@@ -82,7 +82,7 @@ class bullet(commands.Cog):
         dt = datetime.datetime.now(self.form_tz).strftime("%m/%d/%Y %H:%M:%S")
         await signup_sheet.append_row([dt, ctx.author.name, bracket], value_input_option="USER_ENTERED")
 
-        bullet_role = discord.utils.get(ctx.guild.roles, id=794810159104131082)
+        bullet_role = discord.utils.get(ctx.guild.roles, id=1327425257564540938)  # Bullet
         if bullet_role not in ctx.author.roles:
             await ctx.author.add_roles(bullet_role)
 
@@ -103,7 +103,7 @@ class bullet(commands.Cog):
             return await ctx.send(f"Bracket was not provided! *Example:* `{ctx.prefix}{ctx.invoked_with} GMT`")
 
         if arg.lower() == "role":
-            bullet_role = discord.utils.get(ctx.guild.roles, id=794810159104131082)
+            bullet_role = discord.utils.get(ctx.guild.roles, id=1327425257564540938)  # Bullet
             if bullet_role in ctx.author.roles:
                 await ctx.author.remove_roles(bullet_role)
 
@@ -157,7 +157,7 @@ class bullet(commands.Cog):
         participants = []
         invalid = []
 
-        champion_role = discord.utils.get(ctx.guild.roles, id=771916616077803540)
+        champion_role = discord.utils.get(ctx.guild.roles, id=1327678594738159718)  # Bullet Champion
         for p in signups:
             if len(p) == 3 and "withdraw" in p[2].lower() and p[1] == bracket:
                 participants = [x for x in participants if x[0] != p[0]]
@@ -281,7 +281,7 @@ class bullet(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message(self, message):
-        if not self.toggle or message.author.bot or message.channel.id != 794885986143830037:  # bullet-results
+        if not self.toggle or message.author.bot or message.channel.id != 1327666959503986728:  # bullet-results
             return
 
         if len(message.mentions) != 2:
@@ -330,7 +330,7 @@ class bullet(commands.Cog):
         await bracket_sheet.update_acell(f"{columns[w_column+1]}{w_row}", winner_info[1])
 
         # Check if winner/loser's next games are ready
-        channel = message.guild.get_channel(789307611514273843)  # bullet-chat
+        channel = message.guild.get_channel(1327666838141931520)  # bullet-chat
 
         loser_info = await self.find_player_info(bracket_sheet, loser.name, template)
         if not loser_info:
