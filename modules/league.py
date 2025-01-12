@@ -23,7 +23,7 @@ grad_role_name = 'Nova Grad'           # met graduation requirements and is elig
 free_agent_role_name = 'Free Agent'    # signed up for a prior draft but did not get drafted
 novas_role_name = 'The Novas'          # Umbrella newbie role that all of above should also have
 league_role_name = 'League Member'     # Umbrella role for all Pro+Junior members
-pc_emoji = '<:PolyChampions:488510815893323787>'
+pc_emoji = '<:PolyChampions:1327340966448730163>'
 leader_role_name = 'House Leader'
 coleader_role_name = 'House Co-Leader'
 recruiter_role_name = 'House Recruiter'
@@ -477,7 +477,7 @@ class league(commands.Cog):
             "__To set your polytopia name with the bot <:Midjiwan:938642183093907496>:__\n"
             "`$setname` followed by your polytopia in app name\n\n"
             
-            "__To join the new starters team <:novas:531568047824306188>:__\n"
+            "__To join the new starters team <:novas:1327341237665005669>:__\n"
             "`$novas`\n\n"
             
             "__To open a game 👋 :__\n"
@@ -540,7 +540,7 @@ class league(commands.Cog):
         else:
             # use default channel for announcement
             if ctx.guild.id == settings.server_ids['polychampions']:
-                announcement_channel = ctx.guild.get_channel(447986488152686594)  # #server-announcements
+                announcement_channel = ctx.guild.get_channel(1326604735863721984)  # #announcements
             else:
                 announcement_channel = ctx.guild.get_channel(480078679930830849)  # #admin-spam
 
