@@ -339,7 +339,7 @@ def export_game_data_brief(query):
     with gzip.open(filename, mode='wt') as export_file:
         game_writer = csv.writer(export_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
 
-        header = ['game_id', 'server', 'season', 'game_name', 'game_type', 'headline', 'rank_unranked', 'game_date', 'completed_timestamp', 'winning_side', 'winning_roster', 'winning_side_elo', 'losing_side', 'losing_roster', 'losing_side_elo']
+        header = ['game_id', 'server', 'season', 'game_name', 'game_type', 'headline', 'rank_unranked', 'game_date', 'completed_timestamp', 'winning_side', 'winning_roster', 'winning_side_elo', 'losing_side', 'losing_roster', 'losing_side_elo', 'map_type']
         game_writer.writerow(header)
 
         for game in query:
@@ -363,7 +363,7 @@ def export_game_data_brief(query):
             row = [game.id, settings.guild_setting(game.guild_id, 'display_name'), season_str, game.name, game.size_string(),
                    game.get_gamesides_string(), ranked_status, str(game.date), str(game.completed_ts),
                    winning_side.name(), " / ".join(winning_roster), winning_side.elo_strings()[0],
-                   losing_side.name(), " / ".join(losing_roster), losing_side.elo_strings()[0]]
+                   losing_side.name(), " / ".join(losing_roster), losing_side.elo_strings()[0], game.map_type]
 
             game_writer.writerow(row)
 
