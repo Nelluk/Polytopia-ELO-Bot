@@ -136,11 +136,11 @@ class bullet(commands.Cog):
     @polychampions_only()
     @commands.has_role("Bullet Director")
     @commands.cooldown(1, 10, commands.BucketType.guild)
-    async def bulletstart(self, ctx, bracket: str, start: int, end: int):
+    async def bulletstart(self, ctx, bracket: str, start: int):
         """Starts a bullet bracket
 
         **Examples**
-        `[p]bulletstart GMT 1132 1190`
+        `[p]bulletstart GMT 1132`
         """
         bracket = bracket.upper()
         if bracket not in self.brackets.keys():
@@ -153,7 +153,7 @@ class bullet(commands.Cog):
         all_sheets = await spreadsheet.worksheets()
         signup_sheet = all_sheets[0]
 
-        signups = await signup_sheet.get(f"B{start}:D{end}")
+        signups = await signup_sheet.get(f"B{start}:D")
         participants = []
         invalid = []
 
@@ -238,7 +238,7 @@ class bullet(commands.Cog):
         """Substitute a player in the bullet tournament
 
         **Examples**
-        `[p]bulletsub GMT @player1 @player2`
+        `[p]bulletsub @player1 @player2`
         """
         if len(ctx.message.mentions) != 2:
             return await ctx.send("Please mention the substitute and the player being substituted.")
@@ -247,7 +247,7 @@ class bullet(commands.Cog):
 
         bracket = args.split(" ")[0].upper()
         if bracket not in self.brackets.keys():
-            return await ctx.send(f"There are no bullet brackets for {discord.utils.escape_mentions(bracket)}!")
+            bracket = self.guess_current_bracket(offset=1)
 
         spreadsheet = await self.open_bullet_sheet()
         if not spreadsheet:
@@ -371,10 +371,10 @@ class bullet(commands.Cog):
 
         return spreadsheet
 
-    def guess_current_bracket(self):
+    def guess_current_bracket(self, offset=0):
         now = datetime.datetime.now(self.form_tz)
         for bracket, hour in reversed(self.brackets.items()):
-            if now.hour >= hour:
+            if now.hour + offset >= hour:
                 return bracket
 
         return list(self.brackets.keys())[-1]  # hour is back to 0, return last bracket
