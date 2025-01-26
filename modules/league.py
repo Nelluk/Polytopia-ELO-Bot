@@ -1158,17 +1158,40 @@ class league(commands.Cog):
         *Staff:* Export all league games to a compressed CSV file
 
         Specifically includes all ranked 2v2 or 3v3 games. This takes several minutes to run. You will be pinged upon completion.
+
+        **Examples:**
+        `[p]league_export`
+        `[p]league_export logs` Include game logs in the export
         """
 
         import io
-        query = models.Game.select().where(
-            (models.Game.is_confirmed == 1) & (models.Game.guild_id == settings.server_ids['polychampions']) & (models.Game.is_ranked == 1) &
-            ((models.Game.size == [2, 2]) | (models.Game.size == [3, 3]))
-        ).order_by(models.Game.date)
+
+        export_logs = arg and arg.lower() == 'logs'
+        # TODO: one query instead of if/else queries
+        if export_logs:
+            query = (models.Game
+                .select(models.Game, peewee.fn.ARRAY_AGG(models.GameLog.message).alias('gamelogs'))
+                .join(models.GameLog, peewee.JOIN.LEFT_OUTER, on=(models.GameLog.message ** peewee.fn.CONCAT('__', models.Game.id, '__%')))
+                .where(
+                    (models.Game.is_confirmed == 1) & (models.Game.guild_id == settings.server_ids['polychampions']) & (models.Game.is_ranked == 1) &
+                    ((models.Game.size == [2, 2]) | (models.Game.size == [3, 3]))
+                )
+                .group_by(models.Game.id)
+                .order_by(models.Game.date)
+            )
+        else:
+            query = (models.Game
+                .select()
+                .where(
+                    (models.Game.is_confirmed == 1) & (models.Game.guild_id == settings.server_ids['polychampions']) & (models.Game.is_ranked == 1) &
+                    ((models.Game.size == [2, 2]) | (models.Game.size == [3, 3]))
+                )
+                .order_by(models.Game.date)
+            )
 
         def async_call_export_func():
 
-            filename = utilities.export_game_data_brief(query=query)
+            filename = utilities.export_game_data_brief(query=query, export_logs=export_logs)
             return filename
 
         if query:

@@ -329,17 +329,19 @@ def export_game_data(query=None):
     return filename
 
 
-def export_game_data_brief(query):
+def export_game_data_brief(query, export_logs=False):
     import csv
     import gzip
     # only supports two-sided games, one winner and one loser
 
     filename = 'games_export-brief.csv.gz'
     connect()
-    with gzip.open(filename, mode='wt') as export_file:
+    with gzip.open(filename, mode='wt', encoding='utf-8') as export_file:
         game_writer = csv.writer(export_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
 
         header = ['game_id', 'server', 'season', 'game_name', 'game_type', 'headline', 'rank_unranked', 'game_date', 'completed_timestamp', 'winning_side', 'winning_roster', 'winning_side_elo', 'losing_side', 'losing_roster', 'losing_side_elo', 'map_type']
+        if export_logs:
+            header.append('logs')
         game_writer.writerow(header)
 
         for game in query:
@@ -364,6 +366,8 @@ def export_game_data_brief(query):
                    game.get_gamesides_string(), ranked_status, str(game.date), str(game.completed_ts),
                    winning_side.name(), " / ".join(winning_roster), winning_side.elo_strings()[0],
                    losing_side.name(), " / ".join(losing_roster), losing_side.elo_strings()[0], game.map_type]
+            if export_logs:
+                row.append("\n".join(game.gamelogs))
 
             game_writer.writerow(row)
 
