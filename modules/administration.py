@@ -600,7 +600,7 @@ class administration(commands.Cog):
             return await ctx.send(f'Valid emoji not detected. Example: `{ctx.prefix}team_emoji name :my_custom_emoji:`')
 
         try:
-            team = models.Team.get_or_except(team_name, ctx.guild.id)
+            team = models.Team.get_or_except(team_name, ctx.guild.id, include_hidden=True)
         except exceptions.NoSingleMatch as ex:
             return await ctx.send(f'{ex}\nExample: `{ctx.prefix}team_emoji name :my_custom_emoji:`')
 
@@ -625,7 +625,7 @@ class administration(commands.Cog):
         `[p]team_image Ronin` - Display currently saved image
         """
         try:
-            team = models.Team.get_or_except(team_name, ctx.guild.id)
+            team = models.Team.get_or_except(team_name, ctx.guild.id, include_hidden=True)
         except exceptions.NoSingleMatch as ex:
             return await ctx.send(f'{ex}\nExample: `{ctx.prefix}team_emoji name :my_custom_emoji:`')
 
@@ -655,7 +655,7 @@ class administration(commands.Cog):
         """
 
         try:
-            team = models.Team.get_or_except(old_team_name, ctx.guild.id)
+            team = models.Team.get_or_except(old_team_name, ctx.guild.id, include_hidden=True)
         except exceptions.NoSingleMatch as ex:
             return await ctx.send(f'{ex}\nExample: `{ctx.prefix}team_name \"Current name\" \"New Team Name\"`')
 
@@ -683,7 +683,7 @@ class administration(commands.Cog):
         if not team_name:
             return await ctx.send(f'Example: `{ctx.prefix}team_server \"Team Name\" 447883341463814144` (Use the raw numeric ID of the team\'s server)')
         try:
-            team = models.Team.get_or_except(team_name, ctx.guild.id)
+            team = models.Team.get_or_except(team_name, ctx.guild.id, include_hidden=True)
         except exceptions.NoSingleMatch as ex:
             return await ctx.send(f'{ex}\nExample: `{ctx.prefix}team_server \"Team Name\" 447883341463814144` (Use the raw numeric ID of the team\'s server)')
 

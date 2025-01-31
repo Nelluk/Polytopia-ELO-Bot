@@ -162,26 +162,27 @@ class Team(BaseModel):
         # http://docs.peewee-orm.com/en/3.6.0/peewee/models.html#multi-column-indexes
 
     @staticmethod
-    def get_by_name(team_name: str, guild_id: int, require_exact: bool = False):
+    def get_by_name(team_name: str, guild_id: int, require_exact: bool = False, include_hidden: bool = False):
         logger.debug(f'Team.get_by_name {team_name}')
+        hidden_filter = (Team.is_hidden == 0) if not include_hidden else True
         if require_exact:
-            teams = Team.select().where((Team.name == team_name) & (Team.guild_id == guild_id) & (Team.is_hidden == 0))
+            teams = Team.select().where((Team.name == team_name) & (Team.guild_id == guild_id) & hidden_filter)
         else:
             teams = Team.select().where(
                 (Team.name.contains(team_name)) & (Team.guild_id == guild_id) &
-                (Team.is_hidden == 0) & (Team.is_archived == 0)
+                hidden_filter & (Team.is_archived == 0)
             )
             # If no results found, include archived teams in the search
             if len(teams) == 0:
                 teams = Team.select().where(
                     (Team.name.contains(team_name)) & (Team.guild_id == guild_id) &
-                    (Team.is_hidden == 0)
+                    hidden_filter
                 )
         return teams
 
     @staticmethod
-    def get_or_except(team_name: str, guild_id: int, require_exact: bool = False):
-        results = Team.get_by_name(team_name=team_name, guild_id=guild_id, require_exact=require_exact)
+    def get_or_except(team_name: str, guild_id: int, require_exact: bool = False, include_hidden: bool = False):
+        results = Team.get_by_name(team_name=team_name, guild_id=guild_id, require_exact=require_exact, include_hidden=include_hidden)
         if len(results) == 0:
             raise exceptions.NoMatches(f'No matching team was found for "{team_name}"')
         if len(results) > 1:
