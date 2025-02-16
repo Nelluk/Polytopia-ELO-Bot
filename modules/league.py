@@ -766,7 +766,7 @@ class league(commands.Cog):
             except peewee.IntegrityError:
                 return await ctx.send(f':warning: There is already a House with the name "{house_name}". No changes saved.')
             models.GameLog.write(guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} created a new House with name "{house.name}"')
-            return await ctx.send(f'New league House created with name "{house.name}". You can add a team to it using `{ctx.prefix}house_team`.')
+            return await ctx.send(f'New league House created with name "{house.name}". You can add a team to it using `{ctx.prefix}team_house`.')
         
         if ctx.invoked_with == 'house_rename':
             example_string = f'**Example**: `{ctx.prefix}{ctx.invoked_with} ronin New Team Name`'
