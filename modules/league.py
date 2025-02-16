@@ -746,18 +746,44 @@ class league(commands.Cog):
         async with ctx.typing():
             await utilities.buffered_send(destination=ctx, content='\n'.join(house_list), allowed_mentions=discord.AllowedMentions(everyone=False, users=False, roles=False))
     
-    @commands.command(aliases=['house_rename'], usage='')
+    @commands.command(aliases=['house_rename', 'house_image'], usage='')
     @settings.is_mod_check()
     async def house_add(self, ctx, *, arg=None):
         """*Mod*: Create or rename a league House
         **Example:**
         `[p]house_add Amphibian Party` - Add a new house named "Amphibian Party"
         `[p]house_rename amphibian Mammal Kingdom` - Rename them to "Mammal Kingdom"
+        `[p]house_image amphibian http://www.path.to/image.png` - Set house image URL
         """
         args = arg.split() if arg else []
         if not args:
             return await ctx.send(f'See {ctx.prefix}help {ctx.invoked_with} for usage examples.')
         
+        if ctx.invoked_with == 'house_image':
+            if len(args) < 2:
+                return await ctx.send(f'Please provide both a house name and image URL. Example: `{ctx.prefix}house_image housename http://url_to_image.png`')
+            
+            house_name, image_url = args[0], ' '.join(args[1:])
+            
+            try:
+                house = models.House.get_or_except(house_name=house_name)
+            except (exceptions.TooManyMatches, exceptions.NoMatches) as e:
+                return await ctx.send(e)
+
+            if 'http' not in image_url:
+                return await ctx.send(f'Valid image URL not detected. Example usage: `{ctx.prefix}house_image name http://url_to_image.png`')
+
+            old_url = house.image_url if house.image_url else "None"
+            house.image_url = image_url
+            house.save()
+
+            logger.info(f'house_image set for {house.id} {house.name} to {house.image_url}')
+            models.GameLog.write(guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} updated image URL for House {house.name} from {old_url} to {image_url}')
+            
+            await ctx.send(f'House {house.name} updated with new image_url. Old URL was: {old_url}\nNew image should appear below:')
+            await ctx.send(house.image_url)
+            return
+
         if ctx.invoked_with == 'house_add':
             house_name = ' '.join(args)
             try:
