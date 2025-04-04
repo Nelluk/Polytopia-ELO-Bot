@@ -1282,19 +1282,18 @@ class league(commands.Cog):
 
     def get_players_highest_bids(self, auction):
         player_bids = self.get_auction_clean_bids(auction)
-
         highest_bids = []
         tied_highest_bids = []
 
         for player, bids in player_bids.items():
-            bids.sort(key=lambda x: x[1], reverse=True)  # Sort bids by amount in descending order
-            highest_bid = bids[0][1]
-            highest_teams = [bid[0] for bid in bids if bid[1] == highest_bid]
+            bids.sort(key=lambda x: x[1], reverse=True)
+            second_highest_bid = bids[1][1] if len(bids) > 1 else bids[0][1]
+            highest_teams = [bid[0] for bid in bids if bid[1] == bids[0][1]]
 
             if len(highest_teams) > 1:
-                tied_highest_bids.append((player, highest_teams, highest_bid))
+                tied_highest_bids.append((player, highest_teams, second_highest_bid))
             else:
-                highest_bids.append((player, highest_teams[0], highest_bid))
+                highest_bids.append((player, highest_teams[0], second_highest_bid))
 
         return highest_bids, tied_highest_bids
 
@@ -1337,7 +1336,7 @@ class league(commands.Cog):
         now = datetime.datetime.now(tz=datetime.timezone.utc)
         week_num = now.isocalendar()[1]
 
-        auction_channel = self.bot.get_channel(1318594710264090644)  # free-agent-picks
+        auction_channel = self.bot.get_channel(1327702121130233969)  # free-agent-picks
         current_auction = models.Auction.select().where(models.Auction.ongoing == True).first()
         if now.weekday() == 5 and now.hour == 10 and week_num % 2 == 0:
             # Start auction
