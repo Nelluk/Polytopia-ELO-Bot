@@ -103,21 +103,38 @@ def is_valid_poly_gamename(input: str):
     #              "Fire", "Swords", "Queens", "Kings", "Tribes", "Tribe", "Tales",
     #              "Hills", "Fields", "Lands", "Forest", "Ocean", "Fruit", "Mountain", "Lake",
     #              "Test", "Unknown"]
-    key_words = ["War", "Spirit", "Faith", "Glory", "Blood", "Empires", "Songs", "Dawn", "Majestic", "Parade",
-                 "Prophecy", "Prophesy", "Gold", "Fire", "Swords", "Queens", "Knights", "Kings", "Tribes", "Tales",
-                 "Quests", "Change", "Games", "Throne", "Conquest", "Struggle", "Victory", "Battles", "Legends",
-                 "Heroes", "Storms", "Clouds", "Gods", "Love", "Lords", "Lights", "Wrath", "Destruction", "Whales",
-                 "Ruins", "Monuments", "Wonder", "Clowns", "Bongo", "Duh!", "Squeal", "Squirrel", "Confusion", "Gruff",
-                 "Moan", "Chickens", "Spunge", "Gnomes", "Bell boys", "Gurkins", "Commotion", "LOL", "Shenanigans",
-                 "Hullabaloo", "Papercuts", "Eggs", "Mooni", "Gaami", "Banjo", "Flowers", "Fiddlesticks", "Fish Sticks",
-                 "Hills", "Fields", "Lands", "Forest", "Ocean", "Fruit", "Mountain", "Lake", "Paradise", "Jungle",
-                 "Desert", "River", "Sea", "Shores", "Valley", "Garden", "Moon", "Star", "Winter", "Spring", "Summer",
-                 "Autumn", "Divide", "Square", "Custard", "Goon", "Cat", "Spagetti", "Fish", "Fame", "Popcorn", "Dessert",
-                 "Space", "Glacier", "Ice", "Frozen", "Superb", "Unknown", "Test", "Beasts", "Birds", "Bugs", "Food",
-                 "Aliens", "Plains", "Volcano", "Cliff", "Rapids", "Reef", "Plateau", "Basin", "Oasis", "Marsh", "Swamp",
-                 "Monsoon", "Atoll", "Fjord", "Tundra", "Map", "Strait", "Savanna", "Butte", "Bay", "Giants", "Warriors",
-                 "Archers", "Defenders", "Catapults", "Riders", "Sleds", "Explorers", "Priests", "Ships", "Dragons", "Crabs",
-                 "Rebellion", "Sponge", "Gherkins", "Discuss", "Discussion", "Chat"]
+    key_words = [
+        "War", "Spirit", "Faith", "Glory", "Blood", "Empires", "Songs", "Dawn", "Prophecy", "Gold",
+        "Fire", "Swords", "Queens", "Knights", "Kings", "Tribes", "Tales", "Quests", "Change", "Games",
+        "Throne", "Conquest", "Struggle", "Victory", "Battles", "Legends", "Heroes", "Storms", "Clouds", "Gods",
+        "Love", "Lords", "Lights", "Wrath", "Destruction", "Ruins", "Monuments", "Wonder", "Giants", "Warriors",
+        "Archers", "Defenders", "Catapults", "Riders", "Sleds", "Explorers", "Priests", "Ships", "Dragons", "Crabs",
+        "Rebellion", "Mists", "Twilight", "Mysteries", "Reckoning", "Squires", "Battleships", "Scouts", "Cloaks", "Daggers",
+        "Cities", "Houses", "Nests", "Wings", "Council", "Armies", "Adventure", "Musicians", "Temples", "Politics",
+        "Bones", "Navies", "Tides", "Agreement", "Treaties", "Corruption", "Clowns", "Bongo", "Duh!", "Squeal",
+        "Squirrel", "Confusion", "Gruff", "Moan", "Chickens", "Sponge", "Gnomes", "Bellboys", "Gherkins", "Commotion",
+        "LOL", "Shenanigans", "Hullabaloo", "Papercuts", "Eggs", "Mooni", "Gaami", "Banjo", "Flowers", "Fiddlesticks",
+        "Fish Sticks", "Politicians", "Giraffes", "Seagulls", "Graphs", "Accountants", "Eyeballs", "Cubes", "Hilarity", "Computers",
+        "Fashion", "Apple", "ROFL", "Doink!", "Bang!", "Boop", "Bruises", "Hooxe", "Dice", "Ice Marimba",
+        "Lighthouses", "Sharks", "Centipedes", "the Lirepacci", "Fungi", "Hexapods", "Squid", "Wave", "Explosions",
+        "Epic", "Endless", "Glorious", "Brave", "Misty", "Mysterious", "Lost", "Cold", "Amazing", "Doomed",
+        "Glowing", "Glimmering", "Magical", "Living", "Thriving", "Bold", "Dark", "Bright", "Majestic", "Shimmering",
+        "Lucky", "Great", "Everlasting", "Eternal", "Superb", "Frozen", "Magnificent", "Evil", "Beautiful", "Surprising",
+        "Timeless", "Classic", "Hot", "Destructive", "Perilous", "Burning", "Benevolent", "Tyrannical", "Unknowable", "Impressive",
+        "Unbelievable", "Fantastic", "Creepy", "Cursed", "Stunning", "Immortal", "Enchanted", "Sunken", "Gruffy", "Slimy",
+        "Silly", "Unwilling", "Stumbling", "Drunken", "Merry", "Mediocre", "Normal", "Stupid", "Moody", "Tipsy",
+        "Trifling", "Rancid", "Numb", "Livid", "Smooth", "Nuclear", "Nifty", "Broken", "Inconceivable", "Disappointing",
+        "Repulsive", "Ridiculous", "Decent", "Quaint", "Dreamy", "Digital", "Fake", "Apathetic", "Indifferent", "Depressing",
+        "Illegal", "Annoying", "Worthless", "Mind-Bent", "Tedious", "Cool", "Goofy", "Hills", "Fields", "Lands",
+        "Forest", "Ocean", "Fruit", "Mountain", "Lake", "Paradise", "Jungle", "Desert", "River", "Sea",
+        "Shores", "Valley", "Garden", "Moon", "Star", "Winter", "Spring", "Summer", "Autumn", "Divide",
+        "Square", "Glacier", "Ice", "Plains", "Volcano", "Cliff", "Rapids", "Reef", "Plateau", "Basin",
+        "Oasis", "Marsh", "Swamp", "Monsoon", "Atoll", "Fjord", "Tundra", "Map", "Strait", "Savanna",
+        "Butte", "Bay", "Wasteland", "Badland", "Pond", "Graveyard", "Battleground", "Embassy", "Custard", "Goon",
+        "Cat", "Spaghetti", "Fish", "Fame", "Popcorn", "Dessert", "Space", "Beasts", "Birds", "Bugs",
+        "Food", "Aliens", "Website", "Library", "Fans", "Nothingness", "Animals", "Fist", "Mind", "Imagination",
+        "Implications", "Buffoonery", "Discuss", "Discussion", "Chat", "Pre",
+    ]
     return any(word.upper() in input.upper() for word in key_words)
 
 def get_map_type(query):
@@ -261,6 +278,7 @@ def trade_price_formula(record, leadership):
     s3_weight = 7
     wr_weight = 8.35
     seasons_played_weight = {1: 1.3, 2: 1.05, 3: 1}
+    inflation_factor = 1.4
 
     def tier_weight(tier):
         if tier == 4:
@@ -294,7 +312,7 @@ def trade_price_formula(record, leadership):
     d = (a * b * c * 943) + (leadership_weight * 10)
     e = seasons_played_weight[seasons_played] * d
 
-    return math.floor(e)
+    return math.floor(e) * inflation_factor
 
 def export_game_data(query=None):
     import csv
