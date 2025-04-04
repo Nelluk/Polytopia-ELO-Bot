@@ -176,7 +176,7 @@ class league(commands.Cog):
 
         self.bot = bot
         self.announcement_message = None  # Will be populated from db if exists
-
+        self.auction_task.start()
         if settings.run_tasks:
             self.task_send_polychamps_invite.start()
             self.task_draft_reminders.start()
@@ -1232,6 +1232,203 @@ class league(commands.Cog):
             file = discord.File(file, filename=filename)
             await ctx.send(f'{ctx.author.mention}, your export is complete. Wrote to `{filename}`', file=file)
 
+    @discord.app_commands.command(name="bid", description="Bid on a free agent")
+    @discord.app_commands.describe(amount="Amount of FAT to bid", player="The free agent you are bidding on")
+    @discord.app_commands.guilds(discord.Object(settings.server_ids['polychampions']))
+    async def bid(self, interaction: discord.Interaction, amount: discord.app_commands.Range[int, 1, None], player: discord.Member):
+        is_leader = len(utilities.get_matching_roles(interaction.user, [leader_role_name, coleader_role_name])) > 0
+        if not is_leader:
+            await interaction.response.send_message(f'You must be a house leader or co-leader to bid.', ephemeral=True)
+            return
+
+        is_freeagent = len(utilities.get_matching_roles(player, [free_agent_role_name])) > 0
+        if not is_freeagent:
+            await interaction.response.send_message(f'{player.display_name} is not a free agent.', ephemeral=True)
+            return
+
+        current_auction = models.Auction.select().where(models.Auction.ongoing == True).first()
+        if not current_auction:
+            await interaction.response.send_message(f'There is no ongoing auction.', ephemeral=True)
+            return
+
+        bidder, _ = models.Player.get_by_discord_id(interaction.user.id, interaction.guild.id)
+        p, _ = models.Player.get_by_discord_id(player.id, interaction.guild.id)
+
+        previous_bids = models.Bid.select().where(
+            (models.Bid.auction == current_auction) &
+            (models.Bid.player == p) &
+            (models.Bid.house == bidder.team.house)
+        )
+
+        for bid in previous_bids:
+            if bid.amount >= amount:
+                await interaction.response.send_message(f'Your house has already bid {bid.amount} on this player, you cannot lower your bid!', ephemeral=True)
+                return
+
+        models.Bid.create(auction=current_auction, amount=amount, player=p, bidder=bidder, house=bidder.team.house)
+        await interaction.response.send_message(f'You bid {amount} on {player.display_name}.', ephemeral=True)
+
+    def get_auction_clean_bids(self, auction, include_bidder: bool = False):
+        # Removes redundant lower bids from houses that have a higher bid on the same player
+        bids = models.Bid.select().where(models.Bid.auction == auction)
+        player_bids = {}
+
+        for bid in bids:
+            player = bid.player.discord_member.discord_id
+            if player not in player_bids:
+                player_bids[player] = []
+
+            existing_bid = next((x for x in player_bids[player] if x[0] == bid.house.name), None)
+            new_bid = (bid.house.name, bid.amount, bid.bidder) if include_bidder else (bid.house.name, bid.amount)
+            if not existing_bid:
+                player_bids[player].append(new_bid)
+            elif existing_bid[1] < bid.amount:
+                player_bids[player].remove(existing_bid)
+                player_bids[player].append(new_bid)
+
+        return player_bids
+
+    async def dm_auction_ranking(self, auction):
+        player_bids = self.get_auction_clean_bids(auction, include_bidder=True)
+
+        messages = {}
+        for player_id, bids in player_bids.items():
+            bids.sort(key=lambda x: x[1], reverse=True)
+            rank = 1
+
+            for i, bid in enumerate(bids, 1):
+                if not i == 1 and bid[1] != bids[i-2][1]:
+                    rank = i
+
+                tied = i > 1 and bid[1] == bids[i-2][1] or i < len(bids) and bid[1] == bids[i][1]
+
+                bidder_id = bid[2].discord_member.discord_id
+                if bidder_id not in messages:
+                    messages[bidder_id] = f"Your ranks for this auction currently are:\n"
+
+                name = models.DiscordMember.get(discord_id=player_id).name
+                messages[bidder_id] += f"{self.get_number_ordinal(rank)}{' tied' if tied else ''} on {name} ({bid[1]} FAT)\n"
+
+        for user_id, message in messages.items():
+            try:
+                user = await self.bot.fetch_user(user_id)
+                await user.send(message)
+            except (discord.HTTPException, discord.Forbidden) as e:
+                logger.error(f"Failed to DM auction ranking to {user_id}: {e}")
+
+    def get_number_ordinal(self, n):
+        ordinals = {1: "st", 2: "nd", 3: "rd"}
+        if 10 <= n % 100 <= 20:
+            suffix = "th"
+        else:
+            suffix = ordinals.get(n % 10, "th")
+        return f"{n}{suffix}"
+
+    def get_single_bid_players(self, auction):
+        player_bids = self.get_auction_clean_bids(auction)
+        single_bid_players = [(player, bids[0][0], bids[0][1]) for player, bids in player_bids.items() if len(bids) == 1]
+        return single_bid_players
+
+    def get_players_highest_bids(self, auction):
+        player_bids = self.get_auction_clean_bids(auction)
+        highest_bids = []
+        tied_highest_bids = []
+
+        for player, bids in player_bids.items():
+            bids.sort(key=lambda x: x[1], reverse=True)
+            second_highest_bid = bids[1][1] if len(bids) > 1 else bids[0][1]
+            highest_teams = [bid[0] for bid in bids if bid[1] == bids[0][1]]
+
+            if len(highest_teams) > 1:
+                tied_highest_bids.append((player, highest_teams, second_highest_bid))
+            else:
+                highest_bids.append((player, highest_teams[0], second_highest_bid))
+
+        return highest_bids, tied_highest_bids
+
+    async def conclude_players_auction(self, players):
+        guild = self.bot.get_guild(settings.server_ids['polychampions'])
+        done = []
+        for player, house_name, price in players:
+            member = guild.get_member(player)
+            if member:
+                roles_to_remove = utilities.get_matching_roles(member, [novas_role_name, free_agent_role_name, grad_role_name])
+                roles_to_remove = [discord.utils.get(guild.roles, name=role) for role in roles_to_remove]
+                if not roles_to_remove:
+                    # Player's auction was concluded in the previous round
+                    continue
+
+                house = models.House.get(name=house_name)
+                teams = models.Team.select().where(
+                    (models.Team.house == house) & (models.Team.is_hidden == 0) & (models.Team.is_archived == 0)
+                ).order_by(models.Team.league_tier.desc())
+
+                team_role = None
+                for t in teams:
+                    team_role = utilities.guild_role_by_name(guild, name=t.name, allow_partial=False)
+                    if team_role and any(member for member in team_role.members):
+                        break
+
+                await member.remove_roles(*roles_to_remove)
+                if team_role:
+                    await member.add_roles(team_role)
+            else:
+                logger.warning(f"Free agent {player} not found in guild when concluding auction.")
+
+            done.append((player, house_name, price))
+
+        return done
+
+    @tasks.loop(hours=1)
+    async def auction_task(self):
+        await self.bot.wait_until_ready()
+        now = datetime.datetime.now(tz=datetime.timezone.utc)
+        week_num = now.isocalendar()[1]
+
+        auction_channel = self.bot.get_channel(1327702121130233969)  # free-agent-picks
+        current_auction = models.Auction.select().where(models.Auction.ongoing == True).first()
+        if now.weekday() == 5 and now.hour == 10 and week_num % 2 == 0:
+            # Start auction
+            if current_auction:
+                return
+
+            models.Auction.create(ongoing=True)
+            message = "<@&1327333445180985398> <@&1327333522389602397> <@&1327547367590989855>\nThe Free Agent Auction is now open. Feel free to place your bids using /bid"
+            await auction_channel.send(message)
+        elif (now.weekday() == 6 and now.hour == 22 and week_num % 2 == 0) or (now.weekday() == 1 and now.hour == 10 and week_num % 2 == 1):
+            # Send rankings & conclude auction for free agents with 1 bid
+            if not current_auction:
+                return
+            
+            if now.weekday() == 6 and current_auction.r1_done or now.weekday() == 1 and current_auction.r2_done:
+                return
+            
+            await self.dm_auction_ranking(current_auction)
+            single_bid_players = self.get_single_bid_players(current_auction)
+            players = await self.conclude_players_auction(single_bid_players)
+            for player, house_name, price in players:
+                await auction_channel.send(f"<@{player}> to {house_name} for {price}!")
+            
+            if current_auction.r1_done:
+                current_auction.r2_done = True
+            else:
+                current_auction.r1_done = True
+            current_auction.save()
+        elif now.weekday() == 2 and now.hour == 22 and week_num % 2 == 1:
+            # Conclude auction
+            if not current_auction:
+                return
+            
+            highest_bids, tied_highest_bids = self.get_players_highest_bids(current_auction)
+            players = await self.conclude_players_auction(highest_bids)
+            for player, house_name, price in players:
+                await auction_channel.send(f"<@{player}> to {house_name} for {price} FAT!")
+            
+            for player, houses, price in tied_highest_bids:
+                await auction_channel.send(f"<@{player}> has tied bids from {', '.join(houses)} ({price} FAT). Please DM <@1327775289115152484> to choose which house you want to join.")
+            
+            current_auction.ongoing = False
+            current_auction.save()
 
     @tasks.loop(hours=1)  # Check every hour
     async def task_draft_reminders(self):
