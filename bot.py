@@ -192,6 +192,8 @@ def init_bot(loop: asyncio.AbstractEventLoop = None, args: List[str] = None):
                 logger.error(f'Unauthorized guild {g.id} {g.name} not found in settings.py configuration - Leaving...')
                 await g.leave()
 
+        await bot.tree.sync(guild=discord.Object(settings.server_ids['polychampions']))
+
     if loop:
         loop.create_task(bot.start(settings.discord_key))
     else:

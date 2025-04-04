@@ -3676,11 +3676,27 @@ class ApiApplication(BaseModel):
         self.save()
 
 
+class Auction(BaseModel):
+    date = DateField(default=datetime.datetime.now)
+    ongoing = BooleanField(default=True)
+    r1_done = BooleanField(default=False)
+    r2_done = BooleanField(default=False)
+
+
+class Bid(BaseModel):
+    auction = ForeignKeyField(Auction, null=False)
+    amount = SmallIntegerField(null=False)
+    player = ForeignKeyField(Player, null=False)
+    bidder = ForeignKeyField(Player, null=False)
+    house = ForeignKeyField(House, null=False)
+    time = DateTimeField(default=datetime.datetime.now)
+
+
 with db.connection_context():
     db.create_tables([
         Configuration, House, Team, DiscordMember, Game, Player, Tribe, Squad,
         GameSide, SquadMember, Lineup, GameLog, TeamServerBroadcastMessage,
-        ApiApplication
+        ApiApplication, Auction, Bid
     ])
     # Only creates missing tables so should be safe to run each time
 
