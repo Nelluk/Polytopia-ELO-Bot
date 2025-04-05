@@ -312,7 +312,7 @@ def trade_price_formula(record, leadership):
     d = (a * b * c * 943) + (leadership_weight * 10)
     e = seasons_played_weight[seasons_played] * d
 
-    return math.floor(e) * inflation_factor
+    return math.floor(e * inflation_factor) 
 
 def export_game_data(query=None):
     import csv
