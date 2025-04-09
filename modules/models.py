@@ -3693,11 +3693,39 @@ class Bid(BaseModel):
     time = DateTimeField(default=datetime.datetime.now)
 
 
+class PlayerHousePreference(BaseModel):
+    player = ForeignKeyField(Player, backref='house_preferences', on_delete='CASCADE')
+    house = ForeignKeyField(House, backref='preferred_by_players', on_delete='CASCADE')
+
+    @classmethod
+    def add_or_update_preferences(cls, player_id: int, house_ids: list):
+        preferences = []
+        for house_id in house_ids:
+            preferences.append(cls(player=player_id, house=house_id))
+
+        cls.bulk_create(preferences)
+
+    @classmethod
+    def clear_preferences(cls, player_id: int):
+        cls.delete().where(cls.player == player_id).execute()
+
+    @classmethod
+    def player_prefers_house(cls, player_id: int, house_id: int):
+        if not cls.select().where(cls.player == player_id).exists():
+            # Player has no preferences
+            return True
+
+        return cls.select().where(
+            cls.player == player_id,
+            cls.house == house_id
+        ).exists()
+
+
 with db.connection_context():
     db.create_tables([
         Configuration, House, Team, DiscordMember, Game, Player, Tribe, Squad,
         GameSide, SquadMember, Lineup, GameLog, TeamServerBroadcastMessage,
-        ApiApplication, Auction, Bid
+        ApiApplication, Auction, Bid, PlayerHousePreference
     ])
     # Only creates missing tables so should be safe to run each time
 

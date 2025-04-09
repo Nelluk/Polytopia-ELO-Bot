@@ -2,6 +2,7 @@ from collections import defaultdict
 
 import discord
 from discord.ext import commands, tasks
+from discord.ui import Button, Select, View
 from PIL import UnidentifiedImageError
 import modules.models as models
 import modules.utilities as utilities
@@ -1254,6 +1255,14 @@ class league(commands.Cog):
         bidder, _ = models.Player.get_by_discord_id(interaction.user.id, interaction.guild.id)
         p, _ = models.Player.get_by_discord_id(player.id, interaction.guild.id)
 
+        in_preferred_houses = models.PlayerHousePreference.player_prefers_house(p.id, bidder.team.house.id)
+        if not in_preferred_houses:
+            await interaction.response.send_message(
+                f'Your house is not in {player.display_name}\'s preferred houses.',
+                ephemeral=True
+            )
+            return
+
         previous_bids = models.Bid.select().where(
             (models.Bid.auction == current_auction) &
             (models.Bid.player == p) &
@@ -1267,6 +1276,27 @@ class league(commands.Cog):
 
         models.Bid.create(auction=current_auction, amount=amount, player=p, bidder=bidder, house=bidder.team.house)
         await interaction.response.send_message(f'You bid {amount} on {player.display_name}.', ephemeral=True)
+
+    @discord.app_commands.command(name="select-house", description="Select the houses that you are interested in joining")
+    @discord.app_commands.guilds(discord.Object(settings.server_ids['polychampions']))
+    async def select_house(self, interaction: discord.Interaction):
+        is_freeagent = len(utilities.get_matching_roles(interaction.user, [free_agent_role_name])) > 0
+        if not is_freeagent:
+            await interaction.response.send_message(f'You must be a free agent to use this command.', ephemeral=True)
+            return
+
+        select_menu = HouseSelectMenu()
+        clear_button = ClearPreferencesButton()
+
+        view = View()
+        view.add_item(select_menu)
+        view.add_item(clear_button)
+
+        await interaction.response.send_message(
+            content="Select the houses you are interested in joining:",
+            view=view,
+            ephemeral=True
+        )
 
     def get_auction_clean_bids(self, auction, include_bidder: bool = False):
         # Removes redundant lower bids from houses that have a higher bid on the same player
@@ -1509,6 +1539,44 @@ class league(commands.Cog):
             else:
                 dm.date_polychamps_invite_sent = datetime.datetime.today()
                 dm.save()
+
+
+class HouseSelectMenu(Select):
+    def __init__(self):
+        houses = models.House.select(models.House.name, models.House.emoji, models.House.id)
+        options = [discord.SelectOption(label=house.name, emoji=house.emoji if house.emoji else None, value=house.id) for house in houses]
+        super().__init__(placeholder="Choose your preferred house(s)...", min_values=1, max_values=len(houses), options=options)
+
+    async def callback(self, interaction: discord.Interaction):
+        player, _ = models.Player.get_by_discord_id(discord_id=interaction.user.id, discord_name=interaction.user.name, discord_nick=interaction.user.nick, guild_id=interaction.guild.id)
+        selected_houses = ", ".join(
+            house.name for house in models.House.select().where(models.House.id.in_(self.values))
+        )
+        models.PlayerHousePreference.clear_preferences(player.id)
+        models.PlayerHousePreference.add_or_update_preferences(player.id, self.values)
+
+        self.view.stop()
+        await interaction.response.edit_message(content="You have selected the following houses: " + selected_houses, view=None)
+
+
+class ClearPreferencesButton(Button):
+    def __init__(self):
+        super().__init__(label="Clear Preferences", style=discord.ButtonStyle.danger)
+
+    async def callback(self, interaction: discord.Interaction):
+        player, _ = models.Player.get_by_discord_id(
+            discord_id=interaction.user.id,
+            discord_name=interaction.user.name,
+            discord_nick=interaction.user.nick,
+            guild_id=interaction.guild.id
+        )
+        models.PlayerHousePreference.clear_preferences(player.id)
+
+        self.view.stop()
+        await interaction.response.edit_message(
+            content="Your house preferences have been cleared.",
+            view=None
+        )
 
 
 async def broadcast_team_game_to_server(ctx, game):
