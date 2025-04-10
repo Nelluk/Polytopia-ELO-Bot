@@ -170,7 +170,7 @@ class league(commands.Cog):
     season_standings_cache = {}
     last_team_elos = defaultdict(lambda: [])
 
-    draft_open_format_str = f'The league is now open for Free Agent signups! {{0}}s can react with a {emoji_draft_signup} below to sign up. {{1}} who have not graduated have until the end of the signup period to meet requirements and sign up. If a **Free Agent** has a strong preference for a team, please send a message to <@1327775289115152484> to let Mods know.\n\n{{3}}'
+    draft_open_format_str = f'The league is now open for Free Agent signups! {{0}}s can react with a {emoji_draft_signup} below to sign up. {{1}} who have not graduated have until the end of the signup period to meet requirements and sign up.\n\n{{3}}'
     draft_closed_message = f'The league is closed to new Free Agent signups. Mods can use the {emoji_draft_conclude} reaction to clean up and delete this message.'
 
     def __init__(self, bot):
@@ -407,7 +407,7 @@ class league(commands.Cog):
                     logger.error(f'Could not add free_agent_role in signup_emoji_clicked: {e}')
                     return
                 else:
-                    member_message = f'**Important - Please Read.** You are signed up for the PolyChampions Auction, typically held every other Saturday. Between now and the auction, you may be contacted by Team recruiters. It is in your best interest to speak with all these recruiters.\n\nBe open minded. Do not tell recruiter you\'re already committed to a team. Also, any recruiter who tries to force you to chose a team before the auction happens should be reported, as this is against league rules.\n\nRemember, the team choose the player, not the other way around.\n{announce_message_link}'
+                    member_message = f'**Important - Please Read.** You are signed up for the PolyChampions Auction, typically held every other Saturday. Between now and the auction, you may be contacted by Team recruiters. It is in your best interest to speak with all these recruiters.\n\nBe open minded. Do not tell recruiters you\'re already committed to a team. Also, any recruiter who tries to force you to choose a team before the auction happens should be reported, as this is against league rules.\n{announce_message_link}'
                     log_message = f'{member.mention} ({member.name}) reacted to the signup message and received the {free_agent_role.name} role.'
             else:
                 # Ineligible signup - either draft is closed or member does not have grad_role
@@ -1277,9 +1277,9 @@ class league(commands.Cog):
         models.Bid.create(auction=current_auction, amount=amount, player=p, bidder=bidder, house=bidder.team.house)
         await interaction.response.send_message(f'You bid {amount} on {player.display_name}.', ephemeral=True)
 
-    @discord.app_commands.command(name="select-house", description="Select the houses that you are interested in joining")
+    @discord.app_commands.command(name="select-houses", description="Select the houses that you are interested in joining")
     @discord.app_commands.guilds(discord.Object(settings.server_ids['polychampions']))
-    async def select_house(self, interaction: discord.Interaction):
+    async def select_houses(self, interaction: discord.Interaction):
         is_freeagent = len(utilities.get_matching_roles(interaction.user, [free_agent_role_name])) > 0
         if not is_freeagent:
             await interaction.response.send_message(f'You must be a free agent to use this command.', ephemeral=True)
