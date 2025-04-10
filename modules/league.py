@@ -407,7 +407,7 @@ class league(commands.Cog):
                     logger.error(f'Could not add free_agent_role in signup_emoji_clicked: {e}')
                     return
                 else:
-                    member_message = f'**Important - Please Read.** You are signed up for the PolyChampions Auction, typically held every other Saturday. Between now and the auction, you may be contacted by Team recruiters. It is in your best interest to speak with all these recruiters.\n\nBe open minded. Do not tell recruiters you\'re already committed to a team. Also, any recruiter who tries to force you to choose a team before the auction happens should be reported, as this is against league rules.\n{announce_message_link}'
+                    member_message = f'**Important - Please Read.** You are signed up for the PolyChampions Auction, typically held every other Saturday. Between now and the auction, you may be contacted by Team recruiters. It is in your best interest to speak with all these recruiters.\n\nIf you have a preference for certain houses, you can use the `/select-houses` command in the server to choose the ones you\'re interested in joining. Only those houses will be allowed to place a bid on you.\n\nBe open minded. Do not tell recruiters you\'re already committed to a team. Also, any recruiter who tries to force you to choose a team before the auction happens should be reported, as this is against league rules.\n{announce_message_link}'
                     log_message = f'{member.mention} ({member.name}) reacted to the signup message and received the {free_agent_role.name} role.'
             else:
                 # Ineligible signup - either draft is closed or member does not have grad_role
