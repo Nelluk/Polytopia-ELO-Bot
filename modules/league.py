@@ -170,7 +170,7 @@ class league(commands.Cog):
     season_standings_cache = {}
     last_team_elos = defaultdict(lambda: [])
 
-    draft_open_format_str = f'The league is now open for Free Agent signups! {{0}}s can react with a {emoji_draft_signup} below to sign up. {{1}} who have not graduated have until the end of the signup period to meet requirements and sign up.\n\n{{3}}'
+    draft_open_format_str = f'The league is now open for Free Agent signups! {{0}}s can react with a {emoji_draft_signup} below to sign up. {{1}} who have not graduated have until the end of the signup period to meet requirements and sign up. If Free Agents have favorite teams, they may use the `/select-houses` command to note those preferences.\n\n{{3}}'
     draft_closed_message = f'The league is closed to new Free Agent signups. Mods can use the {emoji_draft_conclude} reaction to clean up and delete this message.'
 
     def __init__(self, bot):
@@ -407,7 +407,7 @@ class league(commands.Cog):
                     logger.error(f'Could not add free_agent_role in signup_emoji_clicked: {e}')
                     return
                 else:
-                    member_message = f'**Important - Please Read.** You are signed up for the PolyChampions Auction, typically held every other Saturday. Between now and the auction, you may be contacted by Team recruiters. It is in your best interest to speak with all these recruiters.\n\nIf you have a preference for certain houses, you can use the `/select-houses` command in the server to choose the ones you\'re interested in joining. Only those houses will be allowed to place a bid on you.\n\nBe open minded. Do not tell recruiters you\'re already committed to a team. Also, any recruiter who tries to force you to choose a team before the auction happens should be reported, as this is against league rules.\n{announce_message_link}'
+                    member_message = f'You now are signed up for the PolyChampions Auction 🎉\n\nYou may now be contacted by recruiters. It is in your best interest to chat and get to know the different houses. Be open minded. Ask questions. (If a recruiter trashes another team or forces you to choose a team before the auction, please report this to mods.)\n\nIf you have a preference for certain houses, please use the `/select-houses` command in ⁠bot-commands to note your favorite(s). Only the house(s) you select will be allowed to place a bid on you. If you don\'t select, then any house may bid on you.\n{announce_message_link}'
                     log_message = f'{member.mention} ({member.name}) reacted to the signup message and received the {free_agent_role.name} role.'
             else:
                 # Ineligible signup - either draft is closed or member does not have grad_role
