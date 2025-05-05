@@ -1174,7 +1174,7 @@ class league(commands.Cog):
         if record.count((None, 0, 0)) == 3:
             return await ctx.send(f'{member.display_name} has not played in the past 3 seasons.')
 
-        price = utilities.trade_price_formula(record, is_leader)
+        price = utilities.trade_price_formula(record, is_leader) / 2
         await ctx.send(f"Trade price for {member.display_name} is **{price}**.")
 
     @commands.command()
