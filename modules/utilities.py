@@ -278,7 +278,7 @@ def trade_price_formula(record, leadership):
     s3_weight = 7
     wr_weight = 8.35
     seasons_played_weight = {1: 1.3, 2: 1.05, 3: 1}
-    inflation_factor = 1.4
+    inflation_factor = 0.7
 
     def tier_weight(tier):
         if tier == 4:
