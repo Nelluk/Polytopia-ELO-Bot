@@ -1429,7 +1429,7 @@ class league(commands.Cog):
 
             models.Auction.create(ongoing=True)
             auction_name = "Free Agent Auction"
-            if now.weekday == 1:
+            if now.weekday() == 1:
                 auction_name = "Secondary Free Agent Auction"
 
             message = f"<@&1327333445180985398> <@&1327333522389602397> <@&1327547367590989855>\nThe {auction_name} is now open. Feel free to place your bids using /bid"
