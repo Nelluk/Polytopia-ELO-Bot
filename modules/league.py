@@ -407,7 +407,7 @@ class league(commands.Cog):
                     logger.error(f'Could not add free_agent_role in signup_emoji_clicked: {e}')
                     return
                 else:
-                    member_message = f'You now are signed up for the PolyChampions Auction 🎉\n\nYou may now be contacted by recruiters. It is in your best interest to chat and get to know the different houses. Be open minded. Ask questions. (If a recruiter trashes another team or forces you to choose a team before the auction, please report this to mods.)\n\nIf you have a preference for certain houses, please use the `/select-houses` command in ⁠bot-commands to note your favorite(s). Only the house(s) you select will be allowed to place a bid on you. If you don\'t select, then any house may bid on you.\n{announce_message_link}'
+                    member_message = f'You now are signed up for the PolyChampions Auction 🎉\n\nYou may be contacted by recruiters. It is in your best interest to chat and get to know the different houses. Be open minded. Ask questions. (If a recruiter trashes another team or forces you to choose a team before the auction, please report this to mods.)\n\nOnce you talk to some recruiters, you may indicate preferences for certain houses. Before the bidding starts on Sunday, please use the `/select-houses` command in <#1327320518243778560> to note your favorite(s). Only the house(s) you select will be allowed to place a bid on you. If you don\'t select, then any house may bid on you.\n{announce_message_link}'
                     log_message = f'{member.mention} ({member.name}) reacted to the signup message and received the {free_agent_role.name} role.'
             else:
                 # Ineligible signup - either draft is closed or member does not have grad_role
@@ -1422,34 +1422,38 @@ class league(commands.Cog):
 
         auction_channel = self.bot.get_channel(1327702121130233969)  # free-agent-picks
         current_auction = models.Auction.select().where(models.Auction.ongoing == True).first()
-        if now.weekday() == 5 and now.hour == 10 and week_num % 2 == 0:
+        if (now.weekday() == 6 and now.hour == 10 and week_num % 2 == 0) or (now.weekday() == 1 and now.hour == 10 and week_num % 2 == 1):
             # Start auction
             if current_auction:
                 return
 
             models.Auction.create(ongoing=True)
-            message = "<@&1327333445180985398> <@&1327333522389602397> <@&1327547367590989855>\nThe Free Agent Auction is now open. Feel free to place your bids using /bid"
+            auction_name = "Free Agent Auction"
+            if now.weekday == 1:
+                auction_name = "Secondary Free Agent Auction"
+
+            message = f"<@&1327333445180985398> <@&1327333522389602397> <@&1327547367590989855>\nThe {auction_name} is now open. Feel free to place your bids using /bid"
             await auction_channel.send(message)
-        elif (now.weekday() == 6 and now.hour == 22 and week_num % 2 == 0) or (now.weekday() == 1 and now.hour == 10 and week_num % 2 == 1):
-            # Send rankings & conclude auction for free agents with 1 bid
-            if not current_auction:
-                return
+        # elif (now.weekday() == 6 and now.hour == 22 and week_num % 2 == 0) or (now.weekday() == 1 and now.hour == 10 and week_num % 2 == 1):
+        #     # Send rankings & conclude auction for free agents with 1 bid
+        #     if not current_auction:
+        #         return
             
-            if now.weekday() == 6 and current_auction.r1_done or now.weekday() == 1 and current_auction.r2_done:
-                return
+        #     if now.weekday() == 6 and current_auction.r1_done or now.weekday() == 1 and current_auction.r2_done:
+        #         return
             
-            await self.dm_auction_ranking(current_auction)
-            single_bid_players = self.get_single_bid_players(current_auction)
-            players = await self.conclude_players_auction(single_bid_players)
-            for player, house_name, price in players:
-                await auction_channel.send(f"<@{player}> to {house_name} for {price}!")
+        #     await self.dm_auction_ranking(current_auction)
+        #     single_bid_players = self.get_single_bid_players(current_auction)
+        #     players = await self.conclude_players_auction(single_bid_players)
+        #     for player, house_name, price in players:
+        #         await auction_channel.send(f"<@{player}> to {house_name} for {price} FAT!")
             
-            if current_auction.r1_done:
-                current_auction.r2_done = True
-            else:
-                current_auction.r1_done = True
-            current_auction.save()
-        elif now.weekday() == 2 and now.hour == 22 and week_num % 2 == 1:
+        #     if current_auction.r1_done:
+        #         current_auction.r2_done = True
+        #     else:
+        #         current_auction.r1_done = True
+        #     current_auction.save()
+        elif (now.weekday() == 0 and now.hour == 10 and week_num % 2 == 1) or (now.weekday() == 2 and now.hour == 10 and week_num % 2 == 1):
             # Conclude auction
             if not current_auction:
                 return
@@ -1461,6 +1465,9 @@ class league(commands.Cog):
             
             for player, houses, price in tied_highest_bids:
                 await auction_channel.send(f"<@{player}> has tied bids from {', '.join(houses)} ({price} FAT). Please DM <@1327775289115152484> to choose which house you want to join.")
+            
+            if now.weekday() == 0:
+                await auction_channel.send("The Secondary Free Agent Auction will open in 24 hours. Free agents may update their house preferences during this period if they wish.")
             
             current_auction.ongoing = False
             current_auction.save()
@@ -1486,7 +1493,7 @@ class league(commands.Cog):
                 await channel.send(f"@here Reminder: It's time to open the draft signups. Use the `$newfreeagent` command to start the process.")
                 logger.info("Sent reminder to open draft signups")
             
-            elif now.weekday() == 4 and week_num % 2 == 0:  # The following Friday
+            elif now.weekday() == 3 and week_num % 2 == 0:  # The following Thursday
                 await channel.send(f"@here Reminder: It's time to close the draft signups. Please review and close the current draft.")
                 logger.info("Sent reminder to close draft signups")
             else:
