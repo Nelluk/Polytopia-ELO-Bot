@@ -281,7 +281,7 @@ def trade_price_formula(record, leadership):
     inflation_factor = 0.7
 
     def tier_weight(tier):
-        if tier == 4:
+        if tier >= 4:
             return 0.7
         elif tier == 3:
             return 2.5
