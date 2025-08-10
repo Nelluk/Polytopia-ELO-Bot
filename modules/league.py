@@ -177,7 +177,7 @@ class league(commands.Cog):
 
         self.bot = bot
         self.announcement_message = None  # Will be populated from db if exists
-        self.auction_task.start()
+        # self.auction_task.start()
         if settings.run_tasks:
             self.task_send_polychamps_invite.start()
             self.task_draft_reminders.start()
