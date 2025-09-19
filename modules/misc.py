@@ -121,15 +121,16 @@ class misc(commands.Cog):
             if len(points_message) == 1:
                 return await ctx.send(f'There is no tribe points list for {map}.')
 
-            last_line = points_message[1].find('1:')
-            end = points_message[1].find('\n', last_line)
-            if end == -1:
-                points_message = points_message[1]  # Last map, take entire message
-            else:
-                points_message = points_message[1][:end]
+            points_list = f'{map} {mode} Tribe Points:\n'
 
-            points_message = f'{map} {mode} Tribe Points:{points_message}'
-            await ctx.send(points_message)
+            for line in points_message[1].splitlines():
+                line = line.strip()
+                if line.endswith('>'):
+                    points_list += f'{line}\n'
+                elif len(line) != 0:
+                    break
+                
+            await ctx.send(points_list)
 
     @commands.command(usage=None)
     @settings.in_bot_channel_strict()
