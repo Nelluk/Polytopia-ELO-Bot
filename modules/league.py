@@ -1526,7 +1526,7 @@ class league(commands.Cog):
                 await channel.send(f"@here Reminder: It's time to open the draft signups. Use the `$newfreeagent` command to start the process.")
                 logger.info("Sent reminder to open draft signups")
             
-            elif now.weekday() == 3 and week_num % 2 == 0:  # The following Thursday
+            elif now.weekday() == 4 and week_num % 2 == 0:  # The following Friday
                 await channel.send(f"@here Reminder: It's time to close the draft signups. Please review and close the current draft.")
                 logger.info("Sent reminder to close draft signups")
             else:
