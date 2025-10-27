@@ -414,7 +414,7 @@ class misc(commands.Cog):
         `[p]staffhelp Game 42500 Does this screenshot show a restartable spawn?`
         """
 
-        potential_game_id = re.search(r'\d{4,6}', message)
+        potential_game_id = re.search(r'\b\d{4,6}\b', message)
         game_id_search = potential_game_id[0] if potential_game_id else None
         try:
             related_game = models.Game.by_channel_or_arg(chan_id=ctx.channel.id, arg=game_id_search)
