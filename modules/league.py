@@ -29,6 +29,9 @@ leader_role_name = 'House Leader'
 coleader_role_name = 'House Co-Leader'
 recruiter_role_name = 'House Recruiter'
 captain_role_name = 'Team Captain'
+mod_role_name = 'Mod'
+league_helper_role_name = 'League Helper'
+role_helper_role_name = 'Role Helper'
 
 league_team_channels = []
 
@@ -1328,12 +1331,33 @@ class league(commands.Cog):
 
         in_preferred_houses = models.PlayerHousePreference.player_prefers_house(p.id, bidder.team.house.id)
         if not in_preferred_houses:
-            await message.channel.send(
-                f"{message.author.mention} your house is not in {player.display_name}'s preferred houses.",
-                delete_after=60
+            if len(utilities.get_matching_roles(player, [mod_role_name, league_helper_role_name, role_helper_role_name])) == 0:
+                await message.channel.send(
+                    f"{message.author.mention} your house is not in {player.display_name}'s preferred houses.",
+                    delete_after=60,
+                )
+                await message.delete()
+                return
+
+            reaction_message = await message.channel.send(
+                f"{message.author.mention} your house is not in {player.display_name}'s preferred houses. React with ✅ to prevent the message from being deleted.",
+                delete_after=60,
             )
-            await message.delete()
-            return
+
+            reaction_message.add_reaction("✅")
+
+            def check(
+                reaction: discord.Reaction,
+                user: discord.User | discord.Member,
+            ) -> bool:
+                return user == message.author and str(reaction.emoji) == "✅"
+
+            try:
+                reaction, user = await self.bot.wait_for(
+                    "reaction_add", timeout=60.0, check=check,
+                )
+            except asyncio.TimeoutError:
+                await message.delete()
 
 
     def get_auction_clean_bids(self, auction, include_bidder: bool = False):
