@@ -1,21 +1,24 @@
+import asyncio
+
+# import re
+import datetime
+import logging
+import typing
 from collections import defaultdict
 
 import discord
+import peewee
 from discord.ext import commands, tasks
 from discord.ui import Button, Select, View
 from PIL import UnidentifiedImageError
+
+import modules.exceptions as exceptions
+
+# import random
+import modules.imgen as imgen
 import modules.models as models
 import modules.utilities as utilities
 import settings
-import logging
-import asyncio
-import modules.exceptions as exceptions
-# import re
-import datetime
-import peewee
-import typing
-# import random
-import modules.imgen as imgen
 
 logger = logging.getLogger('polybot.' + __name__)
 
@@ -1331,7 +1334,7 @@ class league(commands.Cog):
 
         in_preferred_houses = models.PlayerHousePreference.player_prefers_house(p.id, bidder.team.house.id)
         if not in_preferred_houses:
-            if len(utilities.get_matching_roles(player, [mod_role_name, league_helper_role_name, role_helper_role_name])) == 0:
+            if len(utilities.get_matching_roles(message.author, [mod_role_name, league_helper_role_name, role_helper_role_name])) == 0:
                 await message.channel.send(
                     f"{message.author.mention} your house is not in {player.display_name}'s preferred houses.",
                     delete_after=60,
@@ -1344,16 +1347,20 @@ class league(commands.Cog):
                 delete_after=60,
             )
 
-            reaction_message.add_reaction("✅")
+            await reaction_message.add_reaction("✅")
 
             def check(
                 reaction: discord.Reaction,
                 user: discord.User | discord.Member,
             ) -> bool:
-                return user == message.author and str(reaction.emoji) == "✅"
+                return (
+                    user == message.author
+                    and str(reaction.emoji) == "✅"
+                    and reaction.message.id == reaction_message.id
+                )
 
             try:
-                reaction, user = await self.bot.wait_for(
+                await self.bot.wait_for(
                     "reaction_add", timeout=60.0, check=check,
                 )
             except asyncio.TimeoutError:
