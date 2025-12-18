@@ -1,21 +1,24 @@
+import asyncio
+
+# import re
+import datetime
+import logging
+import typing
 from collections import defaultdict
 
 import discord
+import peewee
 from discord.ext import commands, tasks
 from discord.ui import Button, Select, View
 from PIL import UnidentifiedImageError
+
+import modules.exceptions as exceptions
+
+# import random
+import modules.imgen as imgen
 import modules.models as models
 import modules.utilities as utilities
 import settings
-import logging
-import asyncio
-import modules.exceptions as exceptions
-# import re
-import datetime
-import peewee
-import typing
-# import random
-import modules.imgen as imgen
 
 logger = logging.getLogger('polybot.' + __name__)
 
@@ -29,6 +32,8 @@ leader_role_name = 'House Leader'
 coleader_role_name = 'House Co-Leader'
 recruiter_role_name = 'House Recruiter'
 captain_role_name = 'Team Captain'
+mod_role_name = 'Mod'
+league_helper_role_name = 'League Helper'
 
 league_team_channels = []
 
@@ -1328,12 +1333,45 @@ class league(commands.Cog):
 
         in_preferred_houses = models.PlayerHousePreference.player_prefers_house(p.id, bidder.team.house.id)
         if not in_preferred_houses:
-            await message.channel.send(
-                f"{message.author.mention} your house is not in {player.display_name}'s preferred houses.",
-                delete_after=60
+            if len(utilities.get_matching_roles(message.author, [mod_role_name, league_helper_role_name])) == 0:
+                await message.channel.send(
+                    f"{message.author.mention} your house is not in {player.display_name}'s preferred houses.",
+                    delete_after=60,
+                )
+                await message.delete()
+                return
+
+            reaction_message = await message.channel.send(
+                f"{message.author.mention} your house is not in {player.display_name}'s preferred houses. React with ✅ to prevent the message from being deleted.",
             )
-            await message.delete()
-            return
+
+            await reaction_message.add_reaction("✅")
+
+            def check(
+                reaction: discord.Reaction,
+                user: discord.User | discord.Member,
+            ) -> bool:
+                return (
+                    user == message.author
+                    and str(reaction.emoji) == "✅"
+                    and reaction.message.id == reaction_message.id
+                )
+
+            try:
+                await self.bot.wait_for(
+                    "reaction_add", timeout=60.0, check=check,
+                )
+                logger.info(f'Staff member {message.author.name} ({message.author.id}) prevented their message "{message.content}" from being deleted.')
+                staff_channel = self.bot.get_channel(1327316908726550538)
+                if staff_channel is not None:
+                    await staff_channel.send(f'Staff member {message.author.name} ({message.author.id}) prevented their message "{message.content}" from being deleted.')
+                else:
+                    logger.warning("Could not find staff channel with id 1327316908726550538.")
+            except asyncio.TimeoutError:
+                await message.delete()
+            finally:
+                await reaction_message.delete()
+                
 
 
     def get_auction_clean_bids(self, auction, include_bidder: bool = False):
