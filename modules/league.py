@@ -1343,7 +1343,6 @@ class league(commands.Cog):
 
             reaction_message = await message.channel.send(
                 f"{message.author.mention} your house is not in {player.display_name}'s preferred houses. React with ✅ to prevent the message from being deleted.",
-                delete_after=60,
             )
 
             await reaction_message.add_reaction("✅")
@@ -1363,8 +1362,16 @@ class league(commands.Cog):
                     "reaction_add", timeout=60.0, check=check,
                 )
                 logger.info(f'Staff member {message.author.mention} prevented their message "{message.content}" from being deleted.')
+                staff_channel = self.bot.get_channel(1327316908726550538)
+                if staff_channel is not None:
+                    await staff_channel.send(f'Staff member {message.author.mention} prevented their message "{message.content}" from being deleted.')
+                else:
+                    logger.warning("Could not find staff channel with id 1327316908726550538.")
             except asyncio.TimeoutError:
                 await message.delete()
+            finally:
+                await reaction_message.delete()
+                
 
 
     def get_auction_clean_bids(self, auction, include_bidder: bool = False):
