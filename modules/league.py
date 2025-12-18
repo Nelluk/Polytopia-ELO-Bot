@@ -1361,10 +1361,10 @@ class league(commands.Cog):
                 await self.bot.wait_for(
                     "reaction_add", timeout=60.0, check=check,
                 )
-                logger.info(f'Staff member {message.author.mention} prevented their message "{message.content}" from being deleted.')
+                logger.info(f'Staff member {message.author.name} ({message.author.id}) prevented their message "{message.content}" from being deleted.')
                 staff_channel = self.bot.get_channel(1327316908726550538)
                 if staff_channel is not None:
-                    await staff_channel.send(f'Staff member {message.author.mention} prevented their message "{message.content}" from being deleted.')
+                    await staff_channel.send(f'Staff member {message.author.name} ({message.author.id}) prevented their message "{message.content}" from being deleted.')
                 else:
                     logger.warning("Could not find staff channel with id 1327316908726550538.")
             except asyncio.TimeoutError:
