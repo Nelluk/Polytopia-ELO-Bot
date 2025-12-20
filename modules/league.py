@@ -1349,7 +1349,7 @@ class league(commands.Cog):
 
             def check(
                 reaction: discord.Reaction,
-                user: discord.User | discord.Member,
+                user: typing.Union[discord.User, discord.Member],
             ) -> bool:
                 return (
                     user == message.author
