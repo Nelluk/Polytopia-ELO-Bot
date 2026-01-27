@@ -39,7 +39,7 @@ class bullet(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.form_tz = ZoneInfo("America/Chicago")
-        self.toggle = True
+        self.toggle = False
         self.initialize_gspread_client()
 
         with open("./spreadsheet_creds.json", "r", encoding="utf-8") as json_file:
