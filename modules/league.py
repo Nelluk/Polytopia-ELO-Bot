@@ -2,6 +2,7 @@ import asyncio
 
 # import re
 import datetime
+import time
 import logging
 import typing
 from collections import defaultdict
@@ -36,6 +37,8 @@ mod_role_name = 'Mod'
 league_helper_role_name = 'League Helper'
 
 league_team_channels = []
+
+ONE_WEEK = 60*60*24*7
 
 def get_team_roles(guild=None):
     if not guild:
@@ -1290,7 +1293,8 @@ class league(commands.Cog):
             await interaction.response.send_message(f'You must be a free agent to use this command.', ephemeral=True)
             return
 
-        current_auction = models.Auction.select().where(models.Auction.ongoing == True).first()
+        current_auction = ((int(time.time())-1768640518) // ONE_WEEK) % 2 == 0
+
         if current_auction:
             await interaction.response.send_message("You cannot select your preferences while an auction is ongoing.", ephemeral=True)
             return
