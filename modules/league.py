@@ -730,7 +730,7 @@ class league(commands.Cog):
         `[p]houses`
         """
         
-        houses_with_teams = peewee.prefetch(models.House.select().order_by(models.House.league_tokens), models.Team.select().order_by(models.Team.league_tier))
+        houses_with_teams = peewee.prefetch(models.House.select().order_by(models.House.league_tokens), models.Team.select().order_by(models.Team.league_tier, -models.Team.elo))
         house_list = [f'{pc_emoji} **PolyChampions Houses** {pc_emoji}']
         leader_role = utilities.guild_role_by_name(ctx.guild, name=leader_role_name, allow_partial=False)
 
@@ -749,7 +749,7 @@ class league(commands.Cog):
                 team_message = '\n'.join(team_list)
             else:
                 team_message = '*No related Teams*'
-            house_message = f'**House** {house_role.mention if house_role else house.name} {house.emoji} - Tokens: {house.league_tokens}{leaders_str} \n {team_message}'
+            house_message = f'**House** {house_role.mention if house_role else house.name}{leaders_str} \n {team_message}'
             house_list.append(f'{house_message}\n')
         
         async with ctx.typing():
