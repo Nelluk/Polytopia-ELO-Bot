@@ -281,7 +281,7 @@ class polygames(commands.Cog):
         **max**
         Ranks leaderboard by a player's maximum ELO ever achieved
         **allplayers**
-        Includes players who have not played recently. By default the leaderboard drops players who have not played in 90 days.
+        Includes players who have not played recently. By default the leaderboard drops players who have not played in 365 days.
 
         Examples:
         `[p]lb` - Default local leaderboard
@@ -523,7 +523,7 @@ class polygames(commands.Cog):
         To set a squad name see `[p]help squadname`
 
         **Examples:**
-        `[p]lbsquad` - Current leaderboard. Squads who have not played a game in 90 days are not included.
+        `[p]lbsquad` - Current leaderboard. Squads who have not played a game in 365 days are not included.
         `[p]lbsquad alltime` - Alltime leaderboard.
         """
 

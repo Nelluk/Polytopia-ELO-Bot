@@ -128,7 +128,7 @@ map_types = ['Lakes', 'Pangea', 'Dryland', 'Archipelago', 'Water World', 'Contin
 
 assert bool(len(generic_teams_long) == max_game_size), 'generic_teams_long must have a number of entries equal to max_game_size.'
 
-date_cutoff = datetime.datetime.today() - datetime.timedelta(days=90)  # Players who haven't played since cutoff are not included in leaderboards
+date_cutoff = datetime.datetime.today() - datetime.timedelta(days=365)  # Players who haven't played since cutoff are not included in leaderboards
 
 league_tiers = [
     # Exclusively used for PolyChampions leagues
