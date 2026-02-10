@@ -1293,7 +1293,7 @@ class league(commands.Cog):
             await interaction.response.send_message(f'You must be a free agent to use this command.', ephemeral=True)
             return
 
-        current_auction = ((int(time.time())-1768640518) // ONE_WEEK) % 2 == 1
+        current_auction = ((int(time.time())-1768640518) // ONE_WEEK) % 2 == 0
 
         if current_auction:
             await interaction.response.send_message("You cannot select your preferences while an auction is ongoing.", ephemeral=True)
