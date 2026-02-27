@@ -2127,6 +2127,70 @@ class polygames(commands.Cog):
 
         game = game.load_full_game()
         await game.update_announcement(guild=ctx.guild, prefix=ctx.prefix)
+    
+    @commands.command(usage='search_term', aliases=['gamelog', 'gamelogs', 'global_logs', 'log'])
+    # @commands.cooldown(1, 20, commands.BucketType.user)
+    async def logs(self, ctx, *, search_term: str = None):
+        """Lists or searches log entries. Can only be used on your own games unless you are a staff member.
+
+         **Examples**
+        `[p]logs` - See all recent entries
+        `[p]logs 1234` - See all entries related to a specific game
+        `[p]logs Nelluk` - See all entries containing the term Nelluk
+        `[p]logs Nelluk join` - See all entries containing both words
+        `[p]logs Nelluk -Kamfer` - See all entries containing the first word but *not* the second word
+
+        `[p]global_logs` - *Owner only*: Search or list log entries across all bot servers
+        """
+
+        if settings.get_user_level(ctx.author) < 4:
+            if not search_term.isnumeric():
+                ctx.send('You do not have permission to view these logs.')
+                return
+            
+            game = Game.select().where(Game.id == int(search_term))
+
+            if not game.has_player(ctx.author.id):
+                ctx.send('You dot not have permission to view these logs.')
+                return
+
+        paginated_message_list = []
+
+        search_term = re.sub(r'\b(\d{4,6})\b', r'_\1_', search_term, count=1) if search_term else None
+        # Above finds a 4-6 digit number in search_term and adds underscores around it
+        # This will cause it to match against the __GAMEID__ the log entries are prefixed with and not substrings from
+        # user IDs
+
+        search_term = re.sub(r'<@[!&]?([0-9]{17,21})>', '\\1', search_term) if search_term else None
+        # replace @Mentions <@272510639124250625> with just the ID 272510639124250625
+
+        negative_parameter = re.search(r'-(\S+)', search_term) if search_term else ''
+        # look for the first term preceded by a - character
+        if negative_parameter:
+            negative_term = negative_parameter[1]
+            search_term = search_term.replace(negative_parameter[0], '').replace('  ', ' ').strip()
+            negative_title_str = f'\nExcluding entries containing *{negative_term}*'
+        else:
+            negative_term = None
+            negative_title_str = ''
+
+        if search_term:
+            title_str = f'Searching for log entries containing *{search_term}*{negative_title_str}'.replace('_', '')
+        else:
+            title_str = f'All recent log entries{negative_title_str}'
+
+        guild_id = ctx.guild.id
+        if ctx.invoked_with == 'global_logs':
+            if ctx.author.id == settings.owner_id:
+                guild_id = None  # search globally, owner only
+            else:
+                return await ctx.send('Only the bot owner can search global logs.')
+
+        entries = models.GameLog.search(keywords=search_term, negative_keyword=negative_term, guild_id=guild_id)
+        for entry in entries:
+            paginated_message_list.append((f'`{entry.message_ts.strftime("%Y-%m-%d %H:%M:%S")}`', entry.message[:500]))
+
+        await utilities.paginate(self.bot, ctx, title=title_str, message_list=paginated_message_list, page_start=0, page_end=10, page_size=10)
 
     async def game_search(self, ctx, mode: str, arg_list):
 
