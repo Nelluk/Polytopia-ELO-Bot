@@ -26,8 +26,8 @@ def polychampions_only():
 class bullet(commands.Cog):
     templates = [8, 16, 32]
     brackets = {
+        "CET": 7,
         "GMT": 13,
-        "CET": 14,
         "EST": 17,
         "SGT": 21
     }
