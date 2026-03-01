@@ -2131,7 +2131,7 @@ class polygames(commands.Cog):
     @commands.command(usage='search_term', aliases=['gamelog', 'gamelogs', 'global_logs', 'log'])
     # @commands.cooldown(1, 20, commands.BucketType.user)
     async def logs(self, ctx, *, search_term: str = None):
-        """Lists or searches log entries. Can only be used on your own games unless you are a staff member.
+        """Lists or searches log entries. Non-staff users must provide a game ID for a game they are in.
 
          **Examples**
         `[p]logs` - See all recent entries
@@ -2143,16 +2143,17 @@ class polygames(commands.Cog):
         `[p]global_logs` - *Owner only*: Search or list log entries across all bot servers
         """
 
-        if settings.get_user_level(ctx.author) < 4:
-            if not search_term.isnumeric():
-                ctx.send('You do not have permission to view these logs.')
-                return
-            
-            game = Game.select().where(Game.id == int(search_term))
+        if not settings.is_staff(ctx.author):
+            if not search_term or not search_term.strip().isnumeric():
+                return await ctx.send('You do not have permission to view these logs.')
 
-            if not game.has_player(ctx.author.id):
-                ctx.send('You dot not have permission to view these logs.')
-                return
+            game = Game.get_or_none((Game.id == int(search_term)) & (Game.guild_id == ctx.guild.id))
+            if not game:
+                return await ctx.send('No matching game was found.')
+
+            is_player, _ = game.has_player(discord_id=ctx.author.id)
+            if not is_player:
+                return await ctx.send('You do not have permission to view these logs.')
 
         paginated_message_list = []
 
