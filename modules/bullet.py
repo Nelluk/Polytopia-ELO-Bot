@@ -27,6 +27,7 @@ class bullet(commands.Cog):
     templates = [8, 16, 32]
     brackets = {
         "GMT": 13,
+        "CET": 14,
         "EST": 17,
         "SGT": 21
     }
@@ -65,6 +66,7 @@ class bullet(commands.Cog):
 
         **Examples**
         `[p]bullet GMT`
+        `[p]bullet CET`
         """
         if not bracket:
             return await ctx.send(f"Bracket was not provided! *Example:* `{ctx.prefix}bullet GMT`")
@@ -97,6 +99,7 @@ class bullet(commands.Cog):
 
         **Examples**
         `[p]nobullet GMT`
+        `[p]nobullet CET`
         `[p]nobullet role` - removes the bullet role
         """
         if not arg:
@@ -141,6 +144,7 @@ class bullet(commands.Cog):
 
         **Examples**
         `[p]bulletstart GMT 1132`
+        `[p]bulletstart CET 1132`
         """
         bracket = bracket.upper()
         if bracket not in self.brackets.keys():
