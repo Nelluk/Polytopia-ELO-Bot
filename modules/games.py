@@ -2128,6 +2128,7 @@ class polygames(commands.Cog):
         game = game.load_full_game()
         await game.update_announcement(guild=ctx.guild, prefix=ctx.prefix)
     
+    @settings.in_bot_channel()
     @commands.command(usage='search_term', aliases=['gamelog', 'gamelogs', 'global_logs', 'log'])
     # @commands.cooldown(1, 20, commands.BucketType.user)
     async def logs(self, ctx, *, search_term: str = None):
