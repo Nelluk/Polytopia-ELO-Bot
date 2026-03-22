@@ -415,7 +415,15 @@ class league(commands.Cog):
                     logger.error(f'Could not add free_agent_role in signup_emoji_clicked: {e}')
                     return
                 else:
-                    member_message = f'You now are signed up for the PolyChampions Auction 🎉\n\nYou may be contacted by recruiters. It is in your best interest to chat and get to know the different houses. Be open minded. Ask questions. (If a recruiter trashes another team or forces you to choose a team before the auction, please report this to mods.)\n\nOnce you talk to some recruiters, you may indicate preferences for certain houses. Before the bidding starts on Sunday, please use the `/select-houses` command in <#1327320518243778560> to note your favorite(s). Only the house(s) you select will be allowed to place a bid on you. If you don\'t select, then any house may bid on you.\n{announce_message_link}'
+                    weeks_since_start = ((int(time.time())-1768640518) // ONE_WEEK)
+                    current_auction = weeks_since_start % 2 == 0
+                    
+                    if current_auction:
+                        end_timestamp = 1768640518 + (weeks_since_start + 1) * ONE_WEEK
+                    else:
+                        end_timestamp = 1768640518 + weeks_since_start * ONE_WEEK
+                        
+                    member_message = f'You now are signed up for the PolyChampions Auction 🎉\n\nYou may be contacted by recruiters. It is in your best interest to chat and get to know the different houses. Be open minded. Ask questions. (If a recruiter trashes another team or forces you to choose a team before the auction, please report this to mods.)\n\nOnce you talk to some recruiters, you may indicate preferences for certain houses. Before the bidding starts on Sunday, please use the `/select-houses` command in <#1327320518243778560> to note your favorite(s). Only the house(s) you select will be allowed to place a bid on you. If you don\'t select, then any house may bid on you. Please note that you cannot use this command while an auction is ongoing, so you may need to wait until <t:{end_timestamp}:D>. \n{announce_message_link}'
                     log_message = f'{member.mention} ({member.name}) reacted to the signup message and received the {free_agent_role.name} role.'
             else:
                 # Ineligible signup - either draft is closed or member does not have grad_role
