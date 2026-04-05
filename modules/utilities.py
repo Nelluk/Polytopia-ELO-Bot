@@ -222,6 +222,21 @@ def get_matching_roles(discord_member, list_of_role_names):
     return set(member_roles).intersection(list_of_role_names)
 
 
+def does_player_prefer_house(discord_member: discord.Member, house_name: str) -> bool:
+    """Return whether or not the player has a preference for a house."""
+    preference_roles: list[str] = [
+        x.name
+        for x in discord_member.roles
+        if x.name.startswith("Prefers ") or x.name == "All houses"
+    ]
+    if len(preference_roles) == 0:
+        return True
+    return any(
+        house_name == role.replace("Prefers", "The", 1) or role == "All houses"
+        for role in preference_roles
+    )
+
+
 def summarize_game_list(games_query, player_discord_id: int = None):
     # Turns a list/query-result of several games (or GameSide) into a List of Tuples that can be sent to the pagination function
     # ie. [('Game 330   :nauseated_face: DrippyIsGod vs Nelluk :spy: Mountain Of Songs', '2018-10-05 - 1v1 - WINNER: Nelluk')]
