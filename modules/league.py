@@ -178,7 +178,7 @@ class league(commands.Cog):
     season_standings_cache = {}
     last_team_elos = defaultdict(lambda: [])
 
-    draft_open_format_str = f'The league is now open for Free Agent signups! {{0}}s can react with a {emoji_draft_signup} below to sign up. {{1}} who have not graduated have until the end of the signup period to meet requirements and sign up. If Free Agents have favorite teams, they may use the `/select-houses` command to note those preferences.\n\n{{3}}'
+    draft_open_format_str = f'The league is now open for Free Agent signups! {{0}}s can react with a {emoji_draft_signup} below to sign up. {{1}} who have not graduated have until the end of the signup period to meet requirements and sign up. If Free Agents have favorite teams, they may react to the team emojis in <#1489844936202260710> to note those preferences.\n\n{{3}}'
     draft_closed_message = f'The league is closed to new Free Agent signups. Mods can use the {emoji_draft_conclude} reaction to clean up and delete this message.'
 
     def __init__(self, bot):
@@ -1315,7 +1315,7 @@ class league(commands.Cog):
         bidder, _ = models.Player.get_by_discord_id(message.author.id, message.guild.id)
         p, _ = models.Player.get_by_discord_id(player.id, message.guild.id)
 
-        in_preferred_houses = utilities.does_player_prefer_house(p, bidder.team.house.name)
+        in_preferred_houses = utilities.does_player_prefer_house(player, bidder.team.house.name)
         if not in_preferred_houses:
             if len(utilities.get_matching_roles(message.author, [mod_role_name, league_helper_role_name])) == 0:
                 await message.channel.send(
