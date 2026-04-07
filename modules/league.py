@@ -178,7 +178,7 @@ class league(commands.Cog):
     season_standings_cache = {}
     last_team_elos = defaultdict(lambda: [])
 
-    draft_open_format_str = f'The league is now open for Free Agent signups! {{0}}s can react with a {emoji_draft_signup} below to sign up. {{1}} who have not graduated have until the end of the signup period to meet requirements and sign up. If Free Agents have favorite teams, they may use the `/select-houses` command to note those preferences.\n\n{{3}}'
+    draft_open_format_str = f'The league is now open for Free Agent signups! {{0}}s can react with a {emoji_draft_signup} below to sign up. {{1}} who have not graduated have until the end of the signup period to meet requirements and sign up. If Free Agents have favorite teams, they may react to the team emojis in <#1489844936202260710> to note those preferences.\n\n{{3}}'
     draft_closed_message = f'The league is closed to new Free Agent signups. Mods can use the {emoji_draft_conclude} reaction to clean up and delete this message.'
 
     def __init__(self, bot):
@@ -414,16 +414,8 @@ class league(commands.Cog):
                 except discord.DiscordException as e:
                     logger.error(f'Could not add free_agent_role in signup_emoji_clicked: {e}')
                     return
-                else:
-                    weeks_since_start = ((int(time.time())-1768640518) // ONE_WEEK)
-                    current_auction = weeks_since_start % 2 == 0
-                    
-                    if current_auction:
-                        end_timestamp = 1768640518 + (weeks_since_start + 1) * ONE_WEEK
-                    else:
-                        end_timestamp = 1768640518 + weeks_since_start * ONE_WEEK
-                        
-                    member_message = f'You now are signed up for the PolyChampions Auction 🎉\n\nYou may be contacted by recruiters. It is in your best interest to chat and get to know the different houses. Be open minded. Ask questions. (If a recruiter trashes another team or forces you to choose a team before the auction, please report this to mods.)\n\nOnce you talk to some recruiters, you may indicate preferences for certain houses. Before the bidding starts on Sunday, please use the `/select-houses` command in <#1327320518243778560> to note your favorite(s). Only the house(s) you select will be allowed to place a bid on you. If you don\'t select, then any house may bid on you. Please note that you cannot use this command while an auction is ongoing, so you may need to wait until <t:{end_timestamp}:D>. \n{announce_message_link}'
+                else:                        
+                    member_message = f'You now are signed up for the PolyChampions Auction 🎉\n\nYou may be contacted by recruiters. It is in your best interest to chat and get to know the different houses. Be open minded. Ask questions. (If a recruiter trashes another team or forces you to choose a team before the auction, please report this to mods.)\n\nOnce you talk to some recruiters, you may indicate preferences for certain houses. Before the bidding starts on Sunday, please react to the team emojis in <#1489844936202260710> to note your favorite(s). Only the house(s) you select will be allowed to place a bid on you. If you don\'t select, then any house may bid on you. \n{announce_message_link}'
                     log_message = f'{member.mention} ({member.name}) reacted to the signup message and received the {free_agent_role.name} role.'
             else:
                 # Ineligible signup - either draft is closed or member does not have grad_role
@@ -1299,32 +1291,6 @@ class league(commands.Cog):
     #     models.Bid.create(auction=current_auction, amount=amount, player=p, bidder=bidder, house=bidder.team.house)
     #     await interaction.response.send_message(f'You bid {amount} on {player.display_name}.', ephemeral=True)
 
-    @discord.app_commands.command(name="select-houses", description="Select the houses that you are interested in joining")
-    @discord.app_commands.guilds(discord.Object(settings.server_ids['polychampions']))
-    async def select_houses(self, interaction: discord.Interaction):
-        is_freeagent = len(utilities.get_matching_roles(interaction.user, [free_agent_role_name])) > 0
-        if not is_freeagent:
-            await interaction.response.send_message(f'You must be a free agent to use this command.', ephemeral=True)
-            return
-
-        current_auction = ((int(time.time())-1768640518) // ONE_WEEK) % 2 == 0
-
-        if current_auction:
-            await interaction.response.send_message("You cannot select your preferences while an auction is ongoing.", ephemeral=True)
-            return
-
-        select_menu = HouseSelectMenu()
-        clear_button = ClearPreferencesButton()
-
-        view = View()
-        view.add_item(select_menu)
-        view.add_item(clear_button)
-
-        await interaction.response.send_message(
-            content="Select the houses you are interested in joining:",
-            view=view,
-            ephemeral=True
-        )
     
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
@@ -1349,7 +1315,7 @@ class league(commands.Cog):
         bidder, _ = models.Player.get_by_discord_id(message.author.id, message.guild.id)
         p, _ = models.Player.get_by_discord_id(player.id, message.guild.id)
 
-        in_preferred_houses = models.PlayerHousePreference.player_prefers_house(p.id, bidder.team.house.id)
+        in_preferred_houses = utilities.does_player_prefer_house(player, bidder.team.house.name)
         if not in_preferred_houses:
             if len(utilities.get_matching_roles(message.author, [mod_role_name, league_helper_role_name])) == 0:
                 await message.channel.send(
