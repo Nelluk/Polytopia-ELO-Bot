@@ -94,6 +94,8 @@ class misc(commands.Cog):
         guild = self.bot.get_guild(settings.server_ids['polychampions'])
         if guild:
             mode = mode.lower()
+            if utilities.get_map_type(mode) and not utilities.get_map_type(map.lower()):
+                map, mode = mode, map.lower()
             map = utilities.get_map_type(map)
             if not map:
                 return await ctx.send(f'Invalid map passed. *Example:* `{ctx.prefix}{ctx.invoked_with} archi 2v2`')
