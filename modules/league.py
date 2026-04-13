@@ -193,21 +193,6 @@ class league(commands.Cog):
     async def cog_check(self, ctx):
         return ctx.guild.id == settings.server_ids['polychampions'] or ctx.guild.id == settings.server_ids['test']
 
-    @commands.Cog.listener()
-    async def on_message(self, message):
-
-        if message.channel.id not in league_team_channels or not message.attachments:
-            return
-
-        try:
-            game = models.Game.by_channel_id(chan_id=message.channel.id)
-        except exceptions.MyBaseException as e:
-            return logger.error(f'League.on_message: channel in league_team_channels but cannot load associated game by chan_id {message.channel.id} - {e}')
-
-        logger.debug(f'League.on_message: handling message in league_team_channels {message.channel.id}')
-        attachment_urls = '\n'.join([attachment.url for attachment in message.attachments])
-
-        models.GameLog.write(guild_id=message.guild.id, is_protected=True, game_id=game.id, message=f'{models.GameLog.member_string(message.author)} posted images: {attachment_urls}')
     
     @commands.Cog.listener()
     async def on_member_update(self, before, after):
@@ -1290,72 +1275,6 @@ class league(commands.Cog):
 
     #     models.Bid.create(auction=current_auction, amount=amount, player=p, bidder=bidder, house=bidder.team.house)
     #     await interaction.response.send_message(f'You bid {amount} on {player.display_name}.', ephemeral=True)
-
-    
-    @commands.Cog.listener()
-    async def on_message(self, message: discord.Message):
-        if message.author.bot or not message.guild:
-            return
-
-        auction_channel = self.bot.get_channel(1327702121130233969)  # free-agent-picks
-        if not message.channel.id == auction_channel.id:
-            return
-        
-        if len(message.mentions) != 1:
-            await message.channel.send(f"{message.author.mention} please mention exactly one player to bid on.", delete_after=60)
-            await message.delete()
-            return
-        
-        player = message.mentions[0]
-        if not player or len(utilities.get_matching_roles(player, [free_agent_role_name])) == 0:  # Check if the mentioned player is a free agent
-            await message.channel.send(f"{message.author.mention} please mention a free agent.", delete_after=60)
-            await message.delete()
-            return
-
-        bidder, _ = models.Player.get_by_discord_id(message.author.id, message.guild.id)
-        p, _ = models.Player.get_by_discord_id(player.id, message.guild.id)
-
-        in_preferred_houses = utilities.does_player_prefer_house(player, bidder.team.house.name)
-        if not in_preferred_houses:
-            if len(utilities.get_matching_roles(message.author, [mod_role_name, league_helper_role_name])) == 0:
-                await message.channel.send(
-                    f"{message.author.mention} your house is not in {player.display_name}'s preferred houses.",
-                    delete_after=60,
-                )
-                await message.delete()
-                return
-
-            reaction_message = await message.channel.send(
-                f"{message.author.mention} your house is not in {player.display_name}'s preferred houses. React with ✅ to prevent the message from being deleted.",
-            )
-
-            await reaction_message.add_reaction("✅")
-
-            def check(
-                reaction: discord.Reaction,
-                user: typing.Union[discord.User, discord.Member],
-            ) -> bool:
-                return (
-                    user == message.author
-                    and str(reaction.emoji) == "✅"
-                    and reaction.message.id == reaction_message.id
-                )
-
-            try:
-                await self.bot.wait_for(
-                    "reaction_add", timeout=60.0, check=check,
-                )
-                logger.info(f'Staff member {message.author.name} ({message.author.id}) prevented their message "{message.content}" from being deleted.')
-                staff_channel = self.bot.get_channel(1327316908726550538)
-                if staff_channel is not None:
-                    await staff_channel.send(f'Staff member {message.author.name} ({message.author.id}) prevented their message "{message.content}" from being deleted.')
-                else:
-                    logger.warning("Could not find staff channel with id 1327316908726550538.")
-            except asyncio.TimeoutError:
-                await message.delete()
-            finally:
-                await reaction_message.delete()
-                
 
 
     def get_auction_clean_bids(self, auction, include_bidder: bool = False):
