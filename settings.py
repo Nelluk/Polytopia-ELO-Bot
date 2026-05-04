@@ -137,7 +137,7 @@ league_tiers = [
     (3, 'Silver'),
     (4, 'Bronze'),
     (5, 'Copper'),
-    (6, 'Wood'),
+    (6, 'Stone'),
     (7, 'Paper')
 ]
 
