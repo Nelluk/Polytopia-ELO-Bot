@@ -138,6 +138,7 @@ async def update_member_league_roles(member):
             team = models.Team.get_or_except(team_name=member_team_roles[0].name, guild_id=member.guild.id)
             player.team = team
             player.save()
+            models.PlayerHousePreference.clear_preferences(player.id)
             house_name = team.house.name if team.house else None
             team_tier = team.league_tier
             house_role = discord.utils.get(member.guild.roles, name=house_name) if house_name else None
@@ -147,6 +148,7 @@ async def update_member_league_roles(member):
             house_name, team_tier, house_role, tier_role = None, None, None, None
 
         roles_to_add = [house_role, tier_role, league_role]
+        roles_to_remove = roles_to_remove + [r for r in member.roles if r.name.startswith('Prefers ')]
         logger.debug(f'roles_to_add: {roles_to_add}')
     else:
         roles_to_add = []  # No team role
