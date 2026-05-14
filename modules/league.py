@@ -148,6 +148,7 @@ async def update_member_league_roles(member):
             house_name, team_tier, house_role, tier_role = None, None, None, None
 
         roles_to_add = [house_role, tier_role, league_role]
+        roles_to_remove = roles_to_remove + [r for r in member.roles if r.name.startswith('Prefers ')]
         logger.debug(f'roles_to_add: {roles_to_add}')
     else:
         roles_to_add = []  # No team role
