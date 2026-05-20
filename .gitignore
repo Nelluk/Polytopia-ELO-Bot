@@ -1,6 +1,10 @@
-# virtual enviroment
+# virtual environments
 
-venv/*
+.venv/
+venv/
+bin/
+lib/
+include/
 
 # Python bytecode:
 *.py[co]
