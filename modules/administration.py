@@ -15,6 +15,9 @@ import modules.achievements as achievements
 logger = logging.getLogger('polybot.' + __name__)
 elo_logger = logging.getLogger('polybot.elo')
 
+PURGE_WARNING_DAYS = 3
+PURGE_WARNING_MARKER = 'AUTO_PURGE_WARNING_SENT'
+
 
 class administration(commands.Cog):
     def __init__(self, bot):
@@ -266,6 +269,60 @@ class administration(commands.Cog):
         logger.debug(f'confirm_auto processed {unconfirmed_count} and confirmed {games_confirmed} games.')
         return (unconfirmed_count, games_confirmed)
 
+    @staticmethod
+    def incomplete_channel_purge_threshold(game, game_size: int):
+        if game_size == 3:
+            return 90
+        if game_size == 4 and not game.is_ranked:
+            return 90
+        if game_size == 4 and game.is_ranked:
+            return 120
+        if (game_size == 5 or game_size == 6) and game.is_ranked:
+            return 150
+        if game_size >= 5 and not game.is_ranked:
+            return 120
+        return None
+
+    @staticmethod
+    def has_purgeable_game_channel(game):
+        if game.game_chan:
+            return True
+        return any(gameside.team_chan for gameside in game.gamesides)
+
+    async def maybe_warn_game_channel_purge(self, game, guild, game_size: int, today):
+        if game.is_completed:
+            return
+
+        threshold_days = self.incomplete_channel_purge_threshold(game, game_size)
+        if not threshold_days or not self.has_purgeable_game_channel(game):
+            return
+
+        delete_cutoff = today + datetime.timedelta(days=-threshold_days)
+        warning_cutoff = today + datetime.timedelta(days=-(threshold_days - PURGE_WARNING_DAYS))
+        if game.date < delete_cutoff or game.date > warning_cutoff:
+            return
+
+        if models.GameLog.search(keywords=f'_{game.id}_ {PURGE_WARNING_MARKER}', guild_id=guild.id, limit=1).exists():
+            return
+
+        rank_str = 'ranked' if game.is_ranked else 'unranked'
+        message = (
+            f'Warning: this incomplete {rank_str} {game_size}-player game is scheduled for cleanup soon. '
+            f'If the game is still active, finish or report it. Otherwise these game channels may be deleted after '
+            f'{threshold_days} days from the game start date.'
+        )
+        await game.update_squad_channels(
+            self.bot.guilds,
+            guild.id,
+            message=message,
+            include_message_mentions=True
+        )
+        models.GameLog.write(
+            game_id=game,
+            guild_id=guild.id,
+            message=f'{PURGE_WARNING_MARKER} for incomplete game channel cleanup at {threshold_days} days.'
+        )
+
     async def task_confirm_auto(self):
         await self.bot.wait_until_ready()
         sleep_cycle = (60 * 60 * 0.5)  # half hour cycle
@@ -303,10 +360,11 @@ class administration(commands.Cog):
             await asyncio.sleep(900)
             logger.debug('Task running: task_purge_incomplete')
 
-            old_60d = (datetime.date.today() + datetime.timedelta(days=-60))
-            old_90d = (datetime.date.today() + datetime.timedelta(days=-90))
-            old_120d = (datetime.date.today() + datetime.timedelta(days=-120))
-            old_150d = (datetime.date.today() + datetime.timedelta(days=-150))
+            today = datetime.date.today()
+            old_60d = (today + datetime.timedelta(days=-60))
+            old_90d = (today + datetime.timedelta(days=-90))
+            old_120d = (today + datetime.timedelta(days=-120))
+            old_150d = (today + datetime.timedelta(days=-150))
 
             for guild in self.bot.guilds:
                 staff_output_channel = guild.get_channel(settings.guild_setting(guild.id, 'log_channel'))
@@ -330,6 +388,7 @@ class administration(commands.Cog):
                         continue
 
                     game_size = len(game.lineup)
+                    await self.maybe_warn_game_channel_purge(game, guild, game_size, today)
                     rank_str = ' - *Unranked*' if not game.is_ranked else ''
                     if game_size == 2 and game.date < old_60d and not game.is_completed:
                         delete_result.append(f'Deleting incomplete 1v1 game older than 60 days. - {game.get_headline()} - {game.date}{rank_str}')
