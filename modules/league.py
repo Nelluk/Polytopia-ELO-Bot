@@ -638,7 +638,34 @@ class league(commands.Cog):
         models.GameLog.write(guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} updated league tokens (FATs) for House ID={house.id} {house.name} from {old_count} to {new_count} {token_notes}')
         return await ctx.send(f'House **{house.name}** has {old_count} tokens. Updating to {new_count}. :coin: {token_notes}')
 
-    
+    @commands.command()
+    @settings.on_polychampions()
+    async def imalive(self, ctx, *, member: discord.Member = None):
+        """Remove your own Inactive role. Leaders/Co-Leaders/Mods can target another player."""
+        target = member or ctx.author
+        if target != ctx.author and not utilities.get_matching_roles(
+            ctx.author,
+            [leader_role_name, coleader_role_name, mod_role_name]
+        ):
+            return await ctx.send('You must be a House Leader, Co-Leader, or Mod to use this on another player.')
+
+        inactive_role = discord.utils.get(ctx.guild.roles, name=settings.guild_setting(ctx.guild.id, 'inactive_role'))
+        if not inactive_role:
+            logger.warning(f'Could not load Inactive role by name {settings.guild_setting(ctx.guild.id, "inactive_role")}')
+            return await ctx.send('Error loading Inactive role.')
+
+        if inactive_role not in target.roles:
+            return await ctx.send(
+                f'{target.mention} does not have the *{inactive_role.name}* role.',
+                allowed_mentions=discord.AllowedMentions.none()
+            )
+
+        await target.remove_roles(inactive_role, reason=f'Removed via imalive by {ctx.author.name}')
+        await ctx.send(
+            f'Removed *{inactive_role.name}* from {target.mention}.',
+            allowed_mentions=discord.AllowedMentions.none()
+        )
+
     @commands.command(usage='house_name')
     @settings.in_bot_channel()
     @commands.cooldown(1, 5, commands.BucketType.channel)

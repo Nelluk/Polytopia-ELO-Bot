@@ -11,7 +11,7 @@ import re
 import datetime
 import random
 from modules.games import PolyGame
-from modules.league import free_agent_role_name
+from modules.league import free_agent_role_name, leader_role_name, coleader_role_name
 # import modules.imgen as imgen
 # import modules.achievements as achievements
 
@@ -663,9 +663,10 @@ class misc(commands.Cog):
         if ctx.invoked_with == 'freeagents':
             args = [free_agent_role_name]
         else:
-            if not settings.is_staff(ctx.author):
+            is_house_lead = utilities.get_matching_roles(ctx.author, [leader_role_name, coleader_role_name])
+            if not settings.is_staff(ctx.author) and not is_house_lead:
                 return await ctx.send(
-                    f'You\'re not permitted to use this command. Only staff & Team Leaders may use this command.')
+                    f'You\'re not permitted to use this command. Only staff & House Leaders/Co-Leaders may use this command.')
             if ctx.invoked_with == 'roleelo':
                 if not args:
                     return await ctx.send(f'No role name was supplied.\n{usage}')
