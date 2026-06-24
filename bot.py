@@ -76,7 +76,7 @@ class MyBot(commands.Bot):
         initial_extensions = [
             'modules.games', 'modules.customhelp', 'modules.matchmaking',
             'modules.administration', 'modules.misc', 'modules.league',
-            'modules.api_cog', 'modules.bullet'
+            'modules.api_cog', 'modules.bullet', 'modules.antiscam'
         ]
         for extension in initial_extensions:
             await self.load_extension(extension)
