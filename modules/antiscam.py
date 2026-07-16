@@ -1,6 +1,8 @@
 import io
 import re
 import asyncio
+import heapq
+import itertools
 import logging
 import datetime
 from collections import defaultdict, deque
@@ -35,7 +37,7 @@ MAX_IMAGE_BYTES = 8 * 1024 * 1024  # skip hashing attachments larger than this (
 MAX_IMAGE_PIXELS = 24_000_000      # skip decoding images whose decoded size exceeds this (bomb guard)
 MAX_IMAGES_PER_MESSAGE = 4         # cap attachments hashed per message
 HASH_CONCURRENCY = 4               # cap simultaneous decode/hash jobs cog-wide
-EVICT_EVERY = 500                  # sweep stale tracking keys every N messages
+RETENTION_SECONDS = CONSECUTIVE_WINDOW_MINUTES * 60
 
 DISCORD_INVITE = re.compile(r'(?:https?://)?(?:www\.)?(?:discord(?:\.app|app)?\.com/invite|discord\.gg|discord\.com/events)/\S+', re.IGNORECASE)
 URL_RE = re.compile(r'https?://\S+')
@@ -64,6 +66,7 @@ class TrackedMessage:
     content: str
     image_hashes: frozenset
     created_at: datetime.datetime
+    retention_deadline: float
 
 
 def _all_same(lst) -> bool:
@@ -85,7 +88,16 @@ class AntiScam(commands.Cog):
         self._locks = defaultdict(asyncio.Lock)  # (guild_id, author_id) -> lock
         self._actioned = {}  # (guild_id, author_id) -> suppression expiry datetime
         self._hash_sem = asyncio.Semaphore(HASH_CONCURRENCY)
-        self._msg_count = 0
+        # The heap contains only deadlines and Discord IDs, never message content
+        # or hashes. A dedicated task evicts tracked data even when traffic stops.
+        self._expiry_heap = []
+        self._expiry_sequence = itertools.count()
+        self._expiry_event = asyncio.Event()
+        self._retention_task = asyncio.create_task(
+            self._retention_worker(), name='antiscam-retention')
+
+    def cog_unload(self):
+        self._retention_task.cancel()
 
     async def _build_tracked(self, message: discord.Message) -> TrackedMessage:
         hashes = []
@@ -115,6 +127,7 @@ class AntiScam(commands.Cog):
             content=message.content,
             image_hashes=frozenset(hashes),
             created_at=message.created_at,
+            retention_deadline=asyncio.get_running_loop().time() + RETENTION_SECONDS,
         )
 
     def _is_scam(self, messages) -> bool:
@@ -136,22 +149,51 @@ class AntiScam(commands.Cog):
 
         return same_content or same_images or (all_have_images and all_no_text)
 
-    def _maybe_evict(self, now: datetime.datetime) -> None:
-        self._msg_count += 1
-        if self._msg_count % EVICT_EVERY != 0:
-            return
-        cutoff = now - datetime.timedelta(minutes=CONSECUTIVE_WINDOW_MINUTES)
-        stale = [
-            key for key, dq in self._messages.items()
-            if not dq or dq[-1].created_at < cutoff
-        ]
-        for key in stale:
-            del self._messages[key]
-            lock = self._locks.get(key)
-            if lock is not None and not lock.locked():
-                del self._locks[key]
-        for key in [k for k, expiry in self._actioned.items() if expiry < now]:
-            del self._actioned[key]
+    def _track_for_retention(self, key, tracked: TrackedMessage) -> None:
+        heapq.heappush(
+            self._expiry_heap,
+            (tracked.retention_deadline, next(self._expiry_sequence), key, tracked.id),
+        )
+        self._expiry_event.set()
+
+    def _prune_expired(self, now: float) -> None:
+        while self._expiry_heap and self._expiry_heap[0][0] <= now:
+            deadline, _, key, message_id = heapq.heappop(self._expiry_heap)
+            messages = self._messages.get(key)
+            if messages is None:
+                continue
+
+            # No await occurs while a deque is inspected or replaced, so this is
+            # atomic with respect to on_message on the asyncio event loop. Matching
+            # the deadline as well as the ID makes stale heap entries harmless.
+            retained = deque(
+                (
+                    tracked for tracked in messages
+                    if not (
+                        tracked.id == message_id
+                        and tracked.retention_deadline == deadline
+                    )
+                ),
+                maxlen=MAX_MESSAGE_NUM,
+            )
+            if retained:
+                self._messages[key] = retained
+            else:
+                del self._messages[key]
+
+    async def _retention_worker(self) -> None:
+        loop = asyncio.get_running_loop()
+        while True:
+            self._expiry_event.clear()
+            if not self._expiry_heap:
+                await self._expiry_event.wait()
+                continue
+
+            delay = max(0, self._expiry_heap[0][0] - loop.time())
+            try:
+                await asyncio.wait_for(self._expiry_event.wait(), timeout=delay)
+            except asyncio.TimeoutError:
+                self._prune_expired(loop.time())
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
@@ -178,8 +220,12 @@ class AntiScam(commands.Cog):
                     return
                 del self._actioned[key]
 
-            self._messages[key].append(await self._build_tracked(message))
-            self._maybe_evict(message.created_at)
+            # Build before looking up the deque so the retention worker cannot
+            # evict the key during attachment I/O and leave us appending to an
+            # orphaned deque.
+            tracked = await self._build_tracked(message)
+            self._messages[key].append(tracked)
+            self._track_for_retention(key, tracked)
 
             if not self._is_scam(self._messages[key]):
                 return

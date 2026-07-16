@@ -60,8 +60,11 @@ def main(args: List[str] = None):
             logger.info(f'{query.execute()} polytopia IDs are banned')
 
 class MyBot(commands.Bot):
-    intents = discord.Intents().all()
+    intents = discord.Intents.default()
+    intents.members = True
+    intents.message_content = True
     intents.typing = False
+    intents.presences = False
     def __init__(self):
         super().__init__(command_prefix=get_prefix,
                          owner_id=settings.owner_id,
@@ -167,7 +170,11 @@ def init_bot(loop: asyncio.AbstractEventLoop = None, args: List[str] = None):
     @bot.before_invoke
     async def pre_invoke_setup(ctx):
         utilities.connect()
-        logger.debug(f'Command invoked: {ctx.message.clean_content}. By {ctx.message.author.name} in {ctx.channel.id} {ctx.channel.name} on {ctx.guild.name}')
+        logger.debug(
+            f'Command invoked: {ctx.invoked_with}. '
+            f'By {ctx.author.id} {ctx.author.name} in '
+            f'{ctx.channel.id} {ctx.channel.name} on {ctx.guild.name}'
+        )
 
     @bot.event
     async def on_message(message):
