@@ -1106,7 +1106,18 @@ class league(commands.Cog):
             arrows = [['r', right_arrow_colour], ['l', left_arrow_colour]]
 
         try:
-            fs = imgen.arrow_card(top_string, bottom_string, left_image, right_image, arrows)
+            # Image fetching and Pillow rendering are synchronous.  Keep them off
+            # the Discord event loop so a remote host cannot block heartbeats.
+            fs = await asyncio.to_thread(
+                imgen.arrow_card, top_string, bottom_string, left_image,
+                right_image, arrows
+            )
+        except imgen.ImageFetchError as e:
+            logger.warning('Unable to create promotion card: %s', e)
+            return await ctx.send(
+                'Unable to retrieve one of the images. Please try again later '
+                'or use another image URL.'
+            )
         except UnidentifiedImageError as e:
             logger.warn(f'UnidentifiedImageError: {e}')
             return await ctx.send(f'Image is formatted incorrectly. Use an image URL that links directly to a file. {e}')

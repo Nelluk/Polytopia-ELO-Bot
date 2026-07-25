@@ -13,6 +13,11 @@ from modules.models import Player, Team
 
 logger = logging.getLogger('polybot.' + __name__)
 
+
+class ImageFetchError(RuntimeError):
+    """Raised when a remote image cannot be retrieved."""
+
+
 def fetch_image(url: str) -> Image:
     """Get an image from a URL."""
 
@@ -23,13 +28,15 @@ def fetch_image(url: str) -> Image:
         }
     
     logger.debug(f'fetch_image {url}')
-    response = requests.get(url, headers=headers)
-    if response.status_code == 200:
-        logger.debug(f'Status code 200')
-    else:
-        logger.warn(f'Status code {response.status_code}')
-        logger.debug(f'Response headers: {response.headers}')
-        logger.debug(f'Request headers: {response.request.headers}')
+    try:
+        # Do not let an unresponsive image host hold a worker thread indefinitely.
+        response = requests.get(url, headers=headers, timeout=(2, 5))
+        response.raise_for_status()
+    except requests.RequestException as exc:
+        logger.warning('Unable to fetch image from %s: %s', url, exc)
+        raise ImageFetchError(f'Could not retrieve image from {url}') from exc
+
+    logger.debug(f'Status code {response.status_code}')
     return Image.open(BytesIO(response.content)).convert("RGBA")
 
 
