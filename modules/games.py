@@ -5,6 +5,7 @@ import settings
 import modules.exceptions as exceptions
 import modules.achievements as achievements
 from modules import channels
+from modules import image_storage
 import peewee
 import modules.models as models
 from modules.models import Game, db, Player, Team, DiscordMember, Squad, GameSide, Tribe, Lineup
@@ -53,7 +54,7 @@ class PolyGame(commands.Converter):
 
                 if not game.is_pending:
                     embed, _ = game.embed(guild=ctx.guild, prefix=ctx.prefix)
-                    await ctx.send(embed=embed)
+                    await image_storage.send_game_embed(ctx, game, embed=embed)
 
                 await ctx.send(f'Game with ID {game_id} is associated with a different Discord server: __{server_name}__.{game_summary_str}')
                 raise commands.UserInputError()
@@ -1051,8 +1052,7 @@ class polygames(commands.Cog):
             embed.add_field(name='**Team Recruiters**', value=', '.join(recruiters_list), inline=True)
         if captains_list:
             embed.add_field(name='**Team Captains**', value=', '.join(captains_list), inline=True)
-        if team.image_url:
-            embed.set_thumbnail(url=team.image_url)
+        team_logo = image_storage.set_entity_thumbnail(embed, 'team', team)
 
         embed.add_field(name='**Recent games**', value='\u200b', inline=False)
 
@@ -1111,7 +1111,15 @@ class polygames(commands.Cog):
 
             image = discord.File(file, filename='graph.png')
 
-        await ctx.send(file=image, embed=embed)
+        files = []
+        if image:
+            files.append(image)
+        if team_logo:
+            files.append(team_logo.to_discord_file())
+        if files:
+            await ctx.send(files=files, embed=embed)
+        else:
+            await ctx.send(embed=embed)
 
     @commands.command(brief='Sets a Polytopia account name and registers user with the bot', usage='[user] polytopia_code', aliases=['steamname', 'setcode'])
     async def setname(self, ctx, *, args=None):
@@ -1421,7 +1429,9 @@ class polygames(commands.Cog):
         game = await PolyGame().convert(ctx, game_search)
 
         embed, content = game.embed(guild=ctx.guild, prefix=ctx.prefix)
-        return await ctx.send(embed=embed, content=content)
+        return await image_storage.send_game_embed(
+            ctx, game, embed=embed, content=content
+        )
 
     @settings.in_bot_channel_strict()
     @models.is_registered_member()
@@ -2350,11 +2360,13 @@ async def post_win_messaging(guild, prefix, current_chan, winning_game):
         channel = guild.get_channel(settings.guild_setting(guild.id, 'game_announce_channel'))
         if channel is not None:
             await channel.send(f'Game concluded! Congrats **{winning_game.winner.name()}**. Roster: {" ".join(winning_game.mentions())}')
-            await channel.send(embed=embed)
+            await image_storage.send_game_embed(channel, winning_game, embed=embed)
             return await current_chan.send(f'Game concluded! See {channel.mention} for full details.')
 
     await current_chan.send(f'Game concluded! Congrats **{winning_game.winner.name()}**. Roster: {" ".join(winning_game.mentions())}{reminder_message}')
-    await current_chan.send(embed=embed, content=content)
+    await image_storage.send_game_embed(
+        current_chan, winning_game, embed=embed, content=content
+    )
 
 
 async def post_unwin_messaging(guild, prefix, current_chan, game, previously_confirmed: bool = False):
@@ -2387,19 +2399,25 @@ async def post_newgame_messaging(ctx, game):
         channel = ctx.guild.get_channel(settings.guild_setting(ctx.guild.id, 'game_announce_channel'))
         if channel:
             await channel.send(f'{announce_str}')
-            announcement = await channel.send(embed=embed, content=content)
+            announcement = await image_storage.send_game_embed(
+                channel, game, embed=embed, content=content
+            )
             await ctx.send(f'New {ranked_str}game ID **{game.id}** started! See {channel.mention} for full details.')
             game.announcement_message = announcement.id
             game.announcement_channel = announcement.channel.id
             game.save()
         else:
-            await ctx.send(embed=embed, content=content)
+            await image_storage.send_game_embed(
+                ctx, game, embed=embed, content=content
+            )
             await ctx.send('Error loading game announcement channel from server settings. Please inform the bot owner.')
             logger.error(f'Could not load game_announce_channel channel for guild {ctx.guild.id}')
 
     else:
         await ctx.send(f'{announce_str}')
-        await ctx.send(embed=embed, content=content)
+        await image_storage.send_game_embed(
+            ctx, game, embed=embed, content=content
+        )
 
     if settings.guild_setting(ctx.guild.id, 'game_channel_categories'):
         try:

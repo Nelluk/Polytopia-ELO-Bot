@@ -15,7 +15,7 @@ from playhouse.postgres_ext import *
 from psycopg2.errors import DuplicateObject
 
 import settings
-from modules import channels, exceptions
+from modules import channels, exceptions, image_storage
 
 logger = logging.getLogger('polybot.' + __name__)
 elo_logger = logging.getLogger('polybot.elo')
@@ -1371,7 +1371,9 @@ class Game(BaseModel):
 
         try:
             embed, content = self.embed(guild=guild, prefix=prefix)
-            await message.edit(embed=embed, content=content)
+            await image_storage.edit_game_embed(
+                message, self, embed=embed, content=content
+            )
         except discord.DiscordException:
             return logger.warning('Couldn\'t update message in update_announacement')
 
@@ -1499,9 +1501,9 @@ class Game(BaseModel):
                 if winning_discord_member is not None:
                     embed.set_thumbnail(url=winning_discord_member.display_avatar.replace(size=512, format='webp'))
                     
-            elif self.winner.team and self.winner.team.image_url:
+            elif self.winner.team and image_storage.resolve_image('team', self.winner.team):
                 # Winner is a team of players - use team image if present
-                embed.set_thumbnail(url=self.winner.team.image_url)
+                image_storage.set_entity_thumbnail(embed, 'team', self.winner.team)
 
         game_data = []
         for gameside in self.ordered_side_list():

@@ -37,6 +37,7 @@ TODO.txt
 *.DS_Store
 .DS_Store
 graph.png
+data/images/
 .claude/napkin.md
 .codex
 githubKey

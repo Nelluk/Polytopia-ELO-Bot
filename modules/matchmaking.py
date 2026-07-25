@@ -2,6 +2,7 @@ import discord
 from discord.ext import commands, tasks
 import modules.models as models
 import modules.utilities as utilities
+import modules.image_storage as image_storage
 import settings
 import modules.exceptions as exceptions
 from modules.games import post_newgame_messaging
@@ -239,7 +240,12 @@ class matchmaking(commands.Cog):
             if game.host and game.host != creating_player:
                 announce_message += f'\nMatchmaking host {game.host.discord_member.mention()} is not the game creator.'
 
-            await announce_channel.send(embed=embed, content=f'{content}{announce_message}')
+            await image_storage.send_game_embed(
+                announce_channel,
+                game,
+                embed=embed,
+                content=f'{content}{announce_message}',
+            )
 
         # Alert user if they have >1 games ready to start
         waitlist_hosting = [f'{g.id}' for g in models.Game.search_pending(status_filter=1, guild_id=guild.id, host_discord_id=joining_member.id)]
@@ -256,7 +262,9 @@ class matchmaking(commands.Cog):
 
         logger.debug(f'Join by reaction success: {message_str}')
         self.ignorable_join_reactions.discard((payload.message_id, payload.user_id))
-        return await feedback_destination.send(embed=embed, content=f'{message_str}')
+        return await image_storage.send_game_embed(
+            feedback_destination, game, embed=embed, content=f'{message_str}'
+        )
 
     @settings.in_bot_channel()
     @models.is_registered_member()
@@ -655,9 +663,11 @@ class matchmaking(commands.Cog):
 
             if game.host and game.host != creating_player:
                 await ctx.send(f'Matchmaking host {game.host.discord_member.mention()} is not the game creator.')
-            await ctx.send(embed=embed, content=content)
+            await image_storage.send_game_embed(
+                ctx, game, embed=embed, content=content
+            )
         else:
-            await ctx.send(embed=embed)
+            await image_storage.send_game_embed(ctx, game, embed=embed)
         await ctx.send(message_str)
 
         # Alert user if they have >1 games ready to start
@@ -735,7 +745,9 @@ class matchmaking(commands.Cog):
         models.GameLog.write(game_id=game, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} edited game notes: {game.notes}')
         await ctx.send(f'Updated notes for game {game.id} to: {game.notes}')
         embed, content = game.embed(guild=ctx.guild, prefix=ctx.prefix)
-        await ctx.send(embed=embed, content=content)
+        await image_storage.send_game_embed(
+            ctx, game, embed=embed, content=content
+        )
 
         if ctx.message.mentions or ctx.message.role_mentions:
             await ctx.send('**Warning**: Updated notes included role/user mentions. This will not impact who is allowed to join the game and will only change the content of the notes.')
@@ -1076,7 +1088,12 @@ class matchmaking(commands.Cog):
                            '\n\n*(I do not respond to DMed commands. You must issue commands in the channel linked above.)*')
 
                 try:
-                    await creating_guild_member.send(content=message, embed=embed)
+                    await image_storage.send_game_embed(
+                        creating_guild_member,
+                        game,
+                        embed=embed,
+                        content=message,
+                    )
                     logger.info(f'Sending reminder DM to {creating_guild_member.name} {creating_guild_member.id} to start game {game.id}')
                 except discord.DiscordException as e:
                     logger.warning(f'Error DMing creator of waiting game: {e}')

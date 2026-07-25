@@ -31,3 +31,10 @@ Change the required settings inside config.ini, which include the API key from t
 Create an empty postgresql database and add the database's name and a psql user name into config.ini
 
 Run bot.py 
+
+## Runtime image data
+
+Team and house images uploaded as Discord attachments are normalised and stored
+under `data/images/`. This directory is intentionally excluded from Git and must
+be included in server backups. Direct HTTP(S) image URLs remain stored in
+PostgreSQL and are used whenever no local image exists.

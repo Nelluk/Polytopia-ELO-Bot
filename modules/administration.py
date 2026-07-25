@@ -1,6 +1,7 @@
 from discord.ext import commands
 import modules.models as models
 import modules.utilities as utilities
+import modules.image_storage as image_storage
 import settings
 import logging
 import peewee
@@ -619,7 +620,7 @@ class administration(commands.Cog):
         logger.info(f'team_emoji set for {team.id} {team.name} to {team.emoji}')
         await ctx.send(f'Team **{team.name}** updated with new emoji: {team.emoji}')
 
-    @commands.command(usage='team_name image_url')
+    @commands.command(usage='team_name [image_url or attachment]')
     @settings.is_mod_check()
     @settings.guild_has_setting(setting_name='allow_teams')
     async def team_image(self, ctx, team_name: str, image_url: str = None):
@@ -627,7 +628,7 @@ class administration(commands.Cog):
 
         **Example:**
         `[p]team_image Ronin http://www.path.to/image.png`
-        -- `imgbox.com` is the recommended host as it reliably links directly to an image file.
+        `[p]team_image Ronin` with an attached PNG, JPEG, or WebP image
         `[p]team_image Ronin` - Display currently saved image
         """
         try:
@@ -635,19 +636,60 @@ class administration(commands.Cog):
         except exceptions.NoSingleMatch as ex:
             return await ctx.send(f'{ex}\nExample: `{ctx.prefix}team_emoji name :my_custom_emoji:`')
 
-        if not image_url:
-            return await ctx.send(f'Image for team **{team.name}**: <{team.image_url}>')
+        attachments = ctx.message.attachments
+        if len(attachments) > 1:
+            return await ctx.send('Please attach exactly one image.')
 
-        if 'http' not in image_url:
-            return await ctx.send(f'Valid image url not detected. Example usage: `{ctx.prefix}team_image name http://url_to_image.png`')
-            # This is a very dumb check to make sure user is passing a URL and not a random string. Assumes mod can figure it out from there.
+        async with image_storage.update_lock('team', team.id):
+            if attachments:
+                try:
+                    await image_storage.save_attachment(attachments[0], 'team', team.id)
+                except (image_storage.ImageStorageError, discord.HTTPException) as exc:
+                    return await ctx.send(f'Unable to save team image: {exc}')
 
-        team.image_url = image_url
-        team.save()
+                ignored_url = ' The supplied URL was ignored.' if image_url else ''
+                logger.info(f'team_image stored locally for {team.id} {team.name}')
+                models.GameLog.write(
+                    guild_id=ctx.guild.id,
+                    message=(
+                        f'{models.GameLog.member_string(ctx.author)} updated the local image '
+                        f'for Team {team.name}.{ignored_url}'
+                    ),
+                )
+                local_file = image_storage.local_attachment('team', team)
+                return await ctx.send(
+                    f'Team **{team.name}** updated with a local image.{ignored_url}',
+                    file=local_file.to_discord_file(),
+                )
 
-        logger.info(f'team_image set for {team.id} {team.name} to {team.image_url}')
-        await ctx.send(f'Team {team.name} updated with new image_url (image should appear below)')
-        await ctx.send(team.image_url)
+            if image_url:
+                try:
+                    image_storage.activate_remote_url(team, 'team', image_url)
+                except image_storage.ImageStorageError as exc:
+                    return await ctx.send(
+                        f'{exc} Example: `{ctx.prefix}team_image name http://url_to_image.png`'
+                    )
+
+                logger.info(f'team_image set for {team.id} {team.name} to {team.image_url}')
+                models.GameLog.write(
+                    guild_id=ctx.guild.id,
+                    message=(
+                        f'{models.GameLog.member_string(ctx.author)} updated the image URL '
+                        f'for Team {team.name} to {team.image_url}'
+                    ),
+                )
+                await ctx.send(f'Team **{team.name}** updated with a direct image URL.')
+                return await ctx.send(team.image_url)
+
+            local_file = image_storage.local_attachment('team', team)
+            if local_file:
+                return await ctx.send(
+                    f'Locally stored image for team **{team.name}**:',
+                    file=local_file.to_discord_file(),
+                )
+            if team.image_url:
+                return await ctx.send(f'Image for team **{team.name}**: <{team.image_url}>')
+            return await ctx.send(f'Team **{team.name}** does not have an image set.')
 
     @commands.command(usage='old_name new_name')
     @settings.is_mod_check()

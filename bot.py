@@ -12,7 +12,7 @@ from discord.ext import commands
 import logging_config
 import modules.exceptions as exceptions
 import settings
-from modules import initialize_data, models, utilities
+from modules import image_storage, initialize_data, models, utilities
 
 logger = logging.getLogger('polybot.' + __name__)
 # https://discord.com/channels/336642139381301249/1042604006226280468/1042645381143613532
@@ -76,6 +76,7 @@ class MyBot(commands.Bot):
         self.locked_game_records = set()  # Games which cannot be written to since another command is working on them right now. Ugly hack to do what should be done at the DB level
 
     async def setup_hook(self):
+        image_storage.ensure_image_directories()
         initial_extensions = [
             'modules.games', 'modules.customhelp', 'modules.matchmaking',
             'modules.administration', 'modules.misc', 'modules.league',

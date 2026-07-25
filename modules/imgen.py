@@ -1,5 +1,6 @@
 """Image generation code."""
 from io import BytesIO
+from pathlib import Path
 import typing
 import logging
 
@@ -9,7 +10,7 @@ import discord
 
 import requests
 
-from modules.models import Player, Team
+from modules import image_storage
 
 logger = logging.getLogger('polybot.' + __name__)
 
@@ -18,8 +19,19 @@ class ImageFetchError(RuntimeError):
     """Raised when a remote image cannot be retrieved."""
 
 
-def fetch_image(url: str) -> Image:
-    """Get an image from a URL."""
+def fetch_image(source: typing.Union[str, Path]) -> Image.Image:
+    """Load an image from a trusted local path or retrieve it from a URL."""
+
+    if isinstance(source, Path):
+        logger.debug(f'fetch_image local path {source}')
+        try:
+            with Image.open(source) as local_image:
+                local_image.load()
+                return local_image.convert("RGBA")
+        except (OSError, ValueError) as exc:
+            raise ImageFetchError(f'Could not load local image from {source}') from exc
+
+    url = str(source)
 
     headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
@@ -37,11 +49,18 @@ def fetch_image(url: str) -> Image:
         raise ImageFetchError(f'Could not retrieve image from {url}') from exc
 
     logger.debug(f'Status code {response.status_code}')
-    return Image.open(BytesIO(response.content)).convert("RGBA")
+    try:
+        with Image.open(BytesIO(response.content)) as remote_image:
+            remote_image.load()
+            return remote_image.convert("RGBA")
+    except (OSError, ValueError) as exc:
+        raise ImageFetchError(f'Could not decode image from {url}') from exc
 
 
 def get_player_summary(member: discord.Member) -> str:
     """Get a summary for a player."""
+    from modules.models import Player
+
     player = Player.get_or_except(
         player_string=member.id, guild_id=member.guild.id
     )
@@ -62,9 +81,11 @@ def draw_text(
     # load the font
     # font = ImageFont.truetype(
     #     'res/font.ttf', size,
-    #     layout_engine=ImageFont.LAYOUT_BASIC
+    #     layout_engine=ImageFont.Layout.BASIC
     # )
-    font = ImageFont.truetype('res/font.ttf', size, layout_engine="basic")
+    font = ImageFont.truetype(
+        'res/font.ttf', size, layout_engine=ImageFont.Layout.BASIC
+    )
     # draw the text
     draw = ImageDraw.Draw(image)
     draw.text((left, top), text, colour or '#fff', font)
@@ -74,9 +95,15 @@ def draw_inverse_text(
         image: Image.Image, text: str, *, size: int = 50, left: int = 0,
         top: int = 0):
     """Draw transparent text on a white background."""
-    width, height = ImageFont.truetype('res/font.ttf', size, layout_engine="basic").getsize(text)
+    font = ImageFont.truetype(
+        'res/font.ttf', size, layout_engine=ImageFont.Layout.BASIC
+    )
+    left_bbox, top_bbox, right_bbox, bottom_bbox = font.getbbox(text)
+    width, height = right_bbox - left_bbox, bottom_bbox - top_bbox
     mask = Image.new('1', (width + 40, height + 30))
-    draw_text(mask, text, size=size, top=10, left=5)
+    ImageDraw.Draw(mask).text(
+        (5 - left_bbox, 10 - top_bbox), text, fill='#fff', font=font
+    )
     mask_data = list(mask.getdata())
     for idx, px in enumerate(mask_data):
         if px > 128:
@@ -90,7 +117,11 @@ def draw_inverse_text(
 
 def get_text_width(text: str, font_size: int) -> int:
     """Get the width of some text."""
-    return ImageFont.truetype('res/font.ttf', font_size, layout_engine="basic").getsize(text)[0]
+    font = ImageFont.truetype(
+        'res/font.ttf', font_size, layout_engine=ImageFont.Layout.BASIC
+    )
+    left, _top, right, _bottom = font.getbbox(text)
+    return right - left
 
 
 def paste_image(
@@ -102,7 +133,7 @@ def paste_image(
     factor = start_h / height
     width = int(start_w / factor)
     # resize and paste the image
-    image = image.resize((width, height))
+    image = image.resize((width, height), Image.Resampling.LANCZOS)
     if image.mode != 'RGBA':
         image.putalpha(255)
     base.paste(image, (left, top), image)
@@ -165,9 +196,11 @@ def player_draft_card(
         member: discord.Member, team_role: discord.Role,
         selecting_string: str = None) -> discord.File:
     """Generate a player draft card image."""
+    from modules.models import Team
+
     # get the relevant images and strings
     team = Team.get_or_except(team_name=team_role.name, guild_id=member.guild.id)
-    team_logo = fetch_image(team.image_url)
+    team_logo = fetch_image(image_storage.resolve_image('team', team))
     team_colour = str(team_role.colour)
     selecting_string = selecting_string if selecting_string else team.name
     title = f'{selecting_string.upper()} SELECT'

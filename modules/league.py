@@ -17,6 +17,7 @@ import modules.exceptions as exceptions
 
 # import random
 import modules.imgen as imgen
+import modules.image_storage as image_storage
 import modules.models as models
 import modules.utilities as utilities
 import settings
@@ -777,35 +778,95 @@ class league(commands.Cog):
         `[p]house_add Amphibian Party` - Add a new house named "Amphibian Party"
         `[p]house_rename amphibian Mammal Kingdom` - Rename them to "Mammal Kingdom"
         `[p]house_image amphibian http://www.path.to/image.png` - Set house image URL
+        `[p]house_image amphibian` with an attachment - Store a local house image
         """
         args = arg.split() if arg else []
         if not args:
             return await ctx.send(f'See {ctx.prefix}help {ctx.invoked_with} for usage examples.')
         
         if ctx.invoked_with == 'house_image':
-            if len(args) < 2:
-                return await ctx.send(f'Please provide both a house name and image URL. Example: `{ctx.prefix}house_image housename http://url_to_image.png`')
+            if not args:
+                return await ctx.send(
+                    f'Please provide a house name and either an image URL or attachment. '
+                    f'Example: `{ctx.prefix}house_image housename http://url_to_image.png`'
+                )
             
-            house_name, image_url = args[0], ' '.join(args[1:])
+            attachments = ctx.message.attachments
+            if len(attachments) > 1:
+                return await ctx.send('Please attach exactly one image.')
+
+            has_url_argument = (
+                len(args) > 1 and
+                '://' in args[-1]
+            )
+            if has_url_argument:
+                house_name, image_url = ' '.join(args[:-1]), args[-1]
+            else:
+                house_name, image_url = ' '.join(args), None
             
             try:
                 house = models.House.get_or_except(house_name=house_name)
             except (exceptions.TooManyMatches, exceptions.NoMatches) as e:
                 return await ctx.send(e)
 
-            if 'http' not in image_url:
-                return await ctx.send(f'Valid image URL not detected. Example usage: `{ctx.prefix}house_image name http://url_to_image.png`')
+            async with image_storage.update_lock('house', house.id):
+                if attachments:
+                    try:
+                        await image_storage.save_attachment(attachments[0], 'house', house.id)
+                    except (image_storage.ImageStorageError, discord.HTTPException) as exc:
+                        return await ctx.send(f'Unable to save house image: {exc}')
 
-            old_url = house.image_url if house.image_url else "None"
-            house.image_url = image_url
-            house.save()
+                    ignored_url = ' The supplied URL was ignored.' if image_url else ''
+                    logger.info(f'house_image stored locally for {house.id} {house.name}')
+                    models.GameLog.write(
+                        guild_id=ctx.guild.id,
+                        message=(
+                            f'{models.GameLog.member_string(ctx.author)} updated the local image '
+                            f'for House {house.name}.{ignored_url}'
+                        ),
+                    )
+                    local_file = image_storage.local_attachment('house', house)
+                    await ctx.send(
+                        f'House **{house.name}** updated with a local image.{ignored_url}',
+                        file=local_file.to_discord_file(),
+                    )
+                    return
 
-            logger.info(f'house_image set for {house.id} {house.name} to {house.image_url}')
-            models.GameLog.write(guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} updated image URL for House {house.name} from {old_url} to {image_url}')
-            
-            await ctx.send(f'House {house.name} updated with new image_url. Old URL was: {old_url}\nNew image should appear below:')
-            await ctx.send(house.image_url)
-            return
+                if image_url:
+                    old_url = house.image_url if house.image_url else "None"
+                    try:
+                        image_storage.activate_remote_url(house, 'house', image_url)
+                    except image_storage.ImageStorageError as exc:
+                        return await ctx.send(
+                            f'{exc} Example: `{ctx.prefix}house_image name http://url_to_image.png`'
+                        )
+
+                    logger.info(f'house_image set for {house.id} {house.name} to {house.image_url}')
+                    models.GameLog.write(
+                        guild_id=ctx.guild.id,
+                        message=(
+                            f'{models.GameLog.member_string(ctx.author)} updated image URL for '
+                            f'House {house.name} from {old_url} to {house.image_url}'
+                        ),
+                    )
+                    await ctx.send(
+                        f'House **{house.name}** updated with a direct image URL. '
+                        f'Old URL was: {old_url}'
+                    )
+                    await ctx.send(house.image_url)
+                    return
+
+                local_file = image_storage.local_attachment('house', house)
+                if local_file:
+                    await ctx.send(
+                        f'Locally stored image for house **{house.name}**:',
+                        file=local_file.to_discord_file(),
+                    )
+                elif house.image_url:
+                    await ctx.send(f'Image for house **{house.name}**: <{house.image_url}>')
+                else:
+                    await ctx.send(f'House **{house.name}** does not have an image set.')
+                return
 
         if ctx.invoked_with == 'house_add':
             house_name = ' '.join(args)
@@ -1075,16 +1136,19 @@ class league(commands.Cog):
         top_string = '' if args[0].upper() == 'NONE' else args[0]
         bottom_string = '' if args[1].upper() == 'NONE' else args[1]
 
-        async def arg_to_image_url(image_arg: str, position: int = 0):
+        async def arg_to_image_source(image_arg: str, position: int = 0):
             if image_arg[:4] == 'http':
                 # passed raw image url
                 return image_arg, '#00ff00' if position == 0 else '#ff0000'
             else:
                 team_matches = models.Team.get_by_name(team_name=image_arg, guild_id=ctx.guild.id, require_exact=False)
                 if len(team_matches) == 1:
-                    # passed name of team. use team image url.
+                    # Passed a team name. Prefer its local image, then its URL.
                     team_role = utilities.guild_role_by_name(ctx.guild, name=team_matches[0].name, allow_partial=False)
-                    return team_matches[0].image_url, team_role.colour.to_rgb()
+                    image_source = image_storage.resolve_image('team', team_matches[0])
+                    if not image_source:
+                        raise ValueError(f'Team *{team_matches[0].name}* does not have an image set.')
+                    return image_source, team_role.colour.to_rgb()
                 else:
                     guild_matches = await utilities.get_guild_member(ctx, image_arg)
                     if len(guild_matches) == 1:
@@ -1095,8 +1159,8 @@ class league(commands.Cog):
                         raise ValueError(f'Cannot convert *{image_arg}* to an image.')
 
         try:
-            left_image, right_arrow_colour = await arg_to_image_url(args[2])
-            right_image, left_arrow_colour = await arg_to_image_url(args[3], position=1)
+            left_image, right_arrow_colour = await arg_to_image_source(args[2])
+            right_image, left_arrow_colour = await arg_to_image_source(args[3], position=1)
         except ValueError as e:
             return await ctx.send(f'Cannot convert one of your arguments to an image: {e}\nMust be an image URL, member name, or team name.')
 
@@ -1148,7 +1212,7 @@ class league(commands.Cog):
         except exceptions.NoSingleMatch as e:
             return await ctx.send(f'Error looking up team: {e}\n{usage}')
 
-        if not team.image_url:
+        if not image_storage.resolve_image('team', team):
             return await ctx.send(f'Team **{team.name}** does not have an image set. Use `{ctx.prefix}team_image` first.')
         draft_team_role = utilities.guild_role_by_name(ctx.guild, name=team.name, allow_partial=False)
         if not draft_team_role:
@@ -1161,7 +1225,19 @@ class league(commands.Cog):
             house_role = None
 
         selecting_string = house_role.name if house_role else draft_team_role.name
-        fs = imgen.player_draft_card(member=draftee, team_role=draft_team_role, selecting_string=selecting_string)
+        try:
+            fs = await asyncio.to_thread(
+                imgen.player_draft_card,
+                member=draftee,
+                team_role=draft_team_role,
+                selecting_string=selecting_string,
+            )
+        except imgen.ImageFetchError as exc:
+            logger.warning('Unable to create draft card: %s', exc)
+            return await ctx.send('Unable to retrieve one of the draft card images. Please try again later.')
+        except UnidentifiedImageError as exc:
+            logger.warning(f'UnidentifiedImageError: {exc}')
+            return await ctx.send(f'An image is formatted incorrectly: {exc}')
 
         await ctx.send(file=fs)
 

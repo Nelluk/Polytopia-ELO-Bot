@@ -3,6 +3,7 @@ import peewee
 from discord.ext import commands
 import modules.models as models
 import modules.utilities as utilities
+import modules.image_storage as image_storage
 import settings
 import logging
 import asyncio
@@ -457,7 +458,9 @@ class misc(commands.Cog):
 
         if related_game:
             embed, content = related_game.embed(guild=guild, prefix=ctx.prefix)
-            await channel.send(embed=embed, content=content)
+            await image_storage.send_game_embed(
+                channel, related_game, embed=embed, content=content
+            )
             game_id = related_game.id
         else:
             game_id = 0
