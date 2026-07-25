@@ -38,3 +38,6 @@ Team and house images uploaded as Discord attachments are normalised and stored
 under `data/images/`. This directory is intentionally excluded from Git and must
 be included in server backups. Direct HTTP(S) image URLs remain stored in
 PostgreSQL and are used whenever no local image exists.
+
+The tracked backup script is `scripts/backup_db.sh`; the live server copy is
+deployed at `/home/nelluk/backup_db.sh`.
