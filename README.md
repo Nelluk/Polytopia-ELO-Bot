@@ -32,6 +32,31 @@ Create an empty postgresql database and add the database's name and a psql user 
 
 Run bot.py 
 
+## Dependency upgrade safety checks
+
+Run the offline compatibility suite without connecting to Discord or
+PostgreSQL:
+
+```
+bin/python -W error::DeprecationWarning -m unittest discover -s tests -v
+```
+
+Capture the active interpreter and all installed distribution versions without
+depending on `pip`:
+
+```
+bin/python scripts/dependency_inventory.py
+bin/python scripts/dependency_inventory.py --json
+```
+
+The pre-upgrade production snapshot is stored in
+`docs/dependency-baseline-2026-07-27.txt`.
+
+Use a dedicated Discord application, PostgreSQL database, and configuration for
+live upgrade testing. Changing only the Discord token is not sufficient
+isolation: importing `modules.models` creates missing tables, and bot commands
+and background tasks can write to the configured database.
+
 ## Runtime image data
 
 Team and house images uploaded as Discord attachments are normalised and stored
