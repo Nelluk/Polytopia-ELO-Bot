@@ -638,6 +638,30 @@ Group 6 execution checkpoint (2026-07-28):
   Starlette to two rows in only Gunicorn 20.1.0. All nine Starlette findings
   were cleared. Gunicorn is assigned to Group 7; no package was auto-fixed.
 
+Group 7 execution checkpoint (2026-07-28):
+
+- Reviewed the official Uvicorn 0.51 and Gunicorn 26 release notes, current
+  PyPI metadata for uvloop and httptools, every repository server-package
+  reference, and the API entry point. The repository has no Gunicorn
+  configuration or API service definition; `server.py` documents direct
+  Uvicorn execution.
+- Upgraded Uvicorn 0.29.0 to 0.51.0, Gunicorn 20.1.0 to 26.0.0, uvloop
+  0.19.0 to 0.22.1, and httptools 0.6.1 to 0.8.0. Gunicorn no longer depends
+  on setuptools, reducing the resolved graph from 81 to 80 packages.
+- Added a focused network-free server-stack test. It loads a Uvicorn
+  configuration around a trivial in-memory ASGI callable with the httptools
+  protocol, resolves Gunicorn's native ASGI worker with uvloop and lifespan
+  enabled, creates and closes a uvloop event loop, and parses a URL through
+  httptools. It does not import `server.py`, run a server, bind a socket,
+  connect Discord, or touch a database.
+- The full acceptance gate passed under CPython 3.12.13: frozen sync checked
+  77 installed packages, lock validation resolved 80 packages, all 45 strict
+  offline tests passed, compileall passed, dependency inventory passed, and
+  the diff check passed.
+- The frozen audit reports no known vulnerabilities. Upgrading Gunicorn
+  removed the final two advisory rows. No package was auto-fixed, and no
+  database, Discord, or HTTP service connection was made.
+
 ## Phase 6: offline and database integration testing
 
 The default suite must remain network-free and database-free.

@@ -1,5 +1,6 @@
 import asyncio
 import importlib
+from importlib.metadata import version
 from io import BytesIO
 import json
 from pathlib import Path
@@ -43,6 +44,7 @@ class RuntimeDependencyCompatibilityTests(unittest.TestCase):
             'google.oauth2.service_account',
             'gspread',
             'gspread_asyncio',
+            'gunicorn',
             'httptools',
             'matplotlib',
             'pandas',
@@ -158,6 +160,58 @@ class RuntimeDependencyCompatibilityTests(unittest.TestCase):
                 source = (root / relative_path).read_text(encoding='utf-8')
                 self.assertNotIn('bot.loop', source)
                 self.assertNotIn('Client(loop=', source)
+
+    def test_group_seven_server_stack_configures_offline(self):
+        from gunicorn.config import Config as GunicornConfig
+        from gunicorn.workers.gasgi import ASGIWorker
+        import httptools
+        import uvicorn
+        from uvicorn.protocols.http.httptools_impl import HttpToolsProtocol
+        import uvloop
+
+        self.assertEqual(version('gunicorn'), '26.0.0')
+        self.assertEqual(version('httptools'), '0.8.0')
+        self.assertEqual(version('uvicorn'), '0.51.0')
+        self.assertEqual(version('uvloop'), '0.22.1')
+
+        gunicorn_config = GunicornConfig()
+        gunicorn_config.set('worker_class', 'asgi')
+        gunicorn_config.set('asgi_loop', 'uvloop')
+        gunicorn_config.set('asgi_lifespan', 'on')
+        self.assertIs(gunicorn_config.worker_class, ASGIWorker)
+        self.assertEqual(gunicorn_config.asgi_loop, 'uvloop')
+        self.assertEqual(gunicorn_config.asgi_lifespan, 'on')
+
+        async def offline_app(scope, receive, send):
+            pass
+
+        uvicorn_config = uvicorn.Config(
+            offline_app,
+            host='127.0.0.1',
+            port=0,
+            loop='uvloop',
+            http='httptools',
+            lifespan='off',
+            interface='asgi3',
+        )
+        uvicorn_config.load()
+        self.assertTrue(uvicorn_config.loaded)
+        self.assertIs(uvicorn_config.http_protocol_class, HttpToolsProtocol)
+
+        loop = uvloop.new_event_loop()
+        try:
+            self.assertEqual(type(loop).__module__, 'uvloop')
+        finally:
+            loop.close()
+
+        parsed_url = httptools.parse_url(
+            b'https://offline.test:8443/path?query=value'
+        )
+        self.assertEqual(parsed_url.schema, b'https')
+        self.assertEqual(parsed_url.host, b'offline.test')
+        self.assertEqual(parsed_url.port, 8443)
+        self.assertEqual(parsed_url.path, b'/path')
+        self.assertEqual(parsed_url.query, b'query=value')
 
     def test_bot_constructs_without_connecting_to_database_or_discord(self):
         stubs = {}
