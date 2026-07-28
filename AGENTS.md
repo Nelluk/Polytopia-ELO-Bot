@@ -8,41 +8,48 @@ Polytopia-ELO-Bot is a Discord bot for the mobile game Polytopia. It provides ma
 
 ## Tech Stack
 
-- Python 3.9+
-- discord.py ~2.1 (Discord bot framework)
+- CPython 3.12
+- discord.py 2.7.1 (Discord bot framework)
 - Peewee ORM with PostgreSQL database
 - FastAPI for optional REST API
 - Matplotlib/Pandas/SciPy for statistics and graphing
+- uv with `pyproject.toml` and `uv.lock` for reproducible environments
 
 ## Running the Bot
 
 ```bash
-# Activate virtual environment
-source .venv/bin/activate  # or source bin/activate for legacy venv
-
-# Install dependencies
-pip install -r requirements.txt
+# Create or synchronize the locked development environment
+uv sync --locked
 
 # Run the Discord bot
-python bot.py
+POLYBOT_ENV=development .venv/bin/python bot.py --skip_tasks
 
 # Run with options
-python bot.py --skip_tasks        # Skip background tasks
-python bot.py --add_default_data  # Initialize default database data
-python bot.py --recalc_elo        # Recalculate all ELO ratings
-python bot.py --game_export       # Export game data to file
+POLYBOT_ENV=development .venv/bin/python bot.py --add_default_data
+POLYBOT_ENV=development .venv/bin/python bot.py --recalc_elo
+POLYBOT_ENV=development .venv/bin/python bot.py --game_export
 ```
+
+Production uses `POLYBOT_ENV=production` and `uv sync --locked --no-dev`.
+Production execution and service restarts require separate explicit approval;
+see `docs/PRODUCTION_CUTOVER.md`.
 
 ## Running the API Server
 
 ```bash
-python3 -m uvicorn server:server --host 0.0.0.0 --port 8000
+POLYBOT_ENV=development .venv/bin/python -m uvicorn server:server --host 127.0.0.1 --port 8000
 ```
+
+The development API is disabled by default and requires its separate runtime
+policy acknowledgement before this command can run.
 
 ## Configuration
 
-- `config.ini` - Discord API key, PostgreSQL credentials, owner ID (copy from `config.ini-EXAMPLE`)
-- `server_settings.py` - Server-specific settings, channel IDs, role names (copy from `server_settings-EXAMPLE.py`)
+- `config.ini` / `server_settings.py` - ignored production profile files
+- `config.development.ini` / `server_settings_dev.py` - ignored development
+  profile files
+- `POLYBOT_ENV` - must be explicitly `production` or `development` in
+  deployed commands
 
 ## Architecture
 

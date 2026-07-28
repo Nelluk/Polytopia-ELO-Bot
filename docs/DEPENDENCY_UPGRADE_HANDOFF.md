@@ -813,39 +813,57 @@ Execution checkpoint (2026-07-28):
 
 ## Phase 8: review and production cutover plan
 
-Do not deploy merely because the dev bot works once. Before merging:
+The exact reviewed procedure is in
+[`docs/PRODUCTION_CUTOVER.md`](PRODUCTION_CUTOVER.md). It includes preflight,
+fresh database and image backups, fast-forward-only deployment, explicit
+production policy, locked environment creation, offline verification, a
+tracked systemd drop-in, one restart, smoke tests, and non-destructive
+rollback.
 
-- Review the complete branch diff.
-- Ensure every phase has a focused commit and passing tests.
-- Push the branch and use a pull request where practical.
-- Document final Python and direct/resolved dependency versions.
-- Document configuration keys production must add.
-- Confirm database and local-image backups.
-- Confirm the production service command and rollback command.
-- Keep the old Python 3.9 environment intact.
+Execution checkpoint (2026-07-28):
 
-Preferred production runtime after approval:
+- Reviewed all seven focused commits from production baseline `43b3425`
+  through Phase 7 commit `7b60964`. Before the Phase 8 documentation changes,
+  the branch changed 29 files with 3,881 insertions and 113 deletions.
+  `origin/master` is the direct ancestor, the production checkout is clean,
+  and the upgrade branch is seven commits ahead.
+- Validated the ignored production configuration through the new redacted
+  loader without importing models or connecting to PostgreSQL or Discord. It
+  selects bot `484067640302764042`, database `polytopia2` through the default
+  local socket, all production guilds, background tasks, Bullet, and existing
+  production image/log roots.
+- The active `polytopia.service` runs the Python 3.9.20 legacy interpreter
+  from `/home/nelluk/PolyBot39/bin`. The runbook keeps that environment intact
+  and switches the service to `.venv/bin/python` only through a tracked
+  systemd drop-in with explicit `POLYBOT_ENV=production`.
+- Found `polyapi.service`, a second unit referencing the legacy environment.
+  It is disabled and inactive. Its old
+  `uvicorn.workers.UvicornWorker` command is not valid as the reviewed
+  Gunicorn 26 deployment path, so the bot cutover keeps the API disabled and
+  inactive. Any API activation is separately gated.
+- Confirmed uv 0.11.32 and managed CPython 3.12.13 are installed. Current
+  authoritative uv documentation and the installed CLI support
+  `uv sync --locked --no-dev --python 3.12.13`; `--locked` is preferred over
+  `--frozen` because it also rejects an out-of-date lock.
+- Confirmed the live backup job runs at 01:00, 09:00, and 17:00 and covers a
+  full custom-format PostgreSQL dump plus weekday-rotated local images. The
+  reviewed full dump is about 120 MB, the image archive about 200 KB, the
+  tested `.venv` about 437 MB, and the latest disk audit reports 4.9 GB free.
+  The runbook nevertheless requires a fresh validated backup immediately
+  before cutover.
+- Retired the stale pip instructions and dependency ranges in `README.md` and
+  `requirements.txt`; `pyproject.toml` and `uv.lock` are now explicitly the
+  only installation sources.
+- Added two network-free deployment-asset tests. The final Phase 8 gate passes
+  all 53 tests with the development-database gate enabled; the default run
+  passes 48 tests and skips the five gated tests. Compileall, the 80-package
+  lock check, and `git diff --check` pass.
+- No production file, database, service, configuration, Git reference, or
+  process was changed during Phase 8 review.
 
-```text
-/home/nelluk/PolyBot39/.venv/bin/python bot.py
-```
-
-Create it with `uv sync --frozen --no-dev` (verify current uv syntax first).
-Using the `.venv` interpreter directly in the service avoids dependency
-resolution or network behavior during service startup.
-
-Cutover requires a separate, explicit approval. It should include:
-
-1. Pulling the reviewed merge to the production clone.
-2. Adding explicit `POLYBOT_ENV=production` to the service environment.
-3. Adding any required non-secret production configuration keys.
-4. Creating the production `.venv` from the committed lock.
-5. Stopping the old bot once.
-6. Starting the new interpreter.
-7. Watching logs and running a short smoke checklist.
-
-Rollback should restore the prior commit/service interpreter and restart using
-the untouched legacy environment. No destructive Git reset is required.
+Publishing or merging the branch and executing any command below the runbook's
+production approval gate require separate explicit approval. PostgreSQL 12
+replacement remains a separate infrastructure project.
 
 ## Rules for the execution task
 
