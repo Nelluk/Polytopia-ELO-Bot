@@ -40,11 +40,13 @@ Clusters:
 | Version | Port | State | Purpose |
 | --- | ---: | --- | --- |
 | 12.20 | 5432 | online | active production and development data |
-| 14.23 | 5433 | online | apparently unused default Ubuntu cluster |
+| 14.23 | 5433 | online | verified unused default Ubuntu cluster |
 
-The PostgreSQL 14 cluster rejects local login as `nelluk` because that role
-does not exist there. Treat this only as strong evidence of an untouched
-default cluster; inspect it as `postgres` before approving its removal.
+The PostgreSQL 14 cluster was inspected as `postgres` on 2026-07-28. It
+contains only the connectable `postgres` and `template1` databases at about
+8.6 MB each, only built-in roles plus `postgres`, and no client session other
+than the inspection query. It also rejects local login as `nelluk` because
+that role does not exist. This confirms it is an unused default cluster.
 
 Databases in the PostgreSQL 12 cluster:
 
@@ -91,9 +93,9 @@ the migration mechanism, not the only backup.
 - Stop the bot before the final backup and cluster upgrade.
 - Start the bot against PostgreSQL 18 with background tasks disabled first.
 
-## Phase PG1: resolve the existing PostgreSQL 14 cluster
+## Phase PG1 completed: resolve the existing PostgreSQL 14 cluster
 
-Nelluk must inspect the port-5433 cluster as its owner:
+Nelluk inspected the port-5433 cluster as its owner with:
 
 ```bash
 sudo -u postgres psql -X -P pager=off -p 5433 -d postgres \
@@ -116,8 +118,8 @@ sudo -u postgres psql -X -P pager=off -p 5433 -d postgres \
       ORDER BY datname, usename;"
 ```
 
-If and only if it contains only default databases/roles and no client, request
-separate approval to remove it:
+The output confirmed only default databases/roles and no client. Its removal
+is still a separate destructive approval:
 
 ```bash
 sudo pg_dropcluster --stop 14 main
