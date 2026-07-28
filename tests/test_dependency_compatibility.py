@@ -1,5 +1,6 @@
 import asyncio
 import importlib
+from io import BytesIO
 from types import ModuleType, SimpleNamespace
 import sys
 import unittest
@@ -14,15 +15,6 @@ warnings.filterwarnings(
     message="'audioop' is deprecated and slated for removal in Python 3.13",
     category=DeprecationWarning,
 )
-# The production-baseline pyparsing release imports sre_constants. Resolving
-# that without exposing Matplotlib 3.8's deprecated parser calls belongs to the
-# Phase 5 numerical-stack upgrade, where both packages move together.
-warnings.filterwarnings(
-    'ignore',
-    message="module 'sre_constants' is deprecated",
-    category=DeprecationWarning,
-)
-
 import discord
 from discord.ext import commands
 import fastapi
@@ -45,6 +37,9 @@ class RuntimeDependencyCompatibilityTests(unittest.TestCase):
         module_names = (
             'discord',
             'fastapi',
+            'google.auth',
+            'google.oauth2.service_account',
+            'gspread',
             'gspread_asyncio',
             'httptools',
             'matplotlib',
@@ -70,6 +65,67 @@ class RuntimeDependencyCompatibilityTests(unittest.TestCase):
         for package in ('discord.py', 'fastapi', 'Pillow', 'peewee'):
             with self.subTest(package=package):
                 self.assertIn(package.casefold(), package_names)
+
+    def test_group_two_dependency_apis_construct_offline(self):
+        import gspread
+        import gspread_asyncio
+        from google.oauth2.service_account import Credentials
+        from psycopg2.errors import DuplicateObject
+
+        credential_factory = lambda: mock.sentinel.credentials
+        manager = gspread_asyncio.AsyncioGspreadClientManager(
+            credential_factory
+        )
+
+        self.assertIs(manager.credentials_fn, credential_factory)
+        self.assertTrue(
+            issubclass(gspread.exceptions.GSpreadException, Exception)
+        )
+        self.assertTrue(
+            callable(Credentials.from_service_account_info)
+        )
+        self.assertTrue(issubclass(DuplicateObject, Exception))
+
+    def test_group_four_elo_graph_pipeline_renders_offline(self):
+        import matplotlib
+        matplotlib.use('Agg')
+        import matplotlib.pyplot as plt
+        import numpy as np
+        import pandas as pd
+        from scipy import signal
+
+        history = pd.DataFrame(
+            {
+                'completed_ts': pd.to_datetime(
+                    ['2026-01-01', '2026-01-03', '2026-01-05']
+                ),
+                'elo': [1000.0, 1020.0, 1010.0],
+            }
+        )
+        resampled = (
+            history
+            .set_index('completed_ts')
+            .resample('D')
+            .mean()
+            .interpolate()
+            .reset_index()
+        )
+        smoothed = signal.savgol_filter(
+            resampled['elo'].values, window_length=3, polyorder=2
+        )
+
+        self.assertEqual(len(resampled), 5)
+        self.assertTrue(np.isfinite(smoothed).all())
+
+        figure, axis = plt.subplots()
+        try:
+            axis.plot(history['completed_ts'], history['elo'], 'o')
+            axis.plot(resampled['completed_ts'], smoothed, '-')
+            image = BytesIO()
+            figure.savefig(image, format='png')
+            self.assertTrue(image.getvalue().startswith(b'\x89PNG\r\n\x1a\n'))
+        finally:
+            plt.close(figure)
 
     def test_bot_constructs_without_connecting_to_database_or_discord(self):
         stubs = {}
@@ -191,6 +247,37 @@ class RuntimeDependencyCompatibilityTests(unittest.TestCase):
 
 
 class CardRenderingCompatibilityTests(unittest.TestCase):
+    def test_antiscam_average_hash_uses_current_pillow_api(self):
+        settings_stub = ModuleType('settings')
+        settings_stub.config = {}
+        settings_stub.is_staff = lambda _member: False
+        utilities_stub = ModuleType('modules.utilities')
+
+        image_bytes = BytesIO()
+        image = Image.new('RGB', (16, 16), '#000000')
+        for x in range(8, 16):
+            for y in range(16):
+                image.putpixel((x, y), (255, 255, 255))
+        image.save(image_bytes, format='PNG')
+
+        old_antiscam_module = sys.modules.pop('modules.antiscam', None)
+        try:
+            with mock.patch.dict(
+                    sys.modules,
+                    {
+                        'settings': settings_stub,
+                        'modules.utilities': utilities_stub,
+                    }):
+                antiscam = importlib.import_module('modules.antiscam')
+
+            image_hash = antiscam._average_hash(image_bytes.getvalue())
+            self.assertEqual(len(image_hash), 64)
+            self.assertEqual(set(image_hash), {'0', '1'})
+        finally:
+            sys.modules.pop('modules.antiscam', None)
+            if old_antiscam_module is not None:
+                sys.modules['modules.antiscam'] = old_antiscam_module
+
     def test_draft_card_renders_with_current_discord_and_pillow_apis(self):
         team = SimpleNamespace(id=1, name='Test Team', image_url='https://example.com/team.png')
 

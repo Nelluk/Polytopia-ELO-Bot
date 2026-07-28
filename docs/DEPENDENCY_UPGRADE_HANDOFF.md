@@ -475,6 +475,105 @@ Known compatibility points:
 Each upgrade commit should contain only the lock/metadata changes, required
 compatibility code, and relevant tests for that group.
 
+Group 1 execution checkpoint (2026-07-27):
+
+- Reviewed packaging and test tooling after the Phase 1-4 checkpoint commit.
+  The only direct development dependency is `pip-audit==2.10.1`; the offline
+  suite uses the standard-library `unittest` package. uv remains the separately
+  installed, pinned 0.11.32 executable rather than a project dependency.
+- Verified from upstream release metadata that pip-audit 2.10.1 is current,
+  then ran `uv lock --upgrade-group dev`. The lock still resolves 95 packages
+  and produced no metadata or lockfile changes.
+- The existing ignore rules already cover uv's project-local `.venv/` and
+  `.python-version`; `pyproject.toml` and `uv.lock` correctly remain tracked.
+  No `.gitignore` change was needed.
+- A clean `.venv` recreation remains deferred to a later release-candidate
+  gate. Frozen synchronization already verifies the current environment, and
+  recreation would add a destructive step without changing this no-op group.
+- The full acceptance gate passed: frozen sync checked 93 packages, lock
+  validation resolved 95 packages, the CPython 3.12.13 inventory completed,
+  all 39 strict offline tests passed, compileall passed, and the diff check
+  passed.
+- The repeated audit is unchanged at 70 advisory rows (including duplicates)
+  across the five packages assigned to later runtime dependency groups. No
+  package was auto-fixed.
+
+Group 2 execution checkpoint (2026-07-27):
+
+- Reviewed upstream release notes and the repository's use of Requests,
+  Peewee, psycopg2, gspread-asyncio, gspread, and Google service-account
+  credentials.
+- Upgraded Requests 2.31.0 to 2.34.2, Peewee 3.17.5 to 3.19.0,
+  psycopg2-binary 2.9.9 to 2.9.12, and google-auth 2.35.0 to 2.56.2.
+- Intentionally retained Peewee on its latest 3.x release. Peewee 4 is a
+  separate major-version migration with removals and behavioral/default
+  changes; it is not required for Python 3.12 or for this dependency group.
+- gspread-asyncio 2.0.0 remains its latest release and hard-pins
+  `gspread==6.0.*`. An attempted gspread 6.2.1 resolution correctly failed, so
+  gspread remains at the newest compatible version, 6.0.2. No unreleased Git
+  dependency or async-wrapper rewrite was introduced.
+- google-auth's resolved dependency path replaced cachetools 5.5.2 and rsa
+  4.9.1 with cryptography 49.0.0, cffi 2.1.0, and pycparser 3.0. The complete
+  lock now resolves 96 packages and the dev environment contains 94 packages.
+- Added an offline Group 2 smoke test covering gspread exceptions,
+  gspread-asyncio manager construction, Google service-account credential
+  construction APIs, and psycopg2's `DuplicateObject` exception.
+- The full acceptance gate passed under CPython 3.12.13: all 40 strict offline
+  tests passed, compileall passed, lock validation passed, and the diff check
+  passed. No database, Discord, or HTTP service connection was made.
+- The frozen audit improved from 70 advisory rows across five packages to 67
+  rows across four packages; Requests no longer has findings. No package was
+  auto-fixed.
+
+Group 3 execution checkpoint (2026-07-27):
+
+- Reviewed the Pillow 10 through 12 deprecation/removal notes and all
+  repository Pillow usage, then upgraded Pillow 10.4.0 to the current 12.3.0
+  release.
+- Replaced two deprecated `Image.getdata()` calls with
+  `get_flattened_data()`, preserving a mutable list where the inverse-text
+  renderer edits mask pixels. Updated the anti-scam hash resize to
+  `Image.Resampling.LANCZOS` and made its input image lifetime explicit.
+- Added an offline anti-scam average-hash test. The strict suite now covers
+  hashing, image normalization, inverse text, draft cards, and arrow cards.
+- The first strict run caught the immutable tuple returned by
+  `get_flattened_data()` in the inverse-text path. After the localized list
+  conversion, the full acceptance gate passed under CPython 3.12.13: all 41
+  strict offline tests passed, compileall passed, lock validation passed, and
+  the diff check passed.
+- uv resolved the same 96-package graph and changed only Pillow from 10.4.0 to
+  12.3.0 for this group. No database, Discord, or HTTP service connection was
+  made.
+- Once execution limits cleared, the frozen audit confirmed that all Pillow
+  findings were removed. It now reports 43 advisory rows across only aiohttp
+  (32), Gunicorn (2), and Starlette (9), all assigned to later groups. No
+  package was auto-fixed.
+
+Group 4 execution checkpoint (2026-07-27):
+
+- Reviewed the repository's complete numerical/plotting usage and the upstream
+  NumPy 2, pandas 3, SciPy, Matplotlib, and pyparsing compatibility notes.
+  Usage is limited to ELO-history DataFrames, daily resampling/interpolation,
+  Savitzky-Golay filtering, and Matplotlib PNG output.
+- Upgraded Matplotlib 3.8.4 to 3.11.1, NumPy 1.26.4 to 2.5.1, pandas 2.2.2
+  to 3.0.5, pyparsing 2.4.7 to 3.3.2, and SciPy 1.13.0 to 1.18.0 as one
+  coupled numerical stack. pandas 3 no longer resolves pytz on Linux, and
+  tzdata is now platform-conditional.
+- Removed the temporary `sre_constants` deprecation-warning exception that
+  had existed solely for pyparsing 2.4.7. The only remaining strict-suite
+  warning exception is discord.py 2.3.2's deferred stdlib `audioop` import.
+- Added a focused offline test that runs the production-shaped pandas daily
+  resampling/interpolation pipeline, applies SciPy's `savgol_filter`, verifies
+  finite NumPy output, and renders a Matplotlib PNG through an in-memory
+  buffer using the headless backend.
+- The focused test and full acceptance gate passed under CPython 3.12.13:
+  all 42 strict offline tests passed, compileall passed, frozen lock
+  validation resolved 95 packages, dependency inventory passed, and the diff
+  check passed. No database, Discord, or HTTP service connection was made.
+- The frozen audit remains at 43 advisory rows across aiohttp (32), Gunicorn
+  (2), and Starlette (9), all assigned to later upgrade groups. None of the
+  Group 4 packages has a reported finding, and no package was auto-fixed.
+
 ## Phase 6: offline and database integration testing
 
 The default suite must remain network-free and database-free.
