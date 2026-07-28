@@ -16,8 +16,10 @@ import discord
 from PIL import Image, ImageOps, UnidentifiedImageError
 
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-IMAGE_ROOT = PROJECT_ROOT / 'data' / 'images'
+# Tests may replace this override. Runtime code otherwise resolves the path
+# lazily from the central profile, so importing this helper has no config or
+# filesystem side effects.
+IMAGE_ROOT = None
 MAX_UPLOAD_BYTES = 5 * 1024 * 1024
 MAX_IMAGE_PIXELS = 16_000_000
 MAX_IMAGE_DIMENSION = 1024
@@ -25,6 +27,13 @@ ALLOWED_FORMATS = {'PNG', 'JPEG', 'WEBP'}
 MANAGED_ATTACHMENT_PREFIX = 'team-logo-'
 
 _update_locks = {}
+
+
+def image_root() -> Path:
+    if IMAGE_ROOT is not None:
+        return Path(IMAGE_ROOT)
+    from runtime_config import get_runtime_profile
+    return get_runtime_profile().image_root
 
 
 class ImageStorageError(ValueError):
@@ -49,16 +58,17 @@ class LocalImageAttachment:
 def ensure_image_directories() -> None:
     """Create the runtime image directories if needed."""
 
-    for directory in (IMAGE_ROOT / 'teams', IMAGE_ROOT / 'houses'):
+    root = image_root()
+    for directory in (root / 'teams', root / 'houses'):
         directory.mkdir(mode=0o750, parents=True, exist_ok=True)
 
 
 def team_image_path(team_id: int) -> Path:
-    return IMAGE_ROOT / 'teams' / f'{int(team_id)}.png'
+    return image_root() / 'teams' / f'{int(team_id)}.png'
 
 
 def house_image_path(house_id: int) -> Path:
-    return IMAGE_ROOT / 'houses' / f'{int(house_id)}.png'
+    return image_root() / 'houses' / f'{int(house_id)}.png'
 
 
 def entity_image_path(kind: str, entity_id: int) -> Path:

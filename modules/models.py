@@ -20,7 +20,20 @@ from modules import channels, exceptions, image_storage
 logger = logging.getLogger('polybot.' + __name__)
 elo_logger = logging.getLogger('polybot.elo')
 
-db = PostgresqlExtDatabase(settings.psql_db, autorollback=True, user=settings.psql_user, autoconnect=True, password='password')
+database_connection_settings = {
+    'user': settings.runtime_profile.database_user,
+    'password': settings.runtime_profile.database_password,
+}
+if settings.runtime_profile.database_host:
+    database_connection_settings['host'] = settings.runtime_profile.database_host
+if settings.runtime_profile.database_port:
+    database_connection_settings['port'] = settings.runtime_profile.database_port
+
+db = PostgresqlExtDatabase(
+    settings.runtime_profile.database_name,
+    autoconnect=True,
+    **database_connection_settings,
+)
 
 
 def tomorrow():
@@ -1133,7 +1146,7 @@ class Game(BaseModel):
     is_confirmed = BooleanField(default=False)  # game can be is_completed==True but is_confirmed==False but should not be able to be vice versa
     announcement_message = BitField(default=None, null=True)
     announcement_channel = BitField(default=None, null=True)
-    date = DateField(default=datetime.datetime.today)
+    date = DateField(default=datetime.date.today)
     completed_ts = DateTimeField(null=True, default=None)  # set when game is confirmed and ELO is calculated (the first time, preserved for subsequent recalcs)
     win_claimed_ts = DateTimeField(null=True, default=None)  # set when win is claimed, used to check old unconfirmed wins
     name = TextField(null=True)

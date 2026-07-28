@@ -1342,7 +1342,7 @@ class league(commands.Cog):
             return await ctx.send('No matching games found.')
 
         async with ctx.typing():
-            filename = await self.bot.loop.run_in_executor(None, async_call_export_func)
+            filename = await asyncio.get_running_loop().run_in_executor(None, async_call_export_func)
             with open(filename, 'rb') as f:
                 file = io.BytesIO(f.read())
             file = discord.File(file, filename=filename)

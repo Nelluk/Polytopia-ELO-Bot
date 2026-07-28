@@ -1,0 +1,33 @@
+[DEFAULT]
+# Copy this file to config.development.ini and replace every placeholder.
+discord_key = YOUR_DEVELOPMENT_BOT_TOKEN
+expected_bot_id = 123456789012345678
+owner_id = 272510639124250625
+
+psql_db = polytopia_dev
+psql_user = polybot_dev
+psql_password = YOUR_SEPARATE_DEVELOPMENT_DATABASE_PASSWORD
+psql_host = localhost
+psql_port = 5432
+
+# Current non-secret production identifiers are required as a denylist. Refresh
+# them from the production configuration before each development rollout.
+production_database_name = REPLACE_WITH_CURRENT_PRODUCTION_DATABASE
+production_bot_id = REPLACE_WITH_CURRENT_PRODUCTION_BOT_ID
+production_guild_ids = REPLACE_WITH_COMMA_SEPARATED_PRODUCTION_GUILD_IDS
+
+# Leave these empty/false unless Nelluk explicitly approves a shared guild.
+# The exception is exact-ID-only and does not weaken other overlap checks.
+shared_production_guild_ids =
+acknowledge_shared_production_guild_risk = false
+
+# Both development policies are off by default. Enabling either policy also
+# requires its separate allow_development_* acknowledgement to be true.
+background_tasks_enabled = false
+allow_development_background_tasks = false
+api_enabled = false
+allow_development_api = false
+bullet_enabled = false
+
+image_root = data/development/images
+log_root = logs/development

@@ -104,7 +104,7 @@ def draw_inverse_text(
     ImageDraw.Draw(mask).text(
         (5 - left_bbox, 10 - top_bbox), text, fill='#fff', font=font
     )
-    mask_data = list(mask.getdata())
+    mask_data = list(mask.get_flattened_data())
     for idx, px in enumerate(mask_data):
         if px > 128:
             mask_data[idx] = 0

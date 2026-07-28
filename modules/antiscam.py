@@ -49,12 +49,17 @@ def _contains_url(content: str) -> bool:
 
 def _average_hash(data: bytes) -> str:
     # Matches imagehash.average_hash: 8x8 greyscale, bit set when pixel > mean.
-    img = Image.open(io.BytesIO(data))
-    # Reject decompression bombs by header dimensions before forcing a full decode.
-    if img.width * img.height > MAX_IMAGE_PIXELS:
-        raise ValueError(f'image too large to hash: {img.width}x{img.height}')
-    img = img.convert('L').resize((8, 8), Image.LANCZOS)
-    pixels = list(img.getdata())
+    with Image.open(io.BytesIO(data)) as opened:
+        # Reject decompression bombs by header dimensions before forcing a
+        # full decode.
+        if opened.width * opened.height > MAX_IMAGE_PIXELS:
+            raise ValueError(
+                f'image too large to hash: {opened.width}x{opened.height}'
+            )
+        img = opened.convert('L').resize(
+            (8, 8), Image.Resampling.LANCZOS
+        )
+    pixels = img.get_flattened_data()
     avg = sum(pixels) / len(pixels)
     return ''.join('1' if p > avg else '0' for p in pixels)
 

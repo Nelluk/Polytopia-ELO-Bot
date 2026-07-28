@@ -3,6 +3,13 @@ from pathlib import Path
 import tempfile
 import unittest
 from unittest import mock
+import warnings
+
+warnings.filterwarnings(
+    'ignore',
+    message="'audioop' is deprecated and slated for removal in Python 3.13",
+    category=DeprecationWarning,
+)
 
 from PIL import Image
 

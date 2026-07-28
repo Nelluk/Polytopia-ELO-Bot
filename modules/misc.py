@@ -35,8 +35,8 @@ class misc(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         if settings.run_tasks:
-            self.bg_task = bot.loop.create_task(self.task_broadcast_newbie_message())
-            self.bg_task3 = bot.loop.create_task(self.task_broadcast_newbie_steam_message())
+            self.bg_task = asyncio.create_task(self.task_broadcast_newbie_message())
+            self.bg_task3 = asyncio.create_task(self.task_broadcast_newbie_steam_message())
 
     @commands.command(hidden=True, aliases=['ts'])
     @commands.is_owner()
@@ -741,7 +741,7 @@ class misc(commands.Cog):
                 return filename
 
             async with ctx.typing():
-                filename = await self.bot.loop.run_in_executor(None, async_call_export_func)
+                filename = await asyncio.get_running_loop().run_in_executor(None, async_call_export_func)
                 with open(filename, 'rb') as f:
                     file = io.BytesIO(f.read())
                 file = discord.File(file, filename=filename)

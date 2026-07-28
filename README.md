@@ -1,6 +1,8 @@
 # Polytopia-ELO-Bot
 A discord bot for the game Polytopia, to enable matchmaking and leaderboards.
-Requires Python 3.6+, Postgres, probably will only install properly on a Unix-like OS.
+Requires CPython 3.12, PostgreSQL, and
+[uv](https://docs.astral.sh/uv/). The deployed environment is locked by
+`pyproject.toml` and `uv.lock`.
 
 ## Policies and support
 
@@ -17,11 +19,9 @@ other sensitive details in a public GitHub issue.
 Create an application and application bot account at the Discord developer portal: https://discord.com/developers/applications
 
 ```
-git clone <git repo address>`
-python3 -m venv /new/project/path
-cd /new project/path
-source bin/activate
-pip install -r requirements.txt
+git clone <git repo address>
+cd /new/project/path
+uv sync --locked --no-dev --python 3.12
 ```
 
 Make a copy of config.ini and server_settings.py using the example template files.
@@ -30,7 +30,19 @@ Change the required settings inside config.ini, which include the API key from t
 
 Create an empty postgresql database and add the database's name and a psql user name into config.ini
 
-Run bot.py 
+Select the runtime profile explicitly and run the bot through the synced
+environment:
+
+```
+POLYBOT_ENV=production .venv/bin/python bot.py
+```
+
+Use a separate development configuration, Discord application, and database
+for testing:
+
+```
+POLYBOT_ENV=development .venv/bin/python bot.py --skip_tasks
+```
 
 ## Dependency upgrade safety checks
 
@@ -42,15 +54,15 @@ Run the offline compatibility suite without connecting to Discord or
 PostgreSQL:
 
 ```
-bin/python -W error::DeprecationWarning -m unittest discover -s tests -v
+POLYBOT_ENV=development .venv/bin/python -m unittest discover -v
 ```
 
 Capture the active interpreter and all installed distribution versions without
 depending on `pip`:
 
 ```
-bin/python scripts/dependency_inventory.py
-bin/python scripts/dependency_inventory.py --json
+.venv/bin/python scripts/dependency_inventory.py
+.venv/bin/python scripts/dependency_inventory.py --json
 ```
 
 The pre-upgrade production snapshot is stored in
@@ -70,3 +82,7 @@ PostgreSQL and are used whenever no local image exists.
 
 The tracked backup script is `scripts/backup_db.sh`; the live server copy is
 deployed at `/home/nelluk/backup_db.sh`.
+
+The reviewed production procedure is documented in
+[`docs/PRODUCTION_CUTOVER.md`](docs/PRODUCTION_CUTOVER.md). Running that
+procedure requires separate production approval.

@@ -17,14 +17,26 @@ from modules import image_storage, initialize_data, models, utilities
 logger = logging.getLogger('polybot.' + __name__)
 # https://discord.com/channels/336642139381301249/1042604006226280468/1042645381143613532
 
-def main(args: List[str] = None):
+
+def configure_runtime_arguments(args: List[str] = None):
+    """Parse command arguments and apply process runtime policy overrides."""
+
     parser = argparse.ArgumentParser()
     parser.add_argument('--add_default_data', action='store_true')
     parser.add_argument('--recalc_elo', action='store_true')
     parser.add_argument('--game_export', action='store_true')
     parser.add_argument('--skip_tasks', action='store_true')
     # Ignore extra args from uvicorn.
-    args, unkown = parser.parse_known_args(args)
+    args, _unknown = parser.parse_known_args(args)
+    settings.run_tasks = (
+        settings.runtime_profile.background_tasks_enabled
+        and not args.skip_tasks
+    )
+    return args
+
+
+def main(args: List[str] = None):
+    args = configure_runtime_arguments(args)
     if args.add_default_data:
         initialize_data.initialize_data()
         exit(0)
@@ -41,9 +53,6 @@ def main(args: List[str] = None):
         utilities.export_game_data()
         print(f'Recalculation complete - took {timer() - start} seconds.')
         exit(0)
-    if args.skip_tasks:
-        settings.run_tasks = False
-
     logger.info('Resetting Discord ID ban list')
     with models.db:
         models.DiscordMember.update(is_banned=False).execute()
@@ -80,8 +89,15 @@ class MyBot(commands.Bot):
         initial_extensions = [
             'modules.games', 'modules.customhelp', 'modules.matchmaking',
             'modules.administration', 'modules.misc', 'modules.league',
-            'modules.api_cog', 'modules.bullet', 'modules.antiscam'
+            'modules.api_cog', 'modules.antiscam'
         ]
+        if settings.runtime_profile.bullet_enabled:
+            initial_extensions.append('modules.bullet')
+        else:
+            logger.info(
+                'Skipping the Bullet extension because it is disabled in '
+                'the runtime profile.'
+            )
         for extension in initial_extensions:
             await self.load_extension(extension)
 
@@ -190,6 +206,16 @@ def init_bot(loop: asyncio.AbstractEventLoop = None, args: List[str] = None):
     async def on_ready():
         """http://discordpy.readthedocs.io/en/rewrite/api.html#discord.on_ready"""
 
+        try:
+            settings.runtime_profile.validate_logged_in_bot(bot.user.id)
+        except Exception:
+            logger.critical(
+                'Authenticated Discord bot does not match the runtime profile.',
+                exc_info=True,
+            )
+            await bot.close()
+            raise
+
         print(f'\n\nv2 Logged in as: {bot.user.name} - {bot.user.id}\nVersion: {discord.__version__}\n')
         print('Successfully logged in and booted...!')
 
@@ -203,9 +229,9 @@ def init_bot(loop: asyncio.AbstractEventLoop = None, args: List[str] = None):
         await bot.tree.sync(guild=discord.Object(settings.server_ids['polychampions']))
 
     if loop:
-        loop.create_task(bot.start(settings.discord_key))
+        loop.create_task(bot.start(settings.runtime_profile.discord_token))
     else:
-        bot.run(settings.discord_key)
+        bot.run(settings.runtime_profile.discord_token)
 
 
 if __name__ == '__main__':

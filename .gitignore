@@ -21,7 +21,9 @@ include/
 *.sql*
 
 config.ini
+config.development.ini
 server_settings.py
+server_settings_dev.py
 
 *.sublime*
 pyvenv.cfg

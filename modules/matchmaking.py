@@ -54,9 +54,9 @@ class matchmaking(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         if settings.run_tasks:
-            self.bg_task = bot.loop.create_task(self.task_print_matchlist())
-            self.bg_task2 = bot.loop.create_task(self.task_dm_game_creators())
-            self.bg_task3 = bot.loop.create_task(self.task_create_empty_matchmaking_lobbies())
+            self.bg_task = asyncio.create_task(self.task_print_matchlist())
+            self.bg_task2 = asyncio.create_task(self.task_dm_game_creators())
+            self.bg_task3 = asyncio.create_task(self.task_create_empty_matchmaking_lobbies())
             self.task_purge_expired_games.start()  # new task style
 
     def is_joingame_message(self, message: str):
@@ -927,7 +927,7 @@ class matchmaking(commands.Cog):
 
         title_str_full = title_str + f'\nUse __`{ctx.prefix}join ID`__ to join one or __`{ctx.prefix}game ID`__ for more details.'
 
-        self.bot.loop.create_task(utilities.paginate(self.bot, ctx, title=title_str_full[:255], message_list=gamelist_fields, page_start=0, page_end=15, page_size=15))
+        asyncio.create_task(utilities.paginate(self.bot, ctx, title=title_str_full[:255], message_list=gamelist_fields, page_start=0, page_end=15, page_size=15))
         # paginator done as a task because otherwise it will not let the waitlist message send until after pagination is complete (20+ seconds)
 
         # Alert user if a game they are hosting OR should be creating is waiting to be created
