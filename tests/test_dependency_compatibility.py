@@ -1,15 +1,16 @@
 import asyncio
 import importlib
 from io import BytesIO
+from pathlib import Path
 from types import ModuleType, SimpleNamespace
 import sys
 import unittest
 from unittest import mock
 import warnings
 
-# discord.py imports Python 3.12's deprecated stdlib audioop module. Keep the
-# warnings-as-errors gate strict except for this upstream warning; discord.py's
-# audio stack is intentionally deferred to the Phase 5 Discord upgrade group.
+# discord.py 2.7.1 still imports Python 3.12's deprecated stdlib audioop
+# module. Keep the warnings-as-errors gate strict except for this narrow
+# upstream warning while the project remains intentionally pinned to 3.12.
 warnings.filterwarnings(
     'ignore',
     message="'audioop' is deprecated and slated for removal in Python 3.13",
@@ -127,6 +128,36 @@ class RuntimeDependencyCompatibilityTests(unittest.TestCase):
         finally:
             plt.close(figure)
 
+    def test_group_five_discord_and_aiohttp_construct_offline(self):
+        import aiohttp
+
+        async def construct_clients():
+            client = discord.Client(intents=discord.Intents.default())
+            try:
+                async with aiohttp.ClientSession() as session:
+                    self.assertFalse(session.closed)
+                    self.assertGreater(session.timeout.total, 0)
+            finally:
+                await client.close()
+
+        asyncio.run(construct_clients())
+
+    def test_group_five_has_no_legacy_discord_loop_access(self):
+        root = Path(__file__).resolve().parents[1]
+        runtime_files = (
+            'modules/administration.py',
+            'modules/api.py',
+            'modules/games.py',
+            'modules/league.py',
+            'modules/matchmaking.py',
+            'modules/misc.py',
+        )
+        for relative_path in runtime_files:
+            with self.subTest(path=relative_path):
+                source = (root / relative_path).read_text(encoding='utf-8')
+                self.assertNotIn('bot.loop', source)
+                self.assertNotIn('Client(loop=', source)
+
     def test_bot_constructs_without_connecting_to_database_or_discord(self):
         stubs = {}
         for module_name in (
@@ -209,6 +240,9 @@ class RuntimeDependencyCompatibilityTests(unittest.TestCase):
             self.assertIn(('/game/new', 'POST'), routes)
             self.assertIsInstance(api.server, fastapi.FastAPI)
             self.assertTrue(issubclass(api.NewGame, pydantic.BaseModel))
+            api_client = api.create_discord_client()
+            self.assertIsInstance(api_client, discord.Client)
+            asyncio.run(api_client.close())
         finally:
             sys.modules.pop('modules.api', None)
             if old_api_module is not None:

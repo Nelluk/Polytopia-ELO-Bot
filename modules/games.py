@@ -66,8 +66,8 @@ class polygames(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         if settings.run_tasks:
-            self.bg_task = bot.loop.create_task(self.task_purge_game_channels())
-            self.bg_task2 = bot.loop.create_task(self.task_set_champion_role())
+            self.bg_task = asyncio.create_task(self.task_purge_game_channels())
+            self.bg_task2 = asyncio.create_task(self.task_set_champion_role())
 
     @commands.Cog.listener()
     async def on_message(self, message):
@@ -347,7 +347,7 @@ class polygames(commands.Cog):
             return leaderboard, leaderboard_query.count()
 
         async with ctx.typing():
-            leaderboard, leaderboard_size = await self.bot.loop.run_in_executor(None, process_leaderboard)
+            leaderboard, leaderboard_size = await asyncio.get_running_loop().run_in_executor(None, process_leaderboard)
 
         # if ctx.guild.id != settings.server_ids['polychampions']:
         #     await ctx.send('Powered by PolyChampions. League server with a team focus and competitive players.\n'
@@ -553,7 +553,7 @@ class polygames(commands.Cog):
             return leaderboard, squads.count()
 
         async with ctx.typing():
-            leaderboard, leaderboard_size = await self.bot.loop.run_in_executor(None, process_leaderboard)
+            leaderboard, leaderboard_size = await asyncio.get_running_loop().run_in_executor(None, process_leaderboard)
 
         await utilities.paginate(self.bot, ctx, title=f'**{lb_title}**\n{leaderboard_size} ranked squads', message_list=leaderboard, page_start=0, page_end=10, page_size=10)
 
@@ -953,7 +953,7 @@ class polygames(commands.Cog):
             return content_str, embed, image, matchup_games
 
         async with ctx.typing():
-            content_str, embed, image, matchup_games = await self.bot.loop.run_in_executor(None, async_create_player_embed)
+            content_str, embed, image, matchup_games = await asyncio.get_running_loop().run_in_executor(None, async_create_player_embed)
 
         field_counter = 0
         for field in embed.fields:
@@ -1915,12 +1915,12 @@ class polygames(commands.Cog):
 
         try:
             async with ctx.typing():
-                await self.bot.loop.run_in_executor(None, game.delete_game)
+                await asyncio.get_running_loop().run_in_executor(None, game.delete_game)
                 # Allows bot to remain responsive while this large operation is running.
                 await ctx.send(f'Game with ID {gid} has been deleted and team/player ELO changes have been reverted, if applicable.\nNotifying players: {" ".join(mention_list)}')
         except discord.errors.NotFound:
             logger.warning('Game deleted while in game-related channel')
-            await self.bot.loop.run_in_executor(None, game.delete_game)
+            await asyncio.get_running_loop().run_in_executor(None, game.delete_game)
 
         utilities.unlock_game(gid)
 
@@ -2239,7 +2239,7 @@ class polygames(commands.Cog):
                 game_list = utilities.summarize_game_list(query[:500])
                 return game_list, list_name
 
-            game_list, list_name = await self.bot.loop.run_in_executor(None, async_game_search)
+            game_list, list_name = await asyncio.get_running_loop().run_in_executor(None, async_game_search)
         else:
             if not target_list:
                 # Target is person issuing command
@@ -2287,7 +2287,7 @@ class polygames(commands.Cog):
                 list_name = f'{len(query)} {status_str}{"s" if len(query) != 1 else ""}\n{results_str}'
                 return game_list, list_name
 
-            game_list, list_name = await self.bot.loop.run_in_executor(None, async_game_search)
+            game_list, list_name = await asyncio.get_running_loop().run_in_executor(None, async_game_search)
 
         if len(game_list) == 0:
             return await ctx.send(f'No results. See `{ctx.prefix}help {ctx.invoked_with}` for usage examples. Searched for:\n{results_str}')

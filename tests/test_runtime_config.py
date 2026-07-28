@@ -353,21 +353,21 @@ class RuntimeProfileTests(unittest.TestCase):
             fake_client = SimpleNamespace(
                 start=lambda token: ('start', token)
             )
-            fake_loop = SimpleNamespace(created_task=None)
+            scheduled = SimpleNamespace(task=None)
 
             def create_task(task):
-                fake_loop.created_task = task
+                scheduled.task = task
 
-            fake_loop.create_task = create_task
             with mock.patch.object(
-                    api.asyncio, 'get_running_loop',
-                    return_value=fake_loop):
+                    api, 'create_discord_client',
+                    return_value=fake_client):
                 with mock.patch.object(
-                        api.discord, 'Client', return_value=fake_client):
+                        api.asyncio, 'create_task',
+                        side_effect=create_task):
                     asyncio.run(api.startup())
 
             self.assertEqual(
-                fake_loop.created_task,
+                scheduled.task,
                 ('start', 'central-profile-token'),
             )
         finally:

@@ -574,6 +574,36 @@ Group 4 execution checkpoint (2026-07-27):
   (2), and Starlette (9), all assigned to later upgrade groups. None of the
   Group 4 packages has a reported finding, and no package was auto-fixed.
 
+Group 5 execution checkpoint (2026-07-27):
+
+- Reviewed discord.py 2.4 through 2.7 and aiohttp 3.10 through 3.14 release
+  notes, plus every repository use of Discord and asyncio loop APIs. aiohttp is
+  used only as discord.py's transport dependency; the repository has no direct
+  aiohttp client or server call sites.
+- Upgraded discord.py 2.3.2 to 2.7.1 and aiohttp 3.9.5 to 3.14.3 together.
+  The resolved graph added aiohappyeyeballs 2.7.1 and now contains 96 packages.
+- Removed the obsolete `loop=` argument from the API Discord client and
+  centralized its construction. Replaced all runtime `bot.loop.create_task`
+  and `bot.loop.run_in_executor` uses with `asyncio.create_task` and
+  `asyncio.get_running_loop().run_in_executor`, respectively.
+- Added offline coverage for current Discord/aiohttp client construction and a
+  guard against reintroducing legacy `bot.loop` or `Client(loop=...)` access.
+  Updated the runtime-profile startup test to verify task scheduling through
+  `asyncio.create_task`.
+- discord.py 2.7.1 still imports Python 3.12's deprecated stdlib `audioop`
+  module. The existing exact-message warning exception therefore remains; all
+  other deprecation warnings remain errors. This project is intentionally
+  constrained to Python 3.12 during this upgrade.
+- The first migrated strict run found one outdated test double that returned a
+  tuple where the new scheduling path expected a coroutine. After updating
+  that fixture to mock `asyncio.create_task`, all 44 strict offline tests
+  passed under CPython 3.12.13. Compileall, dependency inventory, frozen lock
+  validation, and the diff check also passed.
+- The frozen audit improved from 43 advisory rows across three packages to 11
+  rows across only Gunicorn (2) and Starlette (9), both assigned to later
+  groups. All 32 aiohttp findings were cleared. No package was auto-fixed, and
+  no database, Discord, or HTTP service connection was made.
+
 ## Phase 6: offline and database integration testing
 
 The default suite must remain network-free and database-free.

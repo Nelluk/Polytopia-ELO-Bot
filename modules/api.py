@@ -23,6 +23,11 @@ client: discord.Client = None
 runtime_profile = settings.runtime_profile
 
 
+def create_discord_client() -> discord.Client:
+    """Construct the API's Discord client using the current asyncio API."""
+    return discord.Client(intents=discord.Intents.default())
+
+
 class NewGame(pydantic.BaseModel):
     """A new game created via a request to the API."""
 
@@ -82,10 +87,9 @@ async def startup():
             f'The HTTP API is disabled for the {runtime_profile.environment} '
             'runtime profile.'
         )
-    loop = asyncio.get_running_loop()
-    client = discord.Client(loop=loop, intents=discord.Intents.default())
+    client = create_discord_client()
     api_logger.debug(f'starting up')
-    loop.create_task(client.start(runtime_profile.discord_token))
+    asyncio.create_task(client.start(runtime_profile.discord_token))
 
 
 @server.get('/users/{discord_id}')

@@ -24,8 +24,8 @@ class administration(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         if settings.run_tasks:
-            self.bg_task = bot.loop.create_task(self.task_confirm_auto())
-            self.bg_task2 = bot.loop.create_task(self.task_purge_incomplete())
+            self.bg_task = asyncio.create_task(self.task_confirm_auto())
+            self.bg_task2 = asyncio.create_task(self.task_purge_incomplete())
 
     async def cog_check(self, ctx):
 
@@ -379,7 +379,7 @@ class administration(commands.Cog):
                     query.reverse()
                     return query
 
-                game_list = await self.bot.loop.run_in_executor(None, async_game_search)
+                game_list = await asyncio.get_running_loop().run_in_executor(None, async_game_search)
 
                 delete_result = []
                 for game in game_list[:500]:
@@ -393,14 +393,14 @@ class administration(commands.Cog):
                     rank_str = ' - *Unranked*' if not game.is_ranked else ''
                     if game_size == 2 and game.date < old_60d and not game.is_completed:
                         delete_result.append(f'Deleting incomplete 1v1 game older than 60 days. - {game.get_headline()} - {game.date}{rank_str}')
-                        # await self.bot.loop.run_in_executor(None, game.delete_game)
+                        # await asyncio.get_running_loop().run_in_executor(None, game.delete_game)
                         models.GameLog.write(game_id=game, guild_id=guild.id, message='I purged the game during cleanup of old incomplete games.')
                         game.delete_game()
 
                     if game_size == 3 and game.date < old_90d and not game.is_completed:
                         delete_result.append(f'Deleting incomplete 3-player game older than 90 days. - {game.get_headline()} - {game.date}{rank_str}')
                         await game.delete_game_channels(self.bot.guilds, guild.id)
-                        # await self.bot.loop.run_in_executor(None, game.delete_game)
+                        # await asyncio.get_running_loop().run_in_executor(None, game.delete_game)
                         models.GameLog.write(game_id=game, guild_id=guild.id, message='I purged the game during cleanup of old incomplete games.')
                         game.delete_game()
 
@@ -408,21 +408,21 @@ class administration(commands.Cog):
                         if game.date < old_90d and not game.is_completed and not game.is_ranked:
                             delete_result.append(f'Deleting incomplete 4-player game older than 90 days. - {game.get_headline()} - {game.date}{rank_str}')
                             await game.delete_game_channels(self.bot.guilds, guild.id)
-                            await self.bot.loop.run_in_executor(None, game.delete_game)
+                            await asyncio.get_running_loop().run_in_executor(None, game.delete_game)
                             models.GameLog.write(game_id=game, guild_id=guild.id, message='I purged the game during cleanup of old incomplete games.')
                             game.delete_game()
                         if game.date < old_120d and not game.is_completed and game.is_ranked:
                             delete_result.append(f'Deleting incomplete ranked 4-player game older than 120 days. - {game.get_headline()} - {game.date}{rank_str}')
                             await game.delete_game_channels(self.bot.guilds, guild.id)
                             models.GameLog.write(game_id=game, guild_id=guild.id, message='I purged the game during cleanup of old incomplete games.')
-                            # await self.bot.loop.run_in_executor(None, game.delete_game)
+                            # await asyncio.get_running_loop().run_in_executor(None, game.delete_game)
                             game.delete_game()
 
                     if (game_size == 5 or game_size == 6) and game.is_ranked and game.date < old_150d and not game.is_completed:
                         # Max out ranked game deletion at game_size==6
                         delete_result.append(f'Deleting incomplete ranked {game_size}-player game older than 150 days. - {game.get_headline()} - {game.date}{rank_str}')
                         await game.delete_game_channels(self.bot.guilds, guild.id)
-                        # await self.bot.loop.run_in_executor(None, game.delete_game)
+                        # await asyncio.get_running_loop().run_in_executor(None, game.delete_game)
                         models.GameLog.write(game_id=game, guild_id=guild.id, message='I purged the game during cleanup of old incomplete games.')
                         game.delete_game()
 
@@ -430,7 +430,7 @@ class administration(commands.Cog):
                         # no cap on unranked game deletion above 120 days old
                         delete_result.append(f'Deleting incomplete unranked {game_size}-player game older than 120 days. - {game.get_headline()} - {game.date}{rank_str}')
                         await game.delete_game_channels(self.bot.guilds, guild.id)
-                        # await self.bot.loop.run_in_executor(None, game.delete_game)
+                        # await asyncio.get_running_loop().run_in_executor(None, game.delete_game)
                         models.GameLog.write(game_id=game, guild_id=guild.id, message='I purged the game during cleanup of old incomplete games.')
                         game.delete_game()
 
@@ -1103,7 +1103,7 @@ class administration(commands.Cog):
         await ctx.send('This may take a while...')
         settings.recalculation_mode = True
         async with ctx.typing():
-            await self.bot.loop.run_in_executor(None, functools.partial(models.Game.recalculate_elo_since, timestamp=game.completed_ts))
+            await asyncio.get_running_loop().run_in_executor(None, functools.partial(models.Game.recalculate_elo_since, timestamp=game.completed_ts))
             # Allows bot to remain responsive while this large operation is running.
             await ctx.send(f'DB has been refreshed from {game.completed_ts} onward')
             settings.recalculation_mode = False

@@ -4,7 +4,7 @@ version = "0.0.0"
 description = "Discord matchmaking, ELO, and league bot for Polytopia"
 requires-python = ">=3.12,<3.13"
 dependencies = [
-    "discord.py==2.3.2",
+    "discord.py==2.7.1",
     "fastapi==0.111.0",
     "google-auth==2.56.2",
     "gspread-asyncio==2.0.0",
@@ -32,7 +32,7 @@ package = false
 # Preserve compatible production-baseline transitive versions until their
 # controlled upgrade groups. These constraints do not install packages.
 constraint-dependencies = [
-    "aiohttp==3.9.5",
+    "aiohttp==3.14.3",
     "anyio==3.7.1",
     "gspread==6.0.2",
     "numpy==2.5.1",
