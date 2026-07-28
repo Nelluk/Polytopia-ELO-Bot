@@ -34,6 +34,10 @@ Run bot.py
 
 ## Dependency upgrade safety checks
 
+The approved Python 3.12 development-environment strategy and phased execution
+plan are documented in
+[`docs/DEPENDENCY_UPGRADE_HANDOFF.md`](docs/DEPENDENCY_UPGRADE_HANDOFF.md).
+
 Run the offline compatibility suite without connecting to Discord or
 PostgreSQL:
 
