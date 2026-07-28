@@ -604,6 +604,40 @@ Group 5 execution checkpoint (2026-07-27):
   groups. All 32 aiohttp findings were cleared. No package was auto-fixed, and
   no database, Discord, or HTTP service connection was made.
 
+Group 6 execution checkpoint (2026-07-28):
+
+- Reviewed the FastAPI Pydantic-v2 migration guidance, Starlette 1.x release
+  and lifespan notes, the single repository Pydantic model, and all three API
+  routes.
+- Upgraded FastAPI 0.111.0 to 0.139.2, Pydantic 1.10.16 to 2.13.4, Starlette
+  0.37.2 to 1.3.1, and the coupled AnyIO 3.7.1 constraint to 4.14.2.
+  Pydantic Core 2.46.4, annotated-types 0.8.0, and typing-inspection 0.4.2
+  were added.
+- Current FastAPI has a substantially leaner base dependency set than 0.111.0.
+  Removing its former bundled standard extras reduced the resolved graph from
+  96 to 81 packages while retaining the project's explicit Uvicorn and related
+  server dependencies for their later group.
+- Replaced the deprecated `@server.on_event("startup")` hook with an
+  async-context-managed lifespan. It validates API enablement, starts the
+  Discord client task, closes the client, cancels/awaits the task, and clears
+  client state deterministically. Discord-backed member lookup now returns an
+  explicit 503 if called without an active lifespan client.
+- Updated the Pydantic smoke test to use `model_dump()`. Added direct,
+  network-free ASGI coverage for the users-read, games-read, and game-create
+  routes, including dependency overrides, response serialization, request
+  validation, note persistence, and a 422 response for an invalid body.
+- Starlette's new HTTPX2-backed synchronous `TestClient` stalled even with an
+  empty Starlette app in this environment. The temporary HTTPX2 test
+  dependency was removed, and route coverage uses the application directly
+  through ASGI messages instead. This keeps the lock minimal and tests the
+  actual FastAPI routing stack without a network connection.
+- All 44 strict offline tests passed under CPython 3.12.13. Compileall,
+  dependency inventory, frozen lock validation, and the diff check passed.
+  No database, Discord, or HTTP service connection was made.
+- The frozen audit improved from 11 advisory rows across Gunicorn and
+  Starlette to two rows in only Gunicorn 20.1.0. All nine Starlette findings
+  were cleared. Gunicorn is assigned to Group 7; no package was auto-fixed.
+
 ## Phase 6: offline and database integration testing
 
 The default suite must remain network-free and database-free.

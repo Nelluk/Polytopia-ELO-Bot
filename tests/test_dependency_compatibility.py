@@ -1,6 +1,7 @@
 import asyncio
 import importlib
 from io import BytesIO
+import json
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
 import sys
@@ -215,12 +216,7 @@ class RuntimeDependencyCompatibilityTests(unittest.TestCase):
             with mock.patch.dict(
                     sys.modules,
                     {'modules.models': model_stubs, 'settings': settings_stub}):
-                # FastAPI currently warns about the repository's legacy
-                # on_event startup hook. The API migration will address that
-                # in its own dependency-upgrade step.
-                with warnings.catch_warnings():
-                    warnings.simplefilter('ignore', DeprecationWarning)
-                    api = importlib.import_module('modules.api')
+                api = importlib.import_module('modules.api')
 
             game = api.NewGame(
                 game_name='Dependency smoke test',
@@ -229,6 +225,17 @@ class RuntimeDependencyCompatibilityTests(unittest.TestCase):
             )
             self.assertEqual(game.game_name, 'Dependency smoke test')
             self.assertFalse(game.is_ranked)
+            self.assertEqual(
+                game.model_dump(),
+                {
+                    'game_name': 'Dependency smoke test',
+                    'guild_id': 123,
+                    'is_ranked': False,
+                    'is_mobile': True,
+                    'notes': '',
+                    'sides_discord_ids': [[1], [2]],
+                },
+            )
 
             routes = {
                 (route.path, method)
@@ -243,6 +250,140 @@ class RuntimeDependencyCompatibilityTests(unittest.TestCase):
             api_client = api.create_discord_client()
             self.assertIsInstance(api_client, discord.Client)
             asyncio.run(api_client.close())
+
+            user_record = SimpleNamespace(
+                as_json=lambda include_games: {
+                    'discord_id': 1,
+                    'include_games': include_games,
+                }
+            )
+            game_record = SimpleNamespace(
+                as_json=lambda: {'game_id': 2}
+            )
+            created_game = SimpleNamespace(
+                id=3,
+                notes='',
+                save=mock.Mock(),
+            )
+            api.DiscordMember.discord_id = mock.sentinel.discord_id_field
+            api.DiscordMember.get_or_none = mock.Mock(
+                return_value=user_record
+            )
+            api.Game.id = mock.sentinel.game_id_field
+            api.Game.get_or_none = mock.Mock(return_value=game_record)
+            api.Game.create_game = mock.Mock(
+                return_value=(created_game, [])
+            )
+
+            async def offline_scopes():
+                return ['users:read', 'games:read', 'games:new']
+
+            api.server.dependency_overrides[api.get_scopes] = offline_scopes
+
+            async def fake_get_discord_member(guild_id, user_id):
+                return SimpleNamespace(guild_id=guild_id, id=user_id)
+
+            async def asgi_request(method, path, payload=None):
+                body = (
+                    json.dumps(payload).encode('utf-8')
+                    if payload is not None else b''
+                )
+                request_sent = False
+                messages = []
+
+                async def receive():
+                    nonlocal request_sent
+                    if request_sent:
+                        return {'type': 'http.disconnect'}
+                    request_sent = True
+                    return {
+                        'type': 'http.request',
+                        'body': body,
+                        'more_body': False,
+                    }
+
+                async def send(message):
+                    messages.append(message)
+
+                headers = [(b'host', b'offline.test')]
+                if payload is not None:
+                    headers.append((b'content-type', b'application/json'))
+                await api.server(
+                    {
+                        'type': 'http',
+                        'asgi': {'version': '3.0'},
+                        'http_version': '1.1',
+                        'method': method,
+                        'scheme': 'http',
+                        'path': path,
+                        'raw_path': path.encode('ascii'),
+                        'query_string': b'',
+                        'headers': headers,
+                        'client': ('127.0.0.1', 1),
+                        'server': ('offline.test', 80),
+                        'root_path': '',
+                    },
+                    receive,
+                    send,
+                )
+                status = next(
+                    message['status'] for message in messages
+                    if message['type'] == 'http.response.start'
+                )
+                response_body = b''.join(
+                    message.get('body', b'') for message in messages
+                    if message['type'] == 'http.response.body'
+                )
+                return status, json.loads(response_body)
+
+            try:
+                with mock.patch.object(
+                        api, 'get_discord_member',
+                        side_effect=fake_get_discord_member):
+                    async def exercise_routes():
+                        return (
+                            await asgi_request('GET', '/users/1'),
+                            await asgi_request('GET', '/games/2'),
+                            await asgi_request(
+                                'POST',
+                                '/game/new',
+                                {
+                                    'game_name': 'Offline route test',
+                                    'guild_id': 123,
+                                    'notes': 'offline',
+                                    'sides_discord_ids': [[1], [2]],
+                                },
+                            ),
+                            await asgi_request(
+                                'POST',
+                                '/game/new',
+                                {
+                                    'game_name': 'Missing sides',
+                                    'guild_id': 123,
+                                },
+                            ),
+                        )
+
+                    (
+                        user_response,
+                        game_response,
+                        create_response,
+                        invalid_response,
+                    ) = asyncio.run(exercise_routes())
+
+                self.assertEqual(user_response[0], 200)
+                self.assertEqual(
+                    user_response[1],
+                    {'discord_id': 1, 'include_games': True},
+                )
+                self.assertEqual(game_response, (200, {'game_id': 2}))
+                self.assertEqual(create_response, (200, {'game_id': 3}))
+                self.assertEqual(invalid_response[0], 422)
+                self.assertEqual(created_game.notes, 'offline')
+                created_game.save.assert_called_once_with()
+                api.Game.create_game.assert_called_once()
+            finally:
+                api.server.dependency_overrides.clear()
         finally:
             sys.modules.pop('modules.api', None)
             if old_api_module is not None:

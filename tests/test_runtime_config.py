@@ -340,9 +340,14 @@ class RuntimeProfileTests(unittest.TestCase):
 
             self.assertIs(api.runtime_profile, profile)
             self.assertFalse(hasattr(api, 'config'))
+
+            async def run_lifespan():
+                async with api.lifespan(api.server):
+                    pass
+
             with self.assertRaisesRegex(
                     RuntimeConfigurationError, 'HTTP API is disabled'):
-                asyncio.run(api.startup())
+                asyncio.run(run_lifespan())
 
             enabled_profile = SimpleNamespace(
                 api_enabled=True,
@@ -350,25 +355,34 @@ class RuntimeProfileTests(unittest.TestCase):
                 discord_token='central-profile-token',
             )
             api.runtime_profile = enabled_profile
-            fake_client = SimpleNamespace(
-                start=lambda token: ('start', token)
-            )
-            scheduled = SimpleNamespace(task=None)
+            events = []
 
-            def create_task(task):
-                scheduled.task = task
+            class FakeClient:
+                async def start(self, token):
+                    events.append(('start', token))
+                    await asyncio.Event().wait()
+
+                async def close(self):
+                    events.append(('close', None))
 
             with mock.patch.object(
                     api, 'create_discord_client',
-                    return_value=fake_client):
-                with mock.patch.object(
-                        api.asyncio, 'create_task',
-                        side_effect=create_task):
-                    asyncio.run(api.startup())
+                    return_value=FakeClient()):
+                async def exercise_enabled_lifespan():
+                    async with api.lifespan(api.server):
+                        await asyncio.sleep(0)
+                        self.assertIsNotNone(api.client_task)
+                    self.assertIsNone(api.client)
+                    self.assertIsNone(api.client_task)
+
+                asyncio.run(exercise_enabled_lifespan())
 
             self.assertEqual(
-                scheduled.task,
-                ('start', 'central-profile-token'),
+                events,
+                [
+                    ('start', 'central-profile-token'),
+                    ('close', None),
+                ],
             )
         finally:
             sys.modules.pop('modules.api', None)

@@ -1,5 +1,7 @@
 """Read-only HTTP API for bot data."""
 import asyncio
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager, suppress
 import logging
 from typing import List
 
@@ -17,15 +19,50 @@ from .models import ApiApplication, DiscordMember, Game
 
 api_logger = logging.getLogger('polybot.api')
 
-server = FastAPI()
 security = HTTPBasic()
-client: discord.Client = None
 runtime_profile = settings.runtime_profile
+client: discord.Client | None = None
+client_task: asyncio.Task[None] | None = None
 
 
 def create_discord_client() -> discord.Client:
     """Construct the API's Discord client using the current asyncio API."""
     return discord.Client(intents=discord.Intents.default())
+
+
+@asynccontextmanager
+async def lifespan(_server: FastAPI) -> AsyncIterator[None]:
+    """Run and deterministically close the API's Discord client."""
+    global client, client_task
+    if not runtime_profile.api_enabled:
+        raise RuntimeConfigurationError(
+            f'The HTTP API is disabled for the {runtime_profile.environment} '
+            'runtime profile.'
+        )
+
+    active_client = create_discord_client()
+    api_logger.debug('Starting API Discord client')
+    active_task = asyncio.create_task(
+        active_client.start(runtime_profile.discord_token)
+    )
+    client = active_client
+    client_task = active_task
+    try:
+        yield
+    finally:
+        try:
+            await active_client.close()
+        finally:
+            try:
+                active_task.cancel()
+                with suppress(asyncio.CancelledError):
+                    await active_task
+            finally:
+                client_task = None
+                client = None
+
+
+server = FastAPI(lifespan=lifespan)
 
 
 class NewGame(pydantic.BaseModel):
@@ -41,6 +78,11 @@ class NewGame(pydantic.BaseModel):
 
 async def get_discord_member(guild_id: int, user_id: int) -> discord.Member:
     """Get a member from the cache if possible, else fetch."""
+    if client is None:
+        raise HTTPException(
+            status_code=503,
+            detail='Discord client is not available.'
+        )
     guild = client.get_guild(guild_id)
     if not guild:
         raise HTTPException(
@@ -76,20 +118,6 @@ async def get_scopes(
         detail='Incorrect app ID or token.',
         headers={'WWW-Authenticate': 'Basic'}
     )
-
-
-@server.on_event('startup')
-async def startup():
-    """Connect the Discord client."""
-    global client
-    if not runtime_profile.api_enabled:
-        raise RuntimeConfigurationError(
-            f'The HTTP API is disabled for the {runtime_profile.environment} '
-            'runtime profile.'
-        )
-    client = create_discord_client()
-    api_logger.debug(f'starting up')
-    asyncio.create_task(client.start(runtime_profile.discord_token))
 
 
 @server.get('/users/{discord_id}')

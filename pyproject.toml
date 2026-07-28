@@ -5,7 +5,7 @@ description = "Discord matchmaking, ELO, and league bot for Polytopia"
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "discord.py==2.7.1",
-    "fastapi==0.111.0",
+    "fastapi==0.139.2",
     "google-auth==2.56.2",
     "gspread-asyncio==2.0.0",
     "gunicorn==20.1.0",
@@ -15,7 +15,7 @@ dependencies = [
     "peewee==3.19.0",
     "pillow==12.3.0",
     "psycopg2-binary==2.9.12",
-    "pydantic==1.10.16",
+    "pydantic==2.13.4",
     "requests==2.34.2",
     "scipy==1.18.0",
     "uvicorn==0.29.0",
@@ -33,9 +33,9 @@ package = false
 # controlled upgrade groups. These constraints do not install packages.
 constraint-dependencies = [
     "aiohttp==3.14.3",
-    "anyio==3.7.1",
+    "anyio==4.14.2",
     "gspread==6.0.2",
     "numpy==2.5.1",
     "pyparsing==3.3.2",
-    "starlette==0.37.2",
+    "starlette==1.3.1",
 ]
