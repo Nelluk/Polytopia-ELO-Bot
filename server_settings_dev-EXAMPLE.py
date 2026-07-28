@@ -1,0 +1,53 @@
+"""Test-guild-only server settings for POLYBOT_ENV=development.
+
+Copy to server_settings_dev.py and replace all placeholder IDs. Do not add a
+production guild to server_list or server_shortcut_ids.
+"""
+
+TEST_GUILD_ID = 123456789012345678
+TEST_BOT_CHANNEL_ID = 123456789012345679
+
+# Code currently expects these three shortcut names. In development they all
+# resolve to the one isolated test guild.
+server_shortcut_ids = {
+    'main': TEST_GUILD_ID,
+    'polychampions': TEST_GUILD_ID,
+    'test': TEST_GUILD_ID,
+}
+
+server_list = {
+    'default': {
+        'helper_roles': ['Helper'],
+        'mod_roles': ['Mod'],
+        'user_roles_level_4': [],
+        'user_roles_level_3': ['@everyone'],
+        'user_roles_level_2': ['@everyone'],
+        'user_roles_level_1': ['@everyone'],
+        'inactive_role': None,
+        'display_name': 'Development Server',
+        'require_teams': False,
+        'allow_teams': True,
+        'allow_uneven_teams': True,
+        'max_team_size': 1,
+        'command_prefix': '!',
+        'include_in_global_lb': False,
+        'match_challenge_channel': None,
+        'bot_channels_private': [],
+        'bot_channels_strict': [],
+        'bot_channels': [TEST_BOT_CHANNEL_ID],
+        'newbie_message_channels': [],
+        'match_challenge_channels': [],
+        'ranked_game_channel': None,
+        'unranked_game_channel': None,
+        'steam_game_channel': None,
+        'log_channel': None,
+        'game_announce_channel': None,
+        'staff_help_channel': None,
+        'game_channel_categories': [],
+    },
+    TEST_GUILD_ID: {
+        'display_name': 'Development Test Guild',
+        'command_prefix': '!',
+        'bot_channels': [TEST_BOT_CHANNEL_ID],
+    },
+}

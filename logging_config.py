@@ -2,11 +2,14 @@ import logging
 import sys
 from logging.handlers import RotatingFileHandler
 
+from runtime_config import get_runtime_profile
+
 # Logger config is a bit of a mess and probably could be simplified a lot, but works. debug and above sent to file / error above sent to stderr
-handler = RotatingFileHandler(filename='logs/full_bot.log', encoding='utf-8', maxBytes=1024 * 1024 * 2, backupCount=10)
-partial_handler = RotatingFileHandler(filename='logs/discord.log', encoding='utf-8', maxBytes=1024 * 1024 * 2, backupCount=10)  # without peewee logging
-elo_handler = RotatingFileHandler(filename='logs/elo.log', encoding='utf-8', maxBytes=1024 * 1024 * 2, backupCount=5)
-api_handler = RotatingFileHandler(filename='logs/api.log', encoding='utf-8', maxBytes=1024 * 1024 * 2, backupCount=5)
+runtime_profile = get_runtime_profile()
+handler = RotatingFileHandler(filename=runtime_profile.log_root / 'full_bot.log', encoding='utf-8', maxBytes=1024 * 1024 * 2, backupCount=10)
+partial_handler = RotatingFileHandler(filename=runtime_profile.log_root / 'discord.log', encoding='utf-8', maxBytes=1024 * 1024 * 2, backupCount=10)  # without peewee logging
+elo_handler = RotatingFileHandler(filename=runtime_profile.log_root / 'elo.log', encoding='utf-8', maxBytes=1024 * 1024 * 2, backupCount=5)
+api_handler = RotatingFileHandler(filename=runtime_profile.log_root / 'api.log', encoding='utf-8', maxBytes=1024 * 1024 * 2, backupCount=5)
 
 handler.setFormatter(logging.Formatter('%(asctime)s:%(levelname)s:%(name)s: %(message)s'))
 partial_handler.setFormatter(logging.Formatter('%(asctime)s:%(levelname)s:%(name)s: %(message)s'))
@@ -48,4 +51,3 @@ if (logger_peewee.hasHandlers()):
     logger_peewee.handlers.clear()
 
 logger_peewee.addHandler(handler)
-

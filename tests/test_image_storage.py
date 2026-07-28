@@ -5,6 +5,13 @@ from types import SimpleNamespace
 import tempfile
 import unittest
 from unittest import mock
+import warnings
+
+warnings.filterwarnings(
+    'ignore',
+    message="'audioop' is deprecated and slated for removal in Python 3.13",
+    category=DeprecationWarning,
+)
 
 import discord
 from PIL import Image

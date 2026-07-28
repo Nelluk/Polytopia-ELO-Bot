@@ -20,7 +20,21 @@ from modules import channels, exceptions, image_storage
 logger = logging.getLogger('polybot.' + __name__)
 elo_logger = logging.getLogger('polybot.elo')
 
-db = PostgresqlExtDatabase(settings.psql_db, autorollback=True, user=settings.psql_user, autoconnect=True, password='password')
+database_connection_settings = {
+    'user': settings.runtime_profile.database_user,
+    'password': settings.runtime_profile.database_password,
+}
+if settings.runtime_profile.database_host:
+    database_connection_settings['host'] = settings.runtime_profile.database_host
+if settings.runtime_profile.database_port:
+    database_connection_settings['port'] = settings.runtime_profile.database_port
+
+db = PostgresqlExtDatabase(
+    settings.runtime_profile.database_name,
+    autorollback=True,
+    autoconnect=True,
+    **database_connection_settings,
+)
 
 
 def tomorrow():

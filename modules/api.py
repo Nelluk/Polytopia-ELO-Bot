@@ -1,8 +1,6 @@
 """Read-only HTTP API for bot data."""
 import asyncio
-import configparser
 import logging
-from pathlib import Path
 from typing import List
 
 import discord
@@ -12,6 +10,8 @@ from fastapi.security import HTTPBasic, HTTPBasicCredentials
 
 import pydantic
 
+import settings
+from runtime_config import RuntimeConfigurationError
 from .models import ApiApplication, DiscordMember, Game
 
 
@@ -20,9 +20,7 @@ api_logger = logging.getLogger('polybot.api')
 server = FastAPI()
 security = HTTPBasic()
 client: discord.Client = None
-
-config = configparser.ConfigParser()
-config.read(str(Path(__file__).parent.parent / 'config.ini'))
+runtime_profile = settings.runtime_profile
 
 
 class NewGame(pydantic.BaseModel):
@@ -79,10 +77,15 @@ async def get_scopes(
 async def startup():
     """Connect the Discord client."""
     global client
+    if not runtime_profile.api_enabled:
+        raise RuntimeConfigurationError(
+            f'The HTTP API is disabled for the {runtime_profile.environment} '
+            'runtime profile.'
+        )
     loop = asyncio.get_running_loop()
     client = discord.Client(loop=loop, intents=discord.Intents.default())
     api_logger.debug(f'starting up')
-    loop.create_task(client.start(config['DEFAULT']['discord_key']))
+    loop.create_task(client.start(runtime_profile.discord_token))
 
 
 @server.get('/users/{discord_id}')

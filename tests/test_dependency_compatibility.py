@@ -6,6 +6,23 @@ import unittest
 from unittest import mock
 import warnings
 
+# discord.py imports Python 3.12's deprecated stdlib audioop module. Keep the
+# warnings-as-errors gate strict except for this upstream warning; discord.py's
+# audio stack is intentionally deferred to the Phase 5 Discord upgrade group.
+warnings.filterwarnings(
+    'ignore',
+    message="'audioop' is deprecated and slated for removal in Python 3.13",
+    category=DeprecationWarning,
+)
+# The production-baseline pyparsing release imports sre_constants. Resolving
+# that without exposing Matplotlib 3.8's deprecated parser calls belongs to the
+# Phase 5 numerical-stack upgrade, where both packages move together.
+warnings.filterwarnings(
+    'ignore',
+    message="module 'sre_constants' is deprecated",
+    category=DeprecationWarning,
+)
+
 import discord
 from discord.ext import commands
 import fastapi
@@ -49,17 +66,30 @@ class RuntimeDependencyCompatibilityTests(unittest.TestCase):
 
         self.assertEqual(details['python'], sys.version.split()[0])
         self.assertEqual(details['executable'], sys.executable)
+        package_names = {name.casefold() for name in details['packages']}
         for package in ('discord.py', 'fastapi', 'Pillow', 'peewee'):
             with self.subTest(package=package):
-                self.assertIn(package, details['packages'])
+                self.assertIn(package.casefold(), package_names)
 
     def test_bot_constructs_without_connecting_to_database_or_discord(self):
         stubs = {}
         for module_name in (
+                'logging_config', 'modules.image_storage',
                 'modules.initialize_data', 'modules.models',
                 'modules.utilities'):
             stubs[module_name] = ModuleType(module_name)
         stubs['modules.initialize_data'].initialize_data = lambda: None
+        runtime_profile = SimpleNamespace(
+            background_tasks_enabled=False,
+            discord_token='offline-test-token',
+        )
+        settings_stub = ModuleType('settings')
+        settings_stub.runtime_profile = runtime_profile
+        settings_stub.owner_id = 1
+        settings_stub.bot = None
+        settings_stub.config = {}
+        settings_stub.run_tasks = False
+        stubs['settings'] = settings_stub
 
         old_bot_module = sys.modules.pop('bot', None)
         try:
@@ -85,9 +115,19 @@ class RuntimeDependencyCompatibilityTests(unittest.TestCase):
         model_stubs.DiscordMember = type('DiscordMember', (), {})
         model_stubs.Game = type('Game', (), {})
 
+        runtime_profile = SimpleNamespace(
+            api_enabled=True,
+            discord_token='offline-test-token',
+            environment='development',
+        )
+        settings_stub = ModuleType('settings')
+        settings_stub.runtime_profile = runtime_profile
+
         old_api_module = sys.modules.pop('modules.api', None)
         try:
-            with mock.patch.dict(sys.modules, {'modules.models': model_stubs}):
+            with mock.patch.dict(
+                    sys.modules,
+                    {'modules.models': model_stubs, 'settings': settings_stub}):
                 # FastAPI currently warns about the repository's legacy
                 # on_event startup hook. The API migration will address that
                 # in its own dependency-upgrade step.
@@ -181,11 +221,18 @@ class CardRenderingCompatibilityTests(unittest.TestCase):
 
         with mock.patch.dict(sys.modules, {'modules.models': model_stubs}):
             with mock.patch.object(
-                    imgen, 'fetch_image', side_effect=images) as fetch_image:
+                    imgen.image_storage, 'resolve_image',
+                    return_value=team.image_url):
                 with mock.patch.object(
-                        imgen, 'get_player_summary',
-                        return_value='LOCAL\n  1000 ELO\nGLOBAL\n  1000 ELO'):
-                    rendered = imgen.player_draft_card(member, role)
+                        imgen, 'fetch_image',
+                        side_effect=images) as fetch_image:
+                    with mock.patch.object(
+                            imgen, 'get_player_summary',
+                            return_value=(
+                                'LOCAL\n  1000 ELO\n'
+                                'GLOBAL\n  1000 ELO'
+                            )):
+                        rendered = imgen.player_draft_card(member, role)
 
         try:
             self.assertEqual(

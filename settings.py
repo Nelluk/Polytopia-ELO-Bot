@@ -1,35 +1,32 @@
 import modules.exceptions as exceptions
 import logging
 import datetime
-import server_settings
 from discord.ext import commands
 import discord
 import re
-import configparser
+from runtime_config import get_runtime_profile
+
 logger = logging.getLogger('polybot.' + __name__)
 
-config = configparser.ConfigParser()
-config.read('config.ini')
-
-try:
-    discord_key = config['DEFAULT']['discord_key']
-    psql_user = config['DEFAULT']['psql_user']
-    psql_db = config['DEFAULT']['psql_db']
-    owner_id = int(config['DEFAULT']['owner_id'])
-except KeyError:
-    logger.error('Error finding a required setting (discord_key / psql_user / psql_db / owner_id) in config.ini file')
-    exit(0)
-
-pastebin_key = config['DEFAULT'].get('pastebin_key', None)
+runtime_profile = get_runtime_profile()
+server_settings = runtime_profile.server_settings
+discord_key = runtime_profile.discord_token
+psql_user = runtime_profile.database_user
+psql_db = runtime_profile.database_name
+psql_password = runtime_profile.database_password
+psql_host = runtime_profile.database_host
+psql_port = runtime_profile.database_port
+owner_id = runtime_profile.owner_id
+pastebin_key = runtime_profile.pastebin_key
 # github test change
 server_ids = server_settings.server_shortcut_ids
 # server_ids = {'main': 283436219780825088, 'polychampions': 447883341463814144, 'test': 478571892832206869, 'beta': 274660262873661442}
 bot_id_beta = 479029527553638401
-bot_id = 484067640302764042
+bot_id = runtime_profile.expected_bot_id
 
 config = server_settings.server_list  # list of allowed servers and server-level settings
 bot = None
-run_tasks = True  # if set as False via command line option, tasks should check this and skip
+run_tasks = runtime_profile.background_tasks_enabled
 maintenance_mode = False  # if set as True bot will ignore all commands (TODO: respond to all commands?)
 recalculation_mode = False  # If set as True during a long recalculation (unwin an old game) - prevent any $win or $unwin commands
 team_elo_reset_date = '1/1/2020'

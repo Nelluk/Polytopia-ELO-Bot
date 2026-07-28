@@ -229,7 +229,9 @@ Before importing the model layer or starting Discord, development should reject:
 - A database name that does not clearly identify a development database.
 - The configured production database name, when it can be determined safely.
 - The production Discord application ID.
-- A server-settings profile containing production guilds.
+- A server-settings profile containing production guilds, unless Nelluk has
+  explicitly approved exact shared guild IDs and the development configuration
+  records both those IDs and a separate risk acknowledgement.
 - Image or log paths that resolve to the production paths.
 - Background tasks or API enablement unless intentionally enabled by a
   separate, explicit setting.
@@ -315,8 +317,15 @@ Use:
 - Only Nelluk's test Discord guild.
 - A visibly distinct command prefix or activity.
 
-The development `server_settings_dev.py` must not contain production guild or
-channel IDs except constants that are never included in the active server map.
+On 2026-07-27, Nelluk explicitly approved sharing private test guild
+`478571892832206869` and test channel `480078679930830849` with the production
+bot. The development profile must record this exact guild in
+`shared_production_guild_ids` and set the separate risk acknowledgement. No
+other production guild or channel is approved for development.
+
+The development `server_settings_dev.py` must not contain other production
+guild or channel IDs except constants that are never included in the active
+server map.
 
 ### Preflight
 
@@ -352,6 +361,15 @@ uv run python --version
 ```
 
 It must report Python 3.12.x from the development clone's environment.
+
+Execution checkpoint (2026-07-27):
+
+- Installed uv 0.11.32 with the pinned official standalone installer
+  (`SHA-256 43aff33a967fe40e8c17949d8c85c65bc43f3b5c94742393c957f56ab5ba80f4`).
+- Disabled shell-profile modification during installation.
+- Installed uv-managed CPython 3.12.13 without `--default`.
+- Created `/home/nelluk/PolyBot39-dev/.venv` from that managed interpreter.
+- Installed no project dependencies; dependency locking remains Phase 4.
 
 ## Phase 4: reproducible project metadata
 
@@ -397,6 +415,31 @@ git diff --check
 
 Test a clean recreation of `.venv` only after confirming it is the development
 clone's `.venv` and that removal/recreation is explicitly in scope.
+
+Execution checkpoint (2026-07-27):
+
+- Added `pyproject.toml` and `uv.lock` for Python `>=3.12,<3.13`; the project is
+  non-packaged and `requirements.txt` remains unchanged.
+- Declared runtime imports and entry-point dependencies directly. Added
+  `pip-audit==2.10.1` only to the development dependency group.
+- Preserved the production baseline where it is coherent on Python 3.12.
+  Required compatibility lifts are pandas 2.2.2, Pillow 10.4.0, NumPy 1.26.4,
+  aiohttp 3.9.5, and Pydantic 1.10.16. Pydantic 1.10.15 failed on Python
+  3.12.13 because it did not pass `recursive_guard` to
+  `ForwardRef._evaluate()`.
+- Constrained pyparsing to the recorded production version 2.4.7. Its exact
+  Python 3.12 `sre_constants` warning and discord.py 2.3.2's exact `audioop`
+  warning are ignored only in tests; resolving them belongs to the numerical
+  and Discord Phase 5 groups. Other deprecation warnings remain errors.
+- `uv sync --frozen` checked 93 installed packages. The inventory reports
+  CPython 3.12.13 from `/home/nelluk/PolyBot39-dev/.venv`.
+- The strict offline suite passed 39 tests, compileall passed, and
+  `git diff --check` passed. No bot, API server, or service was started.
+- `pip-audit --locked .` does not recognize `uv.lock`. Auditing a temporary
+  frozen `uv export` instead reported 70 advisory rows (including duplicates)
+  across aiohttp 3.9.5, Gunicorn 20.1.0, Pillow 10.4.0, Requests 2.31.0, and
+  Starlette 0.37.2. Nothing was auto-fixed; address these packages in their
+  defined Phase 5 groups.
 
 ## Phase 5: dependency upgrade groups
 
@@ -469,7 +512,7 @@ Manual acceptance checklist:
 
 - Bot starts, reaches ready, and maintains gateway heartbeats.
 - It is present only in the test guild.
-- `$help` or the configured development prefix works.
+- The configured development prefix works.
 - Registration and a harmless database-backed lookup work.
 - Team lookup and game-result embeds render.
 - `$team_image` accepts an attachment, retrieves it, and uses the local file.
@@ -477,7 +520,8 @@ Manual acceptance checklist:
 - `$draft` renders with a local team image.
 - A representative graph renders.
 - A disposable game workflow can be created and corrected in the dev database.
-- No production Discord channel receives a message.
+- No production Discord channel outside the explicitly approved shared test
+  channel receives a message.
 - No production database row changes.
 - Development images/logs remain in development paths.
 - Shutdown is clean.
