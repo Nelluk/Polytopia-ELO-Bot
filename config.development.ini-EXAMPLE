@@ -27,6 +27,7 @@ background_tasks_enabled = false
 allow_development_background_tasks = false
 api_enabled = false
 allow_development_api = false
+bullet_enabled = false
 
 image_root = data/development/images
 log_root = logs/development

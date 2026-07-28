@@ -14,3 +14,5 @@ psql_port =
 # leave port blank to use PostgreSQL's default
 owner_id = 272510639124250625
 # discord user ID of bot installation owner. Above default is Nelluk.
+bullet_enabled = true
+# load the Google Sheets-backed Bullet cog

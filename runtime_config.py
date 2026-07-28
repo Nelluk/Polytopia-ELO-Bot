@@ -52,6 +52,7 @@ class RuntimeProfile:
     shared_production_guild_ids: Tuple[int, ...]
     background_tasks_enabled: bool
     api_enabled: bool
+    bullet_enabled: bool
     image_root: Path
     log_root: Path
 
@@ -74,6 +75,7 @@ _PROFILE_LAYOUT = MappingProxyType({
         'log_root': 'logs',
         'background_tasks_enabled': True,
         'api_enabled': True,
+        'bullet_enabled': True,
     }),
     'development': MappingProxyType({
         'config_file': 'config.development.ini',
@@ -82,6 +84,7 @@ _PROFILE_LAYOUT = MappingProxyType({
         'log_root': 'logs/development',
         'background_tasks_enabled': False,
         'api_enabled': False,
+        'bullet_enabled': False,
     }),
 })
 
@@ -545,6 +548,9 @@ def load_runtime_profile(
         api_enabled=_boolean_setting(
             parser, 'api_enabled', layout['api_enabled'], config_path
         ),
+        bullet_enabled=_boolean_setting(
+            parser, 'bullet_enabled', layout['bullet_enabled'], config_path
+        ),
         image_root=_resolve_runtime_path(
             root, defaults.get('image_root', ''), layout['image_root']
         ),
@@ -593,6 +599,7 @@ def format_runtime_profile(profile: RuntimeProfile) -> str:
         f'acknowledged shared production guild IDs: {shared_guilds}',
         f'background tasks enabled: {profile.background_tasks_enabled}',
         f'HTTP API enabled: {profile.api_enabled}',
+        f'Bullet spreadsheet enabled: {profile.bullet_enabled}',
         f'image root: {profile.image_root}',
         f'log root: {profile.log_root}',
     ))

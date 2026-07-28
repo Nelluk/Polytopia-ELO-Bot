@@ -145,6 +145,23 @@ class RuntimeDependencyCompatibilityTests(unittest.TestCase):
 
         asyncio.run(construct_clients())
 
+    def test_custom_help_restores_help_command_on_unload(self):
+        from modules.customhelp import CustomHelp
+
+        bot = commands.Bot(
+            command_prefix='!',
+            intents=discord.Intents.default(),
+        )
+        original_help_command = bot.help_command
+        custom_help = CustomHelp(bot)
+        try:
+            self.assertIs(custom_help.bot, bot)
+            self.assertIs(bot.help_command.cog, custom_help)
+            custom_help.cog_unload()
+            self.assertIs(bot.help_command, original_help_command)
+        finally:
+            asyncio.run(bot.close())
+
     def test_group_five_has_no_legacy_discord_loop_access(self):
         root = Path(__file__).resolve().parents[1]
         runtime_files = (
@@ -221,8 +238,10 @@ class RuntimeDependencyCompatibilityTests(unittest.TestCase):
                 'modules.utilities'):
             stubs[module_name] = ModuleType(module_name)
         stubs['modules.initialize_data'].initialize_data = lambda: None
+        stubs['modules.image_storage'].ensure_image_directories = lambda: None
         runtime_profile = SimpleNamespace(
             background_tasks_enabled=False,
+            bullet_enabled=False,
             discord_token='offline-test-token',
         )
         settings_stub = ModuleType('settings')
@@ -244,6 +263,19 @@ class RuntimeDependencyCompatibilityTests(unittest.TestCase):
                     self.assertTrue(instance.intents.message_content)
                     self.assertFalse(instance.intents.typing)
                     self.assertFalse(instance.intents.presences)
+                    with mock.patch.object(
+                            bot_module.image_storage,
+                            'ensure_image_directories'):
+                        with mock.patch.object(
+                                instance, 'load_extension',
+                                new=mock.AsyncMock()) as load_extension:
+                            asyncio.run(instance.setup_hook())
+                    loaded_extensions = {
+                        call.args[0] for call in load_extension.await_args_list
+                    }
+                    self.assertNotIn('modules.bullet', loaded_extensions)
+                    self.assertIn('modules.games', loaded_extensions)
+                    self.assertIn('modules.antiscam', loaded_extensions)
                 finally:
                     asyncio.run(instance.close())
         finally:

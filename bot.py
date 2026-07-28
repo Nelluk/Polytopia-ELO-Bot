@@ -89,8 +89,15 @@ class MyBot(commands.Bot):
         initial_extensions = [
             'modules.games', 'modules.customhelp', 'modules.matchmaking',
             'modules.administration', 'modules.misc', 'modules.league',
-            'modules.api_cog', 'modules.bullet', 'modules.antiscam'
+            'modules.api_cog', 'modules.antiscam'
         ]
+        if settings.runtime_profile.bullet_enabled:
+            initial_extensions.append('modules.bullet')
+        else:
+            logger.info(
+                'Skipping the Bullet extension because it is disabled in '
+                'the runtime profile.'
+            )
         for extension in initial_extensions:
             await self.load_extension(extension)
 

@@ -139,6 +139,7 @@ class MyHelpCommand(commands.MinimalHelpCommand):
 
 class CustomHelp(commands.Cog):
     def __init__(self, bot):
+        self.bot = bot
         self._original_help_command = bot.help_command
         bot.help_command = MyHelpCommand(command_attrs={"hidden": True, 'checks': [lambda ctx: settings.is_bot_channel_strict(ctx)]})
         bot.help_command.cog = self

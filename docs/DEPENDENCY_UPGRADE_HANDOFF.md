@@ -754,6 +754,63 @@ Manual acceptance checklist:
 Keep background jobs and API disabled until the core checklist passes. Enable
 and test them separately if they are required in production.
 
+Execution checkpoint (2026-07-28):
+
+- Nelluk re-inspected the active PostgreSQL HBA file with sudo. Lines 97 and
+  98 explicitly reject `polybot_dev` connections to production database
+  `polytopia2` over both `127.0.0.1/32` and `::1/128`. PostgreSQL evaluates
+  those exact rules before broader localhost authentication rules. No
+  production-database connection was attempted.
+- The final redacted preflight selected environment `development`, bot ID
+  `479029527553638401`, database `polytopia_dev`, role `polybot_dev`, test
+  guild `478571892832206869`, and isolated development image/log roots.
+  Background tasks, the HTTP API, and the Bullet spreadsheet extension were
+  all disabled. The minimal default-data seed found all 16 tribes already
+  present, and the five gated development-database tests passed before the
+  Discord connection.
+- Added `bullet_enabled` to the central runtime profile. It defaults to true
+  for production and false for development, is shown in redacted inspection
+  output, and prevents `modules.bullet` from loading in development. This
+  avoids requiring absent Google credentials or allowing the live development
+  bot to access the production Bullet spreadsheet.
+- The first login attempt was rejected by Discord with HTTP 401 because the
+  token value in `config.development.ini` had literal surrounding quotes.
+  Structural inspection printed no token content, confirmed that its encoded
+  application ID matched the expected bot, and identified the quotes. Nelluk
+  removed them; the next attempt authenticated as `PolyELO Bot Beta`
+  (`479029527553638401`) on discord.py 2.7.1 and loaded only the approved test
+  guild.
+- Live acceptance in test channel `480078679930830849` covered `!guide`,
+  staff registration, player lookup, pending-game creation, team creation and
+  lookup, attached team-image storage, promotion/trade cards using a remote
+  Discord avatar and the local team image, a draft card, leaderboard graph
+  delivery, and a complete disposable two-player game. The game was filled
+  through the staff third-party join path, started, renamed, rendered,
+  completed, reverted with `!unwin`, and deleted. A direct development query
+  confirmed game 24 and its dependent rows were removed.
+- Two observed command behaviors predate this upgrade. Quotes around a
+  multi-word argument to `!team` remain part of its greedy lookup string, so a
+  partial unquoted lookup succeeds. `!lbteam` intentionally selects only teams
+  with a non-null league tier; the new untiered team therefore produced an
+  empty graph and Matplotlib's no-labelled-artists warning. The populated
+  offline graph fixture rendered successfully.
+- The first Ctrl-C shutdown exited with status zero but exposed an existing
+  `CustomHelp.cog_unload()` error because the cog never stored its bot
+  reference. Added that reference and a focused unload regression test. A
+  second live development-only startup reached ready and then shut down with
+  status zero and no teardown exception.
+- The final gate passed under CPython 3.12.13: all 51 tests passed with the
+  development-database gate enabled; the default offline run passed 46 tests
+  and skipped the five gated tests; compileall, dependency inventory, frozen
+  lock validation for 80 resolved packages, and `git diff --check` passed.
+- Development fixture team `Phase7 Test Team` and its uploaded image remain
+  intentionally in `polytopia_dev` and
+  `data/development/images/teams/9.png`; they do not overlap production paths.
+  The production clone remained clean at commit `43b3425`, and
+  `polytopia.service` remained active throughout as PID `1388246` using
+  `/home/nelluk/PolyBot39/bin/python3 /home/nelluk/PolyBot39/bot.py`. It was
+  not restarted or modified.
+
 ## Phase 8: review and production cutover plan
 
 Do not deploy merely because the dev bot works once. Before merging:

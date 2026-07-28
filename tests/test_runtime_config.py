@@ -51,6 +51,7 @@ class RuntimeProfileTests(unittest.TestCase):
             'acknowledge_shared_production_guild_risk': 'false',
             'background_tasks_enabled': 'false',
             'api_enabled': 'false',
+            'bullet_enabled': 'false',
         }
         values.update(overrides)
         filename = (
@@ -99,6 +100,7 @@ class RuntimeProfileTests(unittest.TestCase):
             psql_port='',
             background_tasks_enabled='true',
             api_enabled='true',
+            bullet_enabled='true',
         )
         self.write_server_settings('production')
 
@@ -111,6 +113,7 @@ class RuntimeProfileTests(unittest.TestCase):
         self.assertEqual(profile.log_root, self.root / 'logs')
         self.assertTrue(profile.background_tasks_enabled)
         self.assertTrue(profile.api_enabled)
+        self.assertTrue(profile.bullet_enabled)
         self.assertFalse(profile.image_root.exists())
         self.assertFalse(profile.log_root.exists())
         with self.assertRaises(FrozenInstanceError):
@@ -129,6 +132,7 @@ class RuntimeProfileTests(unittest.TestCase):
         self.assertEqual(profile.log_root, self.root / 'logs/development')
         self.assertFalse(profile.background_tasks_enabled)
         self.assertFalse(profile.api_enabled)
+        self.assertFalse(profile.bullet_enabled)
         self.assertTrue(profile.image_root.is_dir())
         self.assertTrue(profile.log_root.is_dir())
         self.assertEqual(
