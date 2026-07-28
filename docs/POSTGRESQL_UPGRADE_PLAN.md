@@ -40,13 +40,16 @@ Clusters:
 | Version | Port | State | Purpose |
 | --- | ---: | --- | --- |
 | 12.20 | 5432 | online | active production and development data |
-| 14.23 | 5433 | online | verified unused default Ubuntu cluster |
+| 14.23 | 5433 | removed | verified unused default Ubuntu cluster |
 
 The PostgreSQL 14 cluster was inspected as `postgres` on 2026-07-28. It
 contains only the connectable `postgres` and `template1` databases at about
 8.6 MB each, only built-in roles plus `postgres`, and no client session other
 than the inspection query. It also rejects local login as `nelluk` because
-that role does not exist. This confirms it is an unused default cluster.
+that role does not exist. This confirmed it was an unused default cluster.
+After explicit approval, `14/main` was removed. Its data and configuration
+directories and port-5433 listener are absent; PostgreSQL 14 packages remain
+installed.
 
 Databases in the PostgreSQL 12 cluster:
 
@@ -119,14 +122,14 @@ sudo -u postgres psql -X -P pager=off -p 5433 -d postgres \
 ```
 
 The output confirmed only default databases/roles and no client. Its removal
-is still a separate destructive approval:
+was separately approved and completed with:
 
 ```bash
 sudo pg_dropcluster --stop 14 main
 ```
 
-Do not remove the PostgreSQL 14 packages yet. The cluster removal and package
-cleanup are distinct actions.
+The PostgreSQL 14 packages were intentionally retained. Package cleanup remains
+a distinct later action.
 
 ## Phase PG2: install PostgreSQL 18 without cutting over
 
