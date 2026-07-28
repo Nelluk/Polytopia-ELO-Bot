@@ -31,7 +31,6 @@ if settings.runtime_profile.database_port:
 
 db = PostgresqlExtDatabase(
     settings.runtime_profile.database_name,
-    autorollback=True,
     autoconnect=True,
     **database_connection_settings,
 )
@@ -1147,7 +1146,7 @@ class Game(BaseModel):
     is_confirmed = BooleanField(default=False)  # game can be is_completed==True but is_confirmed==False but should not be able to be vice versa
     announcement_message = BitField(default=None, null=True)
     announcement_channel = BitField(default=None, null=True)
-    date = DateField(default=datetime.datetime.today)
+    date = DateField(default=datetime.date.today)
     completed_ts = DateTimeField(null=True, default=None)  # set when game is confirmed and ELO is calculated (the first time, preserved for subsequent recalcs)
     win_claimed_ts = DateTimeField(null=True, default=None)  # set when win is claimed, used to check old unconfirmed wins
     name = TextField(null=True)

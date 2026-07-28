@@ -684,6 +684,44 @@ Integration tests must refuse to run unless:
 Use transactions and rollback where practical. Do not point integration tests
 at production.
 
+Execution checkpoint (2026-07-28):
+
+- Added `tests/test_database_integration.py`, gated by both
+  `POLYBOT_ENV=development` and `POLYBOT_RUN_DB_INTEGRATION=1`. Before
+  importing `settings` or `modules.models`, it requires the exact
+  `polytopia_dev` database and `polybot_dev` role, requires background tasks
+  and the API policy to remain disabled, and verifies the live PostgreSQL
+  session identity through a direct read-only connection.
+- The normal database-free discovery run remains safe: 45 tests pass and the
+  five integration tests skip with an explicit opt-in message. The gated full
+  run passes all 50 tests with deprecation warnings treated as errors.
+- The integration suite verifies model import and the expected schema,
+  representative Peewee reads and a rolled-back write, all nine bot extension
+  loads without a Discord connection, stopped recurring task loops, a direct
+  database-backed FastAPI route request without an HTTP server or API
+  lifespan, draft ordering, pending-game embed generation, database-backed
+  graph rendering, and promotion, demotion, and draft card rendering.
+  Bullet's absent development spreadsheet configuration is supplied only by
+  an in-memory test mock; no Google API connection is made.
+- Every fixture write is enclosed in a rollback transaction. A separate
+  post-run query confirmed zero Phase 6 game-log, team, user, game, or history
+  fixture rows remained in `polytopia_dev`.
+- The strict model import exposed two compatibility issues. Removed Peewee's
+  obsolete and ignored `autorollback=True` database option, and changed the
+  `Game.date` `DateField` default from `datetime.datetime.today` to
+  `datetime.date.today` so newly created and reloaded games use the same type.
+- The complete acceptance gate passed under CPython 3.12.13: all 50 gated
+  tests passed, all 45 default offline tests passed with five gated skips,
+  compileall passed, dependency inventory passed, frozen lock validation
+  resolved 80 packages, and the diff check passed. No Discord, HTTP, Google,
+  or production-database connection was made.
+- PostgreSQL catalog inspection found that `polybot_dev` inherits `CONNECT`
+  and `TEMP` on the production database from PostgreSQL's default `PUBLIC`
+  grants, but not `CREATE`. Phase 2 installed an HBA isolation rule, which is
+  the effective connection barrier. The active HBA file is root-readable only
+  and could not be re-inspected without Nelluk's sudo password; no attempt was
+  made to test-connect to production.
+
 ## Phase 7: live development-bot acceptance
 
 Start only the development bot:
