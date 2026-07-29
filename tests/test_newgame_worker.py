@@ -375,6 +375,7 @@ class NewGameCommandTests(unittest.IsolatedAsyncioTestCase):
         context = SimpleNamespace(invoked_with='newgame')
         interaction = SimpleNamespace(
             response=SimpleNamespace(defer=defer),
+            guild=SimpleNamespace(id=300),
         )
 
         slash_command = self.newgame_slash_command()
@@ -382,6 +383,10 @@ class NewGameCommandTests(unittest.IsolatedAsyncioTestCase):
             self.games.commands.Context,
             'from_interaction',
             new=mock.AsyncMock(return_value=context),
+        ), mock.patch.object(
+            self.games.settings,
+            'guild_setting',
+            return_value='$',
         ):
             await slash_command.callback(
                 fake_cog,
@@ -397,6 +402,7 @@ class NewGameCommandTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(events, ['defer', 'checks', 'prefix'])
         self.assertEqual(context.invoked_with, 'newsteamgameunranked')
+        self.assertEqual(context.prefix, '$')
 
     async def test_slash_check_failure_stops_before_prefix_pipeline(self):
         prefix_command = SimpleNamespace(
@@ -407,6 +413,7 @@ class NewGameCommandTests(unittest.IsolatedAsyncioTestCase):
         context = SimpleNamespace(invoked_with='newgame')
         interaction = SimpleNamespace(
             response=SimpleNamespace(defer=mock.AsyncMock()),
+            guild=SimpleNamespace(id=300),
         )
 
         slash_command = self.newgame_slash_command()
@@ -414,6 +421,10 @@ class NewGameCommandTests(unittest.IsolatedAsyncioTestCase):
             self.games.commands.Context,
             'from_interaction',
             new=mock.AsyncMock(return_value=context),
+        ), mock.patch.object(
+            self.games.settings,
+            'guild_setting',
+            return_value='$',
         ):
             await slash_command.callback(
                 fake_cog,

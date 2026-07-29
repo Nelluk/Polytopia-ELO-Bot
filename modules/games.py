@@ -1538,6 +1538,11 @@ class polygames(commands.Cog):
             return await ctx.send(f'Invalid format. {example_usage}')
 
         if len(game_name.split(' ')) < 2 and ctx.author.id != settings.owner_id:
+            if getattr(ctx, 'interaction', None) is not None:
+                return await ctx.send(
+                    'Invalid game name. Enter the exact multi-word game '
+                    'name shown in Polytopia.'
+                )
             return await ctx.send(
                 'Invalid game name. Make sure to use "quotation marks" '
                 f'around the full game name.\n{example_usage}'
@@ -1688,6 +1693,10 @@ class polygames(commands.Cog):
 
         await interaction.response.defer()
         ctx = await commands.Context.from_interaction(interaction)
+        ctx.prefix = settings.guild_setting(
+            interaction.guild.id,
+            'command_prefix',
+        )
 
         # Reuse the existing command checks so registration, configured bot
         # channels, and any global checks remain identical during transition.
