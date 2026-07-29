@@ -203,9 +203,9 @@ check:
 - optional cleanup: unused `Team.id=9`, `Phase7 Test Team`, remains in
   `polytopia_dev` with zero players and zero game sides
 
-Current unit: **P2.2 — Decide the native `newgame` command UX**, ready to
-start from `codex/database-slash-modernization` after the completed P2.1
-merge at `ecdd01e`.
+Current unit: **P2.2 — Decide the native `newgame` command UX**, In progress
+on `codex/p2-2-newgame-slash-ux`, based on
+`codex/database-slash-modernization` at `f7b1e3e`.
 
 Runtime status is deliberately not recorded as fact here. Verify whether a
 beta process is running before starting or stopping one.
@@ -494,7 +494,10 @@ the flexible prefix interface.
 
 ### P2.2 — Decide the native command UX
 
-Status: **Planned**
+Status: **In progress**
+
+Branch/base: `codex/p2-2-newgame-slash-ux` from
+`codex/database-slash-modernization` at `f7b1e3e`.
 
 Prefix parity includes quoted names, aliases that select ranked/platform
 variants, shortcuts that infer the author, and flexible multi-side player
@@ -507,6 +510,14 @@ Evaluate:
 - a slash command plus modal for flexible side entry; or
 - a documented temporary slash deferral if neither preserves existing game
   shapes safely.
+
+Selected interface: a typed top-level `/newgame` with explicit Discord member
+selectors for two sides, optional slots through 4v4, a ranked Boolean, and a
+Mobile/Steam platform choice. This covers common game shapes without opaque
+member text parsing. The existing prefix command and aliases remain available
+for larger games, more than two sides, and the one-opponent author shortcut.
+Both interfaces feed the same prefix validation and P2.1 worker/post-commit
+pipeline so permission and transaction behavior do not fork.
 
 The database extraction proceeds even if slash UX is deferred. Record the
 decision and reason in the decision log.

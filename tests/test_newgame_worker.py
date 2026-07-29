@@ -291,6 +291,13 @@ class NewGameCommandTests(unittest.IsolatedAsyncioTestCase):
             if command.name == 'newgame'
         )
 
+    def newgame_slash_command(self):
+        return next(
+            command
+            for command in self.games.polygames.__cog_app_commands__
+            if command.name == 'newgame'
+        )
+
     def test_prefix_command_and_aliases_are_preserved(self):
         command = self.newgame_command()
 
@@ -304,6 +311,121 @@ class NewGameCommandTests(unittest.IsolatedAsyncioTestCase):
                 'newsteamgameunranked',
             },
         )
+
+    def test_typed_slash_command_is_registered_through_four_players_per_side(
+        self,
+    ):
+        command = self.newgame_slash_command()
+        parameters = {
+            parameter.name: parameter for parameter in command.parameters
+        }
+
+        self.assertEqual(
+            set(parameters),
+            {
+                'game_name',
+                'side_one_player_one',
+                'side_two_player_one',
+                'ranked',
+                'platform',
+                'side_one_player_two',
+                'side_two_player_two',
+                'side_one_player_three',
+                'side_two_player_three',
+                'side_one_player_four',
+                'side_two_player_four',
+            },
+        )
+        self.assertTrue(parameters['game_name'].required)
+        self.assertTrue(parameters['side_one_player_one'].required)
+        self.assertTrue(parameters['side_two_player_one'].required)
+        self.assertFalse(parameters['side_one_player_four'].required)
+        self.assertEqual(
+            [
+                (choice.name, choice.value)
+                for choice in parameters['platform'].choices
+            ],
+            [('Mobile', 'Mobile'), ('Steam', 'Steam')],
+        )
+
+    async def test_slash_defers_then_reuses_prefix_checks_and_pipeline(self):
+        events = []
+
+        async def defer():
+            events.append('defer')
+
+        async def can_run(ctx):
+            events.append('checks')
+            return True
+
+        async def prefix_callback(cog, ctx, game_name, *args):
+            events.append('prefix')
+            self.assertIs(cog, fake_cog)
+            self.assertEqual(game_name, 'Valid Game')
+            self.assertEqual(
+                args,
+                ('101', '102', 'vs', '201', '202'),
+            )
+
+        prefix_command = SimpleNamespace(
+            can_run=can_run,
+            callback=prefix_callback,
+        )
+        fake_cog = SimpleNamespace(newgame=prefix_command)
+        context = SimpleNamespace(invoked_with='newgame')
+        interaction = SimpleNamespace(
+            response=SimpleNamespace(defer=defer),
+        )
+
+        slash_command = self.newgame_slash_command()
+        with mock.patch.object(
+            self.games.commands.Context,
+            'from_interaction',
+            new=mock.AsyncMock(return_value=context),
+        ):
+            await slash_command.callback(
+                fake_cog,
+                interaction,
+                'Valid Game',
+                SimpleNamespace(id=101),
+                SimpleNamespace(id=201),
+                False,
+                'Steam',
+                SimpleNamespace(id=102),
+                SimpleNamespace(id=202),
+            )
+
+        self.assertEqual(events, ['defer', 'checks', 'prefix'])
+        self.assertEqual(context.invoked_with, 'newsteamgameunranked')
+
+    async def test_slash_check_failure_stops_before_prefix_pipeline(self):
+        prefix_command = SimpleNamespace(
+            can_run=mock.AsyncMock(return_value=False),
+            callback=mock.AsyncMock(),
+        )
+        fake_cog = SimpleNamespace(newgame=prefix_command)
+        context = SimpleNamespace(invoked_with='newgame')
+        interaction = SimpleNamespace(
+            response=SimpleNamespace(defer=mock.AsyncMock()),
+        )
+
+        slash_command = self.newgame_slash_command()
+        with mock.patch.object(
+            self.games.commands.Context,
+            'from_interaction',
+            new=mock.AsyncMock(return_value=context),
+        ):
+            await slash_command.callback(
+                fake_cog,
+                interaction,
+                'Valid Game',
+                SimpleNamespace(id=101),
+                SimpleNamespace(id=201),
+            )
+
+        interaction.response.defer.assert_awaited_once()
+        prefix_command.can_run.assert_awaited_once_with(context)
+        prefix_command.callback.assert_not_awaited()
 
     async def test_database_failure_prevents_post_commit_discord_effects(self):
         author = SimpleNamespace(
