@@ -6,6 +6,13 @@ This file provides guidance to coding agents when working with code in this repo
 
 Polytopia-ELO-Bot is a Discord bot for the mobile game Polytopia. It provides matchmaking, ELO-based leaderboards, and league management across multiple Discord servers (primarily the main Polytopia server and PolyChampions).
 
+## Active Modernization Plan
+
+For database-access and slash-command work, read and update
+`docs/DATABASE_AND_SLASH_MODERNIZATION.md`. It is the durable execution
+record for completed phases, current work, decisions, validation evidence,
+and the next recommended unit.
+
 ## Tech Stack
 
 - CPython 3.12
