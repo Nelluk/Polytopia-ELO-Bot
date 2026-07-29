@@ -1,8 +1,9 @@
 # PostgreSQL 12 to 18 upgrade plan
 
-This document plans a PostgreSQL server upgrade for `racknerd`. It does not
-authorize package installation, cluster creation/removal, a PostgreSQL
-restart, a database restore, or a production-bot restart.
+This document plans and records a PostgreSQL server upgrade for `racknerd`.
+Completing one phase does not authorize a later phase, cluster
+creation/removal, a PostgreSQL restart, a database restore, or a
+production-bot restart.
 
 ## Recommendation
 
@@ -34,6 +35,8 @@ Recorded on 2026-07-28:
 - PostgreSQL listens only on localhost
 - data checksums are disabled on the PostgreSQL 12 cluster
 - only the built-in `plpgsql` extension is installed in `polytopia2`
+- PostgreSQL 18.4 server and client packages are installed from PGDG, but no
+  PostgreSQL 18 data cluster exists yet
 
 Clusters:
 
@@ -131,7 +134,7 @@ sudo pg_dropcluster --stop 14 main
 The PostgreSQL 14 packages were intentionally retained. Package cleanup remains
 a distinct later action.
 
-## Phase PG2: install PostgreSQL 18 without cutting over
+## Phase PG2 completed: install PostgreSQL 18 without cutting over
 
 Ubuntu 22.04's distribution repository stops at PostgreSQL 14. Use the official
 PostgreSQL Apt repository, which supports `jammy` and publishes PostgreSQL 18.
@@ -161,8 +164,26 @@ sudo pg_ctlcluster 18 main stop
 pg_lsclusters
 ```
 
-Package installation is a separately approved system change. It is not
-approval to upgrade the data cluster.
+Nelluk separately approved PG2. The Apt simulation showed three upgrades,
+four new packages, no removals, and no PostgreSQL 12 package change. On
+2026-07-28 the following PGDG packages were installed:
+
+- `postgresql-18`, `postgresql-client-18`, and `postgresql-18-jit` 18.4
+- `postgresql-common` and `postgresql-client-common` 293
+- `libpq5` 18.4
+
+Installation did not create an `18/main` cluster. Post-install verification
+confirmed:
+
+- `12/main` remained online on port 5432 and was the only registered cluster;
+- PostgreSQL continued listening only on `127.0.0.1` and `::1`;
+- the production server reported version 12.20 and database `polytopia2`;
+- the default `psql` client reported version 18.4;
+- `polytopia.service` retained PID 1480385 with zero restarts;
+- approximately 4.2 GiB remained free on `/`.
+
+No cluster was created, stopped, restarted, upgraded, or restored during PG2.
+Completion of PG2 is not approval to begin the disposable PG3 rehearsal.
 
 ## Phase PG3: rehearsal and compatibility proof
 
