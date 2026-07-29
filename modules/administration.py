@@ -34,6 +34,44 @@ def load_unconfirmed_game_summaries(guild_id: int):
         return utilities.summarize_game_list(game_query)
 
 
+def format_elo_job_status(active_job, now=None):
+    """Render coordinator state without performing database work."""
+
+    if active_job is None:
+        return 'No ELO mutation job is currently running.'
+
+    now = now or discord.utils.utcnow()
+    elapsed_seconds = max(
+        0,
+        int((now - active_job.started_at).total_seconds()),
+    )
+    hours, remainder = divmod(elapsed_seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    elapsed_parts = []
+    if hours:
+        elapsed_parts.append(f'{hours}h')
+    if minutes or hours:
+        elapsed_parts.append(f'{minutes}m')
+    elapsed_parts.append(f'{seconds}s')
+
+    requester = active_job.requester_name
+    if active_job.requester_id is not None:
+        requester += f' (`{active_job.requester_id}`)'
+    game = (
+        active_job.game_id
+        if active_job.game_id is not None
+        else 'all games'
+    )
+    started_timestamp = int(active_job.started_at.timestamp())
+    return (
+        f'Active ELO job: `{active_job.operation}`\n'
+        f'Game: `{game}`\n'
+        f'Requester: {requester}\n'
+        f'Started: <t:{started_timestamp}:F> (<t:{started_timestamp}:R>)\n'
+        f'Elapsed: {" ".join(elapsed_parts)}'
+    )
+
+
 class administration(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -96,6 +134,22 @@ class administration(commands.Cog):
             winning_game,
         )
         return result
+
+    async def _run_recalculation_job(
+        self,
+        *,
+        game_id: int,
+        requester_id: int,
+        requester_name: str,
+    ):
+        return await settings.elo_job_coordinator.run(
+            operation='recalc_games_from',
+            game_id=game_id,
+            requester_id=requester_id,
+            requester_name=requester_name,
+            worker=elo_workers.recalculate_games_from,
+            worker_args=(game_id,),
+        )
 
     @settings.is_superuser_check()
     @commands.command(aliases=['quit', 'restart_force'])
@@ -1308,24 +1362,18 @@ class administration(commands.Cog):
         Give a game ID, and the bot will *recalculate_elo_since* all games completed after that game was completed.
         """
 
-        game = models.Game.get_or_none(id=arg)
-        if not game:
+        try:
+            game_id = int(arg)
+        except (TypeError, ValueError):
             return await ctx.send(f'no game found for id {arg}')
-
-        logger.info(f'reset_ts_from loaded game {game.id} with completed_ts {game.completed_ts}')
-        if not game.completed_ts:
-            return await ctx.send(f'Game {game.id} is not completed. Choose a completed game.')
 
         await ctx.send('This may take a while...')
         try:
             async with ctx.typing():
-                timestamp = await settings.elo_job_coordinator.run(
-                    operation='recalc_games_from',
-                    game_id=game.id,
+                timestamp = await self._run_recalculation_job(
+                    game_id=game_id,
                     requester_id=ctx.author.id,
                     requester_name=ctx.author.display_name,
-                    worker=elo_workers.recalculate_games_from,
-                    worker_args=(game.id,),
                 )
         except EloJobConflict as exc:
             active_job = exc.active_job
@@ -1337,16 +1385,105 @@ class administration(commands.Cog):
             return await ctx.send(str(exc))
         except peewee.PeeweeException:
             logger.exception(
-                'Database failure recalculating games from %s', game.id
+                'Database failure recalculating games from %s', game_id
             )
             return await ctx.send('Database recalculation failed and rolled back.')
         except Exception:
             logger.exception(
-                'Unexpected failure recalculating games from %s', game.id
+                'Unexpected failure recalculating games from %s', game_id
             )
             return await ctx.send('Database recalculation failed and rolled back.')
 
         await ctx.send(f'DB has been refreshed from {timestamp} onward')
+
+    @discord.app_commands.command(
+        name='recalc-games-from',
+        description='Recalculate ELO from a completed game onward.',
+    )
+    @discord.app_commands.guild_only()
+    @discord.app_commands.describe(
+        game_id='Completed game that establishes the recalculation timestamp.',
+        confirm='Must be true to start this destructive maintenance job.',
+    )
+    async def recalc_games_from_slash(
+        self,
+        interaction: discord.Interaction,
+        game_id: int,
+        confirm: bool,
+    ):
+        if interaction.user.id != settings.owner_id:
+            return await interaction.response.send_message(
+                'Only the bot owner can use this command.',
+                ephemeral=True,
+            )
+        if not confirm:
+            return await interaction.response.send_message(
+                'Recalculation was not started. Set `confirm` to true after '
+                'checking the game ID.',
+                ephemeral=True,
+            )
+
+        await interaction.response.defer(ephemeral=True)
+        try:
+            timestamp = await self._run_recalculation_job(
+                game_id=game_id,
+                requester_id=interaction.user.id,
+                requester_name=interaction.user.display_name,
+            )
+        except EloJobConflict as exc:
+            active_job = exc.active_job
+            return await interaction.followup.send(
+                f'ELO operation `{active_job.operation}` for game '
+                f'`{active_job.game_id or "all"}` is already running.',
+                ephemeral=True,
+            )
+        except elo_workers.RecalculationValidationError as exc:
+            return await interaction.followup.send(
+                str(exc),
+                ephemeral=True,
+            )
+        except peewee.PeeweeException:
+            logger.exception(
+                'Database failure recalculating games from %s from slash',
+                game_id,
+            )
+            return await interaction.followup.send(
+                'Database recalculation failed and rolled back.',
+                ephemeral=True,
+            )
+        except Exception:
+            logger.exception(
+                'Unexpected failure recalculating games from %s from slash',
+                game_id,
+            )
+            return await interaction.followup.send(
+                'Database recalculation failed and rolled back.',
+                ephemeral=True,
+            )
+
+        await interaction.followup.send(
+            f'DB has been refreshed from {timestamp} onward.',
+            ephemeral=True,
+        )
+
+    @discord.app_commands.command(
+        name='elo-job-status',
+        description='Show the currently running ELO mutation job.',
+    )
+    @discord.app_commands.guild_only()
+    async def elo_job_status_slash(
+        self,
+        interaction: discord.Interaction,
+    ):
+        if not settings.is_staff(interaction.user):
+            return await interaction.response.send_message(
+                'You do not have permission to use this command.',
+                ephemeral=True,
+            )
+        await interaction.response.send_message(
+            format_elo_job_status(settings.elo_job_coordinator.active_job),
+            ephemeral=True,
+        )
 
     @commands.command(aliases=['migrate'])
     @settings.is_superuser_check()

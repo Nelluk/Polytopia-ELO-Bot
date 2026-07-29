@@ -4,7 +4,7 @@ Last updated: 2026-07-29
 
 Status: Active
 
-Current branch at last update: `codex/p2-2-newgame-slash-ux`
+Current branch at last update: `codex/p3-1-elo-maintenance-ux`
 
 Source task: `thread://019fae66-8e3a-7a50-9a0f-d3d7160d2287`
 
@@ -226,9 +226,9 @@ check:
 - optional cleanup: unused `Team.id=9`, `Phase7 Test Team`, remains in
   `polytopia_dev` with zero players and zero game sides
 
-Current unit: **P2.2 — Decide the native `newgame` command UX**, Implemented
-on `codex/p2-2-newgame-slash-ux`, based on
-`codex/database-slash-modernization` at `f7b1e3e`.
+Current unit: **P3.1 — Recalculation control and active-job status**, In
+progress on `codex/p3-1-elo-maintenance-ux`, stacked from P2.2 checkpoint
+`4a7fba6`.
 
 Runtime status is deliberately not recorded as fact here. Verify whether a
 beta process is running before starting or stopping one.
@@ -264,7 +264,7 @@ beta launches, command synchronization, pushes, or PR operations by itself.
 | P0 | Complete | Serialized ELO workers and first five slash commands | Commits `a9375b3`, `9a64ce1`; live beta acceptance; accumulation-branch base |
 | P1 | Complete | Close out and establish the pilot on the accumulation branch | Clean tests, beta stopped, reviewed branch, local accumulation branch |
 | P2 | In progress | Fix known game-creation transaction boundary | `newgame` workflow atomic and Discord effects post-commit |
-| P3 | Planned | Owner ELO maintenance and job observability | Typed slash maintenance interface and active-job status |
+| P3 | In progress | Owner ELO maintenance and job observability | Typed slash maintenance interface and active-job status |
 | P4 | Planned | Game correction and metadata mutations | Bounded workers plus slash interfaces for clear typed operations |
 | P5 | Planned | Matchmaking lifecycle | Atomic open/join/leave/kick/start flows and native interactions |
 | P6 | Planned | Registration and player preferences | Worker-safe profile writes and slash UX |
@@ -650,10 +650,10 @@ tested, documented as emergency-only, or retired.
 
 Status: **In progress**
 
-Branch/base: planned stacked branch from the latest
-`codex/p2-2-newgame-slash-ux` checkpoint. P2.2 remains Implemented pending the
-same combined beta session; this does not mark either unit Complete or merge
-either unit implicitly.
+Branch/base: `codex/p3-1-elo-maintenance-ux`, stacked from
+`codex/p2-2-newgame-slash-ux` at `4a7fba6`. P2.2 remains Implemented pending
+the same combined beta session; this does not mark either unit Complete or
+merge either unit implicitly.
 
 Objective: add a confirmed, owner-only native entry point for the existing
 serialized recalculation worker and expose useful active-job state to staff.
