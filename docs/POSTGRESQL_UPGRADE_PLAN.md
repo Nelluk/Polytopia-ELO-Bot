@@ -270,9 +270,10 @@ Post-upgrade verification confirmed:
   `polytopia.service` retained PID 1480385 with zero restarts.
 
 The rehearsal temporarily raised root-filesystem use to 91%, with
-approximately 2.0 GiB free. The stopped PostgreSQL 12 rehearsal cluster,
-online PostgreSQL 18 rehearsal cluster, and private rehearsal archives remain
-pending separately approved cleanup.
+approximately 2.0 GiB free. After separate approval, `18/rehearsal18`,
+`12/rehearsal`, and `/var/lib/postgresql/rehearsal-backups` were removed.
+Only production `12/main` remained, and free space returned to approximately
+4.1 GiB.
 
 The rehearsed production command is equivalent to:
 
@@ -281,10 +282,10 @@ pg_upgradecluster --method=upgrade --jobs=2 -v 18 12 main
 ```
 
 The rehearsal proved its port, configuration-copy, old-cluster retention, and
-rollback behavior. Executing it against production still requires completion
-of PG4 and separate maintenance-window approval for PG5.
+rollback behavior. Executing it against production still requires separate
+maintenance-window approval for PG5.
 
-## Phase PG4: pre-cutover backup set
+## Phase PG4 completed: pre-cutover backup set
 
 The normal `/home/nelluk/backup_db.sh` protects `polytopia2` and local images,
 but it is not a complete cluster backup. It omits global roles and the other
@@ -306,14 +307,46 @@ Before the maintenance window:
 Using the newer dump programs is consistent with PostgreSQL's recommendation
 for major-version dump/restore planning.
 
+Nelluk separately approved PG4. On 2026-07-28:
+
+- `/home/nelluk/backup_db.sh` completed successfully using its hardened,
+  locked, atomic workflow.
+- A private timestamped archive was created at
+  `/home/nelluk/backups/postgresql18-pg4-20260728T214311-0400`.
+- The archive directory is mode 0700 and every contained file is mode 0600.
+- PostgreSQL 18 client tools created a globals-only dump and custom-format
+  dumps of `polytopia2`, `polytopia_dev`, and `twospies` from the online
+  PostgreSQL 12 server.
+- The online `polytopia2` dump completed in approximately 21 seconds.
+- Every custom-format dump passed PostgreSQL 18
+  `pg_restore --list`.
+- The archive records installed package versions, clusters, role flags,
+  database ownership/encoding/locale/size, sessions, listeners, service
+  states, data checksums, extensions, representative row counts, invalid
+  indexes, and checksums of the normal bot-backup artifacts.
+- `postgresql-config.tar.gz` contains `/etc/postgresql/12/main` and
+  `/etc/postgresql-common`, including the production HBA policy and
+  `pg_upgradecluster.d/analyze` hook.
+- `SHA256SUMS` validates every file in the archive.
+- The completed archive is approximately 115 MB.
+- Production remained on PostgreSQL 12, localhost-only, with
+  `polytopia.service` retaining PID 1480385 and zero restarts.
+- Approximately 4.0 GiB remained free after PG4.
+
+PG4 did not stop or restart PostgreSQL or the bot. Its online dumps are the
+pre-cutover recovery layer; PG5 still requires a final stopped-service backup
+immediately before the production upgrade.
+
 ## Phase PG5: maintenance-window cutover
 
 1. Confirm the bot is healthy and `polyapi.service` is inactive.
 2. Stop `polytopia.service`.
 3. Confirm no application sessions remain.
 4. Take and validate a final stopped-service cluster-wide logical backup.
-5. Stop PostgreSQL 12 and the empty PostgreSQL 18 destination.
-6. Run the rehearsed copy-mode cluster upgrade as `postgres`.
+5. Confirm no `18/main` target cluster exists.
+6. Run the rehearsed copy-mode cluster upgrade as root. The wrapper stops
+   PostgreSQL 12, creates `18/main`, performs `pg_upgrade`, moves the old
+   PostgreSQL 12 cluster to a nonproduction port, and starts PostgreSQL 18.
 7. Confirm the wrapper assigns PostgreSQL 18 the production port 5432 and
    leaves PostgreSQL 12 stopped, independent, and in manual startup mode on a
    nonproduction port.
