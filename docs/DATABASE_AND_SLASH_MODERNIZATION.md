@@ -180,20 +180,28 @@ Only one unit should normally be **In progress**.
 
 ## Current execution pointer
 
-The slash/ELO pilot is beta-validated on its feature branch. At the last
-repository check:
+The slash/ELO pilot is beta-validated and locally green on its feature branch.
+At the latest P1 repository check:
 
 - branch: `codex/slash-async-unwin-pilot`
-- worktree: clean before this document was added
-- branch position: two commits ahead of `origin/master`
 - implementation checkpoint: `a9375b3`
 - development-guild sync fix: `9a64ce1`
+- initial roadmap checkpoint: `8593183`
+- repeated-cancellation cleanup fix: `46e053e`
 - beta acceptance: all five application commands reported working
-- offline suite at the pilot checkpoint: 76 tests passed, with five gated
-  database tests skipped as designed
-- gated `polytopia_dev` suite: five tests passed
+- task-owned beta process: stopped cleanly; the foreground session exited and
+  a follow-up session poll confirmed it was gone
+- complete offline suite: 77 tests passed, with five gated database tests
+  skipped as designed
+- gated `polytopia_dev` suite: five tests passed under the required
+  `development` / `polytopia_dev` / `polybot_dev` checks
+- live-test game fixture: game `61` was deleted successfully
+- optional cleanup: unused `Team.id=9`, `Phase7 Test Team`, remains in
+  `polytopia_dev` with zero players and zero game sides
 
-Current unit: **P1 — Pilot close-out and integration**
+Current unit: **P1 — Pilot close-out and integration**, blocked only on
+approval to push/open a PR or otherwise integrate the branch into its intended
+base.
 
 Recommended next code unit after P1: **P2.1 — Separate `newgame` transaction
 work from Discord effects**. This is prioritized because inspection found a
@@ -207,7 +215,7 @@ beta process is running before starting or stopping one.
 | Phase | Status | Scope | Exit checkpoint |
 |---|---|---|---|
 | P0 | Beta-validated | Serialized ELO workers and first five slash commands | Commits `a9375b3`, `9a64ce1`; live beta acceptance |
-| P1 | In progress | Close out, review, and integrate the pilot branch | Clean tests, beta stopped if still running, reviewed branch/PR or approved merge |
+| P1 | Blocked | Local close-out complete; integration approval required | Clean tests, beta stopped, reviewed branch, then approved PR/merge |
 | P2 | Planned | Fix known game-creation transaction boundary | `newgame` workflow atomic and Discord effects post-commit |
 | P3 | Planned | Owner ELO maintenance and job observability | Typed slash maintenance interface and active-job status |
 | P4 | Planned | Game correction and metadata mutations | Bounded workers plus slash interfaces for clear typed operations |
@@ -241,27 +249,78 @@ Current limitations:
 - Short validations and many unrelated commands still query synchronously on
   the event-loop thread.
 - The pilot branch has not been recorded here as merged into `origin/master`.
+- The unused development fixture `Team.id=9` remains pending an explicit
+  cleanup decision.
 - Prefix interfaces remain required.
 
 ## P1 — Pilot close-out and integration
 
-Status: **In progress**
+Status: **Blocked**
+
+Blocker: local review and validation are complete, but push, PR creation, and
+merge require separate approval. P1 must not be marked Complete until the
+pilot commits are integrated into the intended base branch.
 
 Objective: finish the pilot as a reviewable checkpoint before adding another
 large command group.
 
 Work units:
 
-- [ ] Reverify the beta bot is stopped; if it is still running, obtain the
+- [x] Reverify the beta bot is stopped; if it is still running, obtain the
   required authority and stop only the development process cleanly.
-- [ ] Review both pilot commits for permission, transaction, cancellation, and
+- [x] Review both pilot commits for permission, transaction, cancellation, and
   command-sync regressions.
-- [ ] Run `git diff --check`.
-- [ ] Run the complete offline suite.
-- [ ] Run the gated development-database suite only through its safety gates.
-- [ ] Record any live-test fixture cleanup required in `polytopia_dev`.
+- [x] Run `git diff --check`.
+- [x] Run the complete offline suite.
+- [x] Run the gated development-database suite only through its safety gates.
+- [x] Record any live-test fixture cleanup required in `polytopia_dev`.
 - [ ] Push/open a PR or merge only when explicitly requested.
 - [ ] Record the final integration commit or PR in the progress log.
+
+Review evidence:
+
+- Worker functions open a worker-local Peewee connection, reload games from
+  primitive IDs, and keep all `db.atomic()` scopes synchronous.
+- Win, unwin, confirmation, and completed-game deletion perform Discord
+  channel/message effects only after the worker transaction returns.
+- The single coordinator promptly rejects conflicting ELO jobs and clears
+  state after success or exceptions.
+- P1 hardened repeated cancellation so the coordinator remains reserved until
+  the underlying non-cancellable worker actually finishes; focused
+  coordinator tests pass 4/4.
+- Prefix/slash permission paths preserve participant, staff, moderator, and
+  guild checks. Registration/defer/denial tests remain green, and all five
+  commands passed live beta acceptance.
+- Development command synchronization copies global definitions only into
+  guild `478571892832206869`; no global or production synchronization was
+  performed.
+- `git diff --check` is clean after removing the roadmap's extra EOF blank
+  line.
+
+Validation evidence:
+
+- `POLYBOT_ENV=development MPLCONFIGDIR=/tmp/polybot-matplotlib
+  .venv/bin/python -m unittest
+  tests.test_elo_jobs.EloJobCoordinatorTests -v`: 4 passed.
+- `POLYBOT_ENV=development MPLCONFIGDIR=/tmp/polybot-matplotlib
+  .venv/bin/python -m unittest discover -v`: 77 passed, 5 skipped because the
+  explicit database gate was not enabled.
+- `POLYBOT_ENV=development POLYBOT_RUN_DB_INTEGRATION=1
+  MPLCONFIGDIR=/tmp/polybot-matplotlib .venv/bin/python -m unittest
+  tests.test_database_integration -v`: 5 passed after confirming database
+  `polytopia_dev` and role `polybot_dev`.
+
+Remaining limitations:
+
+- Some short pre-worker validation and post-commit model reloads remain
+  synchronous on the event-loop thread; long mutation/recalculation work is
+  isolated as intended for the pilot.
+- `recalc_games_from` remains owner-only and prefix-only pending P3.
+- The unused `Phase7 Test Team` development fixture has not been deleted.
+
+Next action: obtain approval to push
+`codex/slash-async-unwin-pilot`, open a PR targeting `master`, and merge only
+after review. After integration, mark P1 Complete and begin P2.1.
 
 Exit criteria:
 
@@ -724,6 +783,21 @@ P2 and at least one P4/P5 unit reveal concrete shared requirements.
 - User reported all five slash commands worked in beta.
 - Next: close out/integrate the pilot, then P2.1.
 
+### 2026-07-29 — P1 local close-out complete
+
+- Stopped the task-owned development beta process cleanly; it was not
+  relaunched and no command synchronization was performed.
+- Reviewed transaction/connection boundaries, post-commit Discord effects,
+  coordinator cleanup, permission parity, and development-guild isolation.
+- Hardened repeated cancellation cleanup in commit `46e053e`.
+- Passed the four focused coordinator tests, the complete 77-test offline
+  suite (five gated skips), and all five explicitly gated development-database
+  tests.
+- Confirmed live-test game `61` was deleted. Recorded unused
+  `Team.id=9` / `Phase7 Test Team` as optional cleanup.
+- P1 is blocked only on approval to push/open a PR/merge. P2.1 `newgame`
+  transaction separation remains the next code unit after integration.
+
 ## Resume checklist
 
 At the start of a new or compacted task:
@@ -745,4 +819,3 @@ At the end of every unit:
 4. Record commit hashes, PR/merge state, and beta acceptance if applicable.
 5. Record limitations and the single recommended next action.
 6. Ensure the progress log has a dated entry.
-
