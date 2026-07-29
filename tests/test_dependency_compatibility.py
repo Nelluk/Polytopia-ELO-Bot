@@ -243,12 +243,14 @@ class RuntimeDependencyCompatibilityTests(unittest.TestCase):
             background_tasks_enabled=False,
             bullet_enabled=False,
             discord_token='offline-test-token',
+            environment='development',
         )
         settings_stub = ModuleType('settings')
         settings_stub.runtime_profile = runtime_profile
         settings_stub.owner_id = 1
         settings_stub.bot = None
         settings_stub.config = {}
+        settings_stub.server_ids = {'polychampions': 478571892832206869}
         settings_stub.run_tasks = False
         stubs['settings'] = settings_stub
 
@@ -276,6 +278,30 @@ class RuntimeDependencyCompatibilityTests(unittest.TestCase):
                     self.assertNotIn('modules.bullet', loaded_extensions)
                     self.assertIn('modules.games', loaded_extensions)
                     self.assertIn('modules.antiscam', loaded_extensions)
+
+                    synced = [SimpleNamespace(name='unwin')]
+                    with mock.patch.object(
+                            instance.tree, 'copy_global_to') as copy_global:
+                        with mock.patch.object(
+                                instance.tree,
+                                'sync',
+                                new=mock.AsyncMock(
+                                    return_value=synced)) as sync:
+                            result = asyncio.run(
+                                bot_module.sync_application_commands(instance)
+                            )
+
+                    self.assertIs(result, synced)
+                    development_guild = copy_global.call_args.kwargs['guild']
+                    self.assertEqual(
+                        development_guild.id,
+                        settings_stub.server_ids['polychampions'],
+                    )
+                    sync.assert_awaited_once()
+                    self.assertEqual(
+                        sync.await_args.kwargs['guild'].id,
+                        development_guild.id,
+                    )
                 finally:
                     asyncio.run(instance.close())
         finally:

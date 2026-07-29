@@ -101,6 +101,27 @@ class MyBot(commands.Bot):
         for extension in initial_extensions:
             await self.load_extension(extension)
 
+
+async def sync_application_commands(bot: commands.Bot):
+    """Sync application commands according to the selected runtime profile."""
+
+    guild = discord.Object(settings.server_ids['polychampions'])
+    if settings.runtime_profile.environment == 'development':
+        # Hybrid and app commands are registered globally by default. Copy
+        # them into the isolated development guild so Discord exposes them
+        # immediately without performing a global command sync.
+        bot.tree.copy_global_to(guild=guild)
+
+    synced_commands = await bot.tree.sync(guild=guild)
+    logger.info(
+        'Synced %d application commands to guild %d: %s',
+        len(synced_commands),
+        guild.id,
+        ', '.join(command.name for command in synced_commands) or '(none)',
+    )
+    return synced_commands
+
+
 def get_prefix(bot, message):
     # Guild-specific command prefixes
     if message.guild and message.guild.id in settings.config:
@@ -226,7 +247,7 @@ def init_bot(loop: asyncio.AbstractEventLoop = None, args: List[str] = None):
                 logger.error(f'Unauthorized guild {g.id} {g.name} not found in settings.py configuration - Leaving...')
                 await g.leave()
 
-        await bot.tree.sync(guild=discord.Object(settings.server_ids['polychampions']))
+        await sync_application_commands(bot)
 
     if loop:
         loop.create_task(bot.start(settings.runtime_profile.discord_token))
