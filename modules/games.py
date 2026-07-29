@@ -6,6 +6,8 @@ import modules.exceptions as exceptions
 import modules.achievements as achievements
 from modules import channels
 from modules import image_storage
+from modules import elo_workers
+from modules.elo_jobs import EloJobConflict
 import peewee
 import modules.models as models
 from modules.models import Game, db, Player, Team, DiscordMember, Squad, GameSide, Tribe, Lineup
@@ -963,7 +965,7 @@ class polygames(commands.Cog):
         if matchup_games:
             series_record = matchup_games[0].series_record()
             await ctx.send(f'Your local 1v1 record against this opponent: **{series_record[0][0].name()}** {series_record[0][1]} wins - **{series_record[1][0].name()}** {series_record[1][1]} wins')
-        if settings.recalculation_mode:
+        if settings.elo_job_coordinator.is_active:
             await ctx.send(f':warning: {ctx.author.mention} - I am currently recalculating the results of prior games. Results from player cards will be incomplete.')
 
     @settings.in_bot_channel()
@@ -1638,8 +1640,11 @@ class polygames(commands.Cog):
 
     @settings.in_bot_channel_strict()
     @models.is_registered_member()
-    @commands.command(usage='game_id winner_name', aliases=['lose'])
-    async def win(self, ctx, winning_game: PolyGame = None, *, winning_side_name: str = None):
+    @commands.hybrid_command(
+        usage='game_id winner',
+        aliases=['lose'],
+    )
+    async def win(self, ctx, game_id: int, *, winner: str):
         """
         Declare winner of an existing game
 
@@ -1652,115 +1657,163 @@ class polygames(commands.Cog):
         `[p]win 2050 Home` - Declare *Home* team winner of game 2050
         `[p]win 2050 Nelluk` - Declare *Nelluk* winner of game 2050
         """
-        if settings.recalculation_mode:
-            logger.info('Skipping command due to settings.recalculation_mode')
+        if ctx.interaction is not None:
+            await ctx.defer()
+
+        if settings.elo_job_coordinator.is_active:
+            logger.info('Skipping command due to active ELO job')
             return await ctx.send(f':warning: {ctx.author.mention} - I am currently recalculating the results of prior games. No new game results can be logged. Please try again in a few minutes.')
 
         usage = ('Include both game ID and the name of the winning side. Example usage:\n'
                 f'`{ctx.prefix}win 422 Nelluk`\n`{ctx.prefix}win 425 Home` *For a team game*\n')
         if ctx.invoked_with.lower() == 'lose':
             return await ctx.send(f'Games are always concluded using the `{ctx.prefix}win` command.\n{usage}')
-        if not winning_game:
-            return await ctx.send(f'{usage}\nYou can use the command `{ctx.prefix}incomplete` to view your unfinished games.')
-        if winning_game.is_pending:
-            return await ctx.send(f'Game {winning_game.id} is still a pending open game. It must be started using the `{ctx.prefix}start` command before it can be concluded.')
-        if not winning_side_name:
-            game_side_str = '\n'.join(winning_game.list_gameside_membership())
-            return await ctx.send(f'{usage}\n__Sides in this game are:__\n{game_side_str}')
 
         try:
-            winning_obj, winning_side = winning_game.gameside_by_name(name=winning_side_name)
+            winning_game = Game.get_by_id(game_id)
+        except peewee.DoesNotExist:
+            return await ctx.send(
+                f'Game with ID {game_id} cannot be found.'
+            )
+        if winning_game.guild_id != ctx.guild.id:
+            return await ctx.send(
+                f'Game with ID {game_id} is associated with a different '
+                'Discord server.'
+            )
+        if winning_game.is_pending:
+            return await ctx.send(f'Game {winning_game.id} is still a pending open game. It must be started using the `{ctx.prefix}start` command before it can be concluded.')
+
+        try:
+            _, winning_side = winning_game.gameside_by_name(
+                name=winner
+            )
             # winning_obj will be a Team or a Player depending on squad size
             # winning_side will be their GameSide
         except exceptions.MyBaseException as ex:
             return await ctx.send(f'{ex}')
 
-        reset_confirmations_flag = False
-        if winning_game.is_completed is True:
-            if winning_game.is_confirmed is True:
-                return await ctx.send(f'Game with ID {winning_game.id} is already marked as completed with winner **{winning_game.winner.name()}**')
-            elif winning_game.winner != winning_side:
-                (confirmed_count, side_count, _) = winning_game.confirmations_count()
-                await ctx.send(f':warning: Unconfirmed game with ID {winning_game.id} had previously been marked with winner **{winning_game.winner.name()}**.\n'
-                    f'{confirmed_count} of {side_count} sides had confirmed.')
-                reset_confirmations_flag = True
-
-        if winning_game.is_pending:
-            return await ctx.send('This game has not started yet.')
-
-        utilities.lock_game(winning_game.id)
-
-        models.GameLog.write(game_id=winning_game, guild_id=ctx.guild.id, message=f'Win confirm logged by {models.GameLog.member_string(ctx.author)} for winner **{discord.utils.escape_markdown(winning_obj.name)}**')
-        await winning_game.update_squad_channels(guild_list=settings.bot.guilds, guild_id=ctx.guild.id, message=f'A win claim has been placed by **{ctx.author.display_name}** for winner **{winning_obj.name}**')
-
-        has_player, author_side = winning_game.has_player(discord_id=ctx.author.id)
-        if settings.is_staff(ctx.author) and not has_player:
-            confirm_win = True
-        else:
-            if not has_player:
-                utilities.unlock_game(winning_game.id)
-                return await ctx.send('You were not a participant in this game.')
-
-            if reset_confirmations_flag:
-                winning_game.confirmations_reset()
-
-            new_confirmation = not author_side.win_confirmed  # To track if author had previously confirmed or not
-            winning_side.win_confirmed = True
-            author_side.win_confirmed = True
-            winning_side.save()
-            author_side.save()
-
-            (confirmed_count, side_count, fully_confirmed) = winning_game.confirmations_count()
-
-            if fully_confirmed:
-                await ctx.send('All sides have confirmed this victory. Good game!')
-                confirm_win = True
-            else:
-                confirm_win = False
-                printed_side_name = winning_side.name() if '@' in winning_side_name else winning_side_name
-
-                if winning_game.win_claimed_ts:
-                    # this win had previously been claimed, dont ping lineup
-                    conf_str = 'Your confirmation has been logged. ' if new_confirmation else ''
-                    await ctx.send(f'{conf_str}**Game {winning_game.id}** *{winning_game.name}* is pending confirmation: {confirmed_count} of {side_count} sides have confirmed.\n'
-                        f'Participants in the game should use the command __`{ctx.prefix}win {winning_game.id} {printed_side_name}`__ to confirm the victory.\n'
-                        f'Please post a screenshot of your victory in case there is a dispute. If this win was claimed in error please use the `{ctx.prefix}staffhelp` command., '
-                        f'or you can cancel your claim with the command `{ctx.prefix}unwin {winning_game.id}`')
-                else:
-                    winning_game.win_claimed_ts = datetime.datetime.now()
-                    winning_game.save()
-                    # first time this win has been claimed - ping lineup instructions
-                    await ctx.send(f'**Game {winning_game.id}** *{winning_game.name}* concluded pending confirmation of winner **{winning_obj.name}**\n'
-                        f'To confirm, have opponents use the command __`{ctx.prefix}win {winning_game.id} {printed_side_name}`__\n'
-                        'If opponents do not dispute the win then the game will be confirmed automatically after a period of time.\n'
-                        f'If this win was claimed falsely please use the `{ctx.prefix}staffhelp` command to contest, or you can cancel your claim with the command `{ctx.prefix}unwin {winning_game.id}`.\n'
-                        f'*Game lineup*: {" ".join(winning_game.mentions())}')
-
+        game_id = winning_game.id
+        requester_description = models.GameLog.member_string(ctx.author)
+        utilities.lock_game(game_id)
         try:
-            winning_game.declare_winner(winning_side=winning_side, confirm=confirm_win)
-        except exceptions.CheckFailedError as e:
-            utilities.unlock_game(winning_game.id)
-            await ctx.send(f'*Error*: {e}')
-        else:
-            utilities.unlock_game(winning_game.id)
-            if confirm_win:
-                logger.debug(f'in $win {winning_game.id} cleanup with confirm_win')
-                # Cleanup game channels and announce winners
-                # try/except block is attempt at a bandaid where sometimes an InterfaceError/Cursor Closed exception would hit here, probably due to issues with async code
+            async with ctx.typing():
+                result = await settings.elo_job_coordinator.run(
+                    operation='record_win',
+                    game_id=game_id,
+                    requester_id=ctx.author.id,
+                    requester_name=ctx.author.display_name,
+                    worker=elo_workers.record_win,
+                    worker_args=(
+                        game_id,
+                        ctx.guild.id,
+                        winning_side.id,
+                        ctx.author.id,
+                        requester_description,
+                        settings.is_staff(ctx.author),
+                    ),
+                )
+        except EloJobConflict as exc:
+            active_job = exc.active_job
+            return await ctx.send(
+                f':warning: {ctx.author.mention} - ELO operation '
+                f'`{active_job.operation}` for game '
+                f'`{active_job.game_id or "all"}` is already running. '
+                'Please try again in a few minutes.'
+            )
+        except elo_workers.WinValidationError as exc:
+            return await ctx.send(str(exc))
+        except exceptions.CheckFailedError as exc:
+            return await ctx.send(f'*Error*: {exc}')
+        except peewee.PeeweeException:
+            logger.exception('Database failure while processing win %s', game_id)
+            return await ctx.send(
+                f'Game {game_id} could not be updated because the database '
+                'operation failed. No Discord channel updates were made.'
+            )
+        except Exception:
+            logger.exception('Unexpected failure while processing win %s', game_id)
+            return await ctx.send(
+                f'Game {game_id} could not be updated. No Discord channel '
+                'updates were made.'
+            )
+        finally:
+            utilities.unlock_game(game_id)
 
-                try:
-                    await post_win_messaging(ctx.guild, ctx.prefix, ctx.channel, winning_game)
-                except peewee.PeeweeException as e:
-                    logger.error(f'Error during win command triggering post_win_messaging - trying to reopen and run again: {e}')
-                    db.connect(reuse_if_open=True)
-                    await post_win_messaging(ctx.guild, ctx.prefix, ctx.channel, winning_game)
-            else:
-                logger.debug(f'no confirm_win cleanup for game {winning_game.id}')
+        winning_game = Game.load_full_game(game_id=result.game_id)
+        if result.previous_winner_name is not None:
+            await ctx.send(
+                f':warning: Unconfirmed game with ID {game_id} had '
+                f'previously been marked with winner '
+                f'**{result.previous_winner_name}**.\n'
+                f'{result.previous_confirmed_count} of '
+                f'{result.previous_side_count} sides had confirmed.'
+            )
+
+        await winning_game.update_squad_channels(
+            guild_list=settings.bot.guilds,
+            guild_id=ctx.guild.id,
+            message=(
+                f'A win claim has been placed by '
+                f'**{ctx.author.display_name}** for winner '
+                f'**{result.winner_name}**'
+            ),
+        )
+
+        if result.confirmed:
+            if result.all_sides_confirmed:
+                await ctx.send(
+                    'All sides have confirmed this victory. Good game!'
+                )
+            await post_win_messaging(
+                ctx.guild,
+                ctx.prefix,
+                ctx.channel,
+                winning_game,
+            )
+            return
+
+        printed_side_name = (
+            result.winner_name
+            if '@' in winner
+            else winner
+        )
+        if result.first_claim:
+            await ctx.send(
+                f'**Game {game_id}** *{winning_game.name}* concluded '
+                f'pending confirmation of winner **{result.winner_name}**\n'
+                f'To confirm, have opponents use the command '
+                f'__`{ctx.prefix}win {game_id} {printed_side_name}`__\n'
+                'If opponents do not dispute the win then the game will be '
+                'confirmed automatically after a period of time.\n'
+                f'If this win was claimed falsely please use the '
+                f'`{ctx.prefix}staffhelp` command to contest, or you can '
+                f'cancel your claim with the command '
+                f'`{ctx.prefix}unwin {game_id}`.\n'
+                f'*Game lineup*: {" ".join(winning_game.mentions())}'
+            )
+        else:
+            conf_str = (
+                'Your confirmation has been logged. '
+                if result.new_confirmation
+                else ''
+            )
+            await ctx.send(
+                f'{conf_str}**Game {game_id}** *{winning_game.name}* is '
+                f'pending confirmation: {result.confirmed_count} of '
+                f'{result.side_count} sides have confirmed.\n'
+                f'Participants in the game should use the command '
+                f'__`{ctx.prefix}win {game_id} {printed_side_name}`__ to '
+                'confirm the victory.\n'
+                'Please post a screenshot of your victory in case there is '
+                f'a dispute. If this win was claimed in error please use the '
+                f'`{ctx.prefix}staffhelp` command, or you can cancel your '
+                f'claim with the command `{ctx.prefix}unwin {game_id}`'
+            )
 
     @settings.in_bot_channel()
     @models.is_registered_member()
-    @commands.command(usage='game_id')
-    async def unwin(self, ctx, game: PolyGame = None):
+    @commands.hybrid_command(usage='game_id')
+    async def unwin(self, ctx, game_id: int):
         """Reset a completed game to incomplete
 
         **Staff usage**:
@@ -1774,101 +1827,91 @@ class polygames(commands.Cog):
         `[p]unwin 12500`
         """
 
-        if game is None:
-            return await ctx.send('No matching game was found.')
+        if ctx.interaction is not None:
+            await ctx.defer()
 
-        if game.is_pending:
-            return await ctx.send(f'Game {game.id} is marked as *pending / not started*. This command cannot be used.')
-        if not game.is_completed:
-            return await ctx.send(f'Game {game.id} is marked as *Incomplete*. This command cannot be used.')
+        coordinator = settings.elo_job_coordinator
+        active_job = coordinator.active_job
+        if active_job is not None:
+            logger.info('Skipping unwin due to active ELO job: %s', active_job)
+            return await ctx.send(
+                f':warning: {ctx.author.mention} - ELO operation '
+                f'`{active_job.operation}` for game '
+                f'`{active_job.game_id or "all"}` is already running. '
+                'Please try again in a few minutes.'
+            )
 
-        if settings.recalculation_mode:
-            logger.info('Skipping command due to settings.recalculation_mode')
-            return await ctx.send(f':warning: {ctx.author.mention} - I am currently recalculating the results of prior games. No new game results can be logged. Please try again in a few minutes.')
+        requester_description = models.GameLog.member_string(ctx.author)
+        lock_acquired = False
 
-        if settings.is_staff(ctx.author):
-            # Staff usage: reset any game to Incomplete state
-            game.confirmations_reset()
-            utilities.lock_game(game.id)
-            models.GameLog.write(game_id=game, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} staffer used unwin command.')
-            if game.is_completed and game.is_confirmed:
-                elo_logger.debug(f'unwin game {game.id}')
-                async with ctx.typing():
-                    with db.atomic():
-                        timestamp = game.completed_ts
-                        game.reverse_elo_changes()
-                        game.completed_ts = None
-                        game.is_confirmed = False
-                        game.is_completed = False
-                        game.winner = None
-                        game.save()
+        def lock_game():
+            nonlocal lock_acquired
+            utilities.lock_game(game_id)
+            lock_acquired = True
 
-                        await post_unwin_messaging(ctx.guild, ctx.prefix, ctx.channel, game, previously_confirmed=True)
-                        if game.is_ranked:
-                            settings.recalculation_mode = True
-                            Game.recalculate_elo_since(timestamp=timestamp)
-                            elo_logger.debug(f'unwin game {game.id} completed')
-                            settings.recalculation_mode = False
-                            utilities.unlock_game(game.id)
-                            return await ctx.send(f'Game {game.id} has been marked as *Incomplete*. ELO changes have been reverted and ELO from all subsequent games recalculated.')
+        def unlock_game():
+            if lock_acquired:
+                utilities.unlock_game(game_id)
 
-                        else:
-                            elo_logger.debug(f'unwin game {game.id} completed (unranked)')
-                            utilities.unlock_game(game.id)
-                            return await ctx.send(f'Unranked game {game.id} has been marked as *Incomplete*.')
+        try:
+            async with ctx.typing():
+                result = await coordinator.run(
+                    operation='unwin',
+                    game_id=game_id,
+                    requester_id=ctx.author.id,
+                    requester_name=ctx.author.display_name,
+                    worker=elo_workers.unwin_game,
+                    worker_args=(
+                        game_id,
+                        ctx.guild.id,
+                        ctx.author.id,
+                        requester_description,
+                        settings.is_staff(ctx.author),
+                    ),
+                    before_submit=lock_game,
+                    after_complete=unlock_game,
+                )
+        except EloJobConflict as exc:
+            active_job = exc.active_job
+            return await ctx.send(
+                f':warning: {ctx.author.mention} - ELO operation '
+                f'`{active_job.operation}` for game '
+                f'`{active_job.game_id or "all"}` is already running. '
+                'Please try again in a few minutes.'
+            )
+        except elo_workers.UnwinValidationError as exc:
+            return await ctx.send(str(exc))
+        except peewee.PeeweeException:
+            logger.exception('Database failure while processing unwin %s', game_id)
+            return await ctx.send(
+                f'Game {game_id} could not be reset because the database '
+                'operation failed. No Discord channel updates were made.'
+            )
+        except Exception:
+            logger.exception('Unexpected failure while processing unwin %s', game_id)
+            return await ctx.send(
+                f'Game {game_id} could not be reset. No Discord channel '
+                'updates were made.'
+            )
 
-            elif game.is_completed:
-                # Unconfirmed win
-                game.completed_ts = None
-                game.is_completed = False
-                game.winner = None
-                game.save()
-                await post_unwin_messaging(ctx.guild, ctx.prefix, ctx.channel, game, previously_confirmed=False)
-                utilities.unlock_game(game.id)
-                return await ctx.send(f'Unconfirmed Game {game.id} has been marked as *Incomplete*.')
-
-            else:
-                return await ctx.send(f'Game {game.id} does not have a confirmed winner.')
-        else:
-            # non-staff usage: remove your own claim on a game's win
-            has_player, author_side = game.has_player(discord_id=ctx.author.id)
-            if not has_player:
-                return await ctx.send(f'You are not a player in game {game.id} and do not have server staff permissions.')
-            if game.is_confirmed:
-                return await ctx.send(f'Game {game.id} has been confirmed already. Only server staff can use this command on confirmed games.')
-            if not author_side.win_confirmed:
-                return await ctx.send(f'Your side **{author_side.name()}** has no record of confirming a win from game {game.id} - this command cannot be used.')
-            if game.is_pending:
-                return await ctx.send(f'Game {game.id} is marked as *pending / not started*. This command cannot be used.')
-
-            utilities.lock_game(game.id)
-            if author_side == game.winner:
-                logger.debug(f'Player {ctx.author.name} is removing their own win claim on game {game.id}')
-                models.GameLog.write(game_id=game, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} removes their self-win claim and confirmations have reset.')
-                game.confirmations_reset()
-                game.completed_ts = None
-                game.is_completed = False
-                game.winner = None
-                game.save()
-                await post_unwin_messaging(ctx.guild, ctx.prefix, ctx.channel, game, previously_confirmed=False)
-                utilities.unlock_game(game.id)
-                return await ctx.send(f'Your unconfirmed win in game {game.id} has been reset and the game is now marked as *Incomplete*.')
-            else:
-                # author removing win claim for a game pointing at another side as the winner
-                logger.debug(f'Player {ctx.author.name} is removing win claim on game {game.id}')
-                models.GameLog.write(game_id=game, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} removed their confirmation of the game winner.')
-                author_side.win_confirmed = False
-                author_side.save()
-
-                (confirmed_count, side_count, fully_confirmed) = game.confirmations_count()
-                utilities.unlock_game(game.id)
-                return await ctx.send(f'Your confirmation that **{game.winner.name()}** won game {game.id} has been *removed*. The win is still pending confirmation. '
-                    f'{confirmed_count} of {side_count} sides are marked as confirming.')
+        if result.post_unwin_messaging:
+            game = Game.load_full_game(game_id=result.game_id)
+            await post_unwin_messaging(
+                ctx.guild,
+                ctx.prefix,
+                ctx.channel,
+                game,
+                previously_confirmed=result.previously_confirmed,
+            )
+        await ctx.send(result.message)
 
     @settings.in_bot_channel()
     @models.is_registered_member()
-    @commands.command(usage='game_id', aliases=['delete_game', 'delgame', 'delmatch', 'deletegame'])
-    async def delete(self, ctx, game: PolyGame = None):
+    @commands.hybrid_command(
+        usage='game_id',
+        aliases=['delete_game', 'delgame', 'delmatch', 'deletegame'],
+    )
+    async def delete(self, ctx, game_id: int):
         """Deletes a game
 
         You can delete a game if you are the host and is has not started yet.
@@ -1877,9 +1920,20 @@ class polygames(commands.Cog):
         `[p]deletegame 25`
         """
 
-        if not game:
-            return await ctx.send(f'Game ID not provided. Usage: __`{ctx.prefix}delete GAME_ID`__')
-        gid = game.id
+        if ctx.interaction is not None:
+            await ctx.defer()
+
+        try:
+            game = Game.get_by_id(game_id)
+        except peewee.DoesNotExist:
+            return await ctx.send(
+                f'Game with ID {game_id} cannot be found.'
+            )
+        if game.guild_id != ctx.guild.id:
+            return await ctx.send(
+                f'Game with ID {game_id} is associated with a different '
+                'Discord server.'
+            )
 
         mention_list = game.mentions()
         if game.is_pending:
@@ -1902,27 +1956,136 @@ class polygames(commands.Cog):
         if not settings.is_mod(ctx.author):
             return await ctx.send('Only server mods can delete completed or in-progress games.')
 
-        utilities.lock_game(gid)
-        if game.winner and game.is_confirmed and game.is_ranked:
-            await ctx.send(f'Deleting game with ID {game.id} and re-calculating ELO for all subsequent games. This will take a few seconds.')
+        active_job = settings.elo_job_coordinator.active_job
+        if active_job is not None:
+            return await ctx.send(
+                f':warning: ELO operation `{active_job.operation}` for game '
+                f'`{active_job.game_id or "all"}` is already running. '
+                'Please try again later.'
+            )
 
-        if game.announcement_message:
+        channel_targets = []
+        old_4d = datetime.datetime.now() + datetime.timedelta(days=-4)
+        skip_channel_deletion = game.is_season_game() or (
+            game.notes
+            and 'NOVA RED' in game.notes.upper()
+            and 'NOVA BLUE' in game.notes.upper()
+            and game.completed_ts
+            and game.completed_ts > old_4d
+        )
+        if not skip_channel_deletion:
+            for gameside in game.gamesides:
+                if not gameside.team_chan:
+                    continue
+                target_guild_id = (
+                    gameside.team_chan_external_server or ctx.guild.id
+                )
+                target_guild = discord.utils.get(
+                    self.bot.guilds,
+                    id=target_guild_id,
+                )
+                if target_guild is not None:
+                    channel_targets.append(
+                        (target_guild, gameside.team_chan)
+                    )
+            if game.game_chan:
+                channel_targets.append((ctx.guild, game.game_chan))
+
+        announcement_plan = None
+        if game.announcement_message and game.announcement_channel:
             game.name = f'~~{game.name}~~ GAME DELETED'
-            await game.update_announcement(guild=ctx.guild, prefix=ctx.prefix)
+            embed, content = game.embed(
+                guild=ctx.guild,
+                prefix=ctx.prefix,
+            )
+            announcement_plan = (
+                game.announcement_channel,
+                game.announcement_message,
+                embed,
+                content,
+            )
 
-        await game.delete_game_channels(self.bot.guilds, ctx.guild.id)
-        models.GameLog.write(game_id=game, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} deleted the game.')
+        requester_description = models.GameLog.member_string(ctx.author)
+        utilities.lock_game(game_id)
 
         try:
             async with ctx.typing():
-                await asyncio.get_running_loop().run_in_executor(None, game.delete_game)
-                # Allows bot to remain responsive while this large operation is running.
-                await ctx.send(f'Game with ID {gid} has been deleted and team/player ELO changes have been reverted, if applicable.\nNotifying players: {" ".join(mention_list)}')
-        except discord.errors.NotFound:
-            logger.warning('Game deleted while in game-related channel')
-            await asyncio.get_running_loop().run_in_executor(None, game.delete_game)
+                result = await settings.elo_job_coordinator.run(
+                    operation='delete_game',
+                    game_id=game_id,
+                    requester_id=ctx.author.id,
+                    requester_name=ctx.author.display_name,
+                    worker=elo_workers.delete_game,
+                    worker_args=(
+                        game_id,
+                        ctx.guild.id,
+                        requester_description,
+                    ),
+                )
+        except EloJobConflict as exc:
+            active_job = exc.active_job
+            return await ctx.send(
+                f'ELO operation `{active_job.operation}` for game '
+                f'`{active_job.game_id or "all"}` is already running.'
+            )
+        except elo_workers.DeleteValidationError as exc:
+            return await ctx.send(str(exc))
+        except peewee.PeeweeException:
+            logger.exception(
+                'Database failure deleting game %s', game_id
+            )
+            return await ctx.send(
+                'Game deletion failed and rolled back. No Discord channel '
+                'updates were made.'
+            )
+        except Exception:
+            logger.exception(
+                'Unexpected failure deleting game %s', game_id
+            )
+            return await ctx.send(
+                'Game deletion failed. No Discord channel updates were made.'
+            )
+        finally:
+            utilities.unlock_game(game_id)
 
-        utilities.unlock_game(gid)
+        if announcement_plan is not None:
+            (
+                announcement_channel_id,
+                announcement_message_id,
+                embed,
+                content,
+            ) = announcement_plan
+            announcement_channel = ctx.guild.get_channel(
+                announcement_channel_id
+            )
+            if announcement_channel is not None:
+                try:
+                    announcement = await announcement_channel.fetch_message(
+                        announcement_message_id
+                    )
+                    await image_storage.edit_game_embed(
+                        announcement,
+                        game,
+                        embed=embed,
+                        content=content,
+                    )
+                except discord.DiscordException:
+                    logger.warning(
+                        'Could not update announcement for deleted game %s',
+                        game_id,
+                    )
+
+        await ctx.send(
+            f'Game with ID {result.game_id} has been deleted and team/player '
+            'ELO changes have been reverted, if applicable.\n'
+            f'Notifying players: {" ".join(mention_list)}'
+        )
+
+        for target_guild, channel_id in channel_targets:
+            await channels.delete_game_channel(
+                target_guild,
+                channel_id=channel_id,
+            )
 
     @commands.command(usage='game_id "New Name"')
     @models.is_registered_member()

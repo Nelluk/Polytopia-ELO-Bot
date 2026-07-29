@@ -5,6 +5,7 @@ from discord.ext import commands
 import discord
 import re
 from runtime_config import get_runtime_profile
+from modules.elo_jobs import elo_job_coordinator
 
 logger = logging.getLogger('polybot.' + __name__)
 
@@ -28,7 +29,6 @@ config = server_settings.server_list  # list of allowed servers and server-level
 bot = None
 run_tasks = runtime_profile.background_tasks_enabled
 maintenance_mode = False  # if set as True bot will ignore all commands (TODO: respond to all commands?)
-recalculation_mode = False  # If set as True during a long recalculation (unwin an old game) - prevent any $win or $unwin commands
 team_elo_reset_date = '1/1/2020'
 
 moonrise_reset_date = datetime.date(2020, 12, 1)

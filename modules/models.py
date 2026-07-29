@@ -2647,34 +2647,37 @@ class Game(BaseModel):
 
         logger.warning('Resetting and recalculating all ELO')
         elo_logger.info('recalculate_all_elo')
-        settings.recalculation_mode = True
+        with settings.elo_job_coordinator.claimed(
+            operation='recalculate_all_elo',
+            game_id=None,
+            requester_id=None,
+            requester_name='command line',
+        ):
+            with db.atomic():
+                Player.update(elo=1000, elo_max=1000, elo_alltime=1000, elo_max_alltime=1000, elo_moonrise=1000, elo_max_moonrise=1000).execute()
+                Team.update(elo=1000, elo_alltime=1000).execute()
+                DiscordMember.update(elo=1000, elo_max=1000, elo_alltime=1000, elo_max_alltime=1000, elo_moonrise=1000, elo_max_moonrise=1000).execute()
+                Squad.update(elo=1000).execute()
 
-        with db.atomic():
-            Player.update(elo=1000, elo_max=1000, elo_alltime=1000, elo_max_alltime=1000, elo_moonrise=1000, elo_max_moonrise=1000).execute()
-            Team.update(elo=1000, elo_alltime=1000).execute()
-            DiscordMember.update(elo=1000, elo_max=1000, elo_alltime=1000, elo_max_alltime=1000, elo_moonrise=1000, elo_max_moonrise=1000).execute()
-            Squad.update(elo=1000).execute()
+                bot_members = DiscordMember.select().where(
+                    DiscordMember.discord_id.in_([settings.bot_id, settings.bot_id_beta])
+                )
+                bot_update1 = Player.update(elo=0, elo_max=0, elo_alltime=0, elo_max_alltime=0, elo_moonrise=0, elo_max_moonrise=0).where(Player.discord_member_id.in_(bot_members))
+                bot_update2 = DiscordMember.update(elo=0, elo_max=0, elo_alltime=0, elo_max_alltime=0, elo_moonrise=0, elo_max_moonrise=0).where(DiscordMember.id.in_(bot_members))
+                logger.info(f'Updating {bot_update1.execute()} bot Player records with 0 elo and {bot_update2.execute()} bot DiscordMember records with 0 elo.')
 
-            bot_members = DiscordMember.select().where(
-                DiscordMember.discord_id.in_([settings.bot_id, settings.bot_id_beta])
-            )
-            bot_update1 = Player.update(elo=0, elo_max=0, elo_alltime=0, elo_max_alltime=0, elo_moonrise=0, elo_max_moonrise=0).where(Player.discord_member_id.in_(bot_members))
-            bot_update2 = DiscordMember.update(elo=0, elo_max=0, elo_alltime=0, elo_max_alltime=0, elo_moonrise=0, elo_max_moonrise=0).where(DiscordMember.id.in_(bot_members))
-            logger.info(f'Updating {bot_update1.execute()} bot Player records with 0 elo and {bot_update2.execute()} bot DiscordMember records with 0 elo.')
+                Game.update(is_completed=0, is_confirmed=0).where(
+                    (Game.is_confirmed == 1) & (Game.winner.is_null(False)) & (Game.is_ranked == 1) & (Game.completed_ts.is_null(False))
+                ).execute()  # Resets completed game counts for players/squads/team ELO bonuses
 
-            Game.update(is_completed=0, is_confirmed=0).where(
-                (Game.is_confirmed == 1) & (Game.winner.is_null(False)) & (Game.is_ranked == 1) & (Game.completed_ts.is_null(False))
-            ).execute()  # Resets completed game counts for players/squads/team ELO bonuses
+                games = Game.select().where(
+                    (Game.is_completed == 0) & (Game.completed_ts.is_null(False)) & (Game.winner.is_null(False)) & (Game.is_ranked == 1)
+                ).order_by(Game.completed_ts)
 
-            games = Game.select().where(
-                (Game.is_completed == 0) & (Game.completed_ts.is_null(False)) & (Game.winner.is_null(False)) & (Game.is_ranked == 1)
-            ).order_by(Game.completed_ts)
+                for game in games:
+                    full_game = Game.load_full_game(game_id=game.id)
+                    full_game.declare_winner(winning_side=full_game.winner, confirm=True)
 
-            for game in games:
-                full_game = Game.load_full_game(game_id=game.id)
-                full_game.declare_winner(winning_side=full_game.winner, confirm=True)
-
-        settings.recalculation_mode = False
         elo_logger.info('recalculate_all_elo complete')
 
     def first_open_side(self, roles):

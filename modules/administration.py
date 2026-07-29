@@ -10,14 +10,28 @@ import datetime
 import asyncio
 import discord
 import re
+import functools
 from modules.games import PolyGame, post_win_messaging
 import modules.achievements as achievements
+from modules import elo_workers
+from modules.elo_jobs import EloJobConflict
 
 logger = logging.getLogger('polybot.' + __name__)
 elo_logger = logging.getLogger('polybot.elo')
 
 PURGE_WARNING_DAYS = 3
 PURGE_WARNING_MARKER = 'AUTO_PURGE_WARNING_SENT'
+
+
+def load_unconfirmed_game_summaries(guild_id: int):
+    """Load display-only unconfirmed game data on a local connection."""
+
+    with models.db.connection_context():
+        game_query = models.Game.search(
+            status_filter=5,
+            guild_id=guild_id,
+        ).order_by(models.Game.win_claimed_ts)
+        return utilities.summarize_game_list(game_query)
 
 
 class administration(commands.Cog):
@@ -38,13 +52,58 @@ class administration(commands.Cog):
                 await ctx.send('You do not have permission to use this command.')
                 return False
 
+    async def _run_confirm_game_job(
+        self,
+        *,
+        game_id: int,
+        guild_id: int,
+        requester_id: int | None,
+        requester_name: str,
+    ):
+        utilities.lock_game(game_id)
+        try:
+            return await settings.elo_job_coordinator.run(
+                operation='confirm_game',
+                game_id=game_id,
+                requester_id=requester_id,
+                requester_name=requester_name,
+                worker=elo_workers.confirm_game,
+                worker_args=(game_id, guild_id),
+            )
+        finally:
+            utilities.unlock_game(game_id)
+
+    async def _confirm_game_and_post(
+        self,
+        *,
+        game_id: int,
+        guild,
+        prefix: str,
+        channel,
+        requester,
+    ):
+        result = await self._run_confirm_game_job(
+            game_id=game_id,
+            guild_id=guild.id,
+            requester_id=requester.id,
+            requester_name=requester.display_name,
+        )
+        winning_game = models.Game.load_full_game(result.game_id)
+        await post_win_messaging(
+            guild,
+            prefix,
+            channel,
+            winning_game,
+        )
+        return result
+
     @settings.is_superuser_check()
     @commands.command(aliases=['quit', 'restart_force'])
     async def restart(self, ctx):
         """ *Owner*: Close database connection and quit bot gracefully """
 
-        if settings.recalculation_mode and ctx.invoked_with != 'restart_force':
-            logger.info('Skipping command due to settings.recalculation_mode')
+        if settings.elo_job_coordinator.is_active and ctx.invoked_with != 'restart_force':
+            logger.info('Skipping command due to active ELO job')
             return await ctx.send(f':warning: {ctx.author.mention} - I am currently recalculating the results of prior games. A restart seems like a bad idea. Force restart with `{ctx.prefix}restart_force`')
 
         settings.maintenance_mode = True
@@ -185,15 +244,20 @@ class administration(commands.Cog):
 
         if arg is None:
             # display list of unconfirmed games
-            game_query = models.Game.search(status_filter=5, guild_id=ctx.guild.id).order_by(models.Game.win_claimed_ts)
-            game_list = utilities.summarize_game_list(game_query)
+            game_list = await asyncio.get_running_loop().run_in_executor(
+                None,
+                functools.partial(
+                    load_unconfirmed_game_summaries,
+                    ctx.guild.id,
+                ),
+            )
             if len(game_list) == 0:
                 return await ctx.send('No unconfirmed games found.')
             await utilities.paginate(self.bot, ctx, title=f'{len(game_list)} unconfirmed games', message_list=game_list, page_start=0, page_end=15, page_size=15)
             return
 
-        if settings.recalculation_mode:
-            logger.info('Skipping command due to settings.recalculation_mode')
+        if settings.elo_job_coordinator.is_active:
+            logger.info('Skipping command due to active ELO job')
             return await ctx.send(f':warning: {ctx.author.mention} - I am currently recalculating the results of prior games. No new game results can be logged. Please try again in a few minutes.')
 
         if arg.lower() == 'auto':
@@ -209,18 +273,145 @@ class administration(commands.Cog):
         if winning_game.is_confirmed:
             return await ctx.send(f'Game with ID {winning_game.id} is already confirmed as completed with winner **{winning_game.winner.name()}**')
 
-        utilities.lock_game(winning_game.id)
+        try:
+            async with ctx.typing():
+                result = await self._confirm_game_and_post(
+                    game_id=winning_game.id,
+                    guild=ctx.guild,
+                    prefix=ctx.prefix,
+                    channel=ctx.channel,
+                    requester=ctx.author,
+                )
+        except EloJobConflict as exc:
+            active_job = exc.active_job
+            return await ctx.send(
+                f'ELO operation `{active_job.operation}` for game '
+                f'`{active_job.game_id or "all"}` is already running.'
+            )
+        except elo_workers.WinValidationError as exc:
+            return await ctx.send(str(exc))
+        except exceptions.CheckFailedError as exc:
+            return await ctx.send(f'*Error*: {exc}')
+        except peewee.PeeweeException:
+            logger.exception(
+                'Database failure confirming game %s', winning_game.id
+            )
+            return await ctx.send(
+                'Game confirmation failed and rolled back. No Discord '
+                'channel updates were made.'
+            )
 
-        winning_game.declare_winner(winning_side=winning_game.winner, confirm=True)
-        await post_win_messaging(ctx.guild, ctx.prefix, ctx.channel, winning_game)
-        utilities.unlock_game(winning_game.id)
-        await ctx.send(f'**Game {winning_game.id}** winner has been confirmed as **{winning_game.winner.name()}**')  # Added here to try to fix InterfaceError Cursor Closed - seems to fix if there is output at the end
+        await ctx.send(
+            f'**Game {result.game_id}** winner has been confirmed as '
+            f'**{result.winner_name}**'
+        )
+
+    @discord.app_commands.command(
+        name='confirm',
+        description='Confirm the claimed winner of a game.',
+    )
+    @discord.app_commands.guild_only()
+    async def confirm_slash(
+        self,
+        interaction: discord.Interaction,
+        game_id: int,
+    ):
+        if not settings.is_staff(interaction.user):
+            return await interaction.response.send_message(
+                'You do not have permission to use this command.',
+                ephemeral=True,
+            )
+
+        await interaction.response.defer()
+        prefix = settings.guild_setting(
+            interaction.guild.id,
+            'command_prefix',
+        )
+        try:
+            result = await self._confirm_game_and_post(
+                game_id=game_id,
+                guild=interaction.guild,
+                prefix=prefix,
+                channel=interaction.channel,
+                requester=interaction.user,
+            )
+        except EloJobConflict as exc:
+            active_job = exc.active_job
+            return await interaction.followup.send(
+                f'ELO operation `{active_job.operation}` for game '
+                f'`{active_job.game_id or "all"}` is already running.'
+            )
+        except elo_workers.WinValidationError as exc:
+            return await interaction.followup.send(str(exc))
+        except exceptions.CheckFailedError as exc:
+            return await interaction.followup.send(f'*Error*: {exc}')
+        except peewee.PeeweeException:
+            logger.exception(
+                'Database failure confirming game %s from slash command',
+                game_id,
+            )
+            return await interaction.followup.send(
+                'Game confirmation failed and rolled back. No Discord '
+                'channel updates were made.'
+            )
+
+        await interaction.followup.send(
+            f'**Game {result.game_id}** winner has been confirmed as '
+            f'**{result.winner_name}**'
+        )
+
+    @discord.app_commands.command(
+        name='unconfirmed',
+        description='List games with claimed but unconfirmed winners.',
+    )
+    @discord.app_commands.guild_only()
+    async def unconfirmed_slash(
+        self,
+        interaction: discord.Interaction,
+    ):
+        if not settings.is_staff(interaction.user):
+            return await interaction.response.send_message(
+                'You do not have permission to use this command.',
+                ephemeral=True,
+            )
+
+        await interaction.response.defer()
+        game_list = await asyncio.get_running_loop().run_in_executor(
+            None,
+            functools.partial(
+                load_unconfirmed_game_summaries,
+                interaction.guild.id,
+            ),
+        )
+        if not game_list:
+            return await interaction.followup.send(
+                'No unconfirmed games found.'
+            )
+
+        for page_start in range(0, len(game_list), 25):
+            page = game_list[page_start:page_start + 25]
+            embed = discord.Embed(
+                title=f'{len(game_list)} unconfirmed games'
+            )
+            for name, value in page:
+                embed.add_field(
+                    name=name[:256],
+                    value=value[:1024],
+                    inline=False,
+                )
+            embed.set_footer(
+                text=(
+                    f'{page_start + 1} - '
+                    f'{page_start + len(page)} of {len(game_list)}'
+                )
+            )
+            await interaction.followup.send(embed=embed)
 
     async def confirm_auto(self, guild, prefix, current_channel):
         logger.info(f'in confirm_auto with guild {guild} prefix {prefix} current_channel {current_channel}')
 
-        if settings.recalculation_mode:
-            logger.info('Skipping confirm_auto due to settings.recalculation_mode')
+        if settings.elo_job_coordinator.is_active:
+            logger.info('Skipping confirm_auto due to active ELO job')
             return (0, 0)
 
         game_query = models.Game.search(status_filter=5, guild_id=guild.id).order_by(models.Game.win_claimed_ts)
@@ -238,34 +429,60 @@ class administration(commands.Cog):
                 logger.error(f'Game {game.id} does not have a value for win_claimed_ts - cannot auto confirm.')
                 continue
 
-            try:
-                utilities.lock_game(game.id)
-            except exceptions.RecordLocked:
-                logger.info(f'Cannot auto-confirm game {game.id} - it is locked')
+            confirmation_reason = None
+            if game.is_ranked and game.win_claimed_ts < old_24h:
+                confirmation_reason = (
+                    'Ranked win claimed more than 24 hours ago.'
+                )
+            elif not game.is_ranked and game.win_claimed_ts < old_6h:
+                confirmation_reason = (
+                    'Unranked win claimed more than 6 hours ago.'
+                )
+            elif side_count < 5 and confirmed_count > 1:
+                confirmation_reason = 'Due to partial confirmations.'
+            elif side_count >= 5 and confirmed_count > 2:
+                confirmation_reason = 'Due to partial confirmations.'
+
+            if confirmation_reason is None:
                 continue
 
-            if game.is_ranked and game.win_claimed_ts < old_24h:
-                game.declare_winner(winning_side=game.winner, confirm=True)
-                await post_win_messaging(guild, prefix, current_channel, game)
-                games_confirmed += 1
-                await current_channel.send(f'Game {game.id} auto-confirmed. Ranked win claimed more than 24 hours ago. {confirmed_count} of {side_count} sides had confirmed.')
-            elif not game.is_ranked and game.win_claimed_ts < old_6h:
-                game.declare_winner(winning_side=game.winner, confirm=True)
-                await post_win_messaging(guild, prefix, current_channel, game)
-                games_confirmed += 1
-                await current_channel.send(f'Game {game.id} auto-confirmed. Unranked win claimed more than 6 hours ago. {confirmed_count} of {side_count} sides had confirmed.')
-            elif side_count < 5 and confirmed_count > 1:
-                game.declare_winner(winning_side=game.winner, confirm=True)
-                await post_win_messaging(guild, prefix, current_channel, game)
-                games_confirmed += 1
-                await current_channel.send(f'Game {game.id} auto-confirmed due to partial confirmations. {confirmed_count} of {side_count} sides had confirmed.')
-            elif side_count >= 5 and confirmed_count > 2:
-                game.declare_winner(winning_side=game.winner, confirm=True)
-                await post_win_messaging(guild, prefix, current_channel, game)
-                games_confirmed += 1
-                await current_channel.send(f'Game {game.id} auto-confirmed due to partial confirmations. {confirmed_count} of {side_count} sides had confirmed.')
+            try:
+                result = await self._run_confirm_game_job(
+                    game_id=game.id,
+                    guild_id=guild.id,
+                    requester_id=None,
+                    requester_name='automatic confirmation task',
+                )
+            except exceptions.RecordLocked:
+                logger.info(
+                    'Cannot auto-confirm game %s - it is locked', game.id
+                )
+                continue
+            except EloJobConflict:
+                logger.info(
+                    'Stopping auto-confirm because another ELO job started'
+                )
+                break
+            except (
+                elo_workers.WinValidationError,
+                exceptions.CheckFailedError,
+                peewee.PeeweeException,
+            ):
+                logger.exception('Could not auto-confirm game %s', game.id)
+                continue
 
-            utilities.unlock_game(game.id)
+            confirmed_game = models.Game.load_full_game(result.game_id)
+            await post_win_messaging(
+                guild,
+                prefix,
+                current_channel,
+                confirmed_game,
+            )
+            games_confirmed += 1
+            await current_channel.send(
+                f'Game {game.id} auto-confirmed. {confirmation_reason} '
+                f'{confirmed_count} of {side_count} sides had confirmed.'
+            )
 
         logger.debug(f'confirm_auto processed {unconfirmed_count} and confirmed {games_confirmed} games.')
         return (unconfirmed_count, games_confirmed)
@@ -332,8 +549,8 @@ class administration(commands.Cog):
             await asyncio.sleep(8)
             logger.debug('Task running: task_confirm_auto')
 
-            if settings.recalculation_mode:
-                logger.debug('Skipping task_confirm_auto since settings.recalculation_mode is set to True.')
+            if settings.elo_job_coordinator.is_active:
+                logger.debug('Skipping task_confirm_auto while an ELO job is active.')
             else:
                 utilities.connect()
                 for guild in self.bot.guilds:
@@ -1091,7 +1308,6 @@ class administration(commands.Cog):
         Give a game ID, and the bot will *recalculate_elo_since* all games completed after that game was completed.
         """
 
-        import functools
         game = models.Game.get_or_none(id=arg)
         if not game:
             return await ctx.send(f'no game found for id {arg}')
@@ -1101,12 +1317,36 @@ class administration(commands.Cog):
             return await ctx.send(f'Game {game.id} is not completed. Choose a completed game.')
 
         await ctx.send('This may take a while...')
-        settings.recalculation_mode = True
-        async with ctx.typing():
-            await asyncio.get_running_loop().run_in_executor(None, functools.partial(models.Game.recalculate_elo_since, timestamp=game.completed_ts))
-            # Allows bot to remain responsive while this large operation is running.
-            await ctx.send(f'DB has been refreshed from {game.completed_ts} onward')
-            settings.recalculation_mode = False
+        try:
+            async with ctx.typing():
+                timestamp = await settings.elo_job_coordinator.run(
+                    operation='recalc_games_from',
+                    game_id=game.id,
+                    requester_id=ctx.author.id,
+                    requester_name=ctx.author.display_name,
+                    worker=elo_workers.recalculate_games_from,
+                    worker_args=(game.id,),
+                )
+        except EloJobConflict as exc:
+            active_job = exc.active_job
+            return await ctx.send(
+                f'ELO operation `{active_job.operation}` for game '
+                f'`{active_job.game_id or "all"}` is already running.'
+            )
+        except elo_workers.RecalculationValidationError as exc:
+            return await ctx.send(str(exc))
+        except peewee.PeeweeException:
+            logger.exception(
+                'Database failure recalculating games from %s', game.id
+            )
+            return await ctx.send('Database recalculation failed and rolled back.')
+        except Exception:
+            logger.exception(
+                'Unexpected failure recalculating games from %s', game.id
+            )
+            return await ctx.send('Database recalculation failed and rolled back.')
+
+        await ctx.send(f'DB has been refreshed from {timestamp} onward')
 
     @commands.command(aliases=['migrate'])
     @settings.is_superuser_check()
