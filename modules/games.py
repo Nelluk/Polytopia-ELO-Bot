@@ -7,6 +7,7 @@ import modules.achievements as achievements
 from modules import channels
 from modules import image_storage
 from modules import elo_workers
+from modules import game_workers
 from modules.elo_jobs import EloJobConflict
 import peewee
 import modules.models as models
@@ -1603,40 +1604,51 @@ class polygames(commands.Cog):
             'All input checks passed. Creating new game records with args: '
             f'{args}'
         )
-        newgame = None
-        with db.atomic():
-            try:
-                newgame, warnings = Game.create_game(
-                    discord_groups, name=game_name, is_ranked=ranked_flag,
-                    guild_id=ctx.guild.id, is_mobile=is_mobile,
-                    mod_override=settings.is_mod(ctx.author)
+        request = game_workers.NewGameRequest(
+            guild_id=ctx.guild.id,
+            name=game_name,
+            is_ranked=ranked_flag,
+            is_mobile=is_mobile,
+            mod_override=settings.is_mod(ctx.author),
+            requester_id=ctx.author.id,
+            requester_name=ctx.author.name,
+            requester_nick=ctx.author.nick,
+            requester_description=models.GameLog.member_string(ctx.author),
+            invoked_with=ctx.invoked_with,
+            escaped_game_name=discord.utils.escape_markdown(game_name),
+            sides=tuple(
+                tuple(
+                    game_workers.NewGameParticipant(
+                        discord_id=member.id,
+                        discord_name=member.name,
+                        discord_nick=member.nick,
+                        display_name=member.display_name,
+                        role_names=tuple(role.name for role in member.roles),
+                    )
+                    for member in group
                 )
-                if warnings:
-                    await ctx.send('\n'.join(warnings))
-                host_player, _ = Player.get_by_discord_id(
-                    discord_id=ctx.author.id, guild_id=ctx.guild.id, discord_name=ctx.author.name, discord_nick=ctx.author.nick
-                )
-                if host_player:
-                    newgame.host = host_player
-                    newgame.save()
-                else:
-                    logger.error('Could not add host for newgame')
-            except (peewee.PeeweeException, exceptions.CheckFailedError) as e:
-                logger.error(f'Error creating new game: {e}')
-                await ctx.send(f'Error creating new game: {e}')
-            except ValueError as e:
-                await ctx.send(e)
-
-        if newgame:
-            models.GameLog.write(
-                game_id=newgame, guild_id=ctx.guild.id,
-                message=(
-                    f'{models.GameLog.member_string(ctx.author)} created '
-                    f'game with `{ctx.invoked_with}` command with name '
-                    f'*{discord.utils.escape_markdown(newgame.name)}*'
-                )
+                for group in discord_groups
+            ),
+        )
+        try:
+            async with ctx.typing():
+                result = await game_workers.run_new_game_creation(request)
+        except (peewee.PeeweeException, exceptions.CheckFailedError) as exc:
+            logger.exception('Error creating new game')
+            return await ctx.send(f'Error creating new game: {exc}')
+        except ValueError as exc:
+            return await ctx.send(str(exc))
+        except Exception:
+            logger.exception('Unexpected error creating new game')
+            return await ctx.send(
+                'Error creating new game. No Discord announcements or '
+                'channels were created.'
             )
-            await post_newgame_messaging(ctx, game=newgame)
+
+        if result.warnings:
+            await ctx.send('\n'.join(result.warnings))
+        newgame = Game.load_full_game(game_id=result.game_id)
+        await post_newgame_messaging(ctx, game=newgame)
 
     @settings.in_bot_channel_strict()
     @models.is_registered_member()

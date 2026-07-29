@@ -1,7 +1,7 @@
 """Explicitly gated integration tests for the development PostgreSQL database."""
 
 import asyncio
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 import datetime
 from io import BytesIO
 import json
@@ -148,6 +148,180 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
         self.assertEqual(
             self.models.GameLog.select().where(
                 self.models.GameLog.message == marker
+            ).count(),
+            0,
+        )
+
+    def test_newgame_worker_creates_complete_graph_and_rolls_back(self):
+        from modules import game_workers
+
+        marker = f'P2.1 integration {uuid.uuid4().hex}'
+        id_base = 800_000_000_000_000_000
+        host_id = id_base + (uuid.uuid4().int % 10_000_000)
+        opponent_id = id_base + (uuid.uuid4().int % 10_000_000)
+        request = game_workers.NewGameRequest(
+            guild_id=self.profile.allowed_guild_ids[0],
+            name=marker,
+            is_ranked=False,
+            is_mobile=True,
+            mod_override=False,
+            requester_id=host_id,
+            requester_name='p21-host',
+            requester_nick=None,
+            requester_description=f'**p21-host** (`{host_id}`)',
+            invoked_with='newgameunranked',
+            escaped_game_name=marker,
+            sides=(
+                (
+                    game_workers.NewGameParticipant(
+                        discord_id=host_id,
+                        discord_name='p21-host',
+                        discord_nick=None,
+                        display_name='P2.1 Host',
+                        role_names=(),
+                    ),
+                ),
+                (
+                    game_workers.NewGameParticipant(
+                        discord_id=opponent_id,
+                        discord_name='p21-opponent',
+                        discord_nick=None,
+                        display_name='P2.1 Opponent',
+                        role_names=(),
+                    ),
+                ),
+            ),
+        )
+
+        with self.rollback_scope():
+            # The gated test already owns the connection/outer rollback.
+            # Offline tests independently prove worker connection ownership.
+            with mock.patch.object(
+                self.models.db,
+                'connection_context',
+                return_value=nullcontext(),
+            ):
+                result = game_workers.create_new_game(request)
+
+            game = self.models.Game.get_by_id(result.game_id)
+            self.assertEqual(game.name, marker.title()[:35])
+            self.assertEqual(game.host.discord_member.discord_id, host_id)
+            self.assertEqual(
+                self.models.GameSide.select().where(
+                    self.models.GameSide.game == game
+                ).count(),
+                2,
+            )
+            self.assertEqual(
+                self.models.Lineup.select().where(
+                    self.models.Lineup.game == game
+                ).count(),
+                2,
+            )
+            self.assertEqual(
+                self.models.GameLog.select().where(
+                    self.models.GameLog.message.contains(marker)
+                ).count(),
+                1,
+            )
+
+        self.assertEqual(
+            self.models.Game.get_or_none(
+                self.models.Game.id == result.game_id
+            ),
+            None,
+        )
+        self.assertEqual(
+            self.models.DiscordMember.select().where(
+                self.models.DiscordMember.discord_id.in_(
+                    (host_id, opponent_id)
+                )
+            ).count(),
+            0,
+        )
+        self.assertEqual(
+            self.models.GameLog.select().where(
+                self.models.GameLog.message.contains(marker)
+            ).count(),
+            0,
+        )
+
+    def test_newgame_executor_failure_rolls_back_worker_connection(self):
+        from modules import exceptions, game_workers
+
+        marker = f'P2.1 worker rollback {uuid.uuid4().hex}'
+        id_base = 810_000_000_000_000_000
+        participant_one_id = id_base + (uuid.uuid4().int % 10_000_000)
+        participant_two_id = id_base + (uuid.uuid4().int % 10_000_000)
+        missing_requester_id = id_base + (uuid.uuid4().int % 10_000_000)
+        request = game_workers.NewGameRequest(
+            guild_id=self.profile.allowed_guild_ids[0],
+            name=marker,
+            is_ranked=False,
+            is_mobile=True,
+            mod_override=False,
+            requester_id=missing_requester_id,
+            requester_name='missing-host',
+            requester_nick=None,
+            requester_description=(
+                f'**missing-host** (`{missing_requester_id}`)'
+            ),
+            invoked_with='newgameunranked',
+            escaped_game_name=marker,
+            sides=(
+                (
+                    game_workers.NewGameParticipant(
+                        discord_id=participant_one_id,
+                        discord_name='p21-participant-one',
+                        discord_nick=None,
+                        display_name='P2.1 Participant One',
+                        role_names=(),
+                    ),
+                ),
+                (
+                    game_workers.NewGameParticipant(
+                        discord_id=participant_two_id,
+                        discord_name='p21-participant-two',
+                        discord_nick=None,
+                        display_name='P2.1 Participant Two',
+                        role_names=(),
+                    ),
+                ),
+            ),
+        )
+
+        async def run_worker():
+            task = asyncio.create_task(
+                game_workers.run_new_game_creation(request)
+            )
+            while not task.done():
+                await asyncio.sleep(0.05)
+            return await task
+
+        with self.assertRaisesRegex(
+            exceptions.CheckFailedError,
+            'registered game host',
+        ):
+            asyncio.run(run_worker())
+
+        self.models.db.connect(reuse_if_open=True)
+        self.assertEqual(
+            self.models.Game.select().where(
+                self.models.Game.name == marker.title()[:35]
+            ).count(),
+            0,
+        )
+        self.assertEqual(
+            self.models.DiscordMember.select().where(
+                self.models.DiscordMember.discord_id.in_(
+                    (participant_one_id, participant_two_id)
+                )
+            ).count(),
+            0,
+        )
+        self.assertEqual(
+            self.models.GameLog.select().where(
+                self.models.GameLog.message.contains(marker)
             ).count(),
             0,
         )

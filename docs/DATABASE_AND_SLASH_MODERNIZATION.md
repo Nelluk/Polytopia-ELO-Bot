@@ -4,7 +4,7 @@ Last updated: 2026-07-29
 
 Status: Active
 
-Current branch at last update: `codex/database-slash-modernization`
+Current branch at last update: `codex/p2-1-newgame-worker`
 
 Source task: `thread://019fae66-8e3a-7a50-9a0f-d3d7160d2287`
 
@@ -190,24 +190,22 @@ check:
 - development-guild sync fix: `9a64ce1`
 - initial roadmap checkpoint: `8593183`
 - repeated-cancellation cleanup fix: `46e053e`
+- P2.1 implementation checkpoint: `0594629`
 - beta acceptance: all five application commands reported working
 - task-owned beta process: stopped cleanly; the foreground session exited and
   a follow-up session poll confirmed it was gone
-- complete offline suite: 77 tests passed, with five gated database tests
+- complete offline suite: 85 tests passed, with seven gated database tests
   skipped as designed
-- gated `polytopia_dev` suite: five tests passed under the required
+- gated `polytopia_dev` suite: seven tests passed under the required
   `development` / `polytopia_dev` / `polybot_dev` checks
 - live-test game fixture: game `61` was deleted successfully
 - optional cleanup: unused `Team.id=9`, `Phase7 Test Team`, remains in
   `polytopia_dev` with zero players and zero game sides
 
-Current unit: none. **P1 — Pilot close-out and integration** is Complete on
-the intended accumulation branch.
-
-Next code unit: **P2.1 — Separate `newgame` transaction work from Discord
-effects**. Create its unit branch from `codex/database-slash-modernization`
-when implementation begins. This is prioritized because inspection found a
-Discord `await` inside the command's `db.atomic()` block.
+Current unit: **P2.1 — Separate `newgame` transaction work from Discord
+effects**, Implemented on `codex/p2-1-newgame-worker`, based on
+`codex/database-slash-modernization` at `b992b7f`. Implementation checkpoint:
+`0594629`.
 
 Runtime status is deliberately not recorded as fact here. Verify whether a
 beta process is running before starting or stopping one.
@@ -242,7 +240,7 @@ beta launches, command synchronization, pushes, or PR operations by itself.
 |---|---|---|---|
 | P0 | Complete | Serialized ELO workers and first five slash commands | Commits `a9375b3`, `9a64ce1`; live beta acceptance; accumulation-branch base |
 | P1 | Complete | Close out and establish the pilot on the accumulation branch | Clean tests, beta stopped, reviewed branch, local accumulation branch |
-| P2 | Planned | Fix known game-creation transaction boundary | `newgame` workflow atomic and Discord effects post-commit |
+| P2 | In progress | Fix known game-creation transaction boundary | `newgame` workflow atomic and Discord effects post-commit |
 | P3 | Planned | Owner ELO maintenance and job observability | Typed slash maintenance interface and active-job status |
 | P4 | Planned | Game correction and metadata mutations | Bounded workers plus slash interfaces for clear typed operations |
 | P5 | Planned | Matchmaking lifecycle | Atomic open/join/leave/kick/start flows and native interactions |
@@ -362,7 +360,7 @@ Exit criteria:
 
 ## P2 — Game creation transaction boundary
 
-Status: **Planned**
+Status: **In progress**
 
 Why this phase is next:
 
@@ -372,16 +370,122 @@ creation, host assignment, logging, warnings, and post-create messaging.
 
 ### P2.1 — Extract the database workflow
 
-- Resolve Discord members and permissions on the event-loop thread.
-- Pass guild ID, requester ID, game properties, and participant Discord IDs to
-  a synchronous worker.
-- Reload/create all Peewee records in the worker.
-- Create the game, sides, lineups, host assignment, and audit log in one
-  transaction.
-- Return warnings and primitive IDs/data.
-- Send warnings and create/update Discord artifacts only after commit.
-- Prove rollback leaves no partial game, lineup, or log records.
-- Prove database failure causes no Discord channel or announcement effects.
+Status: **Implemented**
+
+Branch/base: `codex/p2-1-newgame-worker` from
+`codex/database-slash-modernization` at `b992b7f`.
+
+Objective: move the complete `newgame` database creation workflow into one
+bounded synchronous worker transaction and keep all Discord effects
+post-commit.
+
+In scope:
+
+- Preserve existing prefix parsing, aliases, permissions, and game rules.
+- Capture primitive guild/requester/participant data on the event-loop thread.
+- Reload or create model records inside a worker-local connection.
+- Atomically create the game, sides, lineups, host assignment, and audit log.
+- Return immutable primitive result data and warnings.
+- Add focused rollback, connection, responsiveness, and post-commit tests.
+
+Out of scope:
+
+- Matchmaking `open`/`join`/`start` workflows.
+- A general async ORM migration or universal worker framework.
+- Production or beta operations.
+
+Database boundary: the worker owns its Peewee connection and complete
+transaction. No Discord object, live Peewee model, or lazy query crosses into
+the worker.
+
+Slash decision: deferred to P2.2 because the prefix command's aliases and
+flexible multi-side grammar require a separate native UX decision. P2.1 adds
+no application command and preserves all prefix interfaces.
+
+Permissions to preserve: existing registration, bot-channel, per-alias,
+participant, team, ranked, platform, and moderator-override behavior.
+
+Discord effects after commit: warning messages, game announcements, embeds,
+and any channel/role effects run only after a successful worker result.
+
+Files expected: `modules/games.py`, a bounded game-creation worker module,
+focused tests, and this roadmap. Modify `modules/models.py` only if a narrow
+extraction is required to preserve model behavior.
+
+Tests required:
+
+- [x] focused offline
+- [x] rollback/fault injection
+- [x] event-loop responsiveness
+- [x] primitive worker inputs and worker-local connection
+- [x] prefix registration/aliases/behavior
+- [x] no Discord effects after database failure
+- [x] complete offline suite
+- [x] gated development-database suite
+
+Approvals required: gated development-database tests may use their existing
+safety gate. Beta launch, Discord synchronization, dependency changes, push,
+merge, and production work require separate approval.
+
+Implementation evidence:
+
+- `NewGameRequest` and `NewGameParticipant` are frozen primitive snapshots;
+  no Discord or Peewee object crosses into the worker.
+- A dedicated one-thread `polybot-newgame` executor bounds and serializes game
+  creation separately from the ELO executor.
+- The worker opens its Peewee connection, rebuilds a worker-local member view,
+  and runs `Game.create_game`, host assignment, and `GameLog.write` inside one
+  outer synchronous transaction.
+- The prefix command awaits the worker result before sending worker warnings,
+  loading the committed game for display, or invoking
+  `post_newgame_messaging`.
+- Fault injection proves an audit-log failure rolls back game, host, and log
+  state and closes the worker connection.
+- Command-level failure injection proves database failure does not load the
+  game or invoke announcement/channel effects.
+- The simulated slow worker leaves an unrelated event-loop heartbeat
+  responsive.
+- Prefix command name and aliases (`newgameunranked`, `newsteamgame`, and
+  `newsteamgameunranked`) are preserved; no slash command was added.
+- Gated PostgreSQL tests prove a complete real game/side/lineup/host/log graph
+  and separately prove worker-thread rollback after graph creation. Both
+  paths leave no test rows.
+
+Commit(s): `0594629` — Move newgame creation into bounded worker.
+
+Beta result: not required for this internal boundary unit because no
+application command or intended Discord behavior changed. No beta session was
+launched or authorized.
+
+Remaining limitations:
+
+- Discord member resolution and short permission/format validation remain on
+  the event-loop thread.
+- The post-commit `Game.load_full_game` and legacy messaging helpers still
+  perform some synchronous model reads/writes on the event-loop thread.
+- Announcement message/channel IDs are reconciliation metadata written after
+  the Discord send; broader post-effect reconciliation is not part of P2.1.
+- Cancellation after worker submission can allow the synchronous transaction
+  to finish without running later Discord effects; this is recorded for a
+  future ordinary-game job lifecycle design rather than introducing a general
+  coordinator in the first non-ELO unit.
+
+Validation evidence:
+
+- `POLYBOT_ENV=development MPLCONFIGDIR=/tmp/polybot-matplotlib
+  .venv/bin/python -m unittest tests.test_newgame_worker -v`: 6 passed.
+- `POLYBOT_ENV=development MPLCONFIGDIR=/tmp/polybot-matplotlib
+  .venv/bin/python -m unittest discover -v`: 85 passed, 7 skipped because the
+  explicit database gate was not enabled.
+- `POLYBOT_ENV=development POLYBOT_RUN_DB_INTEGRATION=1
+  MPLCONFIGDIR=/tmp/polybot-matplotlib .venv/bin/python -m unittest
+  tests.test_database_integration -v`: 7 passed after confirming database
+  `polytopia_dev` and role `polybot_dev`.
+- `git diff --check`: clean.
+
+Next action: review and integrate commit `0594629` plus this unit record into
+`codex/database-slash-modernization`. Then begin P2.2 as a separate UX unit;
+do not add a slash interface implicitly during integration.
 
 ### P2.2 — Decide the native command UX
 
@@ -809,6 +913,15 @@ their own validation. `master` remains the production-ready baseline until a
 separately approved P9 integration, avoiding reliance on manually withholding
 a production pull or restart after every development unit.
 
+### D-010 — Separate `newgame` database work before slash UX
+
+Status: Accepted
+
+P2.1 preserves the prefix-only `newgame` interface and moves its database
+creation workflow first. Alias-driven ranked/platform behavior, the author
+shortcut, and flexible multi-side grammar require the dedicated P2.2 native
+UX decision rather than an opaque or hastily designed slash string.
+
 ## Progress log
 
 ### 2026-07-29 — ELO/slash pilot beta accepted
@@ -850,6 +963,25 @@ a production pull or restart after every development unit.
   was performed.
 - Next: create a dedicated P2.1 unit branch from the accumulation branch when
   implementation is authorized.
+
+### 2026-07-29 — P2.1 newgame worker implemented
+
+- Created `codex/p2-1-newgame-worker` from accumulation checkpoint `b992b7f`.
+- Added immutable participant/request snapshots and a bounded, dedicated
+  one-thread creation executor.
+- Moved game, sides, lineups, host assignment, and audit logging into one
+  worker-local synchronous transaction.
+- Preserved the prefix command and all ranked/platform aliases; deferred slash
+  UX to P2.2.
+- Added rollback, connection, primitive-boundary, responsiveness,
+  post-commit-ordering, and prefix registration tests.
+- Passed 85 offline tests with seven gated skips and all seven explicitly
+  gated development-database tests.
+- Recorded implementation commit `0594629`.
+- No beta, command synchronization, production, dependency, or schema action
+  was performed.
+- Next: review and integrate P2.1 into
+  `codex/database-slash-modernization`, then begin P2.2 separately.
 
 ## Resume checklist
 
