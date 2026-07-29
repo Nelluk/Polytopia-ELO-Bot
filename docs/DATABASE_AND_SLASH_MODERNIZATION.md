@@ -557,8 +557,14 @@ Commit(s):
 - `25b9d50` — Add typed slash interface for newgame.
 - `8c350c1` — Polish newgame slash compatibility.
 
-Beta result: pending separate approval. No beta process was launched and no
-Discord command synchronization was performed in this unit.
+Beta result: launch and development-guild synchronization approved and
+performed from checkpoint `89e5710` on 2026-07-29. The runtime preflight
+selected environment `development`, beta application `479029527553638401`,
+database `polytopia_dev`, development guild `478571892832206869`, and disabled
+background tasks, API, and Bullet integration. Discord authenticated the
+expected beta bot and synchronized six guild commands: `win`, `unwin`,
+`delete`, `newgame`, `confirm`, and `unconfirmed`. Functional `/newgame`
+acceptance and fixture cleanup remain pending.
 
 Remaining limitations:
 
@@ -1082,11 +1088,12 @@ member selection and recreate the ambiguity of prefix parsing.
 - Passed nine focused tests, 88 offline tests with seven gated skips, and all
   seven explicitly gated development-database tests.
 - Recorded implementation commits `25b9d50` and `8c350c1`.
-- No beta launch, command synchronization, production, dependency, or schema
-  action was performed.
-- Next: obtain separate beta launch/synchronization approval, run the P2.2
-  smoke matrix, clean up fixtures, and integrate the accepted unit into the
-  accumulation branch.
+- Launched checkpoint `89e5710` under the verified development profile and
+  synchronized six commands, including `/newgame`, only to development guild
+  `478571892832206869`.
+- No production, dependency, or schema action was performed.
+- Next: run the P2.2 beta smoke matrix, clean up fixtures, stop the beta
+  process, and integrate the accepted unit into the accumulation branch.
 
 ## Resume checklist
 
