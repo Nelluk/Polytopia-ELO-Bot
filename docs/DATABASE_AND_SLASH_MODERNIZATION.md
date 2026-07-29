@@ -192,6 +192,7 @@ check:
 - repeated-cancellation cleanup fix: `46e053e`
 - P2.1 implementation checkpoint: `0594629`
 - P2.1 accumulation merge: `ecdd01e`
+- P2.2 implementation checkpoints: `25b9d50`, `8c350c1`
 - beta acceptance: all five application commands reported working
 - task-owned beta process: stopped cleanly; the foreground session exited and
   a follow-up session poll confirmed it was gone
@@ -203,7 +204,7 @@ check:
 - optional cleanup: unused `Team.id=9`, `Phase7 Test Team`, remains in
   `polytopia_dev` with zero players and zero game sides
 
-Current unit: **P2.2 — Decide the native `newgame` command UX**, In progress
+Current unit: **P2.2 — Decide the native `newgame` command UX**, Implemented
 on `codex/p2-2-newgame-slash-ux`, based on
 `codex/database-slash-modernization` at `f7b1e3e`.
 
@@ -360,7 +361,7 @@ Exit criteria:
 
 ## P2 — Game creation transaction boundary
 
-Status: **In progress**
+Status: **Implemented**
 
 Why this phase is next:
 
@@ -521,6 +522,61 @@ pipeline so permission and transaction behavior do not fork.
 
 The database extraction proceeds even if slash UX is deferred. Record the
 decision and reason in the decision log.
+
+Implementation evidence:
+
+- `/newgame` is guild-only and uses typed Discord member selectors for two
+  required players plus optional slots through 4v4.
+- Ranked is a Boolean option and platform is a Mobile/Steam choice; these map
+  to the existing four prefix variants before shared validation executes.
+- The interaction defers before checks, member adaptation, or worker
+  submission.
+- `Command.can_run` executes the prefix command's existing registration,
+  configured bot-channel, cog, and global checks for the synthetic
+  interaction context.
+- The slash adapter then calls the same prefix callback, P2.1 worker, and
+  post-commit Discord path. Prefix command name and all three aliases remain
+  registered.
+- The synthetic context uses the guild's configured prefix in compatibility
+  messages and embeds. Native one-word-name failures do not incorrectly tell
+  slash users to add quotation marks.
+
+Tests required:
+
+- [x] focused slash registration and typed option shape
+- [x] immediate defer before shared checks/pipeline
+- [x] check failure stops before creation
+- [x] prefix registration and aliases preserved
+- [x] P2.1 rollback, responsiveness, and post-commit ordering remain green
+- [x] complete offline suite
+- [x] gated development-database suite
+- [ ] approved beta synchronization and smoke test
+
+Commit(s):
+
+- `25b9d50` — Add typed slash interface for newgame.
+- `8c350c1` — Polish newgame slash compatibility.
+
+Beta result: pending separate approval. No beta process was launched and no
+Discord command synchronization was performed in this unit.
+
+Remaining limitations:
+
+- Native creation is intentionally limited to two sides and four players per
+  side. Larger games, games with more than two sides, and the prefix
+  one-opponent shortcut remain available through the prefix command.
+- The adapter deliberately reuses the prefix callback during migration rather
+  than duplicating its validation rules. A later cleanup may extract the
+  shared application service once another caller demonstrates the useful
+  boundary.
+- P2.1's recorded post-commit synchronous model reads/writes and cancellation
+  limitation remain unchanged.
+
+Next action: with separate approval, launch the development beta profile and
+synchronize the development guild, then smoke-test `/newgame` for ranked
+Mobile 1v1, unranked Steam 2v2, participant/staff permissions, configured
+channel enforcement, failure messaging, and preserved prefix aliases. Record
+and clean up any created development-database games and Discord channels.
 
 Exit criteria:
 
@@ -940,6 +996,16 @@ creation workflow first. Alias-driven ranked/platform behavior, the author
 shortcut, and flexible multi-side grammar require the dedicated P2.2 native
 UX decision rather than an opaque or hastily designed slash string.
 
+### D-011 — Use a bounded typed `/newgame` plus prefix fallback
+
+Status: Accepted
+
+The native command supports common two-sided games through 4v4 with Discord
+member selectors and explicit ranked/platform options. The existing prefix
+grammar remains the supported path for larger or multi-side games. A modal
+was rejected because free-text member entry would discard Discord's native
+member selection and recreate the ambiguity of prefix parsing.
+
 ## Progress log
 
 ### 2026-07-29 — ELO/slash pilot beta accepted
@@ -1002,6 +1068,25 @@ UX decision rather than an opaque or hastily designed slash string.
   `ecdd01e`; the unit is Complete.
 - Next: create the P2.2 unit branch from `ecdd01e` and implement the selected
   native command UX separately.
+
+### 2026-07-29 — P2.2 typed newgame slash UX implemented
+
+- Created `codex/p2-2-newgame-slash-ux` from accumulation checkpoint
+  `f7b1e3e`.
+- Added a guild-only typed `/newgame` for two-sided games through 4v4 with
+  ranked and platform options.
+- Reused the prefix checks, validation, P2.1 worker, and post-commit effects;
+  preserved `newgame` and its three aliases.
+- Added registration, option-shape, defer-order, check-failure, mapping, and
+  configured-prefix tests.
+- Passed nine focused tests, 88 offline tests with seven gated skips, and all
+  seven explicitly gated development-database tests.
+- Recorded implementation commits `25b9d50` and `8c350c1`.
+- No beta launch, command synchronization, production, dependency, or schema
+  action was performed.
+- Next: obtain separate beta launch/synchronization approval, run the P2.2
+  smoke matrix, clean up fixtures, and integrate the accepted unit into the
+  accumulation branch.
 
 ## Resume checklist
 
