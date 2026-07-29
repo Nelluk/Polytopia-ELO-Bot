@@ -185,37 +185,104 @@ confirmed:
 No cluster was created, stopped, restarted, upgraded, or restored during PG2.
 Completion of PG2 is not approval to begin the disposable PG3 rehearsal.
 
-## Phase PG3: rehearsal and compatibility proof
+## Phase PG3 completed: rehearsal and compatibility proof
 
-Use a disposable PostgreSQL 18 cluster on a nonproduction port. Restore a
-logical production dump and test without Discord:
+The rehearsal used this production-isolated sequence:
 
-1. Create a fresh PostgreSQL 18 test cluster on an unused port.
-2. Use PostgreSQL 18 client tools to dump from PostgreSQL 12.
-3. Restore `polytopia2` into the test cluster.
+1. Create a fresh PostgreSQL 12 source cluster on an unused port.
+2. Create and validate PostgreSQL 12 and PostgreSQL 18 client dumps from the
+   live PostgreSQL 12 server.
+3. Restore every application database and the required roles into the
+   disposable PostgreSQL 12 source.
 4. Compare database ownership, encoding, locale, schema, table counts, and
    representative row counts.
-5. Compare the largest/high-value tables:
-   `gamelog`, `lineup`, `gameside`, `game`, `player`, and `discordmember`.
-6. Run representative Peewee reads, writes inside rolled-back transactions,
-   graph rendering, and API route tests against PostgreSQL 18.
-7. Run the Python 3.12 application test suite.
-8. Run the exact `pg_upgrade --check`/`pg_upgradecluster` preflight intended for
-   production and preserve its output.
-9. Measure restore and upgrade duration to size the maintenance window.
-10. Remove only the disposable rehearsal cluster after its results are
-    reviewed and separately approved.
+5. Run representative Peewee reads, writes inside rolled-back transactions,
+   graph rendering, API route tests, and the complete Python 3.12 suite.
+6. Copy the production HBA policy into the disposable source.
+7. Run the complete production-shaped `pg_upgradecluster` copy-mode command
+   against only the disposable source.
+8. Repeat the structural, row-count, HBA, access-policy, and application tests
+   against PostgreSQL 18.
+9. Restore PostgreSQL 18-generated archives into derived probe databases.
+10. Retain the two rehearsal clusters until their results and cleanup receive
+    separate approval.
 
-The rehearsal will establish the exact `pg_upgradecluster` syntax delivered by
-the installed `postgresql-common` version. The anticipated production command
-is equivalent to:
+The installed `pg_upgradecluster --check` option checks required packages; it
+does not run PostgreSQL's binary compatibility checks. A meaningful rehearsal
+therefore used a disposable PostgreSQL 12 source cluster and performed the
+complete copy-mode upgrade. This exercised the real `pg_upgrade` consistency
+checks without stopping production.
+
+On 2026-07-28:
+
+- `12/rehearsal` was created on port 5434 with UTF8 encoding,
+  `en_US.UTF-8` locale, and data checksums disabled, matching production.
+- Private PostgreSQL 12 and PostgreSQL 18 logical archives were created for
+  `polytopia2`, `polytopia_dev`, and `twospies`, plus globals. The directory
+  is mode 0700 and the archive files are mode 0600.
+- Both client generations dumped `polytopia2` in approximately 23 seconds.
+  All six custom archives passed their matching `pg_restore --list`.
+- The PostgreSQL 12 archives restored into `12/rehearsal` without error.
+  Restoring `polytopia2` took approximately 25 seconds.
+- Snapshot row-count differences from live production were limited to one
+  `discordmember`, one `player`, and two `gamelog` rows added after the dump
+  began. Relationship-table counts matched exactly.
+- All 54 Python 3.12 tests passed against the restored PostgreSQL 12
+  `polytopia_dev`, including five database integration tests.
+- The production HBA file was copied to the disposable source so the rehearsal
+  also tested preservation of the isolated-development-role rejection rules.
+- The package preflight passed, after which this exact command upgraded only
+  the disposable cluster:
+
+```bash
+sudo pg_upgradecluster \
+  --method=upgrade \
+  --jobs=2 \
+  --rename=rehearsal18 \
+  -v 18 \
+  12 rehearsal
+```
+
+The copy-mode upgrade completed in approximately 22 seconds. The wrapper ran
+the full PostgreSQL compatibility checks and staged optimizer statistics. It
+left `12/rehearsal` stopped in manual mode on port 5433 and started
+`18/rehearsal18` on port 5434.
+
+Post-upgrade verification confirmed:
+
+- PostgreSQL 18.4 reported the expected owners, UTF8 encoding,
+  `en_US.UTF-8` locale, and disabled data checksums for all databases.
+- The six high-value table row counts exactly matched the restored snapshot.
+- `polytopia2` retained 17 tables, 55 indexes, 17 sequences, 148 columns,
+  23 foreign keys, and 17 primary keys, with no invalid index.
+- PostgreSQL 18 additionally represents 101 existing `NOT NULL` attributes as
+  catalog constraint type `n`; this explains its larger raw constraint count.
+- Every database's recorded and actual collation version matched at 2.35.
+- The migrated PostgreSQL 18 HBA file was byte-equivalent to production.
+- `polybot_dev` could connect to `polytopia_dev` but was rejected from
+  `polytopia2`.
+- All 54 Python 3.12 tests passed again against PostgreSQL 18.
+- A schema-only restore of the PostgreSQL 18 `polytopia2` archive reproduced
+  the exact schema object counts, and a full restore of the PostgreSQL 18
+  `polytopia_dev` archive reproduced all representative row counts.
+- The two derived restore-probe databases were removed after validation.
+- Production `12/main` stayed online on port 5432, and
+  `polytopia.service` retained PID 1480385 with zero restarts.
+
+The rehearsal temporarily raised root-filesystem use to 91%, with
+approximately 2.0 GiB free. The stopped PostgreSQL 12 rehearsal cluster,
+online PostgreSQL 18 rehearsal cluster, and private rehearsal archives remain
+pending separately approved cleanup.
+
+The rehearsed production command is equivalent to:
 
 ```text
 pg_upgradecluster --method=upgrade --jobs=2 -v 18 12 main
 ```
 
-Do not execute that command against production until the rehearsal proves its
-port, configuration-copy, old-cluster retention, and rollback behavior.
+The rehearsal proved its port, configuration-copy, old-cluster retention, and
+rollback behavior. Executing it against production still requires completion
+of PG4 and separate maintenance-window approval for PG5.
 
 ## Phase PG4: pre-cutover backup set
 
