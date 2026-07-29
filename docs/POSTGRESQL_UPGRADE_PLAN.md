@@ -337,7 +337,7 @@ PG4 did not stop or restart PostgreSQL or the bot. Its online dumps are the
 pre-cutover recovery layer; PG5 still requires a final stopped-service backup
 immediately before the production upgrade.
 
-## Phase PG5: maintenance-window cutover
+## Phase PG5 completed: maintenance-window cutover
 
 1. Confirm the bot is healthy and `polyapi.service` is inactive.
 2. Stop `polytopia.service`.
@@ -369,6 +369,59 @@ immediately before the production upgrade.
     access, guilds, Bullet loading, and read-only commands.
 15. Replace the canary command with the permanent systemd drop-in, restart the
     bot with tasks enabled, and observe both services for at least ten minutes.
+
+Nelluk separately approved the production maintenance window. On 2026-07-29:
+
+- The refreshed disk audit reported 4.3 GiB free and no failed units.
+- The PG4 archive and current normal backup were revalidated.
+- `polytopia.service` was stopped cleanly, leaving no application process or
+  database session.
+- The hardened normal backup completed while the bot was stopped.
+- A final private cluster-wide backup was created at
+  `/home/nelluk/backups/postgresql18-final-stopped-20260729T065335-0400`.
+  It contains PostgreSQL 18-client globals and custom-format dumps for all
+  three application databases, the pre-upgrade PostgreSQL configuration,
+  integrity metadata, and a validated `SHA256SUMS` manifest. The archive is
+  approximately 115 MB, with a mode-0700 directory and mode-0600 files.
+- With no `18/main` target present, production was upgraded using:
+
+  ```bash
+  sudo pg_upgradecluster \
+    --method=upgrade \
+    --jobs=2 \
+    -v 18 \
+    12 main
+  ```
+
+- The full copy-mode upgrade and finish hooks completed in approximately
+  25 seconds. PostgreSQL 18.4 started on port 5432; PostgreSQL 12 was retained
+  stopped and in manual mode on port 5433.
+- The PostgreSQL 12 and 18 HBA files matched exactly. The new cluster retained
+  localhost-only listening and the `polybot_dev` rejection from `polytopia2`.
+- Database owners, roles, encoding, locale, data-checksum state, extensions,
+  schema objects, every high-value row count, and all collation versions
+  matched the final stopped-service snapshot. No index was invalid.
+- All 54 Python 3.12 tests passed against migrated `polytopia_dev` on
+  PostgreSQL 18. `polybot_dev` could connect to `polytopia_dev` and was
+  rejected from `polytopia2`.
+- A task-disabled production bot canary connected to PostgreSQL 18 and Discord,
+  loaded every production guild, and passed Nelluk's read-only command smoke
+  tests with zero restarts and no scheduled background loop.
+- Startup reasserted the existing ban flags with idempotent `UPDATE`
+  statements. Consequently, rollback after the canary must be treated as
+  potentially lossy even though representative row counts remained unchanged.
+- The temporary canary drop-in was removed. The permanent bot started without
+  `--skip_tasks`; matchmaking, league, and automatic-confirmation tasks ran
+  without error.
+- The bot and PostgreSQL 18 retained stable PIDs and zero restarts throughout
+  a sampled observation window exceeding ten minutes.
+- The first hardened production backup on PostgreSQL 18 completed and
+  validated. Its full custom archive records both source server and
+  `pg_dump` version 18.4.
+- The root filesystem retained approximately 3.2 GiB free after cutover.
+
+The old PostgreSQL 12 cluster and its packages were intentionally retained.
+Their removal is not part of the cutover approval.
 
 ## Rollback
 
