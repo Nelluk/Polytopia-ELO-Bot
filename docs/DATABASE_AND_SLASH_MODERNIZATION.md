@@ -4,7 +4,7 @@ Last updated: 2026-07-29
 
 Status: Active
 
-Current branch at last update: `codex/p2-1-newgame-worker`
+Current branch at last update: `codex/p2-2-newgame-slash-ux`
 
 Source task: `thread://019fae66-8e3a-7a50-9a0f-d3d7160d2287`
 
@@ -161,9 +161,29 @@ For every command touched:
 6. Make error visibility deliberate; permission or validation errors should
    generally be ephemeral for slash users.
 7. Add registration tests for both interfaces.
+8. Record any native-interface compromise in the compatibility ledger below,
+   including user impact, acceptance, and a possible mitigation. Do not let
+   parity gaps live only in task commentary.
 
 Do not rename the five beta-validated pilot slash commands without a separate
 compatibility and deprecation decision.
+
+## Slash compatibility compromise ledger
+
+This is the running record of behavior that a native interaction does not
+cover. A gap may be accepted when the affected command is rare or the native
+path covers normal usage. Prefix availability during the transition means a
+listed gap is not necessarily a current loss; the **message-intent impact**
+column states what would become unavailable if prefix processing could no
+longer be retained.
+
+| ID / command | Native coverage | Accepted compromise and message-intent impact | Possible future mitigation | Status |
+|---|---|---|---|---|
+| C-001 `/newgame` | Typed two-sided games from 1v1 through 4v4; explicit ranked and Mobile/Steam options; requester is selected explicitly when participating | Native slash does not cover more than two sides, more than four players per side, or the one-opponent shortcut that infers the requester. Those shapes/conveniences currently remain on the prefix command and would be unavailable if message-content intent were retired. This is accepted for the initial conversion: `newgame` is rare in practice and normal usage is overwhelmingly even, two-sided games. Ranked/platform alias behavior is preserved as slash options. | If actual demand warrants it, add an interaction-only `/game custom` draft: modal for name, buttons to add/edit/remove sides, Discord user-select components to fill each side, review/validation, then explicit confirmation into the existing worker transaction. A short-lived in-memory draft is sufficient initially; persistence can be added only if restart survival matters. | Accepted temporary gap; not a P2.2 blocker |
+
+Every later slash conversion must add a row when parity is intentionally
+reduced. If there is no compromise, its unit evidence should explicitly say
+so rather than adding an empty ledger row.
 
 ## Status vocabulary
 
@@ -193,10 +213,12 @@ check:
 - P2.1 implementation checkpoint: `0594629`
 - P2.1 accumulation merge: `ecdd01e`
 - P2.2 implementation checkpoints: `25b9d50`, `8c350c1`
-- beta acceptance: all five application commands reported working
-- task-owned beta process: stopped cleanly; the foreground session exited and
-  a follow-up session poll confirmed it was gone
-- complete offline suite: 85 tests passed, with seven gated database tests
+- P2.2 sync-evidence checkpoint: `5bb67c2`
+- pilot beta acceptance: all five original application commands reported
+  working
+- P2.2 development sync: six commands, including `/newgame`, synchronized to
+  guild `478571892832206869`; functional acceptance remains pending
+- complete offline suite: 88 tests passed, with seven gated database tests
   skipped as designed
 - gated `polytopia_dev` suite: seven tests passed under the required
   `development` / `polytopia_dev` / `polybot_dev` checks
@@ -570,7 +592,9 @@ Remaining limitations:
 
 - Native creation is intentionally limited to two sides and four players per
   side. Larger games, games with more than two sides, and the prefix
-  one-opponent shortcut remain available through the prefix command.
+  one-opponent shortcut remain available through the prefix command. This
+  accepted initial-conversion compromise is tracked as C-001 in the slash
+  compatibility compromise ledger.
 - The adapter deliberately reuses the prefix callback during migration rather
   than duplicating its validation rules. A later cleanup may extract the
   shared application service once another caller demonstrates the useful
@@ -578,11 +602,11 @@ Remaining limitations:
 - P2.1's recorded post-commit synchronous model reads/writes and cancellation
   limitation remain unchanged.
 
-Next action: with separate approval, launch the development beta profile and
-synchronize the development guild, then smoke-test `/newgame` for ranked
+Next action: complete the approved beta smoke test for `/newgame`: ranked
 Mobile 1v1, unranked Steam 2v2, participant/staff permissions, configured
 channel enforcement, failure messaging, and preserved prefix aliases. Record
-and clean up any created development-database games and Discord channels.
+and clean up any created development-database games and Discord channels,
+then stop the development beta process.
 
 Exit criteria:
 
@@ -1012,6 +1036,17 @@ grammar remains the supported path for larger or multi-side games. A modal
 was rejected because free-text member entry would discard Discord's native
 member selection and recreate the ambiguity of prefix parsing.
 
+### D-012 — Track accepted slash compromises centrally
+
+Status: Accepted
+
+Every slash-conversion unit records behavior omitted from the native path in
+the slash compatibility compromise ledger. The record distinguishes a
+temporary prefix-covered difference from functionality that would actually be
+lost if message-content intent became unavailable. Accepted gaps do not block
+a unit when normal usage is covered, but each retains a concrete mitigation
+option and can be reprioritized from observed demand.
+
 ## Progress log
 
 ### 2026-07-29 — ELO/slash pilot beta accepted
@@ -1094,6 +1129,19 @@ member selection and recreate the ambiguity of prefix parsing.
 - No production, dependency, or schema action was performed.
 - Next: run the P2.2 beta smoke matrix, clean up fixtures, stop the beta
   process, and integrate the accepted unit into the accumulation branch.
+
+### 2026-07-29 — Slash compatibility compromise ledger established
+
+- Added a required running ledger for native parity gaps and their
+  message-intent impact.
+- Recorded C-001: initial `/newgame` omits more than two sides, more than four
+  players per side, and requester inference.
+- Accepted the gap because `newgame` is rare and practical usage is
+  overwhelmingly even, two-sided games already covered by the typed slash
+  interface.
+- Recorded an optional future `/game custom` interaction draft using native
+  member selectors and explicit review/confirmation; it is not required for
+  P2.2 acceptance.
 
 ## Resume checklist
 
