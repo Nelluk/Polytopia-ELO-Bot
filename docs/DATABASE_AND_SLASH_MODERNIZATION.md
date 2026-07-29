@@ -191,6 +191,7 @@ check:
 - initial roadmap checkpoint: `8593183`
 - repeated-cancellation cleanup fix: `46e053e`
 - P2.1 implementation checkpoint: `0594629`
+- P2.1 accumulation merge: `ecdd01e`
 - beta acceptance: all five application commands reported working
 - task-owned beta process: stopped cleanly; the foreground session exited and
   a follow-up session poll confirmed it was gone
@@ -202,10 +203,9 @@ check:
 - optional cleanup: unused `Team.id=9`, `Phase7 Test Team`, remains in
   `polytopia_dev` with zero players and zero game sides
 
-Current unit: **P2.1 — Separate `newgame` transaction work from Discord
-effects**, Implemented on `codex/p2-1-newgame-worker`, based on
-`codex/database-slash-modernization` at `b992b7f`. Implementation checkpoint:
-`0594629`.
+Current unit: **P2.2 — Decide the native `newgame` command UX**, ready to
+start from `codex/database-slash-modernization` after the completed P2.1
+merge at `ecdd01e`.
 
 Runtime status is deliberately not recorded as fact here. Verify whether a
 beta process is running before starting or stopping one.
@@ -370,7 +370,7 @@ creation, host assignment, logging, warnings, and post-create messaging.
 
 ### P2.1 — Extract the database workflow
 
-Status: **Implemented**
+Status: **Complete**
 
 Branch/base: `codex/p2-1-newgame-worker` from
 `codex/database-slash-modernization` at `b992b7f`.
@@ -451,7 +451,12 @@ Implementation evidence:
   and separately prove worker-thread rollback after graph creation. Both
   paths leave no test rows.
 
-Commit(s): `0594629` — Move newgame creation into bounded worker.
+Commit(s):
+
+- `0594629` — Move newgame creation into bounded worker.
+- `ca4fb59` — Record P2.1 newgame worker evidence.
+- `ecdd01e` — Merge P2.1 newgame worker into
+  `codex/database-slash-modernization`.
 
 Beta result: not required for this internal boundary unit because no
 application command or intended Discord behavior changed. No beta session was
@@ -483,11 +488,13 @@ Validation evidence:
   `polytopia_dev` and role `polybot_dev`.
 - `git diff --check`: clean.
 
-Next action: review and integrate commit `0594629` plus this unit record into
-`codex/database-slash-modernization`. Then begin P2.2 as a separate UX unit;
-do not add a slash interface implicitly during integration.
+Next action: create a dedicated P2.2 branch from accumulation merge
+`ecdd01e`, select and implement a bounded native `newgame` UX, and preserve
+the flexible prefix interface.
 
 ### P2.2 — Decide the native command UX
+
+Status: **Planned**
 
 Prefix parity includes quoted names, aliases that select ranked/platform
 variants, shortcuts that infer the author, and flexible multi-side player
@@ -980,8 +987,10 @@ UX decision rather than an opaque or hastily designed slash string.
 - Recorded implementation commit `0594629`.
 - No beta, command synchronization, production, dependency, or schema action
   was performed.
-- Next: review and integrate P2.1 into
-  `codex/database-slash-modernization`, then begin P2.2 separately.
+- Integrated P2.1 into `codex/database-slash-modernization` with merge commit
+  `ecdd01e`; the unit is Complete.
+- Next: create the P2.2 unit branch from `ecdd01e` and implement the selected
+  native command UX separately.
 
 ## Resume checklist
 
