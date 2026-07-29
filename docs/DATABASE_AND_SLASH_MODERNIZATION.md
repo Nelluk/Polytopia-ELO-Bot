@@ -586,7 +586,9 @@ database `polytopia_dev`, development guild `478571892832206869`, and disabled
 background tasks, API, and Bullet integration. Discord authenticated the
 expected beta bot and synchronized six guild commands: `win`, `unwin`,
 `delete`, `newgame`, `confirm`, and `unconfirmed`. Functional `/newgame`
-acceptance and fixture cleanup remain pending.
+acceptance and fixture cleanup remain pending. The task-owned beta session was
+then stopped cleanly so P2.2 acceptance can be combined with P3.1 in one later
+beta launch.
 
 Remaining limitations:
 
@@ -602,11 +604,10 @@ Remaining limitations:
 - P2.1's recorded post-commit synchronous model reads/writes and cancellation
   limitation remain unchanged.
 
-Next action: complete the approved beta smoke test for `/newgame`: ranked
-Mobile 1v1, unranked Steam 2v2, participant/staff permissions, configured
-channel enforcement, failure messaging, and preserved prefix aliases. Record
-and clean up any created development-database games and Discord channels,
-then stop the development beta process.
+Next action: implement stacked unit P3.1, then complete one combined beta
+smoke test covering P2.2 `/newgame` and the P3.1 commands. After acceptance,
+merge P2.2 and P3.1 sequentially into the accumulation branch and clean up any
+created development-database fixtures or Discord channels.
 
 Exit criteria:
 
@@ -619,7 +620,7 @@ Exit criteria:
 
 ## P3 — Owner ELO maintenance and observability
 
-Status: **Planned**
+Status: **In progress**
 
 Candidate scope:
 
@@ -644,6 +645,57 @@ Proposed slash interface:
 Do not add a slash interface for a one-off repair command merely because the
 code is touched. Decide whether `reverse_duplicated_elo` should be retained,
 tested, documented as emergency-only, or retired.
+
+### P3.1 — Recalculation control and active-job status
+
+Status: **In progress**
+
+Branch/base: planned stacked branch from the latest
+`codex/p2-2-newgame-slash-ux` checkpoint. P2.2 remains Implemented pending the
+same combined beta session; this does not mark either unit Complete or merge
+either unit implicitly.
+
+Objective: add a confirmed, owner-only native entry point for the existing
+serialized recalculation worker and expose useful active-job state to staff.
+
+In scope:
+
+- Preserve owner-only prefix `recalc_games_from`.
+- Add owner-only `/recalc-games-from game_id confirm`.
+- Require an affirmative confirmation before worker submission.
+- Defer immediately for confirmed recalculation.
+- Add staff-visible, ephemeral `/elo-job-status`.
+- Report operation, game, requester, start time, and elapsed time.
+- Reuse the existing ELO coordinator and `recalculate_games_from` worker.
+
+Out of scope:
+
+- Cancellation or forced termination of a running thread.
+- A new coordinator or executor.
+- Changes to ELO calculation rules.
+- Activating or exposing `reverse_duplicated_elo`.
+
+Slash decision: both interfaces have clear typed models. Recalculation gains a
+required confirmation Boolean; job status is a slash-only read interface.
+No native parity compromise is expected, so no compatibility-ledger row is
+planned unless implementation review discovers one.
+
+Tests required:
+
+- [ ] prefix registration and owner permission preserved
+- [ ] slash registration and option types
+- [ ] non-owner and unconfirmed requests rejected before defer/submission
+- [ ] confirmed request defers before coordinator submission
+- [ ] conflict and worker error responses
+- [ ] active and idle status formatting and staff permissions
+- [ ] complete offline suite
+- [ ] gated development-database suite
+- [ ] combined P2.2/P3.1 beta smoke test
+
+Next action: create the stacked P3.1 branch, implement the shared recalculation
+entry point and job-status formatter, and run offline and gated development
+validation. Do not launch or synchronize the beta until the user begins the
+combined test session.
 
 Exit criteria:
 
@@ -1047,6 +1099,16 @@ lost if message-content intent became unavailable. Accepted gaps do not block
 a unit when normal usage is covered, but each retains a concrete mitigation
 option and can be reprioritized from observed demand.
 
+### D-013 — Batch adjacent slash units into one beta session
+
+Status: Accepted for P2.2 and P3.1
+
+P3.1 is stacked on the locally validated P2.2 checkpoint so the user can
+launch and test both command additions in one beta session. Neither unit is
+Complete before that acceptance. After the combined smoke test, preserve unit
+boundaries by merging P2.2 and then P3.1 sequentially into
+`codex/database-slash-modernization`.
+
 ## Progress log
 
 ### 2026-07-29 — ELO/slash pilot beta accepted
@@ -1142,6 +1204,15 @@ option and can be reprioritized from observed demand.
 - Recorded an optional future `/game custom` interaction draft using native
   member selectors and explicit review/confirmation; it is not required for
   P2.2 acceptance.
+
+### 2026-07-29 — P2.2/P3.1 combined beta gate approved
+
+- Stopped the task-owned development beta session cleanly after successful
+  synchronization; P2.2 functional acceptance remains pending.
+- Approved stacking P3.1 on the validated P2.2 checkpoint so both units can
+  use one later beta launch and smoke matrix.
+- Kept P2.2 Implemented rather than Complete and retained sequential
+  accumulation-branch integration after combined acceptance.
 
 ## Resume checklist
 
