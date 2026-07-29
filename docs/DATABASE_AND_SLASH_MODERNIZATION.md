@@ -4,7 +4,7 @@ Last updated: 2026-07-29
 
 Status: Active
 
-Current branch at last update: `codex/slash-async-unwin-pilot`
+Current branch at last update: `codex/database-slash-modernization`
 
 Source task: `thread://019fae66-8e3a-7a50-9a0f-d3d7160d2287`
 
@@ -180,10 +180,12 @@ Only one unit should normally be **In progress**.
 
 ## Current execution pointer
 
-The slash/ELO pilot is beta-validated and locally green on its feature branch.
-At the latest P1 repository check:
+The slash/ELO pilot is beta-validated, locally green, and established as the
+base of the modernization accumulation branch. At the latest repository
+check:
 
-- branch: `codex/slash-async-unwin-pilot`
+- accumulation branch: `codex/database-slash-modernization`
+- preserved pilot checkpoint branch: `codex/slash-async-unwin-pilot`
 - implementation checkpoint: `a9375b3`
 - development-guild sync fix: `9a64ce1`
 - initial roadmap checkpoint: `8593183`
@@ -199,23 +201,47 @@ At the latest P1 repository check:
 - optional cleanup: unused `Team.id=9`, `Phase7 Test Team`, remains in
   `polytopia_dev` with zero players and zero game sides
 
-Current unit: **P1 — Pilot close-out and integration**, blocked only on
-approval to push/open a PR or otherwise integrate the branch into its intended
-base.
+Current unit: none. **P1 — Pilot close-out and integration** is Complete on
+the intended accumulation branch.
 
-Recommended next code unit after P1: **P2.1 — Separate `newgame` transaction
-work from Discord effects**. This is prioritized because inspection found a
+Next code unit: **P2.1 — Separate `newgame` transaction work from Discord
+effects**. Create its unit branch from `codex/database-slash-modernization`
+when implementation begins. This is prioritized because inspection found a
 Discord `await` inside the command's `db.atomic()` block.
 
 Runtime status is deliberately not recorded as fact here. Verify whether a
 beta process is running before starting or stopping one.
 
+## Branch integration strategy
+
+`master` remains the production-ready baseline while modernization work
+accumulates independently:
+
+1. `codex/database-slash-modernization` is the integration target for the
+   roadmap through P8.
+2. Each bounded unit starts on a dedicated branch created from the current
+   accumulation branch.
+3. After its tests and any required beta acceptance pass, the unit is merged
+   back into `codex/database-slash-modernization`, not `master`.
+4. Preserve unit branches or commits as independently reviewable rollback
+   points.
+5. Bring relevant changes from `master` into the accumulation branch
+   periodically so conflicts are discovered before P9. Do not rewrite shared
+   accumulation history after it is published.
+6. P9 performs the separately approved final review and integration from the
+   accumulation branch into `master`, followed by separately approved
+   production deployment.
+
+Creating, pushing, merging, or deleting a branch still requires the authority
+applicable to that task. This strategy does not authorize production work,
+beta launches, command synchronization, pushes, or PR operations by itself.
+
 ## Phase summary
 
 | Phase | Status | Scope | Exit checkpoint |
 |---|---|---|---|
-| P0 | Beta-validated | Serialized ELO workers and first five slash commands | Commits `a9375b3`, `9a64ce1`; live beta acceptance |
-| P1 | Blocked | Local close-out complete; integration approval required | Clean tests, beta stopped, reviewed branch, then approved PR/merge |
+| P0 | Complete | Serialized ELO workers and first five slash commands | Commits `a9375b3`, `9a64ce1`; live beta acceptance; accumulation-branch base |
+| P1 | Complete | Close out and establish the pilot on the accumulation branch | Clean tests, beta stopped, reviewed branch, local accumulation branch |
 | P2 | Planned | Fix known game-creation transaction boundary | `newgame` workflow atomic and Discord effects post-commit |
 | P3 | Planned | Owner ELO maintenance and job observability | Typed slash maintenance interface and active-job status |
 | P4 | Planned | Game correction and metadata mutations | Bounded workers plus slash interfaces for clear typed operations |
@@ -227,7 +253,7 @@ beta process is running before starting or stopping one.
 
 ## P0 — Serialized ELO and slash-command pilot
 
-Status: **Beta-validated**
+Status: **Complete**
 
 Completed scope:
 
@@ -248,18 +274,20 @@ Current limitations:
 - `recalc_games_from` uses the worker but is still prefix-only.
 - Short validations and many unrelated commands still query synchronously on
   the event-loop thread.
-- The pilot branch has not been recorded here as merged into `origin/master`.
+- The modernization accumulation branch is intentionally not merged into
+  `master`; production integration remains P9.
 - The unused development fixture `Team.id=9` remains pending an explicit
   cleanup decision.
 - Prefix interfaces remain required.
 
 ## P1 — Pilot close-out and integration
 
-Status: **Blocked**
+Status: **Complete**
 
-Blocker: local review and validation are complete, but push, PR creation, and
-merge require separate approval. P1 must not be marked Complete until the
-pilot commits are integrated into the intended base branch.
+Integration result: `codex/database-slash-modernization` was created at the
+validated pilot HEAD. `codex/slash-async-unwin-pilot` remains unchanged as the
+pilot checkpoint. For this roadmap, the accumulation branch—not `master`—is
+the intended integration target until P9.
 
 Objective: finish the pilot as a reviewable checkpoint before adding another
 large command group.
@@ -274,8 +302,10 @@ Work units:
 - [x] Run the complete offline suite.
 - [x] Run the gated development-database suite only through its safety gates.
 - [x] Record any live-test fixture cleanup required in `polytopia_dev`.
-- [ ] Push/open a PR or merge only when explicitly requested.
-- [ ] Record the final integration commit or PR in the progress log.
+- [x] Establish the reviewed pilot as the base of
+  `codex/database-slash-modernization`.
+- [x] Preserve `codex/slash-async-unwin-pilot` as the pilot checkpoint.
+- [x] Record the integration result in the progress log.
 
 Review evidence:
 
@@ -318,17 +348,17 @@ Remaining limitations:
 - `recalc_games_from` remains owner-only and prefix-only pending P3.
 - The unused `Phase7 Test Team` development fixture has not been deleted.
 
-Next action: obtain approval to push
-`codex/slash-async-unwin-pilot`, open a PR targeting `master`, and merge only
-after review. After integration, mark P1 Complete and begin P2.1.
+Next action: create a P2.1 unit branch from
+`codex/database-slash-modernization`, implement the `newgame` transaction
+separation, and merge that reviewed unit back into the accumulation branch.
+Do not merge the accumulation branch into `master` before P9 approval.
 
 Exit criteria:
 
 - no beta process unintentionally left running;
 - clean worktree apart from intentional planning-document updates;
 - required tests green;
-- pilot changes reviewed and integrated, or a named integration action is
-  explicitly blocked on user direction.
+- pilot changes reviewed and established on the intended accumulation branch.
 
 ## P2 — Game creation transaction boundary
 
@@ -769,6 +799,16 @@ Status: Accepted
 Do not generalize `elo_job_coordinator` after only one domain. Reconsider after
 P2 and at least one P4/P5 unit reveal concrete shared requirements.
 
+### D-009 — Accumulate modernization outside `master` until P9
+
+Status: Accepted
+
+`codex/database-slash-modernization` is the intended integration branch for
+P0 through P8. Unit branches are based on it and merge back into it after
+their own validation. `master` remains the production-ready baseline until a
+separately approved P9 integration, avoiding reliance on manually withholding
+a production pull or restart after every development unit.
+
 ## Progress log
 
 ### 2026-07-29 — ELO/slash pilot beta accepted
@@ -795,8 +835,21 @@ P2 and at least one P4/P5 unit reveal concrete shared requirements.
   tests.
 - Confirmed live-test game `61` was deleted. Recorded unused
   `Team.id=9` / `Phase7 Test Team` as optional cleanup.
-- P1 is blocked only on approval to push/open a PR/merge. P2.1 `newgame`
-  transaction separation remains the next code unit after integration.
+- P1 was initially blocked on choosing an integration target. P2.1 `newgame`
+  transaction separation remained the next proposed code unit.
+
+### 2026-07-29 — Accumulation branch strategy adopted
+
+- Created local branch `codex/database-slash-modernization` at validated P1
+  checkpoint `a43b4d3`.
+- Preserved `codex/slash-async-unwin-pilot` unchanged at `a43b4d3`.
+- Designated the accumulation branch as the integration target through P8;
+  `master` remains the production-ready baseline until P9.
+- Marked P0 and P1 Complete on the intended accumulation branch.
+- No push, PR, beta launch, command synchronization, or production operation
+  was performed.
+- Next: create a dedicated P2.1 unit branch from the accumulation branch when
+  implementation is authorized.
 
 ## Resume checklist
 
