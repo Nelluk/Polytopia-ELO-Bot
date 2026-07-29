@@ -158,6 +158,49 @@ class EloJobCoordinatorTests(unittest.IsolatedAsyncioTestCase):
             await task
         self.assertFalse(self.coordinator.is_active)
 
+    async def test_repeated_cancellation_keeps_job_reserved_until_worker_finishes(self):
+        worker_started = threading.Event()
+        worker_release = threading.Event()
+
+        def slow_worker():
+            worker_started.set()
+            worker_release.wait(timeout=2)
+
+        task = asyncio.create_task(
+            self.coordinator.run(
+                operation='unwin',
+                game_id=77,
+                requester_id=88,
+                requester_name='Repeated Cancellation Tester',
+                worker=slow_worker,
+            )
+        )
+        for _ in range(100):
+            if worker_started.is_set():
+                break
+            await asyncio.sleep(0.005)
+
+        task.cancel()
+        await asyncio.sleep(0)
+        task.cancel()
+        await asyncio.sleep(0)
+        self.assertTrue(self.coordinator.is_active)
+
+        with self.assertRaises(EloJobConflict):
+            await self.coordinator.run(
+                operation='delete_game',
+                game_id=99,
+                requester_id=100,
+                requester_name='Conflicting Tester',
+                worker=lambda: None,
+            )
+
+        worker_release.set()
+        await asyncio.sleep(0.05)
+        with self.assertRaises(asyncio.CancelledError):
+            await task
+        self.assertFalse(self.coordinator.is_active)
+
 
 class FakeDatabase:
     def __init__(self, game, logs):

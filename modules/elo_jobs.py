@@ -140,11 +140,17 @@ class EloJobCoordinator:
                 return await asyncio.shield(future)
             except asyncio.CancelledError:
                 # A running thread cannot be cancelled. Keep the job reserved
-                # until its transaction actually finishes.
+                # until its transaction actually finishes, even if shutdown
+                # or another caller sends repeated cancellation requests.
                 task = asyncio.current_task()
                 if task is not None:
                     task.uncancel()
-                await completed.wait()
+                while not completed.is_set():
+                    try:
+                        await completed.wait()
+                    except asyncio.CancelledError:
+                        if task is not None:
+                            task.uncancel()
                 concurrent_future.result()
                 raise asyncio.CancelledError
         finally:
