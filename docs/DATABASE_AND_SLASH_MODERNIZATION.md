@@ -361,7 +361,7 @@ Exit criteria:
 
 ## P2 — Game creation transaction boundary
 
-Status: **Implemented**
+Status: **In progress**
 
 Why this phase is next:
 
@@ -495,7 +495,7 @@ the flexible prefix interface.
 
 ### P2.2 — Decide the native command UX
 
-Status: **In progress**
+Status: **Implemented**
 
 Branch/base: `codex/p2-2-newgame-slash-ux` from
 `codex/database-slash-modernization` at `f7b1e3e`.
