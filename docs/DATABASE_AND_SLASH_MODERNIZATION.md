@@ -364,7 +364,7 @@ beta launches, command synchronization, pushes, or PR operations by itself.
 | P4 | In progress | Game correction and metadata mutations | Bounded workers plus slash interfaces for clear typed operations |
 | P5 | Planned | Matchmaking lifecycle | Atomic open/join/leave/kick/start flows and native interactions |
 | P6 | Planned | Registration and player preferences | Worker-safe profile writes and slash UX |
-| P7 | Planned | Read-heavy game, player, and leaderboard commands | Bounded read path and responsive slash queries |
+| P7 | In progress | Read-heavy game, player, and leaderboard commands | Bounded read path and responsive slash queries |
 | P8 | Planned | League and remaining administration workflows | Audited domain workers and selected native interfaces |
 | P9 | Planned | Production rollout and later prefix deprecation decision | Approved deployment, monitoring, and separate deprecation plan |
 
@@ -1598,7 +1598,7 @@ if P2 and P4 demonstrate common infrastructure.
 
 ## P7 — Read-heavy commands and analytics
 
-Status: **Planned**
+Status: **In progress**
 
 Candidate scope:
 
@@ -1622,6 +1622,103 @@ Goals:
 
 Read commands should be migrated in small related groups. Leaderboards and
 image/graph generation should not share the ELO mutation worker.
+
+### P7.1 — Player leaderboard read and pagination foundation
+
+Status: **Implemented; pending beta acceptance and integration**
+
+Branch/base: `codex/p7-1-player-leaderboard`, stacked from published P4.1d
+review checkpoint `b45e3ea`. The leaderboard taxonomy is not disputed, but
+this unit must remain independently reviewable and must not imply acceptance
+or integration of P4.1d's still-reviewed game-command spellings.
+
+Objective: preserve the complete `$lb` behavior while moving its query into a
+bounded worker-local read service and adding typed
+`/leaderboard players`.
+
+In scope:
+
+- Preserve `$lb`, `$leaderboard`, `$leaderboards`, `$lbglobal`, and `$lbg`.
+- Represent the existing freely combinable dimensions as typed options:
+  - `scope: local|global`;
+  - `rating: current|peak`;
+  - `era: current|all-time`;
+  - `population: active|all`.
+- Preserve the current fewer-than-ten fallback pending a later rules decision.
+- Return immutable primitive leaderboard rows and page metadata.
+- Use a bounded read executor separate from the ELO and ordinary-write
+  executors.
+- Give each worker job its own Peewee connection.
+- Add public component pagination for slash results while preserving prefix
+  reaction pagination during transition.
+- Defer the slash interaction before worker submission.
+
+Out of scope:
+
+- `/leaderboard activity`, teams, squads, or role-filtered leaderboards.
+- Converting legacy `$lbteamjr`; it remains prefix-only and receives no slash
+  equivalent.
+- Changing ELO formulas, eligibility rules, fallback membership, or prefix
+  aliases.
+- Beta launch or command synchronization without separate approval.
+
+Tests required:
+
+- [x] complete option-matrix mapping
+- [x] worker-local connection and primitive result boundary
+- [x] deterministic ranking and page boundaries
+- [x] slow-query event-loop responsiveness
+- [x] bounded concurrent reads
+- [x] slash registration, typed options, immediate defer, and component pages
+- [x] prefix aliases and legacy filter combinations preserved
+- [x] complete offline suite
+- [x] gated development-database suite
+
+Implementation evidence:
+
+- `modules/leaderboard_workers.py` owns a dedicated two-thread read executor,
+  opens and closes each worker-local Peewee connection, and returns frozen
+  primitive rows capped at the existing 2,000-row display limit.
+- `modules/leaderboard_views.py` renders immutable ten-row pages with
+  requester-controlled First/Previous/Next/Last buttons. Results and page
+  changes remain public, matching the shared visibility of the prefix
+  leaderboard.
+- `$lb` and all four aliases now use the shared bounded service while retaining
+  reaction pagination and every legacy filter combination.
+- `/leaderboard players` exposes all sixteen combinations through four typed
+  choices and defers publicly before the database read.
+- The existing model eligibility query and its fewer-than-ten fallback remain
+  unchanged; this unit delegates selection to that model method rather than
+  redefining the rule.
+- No compatibility-ledger entry is required: all `$lb` result dimensions are
+  represented natively, the prefix aliases remain available, and slash
+  autocomplete makes a separate `/lb` registration unnecessary.
+
+Validation:
+
+- Focused leaderboard and taxonomy suite: 13 passed.
+- Complete offline suite: 151 passed, with 9 explicitly gated database tests
+  skipped.
+- Gated development-database suite: 8 passed and 1 fixture round-trip skipped
+  to preserve the existing operator-managed fixtures. The gate confirmed
+  `POLYBOT_ENV=development`, database `polytopia_dev`, and role
+  `polybot_dev`; the real-schema leaderboard worker test passed.
+- Syntax compilation and `git diff --check`: passed.
+
+Limitations:
+
+- Only the existing player ELO leaderboard is included. Activity, team,
+  squad, and role-filtered rankings retain their prefix interfaces for later
+  units.
+- The immutable snapshot preserves the existing 2,000-row cap. Its footer
+  distinguishes the full ranked count from the loaded/displayable row count.
+- Button state is process-local and expires after 120 seconds; the public
+  rendered page remains visible afterward.
+
+Next action: commit this locally green unit, then obtain separate approval for
+development-guild synchronization and a beta smoke test of representative
+local/global and pagination combinations. Integration remains sequenced
+behind the unresolved P4.1d review checkpoint on which this branch is stacked.
 
 ## P8 — League and remaining administration workflows
 
@@ -2046,6 +2143,24 @@ short-lived and in-memory initially unless restart persistence becomes a
 demonstrated requirement.
 
 ## Progress log
+
+### 2026-07-30 — Player leaderboard matrix and native pagination implemented
+
+- Audited `$lb` as four independently combinable dimensions, documented all
+  sixteen combinations, and retained `$leaderboard`, `$leaderboards`,
+  `$lbglobal`, and `$lbg`.
+- Recorded `$lbteamjr` as legacy prefix-only functionality with no planned
+  slash conversion.
+- Added the canonical `/leaderboard players` path with typed scope, rating,
+  era, and population choices.
+- Moved both prefix and slash player-leaderboard reads to a dedicated bounded
+  worker-local service returning immutable primitive snapshots.
+- Added public requester-controlled component pagination while preserving
+  prefix reaction pagination.
+- Passed 13 focused tests, 151 offline tests with 9 gated skips, and 8 gated
+  `polytopia_dev` tests with 1 intentional fixture-preservation skip.
+- Did not launch the beta bot, synchronize Discord commands, modify fixture
+  ownership, or perform production work.
 
 ### 2026-07-30 — Modernization review checkpoints published
 

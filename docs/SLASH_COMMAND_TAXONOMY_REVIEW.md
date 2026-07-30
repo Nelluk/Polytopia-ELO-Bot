@@ -257,7 +257,7 @@ operator repair commands stay out of the public tree.
 | `team_edit` aliases | `/team house`, `/team tier` | View by default; optional typed value edits |
 | `squad` | `/squad show` | Redesign one-to-three member search |
 | `squadname` | `/squad name` | View by default; optional name edits |
-| `lb` | `/leaderboard players` | Redesign filters and pagination |
+| `lb` | `/leaderboard players` | Typed local/global, current/peak, current-era/all-time, and active/all-player options with component pagination |
 | `lbrecent` | `/leaderboard activity` | Fold hidden view into typed time range |
 | `lbteam` | `/leaderboard teams` | Strong candidate |
 | `lbsquad` | `/leaderboard squads` | Strong candidate |
@@ -281,6 +281,44 @@ setting. An omitted team is inferred only when the requester has one
 unambiguous team; otherwise autocomplete/selection is required. Equivalent
 safe patterns apply to team name/house/tier, squad name, house name/image,
 player timezone, and focused game attributes.
+
+#### Player leaderboard option matrix
+
+`$lb` is not one fixed leaderboard. Its four independent filter dimensions
+produce sixteen valid combinations:
+
+| Slash option | Values | Prefix behavior preserved |
+|---|---|---|
+| `scope` | `local` (default), `global` | `global`; aliases `$lbglobal` and `$lbg` force global |
+| `rating` | `current` (default), `peak` | `max` selects the maximum ELO achieved |
+| `era` | `current` (default), `all-time` | hidden `alltime` selects the permanent non-reset field |
+| `population` | `active` (default), `all` | `allplayers` removes the 365-day activity cutoff |
+
+Examples:
+
+- `$lb` maps to local/current/current-era/active;
+- `$lb global max` maps to global/peak/current-era/active;
+- `$lb global alltime allplayers max` maps to
+  global/peak/all-time/all.
+
+The preserved prefix aliases are `$leaderboard`, `$leaderboards`,
+`$lbglobal`, and `$lbg`. Slash uses one canonical
+`/leaderboard players` command rather than a separate `/lb` alias.
+
+The current model has a subtle fallback: when fewer than ten eligible rows
+match the ranked/activity query, it returns all registered players for that
+scope. P7.1 preserves that behavior by delegating selection to the unchanged
+model method rather than silently redefining leaderboard membership. A later
+rules decision may remove or label the fallback.
+
+`$lbrecent`/`$recent`/`$active` and `$lbactivealltime` are distinct activity
+views and remain for a later `/leaderboard activity` unit. `$lbteam`,
+`$lbsquad`, and `$roleelo` also remain separate units because their filters,
+permissions, rendering, and data sources differ.
+
+`$lbteamjr` is legacy. It remains prefix-only until a later prefix-retirement
+decision and receives no slash conversion; its documented junior-team
+distinction is not implemented by the current callback.
 
 ### League and house workflows
 
