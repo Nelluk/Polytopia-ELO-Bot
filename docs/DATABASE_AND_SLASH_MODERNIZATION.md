@@ -215,6 +215,7 @@ check:
 - P2.2 implementation checkpoints: `25b9d50`, `8c350c1`
 - P2.2 sync-evidence checkpoint: `5bb67c2`
 - P3.1 implementation checkpoint: `1bebce6`
+- T1 fixture-harness implementation checkpoint: `4551bec`
 - pilot beta acceptance: all five original application commands reported
   working
 - P2.2 development sync: six commands, including `/newgame`, synchronized to
@@ -857,7 +858,7 @@ Implementation evidence:
   development players from prior beta testing. Repeating seed returned the
   same game IDs `115`, `116`, and `117`.
 
-Commit(s): pending.
+Commit(s): `4551bec` — Add gated development beta fixtures.
 
 Beta result: not applicable; the harness prepares data but never connects to
 Discord.
@@ -1433,6 +1434,7 @@ because job coordinators do not cross process boundaries.
 ### 2026-07-29 — Development beta fixture harness implemented
 
 - Created `codex/dev-beta-fixture-harness` from P3.1 checkpoint `013bab2`.
+- Recorded implementation checkpoint `4551bec`.
 - Added strictly gated, idempotent `seed`, `status`, and confirmed `cleanup`
   tooling plus an operator runbook.
 - Added eight focused offline tests and a real PostgreSQL round trip that
