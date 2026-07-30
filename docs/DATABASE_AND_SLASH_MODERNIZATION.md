@@ -839,7 +839,7 @@ Implementation evidence:
   connection explicitly on both success and failure.
 - The existing full-recalculation implementation retains one synchronous
   `db.atomic()` transaction and a guaranteed coordinator `claimed()` cleanup.
-- `docs/ELO_MAINTENANCE.md` records supported repair paths, process-local
+- This P3.2 record documents the supported repair paths, process-local
   coordination, non-cancellable worker behavior, shutdown expectations, and
   the retired command decision.
 - `reverse_duplicated_elo` was removed. Its unreachable body bypassed the
@@ -853,7 +853,6 @@ Files changed:
 
 - `bot.py`
 - `modules/administration.py`
-- `docs/ELO_MAINTENANCE.md`
 - `tests/test_runtime_config.py`
 - `tests/test_elo_jobs.py`
 - `docs/DATABASE_AND_SLASH_MODERNIZATION.md`
@@ -894,6 +893,22 @@ Remaining limitations:
 - The full CLI flag retains its historical operator interface without an
   additional confirmation prompt. Runtime and operational approval gates
   remain the protection against accidental execution.
+
+Operational guidance:
+
+- Use owner-only `recalc_games_from` or `/recalc-games-from` for a bounded
+  rebuild from one completed game; use `/elo-job-status` for the current
+  in-process job snapshot.
+- Cancellation of the awaiting Discord task does not stop synchronous Peewee
+  work. The coordinator remains reserved until the worker finishes, and a
+  successful transaction may commit after its awaiting task is cancelled.
+- Allow an ELO worker to finish during shutdown. If hard termination is
+  unavoidable, PostgreSQL determines whether the open transaction rolls back.
+- `bot.py --recalc_elo` is a standalone full rebuild. Run it only while every
+  bot process using that database is stopped because coordinators cannot
+  serialize across processes.
+- P3.2 retired `reverse_duplicated_elo`; supported repairs use recalculation
+  from a game or the separately controlled full CLI rebuild.
 
 Next action: review and integrate P3.2 into
 `codex/database-slash-modernization`; then begin P4.1 as the next code unit.
