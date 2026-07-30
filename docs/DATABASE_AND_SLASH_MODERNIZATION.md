@@ -156,20 +156,66 @@ For every command touched:
    - Discord members rather than free-form mentions;
    - choices for stable enumerations;
    - autocomplete only when it can respond cheaply.
-4. Defer immediately before potentially slow work.
-5. Keep permission checks equivalent between prefix and slash paths.
-6. Make error visibility deliberate; permission or validation errors should
+4. Evaluate whether secondary options belong in a Components v2 interaction
+   after invocation. Prefer a short task-oriented command plus an interactive
+   result when several options select views, filters, pages, or iterative
+   edits rather than defining the command's primary target or effect.
+5. Defer immediately before potentially slow work.
+6. Keep permission checks equivalent between prefix and slash paths.
+7. Make error visibility deliberate; permission or validation errors should
    generally be ephemeral for slash users.
    Successful competitive-state mutations should generally be public so the
    native interface preserves the transparency of the corresponding prefix
    command. Deviations require a recorded privacy or safety reason.
-7. Add registration tests for both interfaces.
-8. Record any native-interface compromise in the compatibility ledger below,
+8. Add registration tests for both interfaces.
+9. Record any native-interface compromise in the compatibility ledger below,
    including user impact, acceptance, and a possible mitigation. Do not let
    parity gaps live only in task commentary.
 
 Do not rename the five beta-validated pilot slash commands without a separate
 compatibility and deprecation decision.
+
+### Components v2 interaction standard
+
+Desktop and mobile beta testing of P7.5 established Components v2 as the
+preferred presentation layer for interaction-rich workflows. Slash commands
+should state the task and collect inputs necessary to identify its target.
+Options that merely change presentation or let the user explore the result
+should normally move into the response.
+
+Prefer Components v2 for:
+
+- multiple useful views or filter combinations over one result domain;
+- pagination, requester-rank jumps, search refinement, and cached refreshes;
+- iterative drafts, previews, and review/confirmation steps;
+- focused read-or-edit attributes whose current value should be visible;
+- public results with requester-only controls;
+- staff workflows that benefit from preview, explicit confirmation, and
+  visible job state.
+
+Keep direct slash options for:
+
+- identifiers and targets required to know what operation to perform;
+- one-step mutations such as join, leave, win, confirm, extend, and delete;
+- a small number of safety-critical choices that should be visible in the
+  submitted command;
+- accessibility or automation paths where an interactive draft adds no value.
+
+A conversion unit must now classify each proposed option as **essential
+invocation input** or **interactive refinement**. It should not reproduce a
+large prefix argument matrix as a large slash option matrix merely because
+Discord permits it.
+
+Components v2 messages cannot mix ordinary content or embeds, cannot be
+downgraded after the v2 message flag is set, and have component/count/layout
+limits. Every implementation must therefore provide a complete v2 renderer,
+mobile/desktop beta evidence for novel layouts, bounded state, deliberate
+timeout behavior, and an explicit rerun path after expiration.
+
+The preferred visibility model remains public competitive results with
+requester-only controls. Unauthorized controls fail ephemerally without
+changing the public message. Database loads use existing bounded workers;
+page changes and other snapshot-only navigation must not query the database.
 
 ### Slash taxonomy review
 
@@ -293,6 +339,8 @@ check:
 - P4.1d initial `/match` checkpoint: `416ca30`
 - unified taxonomy approval checkpoint: `951460a`
 - unified native registration checkpoint: `63af179`
+- P7.5 Components v2 leaderboard checkpoint: `c4b34df`
+- P7.5 development-guild sync checkpoint: `96c6981`
 - T1 fixture-harness implementation checkpoint: `4551bec`
 - T1 roadmap-evidence checkpoint: `d6e826b`
 - T1 accumulation merge: `aacace4`
@@ -308,14 +356,16 @@ check:
 - live-test game fixture: game `61` was deleted successfully
 - optional cleanup: unused `Team.id=9`, `Phase7 Test Team`, remains in
   `polytopia_dev` with zero players and zero game sides
+- retained P7.5 showcase: 24 owned players (`163`-`186`) and 48 owned games
+  (`200`-`247`), with gated status/confirmed-cleanup tooling
 
 Current unit: **P7.5 — Experimental Components v2 player leaderboard**,
-Implemented on `codex/p7-5-lb2-components-v2`, stacked from P7.4 checkpoint
+Beta-validated on `codex/p7-5-lb2-components-v2`, stacked from P7.4 checkpoint
 `ba717de`. The user explicitly authorized implementation, development-fixture
 seeding, development-guild synchronization, and a beta launch. `/lb2` is a
 temporary no-option test command and does not settle the still-reviewed
-system-wide taxonomy. Existing `/leaderboard` commands remain unchanged for
-side-by-side beta comparison.
+system-wide taxonomy. The user accepted its desktop and mobile behavior as
+strictly preferable to the typed `/leaderboard players` result.
 
 Owned fixture games `149`-`151` are intentionally retained. At the latest
 gated status check, `149` is incomplete/unranked, `150` is
@@ -1891,7 +1941,7 @@ jumps in the separately approved combined leaderboard beta smoke test.
 
 ### P7.5 — Experimental Components v2 player leaderboard
 
-Status: **Implemented; pending beta acceptance**
+Status: **Beta-validated; pending integration**
 
 Branch/base: `codex/p7-5-lb2-components-v2`, stacked from P7.4 checkpoint
 `ba717de`.
@@ -1952,11 +2002,10 @@ Evidence so far:
 - The real bounded local leaderboard worker returned 26 rows, including all
   24 showcase profiles with four recent ranked games each.
 
-Next action: smoke-test `/lb2` alongside `/leaderboard players`, record
-acceptance findings, then stop the task-owned beta before any fixture cleanup
-or reseeding.
+Next action: integrate the accepted P7.5 checkpoint in sequence, retain its
+showcase fixtures, and implement the P7.6 toolkit/promotion unit separately.
 
-Beta launch evidence:
+Beta launch and acceptance evidence:
 
 - Implementation checkpoint: `c4b34df`.
 - Development preflight reconfirmed beta application `479029527553638401`,
@@ -1964,9 +2013,68 @@ Beta launch evidence:
   background tasks/API/Bullet disabled.
 - The bot authenticated as **PolyELO Bot Beta** and Discord accepted exactly
   four guild roots: `game`, `leaderboard`, `lb2`, and `elo`.
-- The beta remains running for functional `/lb2` acceptance. Do not mark the
-  experiment Beta-validated until the user reports the Components v2 controls
-  working.
+- The user tested `/lb2` on desktop and mobile and reported it strictly
+  superior to the existing player leaderboard.
+- The task-owned beta stopped cleanly after acceptance.
+- All 24 showcase profiles and 48 games are intentionally retained for later
+  leaderboard/component testing.
+
+### P7.6 — Reusable Components v2 toolkit and leaderboard promotion
+
+Status: **Planned**
+
+Objective: turn the accepted P7.5 experiment into a small reusable interaction
+foundation and make it the production-intended player leaderboard without
+prematurely generalizing every Discord view.
+
+In scope:
+
+- Extract only the patterns proven by P7.5:
+  - complete Components v2 container/text rendering;
+  - public-result/requester-control authorization;
+  - standard loading, ephemeral error, timeout, and expired-rerun behavior;
+  - cached async view switching;
+  - previous/next, numeric page jump, and requester-rank navigation;
+  - recursive component disabling at timeout.
+- Keep immutable DTOs and bounded worker loaders outside the presentation
+  toolkit; the toolkit must not know Peewee or open database connections.
+- Promote the accepted no-option interaction to `/leaderboard players`.
+- Remove temporary `/lb2` before production synchronization; it is a test
+  registration, not a long-term alias.
+- Retain the legacy prefix `$lb` grammar during transition.
+- Preserve all sixteen player-leaderboard combinations through an
+  **Advanced filters** interaction over scope, rating, era, and population;
+  common presets remain one-click choices and the initial slash command stays
+  option-free.
+- Decide whether direct-linkable presets are valuable enough for one optional
+  `view` choice; do not restore the four-dimensional slash option matrix.
+- Apply the shared primitives to at least one additional existing leaderboard
+  view (activity or squads) so the abstraction is proven by two consumers.
+- Add serialization/component-count, desktop/mobile layout checklist,
+  authorization, cache, load-failure, timeout, and restart-expiration tests.
+
+Out of scope:
+
+- Converting unrelated commands while the taxonomy is still under review.
+- Persisting arbitrary live view objects or database snapshots across bot
+  restarts.
+- A universal UI framework for every command.
+
+Exit criteria:
+
+- `/leaderboard players` delivers the accepted Components v2 experience with
+  no temporary `/lb2` registration;
+- every legacy `$lb` dimension remains reachable through the common presets
+  or Advanced filters interaction, so no compatibility-ledger gap is added;
+- shared toolkit code has at least two real consumers and no database imports;
+- ordinary prefix behavior, bounded reads, public transparency, and event-loop
+  responsiveness remain green;
+- complete offline and gated database suites pass;
+- a separately approved development-guild beta confirms the promoted path.
+
+Next action: integrate the accepted P7.5 checkpoint into the modernization
+accumulation sequence when appropriate, then implement P7.6 as a separate
+bounded unit.
 
 ## P8 — League and remaining administration workflows
 
@@ -2033,6 +2141,10 @@ Database boundary:
 
 Slash decision:
 
+Essential invocation inputs:
+
+Interactive refinements / Components v2 decision:
+
 Permissions to preserve:
 
 Discord effects after commit:
@@ -2047,6 +2159,8 @@ Tests required:
 - [ ] conflict/concurrency when relevant
 - [ ] prefix registration/behavior
 - [ ] slash registration/defer/permissions
+- [ ] Components v2 serialization/count/authorization/timeout, when relevant
+- [ ] desktop and mobile layout smoke test for a novel interaction
 - [ ] complete offline suite
 - [ ] gated development-database suite
 - [ ] beta smoke test, if an application command or Discord effect changed
@@ -2080,6 +2194,8 @@ Apply the rows relevant to the unit.
 | Permission parity | Prefix and slash paths allow/deny the same actors |
 | Command compatibility | Prefix command and aliases remain registered |
 | Interaction timing | Slash path defers before slow work |
+| Components v2 state | Controls authorize correctly, cached navigation avoids unnecessary reads, load failures preserve coherent state, and timeout/expiry has a rerun path |
+| Components v2 layout | Payload serializes within Discord limits and novel layouts receive desktop/mobile beta evidence |
 | Guild isolation | Development sync targets only the approved development guild |
 | Production safety | No production checkout, service, bot, or database touched |
 
@@ -2390,7 +2506,44 @@ post-commit Discord effects remain unchanged. Draft state should be
 short-lived and in-memory initially unless restart persistence becomes a
 demonstrated requirement.
 
+### D-023 — Prefer Components v2 workspaces over slash option matrices
+
+Status: Accepted
+
+Desktop and mobile beta testing found the no-option P7.5 `/lb2` workspace
+strictly preferable to the four-option `/leaderboard players` response.
+Slash commands should identify the task and essential target; message
+components should handle exploratory filters, alternate views, pagination,
+cached refreshes, and iterative review.
+
+This is a design preference, not a requirement to make every response
+interactive. Simple one-step mutations retain direct typed inputs.
+Database-backed view changes continue through bounded workers, while
+snapshot-only navigation remains database-free. Public competitive results
+retain requester-only controls and ephemeral authorization failures.
+
+P7.6 will extract only the component behavior proven in P7.5, require at least
+two real consumers, promote the accepted UI to `/leaderboard players`, and
+remove temporary `/lb2` before production. Later units must classify proposed
+slash options as essential invocation inputs or interactive refinements.
+
 ## Progress log
+
+### 2026-07-30 — Components v2 interaction preference accepted
+
+- The user accepted `/lb2` after desktop and mobile testing and described it
+  as strictly superior to the regular player leaderboard.
+- Stopped the task-owned beta cleanly after testing.
+- Retained all 24 owned showcase profiles and 48 games for future component
+  and leaderboard work.
+- Accepted D-023: task/target inputs stay on slash commands while exploratory
+  filters, views, pages, edits, previews, and confirmation should normally
+  move into Components v2.
+- Added P7.6 for a bounded reusable toolkit, promotion to
+  `/leaderboard players`, removal of temporary `/lb2`, and a second real
+  toolkit consumer.
+- Made Components v2 suitability and option classification part of every
+  later slash-conversion review without changing unresolved taxonomy names.
 
 ### 2026-07-30 — Components v2 leaderboard showcase implemented
 
@@ -2411,11 +2564,11 @@ demonstrated requirement.
 - Passed 31 focused tests, 174 complete offline tests with 9 gated skips, and
   8 gated database tests with 1 operator-fixture-preserving skip.
 - No dependency, schema, production, service, or production database change
-  occurred. Development beta launch/sync remains the next approved action.
+  occurred.
 - Committed the implementation as `c4b34df`, then launched the explicitly
   approved development profile. Discord synchronized `game`, `leaderboard`,
-  temporary `lb2`, and `elo` only to guild `478571892832206869`; functional
-  Components v2 acceptance remains pending.
+  temporary `lb2`, and `elo` only to guild `478571892832206869`; the user
+  subsequently accepted the UI on desktop and mobile.
 
 ### 2026-07-30 — Shared leaderboard page-jump modal implemented
 

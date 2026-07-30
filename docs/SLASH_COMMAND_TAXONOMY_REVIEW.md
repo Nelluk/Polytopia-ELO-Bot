@@ -2,8 +2,9 @@
 
 Last updated: 2026-07-30
 
-Status: Taxonomy v2.1 proposed for user/staff review; attribute-command rule
-accepted; approved `/leaderboard` paths implemented locally
+Status: Taxonomy v2.1 proposed for user/staff review; attribute-command and
+Components v2 interaction rules accepted; approved `/leaderboard` paths
+implemented locally
 
 This review covers the bot's complete repository-backed command surface, not
 only commands already converted to Discord application commands. Taxonomy v2.1
@@ -156,6 +157,35 @@ Modal state should remain ephemeral and short-lived unless a concrete workflow
 needs restart persistence. A modal is a presentation layer over the same
 application/worker service, not a second mutation implementation.
 
+### 6. Keep invocation short; move exploration into Components v2
+
+Slash options should identify the task, target, and safety-critical choices.
+When several options merely select filters, views, pages, or iterative edits,
+prefer a short command that opens a Components v2 workspace.
+
+The accepted P7.5 player-leaderboard experiment is the reference:
+
+- `/lb2` took no options and opened the standard local/current/active view;
+- one select exposed common local/global, current/peak, and
+  current/all-time presets;
+- a button toggled active/all players;
+- page, numeric jump, and requester-rank controls explored the cached result;
+- only uncached view changes submitted a bounded worker read;
+- the result stayed public while controls remained requester-only;
+- desktop and mobile beta testing found it strictly preferable to the
+  four-option `/leaderboard players` interface.
+
+The production-intended path remains `/leaderboard players`; `lb2` is a
+temporary experiment, not a taxonomy root or slash alias. P7.6 promotes the
+accepted renderer to that path, adds an Advanced filters interaction for all
+sixteen legacy combinations, and removes `lb2`.
+
+Use this approach for leaderboards, searches, profile/detail workspaces,
+multi-step drafts, and preview/confirmation flows. Do not bury a simple
+one-step action behind a workspace, and do not move an operation's required
+target or safety confirmation out of the invocation merely to reduce its
+option count.
+
 ## Proposed game command tree
 
 Discord permits a root, one optional subcommand-group level, and a command.
@@ -257,7 +287,7 @@ operator repair commands stay out of the public tree.
 | `team_edit` aliases | `/team house`, `/team tier` | View by default; optional typed value edits |
 | `squad` | `/squad show` | Redesign one-to-three member search |
 | `squadname` | `/squad name` | View by default; optional name edits |
-| `lb` | `/leaderboard players` | Typed local/global, current/peak, current-era/all-time, and active/all-player options with component pagination |
+| `lb` | `/leaderboard players` | Components v2 workspace defaults to local/current/active and exposes common views, population, paging, and requester-rank controls in-message; preserve the full prefix matrix |
 | `lbrecent` | `/leaderboard activity` | Native now with explicit server-30-days and global-all-time views |
 | `lbteam` | `/leaderboard teams` | Strong candidate |
 | `lbsquad` | `/leaderboard squads` | Native now with current/all-time eligibility choices |
@@ -282,17 +312,18 @@ unambiguous team; otherwise autocomplete/selection is required. Equivalent
 safe patterns apply to team name/house/tier, squad name, house name/image,
 player timezone, and focused game attributes.
 
-#### Player leaderboard option matrix
+#### Player leaderboard interaction matrix
 
 `$lb` is not one fixed leaderboard. Its four independent filter dimensions
-produce sixteen valid combinations:
+produce sixteen valid combinations. P7.1 initially exposed all four as slash
+options; accepted P7.5 testing instead treats them as interactive refinements:
 
-| Slash option | Values | Prefix behavior preserved |
+| Dimension | Values | Components v2 treatment |
 |---|---|---|
-| `scope` | `local` (default), `global` | `global`; aliases `$lbglobal` and `$lbg` force global |
-| `rating` | `current` (default), `peak` | `max` selects the maximum ELO achieved |
-| `era` | `current` (default), `all-time` | hidden `alltime` selects the permanent non-reset field |
-| `population` | `active` (default), `all` | `allplayers` removes the 365-day activity cutoff |
+| scope | `local`, `global` | Common-view preset selector |
+| rating | `current`, `peak` | Common-view preset selector |
+| era | `current`, `all-time` | Common-view preset selector |
+| population | `active`, `all` | Focused active/all toggle |
 
 Examples:
 
@@ -301,8 +332,11 @@ Examples:
 - `$lb global alltime allplayers max` maps to
   global/peak/all-time/all.
 
-The preserved prefix aliases are `$leaderboard`, `$leaderboards`,
-`$lbglobal`, and `$lbg`. Slash uses one canonical
+The initial workspace exposes common presets rather than placing all sixteen
+combinations in the invocation. An **Advanced filters** interaction exposes
+all four dimensions for less-common combinations, while `$lb` remains
+available during transition. The preserved prefix aliases are `$leaderboard`,
+`$leaderboards`, `$lbglobal`, and `$lbg`. Slash uses one canonical
 `/leaderboard players` command rather than a separate `/lb` alias.
 
 The current model has a subtle fallback: when fewer than ten eligible rows
@@ -390,6 +424,9 @@ paths apply only if the feature remains active.
 
 | Capability | Recommended interaction | Why |
 |---|---|---|
+| Player leaderboards | `/leaderboard players` opens the accepted Components v2 workspace with presets, population toggle, paging, page modal, and requester-rank jump | Replaces four presentation-oriented slash options with a discoverable mobile/desktop UI |
+| Game/player detail | Show the primary record immediately, then offer contextual history, players, attributes, and permitted actions | Keeps common lookup short while making secondary information discoverable |
+| Search and history | Essential target/query at invocation; Components v2 filters and pages refine the immutable result | Avoids large option lists and repeated commands while keeping reads bounded |
 | Arbitrary game recording | `/game record` opens a short-lived draft; modal collects name/options and native user selects fill sides; buttons add/edit sides and confirm | Restores large and multi-side coverage without message-content intent |
 | Game notes | `/game notes` reads directly; an Edit button opens a paragraph modal | Long text is awkward as a slash option and benefits from prefilled review |
 | Player registration | `/player register` modal with platform choice, name text, and optional staff-selected member | Several related fields form one understandable task |
@@ -399,10 +436,11 @@ paths apply only if the feature remains active.
 | Game notification | Modal for longer message and optional upload, then a public preview/confirm message | Separates authoring from potentially broad notification |
 | League bulk maintenance | Buttons/selects for preview and confirmation; modal only for a reason/note | Bulk target selection and result review are iterative, not a one-shot form |
 
-Search filters, leaderboards, and audit-history pagination should use slash
-options plus message components rather than modals. ELO recalculation and
-other long jobs should retain immediate confirmation/defer behavior; a modal
-adds little to a two-option command.
+Search filters, leaderboards, and audit-history pagination should use minimal
+essential slash inputs plus Components v2 refinement rather than large option
+matrices or form modals. ELO recalculation and other long jobs should retain
+immediate confirmation/defer behavior; a modal adds little to a two-option
+command.
 
 ### Prefix/operator-only and repair commands
 
