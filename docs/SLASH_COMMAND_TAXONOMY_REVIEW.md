@@ -2,9 +2,9 @@
 
 Last updated: 2026-07-30
 
-Status: Taxonomy v2.2 proposed for user/staff review; attribute-command and
-component-first interaction rules accepted; approved `/leaderboard` paths
-implemented locally
+Status: Taxonomy v2.2 proposed for user/staff review; attribute-command,
+component-first interaction, and show/ping/logs naming rules accepted;
+approved `/leaderboard` paths implemented locally
 
 This review covers the bot's complete repository-backed command surface, not
 only commands already converted to Discord application commands. Taxonomy v2.2
@@ -90,7 +90,7 @@ take one additional word if that makes the picker easier to scan.
   value when the replacement value is omitted and edits it when supplied.
 - `/game result ...` is for reviewing or correcting a reported result.
 - `/game manage ...` is for uncommon lifecycle or membership administration.
-- `/game show`, `/game search`, `/game players`, and `/game history` are
+- `/game show`, `/game search`, `/game players`, and `/game logs` are
   descriptive reads.
 
 There is no `/game get ...` group. “Get” is API vocabulary and makes the next
@@ -121,6 +121,16 @@ omission cannot naturally mean “view.”
   places.
 - Use `/game players` for the draft-ordered in-game names currently returned
   by `$getnames`, `$names`, and `$codes`.
+- Keep `/game show` and `/player show` as the explicit detail commands.
+  Discord command groups do not provide a default no-subcommand action, so
+  retaining the familiar `show` verb is clearer than inventing another
+  lookup name. `/player show` defaults to the requester; `/game show` infers
+  a game only from unambiguous context and otherwise requests a game ID.
+- Use `/game ping`, not `/game notify`, for the notification workflow. “Ping”
+  matches established user vocabulary and the current prefix commands.
+- Use `/game logs`, not `/game history`, for the permission-aware game audit
+  trail. “Logs” matches the current prefix command and distinguishes audit
+  records from broader player or game history views.
 - Use `/game notes` as a focused read-or-edit attribute. Notes also remain
   visible in the normal game display.
 - Use `/game search status:unconfirmed`, not `/game unconfirmed`.
@@ -204,8 +214,8 @@ Taxonomy v2.2 applies this rule system-wide:
 |---|---|---|
 | `/leaderboard players` | none | presets, advanced filters, paging, requester rank |
 | `/game search` | optional initial query or player | status/outcome/scope filters and paging |
-| `/game show` | optional game ID when it cannot be inferred from the channel | players, history, attributes, and permitted actions |
-| `/game notify` | optional game ID when it cannot be inferred | audience/scope, long message, multiple uploads, preview, confirmation |
+| `/game show` | optional game ID when it cannot be inferred from the channel | players, logs, attributes, and permitted actions |
+| `/game ping` | optional game ID when it cannot be inferred | audience/scope, long message, multiple uploads, preview, confirmation |
 | `/game record` | none for the normal draft flow | name, platform/ranked state, sides, members, review, confirmation |
 | `/player show` | optional member; requester by default | history, teams, leaderboard position, permitted profile edits |
 | `/player register` | optional staff-selected member | one canonical Polytopia name and review |
@@ -238,8 +248,8 @@ options or a coherent existing group over consuming the remaining headroom.
 | `/game search` | `games`, `allgames`, `incomplete`, `wins`, no-arg `confirm` | Typed, paginated discovery across lifecycle and result states |
 | `/game players` | `getnames` | Return draft-ordered canonical Polytopia names |
 | `/game win` | `win` | Report the winner; common enough to remain a short direct action |
-| `/game history` | `logs` | View/search audit history with permission-aware scope |
-| `/game notify` | `ping`, `pingall` | Optional inferred/typed game target opens a notification composer; audience, message sections, uploads, preview, and confirmation are interactive |
+| `/game logs` | `logs` | View/search audit history with permission-aware scope |
+| `/game ping` | `ping`, `pingall` | Optional inferred/typed game target opens a notification composer; audience, message sections, uploads, preview, and confirmation are interactive |
 
 Recommended `/game search` options include:
 
@@ -253,9 +263,9 @@ Recommended `/game search` options include:
 `/game unconfirmed`. This keeps “unconfirmed” where users already look for
 lists of games rather than presenting a read-only status as an action.
 
-#### Game notification composer
+#### Game ping composer
 
-`/game notify` consolidates `ping`, `pingall`, `pingmobile`, and `pingsteam`
+`/game ping` consolidates `ping`, `pingall`, `pingmobile`, and `pingsteam`
 without reproducing their argument grammar as slash options:
 
 1. Infer the current game when invoked in an unambiguous game channel;
@@ -502,7 +512,7 @@ paths apply only if the feature remains active.
 | Team/house creation | Modal for name and typed attributes, followed by a review/confirm view | Multi-field creation is clearer than many optional slash arguments |
 | Team/house image | Focused attribute command; Edit opens a modal file upload with explicit replace/clear choice | Native file upload avoids URL-only workflows |
 | Staff help | `/staffhelp` modal with summary/details, game reference, and up to 10 uploads per upload component | Preserves the familiar name and supports structured reports and screenshots |
-| Game notification | `/game notify` composer with audience controls, repeatable text sections, multiple uploads, and public-effect preview/confirm | Separates authoring from potentially broad notification and supports bounded multi-message delivery |
+| Game notification | `/game ping` composer with audience controls, repeatable text sections, multiple uploads, and public-effect preview/confirm | Separates authoring from potentially broad notification and supports bounded multi-message delivery |
 | Bullet result logging | `/bullet log` resolves or selects the active matchup, collects result/replay, and previews before confirmation | Replaces message-content parsing with a discoverable native participant flow |
 | League bulk maintenance | Buttons/selects for preview and confirmation; modal only for a reason/note | Bulk target selection and result review are iterative, not a one-shot form |
 

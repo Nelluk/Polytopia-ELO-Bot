@@ -219,8 +219,8 @@ page changes and other snapshot-only navigation must not query the database.
 
 ### Slash taxonomy review
 
-Status: **Taxonomy v2.2 proposed; attribute-command and component-first rules
-accepted; registration changes pending review**
+Status: **Taxonomy v2.2 proposed; attribute-command, component-first, and
+show/ping/logs naming rules accepted; registration changes pending review**
 
 The accepted architecture remains T-A domain roots with one user-facing
 `/game` domain across open, pending, started, and completed states. On
@@ -253,7 +253,7 @@ that renamed or removed guild commands are pruned.
 
 The revision keeps common actions directly under `/game`:
 
-- `/game open|join|leave|start|record|show|search|players|win|history|notify`.
+- `/game open|join|leave|start|record|show|search|players|win|logs|ping`.
 
 Less-common operations use one additional conceptual group:
 
@@ -279,7 +279,10 @@ identify the operation.
 
 Additional staff/user feedback incorporated in v2.2:
 
-- `/game notify` opens an interactive composer instead of exposing message,
+- `/game show` and `/player show` remain the explicit detail commands.
+  `/player show` defaults to the requester; `/game show` uses an inferred
+  game only when context is unambiguous and otherwise requests a game ID.
+- `/game ping` opens an interactive composer instead of exposing message,
   scope, platform, attachments, and confirmation as slash options. It must
   support multiple uploads and a high, explicit aggregate text limit through
   bounded multi-message delivery; it cannot promise unlimited Discord
@@ -2570,7 +2573,7 @@ under review
 
 Four user/staff decisions refine the system-wide proposal:
 
-1. `/game notify` is an interactive composer. The invocation accepts only an
+1. `/game ping` is an interactive composer. The invocation accepts only an
    optional game target when channel inference cannot identify it. Audience,
    platform/scope, long-form text, uploads, preview, and confirmation are
    interactive refinements. The composer must accept multiple attachments.
@@ -2598,7 +2601,38 @@ These decisions simplify invocation without changing permission boundaries.
 Notification delivery, player-field migration, Bullet spreadsheet mutation,
 and staff-help routing each remain separate bounded implementation units.
 
+### D-025 — Keep explicit show commands and established ping/logs vocabulary
+
+Status: Accepted as command-specific naming; overall taxonomy v2.2 remains
+under review
+
+Keep `/game show` and `/player show` as the explicit detail commands. Discord
+command groups do not provide a default no-subcommand action, so the native
+surface accepts the extra `show` word instead of creating a misleading
+alternative. `/player show` defaults to the requester. `/game show` may infer
+the current game only from unambiguous context; otherwise it requests a game
+ID or selection.
+
+Use `/game ping`, not `/game notify`, for the interactive notification
+composer. Use `/game logs`, not `/game history`, for permission-aware game
+audit records. These names preserve established user vocabulary and map
+directly to the current `$ping`/`$pingall` and `$logs` commands without
+changing the proposed Components v2 interaction design.
+
+This is a naming decision inside the proposal, not final approval of Taxonomy
+v2.2. No registration change is authorized by this decision.
+
 ## Progress log
+
+### 2026-07-30 — Show, ping, and logs naming accepted
+
+- Retained `/game show` and `/player show` as explicit detail commands.
+- Recorded requester-default behavior for `/player show` and
+  context-sensitive inference for `/game show`.
+- Renamed the proposed `/game notify` composer to `/game ping`.
+- Renamed the proposed `/game history` audit view to `/game logs`.
+- Left final approval of Taxonomy v2.2 pending and made no registration,
+  runtime, synchronization, database, fixture, or production change.
 
 ### 2026-07-30 — Component-first taxonomy v2.2 proposed
 
@@ -2608,7 +2642,8 @@ and staff-help routing each remain separate bounded implementation units.
   Components v2 workspaces.
 - Added an invocation-versus-interaction matrix for the major game, player,
   team, leaderboard, Bullet, and staff-help journeys.
-- Redesigned `/game notify` as a previewed composer with multiple uploads,
+- Redesigned the game notification workflow as a previewed composer with
+  multiple uploads (subsequently named `/game ping` by D-025),
   repeatable text sections, and bounded multi-message delivery. Recorded
   Discord's concrete per-input/file limits instead of promising unlimited
   messages.
@@ -2766,7 +2801,7 @@ and staff-help routing each remain separate bounded implementation units.
   team, squad, leaderboard, league, house, ELO, optional Bullet, tools, about,
   and support domains.
 - Recorded that a generic `get` subgroup is less usable than explicit
-  `/game show|search|players|history` paths.
+  `/game show|search|players|logs` paths.
 - Left checkpoint `63af179`, the beta runtime, Discord synchronization, and
   databases untouched. User/staff review is the next action.
 
