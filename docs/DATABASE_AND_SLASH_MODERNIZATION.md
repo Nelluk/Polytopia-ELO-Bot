@@ -175,11 +175,12 @@ compatibility and deprecation decision.
 
 Status: **Accepted — unified `/game` domain**
 
-T-A domain groups remain the working architecture. The user approved one
+T-A domain groups are the approved working architecture. The user approved one
 user-facing `/game` domain for open/pending matchmaking records and
-started/completed records. Prefix names and aliases remain unchanged. Replace
-the unsynchronized P4.1d `/match` group and migrate the previously tested
-top-level native commands before the next development-guild sync.
+started/completed records. Prefix names and aliases remain unchanged.
+Checkpoint `63af179` replaced the unsynchronized P4.1d `/match` group and
+migrated the previously tested top-level native commands before the next
+development-guild sync.
 
 The repository-wide inventory and conversion dispositions are maintained in
 `docs/SLASH_COMMAND_TAXONOMY_REVIEW.md`. It covers all 83 in-scope explicit prefix
@@ -189,19 +190,18 @@ operator-only. The legacy API cog and its seven hidden commands are excluded.
 The table below is only the current native surface being renamed; it is not
 the complete modernization inventory.
 
-The current native surface under review is:
+The current locally implemented native surface is:
 
-- `/newgame`, `/win`, `/unwin`, `/delete`, `/confirm`, `/unconfirmed`;
-- `/set-ranked`;
-- `/recalc-games-from`, `/elo-job-status`.
-- locally implemented but unsynchronized `/match extend` and
-  `/match unstart`.
+- `/game create`, `/game win`, `/game unwin`, `/game delete`;
+- `/game confirm`, `/game unconfirmed`, `/game set-ranked`;
+- `/game extend`, `/game unstart`;
+- `/elo recalculate`, `/elo status`.
 
-The first nine commands have already been synchronized during approved
-development-guild sessions. P4.1d locally replaced the never-synchronized
-top-level `/extend` with `/match extend` and added `/match unstart`; neither
-grouped command has been synchronized. The revised proposal moves both to
-`/game` before their first live sync.
+The prior top-level names were synchronized only to the development guild.
+None reached production. The approved migration therefore removes them
+cleanly rather than registering compatibility aliases. The never-synchronized
+`/match` group is also absent. The unified tree remains pending its first
+separately approved development-guild synchronization and smoke test.
 
 #### T-A — Domain groups (recommended)
 
@@ -217,6 +217,7 @@ Organize commands by the object or workflow they affect:
 | `/unconfirmed` | `/game unconfirmed` |
 | `/set-ranked` | `/game set-ranked` |
 | `/extend` | `/game extend` |
+| `/unstart` | `/game unstart` |
 | `/recalc-games-from` | `/elo recalculate` |
 | `/elo-job-status` | `/elo status` |
 
@@ -372,7 +373,9 @@ check:
 - P4.1b implementation checkpoint: `c0945a3`
 - P4.1c implementation checkpoint: `204ab40`
 - P4.1b/P4.1c accumulation merge: `31c84d7`
-- P4.1d implementation checkpoint: `416ca30`
+- P4.1d initial `/match` checkpoint: `416ca30`
+- unified taxonomy approval checkpoint: `951460a`
+- unified native registration checkpoint: `63af179`
 - T1 fixture-harness implementation checkpoint: `4551bec`
 - T1 roadmap-evidence checkpoint: `d6e826b`
 - T1 accumulation merge: `aacace4`
@@ -380,15 +383,16 @@ check:
   working
 - combined development sync: all eight expected commands synchronized to
   guild `478571892832206869`; P2.2 and P3.1 accepted by the user
-- complete offline suite: 123 tests passed, with eight gated database tests
+- complete offline suite: 142 tests passed, with eight gated database tests
   skipped as designed
-- gated `polytopia_dev` suite: eight tests passed under the required
-  `development` / `polytopia_dev` / `polybot_dev` checks
+- gated `polytopia_dev` suite: seven tests passed and one operator-fixture
+  round trip skipped under the required `development` / `polytopia_dev` /
+  `polybot_dev` checks
 - live-test game fixture: game `61` was deleted successfully
 - optional cleanup: unused `Team.id=9`, `Phase7 Test Team`, remains in
   `polytopia_dev` with zero players and zero game sides
 
-Current unit: **P4.1d — Match slash group**, Implemented on
+Current unit: **P4.1d — Unified native registration**, Implemented on
 `codex/p4-1d-match-slash-group` from accumulation checkpoint `31c84d7`.
 P0 through P3 and T1 are Complete on the intended accumulation branch.
 
@@ -1472,7 +1476,7 @@ accumulation branch, then create a bounded domain-group registration unit for
 the current native surface, including `/match extend` and `/match unstart`.
 Use one separately approved beta session after that unit.
 
-#### P4.1d — Match slash group
+#### P4.1d — Unified native registration
 
 Status: **Implemented**
 
@@ -1482,41 +1486,54 @@ Branch/base: `codex/p4-1d-match-slash-group` from accumulation checkpoint
 Commit(s):
 
 - `416ca30` — Add match slash commands for unstart and extend.
+- `951460a` — Approve unified game slash taxonomy.
+- `63af179` — Unify native commands under game and elo.
 
-Objective: apply the provisionally accepted T-A taxonomy to the two pending
-matchmaking corrections and expose P4.1c through a typed native interaction.
+Objective: apply the approved T-A taxonomy to every native command implemented
+through P4.1d and expose P4.1c through a typed native interaction.
 
 Slash interface:
 
-- Add guild-only `/match unstart game_id`.
-- Move the not-yet-beta-synchronized top-level `/extend` registration to
-  `/match extend game_id`; no temporary top-level alias is retained.
-- Preserve prefix `$unstart` and `$extend` unchanged.
+- Register one guild-only `/game` group containing
+  `create|win|unwin|delete|confirm|unconfirmed|set-ranked|extend|unstart`.
+- Register one guild-only `/elo` group containing `recalculate|status`.
+- Remove the development-only top-level native names and the
+  never-synchronized `/match` group; no temporary slash aliases are retained.
+- Preserve all corresponding prefix commands and aliases unchanged.
 - Both successful mutations defer and complete publicly under D-017.
   Permission, validation, per-game conflict, and database failures remain
   ephemeral.
 
 Implementation evidence:
 
-- One `discord.app_commands.Group` owns both typed integer subcommands.
-- `/match unstart` performs the staff check before defer, then calls the same
+- The games cog owns the `/game` group and its nine typed subcommands; the
+  administration cog owns `/elo` and its two maintenance subcommands.
+- `/game unstart` performs the staff check before defer, then calls the same
   P4.1c worker/post-commit pipeline as the prefix command.
 - The primitive invocation channel ID now crosses into the worker so the
   prefix safety rule is authoritatively revalidated before mutation for slash
   users as well.
-- Slash audit logging identifies `/match unstart` rather than attributing the
+- Slash audit logging identifies `/game unstart` rather than attributing the
   transition to the prefix spelling.
-- Registration tests prove the `match` group contains both subcommands, the
-  obsolete top-level `/extend` and `/unstart` registrations are absent, and
-  both prefix commands remain.
+- Thin `/game` adapters reuse existing prefix checks/callbacks or delegate to
+  the existing administration handlers, avoiding duplicate permissions and
+  mutation logic.
+- Registration tests prove the only top-level roots are `game` and `elo`,
+  their exact eleven subcommands and typed shapes are correct, obsolete
+  top-level names and `match` are absent, and prefix commands/aliases remain.
 - No native behavior is omitted, so no compatibility-ledger row is required.
 
 Files changed:
 
 - `modules/administration.py`
+- `modules/games.py`
 - `modules/game_workers.py`
 - `tests/test_game_extension.py`
 - `tests/test_game_unstart.py`
+- `tests/test_elo_jobs.py`
+- `tests/test_newgame_worker.py`
+- `tests/test_ranked_state.py`
+- `tests/test_slash_taxonomy.py`
 - `modules/dev_fixtures.py`
 - `scripts/manage_dev_fixtures.py`
 - `tests/test_dev_fixtures.py`
@@ -1525,8 +1542,8 @@ Files changed:
 
 Validation evidence:
 
-- Focused P4.1b/P4.1c registration and behavior suite: 21 passed.
-- Complete offline suite: 137 passed with eight gated database tests skipped
+- Focused taxonomy and affected command suite: 74 passed.
+- Complete offline suite: 142 passed with eight gated database tests skipped
   as designed.
 - Existing gated development-database suite: seven passed and the fixture
   round-trip skipped itself to preserve operator-managed games `149`-`151`;
@@ -1539,16 +1556,10 @@ Validation evidence:
 - `git diff --check`: clean before this documentation update.
 
 Beta result: pending separate launch/synchronization approval. The exact smoke
-matrix is recorded in `docs/DEVELOPMENT_BETA_FIXTURES.md`: use the current
-ready fixture for `/match unstart`, then `/match extend`, prefix parity,
-public-success visibility, ephemeral denial/validation, responsiveness, and
-clean shutdown checks.
-
-Naming hold: do not run that beta procedure yet. The 2026-07-30 taxonomy
-revision proposes `/game unstart` and `/game extend` because users do not
-distinguish open/pending “matches” from other games. If approved, revise this
-unit's registration, tests, audit attribution, and runbook before sync. The
-existing worker and transaction evidence is unaffected.
+matrix is recorded in `docs/DEVELOPMENT_BETA_FIXTURES.md`: verify only
+`/game` and `/elo` are synchronized, exercise all eleven migrated
+subcommands, verify prefix parity, public-success visibility, ephemeral
+denial/validation, responsiveness, and clean shutdown.
 
 Remaining limitations:
 
@@ -1558,14 +1569,14 @@ Remaining limitations:
   editing or channel deletion; focused fault/ordering tests cover those
   boundaries unless a separately recorded disposable interactive game is
   used.
-- Other beta-tested top-level slash commands have not yet moved into their
-  T-A groups. This unit deliberately establishes only the first coherent
-  group.
+- The branch name retains the superseded `match` wording; the commit and
+  command tree are authoritative. Renaming the local branch is unnecessary
+  churn before integration.
 
-Next action: obtain user review of the unified `/game` proposal. If approved,
-rename the unsynchronized P4.1d group and update its focused tests and beta
-runbook before requesting launch/synchronization approval. Do not integrate
-P4.1d into accumulation until its live behavior is accepted.
+Next action: commit the corrected roadmap/runbook checkpoint, then request
+separate approval to launch and synchronize the beta bot for the unified
+fixture-backed smoke matrix. Do not integrate P4.1d into accumulation until
+its live behavior is accepted.
 
 ### P4.2 — Game metadata
 
@@ -1999,15 +2010,14 @@ private only for a recorded privacy or safety reason.
 
 ### D-018 — Select slash taxonomy before expanding the public surface
 
-Status: Provisionally accepted for development
+Status: Accepted
 
-T-A domain groups are the working architecture and unblock further native
-development. Prefix commands remain stable, and grouped slash commands are
-thin adapters over existing shared worker/application paths. Because the
-surface has not reached production, migrate the current beta registrations
-cleanly in one bounded unit rather than preserving top-level aliases by
-default. Staff may still select another recorded taxonomy; if they do, revise
-the registration layer and documentation before P9 deployment.
+T-A domain groups are the working architecture for native development.
+Prefix commands remain stable, and grouped slash commands are thin adapters
+over existing shared worker/application paths. Because the surface has not
+reached production, checkpoint `63af179` migrates the current beta
+registrations cleanly without preserving top-level aliases. Any later
+taxonomy change requires an explicit compatibility decision.
 
 ### D-019 — Use one game namespace across lifecycle states
 
@@ -2024,9 +2034,9 @@ filters consolidate `allgames`, `incomplete`, `wins`, and the joinable `games`
 list; typed `/game ping` scope consolidates `ping` and `pingall`. This yields
 at most 24 named child commands if every remaining candidate ships, below
 Discord's 25-child limit. P4.1d's unsynchronized `/match extend` and
-`/match unstart` must not be beta-synchronized while this proposal is under
-review. The user approved this proposal on 2026-07-30 before any `/match`
-command was synchronized.
+`/match unstart` were replaced locally before synchronization. The user
+approved this structure on 2026-07-30 before any `/match` command was
+synchronized.
 
 ## Progress log
 
@@ -2056,6 +2066,24 @@ command was synchronized.
   the unsynchronized `/match` group receive no compatibility aliases because
   none has reached production.
 - No Discord synchronization or beta launch occurred at approval time.
+
+### 2026-07-30 — Existing native commands unified
+
+- Migrated all native commands implemented through P4.1d to the approved
+  `/game` and `/elo` roots in checkpoint `63af179`.
+- Registered `/game create|win|unwin|delete|confirm|unconfirmed|set-ranked`,
+  `/game extend|unstart`, and `/elo recalculate|status`; removed the
+  development-only top-level native names and the never-synchronized
+  `/match` root.
+- Preserved all prefix commands and aliases and reused their existing checks,
+  callbacks, workers, and post-commit behavior through thin adapters.
+- Added exact-tree, typed-option, delegation, prefix-registration, and
+  permission-check reuse coverage. The affected focused suite passed 74
+  tests; the full offline suite passed 142 with eight gated skips; the gated
+  database suite passed seven with one operator-fixture-preserving skip.
+- Updated the fixture-backed beta procedure for all eleven subcommands. No
+  beta launch or Discord synchronization occurred; that remains the next
+  separately approved action.
 
 ### 2026-07-29 — Slash taxonomy review prepared
 

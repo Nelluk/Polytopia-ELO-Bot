@@ -209,11 +209,11 @@ Record the tested branch/commit, synchronized command list, command results,
 fixture mutations, interactive game IDs, final cleanup result, and beta
 shutdown result in the modernization roadmap.
 
-## P4.1 match-group beta procedure
+## Unified `/game` and `/elo` beta procedure
 
-Use this sequence for checkpoint `416ca30` or its later documentation
-checkpoint. It tests the first T-A domain group without retesting every
-previous command.
+Use this sequence for checkpoint `63af179` or its later documentation
+checkpoint. It validates the clean taxonomy migration of every native command
+implemented through P4.1d.
 
 ### 1. Preflight while the beta is stopped
 
@@ -248,28 +248,81 @@ The preflight and startup must select the beta application, `polytopia_dev`,
 role `polybot_dev`, development guild `478571892832206869`, and disabled
 background tasks/API.
 
-The synchronized top-level tree should contain the nine previously tested
-top-level commands plus `match`. Expanding `/match` must show:
+The synchronized top-level application-command tree should contain exactly:
 
-- `/match unstart game_id`
-- `/match extend game_id`
+- `/game`
+- `/elo`
 
-The unsynchronized top-level `/extend` name should be absent. Prefix
-`$unstart` and `$extend` remain registered.
+Expanding `/game` must show:
 
-### 3. Smoke `/match unstart`
+- `/game create`
+- `/game win`
+- `/game unwin`
+- `/game delete`
+- `/game confirm`
+- `/game unconfirmed`
+- `/game set-ranked`
+- `/game unstart`
+- `/game extend`
+
+Expanding `/elo` must show:
+
+- `/elo recalculate`
+- `/elo status`
+
+The old top-level names (`/newgame`, `/win`, `/unwin`, `/delete`, `/confirm`,
+`/unconfirmed`, `/set-ranked`, `/recalc-games-from`, and `/elo-job-status`)
+and the never-synchronized `/match` root should be absent. Their corresponding
+prefix commands and aliases remain registered.
+
+### 3. Smoke the existing pilot commands
+
+Use the three owned fixtures and record every mutation:
+
+1. Run `/elo status`; it should report idle ephemerally.
+2. Run `/game unconfirmed`; it should include the current unconfirmed fixture.
+3. Run `/game set-ranked` on the ready fixture, then reverse the value with
+   the preserved `$rankset` or `$rankunset` prefix path. Successful native
+   output should be public.
+4. Run `/game win` against the ready fixture using one fixture participant as
+   winner, then `/game unwin` to restore it. Confirm both remain responsive
+   and that the win reversal returns the fixture to incomplete state.
+5. Run `/game confirm` against the unconfirmed fixture. This intentionally
+   changes that fixture to confirmed; record the result.
+6. As owner, run `/elo recalculate` against the confirmed fixture with
+   `confirm:false`, then with `confirm:true`. The false case should refuse
+   ephemerally; the true case should defer ephemerally and complete. Check
+   `/elo status` during the job if timing permits.
+
+Permission-denial checks are useful when a non-staff/non-owner beta account is
+available. They should fail ephemerally before worker submission.
+
+### 4. Smoke create and delete
+
+1. Use `/game create` to create one disposable ranked Mobile 1v1 with the
+   native member selectors.
+2. Record the returned game ID immediately; it is an ordinary unowned game.
+3. Delete it with `/game delete` and confirm the public result.
+4. Verify one low-impact preserved prefix creation/deletion or `$help`
+   registration case if practical. Do not leave the interactive game
+   unrecorded if deletion fails.
+
+The accepted C-001 limits remain: native creation covers two-sided games
+through 4v4; larger or multi-side shapes remain prefix-only.
+
+### 5. Smoke `/game unstart`
 
 Run these in a bot-command channel that is not associated with the ready
 fixture:
 
-1. If a non-staff account is available, attempt `/match unstart` against the
+1. If a non-staff account is available, attempt `/game unstart` against the
    ready game. It should deny ephemerally without changing the game.
-2. As staff, run `/match unstart` against the ready game. Discord should show
+2. As staff, run `/game unstart` against the ready game. Discord should show
    an immediate public defer and then a public success message mentioning the
    players.
 3. Confirm the game is now an open matchmaking game and its deadline is at
    least 24 hours in the future.
-4. Repeat `/match unstart` against the same game. It should report
+4. Repeat `/game unstart` against the same game. It should report
    ephemerally that the game is already pending.
 5. Run `$unstart READY_ID`; it should reach the preserved prefix path and
    report that the same game is already pending.
@@ -281,19 +334,19 @@ channel reconciliation remain covered by focused offline tests. A separate
 interactive game with disposable beta channels may be used only if those
 resources and its cleanup are recorded.
 
-### 4. Smoke `/match extend`
+### 6. Smoke `/game extend`
 
-1. Run `/match extend` against the now-pending ready game. It should defer
+1. Run `/game extend` against the now-pending ready game. It should defer
    publicly and report the old and new deadlines publicly.
 2. Verify the new deadline is 24 hours later than the prior future deadline.
 3. Run `$extend READY_ID` once to confirm the preserved prefix path; it should
    add another 24 hours.
-4. If a non-staff account is available, verify `/match extend` denies before
+4. If a non-staff account is available, verify `/game extend` denies before
    deferring or changing the deadline.
-5. Run a harmless command such as `/elo-job-status` between mutations to
+5. Run a harmless command such as `/elo status` between mutations to
    confirm the bot remains responsive.
 
-### 5. Stop and record state
+### 7. Stop and record state
 
 Stop the beta cleanly. With the beta stopped, rerun fixture `status` and
 record that the ready fixture is now pending plus its final deadline. Retain
@@ -303,7 +356,8 @@ test does not require harness cleanup.
 Record:
 
 - tested branch and commit;
-- synchronized top-level command tree and both `/match` subcommands;
+- synchronized `/game` and `/elo` trees and absence of old top-level names;
+- results for all eleven migrated native commands;
 - public-success and ephemeral-denial behavior;
 - ready fixture ID and final deadline;
 - prefix results;

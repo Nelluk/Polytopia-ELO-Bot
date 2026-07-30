@@ -17,8 +17,8 @@ Static inspection found:
 
 - 83 in-scope explicit prefix command handlers;
 - one customized framework `help` command;
-- nine previously synchronized native commands plus two locally implemented,
-  unsynchronized P4.1d subcommands;
+- nine previously synchronized native commands plus two P4.1d subcommands,
+  all now migrated locally into the approved groups;
 - many additional prefix aliases;
 - a conditional command family for the Bullet cog.
 
@@ -85,8 +85,8 @@ state, and prefix aliases sometimes use “match” or “matchmaking.”
 | `gamenotes` | `/game notes` | Strong candidate; modal is an option |
 | `kick` | `/game kick` | Strong candidate with native member input |
 | `start` | `/game start` | Strong candidate after lifecycle worker separation |
-| `extend` | `/game extend` | Proposed replacement for implemented, unsynchronized `/match extend` |
-| `unstart` | `/game unstart` | Proposed replacement for implemented, unsynchronized `/match unstart` |
+| `extend` | `/game extend` | Native now; staff-only |
+| `unstart` | `/game unstart` | Native now; staff-only |
 
 The combined inventory has 28 legacy capability rows. Four overlapping list
 and history handlers (`allgames`, `incomplete`, `wins`, and `games`) become
@@ -98,11 +98,13 @@ folded into typed options before the group reaches that limit.
 
 ### Effect on the current implementation
 
-P4.1d has locally implemented `/match extend` and `/match unstart`, but those
-commands have not been synchronized to Discord. If this revision is approved,
-rename that group to `/game` and update its tests, audit attribution, roadmap,
-and beta runbook before the first live sync. No compatibility alias is needed
-for an application-command name that users have never received.
+Checkpoint `63af179` implements the approved surface locally. The bot now
+registers only `/game` and `/elo` at the top level: all previously synchronized
+native game commands moved beneath `/game`, ELO maintenance moved beneath
+`/elo`, and the never-synchronized `/match` group was removed. Prefix commands
+and aliases remain unchanged. No compatibility aliases were added because no
+native name has reached production. Development-guild synchronization and
+live smoke testing remain separately gated.
 
 ### Players, teams, squads, and ratings
 
@@ -256,21 +258,19 @@ top-level commands become a long alphabetical picker, related commands are
 less visibly grouped, and the design approaches Discord's top-level command
 limit sooner.
 
-## Staff voting procedure
+## Taxonomy decision record
 
-Staff may still vote on architecture:
+The alternatives considered were:
 
 1. T-A — domain roots;
 2. T-B — one umbrella;
 3. T-C — systematic flat names.
 
-Ranked-choice voting is preferable. For T-B voters, collect a secondary root
-preference among `/poly`, `/elo`, and `/bot`. Until the result is available,
-T-A is not a blocker and its documented spellings are the implementation
-defaults.
+The user selected T-A with a unified `/game` domain on 2026-07-30. The other
+options remain documented as design history, not open implementation choices.
+Any later change requires an explicit compatibility decision.
 
-After the architecture vote, run a short spelling review rather than mixing
-dozens of word choices into the first ballot:
+Future spelling reviews should remain separate from architecture changes:
 
 - `create` versus `new`;
 - `open` versus `host`;
@@ -280,14 +280,14 @@ dozens of word choices into the first ballot:
 
 ## Implementation and migration plan
 
-1. Use T-A domain roots for new development while the staff vote is open.
-2. Record the eventual vote result; revise the registration layer before
-   production if staff select a different architecture.
+1. Use the approved T-A domain roots for new development.
+2. Treat later taxonomy changes as explicit compatibility decisions,
+   especially after the first production synchronization.
 3. Build reusable slash groups/wrappers without changing prefix command names,
    aliases, permissions, workers, or transaction boundaries.
-4. Rename the unsynchronized P4.1d `/match` group to `/game`, then move the
-   remaining current native surface into that group in bounded registration
-   units with prefix-registration and slash-path tests.
+4. Preserve checkpoint `63af179`'s `/game` and `/elo` registration structure
+   and extend it through bounded units with prefix-registration and slash-path
+   tests.
 5. Synchronize only the development guild in a separately approved beta
    session and run the existing mutation/permission smoke matrix.
 6. Because no names are in production, prefer a clean beta rename. Retain old
