@@ -13,7 +13,7 @@ import re
 import functools
 from modules.games import PolyGame, post_win_messaging
 import modules.achievements as achievements
-from modules import elo_workers
+from modules import elo_workers, game_workers
 from modules.elo_jobs import EloJobConflict
 
 logger = logging.getLogger('polybot.' + __name__)
@@ -149,6 +149,40 @@ class administration(commands.Cog):
             requester_name=requester_name,
             worker=elo_workers.recalculate_games_from,
             worker_args=(game_id,),
+        )
+
+    async def _set_ranked_state_and_post(
+        self,
+        *,
+        game_id: int,
+        guild,
+        is_ranked: bool,
+        requester,
+    ):
+        utilities.lock_game(game_id)
+        try:
+            result = await game_workers.run_ranked_state_correction(
+                game_id,
+                guild.id,
+                is_ranked,
+                models.GameLog.member_string(requester),
+            )
+        finally:
+            utilities.unlock_game(game_id)
+
+        game = models.Game.load_full_game(result.game_id)
+        state = 'ranked' if result.is_ranked else 'unranked'
+        await game.update_squad_channels(
+            guild_list=settings.bot.guilds,
+            guild_id=guild.id,
+            message=(
+                f'Staff member **{requester.display_name}** has set this '
+                f'game to be *{state}*.'
+            ),
+        )
+        return (
+            f'Game {game.id} is now marked as {state}.\n'
+            f'Notifying players: {" ".join(game.mentions())}'
         )
 
     @settings.is_superuser_check()
@@ -726,19 +760,16 @@ class administration(commands.Cog):
         if game is None:
             return await ctx.send('No matching game was found.')
 
-        if game.is_completed or game.is_confirmed:
-            return await ctx.send(f'This can only be used on a pending game. You can use `{ctx.prefix}unwin` to turn a completed game into a pending game.')
-
-        if game.is_ranked:
-            return await ctx.send(f'Game {game.id} is already marked as ranked.')
-
-        game.is_ranked = True
-        game.save()
-
-        logger.info(f'Game {game.id} is now marked as ranked.')
-        models.GameLog.write(game_id=game, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} set game to be ranked.')
-        await game.update_squad_channels(guild_list=settings.bot.guilds, guild_id=ctx.guild.id, message=f'Staff member **{ctx.author.display_name}** has set this game to be *ranked*.')
-        return await ctx.send(f'Game {game.id} is now marked as ranked.\nNotifying players: {" ".join(game.mentions())}')
+        try:
+            message = await self._set_ranked_state_and_post(
+                game_id=game.id,
+                guild=ctx.guild,
+                is_ranked=True,
+                requester=ctx.author,
+            )
+        except game_workers.RankedStateValidationError as exc:
+            return await ctx.send(str(exc))
+        return await ctx.send(message)
 
     @commands.command(usage='game_id')
     async def rankunset(self, ctx, game: PolyGame = None):
@@ -750,19 +781,54 @@ class administration(commands.Cog):
         if game is None:
             return await ctx.send('No matching game was found.')
 
-        if game.is_completed or game.is_confirmed:
-            return await ctx.send(f'This can only be used on a pending game. You can use `{ctx.prefix}unwin` to turn a completed game into a pending game.')
+        try:
+            message = await self._set_ranked_state_and_post(
+                game_id=game.id,
+                guild=ctx.guild,
+                is_ranked=False,
+                requester=ctx.author,
+            )
+        except game_workers.RankedStateValidationError as exc:
+            return await ctx.send(str(exc))
+        return await ctx.send(message)
 
-        if not game.is_ranked:
-            return await ctx.send(f'Game {game.id} is already marked as unranked.')
-
-        game.is_ranked = False
-        game.save()
-
-        logger.info(f'Game {game.id} is now marked as unranked.')
-        models.GameLog.write(game_id=game, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} set game to be unranked.')
-        await game.update_squad_channels(guild_list=settings.bot.guilds, guild_id=ctx.guild.id, message=f'Staff member **{ctx.author.display_name}** has set this game to be *unranked*.')
-        return await ctx.send(f'Game {game.id} is now marked as unranked.\nNotifying players: {" ".join(game.mentions())}')
+    @discord.app_commands.command(
+        name='set-ranked',
+        description='Set whether an incomplete game is ranked.',
+    )
+    @discord.app_commands.guild_only()
+    @discord.app_commands.describe(
+        game_id='Incomplete game to correct.',
+        ranked='True for ranked; false for unranked.',
+    )
+    async def set_ranked_slash(
+        self,
+        interaction: discord.Interaction,
+        game_id: int,
+        ranked: bool,
+    ):
+        if not settings.is_staff(interaction.user):
+            return await interaction.response.send_message(
+                'You do not have permission to use this command.',
+                ephemeral=True,
+            )
+        await interaction.response.defer(ephemeral=True)
+        try:
+            message = await self._set_ranked_state_and_post(
+                game_id=game_id,
+                guild=interaction.guild,
+                is_ranked=ranked,
+                requester=interaction.user,
+            )
+        except game_workers.RankedStateValidationError as exc:
+            return await interaction.followup.send(str(exc), ephemeral=True)
+        except (peewee.PeeweeException, exceptions.RecordLocked):
+            logger.exception('Failed ranked-state correction for %s', game_id)
+            return await interaction.followup.send(
+                'Ranked-state correction failed; no Discord update was made.',
+                ephemeral=True,
+            )
+        await interaction.followup.send(message, ephemeral=True)
 
     @settings.in_bot_channel()
     @commands.command(usage='game_id')

@@ -4,7 +4,7 @@ Last updated: 2026-07-29
 
 Status: Active
 
-Current branch at last update: `codex/p3-2-elo-maintenance-consistency`
+Current branch at last update: `codex/p4-1a-ranked-state-correction`
 
 Source task: `thread://019fae66-8e3a-7a50-9a0f-d3d7160d2287`
 
@@ -234,8 +234,8 @@ check:
 - optional cleanup: unused `Team.id=9`, `Phase7 Test Team`, remains in
   `polytopia_dev` with zero players and zero game sides
 
-Current unit: **P4.1a — Ranked-state correction**, Planned on
-`codex/database-slash-modernization` at integrated checkpoint `41bd614`.
+Current unit: **P4.1a — Ranked-state correction**, Implemented on
+`codex/p4-1a-ranked-state-correction` from accumulation checkpoint `f215bae`.
 P2.2, P3.1, and T1 are Complete on the intended accumulation branch.
 
 Owned games `115`-`117` were removed successfully after the combined beta
@@ -1074,6 +1074,50 @@ staff-only ranked-state mutation and post-commit notification boundary.
 Keep `unstart` separate because it deletes Discord channels and edits an
 announcement; keep `extend` separate because it is a pending-game timer
 operation with no ELO interaction.
+
+#### P4.1a — Ranked-state correction
+
+Status: **Implemented**
+
+Branch/base: `codex/p4-1a-ranked-state-correction` from
+`codex/database-slash-modernization` at `f215bae`.
+
+Implementation evidence:
+
+- Prefix `rankset` and `rankunset` remain registered and staff-gated through
+  the administration cog.
+- New staff-only `/set-ranked game_id ranked` uses typed integer and Boolean
+  options and defers before worker submission.
+- One bounded ordinary-game worker opens its own connection, reloads by
+  primitive game/guild IDs, revalidates incomplete and cross-guild state, and
+  commits the flag plus audit log in one synchronous transaction.
+- The existing per-game claim rejects overlapping mutation attempts.
+- Squad-channel notification and completion output happen only after commit;
+  fault injection proves database failure prevents those effects.
+- No ELO coordinator is used because completed games are rejected.
+- No slash compatibility compromise was introduced.
+
+Validation evidence:
+
+- `tests.test_ranked_state`: five passed, covering commit, rollback,
+  connection cleanup, event-loop responsiveness, registration, and
+  post-commit ordering.
+- Complete offline suite: 113 passed with eight gated skips.
+- Existing gated development-database suite: eight passed after confirming
+  `development`, `polytopia_dev`, and `polybot_dev`.
+- `git diff --check`: clean.
+
+Beta result: pending. The new `/set-ranked` application command requires an
+approved later development-guild sync and smoke test before integration.
+
+Remaining limitations:
+
+- The short post-commit game reload remains synchronous on the event-loop
+  thread.
+- `unstart` and `extend` remain unchanged for separate bounded units.
+
+Next action: commit P4.1a, then prepare a fixture-backed beta test for
+`/set-ranked`, `rankset`, and `rankunset`.
 
 Use typed game IDs and choices. If these commands can race with finalized ELO
 state, use the ELO coordinator; otherwise use a per-game claim rather than
