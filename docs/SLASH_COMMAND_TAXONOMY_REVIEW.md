@@ -2,14 +2,15 @@
 
 Last updated: 2026-07-30
 
-Status: Taxonomy v2.1 proposed for user/staff review; attribute-command and
-Components v2 interaction rules accepted; approved `/leaderboard` paths
+Status: Taxonomy v2.2 proposed for user/staff review; attribute-command and
+component-first interaction rules accepted; approved `/leaderboard` paths
 implemented locally
 
 This review covers the bot's complete repository-backed command surface, not
-only commands already converted to Discord application commands. Taxonomy v2.1
+only commands already converted to Discord application commands. Taxonomy v2.2
 retains the approved domain-root architecture and the single user-facing
-`/game` domain, but revises command placement around common user journeys:
+`/game` domain, but revises command placement and invocation design around
+common user journeys:
 
 - common game actions stay short and directly discoverable;
 - useful attributes use focused commands that read by default and edit when a
@@ -18,6 +19,9 @@ retains the approved domain-root architecture and the single user-facing
 - read commands say what they return rather than using developer terms such
   as “getter”;
 - open, pending, started, completed, and corrected records are all games.
+- slash invocation supplies only the task and essential target; Components v2
+  handles exploratory filters, long-form authoring, attachments, previews,
+  paging, and iterative refinement where that is more usable.
 
 This is a naming and interaction proposal. It does not authorize a beta
 launch, command synchronization, or a code rename. The current locally
@@ -28,7 +32,9 @@ Implementation is intentionally paused while staff continue reviewing command
 names, command-registration scope, and whether some rare administration
 workflows belong in Discord or a later web interface. The pause does not
 invalidate checkpoint `63af179`; it prevents an unsettled public surface from
-being synchronized.
+being treated as production-ready. The checkpoint's `/game` root has since
+been synchronized and exercised only in the development guild; Taxonomy v2.2
+has not been registered, and neither surface has reached production.
 
 ## Inventory scope
 
@@ -37,6 +43,7 @@ Static inspection found:
 - 83 in-scope explicit prefix command handlers;
 - one customized framework `help` command;
 - nine locally implemented `/game` subcommands and two `/elo` subcommands;
+- three locally implemented `/leaderboard` subcommands plus temporary `/lb2`;
 - many additional prefix aliases;
 - a conditional command family for the Bullet cog.
 
@@ -61,7 +68,7 @@ backlog. Retaining or deleting that cog is a separate cleanup decision.
 - **Retire/review**: hidden test or legacy behavior needing an explicit
   retain/retire decision.
 
-## Taxonomy v2.1 design rules
+## Taxonomy v2.2 design rules
 
 ### 1. Optimize the common journeys
 
@@ -117,6 +124,11 @@ omission cannot naturally mean “view.”
 - Use `/game notes` as a focused read-or-edit attribute. Notes also remain
   visible in the normal game display.
 - Use `/game search status:unconfirmed`, not `/game unconfirmed`.
+- Treat a player's Polytopia name as one canonical value in the native
+  interface. Do not ask slash users to choose among mobile name, Steam name,
+  or legacy friend code.
+- Keep the established, discoverable top-level `/staffhelp` name instead of
+  replacing it with `/support request`.
 
 ### 4. Preserve migration safety
 
@@ -142,7 +154,7 @@ Use modals/components selectively:
 
 - keep one-step commands such as win, join, leave, confirm, extend, and
   delete as direct typed slash commands;
-- prefer a modal for `/game notes`, `/support request`, team/house image
+- prefer a modal for `/game notes`, `/staffhelp`, team/house image
   replacement, and multi-field create/register forms;
 - use a modal plus buttons/selects for an arbitrary-side `/game record`
   draft, with native member selection, review, and explicit confirmation;
@@ -186,6 +198,25 @@ one-step action behind a workspace, and do not move an operation's required
 target or safety confirmation out of the invocation merely to reduce its
 option count.
 
+Taxonomy v2.2 applies this rule system-wide:
+
+| Capability | Essential invocation input | Interactive refinement |
+|---|---|---|
+| `/leaderboard players` | none | presets, advanced filters, paging, requester rank |
+| `/game search` | optional initial query or player | status/outcome/scope filters and paging |
+| `/game show` | optional game ID when it cannot be inferred from the channel | players, history, attributes, and permitted actions |
+| `/game notify` | optional game ID when it cannot be inferred | audience/scope, long message, multiple uploads, preview, confirmation |
+| `/game record` | none for the normal draft flow | name, platform/ranked state, sides, members, review, confirmation |
+| `/player show` | optional member; requester by default | history, teams, leaderboard position, permitted profile edits |
+| `/player register` | optional staff-selected member | one canonical Polytopia name and review |
+| `/team show` | optional team when requester context is unambiguous | roster, history, attributes, and permitted edits |
+| `/bullet log` | none when the active matchup is unambiguous | match/result selection, replay, review, confirmation |
+| `/staffhelp` | none | game reference, long description, multiple uploads, review, submit |
+
+This table is an interaction contract rather than permission to combine
+unrelated application services. Each bounded implementation unit still owns
+its worker, authorization, transaction, and post-effect review.
+
 ## Proposed game command tree
 
 Discord permits a root, one optional subcommand-group level, and a command.
@@ -205,10 +236,10 @@ options or a coherent existing group over consuming the remaining headroom.
 | `/game record` | `newgame` | Record an already-created Polytopia game; Native now as `/game create` |
 | `/game show` | `game` | Display one game's full summary |
 | `/game search` | `games`, `allgames`, `incomplete`, `wins`, no-arg `confirm` | Typed, paginated discovery across lifecycle and result states |
-| `/game players` | `getnames` | Return draft-ordered in-game player names/codes |
+| `/game players` | `getnames` | Return draft-ordered canonical Polytopia names |
 | `/game win` | `win` | Report the winner; common enough to remain a short direct action |
 | `/game history` | `logs` | View/search audit history with permission-aware scope |
-| `/game notify` | `ping`, `pingall` | Typed target/scope, message, attachment, and confirmation options |
+| `/game notify` | `ping`, `pingall` | Optional inferred/typed game target opens a notification composer; audience, message sections, uploads, preview, and confirmation are interactive |
 
 Recommended `/game search` options include:
 
@@ -221,6 +252,33 @@ Recommended `/game search` options include:
 `status:unconfirmed` is staff-gated and replaces the current standalone
 `/game unconfirmed`. This keeps “unconfirmed” where users already look for
 lists of games rather than presenting a read-only status as an action.
+
+#### Game notification composer
+
+`/game notify` consolidates `ping`, `pingall`, `pingmobile`, and `pingsteam`
+without reproducing their argument grammar as slash options:
+
+1. Infer the current game when invoked in an unambiguous game channel;
+   otherwise accept or request a game selection.
+2. Open a requester-only draft with audience choices for one game or, when
+   permitted, the requester's incomplete games and platform scope.
+3. Collect long-form text in one or more modal sections and accept multiple
+   uploads.
+4. Show a public-effect preview with the resolved game count, recipient
+   summary, text, and attachments.
+5. Require explicit confirmation before notifications are delivered and
+   audit-log only the confirmed delivery.
+
+Components improve the current limits but do not make Discord messages
+unlimited. A single modal text input accepts at most 4,000 characters and a
+file-upload component accepts at most 10 files. The implementation should
+support a high, explicit aggregate text limit by allowing additional draft
+sections, then deliver a bounded multi-message notification packet when the
+rendered text or files exceed one Discord message. It must define abuse,
+rate-limit, file-size, component-count, partial-delivery, and retry behavior
+before implementation. “Unlimited” is not an exit criterion. See Discord's
+[component reference](https://docs.discord.com/developers/components/reference)
+for the current platform limits.
 
 ### Focused game attributes
 
@@ -272,11 +330,11 @@ operator repair commands stay out of the public tree.
 
 ### Players, teams, squads, and ratings
 
-| Current prefix handler(s) | Taxonomy v2.1 native home | Disposition / note |
+| Current prefix handler(s) | Taxonomy v2.2 native home | Disposition / note |
 |---|---|---|
 | `player` | `/player show` | Strong candidate |
-| `setname`, `steamname` alias behavior | `/player register` | Redesign typed platform, name, and optional staff target |
-| `getname` | `/player game-name` | Strong candidate; returns the selected member's in-game name/code |
+| `setname`, `steamname`, `setcode` alias behavior | `/player register` | One canonical Polytopia name; requester by default, optional staff target; do not expose platform/name/code type |
+| `getname` | `/player show` | Fold the useful canonical name into the normal profile workspace rather than preserving a name/code-specific lookup |
 | `settime` | `/player timezone` | Strong candidate with UTC-offset choices |
 | `team` | `/team show` | Strong candidate |
 | `team_add` | `/team create` | Redesign staff options, including junior-team behavior |
@@ -297,8 +355,18 @@ operator repair commands stay out of the public tree.
 
 `/player register` is preferred over `/player set name` because the common
 flow establishes or updates the user's bot registration, not merely a display
-field. Staff targeting can be an optional typed member rather than a separate
+field. It opens a small registration modal containing one canonical Polytopia
+name. Staff targeting can be an optional typed member rather than a separate
 public command.
+
+The native interface deliberately retires the mobile-name, Steam-name, and
+legacy-code distinction. `/player show` displays the canonical name and can
+offer an authorized **Edit name** control; `/game players` uses that same
+value. Existing database fields and prefix aliases may remain temporarily for
+data migration and prefix compatibility, but no new slash command should ask
+which account-name type is being set. A separate data-cleanup unit must decide
+which existing value becomes canonical when records disagree; taxonomy work
+must not silently discard stored values.
 
 The intended team option shape is attribute-focused:
 
@@ -368,7 +436,7 @@ distinction is not implemented by the current callback.
 
 ### League and house workflows
 
-| Current prefix handler(s) | Taxonomy v2.1 native home | Disposition / note |
+| Current prefix handler(s) | Taxonomy v2.2 native home | Disposition / note |
 |---|---|---|
 | `tutorial` | `/league guide` | Strong candidate |
 | `newfreeagent` | `/league free-agents post` | Redesign channel/message options; moderator-only |
@@ -400,17 +468,18 @@ a permission control.
 The Bullet cog is conditional and relies on an external spreadsheet. These
 paths apply only if the feature remains active.
 
-| Current prefix handler(s) | Taxonomy v2.1 native home | Disposition / note |
+| Current prefix handler(s) | Taxonomy v2.2 native home | Disposition / note |
 |---|---|---|
 | `bullet` | `/bullet join` | Conditional |
 | `nobullet` | `/bullet leave` | Conditional |
+| message-based result listener | `/bullet log` | Conditional participant result workflow; infer active matchup when possible, collect winner/loser and replay interactively, preview, then confirm |
 | `bulletstart` | `/bullet manage start` | Conditional, director-only |
 | `bulletsub` | `/bullet manage substitute` | Conditional with two members |
 | `bullettoggle` | `/bullet manage automation` | Conditional operator control; retain/review |
 
 ### General utilities and support
 
-| Current prefix handler(s) | Taxonomy v2.1 native home | Disposition / note |
+| Current prefix handler(s) | Taxonomy v2.2 native home | Disposition / note |
 |---|---|---|
 | customized `help` | `/help` or native discovery | Redesign after the registered tree stabilizes |
 | `guide` | `/guide` | Strong candidate |
@@ -418,7 +487,7 @@ paths apply only if the feature remains active.
 | `rtribes` | `/tools random-tribes` | Redesign bans, free-tribe count, and duplicates |
 | `credits` | `/about credits` | Strong candidate |
 | `stats` | `/about stats` | Strong candidate after bounded read work |
-| `staffhelp` | `/support request` | Redesign message, game ID, and attachments |
+| `staffhelp` | `/staffhelp` | Preserve the established top-level name; no slash options, opening a modal for game reference, long description, and multiple uploads |
 
 ### Best modal/component candidates
 
@@ -429,11 +498,12 @@ paths apply only if the feature remains active.
 | Search and history | Essential target/query at invocation; Components v2 filters and pages refine the immutable result | Avoids large option lists and repeated commands while keeping reads bounded |
 | Arbitrary game recording | `/game record` opens a short-lived draft; modal collects name/options and native user selects fill sides; buttons add/edit sides and confirm | Restores large and multi-side coverage without message-content intent |
 | Game notes | `/game notes` reads directly; an Edit button opens a paragraph modal | Long text is awkward as a slash option and benefits from prefilled review |
-| Player registration | `/player register` modal with platform choice, name text, and optional staff-selected member | Several related fields form one understandable task |
+| Player registration | `/player register` modal with one canonical Polytopia name and optional staff-selected member | Removes an obsolete platform/name/code distinction while keeping onboarding short |
 | Team/house creation | Modal for name and typed attributes, followed by a review/confirm view | Multi-field creation is clearer than many optional slash arguments |
 | Team/house image | Focused attribute command; Edit opens a modal file upload with explicit replace/clear choice | Native file upload avoids URL-only workflows |
-| Support request | Modal with summary/details, game reference, and optional file upload | Supports structured reports and screenshots |
-| Game notification | Modal for longer message and optional upload, then a public preview/confirm message | Separates authoring from potentially broad notification |
+| Staff help | `/staffhelp` modal with summary/details, game reference, and up to 10 uploads per upload component | Preserves the familiar name and supports structured reports and screenshots |
+| Game notification | `/game notify` composer with audience controls, repeatable text sections, multiple uploads, and public-effect preview/confirm | Separates authoring from potentially broad notification and supports bounded multi-message delivery |
+| Bullet result logging | `/bullet log` resolves or selects the active matchup, collects result/replay, and previews before confirmation | Replaces message-content parsing with a discoverable native participant flow |
 | League bulk maintenance | Buttons/selects for preview and confirmation; modal only for a reason/note | Bulk target selection and result review are iterative, not a one-shot form |
 
 Search filters, leaderboards, and audit-history pagination should use minimal
@@ -462,7 +532,7 @@ touched.
 
 ## Proposed top-level roots
 
-Taxonomy v2.1 uses these domain roots:
+Taxonomy v2.2 uses these domain roots:
 
 - `/game`
 - `/player`
@@ -475,7 +545,7 @@ Taxonomy v2.1 uses these domain roots:
 - `/bullet` when enabled
 - `/tools`
 - `/about`
-- `/support`
+- `/staffhelp`
 - `/guide` and possibly `/help`
 
 This remains the earlier T-A domain-root architecture. T-B's one `/poly`
@@ -490,9 +560,16 @@ Checkpoint `63af179` currently registers:
 - `/game create|win|unwin|delete|confirm|unconfirmed|set-ranked|extend|unstart`;
 - `/elo recalculate|status`.
 
-Taxonomy v2.1 would change only the slash registration/adapters:
+The current stacked P7 branch also registers
+`/leaderboard players|activity|squads` and temporary `/lb2`. Taxonomy v2.2
+keeps the three `/leaderboard` homes, promotes the accepted option-free
+Components v2 player workspace to `/leaderboard players`, and removes `/lb2`
+before production.
 
-| Current local path | Taxonomy v2.1 path |
+For the already implemented game/ELO surface, Taxonomy v2.2 would change only
+the slash registration/adapters:
+
+| Current local path | Taxonomy v2.2 path |
 |---|---|
 | `/game create` | `/game record` |
 | `/game win` | unchanged |
@@ -506,17 +583,20 @@ Taxonomy v2.1 would change only the slash registration/adapters:
 | `/elo recalculate` | unchanged |
 | `/elo status` | unchanged |
 
-The unified tree has not been synchronized to Discord, so approval now allows
-a clean development rename without compatibility aliases. Prefix commands,
-permissions, workers, transactions, and post-commit effects would remain
-unchanged. `/game search` itself belongs to the P7 bounded-read work; until
-that exists, the already-tested top-level `/unconfirmed` prefix behavior
-remains available and the slash list can be temporarily omitted rather than
-shipping a name already marked for replacement.
+The checkpoint tree has been synchronized only to the development guild, and
+none of these slash paths has reached production. Approval therefore still
+allows a clean development rename without production compatibility aliases,
+although the beta runbook must explicitly verify that obsolete guild commands
+were pruned. Prefix commands, permissions, workers, transactions, and
+post-commit effects would remain unchanged. `/game search` itself belongs to
+the P7 bounded-read work; until that exists, the already-tested argument-free
+`$confirm` behavior remains available and the slash list can be temporarily
+omitted rather than shipping a name already marked for replacement.
 
 ## Implementation and migration plan
 
-1. Review and approve or revise taxonomy v2 before changing registration code.
+1. Review and approve or revise taxonomy v2.2 before changing registration
+   code.
 2. If approved, create a narrow P4.1d follow-up that changes only slash groups,
    paths, audit attribution, registration tests, and the beta runbook.
 3. Preserve prefix commands, aliases, permissions, workers, transactions, and
@@ -525,8 +605,10 @@ shipping a name already marked for replacement.
    tree. Add `/game search` in P7 with its bounded read/pagination design.
 5. Synchronize only the development guild in a separately approved beta
    session and verify the exact registered tree.
-6. Extend the taxonomy through bounded P4-P8 units, checking Discord's group
-   and option limits before each registration.
+6. Extend the taxonomy through bounded P4-P8 units, checking Discord's group,
+   option, component, text, and attachment limits before each registration.
+   Each unit must justify every slash option that remains instead of moving it
+   into an interaction workspace.
 7. Before P9, audit the actual tree, descriptions, permissions,
    autocomplete cost, compatibility ledger, and naming consistency.
 

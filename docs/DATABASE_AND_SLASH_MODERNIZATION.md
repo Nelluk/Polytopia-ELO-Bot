@@ -219,15 +219,15 @@ page changes and other snapshot-only navigation must not query the database.
 
 ### Slash taxonomy review
 
-Status: **Taxonomy v2.1 proposed; attribute-command rule accepted;
-registration changes pending review**
+Status: **Taxonomy v2.2 proposed; attribute-command and component-first rules
+accepted; registration changes pending review**
 
 The accepted architecture remains T-A domain roots with one user-facing
 `/game` domain across open, pending, started, and completed states. On
 2026-07-30 the user reopened the spelling and internal-grouping review before
 the first synchronization of checkpoint `63af179`.
 
-The repository-wide v2.1 proposal and conversion dispositions are maintained in
+The repository-wide v2.2 proposal and conversion dispositions are maintained in
 `docs/SLASH_COMMAND_TAXONOMY_REVIEW.md`. It covers all 83 in-scope explicit
 prefix handlers, the customized help command, optional command families,
 commands needing interaction redesign, and commands that should remain
@@ -244,10 +244,12 @@ The current locally implemented native surface is:
 The prior top-level names were synchronized only to the development guild.
 None reached production. The approved migration therefore removes them
 cleanly rather than registering compatibility aliases. The never-synchronized
-`/match` group is also absent. The unified tree remains pending its first
-separately approved development-guild synchronization and smoke test.
+`/match` group is also absent. The unified `/game` tree was later synchronized
+and exercised only in the development guild during P7 testing. Taxonomy v2.2
+has not been registered, and a later approved development sync must verify
+that renamed or removed guild commands are pruned.
 
-#### Taxonomy v2.1 — journey-first domain groups
+#### Taxonomy v2.2 — component-first journey groups
 
 The revision keeps common actions directly under `/game`:
 
@@ -268,15 +270,38 @@ read-or-edit commands such as
 reads the current setting; supplying one edits it with command-specific
 permission checks; clearing uses an explicit option.
 
+The accepted Components v2 rule now changes the interaction shape without
+changing those domain homes. Slash invocation supplies only the task and an
+essential target that cannot be inferred. Filters, optional attributes,
+long-form authoring, multiple uploads, previews, confirmation, and pagination
+move into a requester-controlled workspace when they are not necessary to
+identify the operation.
+
+Additional staff/user feedback incorporated in v2.2:
+
+- `/game notify` opens an interactive composer instead of exposing message,
+  scope, platform, attachments, and confirmation as slash options. It must
+  support multiple uploads and a high, explicit aggregate text limit through
+  bounded multi-message delivery; it cannot promise unlimited Discord
+  messages.
+- `/player register` collects one canonical Polytopia name. The slash surface
+  no longer distinguishes mobile name, Steam name, and legacy friend code;
+  existing stored values require a separate migration decision.
+- optional `/bullet` includes a participant-facing `/bullet log` result
+  workflow with matchup/result selection, replay evidence, preview, and
+  confirmation.
+- the established top-level `/staffhelp` name remains. It opens a structured
+  modal/workspace rather than becoming `/support request`.
+
 The proposed `/game` root has nineteen immediate children, including its two
 subcommand groups, leaving six slots below Discord's 25-child limit. The same
 system-wide rules apply to `/player`, `/team`, `/squad`, `/leaderboard`,
 `/league`, `/house`, `/elo`, optional `/bullet`, `/tools`, `/about`, and
-`/support`.
+top-level `/staffhelp`.
 
 The current registrations have not reached production, so an approved revision
 can be applied cleanly without slash compatibility aliases. No registration
-change should occur until the user accepts or revises v2.1. Prefix interfaces,
+change should occur until the user accepts or revises v2.2. Prefix interfaces,
 permissions, worker boundaries, and transaction behavior remain unaffected.
 
 ## Slash compatibility compromise ledger
@@ -1629,6 +1654,8 @@ Status: **Planned**
 Candidate scope:
 
 - `setname`
+- `steamname` and `setcode` compatibility/data review
+- `getname`
 - `settime`
 - squad naming and similar low-risk profile writes
 
@@ -1637,12 +1664,19 @@ Goals:
 - use typed Discord member inputs for staff overrides;
 - place lookup/create/update/log operations in one worker transaction;
 - keep role changes and direct messages post-commit;
-- add `/set-name` and `/set-time` or a reviewed command group while preserving
-  prefix aliases;
+- add `/player register` with one canonical Polytopia name and
+  `/player timezone` while preserving prefix aliases during transition;
+- show the canonical name in `/player show` and offer an authorized edit
+  control rather than adding a separate name/code lookup command;
+- inventory existing mobile-name, Steam-name, and legacy-code values and
+  define deterministic migration/conflict behavior before removing or
+  overwriting any stored field;
 - avoid exposing sensitive identifiers in public error messages.
 
-This phase is a suitable proving ground for a reusable non-ELO write executor
-if P2 and P4 demonstrate common infrastructure.
+`/player register` should open a small modal/workspace rather than ask users
+to choose platform or name type as slash options. This phase is a suitable
+proving ground for a reusable non-ELO write executor if P2 and P4 demonstrate
+common infrastructure.
 
 ## P7 — Read-heavy commands and analytics
 
@@ -2429,14 +2463,14 @@ Discord's 25-child limit. P4.1d's unsynchronized `/match extend` and
 `/match unstart` were replaced locally before synchronization. The user
 approved this structure on 2026-07-30 before any `/match` command was
 synchronized. This was the original flat-child capacity calculation;
-taxonomy v2.1's accepted attribute-command refinement instead proposes
+taxonomy v2.2's accepted attribute-command refinement instead proposes
 nineteen immediate `/game` children, including two subcommand groups.
 
-### D-020 — Use journey-first paths and semantic subgroups
+### D-020 — Use component-first journey paths and semantic subgroups
 
 Status: Proposed; awaiting user/staff review
 
-Taxonomy v2 retains the accepted domain-root architecture and unified
+Taxonomy v2.2 retains the accepted domain-root architecture and unified
 `/game` vocabulary but optimizes the tree for common user flows. Direct
 commands cover open/join/leave/start, recording, viewing, searching, player
 names, and reporting a winner. Uncommon result corrections use
@@ -2447,12 +2481,14 @@ The proposal prefers `/game record` over `/game create`,
 `/game search status:unconfirmed` over `/game unconfirmed`. It rejects a
 generic `/game get ...` group because outcome-oriented read names are shorter
 and clearer. D-021's accepted attribute-command rule further removes a generic
-`set` group where the individual value is useful to inspect.
+`set` group where the individual value is useful to inspect. D-023 further
+keeps invocation short by moving exploratory choices into Components v2.
 
 Checkpoint `63af179` remains unchanged while this decision is reviewed. If
-accepted before the first unified beta synchronization, apply the rename
-cleanly in the registration layer without compatibility aliases, then update
-registration tests and the beta runbook.
+accepted before production, apply the rename cleanly in the registration
+layer without production compatibility aliases, update registration tests and
+the beta runbook, and verify that the approved development-guild sync prunes
+the older beta-only paths.
 
 ### D-021 — Let useful attribute commands read or edit
 
@@ -2472,7 +2508,7 @@ requester. This pattern does not apply to actions such as win, join, confirm,
 delete, or unstart.
 
 This accepted refinement replaces v2's generic game/team/house/squad `set`
-subgroups. The overall v2 taxonomy remains under review, and no command code
+subgroups. The overall v2.2 taxonomy remains under review, and no command code
 has changed.
 
 ### D-022 — Use modal components for multi-field interaction design
@@ -2496,7 +2532,7 @@ Best candidates are:
 - `/game notes` editing;
 - `/player register`;
 - team/house creation and image upload;
-- `/support request`;
+- `/staffhelp`;
 - longer game notifications with optional uploads.
 
 Modal submission is a fresh interaction. Collect inputs before work, then
@@ -2527,7 +2563,64 @@ two real consumers, promote the accepted UI to `/leaderboard players`, and
 remove temporary `/lb2` before production. Later units must classify proposed
 slash options as essential invocation inputs or interactive refinements.
 
+### D-024 — Incorporate component-first taxonomy feedback
+
+Status: Accepted as command-specific direction; overall taxonomy v2.2 remains
+under review
+
+Four user/staff decisions refine the system-wide proposal:
+
+1. `/game notify` is an interactive composer. The invocation accepts only an
+   optional game target when channel inference cannot identify it. Audience,
+   platform/scope, long-form text, uploads, preview, and confirmation are
+   interactive refinements. The composer must accept multiple attachments.
+   Discord currently permits up to 4,000 characters in one modal text input
+   and up to 10 files in one File Upload component, so the design uses
+   repeatable text sections and bounded multi-message delivery rather than
+   claiming an unlimited message. These limits must be rechecked against
+   Discord's
+   [component reference](https://docs.discord.com/developers/components/reference)
+   during implementation.
+2. `/player register` uses one canonical Polytopia name. The native interface
+   does not distinguish mobile name, Steam name, or legacy friend code.
+   Existing prefix aliases and stored fields remain until a separately tested
+   migration resolves records that contain conflicting values.
+3. The optional Bullet surface gains `/bullet log`. It should infer an active
+   matchup when unambiguous, otherwise offer selection, then collect the
+   result and replay evidence, preview the effect, and confirm. This provides
+   a message-content-independent replacement for the current results-channel
+   listener.
+4. The familiar top-level `/staffhelp` name is preserved. It opens a
+   structured modal/workspace for game reference, long description, and
+   multiple uploads; `/support request` is removed from the proposal.
+
+These decisions simplify invocation without changing permission boundaries.
+Notification delivery, player-field migration, Bullet spreadsheet mutation,
+and staff-help routing each remain separate bounded implementation units.
+
 ## Progress log
+
+### 2026-07-30 — Component-first taxonomy v2.2 proposed
+
+- Applied the accepted P7.5 interaction lesson across the full taxonomy:
+  slash commands identify the task and essential target, while optional
+  filters, long-form input, uploads, previews, and paging move into
+  Components v2 workspaces.
+- Added an invocation-versus-interaction matrix for the major game, player,
+  team, leaderboard, Bullet, and staff-help journeys.
+- Redesigned `/game notify` as a previewed composer with multiple uploads,
+  repeatable text sections, and bounded multi-message delivery. Recorded
+  Discord's concrete per-input/file limits instead of promising unlimited
+  messages.
+- Collapsed mobile name, Steam name, and legacy friend code into one canonical
+  native Polytopia-name concept while requiring a separate stored-data
+  migration decision.
+- Added participant-facing `/bullet log`.
+- Preserved the established top-level `/staffhelp` name and removed
+  `/support request` from the proposal.
+- Made documentation-only changes; command registrations, beta runtime,
+  Discord synchronization, databases, fixtures, and production remained
+  untouched.
 
 ### 2026-07-30 — Components v2 interaction preference accepted
 
