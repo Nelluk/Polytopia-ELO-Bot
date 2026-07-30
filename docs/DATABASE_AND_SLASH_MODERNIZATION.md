@@ -4,7 +4,7 @@ Last updated: 2026-07-29
 
 Status: Active
 
-Current branch at last update: `codex/p4-1a-ranked-state-correction`
+Current branch at last update: `codex/database-slash-modernization`
 
 Source task: `thread://019fae66-8e3a-7a50-9a0f-d3d7160d2287`
 
@@ -223,6 +223,8 @@ check:
 - P3.2 implementation checkpoint: `63c9378`
 - P3.2 accumulation merge: `41bd614`
 - P4.1a implementation checkpoints: `3e1f395`, `d2526b4`
+- P4.1a visibility checkpoint: `2cba1cc`
+- P4.1a accumulation merge: `5888c02`
 - T1 fixture-harness implementation checkpoint: `4551bec`
 - T1 roadmap-evidence checkpoint: `d6e826b`
 - T1 accumulation merge: `aacace4`
@@ -238,8 +240,8 @@ check:
 - optional cleanup: unused `Team.id=9`, `Phase7 Test Team`, remains in
   `polytopia_dev` with zero players and zero game sides
 
-Current unit: **P4.1a — Ranked-state correction**, Beta-validated on
-`codex/p4-1a-ranked-state-correction` from accumulation checkpoint `f215bae`.
+Current unit: **P4.1b — Pending-game extension**, Planned on
+`codex/database-slash-modernization` at integrated checkpoint `5888c02`.
 P0 through P3 and T1 are Complete on the intended accumulation branch.
 
 Owned games `115`-`117` were removed successfully after the combined beta
@@ -1081,7 +1083,7 @@ operation with no ELO interaction.
 
 #### P4.1a — Ranked-state correction
 
-Status: **Beta-validated**
+Status: **Complete**
 
 Branch/base: `codex/p4-1a-ranked-state-correction` from
 `codex/database-slash-modernization` at `f215bae`.
@@ -1090,6 +1092,9 @@ Commit(s):
 
 - `3e1f395` — Modernize ranked state corrections.
 - `d2526b4` — Complete ranked correction coverage.
+- `2cba1cc` — Make ranked corrections publicly visible.
+- `5888c02` — Merge P4.1a into
+  `codex/database-slash-modernization`.
 
 Implementation evidence:
 
@@ -1136,7 +1141,9 @@ Remaining limitations:
   thread.
 - `unstart` and `extend` remain unchanged for separate bounded units.
 
-Next action: integrate P4.1a into `codex/database-slash-modernization`.
+Next action: P4.1b pending-game extension. Preserve prefix `extend`, add a
+typed native interface, and move timer validation/mutation into the bounded
+ordinary-game worker.
 
 Use typed game IDs and choices. If these commands can race with finalized ELO
 state, use the ELO coordinator; otherwise use a per-game claim rather than
@@ -1837,6 +1844,16 @@ private only for a recorded privacy or safety reason.
 - Stopped the beta cleanly. Retained owned game `149` incomplete/unranked,
   `150` unconfirmed/ranked, and `151` confirmed/ranked for later units.
 - Next: integrate P4.1a into the accumulation branch.
+
+### 2026-07-29 — P4.1a integrated
+
+- Merged the beta-accepted ranked-state unit into
+  `codex/database-slash-modernization` as `5888c02`.
+- Marked P4.1a Complete on its intended accumulation branch.
+- Retained owned fixtures `149`-`151` for the next command units; their
+  recorded post-test states remain authoritative until inspected again.
+- Next: P4.1b pending-game extension, followed separately by the more
+  destructive `unstart` workflow.
 
 ## Resume checklist
 
