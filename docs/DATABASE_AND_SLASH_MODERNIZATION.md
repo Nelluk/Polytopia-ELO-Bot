@@ -173,12 +173,13 @@ compatibility and deprecation decision.
 
 ### Slash taxonomy review
 
-Status: **Awaiting staff vote**
+Status: **Provisionally selected — T-A domain groups**
 
-This review is a naming and information-architecture gate, not authority to
-change registrations. No additional slash command should be finalized after
-P4.1b until one taxonomy is selected. Prefix names and aliases remain
-unchanged under every proposal.
+T-A domain groups are the authorized working taxonomy for development. New
+slash work may proceed under the domain map, and the current beta slash
+surface may be migrated in a bounded registration unit. Prefix names and
+aliases remain unchanged. Staff may still vote; an unexpected different
+result can replace this provisional choice before production deployment.
 
 The repository-wide inventory and conversion dispositions are maintained in
 `docs/SLASH_COMMAND_TAXONOMY_REVIEW.md`. It covers all 83 in-scope explicit prefix
@@ -295,8 +296,9 @@ Recommended ballot:
 3. T-C — conservative flat commands.
 
 Use ranked-choice voting if practical. Include “no preference” rather than
-forcing a random ranking. The implementation decision should record the vote
-result and selected spellings before registrations change.
+forcing a random ranking. Until a result is available, T-A and the spellings
+in its capability map are the development defaults and do not block
+registrations.
 
 Because these commands have not reached production, the cleanest transition
 is one coordinated beta rename followed by a development-guild sync and
@@ -1397,11 +1399,10 @@ Database boundary:
   Discord effects, and reconciliation. This operation does not interact with
   completed games or use the ELO coordinator.
 
-Slash decision: preserve staff-only prefix `$unstart`. The workflow is ready
-for a typed integer adapter, but registration is deferred under D-018's
-taxonomy freeze. Under the recommended T-A taxonomy its intended home is
-`/match unstart`; no top-level `/unstart` was registered. This is a naming
-deferral rather than an accepted reduced-parity slash conversion, so it adds
+Slash decision: preserve staff-only prefix `$unstart`. D-018 now authorizes
+the typed integer adapter at `/match unstart`; implement it in the bounded
+domain-group registration unit rather than adding a temporary top-level
+`/unstart`. This is sequencing rather than reduced native parity, so it adds
 no compatibility-ledger row.
 
 Implementation evidence:
@@ -1441,9 +1442,9 @@ Validation evidence:
   the gate confirmed `development`, `polytopia_dev`, and `polybot_dev`.
 - `git diff --check`: clean before this documentation update.
 
-Beta result: pending. A combined session can test preserved `$unstart 149`
-followed by `/extend 149`; `/unstart` itself will not synchronize while the
-taxonomy vote remains unresolved. Inspect fixture 149 immediately before use
+Beta result: pending. After the domain-group registration unit, a combined
+session can test `/match unstart` followed by `/match extend` while also
+checking preserved `$unstart 149`. Inspect fixture 149 immediately before use
 and record any announcement or channel resources affected.
 
 Remaining limitations:
@@ -1455,13 +1456,13 @@ Remaining limitations:
 - Cancellation after the synchronous transition commits can skip some or all
   Discord effects. Retained channel references make failed/skipped deletion
   discoverable, but no persistent reconciliation queue exists yet.
-- The command remains prefix-only until D-018 is resolved.
+- The command remains prefix-only until the authorized domain-group
+  registration unit adds `/match unstart`.
 
-Next action: review and commit this evidence while preserving the separate
-taxonomy-document changes. Then obtain a staff taxonomy decision before
-adding the `/match unstart` adapter or renaming the current beta slash
-surface. P4.1b and P4.1c can still share one approved beta session for
-`/extend` plus preserved `$unstart`.
+Next action: integrate the reviewed P4.1b/P4.1c checkpoints into the
+accumulation branch, then create a bounded domain-group registration unit for
+the current native surface, including `/match extend` and `/match unstart`.
+Use one separately approved beta session after that unit.
 
 ### P4.2 — Game metadata
 
@@ -1894,14 +1895,15 @@ private only for a recorded privacy or safety reason.
 
 ### D-018 — Select slash taxonomy before expanding the public surface
 
-Status: Pending staff vote
+Status: Provisionally accepted for development
 
-Three alternatives are recorded in the slash taxonomy review: domain groups,
-one ELO-branded umbrella, and conservative flat commands. No registration
-change is authorized by the review. Prefix commands remain stable, and the
-selected slash names will be implemented as thin adapters over the existing
-shared worker/application paths. The vote result, final spellings, and any
-temporary beta aliases must be recorded before implementation.
+T-A domain groups are the working architecture and unblock further native
+development. Prefix commands remain stable, and grouped slash commands are
+thin adapters over existing shared worker/application paths. Because the
+surface has not reached production, migrate the current beta registrations
+cleanly in one bounded unit rather than preserving top-level aliases by
+default. Staff may still select another recorded taxonomy; if they do, revise
+the registration layer and documentation before P9 deployment.
 
 ## Progress log
 
@@ -1923,6 +1925,20 @@ temporary beta aliases must be recorded before implementation.
   taxonomy and approve final spellings.
 - Made no command-registration, synchronization, beta-runtime, database, or
   production change.
+
+### 2026-07-29 — Domain taxonomy provisionally selected
+
+- Authorized T-A domain groups as the working development taxonomy without
+  waiting for the staff vote.
+- Removed the naming freeze for new slash work; the documented T-A spellings
+  are now the defaults.
+- Kept prefix names and aliases stable and kept registration changes separate
+  from transaction-worker units.
+- Selected a bounded current-surface registration migration as the next unit
+  after P4.1b/P4.1c integration, followed by one separately approved beta
+  synchronization and smoke session.
+- Retained the ability to revise the slash registration layer before
+  production if staff unexpectedly choose another taxonomy.
 
 ### 2026-07-29 — ELO/slash pilot beta accepted
 
@@ -2227,8 +2243,9 @@ temporary beta aliases must be recorded before implementation.
   logging into one bounded worker-local transaction.
 - Moved announcement editing and channel deletion after commit, then
   reconciled only confirmed deletions in a second bounded transaction.
-- Deferred the typed slash adapter under D-018; recommended placement remains
-  `/match unstart` if staff select T-A.
+- Initially deferred the typed slash adapter under D-018; the subsequent
+  provisional T-A decision authorizes `/match unstart` in the bounded
+  domain-group registration unit.
 - Passed nine focused tests and the complete offline suite: 132 passed with
   eight gated skips.
 - Passed seven gated development-database tests; the fixture round-trip
@@ -2237,8 +2254,9 @@ temporary beta aliases must be recorded before implementation.
 - Recorded implementation checkpoint `204ab40`. No beta launch, command
   synchronization, production operation, dependency change, or schema change
   was performed.
-- Next: commit the evidence, resolve the taxonomy vote, and use one separately
-  approved beta session for `/extend` plus `$unstart`.
+- Next: integrate P4.1b/P4.1c, implement the bounded domain-group registration
+  unit, and use one separately approved beta session for `/match extend`,
+  `/match unstart`, and preserved prefix behavior.
 
 ## Resume checklist
 

@@ -2,11 +2,12 @@
 
 Last updated: 2026-07-29
 
-Status: Awaiting staff vote
+Status: T-A domain groups provisionally selected for development
 
 This review covers the bot's complete repository-backed command surface, not
-only commands already converted to Discord application commands. It is a
-design record; it does not authorize registration changes or synchronization.
+only commands already converted to Discord application commands. T-A domain
+groups are authorized as the working development architecture. This does not
+authorize Discord synchronization, which remains separately gated.
 
 ## Inventory scope
 
@@ -235,16 +236,18 @@ top-level commands become a long alphabetical picker, related commands are
 less visibly grouped, and the design approaches Discord's top-level command
 limit sooner.
 
-## Recommended voting procedure
+## Staff voting procedure
 
-Staff should vote first on architecture:
+Staff may still vote on architecture:
 
 1. T-A — domain roots;
 2. T-B — one umbrella;
 3. T-C — systematic flat names.
 
 Ranked-choice voting is preferable. For T-B voters, collect a secondary root
-preference among `/poly`, `/elo`, and `/bot`.
+preference among `/poly`, `/elo`, and `/bot`. Until the result is available,
+T-A is not a blocker and its documented spellings are the implementation
+defaults.
 
 After the architecture vote, run a short spelling review rather than mixing
 dozens of word choices into the first ballot:
@@ -257,9 +260,9 @@ dozens of word choices into the first ballot:
 
 ## Implementation and migration plan
 
-1. Freeze new slash naming after P4.1b while the vote is open.
-2. Record the winning architecture and final spellings in the modernization
-   decision log.
+1. Use T-A domain roots for new development while the staff vote is open.
+2. Record the eventual vote result; revise the registration layer before
+   production if staff select a different architecture.
 3. Build reusable slash groups/wrappers without changing prefix command names,
    aliases, permissions, workers, or transaction boundaries.
 4. Move the current native surface in one bounded registration unit and add
