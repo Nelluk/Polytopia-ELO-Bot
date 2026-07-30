@@ -11,6 +11,7 @@ from modules import leaderboard_workers
 from modules import leaderboard_v2
 from modules import elo_workers
 from modules import game_workers
+from modules import game_record_views
 from modules.elo_jobs import EloJobConflict
 import peewee
 import modules.models as models
@@ -66,6 +67,68 @@ class PolyGame(commands.Converter):
                 await ctx.send(f'Game with ID {game_id} is associated with a different Discord server: __{server_name}__.{game_summary_str}')
                 raise commands.UserInputError()
             return game
+
+
+class NewGameRosterError(ValueError):
+    """User-facing roster resolution or permission failure."""
+
+
+async def resolve_newgame_roster(ctx, args, *, ranked_flag):
+    """Resolve the shared prefix/slash roster grammar to Discord members."""
+
+    if len(args) == 1:
+        args_list = [str(ctx.author.id), 'vs', args[0]]
+    else:
+        args_list = list(args)
+
+    player_groups = [
+        list(group)
+        for is_separator, group in groupby(
+            args_list,
+            lambda value: value.lower() in ('vs', 'versus'),
+        )
+        if not is_separator
+    ]
+    total_players = sum(map(len, player_groups))
+    game_allowed, join_error_message = settings.can_user_join_game(
+        user_level=settings.get_user_level(ctx.author),
+        game_size=total_players,
+        is_ranked=ranked_flag,
+        is_host=True,
+    )
+    if not game_allowed:
+        raise NewGameRosterError(join_error_message)
+
+    discord_groups = []
+    author_found = False
+    for group in player_groups:
+        discord_group = []
+        for player_argument in group:
+            guild_matches = await utilities.get_guild_member(
+                ctx,
+                player_argument,
+            )
+            if len(guild_matches) == 0:
+                raise NewGameRosterError(
+                    f'Could not match “{player_argument}” to a server '
+                    'member. Try using an @mention.'
+                )
+            if len(guild_matches) > 1:
+                raise NewGameRosterError(
+                    f'More than one server match was found for '
+                    f'“{player_argument}”. Use an @mention.'
+                )
+            member = guild_matches[0]
+            if member == ctx.author:
+                author_found = True
+            discord_group.append(member)
+        discord_groups.append(discord_group)
+
+    if not author_found and not settings.is_staff(ctx.author):
+        raise NewGameRosterError(
+            'You cannot record a game that you are not participating in.'
+        )
+    return tuple(tuple(group) for group in discord_groups)
 
 
 class polygames(commands.Cog):
@@ -1886,14 +1949,18 @@ class polygames(commands.Cog):
         `[p]newgame "Name of Game" nelluk frodakcin vs bakalol ben` - Sets up a 2v2 game
 
         Use `[p]newgameunranked` to create the game as unranked
-        Use `[p]newsteamgame` or `[p]newsteamgameunranked` to specify Steam platform.
+        Legacy `[p]newsteamgame` aliases remain accepted, but platform no
+        longer changes game behavior because Polytopia supports cross-play.
         """
 
         if ctx.guild.id == 814317488418193478 and not settings.is_staff(ctx.author):
             return await ctx.send('For **The Polympics** only server staff may open games.')
 
         ranked_flag = not (ctx.invoked_with in ['newgameunranked', 'newsteamgameunranked'])
-        is_mobile = ctx.invoked_with in ['newgame', 'newgameunranked']
+        # Mobile and Steam now have full cross-play. Retain the legacy field
+        # with its canonical compatibility value until the schema and all
+        # historical filters are retired in a separate migration.
+        is_mobile = True
 
         example_usage = (f'Example usage:\n`{ctx.prefix}newgame "Name of Game" player1 VS player2` - Start a 1v1 game\n'
                          f'`{ctx.prefix}newgame "Name of Game" player1 player2 VS player3 player4` - Start a 2v2 game')
@@ -1932,50 +1999,14 @@ class polygames(commands.Cog):
                 'to override due to your user level.'
             )
 
-        if len(args) == 1:
-            args_list = [str(ctx.author.id), 'vs', args[0]]
-        else:
-            args_list = list(args)
-
-        player_groups = [list(group) for k, group in groupby(args_list, lambda x: x.lower() in ('vs', 'versus')) if not k]
-        # split ['foo', 'bar', 'vs', 'baz', 'bat'] into [['foo', 'bar']['baz', 'bat']]
-
-        total_players = sum(map(len, player_groups))
-        game_allowed, join_error_message = settings.can_user_join_game(
-            user_level=settings.get_user_level(ctx.author), game_size=total_players, is_ranked=ranked_flag, is_host=True
-        )
-        if not game_allowed:
-            return await ctx.send(join_error_message)
-
-        discord_groups = []
-        author_found = False
-        for group in player_groups:
-            # Convert each arg into a Discord guild member and build a new
-            # list of lists, or return if any arg can't be matched.
-            discord_group = []
-            for p in group:
-                guild_matches = await utilities.get_guild_member(ctx, p)
-                if len(guild_matches) == 0:
-                    return await ctx.send(
-                        f'Could not match "**{p}**" to a server member. '
-                        'Try using an @Mention.'
-                    )
-                if len(guild_matches) > 1:
-                    return await ctx.send(
-                        f'More than one server matches found for "**{p}**". '
-                        'Try being more specific or using an @Mention.'
-                    )
-                if guild_matches[0] == ctx.author:
-                    author_found = True
-                discord_group.append(guild_matches[0])
-            discord_groups.append(discord_group)
-
-        if not author_found and not settings.is_staff(ctx.author):
-            # TODO: possibly allow this in PolyChampions
-            # (rickdaheals likes to do this)
-            return await ctx.send(
-                'You can\'t create a game that you are not a participant in.'
+        try:
+            discord_groups = await resolve_newgame_roster(
+                ctx,
+                args,
+                ranked_flag=ranked_flag,
             )
+        except NewGameRosterError as exc:
+            return await ctx.send(str(exc))
 
         logger.info(
             'All input checks passed. Creating new game records with args: '
@@ -2028,40 +2059,24 @@ class polygames(commands.Cog):
         await post_newgame_messaging(ctx, game=newgame)
 
     @game_group.command(
-        name='create',
-        description='Track an existing two-sided Polytopia game.',
+        name='record',
+        description='Record an existing Polytopia game.',
     )
     @discord.app_commands.describe(
         game_name='The exact game name shown in Polytopia.',
-        side_one_player_one='First player on side one.',
-        side_two_player_one='First player on side two.',
+        roster='Players separated into sides with “vs”. Mentions are safest.',
         ranked='Whether the game affects ELO.',
-        platform='Polytopia platform used for this game.',
-        side_one_player_two='Optional second player on side one.',
-        side_two_player_two='Optional second player on side two.',
-        side_one_player_three='Optional third player on side one.',
-        side_two_player_three='Optional third player on side two.',
-        side_one_player_four='Optional fourth player on side one.',
-        side_two_player_four='Optional fourth player on side two.',
     )
     async def newgame_slash(
         self,
         interaction: discord.Interaction,
         game_name: str,
-        side_one_player_one: discord.Member,
-        side_two_player_one: discord.Member,
+        roster: str,
         ranked: bool = True,
-        platform: Literal['Mobile', 'Steam'] = 'Mobile',
-        side_one_player_two: discord.Member | None = None,
-        side_two_player_two: discord.Member | None = None,
-        side_one_player_three: discord.Member | None = None,
-        side_two_player_three: discord.Member | None = None,
-        side_one_player_four: discord.Member | None = None,
-        side_two_player_four: discord.Member | None = None,
     ):
-        """Typed slash entry point for common two-sided games through 4v4."""
+        """Flexible roster parser with an interaction review gate."""
 
-        await interaction.response.defer()
+        await interaction.response.defer(ephemeral=True)
         ctx = await commands.Context.from_interaction(interaction)
         ctx.prefix = settings.guild_setting(
             interaction.guild.id,
@@ -2073,32 +2088,63 @@ class polygames(commands.Cog):
         if not await self.newgame.can_run(ctx):
             return
 
-        side_one = (
-            side_one_player_one,
-            side_one_player_two,
-            side_one_player_three,
-            side_one_player_four,
-        )
-        side_two = (
-            side_two_player_one,
-            side_two_player_two,
-            side_two_player_three,
-            side_two_player_four,
-        )
-        args = [
-            *(str(member.id) for member in side_one if member is not None),
-            'vs',
-            *(str(member.id) for member in side_two if member is not None),
-        ]
-
-        if platform == 'Mobile':
-            ctx.invoked_with = 'newgame' if ranked else 'newgameunranked'
-        else:
-            ctx.invoked_with = (
-                'newsteamgame' if ranked else 'newsteamgameunranked'
+        async def build_preview(
+            roster_value: str,
+        ) -> game_record_views.GameRecordPreview:
+            parsed_sides = game_record_views.parse_roster_string(roster_value)
+            args = game_record_views.roster_arguments(parsed_sides)
+            resolved_sides = await resolve_newgame_roster(
+                ctx,
+                args,
+                ranked_flag=ranked,
+            )
+            return game_record_views.GameRecordPreview(
+                game_name=game_name,
+                roster=roster_value,
+                ranked=ranked,
+                sides=tuple(
+                    tuple(
+                        discord.utils.escape_markdown(member.display_name)
+                        for member in side
+                    )
+                    for side in resolved_sides
+                ),
             )
 
-        await self.newgame.callback(self, ctx, game_name, *args)
+        try:
+            preview = await build_preview(roster)
+        except ValueError as exc:
+            return await interaction.edit_original_response(content=str(exc))
+
+        async def confirm_record(
+            confirmation: discord.Interaction,
+            roster_value: str,
+        ) -> None:
+            confirmation_ctx = await commands.Context.from_interaction(
+                confirmation
+            )
+            confirmation_ctx.prefix = settings.guild_setting(
+                confirmation.guild.id,
+                'command_prefix',
+            )
+            confirmation_ctx.invoked_with = (
+                'newgame' if ranked else 'newgameunranked'
+            )
+            parsed_sides = game_record_views.parse_roster_string(roster_value)
+            await self.newgame.callback(
+                self,
+                confirmation_ctx,
+                game_name,
+                *game_record_views.roster_arguments(parsed_sides),
+            )
+
+        view = game_record_views.GameRecordView(
+            requester_id=interaction.user.id,
+            preview=preview,
+            previewer=build_preview,
+            confirmer=confirm_record,
+        )
+        view.message = await interaction.edit_original_response(view=view)
 
     @settings.in_bot_channel_strict()
     @models.is_registered_member()

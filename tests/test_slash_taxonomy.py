@@ -43,7 +43,7 @@ class SlashTaxonomyRegistrationTests(unittest.TestCase):
         self.assertEqual(
             {command.name for command in game_group.commands},
             {
-                'create',
+                'record',
                 'win',
                 'unwin',
                 'delete',

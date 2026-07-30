@@ -255,7 +255,7 @@ The synchronized top-level application-command tree should contain exactly:
 
 Expanding `/game` must show:
 
-- `/game create`
+- `/game record`
 - `/game win`
 - `/game unwin`
 - `/game delete`
@@ -297,18 +297,21 @@ Use the three owned fixtures and record every mutation:
 Permission-denial checks are useful when a non-staff/non-owner beta account is
 available. They should fail ephemerally before worker submission.
 
-### 4. Smoke create and delete
+### 4. Smoke record and delete
 
-1. Use `/game create` to create one disposable ranked Mobile 1v1 with the
-   native member selectors.
-2. Record the returned game ID immediately; it is an ordinary unowned game.
-3. Delete it with `/game delete` and confirm the public result.
-4. Verify one low-impact preserved prefix creation/deletion or `$help`
+1. Use `/game record` to create one disposable ranked game with a roster such
+   as `@PlayerOne vs @PlayerTwo`.
+2. Confirm that the parsed requester-only preview is correct, edit the roster
+   once if useful, then select Confirm record.
+3. Record the returned game ID immediately; it is an ordinary unowned game.
+4. Delete it with `/game delete` and confirm the public result.
+5. Verify one low-impact preserved prefix creation/deletion or `$help`
    registration case if practical. Do not leave the interactive game
    unrecorded if deletion fails.
 
-The accepted C-001 limits remain: native creation covers two-sided games
-through 4v4; larger or multi-side shapes remain prefix-only.
+If suitable registered test members are available, also preview an uneven or
+three-sided roster. Existing guild rules may reject an uneven game at final
+validation even when the parser correctly infers its sides.
 
 ### 5. Smoke `/game unstart`
 

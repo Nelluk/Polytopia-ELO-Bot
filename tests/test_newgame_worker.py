@@ -17,6 +17,7 @@ warnings.filterwarnings(
 )
 
 import peewee
+import discord
 from discord.ext import commands
 from peewee import SchemaManager
 from playhouse.postgres_ext import PostgresqlExtDatabase
@@ -38,6 +39,7 @@ def import_offline_runtime(module_name):
 
 
 game_workers = import_offline_runtime('modules.game_workers')
+game_record_views = import_offline_runtime('modules.game_record_views')
 
 
 class FakeDatabase:
@@ -279,6 +281,100 @@ class NewGameExecutorTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.game_id, 42)
 
 
+class GameRecordRosterTests(unittest.TestCase):
+    def test_parses_unequal_and_multiple_sides(self):
+        self.assertEqual(
+            game_record_views.parse_roster_string(
+                'alpha beta vs gamma vs delta epsilon zeta'
+            ),
+            (
+                ('alpha', 'beta'),
+                ('gamma',),
+                ('delta', 'epsilon', 'zeta'),
+            ),
+        )
+
+    def test_preserves_single_opponent_shortcut(self):
+        sides = game_record_views.parse_roster_string('opponent')
+        self.assertEqual(sides, (('opponent',),))
+        self.assertEqual(
+            game_record_views.roster_arguments(sides),
+            ('opponent',),
+        )
+
+    def test_supports_quoted_member_tokens(self):
+        self.assertEqual(
+            game_record_views.parse_roster_string(
+                '"Player One" vs "Player Two"'
+            ),
+            (('Player One',), ('Player Two',)),
+        )
+
+    def test_rejects_ambiguous_or_incomplete_sides(self):
+        invalid = ('alpha beta', 'alpha vs', 'vs beta', 'alpha vs vs beta')
+        for roster in invalid:
+            with self.subTest(roster=roster):
+                with self.assertRaises(
+                    game_record_views.RosterSyntaxError
+                ):
+                    game_record_views.parse_roster_string(roster)
+
+
+class GameRecordViewTests(unittest.IsolatedAsyncioTestCase):
+    def make_view(self):
+        preview = game_record_views.GameRecordPreview(
+            game_name='Valid Game',
+            roster='alpha vs beta gamma',
+            ranked=True,
+            sides=(('Alpha',), ('Beta', 'Gamma')),
+        )
+        return game_record_views.GameRecordView(
+            requester_id=100,
+            preview=preview,
+            previewer=mock.AsyncMock(return_value=preview),
+            confirmer=mock.AsyncMock(),
+        )
+
+    def test_preview_uses_components_v2_and_shows_unequal_sides(self):
+        view = self.make_view()
+        self.assertIsInstance(view, discord.ui.LayoutView)
+        text = '\n'.join(
+            item.content
+            for item in view.walk_children()
+            if isinstance(item, discord.ui.TextDisplay)
+        )
+        self.assertIn('Side 1:** Alpha', text)
+        self.assertIn('Side 2:** Beta, Gamma', text)
+        self.assertLessEqual(view.total_children_count, 40)
+
+    async def test_controls_are_requester_only(self):
+        view = self.make_view()
+        denied = SimpleNamespace(
+            user=SimpleNamespace(id=999),
+            response=SimpleNamespace(send_message=mock.AsyncMock()),
+        )
+        allowed = SimpleNamespace(
+            user=SimpleNamespace(id=100),
+            response=denied.response,
+        )
+        self.assertFalse(await view.interaction_check(denied))
+        denied.response.send_message.assert_awaited_once_with(
+            'Only the requester can control this game draft.',
+            ephemeral=True,
+        )
+        self.assertTrue(await view.interaction_check(allowed))
+
+    async def test_cancel_never_calls_confirmation(self):
+        view = self.make_view()
+        interaction = SimpleNamespace(
+            response=SimpleNamespace(edit_message=mock.AsyncMock()),
+        )
+        await view._cancel(interaction)
+        view.confirmer.assert_not_awaited()
+        self.assertTrue(view.finished)
+        self.assertIn('Cancelled', view.status)
+
+
 class NewGameCommandTests(unittest.IsolatedAsyncioTestCase):
     @classmethod
     def setUpClass(cls):
@@ -297,7 +393,7 @@ class NewGameCommandTests(unittest.IsolatedAsyncioTestCase):
             for command in self.games.polygames.__cog_app_commands__
             if command.name == 'game'
         )
-        return game_group.get_command('create')
+        return game_group.get_command('record')
 
     def test_prefix_command_and_aliases_are_preserved(self):
         command = self.newgame_command()
@@ -313,9 +409,7 @@ class NewGameCommandTests(unittest.IsolatedAsyncioTestCase):
             },
         )
 
-    def test_typed_slash_command_is_registered_through_four_players_per_side(
-        self,
-    ):
+    def test_record_command_has_one_roster_and_no_platform_option(self):
         command = self.newgame_slash_command()
         parameters = {
             parameter.name: parameter for parameter in command.parameters
@@ -323,37 +417,20 @@ class NewGameCommandTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(
             set(parameters),
-            {
-                'game_name',
-                'side_one_player_one',
-                'side_two_player_one',
-                'ranked',
-                'platform',
-                'side_one_player_two',
-                'side_two_player_two',
-                'side_one_player_three',
-                'side_two_player_three',
-                'side_one_player_four',
-                'side_two_player_four',
-            },
+            {'game_name', 'roster', 'ranked'},
         )
         self.assertTrue(parameters['game_name'].required)
-        self.assertTrue(parameters['side_one_player_one'].required)
-        self.assertTrue(parameters['side_two_player_one'].required)
-        self.assertFalse(parameters['side_one_player_four'].required)
-        self.assertEqual(
-            [
-                (choice.name, choice.value)
-                for choice in parameters['platform'].choices
-            ],
-            [('Mobile', 'Mobile'), ('Steam', 'Steam')],
-        )
+        self.assertTrue(parameters['roster'].required)
+        self.assertFalse(parameters['ranked'].required)
 
-    async def test_slash_defers_then_reuses_prefix_checks_and_pipeline(self):
+    async def test_slash_previews_then_confirmation_reuses_prefix_pipeline(
+        self,
+    ):
         events = []
 
-        async def defer():
+        async def defer(**kwargs):
             events.append('defer')
+            self.assertEqual(kwargs, {'ephemeral': True})
 
         async def can_run(ctx):
             events.append('checks')
@@ -365,7 +442,7 @@ class NewGameCommandTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(game_name, 'Valid Game')
             self.assertEqual(
                 args,
-                ('101', '102', 'vs', '201', '202'),
+                ('101', '102', 'vs', '201', '202', '203'),
             )
 
         prefix_command = SimpleNamespace(
@@ -373,10 +450,34 @@ class NewGameCommandTests(unittest.IsolatedAsyncioTestCase):
             callback=prefix_callback,
         )
         fake_cog = SimpleNamespace(newgame=prefix_command)
-        context = SimpleNamespace(invoked_with='newgame')
+        context = SimpleNamespace(
+            invoked_with='newgame',
+            author=SimpleNamespace(id=101),
+        )
+        preview_message = SimpleNamespace(edit=mock.AsyncMock())
+        edited = {}
+
+        async def edit_original_response(**kwargs):
+            events.append('preview')
+            edited.update(kwargs)
+            return preview_message
+
         interaction = SimpleNamespace(
             response=SimpleNamespace(defer=defer),
             guild=SimpleNamespace(id=300),
+            user=SimpleNamespace(id=101),
+            edit_original_response=edit_original_response,
+        )
+        resolved = (
+            (
+                SimpleNamespace(display_name='One'),
+                SimpleNamespace(display_name='Two'),
+            ),
+            (
+                SimpleNamespace(display_name='Three'),
+                SimpleNamespace(display_name='Four'),
+                SimpleNamespace(display_name='Five'),
+            ),
         )
 
         slash_command = self.newgame_slash_command()
@@ -388,22 +489,49 @@ class NewGameCommandTests(unittest.IsolatedAsyncioTestCase):
             self.games.settings,
             'guild_setting',
             return_value='$',
+        ), mock.patch.object(
+            self.games,
+            'resolve_newgame_roster',
+            new=mock.AsyncMock(return_value=resolved),
         ):
             await slash_command.callback(
                 fake_cog,
                 interaction,
                 'Valid Game',
-                SimpleNamespace(id=101),
-                SimpleNamespace(id=201),
+                '101 102 vs 201 202 203',
                 False,
-                'Steam',
-                SimpleNamespace(id=102),
-                SimpleNamespace(id=202),
             )
 
-        self.assertEqual(events, ['defer', 'checks', 'prefix'])
-        self.assertEqual(context.invoked_with, 'newsteamgameunranked')
+        self.assertEqual(events, ['defer', 'checks', 'preview'])
+        self.assertNotIn('prefix', events)
+        view = edited['view']
+        self.assertIsInstance(view, game_record_views.GameRecordView)
+        self.assertEqual(
+            view.preview.sides,
+            (('One', 'Two'), ('Three', 'Four', 'Five')),
+        )
+
+        confirmation_context = SimpleNamespace()
+        confirmation = SimpleNamespace(
+            user=SimpleNamespace(id=101),
+            guild=SimpleNamespace(id=300),
+            response=SimpleNamespace(edit_message=mock.AsyncMock()),
+        )
+        with mock.patch.object(
+            self.games.commands.Context,
+            'from_interaction',
+            new=mock.AsyncMock(return_value=confirmation_context),
+        ), mock.patch.object(
+            self.games.settings,
+            'guild_setting',
+            return_value='$',
+        ):
+            await view._confirm(confirmation)
+
+        self.assertEqual(events, ['defer', 'checks', 'preview', 'prefix'])
+        self.assertEqual(confirmation_context.invoked_with, 'newgameunranked')
         self.assertEqual(context.prefix, '$')
+        self.assertEqual(confirmation_context.prefix, '$')
 
     async def test_slash_check_failure_stops_before_prefix_pipeline(self):
         prefix_command = SimpleNamespace(
@@ -415,6 +543,7 @@ class NewGameCommandTests(unittest.IsolatedAsyncioTestCase):
         interaction = SimpleNamespace(
             response=SimpleNamespace(defer=mock.AsyncMock()),
             guild=SimpleNamespace(id=300),
+            user=SimpleNamespace(id=101),
         )
 
         slash_command = self.newgame_slash_command()
@@ -431,11 +560,10 @@ class NewGameCommandTests(unittest.IsolatedAsyncioTestCase):
                 fake_cog,
                 interaction,
                 'Valid Game',
-                SimpleNamespace(id=101),
-                SimpleNamespace(id=201),
+                '101 vs 201',
             )
 
-        interaction.response.defer.assert_awaited_once()
+        interaction.response.defer.assert_awaited_once_with(ephemeral=True)
         prefix_command.can_run.assert_awaited_once_with(context)
         prefix_command.callback.assert_not_awaited()
 
@@ -466,7 +594,7 @@ class NewGameCommandTests(unittest.IsolatedAsyncioTestCase):
         context = SimpleNamespace(
             guild=SimpleNamespace(id=300),
             author=author,
-            invoked_with='newgame',
+            invoked_with='newsteamgame',
             prefix='$',
             typing=lambda: Typing(),
             send=mock.AsyncMock(
@@ -476,6 +604,12 @@ class NewGameCommandTests(unittest.IsolatedAsyncioTestCase):
 
         async def get_member(ctx, argument):
             return [author] if argument == 'host' else [opponent]
+
+        worker_requests = []
+
+        async def fail_worker(request):
+            worker_requests.append(request)
+            raise peewee.OperationalError('simulated database failure')
 
         command = self.newgame_command()
         with mock.patch.object(
@@ -509,11 +643,7 @@ class NewGameCommandTests(unittest.IsolatedAsyncioTestCase):
         ), mock.patch.object(
             self.games.game_workers,
             'run_new_game_creation',
-            new=mock.AsyncMock(
-                side_effect=peewee.OperationalError(
-                    'simulated database failure'
-                )
-            ),
+            new=mock.AsyncMock(side_effect=fail_worker),
         ), mock.patch.object(
             self.games.Game,
             'load_full_game',
@@ -536,6 +666,7 @@ class NewGameCommandTests(unittest.IsolatedAsyncioTestCase):
 
         load_game.assert_not_called()
         post_effects.assert_not_awaited()
+        self.assertTrue(worker_requests[0].is_mobile)
         self.assertTrue(
             any('Error creating new game' in message for message in messages)
         )

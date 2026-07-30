@@ -369,6 +369,7 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
         id_base = 800_000_000_000_000_000
         host_id = id_base + (uuid.uuid4().int % 10_000_000)
         opponent_id = id_base + (uuid.uuid4().int % 10_000_000)
+        third_side_id = id_base + (uuid.uuid4().int % 10_000_000)
         request = game_workers.NewGameRequest(
             guild_id=self.profile.allowed_guild_ids[0],
             name=marker,
@@ -400,6 +401,15 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
                         role_names=(),
                     ),
                 ),
+                (
+                    game_workers.NewGameParticipant(
+                        discord_id=third_side_id,
+                        discord_name='p23-third-side',
+                        discord_nick=None,
+                        display_name='P2.3 Third Side',
+                        role_names=(),
+                    ),
+                ),
             ),
         )
 
@@ -420,13 +430,13 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
                 self.models.GameSide.select().where(
                     self.models.GameSide.game == game
                 ).count(),
-                2,
+                3,
             )
             self.assertEqual(
                 self.models.Lineup.select().where(
                     self.models.Lineup.game == game
                 ).count(),
-                2,
+                3,
             )
             self.assertEqual(
                 self.models.GameLog.select().where(
@@ -444,7 +454,7 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
         self.assertEqual(
             self.models.DiscordMember.select().where(
                 self.models.DiscordMember.discord_id.in_(
-                    (host_id, opponent_id)
+                    (host_id, opponent_id, third_side_id)
                 )
             ).count(),
             0,
