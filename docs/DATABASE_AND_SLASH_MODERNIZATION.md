@@ -4,7 +4,7 @@ Last updated: 2026-07-29
 
 Status: Active
 
-Current branch at last update: `codex/dev-beta-fixture-harness`
+Current branch at last update: `codex/database-slash-modernization`
 
 Source task: `thread://019fae66-8e3a-7a50-9a0f-d3d7160d2287`
 
@@ -214,9 +214,12 @@ check:
 - P2.1 accumulation merge: `ecdd01e`
 - P2.2 implementation checkpoints: `25b9d50`, `8c350c1`
 - P2.2 sync-evidence checkpoint: `5bb67c2`
+- P2.2 accumulation merge: `2b77f13`
 - P3.1 implementation checkpoint: `1bebce6`
+- P3.1 accumulation merge: `5f62998`
 - T1 fixture-harness implementation checkpoint: `4551bec`
 - T1 roadmap-evidence checkpoint: `d6e826b`
+- T1 accumulation merge: `aacace4`
 - pilot beta acceptance: all five original application commands reported
   working
 - combined development sync: all eight expected commands synchronized to
@@ -229,10 +232,9 @@ check:
 - optional cleanup: unused `Team.id=9`, `Phase7 Test Team`, remains in
   `polytopia_dev` with zero players and zero game sides
 
-Current unit: **T1 — Development beta fixture harness**, Implemented on
-`codex/dev-beta-fixture-harness`, stacked from P3.1 checkpoint `013bab2`.
-P2.2 and P3.1 are Beta-validated from their combined session; this
-testing-support unit does not change their sequential integration boundaries.
+Current unit: **P3.2 — ELO maintenance consistency review**, Planned on
+`codex/database-slash-modernization` at integrated checkpoint `aacace4`.
+P2.2, P3.1, and T1 are Complete on the intended accumulation branch.
 
 Owned games `115`-`117` were removed successfully after the combined beta
 session, and a gated status check reports no owned fixtures. Interactive
@@ -274,9 +276,9 @@ beta launches, command synchronization, pushes, or PR operations by itself.
 |---|---|---|---|
 | P0 | Complete | Serialized ELO workers and first five slash commands | Commits `a9375b3`, `9a64ce1`; live beta acceptance; accumulation-branch base |
 | P1 | Complete | Close out and establish the pilot on the accumulation branch | Clean tests, beta stopped, reviewed branch, local accumulation branch |
-| P2 | In progress | Fix known game-creation transaction boundary | `newgame` workflow atomic and Discord effects post-commit |
+| P2 | Complete | Fix known game-creation transaction boundary | `newgame` workflow atomic and Discord effects post-commit |
 | P3 | In progress | Owner ELO maintenance and job observability | Typed slash maintenance interface and active-job status |
-| T1 | Implemented | Deterministic development beta fixtures | Gated, idempotent seed/status/cleanup tooling |
+| T1 | Complete | Deterministic development beta fixtures | Gated, idempotent seed/status/cleanup tooling |
 | P4 | Planned | Game correction and metadata mutations | Bounded workers plus slash interfaces for clear typed operations |
 | P5 | Planned | Matchmaking lifecycle | Atomic open/join/leave/kick/start flows and native interactions |
 | P6 | Planned | Registration and player preferences | Worker-safe profile writes and slash UX |
@@ -395,7 +397,7 @@ Exit criteria:
 
 ## P2 — Game creation transaction boundary
 
-Status: **Implemented**
+Status: **Complete**
 
 Why this phase is next:
 
@@ -529,7 +531,7 @@ the flexible prefix interface.
 
 ### P2.2 — Decide the native command UX
 
-Status: **Beta-validated**
+Status: **Complete**
 
 Branch/base: `codex/p2-2-newgame-slash-ux` from
 `codex/database-slash-modernization` at `f7b1e3e`.
@@ -590,6 +592,7 @@ Commit(s):
 
 - `25b9d50` — Add typed slash interface for newgame.
 - `8c350c1` — Polish newgame slash compatibility.
+- `2b77f13` — Merge P2.2 into `codex/database-slash-modernization`.
 
 Beta result: launch and development-guild synchronization approved and
 performed from checkpoint `89e5710` on 2026-07-29. The runtime preflight
@@ -625,9 +628,9 @@ Remaining limitations:
 - P2.1's recorded post-commit synchronous model reads/writes and cancellation
   limitation remain unchanged.
 
-Next action: merge P2.2, P3.1, and T1 sequentially into the accumulation
-branch. Owned fixture cleanup is complete; retained manual fixture `118` is
-not an integration blocker.
+Next action: P2 is closed on the accumulation branch. Preserve C-001 as the
+accepted native-interface limitation, and inspect retained manual fixture
+`118` before any later reuse.
 
 Exit criteria:
 
@@ -668,7 +671,7 @@ tested, documented as emergency-only, or retired.
 
 ### P3.1 — Recalculation control and active-job status
 
-Status: **Beta-validated**
+Status: **Complete**
 
 Branch/base: `codex/p3-1-elo-maintenance-ux`, stacked from
 `codex/p2-2-newgame-slash-ux` at `4a7fba6`. P2.2 and P3.1 are
@@ -742,7 +745,10 @@ Files changed:
 - `tests/test_elo_jobs.py`
 - `docs/DATABASE_AND_SLASH_MODERNIZATION.md`
 
-Commit(s): `1bebce6` — Add ELO maintenance slash controls.
+Commit(s):
+
+- `1bebce6` — Add ELO maintenance slash controls.
+- `5f62998` — Merge P3.1 into `codex/database-slash-modernization`.
 
 Validation evidence:
 
@@ -775,9 +781,9 @@ Remaining limitations:
 - Hidden unfinished `reverse_duplicated_elo` remains disabled and requires a
   separate retain/retire decision; it was not exposed as slash.
 
-Next action: merge P2.2, P3.1, and T1 sequentially into the accumulation
-branch. No owned fixture cleanup remains, and manual fixture `118` is
-intentionally retained.
+Next action: perform P3.2's bounded consistency review of command-line full
+recalculation, cancellation semantics documentation, and the disabled
+`reverse_duplicated_elo` command.
 
 Exit criteria:
 
@@ -787,9 +793,37 @@ Exit criteria:
 - beta acceptance covers defer, confirmation, conflict, and harmless-command
   responsiveness.
 
+### P3.2 — ELO maintenance consistency review
+
+Status: **Planned**
+
+Objective: close the remaining ELO-maintenance consistency questions without
+expanding the pilot into a new command family.
+
+In scope:
+
+- Review the `bot.py --recalc_elo` full-recalculation path against the
+  worker-local connection and synchronous transaction rules.
+- Make cancellation semantics and the limits of non-cancellable synchronous
+  workers explicit in operator/developer documentation.
+- Decide whether the hidden, disabled `reverse_duplicated_elo` command should
+  be retired or retained as an emergency-only operation; do not expose it as
+  slash merely because it is reviewed.
+- Add focused offline tests for any narrow consistency fix.
+
+Out of scope:
+
+- New ELO rules, a full async ORM migration, generalized job persistence, or
+  live beta/Discord work unless the review produces a user-facing command
+  change that warrants a separate approval.
+
+Next action: create a dedicated P3.2 branch from accumulation checkpoint
+`aacace4`, inspect the CLI and hidden repair paths, and record a retain/retire
+decision before making any broader change.
+
 ## T1 — Development beta fixture harness
 
-Status: **Implemented**
+Status: **Complete**
 
 Branch/base: `codex/dev-beta-fixture-harness`, stacked from P3.1 checkpoint
 `013bab2`.
@@ -868,7 +902,11 @@ Implementation evidence:
   development players from prior beta testing. Repeating seed returned the
   same game IDs `115`, `116`, and `117`.
 
-Commit(s): `4551bec` — Add gated development beta fixtures.
+Commit(s):
+
+- `4551bec` — Add gated development beta fixtures.
+- `d6e826b` — Record fixture-harness roadmap evidence.
+- `aacace4` — Merge T1 into `codex/database-slash-modernization`.
 
 Beta result: not applicable; the harness prepares data but never connects to
 Discord.
@@ -919,8 +957,9 @@ Combined beta/cleanup result:
 - Interactive game `118` remains outside harness authority and is
   intentionally retained for later command testing.
 
-Next action: integrate P2.2, P3.1, and T1 sequentially into the accumulation
-branch.
+Next action: retain the harness for future beta batches. Seed and cleanup only
+while the beta is stopped and continue to inspect any retained manual game
+separately from harness-owned fixtures.
 
 ## P4 — Game correction and metadata mutations
 
@@ -1321,10 +1360,10 @@ option and can be reprioritized from observed demand.
 Status: Accepted for P2.2 and P3.1
 
 P3.1 is stacked on the locally validated P2.2 checkpoint so the user can
-launch and test both command additions in one beta session. Neither unit is
-Complete before that acceptance. After the combined smoke test, preserve unit
-boundaries by merging P2.2 and then P3.1 sequentially into
-`codex/database-slash-modernization`.
+launch and test both command additions in one beta session. The combined
+session was accepted, after which the unit boundaries were preserved by
+merging P2.2 as `2b77f13` and P3.1 as `5f62998` into
+`codex/database-slash-modernization`. T1 followed as `aacace4`.
 
 ### D-014 — Keep beta fixtures separate from default data
 
@@ -1532,6 +1571,24 @@ manual fixture.
   is documented as manual development data rather than an integration
   blocker.
 - Next: integrate P2.2, P3.1, and T1 sequentially into accumulation.
+
+### 2026-07-29 — P2.2, P3.1, and T1 integrated
+
+- Retained interactive game `118` as a documented manual development fixture;
+  it remains outside harness ownership and is not an integration blocker.
+- Merged P2.2, P3.1, and T1 sequentially into
+  `codex/database-slash-modernization` as `2b77f13`, `5f62998`, and
+  `aacace4`.
+- Passed the complete offline suite: 106 tests passed and eight gated
+  database tests skipped as designed.
+- Passed all eight development-database integration tests after the existing
+  gate confirmed `development`, `polytopia_dev`, and `polybot_dev`.
+- Marked P2, P3.1, and T1 Complete on their intended accumulation branch.
+- No beta launch, Discord synchronization, push, PR, production checkout,
+  production database, or production service operation was performed.
+- Next: P3.2, a bounded ELO-maintenance consistency review of CLI full
+  recalculation, cancellation documentation, and the disabled
+  `reverse_duplicated_elo` path.
 
 ## Resume checklist
 
