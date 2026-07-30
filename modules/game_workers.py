@@ -309,6 +309,7 @@ def unstart_game(
     guild_id: int,
     requester_description: str,
     invoked_with: str,
+    invocation_channel_id: int | None = None,
     now: datetime.datetime | None = None,
 ) -> GameUnstartResult:
     """Return one started game to pending state in a local transaction."""
@@ -354,6 +355,17 @@ def unstart_game(
                     channel_id=game.game_chan,
                     guild_id=guild_id,
                 ))
+            if (
+                invocation_channel_id is not None
+                and any(
+                    target.channel_id == invocation_channel_id
+                    for target in channel_targets
+                )
+            ):
+                raise GameUnstartValidationError(
+                    'This command must be used from a channel that is not '
+                    'related to the game.'
+                )
 
             tomorrow = now + datetime.timedelta(hours=24)
             if game.expiration is None or game.expiration < tomorrow:
@@ -384,6 +396,7 @@ async def run_game_unstart(
     guild_id: int,
     requester_description: str,
     invoked_with: str,
+    invocation_channel_id: int | None = None,
 ) -> GameUnstartResult:
     """Submit one unstart transition to the bounded game-write executor."""
 
@@ -394,6 +407,7 @@ async def run_game_unstart(
         guild_id,
         requester_description,
         invoked_with,
+        invocation_channel_id,
     )
     return await loop.run_in_executor(_game_write_executor, call)
 

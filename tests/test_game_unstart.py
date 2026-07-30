@@ -7,6 +7,7 @@ import threading
 import unittest
 from unittest import mock
 
+import discord
 import peewee
 from discord.ext import commands
 
@@ -145,6 +146,42 @@ class GameUnstartWorkerTests(unittest.TestCase):
                 write_log.assert_not_called()
                 self.assertEqual(database.connection_closed, 1)
 
+    def test_worker_rejects_invocation_from_game_channel(self):
+        now = datetime.datetime(2026, 7, 29, 12)
+        database = FakeDatabase({})
+        game = SimpleNamespace(
+            id=42,
+            guild_id=300,
+            is_completed=False,
+            is_confirmed=False,
+            is_pending=False,
+            game_chan=900,
+            gamesides=(),
+        )
+        with mock.patch.object(
+            game_workers.models, 'db', database
+        ), mock.patch.object(
+            game_workers.models.Game, 'get_by_id', return_value=game
+        ), mock.patch.object(
+            game_workers.models.GameLog,
+            'write',
+        ) as write_log:
+            with self.assertRaisesRegex(
+                game_workers.GameUnstartValidationError,
+                'channel that is not related',
+            ):
+                game_workers.unstart_game(
+                    42,
+                    300,
+                    'Staff',
+                    '/match unstart',
+                    invocation_channel_id=900,
+                    now=now,
+                )
+
+        write_log.assert_not_called()
+        self.assertEqual(database.connection_closed, 1)
+
     def test_deleted_channel_reconciliation_is_worker_local(self):
         state = {'game_chan': 900, 'team_chan': 800}
         database = FakeDatabase(state)
@@ -189,17 +226,142 @@ class GameUnstartWorkerTests(unittest.TestCase):
 
 
 class GameUnstartCommandTests(unittest.IsolatedAsyncioTestCase):
-    def test_prefix_is_preserved_and_slash_waits_for_taxonomy(self):
+    def test_prefix_and_match_unstart_slash_are_registered(self):
         prefix = {
             command.name: command
             for command in administration.administration.__cog_commands__
         }
         self.assertIsInstance(prefix['unstart'], commands.Command)
-        slash_names = {
-            command.name
+        match_group = {
+            command.name: command
             for command in administration.administration.__cog_app_commands__
-        }
-        self.assertNotIn('unstart', slash_names)
+        }['match']
+        slash = match_group.get_command('unstart')
+        self.assertIsNotNone(slash)
+        self.assertEqual(
+            [(parameter.name, parameter.type) for parameter in slash.parameters],
+            [('game_id', discord.AppCommandOptionType.integer)],
+        )
+        self.assertNotIn(
+            'unstart',
+            {
+                command.name
+                for command
+                in administration.administration.__cog_app_commands__
+            },
+        )
+
+    async def test_slash_rejects_non_staff_before_defer(self):
+        cog = administration.administration.__new__(
+            administration.administration
+        )
+        interaction = SimpleNamespace(
+            user=SimpleNamespace(id=1),
+            response=SimpleNamespace(
+                send_message=mock.AsyncMock(),
+                defer=mock.AsyncMock(),
+            ),
+        )
+        with mock.patch.object(
+            administration.settings, 'is_staff', return_value=False
+        ), mock.patch.object(
+            cog, '_unstart_game_and_post', new=mock.AsyncMock()
+        ) as run_unstart:
+            await administration.administration.unstart_slash.callback(
+                cog, interaction, 42
+            )
+
+        interaction.response.send_message.assert_awaited_once_with(
+            'You do not have permission to use this command.',
+            ephemeral=True,
+        )
+        interaction.response.defer.assert_not_awaited()
+        run_unstart.assert_not_awaited()
+
+    async def test_slash_defers_publicly_before_shared_pipeline(self):
+        events = []
+        cog = administration.administration.__new__(
+            administration.administration
+        )
+
+        async def defer(**kwargs):
+            events.append(('defer', kwargs))
+
+        async def run_unstart(**kwargs):
+            events.append(('pipeline', kwargs))
+            return 'Game 42 is now an open game and no longer in progress.'
+
+        interaction = SimpleNamespace(
+            user=SimpleNamespace(id=1, display_name='Staff'),
+            guild=SimpleNamespace(id=300),
+            channel_id=999,
+            response=SimpleNamespace(
+                send_message=mock.AsyncMock(),
+                defer=mock.AsyncMock(side_effect=defer),
+            ),
+            followup=SimpleNamespace(send=mock.AsyncMock()),
+        )
+        with mock.patch.object(
+            administration.settings, 'is_staff', return_value=True
+        ), mock.patch.object(
+            administration.settings,
+            'guild_setting',
+            return_value='$',
+        ), mock.patch.object(
+            cog,
+            '_unstart_game_and_post',
+            new=mock.AsyncMock(side_effect=run_unstart),
+        ):
+            await administration.administration.unstart_slash.callback(
+                cog, interaction, 42
+            )
+
+        self.assertEqual([event[0] for event in events], ['defer', 'pipeline'])
+        self.assertEqual(events[0][1], {})
+        self.assertEqual(events[1][1]['invocation_channel_id'], 999)
+        self.assertEqual(events[1][1]['invoked_with'], '/match unstart')
+        interaction.followup.send.assert_awaited_once_with(
+            'Game 42 is now an open game and no longer in progress.'
+        )
+
+    async def test_slash_validation_failure_is_ephemeral_after_defer(self):
+        cog = administration.administration.__new__(
+            administration.administration
+        )
+        interaction = SimpleNamespace(
+            user=SimpleNamespace(id=1, display_name='Staff'),
+            guild=SimpleNamespace(id=300),
+            channel_id=900,
+            response=SimpleNamespace(
+                send_message=mock.AsyncMock(),
+                defer=mock.AsyncMock(),
+            ),
+            followup=SimpleNamespace(send=mock.AsyncMock()),
+        )
+        with mock.patch.object(
+            administration.settings, 'is_staff', return_value=True
+        ), mock.patch.object(
+            administration.settings,
+            'guild_setting',
+            return_value='$',
+        ), mock.patch.object(
+            cog,
+            '_unstart_game_and_post',
+            new=mock.AsyncMock(
+                side_effect=game_workers.GameUnstartValidationError(
+                    'Use another channel.'
+                )
+            ),
+        ):
+            await administration.administration.unstart_slash.callback(
+                cog, interaction, 42
+            )
+
+        interaction.response.defer.assert_awaited_once_with()
+        interaction.followup.send.assert_awaited_once_with(
+            'Use another channel.',
+            ephemeral=True,
+        )
 
     async def test_database_failure_prevents_discord_effects(self):
         cog = administration.administration.__new__(
@@ -232,6 +394,7 @@ class GameUnstartCommandTests(unittest.IsolatedAsyncioTestCase):
                     guild=SimpleNamespace(id=300),
                     prefix='$',
                     requester=SimpleNamespace(id=1, display_name='Staff'),
+                    invocation_channel_id=999,
                 )
 
         load_game.assert_not_called()
@@ -293,6 +456,7 @@ class GameUnstartCommandTests(unittest.IsolatedAsyncioTestCase):
                 guild=guild,
                 prefix='$',
                 requester=SimpleNamespace(id=1, display_name='Staff'),
+                invocation_channel_id=999,
             )
 
         self.assertEqual(events, ['commit', 'discord', 'reconcile'])

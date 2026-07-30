@@ -142,13 +142,23 @@ class GameExtensionCommandTests(unittest.IsolatedAsyncioTestCase):
             for command in administration.administration.__cog_commands__
         }
         self.assertIsInstance(prefix['extend'], commands.Command)
-        slash = {
+        match_group = {
             command.name: command
             for command in administration.administration.__cog_app_commands__
-        }['extend']
+        }['match']
+        slash = match_group.get_command('extend')
+        self.assertIsNotNone(slash)
         self.assertEqual(
             [(parameter.name, parameter.type) for parameter in slash.parameters],
             [('game_id', discord.AppCommandOptionType.integer)],
+        )
+        self.assertNotIn(
+            'extend',
+            {
+                command.name
+                for command
+                in administration.administration.__cog_app_commands__
+            },
         )
 
     async def test_slash_rejects_non_staff_before_defer(self):
