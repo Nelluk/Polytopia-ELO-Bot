@@ -23,6 +23,7 @@ from matplotlib import pyplot as plt
 import io
 import pandas as pd
 import scipy.signal as signal
+from typing import Literal
 
 logger = logging.getLogger('polybot.' + __name__)
 elo_logger = logging.getLogger('polybot.elo')
@@ -1537,6 +1538,11 @@ class polygames(commands.Cog):
             return await ctx.send(f'Invalid format. {example_usage}')
 
         if len(game_name.split(' ')) < 2 and ctx.author.id != settings.owner_id:
+            if getattr(ctx, 'interaction', None) is not None:
+                return await ctx.send(
+                    'Invalid game name. Enter the exact multi-word game '
+                    'name shown in Polytopia.'
+                )
             return await ctx.send(
                 'Invalid game name. Make sure to use "quotation marks" '
                 f'around the full game name.\n{example_usage}'
@@ -1649,6 +1655,80 @@ class polygames(commands.Cog):
             await ctx.send('\n'.join(result.warnings))
         newgame = Game.load_full_game(game_id=result.game_id)
         await post_newgame_messaging(ctx, game=newgame)
+
+    @discord.app_commands.command(
+        name='newgame',
+        description='Track an existing two-sided Polytopia game.',
+    )
+    @discord.app_commands.guild_only()
+    @discord.app_commands.describe(
+        game_name='The exact game name shown in Polytopia.',
+        side_one_player_one='First player on side one.',
+        side_two_player_one='First player on side two.',
+        ranked='Whether the game affects ELO.',
+        platform='Polytopia platform used for this game.',
+        side_one_player_two='Optional second player on side one.',
+        side_two_player_two='Optional second player on side two.',
+        side_one_player_three='Optional third player on side one.',
+        side_two_player_three='Optional third player on side two.',
+        side_one_player_four='Optional fourth player on side one.',
+        side_two_player_four='Optional fourth player on side two.',
+    )
+    async def newgame_slash(
+        self,
+        interaction: discord.Interaction,
+        game_name: str,
+        side_one_player_one: discord.Member,
+        side_two_player_one: discord.Member,
+        ranked: bool = True,
+        platform: Literal['Mobile', 'Steam'] = 'Mobile',
+        side_one_player_two: discord.Member | None = None,
+        side_two_player_two: discord.Member | None = None,
+        side_one_player_three: discord.Member | None = None,
+        side_two_player_three: discord.Member | None = None,
+        side_one_player_four: discord.Member | None = None,
+        side_two_player_four: discord.Member | None = None,
+    ):
+        """Typed slash entry point for common two-sided games through 4v4."""
+
+        await interaction.response.defer()
+        ctx = await commands.Context.from_interaction(interaction)
+        ctx.prefix = settings.guild_setting(
+            interaction.guild.id,
+            'command_prefix',
+        )
+
+        # Reuse the existing command checks so registration, configured bot
+        # channels, and any global checks remain identical during transition.
+        if not await self.newgame.can_run(ctx):
+            return
+
+        side_one = (
+            side_one_player_one,
+            side_one_player_two,
+            side_one_player_three,
+            side_one_player_four,
+        )
+        side_two = (
+            side_two_player_one,
+            side_two_player_two,
+            side_two_player_three,
+            side_two_player_four,
+        )
+        args = [
+            *(str(member.id) for member in side_one if member is not None),
+            'vs',
+            *(str(member.id) for member in side_two if member is not None),
+        ]
+
+        if platform == 'Mobile':
+            ctx.invoked_with = 'newgame' if ranked else 'newgameunranked'
+        else:
+            ctx.invoked_with = (
+                'newsteamgame' if ranked else 'newsteamgameunranked'
+            )
+
+        await self.newgame.callback(self, ctx, game_name, *args)
 
     @settings.in_bot_channel_strict()
     @models.is_registered_member()
