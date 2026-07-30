@@ -321,7 +321,9 @@ inventing unsupported combinations:
 `/leaderboard squads` preserves `$lbsquad` and `$squadlb`, with **Current
 eligibility** retaining the 365-day cutoff and **All time** preserving the
 legacy `alltime` argument. Both native commands use the same public component
-pagination foundation as `/leaderboard players`.
+pagination foundation as `/leaderboard players`. The shared **Page X/Y**
+button opens a numeric jump modal, so large results do not require stepping
+through every intermediate page.
 
 `$lbteam` and `$roleelo` remain separate later units because their Discord-role
 dependencies, graph/export behavior, filters, and permissions differ.

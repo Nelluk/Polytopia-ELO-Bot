@@ -1829,6 +1829,68 @@ separate approval for one development-guild sync and combined beta test of
 `/leaderboard players`, `/leaderboard activity`, and
 `/leaderboard squads`.
 
+### P7.4 — Shared leaderboard page-jump modal
+
+Status: **Implemented; pending beta acceptance and integration**
+
+Branch/base: `codex/p7-4-leaderboard-jump-modal`, stacked from P7.2/P7.3
+checkpoint `bb15fa8`.
+
+Objective: make large immutable leaderboard snapshots practical to navigate
+without adding command names or database work.
+
+In scope:
+
+- Replace the disabled page-count indicator with an active **Page X/Y** button.
+- Open a numeric page-jump modal from that button.
+- Validate non-numeric and out-of-range input ephemerally.
+- Update the existing public leaderboard message on valid submission.
+- Keep controls requester-only and disable them at the existing timeout.
+- Apply the same behavior to player, activity, and squad leaderboards.
+- Perform no query, model access, or snapshot refresh during page jumps.
+
+Tests required:
+
+- [x] button opens the modal for the requester
+- [x] valid first, middle, and last page submissions update public output
+- [x] non-numeric and out-of-range submissions are rejected ephemerally
+- [x] unauthorized users remain unable to open controls
+- [x] timeout disables the page-jump button with the other controls
+- [x] existing paginator and complete offline suites remain green
+
+Out of scope:
+
+- Persistent paginator state across bot restarts.
+- Refreshing database results from the modal.
+- New leaderboard commands or taxonomy decisions.
+- Beta launch or command synchronization without separate approval.
+
+Implementation evidence:
+
+- Implementation checkpoint: `fa61510`.
+- The shared page indicator is now an active **Page X/Y** button that opens
+  `JumpToPageModal` for player, activity, and squad results.
+- The modal uses discord.py 2.7's modern `Label` plus numeric `TextInput`
+  component rather than the deprecated directly labelled text-input shape.
+- Valid submissions update the original public message through the existing
+  immutable renderer; no query, worker submission, or model access occurs.
+- Invalid, unauthorized, and expired submissions respond ephemerally without
+  changing the public page.
+- Timeout disables the jump button with every other component.
+
+Validation:
+
+- Jump-modal tests: 5 passed.
+- Combined leaderboard tests: 22 passed.
+- Complete offline suite: 165 passed, with 9 explicitly gated database tests
+  skipped.
+- Syntax compilation and `git diff --check`: passed.
+- Development-database integration was not rerun because P7.4 changes only
+  in-memory Discord component behavior and performs no database operation.
+
+Next action: create implementation and roadmap checkpoints, then include page
+jumps in the separately approved combined leaderboard beta smoke test.
+
 ## P8 — League and remaining administration workflows
 
 Status: **Planned**
@@ -2252,6 +2314,19 @@ short-lived and in-memory initially unless restart persistence becomes a
 demonstrated requirement.
 
 ## Progress log
+
+### 2026-07-30 — Shared leaderboard page-jump modal implemented
+
+- Replaced the disabled page indicator with a requester-controlled
+  **Page X/Y** button across player, activity, and squad leaderboards.
+- Added a modern modal `Label` and numeric `TextInput` with ephemeral
+  non-numeric, range, authorization, and expiry validation.
+- Kept valid jumps public and database-free by rendering the existing
+  immutable snapshot.
+- Passed 5 focused modal tests, 22 combined leaderboard tests, and the complete
+  165-test offline suite with 9 gated skips.
+- Did not run database integration because the unit has no database path, and
+  did not launch or synchronize the beta bot.
 
 ### 2026-07-30 — Activity and squad leaderboards implemented
 
