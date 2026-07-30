@@ -4,7 +4,7 @@ Last updated: 2026-07-29
 
 Status: Active
 
-Current branch at last update: `codex/p4-1b-pending-game-extension`
+Current branch at last update: `codex/p4-1c-unstart-separation`
 
 Source task: `thread://019fae66-8e3a-7a50-9a0f-d3d7160d2287`
 
@@ -180,6 +180,14 @@ change registrations. No additional slash command should be finalized after
 P4.1b until one taxonomy is selected. Prefix names and aliases remain
 unchanged under every proposal.
 
+The repository-wide inventory and conversion dispositions are maintained in
+`docs/SLASH_COMMAND_TAXONOMY_REVIEW.md`. It covers all 83 in-scope explicit prefix
+handlers, the customized help command, optional command families, commands
+that need interaction redesign, and commands that should remain
+operator-only. The legacy API cog and its seven hidden commands are excluded.
+The table below is only the current native surface being renamed; it is not
+the complete modernization inventory.
+
 The current native surface under review is:
 
 - `/newgame`, `/win`, `/unwin`, `/delete`, `/confirm`, `/unconfirmed`;
@@ -353,6 +361,7 @@ check:
 - P4.1a visibility checkpoint: `2cba1cc`
 - P4.1a accumulation merge: `5888c02`
 - P4.1b implementation checkpoint: `c0945a3`
+- P4.1c implementation checkpoint: `204ab40`
 - T1 fixture-harness implementation checkpoint: `4551bec`
 - T1 roadmap-evidence checkpoint: `d6e826b`
 - T1 accumulation merge: `aacace4`
@@ -368,9 +377,10 @@ check:
 - optional cleanup: unused `Team.id=9`, `Phase7 Test Team`, remains in
   `polytopia_dev` with zero players and zero game sides
 
-Current unit: **P4.1b — Pending-game extension**, Implemented on
-`codex/p4-1b-pending-game-extension` from accumulation checkpoint `62ea671`.
-P0 through P3 and T1 are Complete on the intended accumulation branch.
+Current unit: **P4.1c — Unstart transaction separation**, Implemented on
+`codex/p4-1c-unstart-separation`, stacked from the P4.1b evidence checkpoint
+`af4ef51`. P0 through P3 and T1 are Complete on the intended accumulation
+branch.
 
 Owned fixture games `149`-`151` are intentionally retained. At the latest
 gated status check, `149` is incomplete/unranked, `150` is
@@ -1188,7 +1198,7 @@ separately from harness-owned fixtures.
 
 ## P4 — Game correction and metadata mutations
 
-Status: **Planned**
+Status: **In progress**
 
 Split this phase into small vertical units. Do not implement all candidates in
 one commit.
@@ -1355,6 +1365,103 @@ channel reconciliation too broad.
 Use typed game IDs and choices. If these commands can race with finalized ELO
 state, use the ELO coordinator; otherwise use a per-game claim rather than
 blocking all ELO work.
+
+#### P4.1c — Unstart transaction separation
+
+Status: **Implemented**
+
+Branch/base: `codex/p4-1c-unstart-separation`, stacked from P4.1b evidence
+checkpoint `af4ef51`.
+
+Commit(s):
+
+- `204ab40` — Separate unstart database and Discord effects.
+
+Objective: preserve the staff prefix workflow while committing the
+started-to-pending transition before announcement edits or channel deletion,
+and make partial Discord cleanup observable and reconcilable.
+
+Database boundary:
+
+- The ordinary-game worker accepts primitive game/guild/request data, opens a
+  worker-local connection, reloads the game, revalidates guild and mutable
+  state, and commits `is_pending`, the minimum 24-hour expiration, and the
+  audit log in one synchronous transaction.
+- The immutable result carries only primitive announcement IDs, mentions, and
+  channel targets. No Peewee or Discord object crosses into the worker.
+- Discord announcement/channel effects run only after commit. Successfully
+  deleted channel IDs are cleared in a second bounded worker-local
+  reconciliation transaction; failed or deliberately skipped deletions retain
+  their database references and produce a visible warning.
+- The existing per-game claim remains held through the database transition,
+  Discord effects, and reconciliation. This operation does not interact with
+  completed games or use the ELO coordinator.
+
+Slash decision: preserve staff-only prefix `$unstart`. The workflow is ready
+for a typed integer adapter, but registration is deferred under D-018's
+taxonomy freeze. Under the recommended T-A taxonomy its intended home is
+`/match unstart`; no top-level `/unstart` was registered. This is a naming
+deferral rather than an accepted reduced-parity slash conversion, so it adds
+no compatibility-ledger row.
+
+Implementation evidence:
+
+- Invocation from a game-associated channel remains rejected before worker
+  submission, preserving the safety rule against deleting the command's own
+  channel.
+- Worker validation preserves completed/confirmed and already-pending
+  rejection behavior and adds authoritative cross-guild rejection.
+- The announcement still renders the legacy display-only
+  `GAME CANCELLED` name without persisting that name to the database.
+- `channels.delete_game_channel` now reports deletion success, treats an
+  already-absent Discord channel as successfully gone, and reports archived,
+  permission-blocked, or failed deletions as unsuccessful for reconciliation.
+- Database-failure injection proves no announcement or channel effect runs.
+  Ordering coverage proves the initial commit precedes Discord deletion and
+  reconciliation follows only successful deletion.
+- A simulated slow transition leaves an unrelated event-loop timer
+  responsive.
+
+Files changed:
+
+- `modules/game_workers.py`
+- `modules/administration.py`
+- `modules/channels.py`
+- `tests/test_game_unstart.py`
+- `docs/DATABASE_AND_SLASH_MODERNIZATION.md`
+
+Validation evidence:
+
+- `POLYBOT_ENV=development MPLCONFIGDIR=/tmp/polybot-matplotlib
+  .venv/bin/python -m unittest tests.test_game_unstart -v`: nine passed.
+- Complete offline suite: 132 passed with eight gated database tests skipped
+  as designed.
+- Existing gated development-database suite: seven passed and the fixture
+  round-trip skipped itself to preserve the retained operator fixture set;
+  the gate confirmed `development`, `polytopia_dev`, and `polybot_dev`.
+- `git diff --check`: clean before this documentation update.
+
+Beta result: pending. A combined session can test preserved `$unstart 149`
+followed by `/extend 149`; `/unstart` itself will not synchronize while the
+taxonomy vote remains unresolved. Inspect fixture 149 immediately before use
+and record any announcement or channel resources affected.
+
+Remaining limitations:
+
+- Announcement rendering reloads the committed model synchronously on the
+  event-loop thread before the Discord edit. The transition and all
+  potentially material writes are bounded, but a later read/display DTO unit
+  should remove this short post-commit model load.
+- Cancellation after the synchronous transition commits can skip some or all
+  Discord effects. Retained channel references make failed/skipped deletion
+  discoverable, but no persistent reconciliation queue exists yet.
+- The command remains prefix-only until D-018 is resolved.
+
+Next action: review and commit this evidence while preserving the separate
+taxonomy-document changes. Then obtain a staff taxonomy decision before
+adding the `/match unstart` adapter or renaming the current beta slash
+surface. P4.1b and P4.1c can still share one approved beta session for
+`/extend` plus preserved `$unstart`.
 
 ### P4.2 — Game metadata
 
@@ -1800,10 +1907,15 @@ temporary beta aliases must be recorded before implementation.
 
 ### 2026-07-29 — Slash taxonomy review prepared
 
-- Inventoried the current native surface through the uncommitted P4.1b
-  `/extend` work and the planned P4-P8 command families.
+- Inventoried the complete in-scope repository-backed surface: 83 explicit prefix
+  handlers, customized framework help, 10 current native registrations,
+  aliases, and the optional Bullet family. Excluded the seven-command legacy
+  API cog from the modernization taxonomy and backlog.
+- Added `docs/SLASH_COMMAND_TAXONOMY_REVIEW.md` with a disposition and
+  recommended native home for every existing command handler, including
+  explicit operator-only and retain/retire classifications.
 - Proposed three staff-vote alternatives: domain groups (recommended), one
-  ELO-branded umbrella, and conservative flat commands.
+  application umbrella, and systematic flat commands.
 - Confirmed that grouped slash wrappers can preserve the existing prefix
   names; no transaction worker or permission behavior needs to change solely
   for a rename.
@@ -2105,6 +2217,28 @@ temporary beta aliases must be recorded before implementation.
 - Recorded implementation checkpoint `c0945a3`.
 - Next: commit P4.1b and review P4.1c `unstart` as a separately bounded unit
   suitable for the same later beta session.
+
+### 2026-07-29 — P4.1c unstart separation implemented
+
+- Created `codex/p4-1c-unstart-separation`, stacked from P4.1b evidence
+  checkpoint `af4ef51`.
+- Preserved staff prefix `$unstart` and its game-channel invocation guard.
+- Moved mutable-state validation, pending/expiration mutation, and audit
+  logging into one bounded worker-local transaction.
+- Moved announcement editing and channel deletion after commit, then
+  reconciled only confirmed deletions in a second bounded transaction.
+- Deferred the typed slash adapter under D-018; recommended placement remains
+  `/match unstart` if staff select T-A.
+- Passed nine focused tests and the complete offline suite: 132 passed with
+  eight gated skips.
+- Passed seven gated development-database tests; the fixture round-trip
+  skipped to preserve operator fixtures after confirming `development`,
+  `polytopia_dev`, and `polybot_dev`.
+- Recorded implementation checkpoint `204ab40`. No beta launch, command
+  synchronization, production operation, dependency change, or schema change
+  was performed.
+- Next: commit the evidence, resolve the taxonomy vote, and use one separately
+  approved beta session for `/extend` plus `$unstart`.
 
 ## Resume checklist
 
