@@ -4,7 +4,7 @@ Last updated: 2026-07-29
 
 Status: Active
 
-Current branch at last update: `codex/database-slash-modernization`
+Current branch at last update: `codex/p3-2-elo-maintenance-consistency`
 
 Source task: `thread://019fae66-8e3a-7a50-9a0f-d3d7160d2287`
 
@@ -217,6 +217,7 @@ check:
 - P2.2 accumulation merge: `2b77f13`
 - P3.1 implementation checkpoint: `1bebce6`
 - P3.1 accumulation merge: `5f62998`
+- P3.2 implementation checkpoint: `63c9378`
 - T1 fixture-harness implementation checkpoint: `4551bec`
 - T1 roadmap-evidence checkpoint: `d6e826b`
 - T1 accumulation merge: `aacace4`
@@ -224,7 +225,7 @@ check:
   working
 - combined development sync: all eight expected commands synchronized to
   guild `478571892832206869`; P2.2 and P3.1 accepted by the user
-- complete offline suite: 106 tests passed, with eight gated database tests
+- complete offline suite: 108 tests passed, with eight gated database tests
   skipped as designed
 - gated `polytopia_dev` suite: eight tests passed under the required
   `development` / `polytopia_dev` / `polybot_dev` checks
@@ -232,8 +233,9 @@ check:
 - optional cleanup: unused `Team.id=9`, `Phase7 Test Team`, remains in
   `polytopia_dev` with zero players and zero game sides
 
-Current unit: **P3.2 — ELO maintenance consistency review**, Planned on
-`codex/database-slash-modernization` at integrated checkpoint `aacace4`.
+Current unit: **P3.2 — ELO maintenance consistency review**, Implemented on
+`codex/p3-2-elo-maintenance-consistency` from accumulation checkpoint
+`55425a5`.
 P2.2, P3.1, and T1 are Complete on the intended accumulation branch.
 
 Owned games `115`-`117` were removed successfully after the combined beta
@@ -795,7 +797,10 @@ Exit criteria:
 
 ### P3.2 — ELO maintenance consistency review
 
-Status: **Planned**
+Status: **Implemented**
+
+Branch/base: `codex/p3-2-elo-maintenance-consistency` from
+`codex/database-slash-modernization` at `55425a5`.
 
 Objective: close the remaining ELO-maintenance consistency questions without
 expanding the pilot into a new command family.
@@ -817,9 +822,96 @@ Out of scope:
   live beta/Discord work unless the review produces a user-facing command
   change that warrants a separate approval.
 
-Next action: create a dedicated P3.2 branch from accumulation checkpoint
-`aacace4`, inspect the CLI and hidden repair paths, and record a retain/retire
-decision before making any broader change.
+Database boundary: `bot.py --recalc_elo` remains a standalone synchronous
+operator mode. It now owns an explicit Peewee connection around the existing
+coordinator claim and all-or-nothing model transaction. It does not use the
+Discord executor because no Discord event loop exists in that process.
+
+Slash decision: no command was added. The supported recalculation-from-game
+workflow already has prefix and slash interfaces. The unfinished hidden
+`reverse_duplicated_elo` prefix command was retired rather than modernized;
+it always returned before its unsafe body and therefore provided no working
+behavior to preserve. No slash compatibility compromise was introduced.
+
+Implementation evidence:
+
+- The full CLI recalculation opens and closes its process-local Peewee
+  connection explicitly on both success and failure.
+- The existing full-recalculation implementation retains one synchronous
+  `db.atomic()` transaction and a guaranteed coordinator `claimed()` cleanup.
+- This P3.2 record documents the supported repair paths, process-local
+  coordination, non-cancellable worker behavior, shutdown expectations, and
+  the retired command decision.
+- `reverse_duplicated_elo` was removed. Its unreachable body bypassed the
+  coordinator/transaction boundary and referenced `self.gamesides` on the cog
+  instead of game sides.
+- Registration testing proves the retired prefix command is absent while
+  `recalc_games_from`, `/recalc-games-from`, and `/elo-job-status` remain.
+- No beta process was running during the unit.
+
+Files changed:
+
+- `bot.py`
+- `modules/administration.py`
+- `tests/test_runtime_config.py`
+- `tests/test_elo_jobs.py`
+- `docs/DATABASE_AND_SLASH_MODERNIZATION.md`
+
+Commit(s):
+
+- `63c9378` — Harden ELO maintenance paths.
+
+Tests required:
+
+- [x] CLI connection lifecycle on success
+- [x] CLI connection cleanup after recalculation failure
+- [x] supported/retired command registration
+- [x] complete offline suite
+- [x] gated development-database suite
+
+Validation evidence:
+
+- Focused CLI/registration tests: three passed.
+- `POLYBOT_ENV=development MPLCONFIGDIR=/tmp/polybot-matplotlib
+  .venv/bin/python -m unittest discover -v`: 108 passed, eight gated
+  database tests skipped as designed.
+- `POLYBOT_ENV=development POLYBOT_RUN_DB_INTEGRATION=1
+  MPLCONFIGDIR=/tmp/polybot-matplotlib .venv/bin/python -m unittest
+  tests.test_database_integration -v`: eight passed after the gate confirmed
+  `development`, `polytopia_dev`, and `polybot_dev`.
+- `git diff --check`: clean.
+
+Beta result: not required. No application command or working Discord behavior
+changed, and no beta launch or synchronization was performed.
+
+Remaining limitations:
+
+- All ELO coordination is process-local. The bot and full CLI recalculation
+  must not run concurrently against the same database.
+- A running synchronous worker cannot be force-cancelled safely; status is
+  in-memory and no job history is persisted.
+- The full CLI flag retains its historical operator interface without an
+  additional confirmation prompt. Runtime and operational approval gates
+  remain the protection against accidental execution.
+
+Operational guidance:
+
+- Use owner-only `recalc_games_from` or `/recalc-games-from` for a bounded
+  rebuild from one completed game; use `/elo-job-status` for the current
+  in-process job snapshot.
+- Cancellation of the awaiting Discord task does not stop synchronous Peewee
+  work. The coordinator remains reserved until the worker finishes, and a
+  successful transaction may commit after its awaiting task is cancelled.
+- Allow an ELO worker to finish during shutdown. If hard termination is
+  unavoidable, PostgreSQL determines whether the open transaction rolls back.
+- `bot.py --recalc_elo` is a standalone full rebuild. Run it only while every
+  bot process using that database is stopped because coordinators cannot
+  serialize across processes.
+- P3.2 retired `reverse_duplicated_elo`; supported repairs use recalculation
+  from a game or the separately controlled full CLI rebuild.
+
+Next action: review and integrate P3.2 into
+`codex/database-slash-modernization`; then begin P4.1 as the next code unit.
 
 ## T1 — Development beta fixture harness
 
@@ -1388,6 +1480,18 @@ reuse and clean it when stale, confusing, or before a production-oriented
 cutover review. Game `118` (`Foobar`) is the first intentionally retained
 manual fixture.
 
+### D-016 — Retire the unfinished duplicate-ELO reversal command
+
+Status: Accepted
+
+`reverse_duplicated_elo` was not a usable maintenance interface: it always
+returned “command not finished,” while its unreachable implementation lacked
+the coordinator and transaction boundaries and contained a broken game-side
+reference. P3.2 removes it instead of converting it to slash. Supported
+repairs use the serialized recalculation-from-game workflow or, when a full
+rebuild is deliberately required, the separately operated command-line
+recalculation.
+
 ## Progress log
 
 ### 2026-07-29 — ELO/slash pilot beta accepted
@@ -1589,6 +1693,27 @@ manual fixture.
 - Next: P3.2, a bounded ELO-maintenance consistency review of CLI full
   recalculation, cancellation documentation, and the disabled
   `reverse_duplicated_elo` path.
+
+### 2026-07-29 — P3.2 ELO maintenance consistency implemented
+
+- Created `codex/p3-2-elo-maintenance-consistency` from accumulation
+  checkpoint `55425a5`.
+- Gave standalone `bot.py --recalc_elo` an explicit process-local Peewee
+  connection lifecycle around its existing serialized synchronous
+  transaction.
+- Documented coordinator scope, cancellation/shutdown semantics, supported
+  recalculation paths, and operator separation requirements.
+- Retired the hidden unfinished `reverse_duplicated_elo` prefix command; no
+  slash replacement or compatibility compromise was introduced.
+- Recorded implementation checkpoint `63c9378`.
+- Passed three focused tests and the complete offline suite: 108 passed with
+  eight gated database tests skipped as designed.
+- Passed all eight gated development-database tests after confirming
+  `development`, `polytopia_dev`, and `polybot_dev`.
+- No beta launch, command synchronization, production operation, dependency
+  change, or schema change was performed.
+- Next: review and integrate P3.2 into the accumulation branch, then start
+  P4.1 staff state corrections.
 
 ## Resume checklist
 

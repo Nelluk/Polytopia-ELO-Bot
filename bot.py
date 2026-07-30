@@ -43,7 +43,11 @@ def main(args: List[str] = None):
     if args.recalc_elo:
         print('Recalculating all ELO')
         start = timer()
-        models.Game.recalculate_all_elo()
+        # This is a standalone synchronous operator path, not a Discord
+        # worker. Own its Peewee connection explicitly so success, failure,
+        # and process exit all have a deterministic connection lifecycle.
+        with models.db.connection_context():
+            models.Game.recalculate_all_elo()
         end = timer()
         print(f'Recalculation complete - took {end - start} seconds.')
         exit(0)

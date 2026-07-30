@@ -1,6 +1,7 @@
 import asyncio
-from contextlib import redirect_stderr, redirect_stdout
+from contextlib import contextmanager, redirect_stderr, redirect_stdout
 from dataclasses import FrozenInstanceError
+import importlib
 from io import StringIO
 from pathlib import Path
 import stat
@@ -22,6 +23,53 @@ from scripts import check_runtime_config
 
 DEVELOPMENT_GUILD_ID = 900000000000000001
 OTHER_GUILD_ID = 900000000000000002
+
+
+@contextmanager
+def import_bot_with_models_stub(models_stub):
+    settings_stub = ModuleType('settings')
+    settings_stub.runtime_profile = SimpleNamespace(
+        background_tasks_enabled=False,
+        discord_token='offline-token',
+    )
+    settings_stub.run_tasks = False
+    stubs = {
+        'logging_config': ModuleType('logging_config'),
+        'settings': settings_stub,
+        'modules.image_storage': ModuleType('modules.image_storage'),
+        'modules.initialize_data': ModuleType('modules.initialize_data'),
+        'modules.models': models_stub,
+        'modules.utilities': ModuleType('modules.utilities'),
+    }
+    old_bot_module = sys.modules.pop('bot', None)
+    modules_package = importlib.import_module('modules')
+    try:
+        with mock.patch.dict(sys.modules, stubs), mock.patch.object(
+            modules_package,
+            'models',
+            models_stub,
+            create=True,
+        ), mock.patch.object(
+            modules_package,
+            'image_storage',
+            stubs['modules.image_storage'],
+            create=True,
+        ), mock.patch.object(
+            modules_package,
+            'initialize_data',
+            stubs['modules.initialize_data'],
+            create=True,
+        ), mock.patch.object(
+            modules_package,
+            'utilities',
+            stubs['modules.utilities'],
+            create=True,
+        ):
+            yield importlib.import_module('bot')
+    finally:
+        sys.modules.pop('bot', None)
+        if old_bot_module is not None:
+            sys.modules['bot'] = old_bot_module
 
 
 class RuntimeProfileTests(unittest.TestCase):
@@ -425,6 +473,66 @@ class RuntimeProfileTests(unittest.TestCase):
             sys.modules.pop('bot', None)
             if old_bot_module is not None:
                 sys.modules['bot'] = old_bot_module
+
+    def test_full_elo_recalculation_owns_cli_database_connection(self):
+        events = []
+
+        class ConnectionContext:
+            def __enter__(self):
+                events.append('connection-open')
+
+            def __exit__(self, exc_type, exc_value, traceback):
+                events.append('connection-close')
+
+        models_stub = ModuleType('modules.models')
+        models_stub.db = SimpleNamespace(
+            connection_context=lambda: ConnectionContext()
+        )
+        models_stub.Game = SimpleNamespace(
+            recalculate_all_elo=lambda: events.append('recalculate')
+        )
+        with import_bot_with_models_stub(models_stub) as bot_module:
+            with self.assertRaises(SystemExit) as raised:
+                bot_module.main(['--recalc_elo'])
+
+        self.assertEqual(raised.exception.code, 0)
+        self.assertEqual(
+            events,
+            ['connection-open', 'recalculate', 'connection-close'],
+        )
+
+    def test_full_elo_recalculation_closes_connection_after_failure(self):
+        events = []
+
+        class ConnectionContext:
+            def __enter__(self):
+                events.append('connection-open')
+
+            def __exit__(self, exc_type, exc_value, traceback):
+                events.append('connection-close')
+
+        def fail_recalculation():
+            events.append('recalculate')
+            raise RuntimeError('simulated recalculation failure')
+
+        models_stub = ModuleType('modules.models')
+        models_stub.db = SimpleNamespace(
+            connection_context=lambda: ConnectionContext()
+        )
+        models_stub.Game = SimpleNamespace(
+            recalculate_all_elo=fail_recalculation
+        )
+        with import_bot_with_models_stub(models_stub) as bot_module:
+            with self.assertRaisesRegex(
+                RuntimeError,
+                'simulated recalculation failure',
+            ):
+                bot_module.main(['--recalc_elo'])
+
+        self.assertEqual(
+            events,
+            ['connection-open', 'recalculate', 'connection-close'],
+        )
 
 
 class InspectionCommandFailureTests(unittest.TestCase):
