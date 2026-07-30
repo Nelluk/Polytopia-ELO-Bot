@@ -6,6 +6,8 @@ import modules.exceptions as exceptions
 import modules.achievements as achievements
 from modules import channels
 from modules import image_storage
+from modules import leaderboard_views
+from modules import leaderboard_workers
 from modules import elo_workers
 from modules import game_workers
 from modules.elo_jobs import EloJobConflict
@@ -69,6 +71,11 @@ class polygames(commands.Cog):
     game_group = discord.app_commands.Group(
         name='game',
         description='Create, manage, and correct games.',
+        guild_only=True,
+    )
+    leaderboard_group = discord.app_commands.Group(
+        name='leaderboard',
+        description='View competitive rankings and activity.',
         guild_only=True,
     )
 
@@ -278,8 +285,60 @@ class polygames(commands.Cog):
             player.generate_display_name(player_name=after.name, player_nick=after.nick)
             models.GameLog.write(game_id=0, guild_id=after.guild.id, message=f'{models.GameLog.member_string(after)} had changed nickname from "{before.nick}" to "{after.nick}"')
 
+    @staticmethod
+    def _player_leaderboard_request(
+        guild_id: int,
+        invoked_with: str,
+        filters: str = '',
+    ) -> leaderboard_workers.PlayerLeaderboardRequest:
+        filter_text = filters.upper()
+        global_alias = invoked_with in ('lbglobal', 'lbg')
+        return leaderboard_workers.PlayerLeaderboardRequest(
+            guild_id=guild_id,
+            scope=(
+                'global'
+                if global_alias or 'GLOBAL' in filter_text
+                else 'local'
+            ),
+            rating='peak' if 'MAX' in filter_text else 'current',
+            era=(
+                'all-time'
+                if 'ALLTIME' in filter_text
+                else 'current'
+            ),
+            population=(
+                'all'
+                if 'ALLPLAYERS' in filter_text
+                else 'active'
+            ),
+            active_cutoff=settings.date_cutoff,
+        )
+
+    @staticmethod
+    def _player_leaderboard_entries(
+        result: leaderboard_workers.PlayerLeaderboardResult,
+    ) -> list[tuple[str, str]]:
+        return [
+            (
+                f'{row.rank:>3}. {row.team_emoji}{row.name}',
+                (
+                    f'`ELO {row.elo}\u00a0\u00a0\u00a0\u00a0'
+                    f'W {row.wins} / L {row.losses}`'
+                ),
+            )
+            for row in result.rows
+        ]
+
+    async def _load_player_leaderboard(
+        self,
+        request: leaderboard_workers.PlayerLeaderboardRequest,
+    ) -> leaderboard_workers.PlayerLeaderboardResult:
+        return await leaderboard_workers.run_player_leaderboard(request)
+
     @settings.in_bot_channel_strict()
-    @commands.command(aliases=['leaderboard', 'leaderboards', 'lbglobal', 'lbg'])
+    @commands.command(
+        aliases=['leaderboard', 'leaderboards', 'lbglobal', 'lbg'],
+    )
     @commands.cooldown(2, 30, commands.BucketType.channel)
     async def lb(self, ctx, *, filters: str = ''):
         """ Display individual leaderboard
@@ -316,53 +375,93 @@ class polygames(commands.Cog):
         `[p]lb global alltime allplayers max` - Global leaderboard, including inactive players, ranked by maximum hstoric Alltime ELO
         """
 
-        leaderboard = []
-        max_flag, global_flag, version = False, False, None
-        target_model = Player
-        lb_title = 'Individual Leaderboard'
-        date_cutoff = settings.date_cutoff
-
-        if ctx.invoked_with == 'lbglobal' or ctx.invoked_with == 'lbg':
-            filters = filters + 'GLOBAL'
-
-        if 'GLOBAL' in filters.upper():
-            global_flag = True
-            lb_title = 'Global Leaderboard'
-            target_model = DiscordMember
-
-        if 'ALLPLAYERS' in filters.upper():
-            lb_title += ' - Including Inactive Players'
-            date_cutoff = datetime.date.min
-
-        if 'MAX' in filters.upper():
-            max_flag = True  # leaderboard ranked by player.max_elo
-            lb_title += ' - Maximum ELO Achieved'
-
-        if 'ALLTIME' in filters.upper():
-            version = 'ALLTIME'  # leaderboard ranked by player.elo_alltime
-            lb_title += ' - Alltime (not reset)'
-
-        def process_leaderboard():
-            utilities.connect()
-            leaderboard_query = target_model.leaderboard(date_cutoff=date_cutoff, guild_id=ctx.guild.id, max_flag=max_flag, version=version)
-
-            for counter, player in enumerate(leaderboard_query[:2000]):
-                wins, losses = player.get_record(version=version)
-                emoji_str = player.team.emoji if not global_flag and player.team else ''
-
-                leaderboard.append(
-                    (f'{(counter + 1):>3}. {emoji_str}{player.name}', f'`ELO {player.elo_field}\u00A0\u00A0\u00A0\u00A0W {wins} / L {losses}`')
-                )
-            return leaderboard, leaderboard_query.count()
-
+        request = self._player_leaderboard_request(
+            guild_id=ctx.guild.id,
+            invoked_with=ctx.invoked_with,
+            filters=filters,
+        )
         async with ctx.typing():
-            leaderboard, leaderboard_size = await asyncio.get_running_loop().run_in_executor(None, process_leaderboard)
+            try:
+                result = await self._load_player_leaderboard(request)
+            except (peewee.PeeweeException, ValueError) as exc:
+                logger.exception('Could not load player leaderboard')
+                return await ctx.send(
+                    f'Could not load the player leaderboard: {exc}'
+                )
 
-        # if ctx.guild.id != settings.server_ids['polychampions']:
-        #     await ctx.send('Powered by PolyChampions. League server with a team focus and competitive players.\n'
-        #         'Supporting up to 6-player team ELO games and automatic team channels. - <https://tinyurl.com/polychampions>')
-        #     # link put behind url shortener to not show big invite embed
-        await utilities.paginate(self.bot, ctx, title=f'**{lb_title}**\n{leaderboard_size} ranked players', message_list=leaderboard, page_start=0, page_end=10, page_size=10)
+        await utilities.paginate(
+            self.bot,
+            ctx,
+            title=(
+                f'**{result.title}**\n'
+                f'{result.total_ranked} ranked players'
+            ),
+            message_list=self._player_leaderboard_entries(result),
+            page_start=0,
+            page_end=10,
+            page_size=10,
+        )
+
+    @leaderboard_group.command(
+        name='players',
+        description='View local or global individual player rankings.',
+    )
+    @discord.app_commands.describe(
+        scope='Use this server or cross-server global ratings.',
+        rating='Rank by current ELO or maximum ELO achieved.',
+        era='Use the current rating era or permanent all-time ratings.',
+        population='Include recently active players or all players.',
+    )
+    @discord.app_commands.checks.cooldown(
+        2,
+        30.0,
+        key=lambda interaction: interaction.channel_id,
+    )
+    async def player_leaderboard_slash(
+        self,
+        interaction: discord.Interaction,
+        scope: Literal['local', 'global'] = 'local',
+        rating: Literal['current', 'peak'] = 'current',
+        era: Literal['current', 'all-time'] = 'current',
+        population: Literal['active', 'all'] = 'active',
+    ):
+        """Typed native player leaderboard with component pagination."""
+
+        await interaction.response.defer()
+        ctx = await commands.Context.from_interaction(interaction)
+        ctx.prefix = settings.guild_setting(
+            interaction.guild.id,
+            'command_prefix',
+        )
+        ctx.invoked_with = 'lb'
+        if not await self.lb.can_run(ctx):
+            return
+
+        request = leaderboard_workers.PlayerLeaderboardRequest(
+            guild_id=interaction.guild.id,
+            scope=scope,
+            rating=rating,
+            era=era,
+            population=population,
+            active_cutoff=settings.date_cutoff,
+        )
+        try:
+            result = await self._load_player_leaderboard(request)
+        except (peewee.PeeweeException, ValueError) as exc:
+            logger.exception('Could not load slash player leaderboard')
+            return await interaction.followup.send(
+                f'Could not load the player leaderboard: {exc}',
+                ephemeral=True,
+            )
+
+        view = leaderboard_views.PlayerLeaderboardView(
+            result,
+            requester_id=interaction.user.id,
+        )
+        view.message = await interaction.edit_original_response(
+            embed=leaderboard_views.player_leaderboard_embed(result, 0),
+            view=view,
+        )
 
     @settings.in_bot_channel_strict()
     @commands.command(aliases=['recent', 'active', 'lbactivealltime'], hidden=True)

@@ -132,6 +132,42 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
         actual_tables = {row[0] for row in rows}
         self.assertTrue(expected_tables.issubset(actual_tables))
 
+    def test_player_leaderboard_worker_reads_real_schema(self):
+        from modules import leaderboard_workers
+
+        request = leaderboard_workers.PlayerLeaderboardRequest(
+            guild_id=self.settings.server_ids['test'],
+            scope='global',
+            rating='peak',
+            era='all-time',
+            population='all',
+            active_cutoff=self.settings.date_cutoff,
+        )
+        result = asyncio.run(
+            leaderboard_workers.run_player_leaderboard(request)
+        )
+
+        self.assertIsInstance(
+            result,
+            leaderboard_workers.PlayerLeaderboardResult,
+        )
+        self.assertIsInstance(result.rows, tuple)
+        self.assertGreaterEqual(result.total_ranked, len(result.rows))
+        self.assertEqual(
+            [row.rank for row in result.rows],
+            list(range(1, len(result.rows) + 1)),
+        )
+        for row in result.rows:
+            self.assertIsInstance(
+                row,
+                leaderboard_workers.PlayerLeaderboardRow,
+            )
+            self.assertIsInstance(row.name, str)
+            self.assertIsInstance(row.elo, int)
+            self.assertIsInstance(row.wins, int)
+            self.assertIsInstance(row.losses, int)
+            self.assertIsInstance(row.team_emoji, str)
+
     def test_representative_write_is_rolled_back(self):
         marker = f'phase6-rollback-{uuid.uuid4()}'
         with self.rollback_scope():
