@@ -863,6 +863,12 @@ class HybridUnwinCommandTests(unittest.IsolatedAsyncioTestCase):
     def test_recalculation_prefix_and_maintenance_slash_commands_registered(
         self,
     ):
+        prefix_names = {
+            command.name
+            for command
+            in self.administration.administration.__cog_commands__
+        }
+        self.assertNotIn('reverse_duplicated_elo', prefix_names)
         prefix_command = next(
             command
             for command
