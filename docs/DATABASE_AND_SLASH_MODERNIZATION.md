@@ -31,8 +31,15 @@ configuration, and `AGENTS.md` remain authoritative.
 - Do not connect to or modify the production database `polytopia2`.
 - Production services, production command synchronization, and production
   deployment require separate explicit approval.
-- A beta-bot launch or Discord command synchronization requires explicit
-  approval for that test session.
+- Standing authorization granted on 2026-07-30 keeps the development beta bot
+  running by default. After a significant completed and validated work unit,
+  restart only that development process from the intended checkpoint so it
+  picks up code changes and performs its normal development-guild-only
+  synchronization. Stop it temporarily when a gated fixture operation or
+  other documented safety procedure requires the bot to be offline.
+- The standing beta authorization does not cover production, a global command
+  synchronization, a different guild/profile, enabling background tasks or
+  the API, dependency installation, or materially broader live testing.
 - Development-database integration tests may run only through the existing
   gates that verify:
   - `POLYBOT_ENV=development`
@@ -2622,7 +2629,40 @@ changing the proposed Components v2 interaction design.
 This is a naming decision inside the proposal, not final approval of Taxonomy
 v2.2. No registration change is authorized by this decision.
 
+### D-026 — Keep the development beta running between work units
+
+Status: Accepted
+
+The development beta is now expected to be running by default. After a
+significant code unit is completed, validated, and checkpointed, restart only
+the beta process from that intended checkpoint so runtime code and the
+development-guild command tree are current. A routine beta restart includes
+the existing development-guild-only synchronization performed at startup.
+
+Before launching or restarting, verify the development environment, beta
+application identity, `polytopia_dev` profile, disabled background tasks/API,
+configured development guild, current branch/worktree, and absence or exact
+identity of an existing beta process. Keep the bot stopped while fixture
+seed/cleanup tooling requires exclusive access.
+
+This standing authorization does not apply to production operations, global
+command synchronization, other guilds or runtime profiles, dependency
+installation, or materially broader live tests.
+
 ## Progress log
+
+### 2026-07-30 — Standing development-beta runtime policy accepted
+
+- Launched the beta from checkpoint `5f01aba` with
+  `POLYBOT_ENV=development` and `--skip_tasks`.
+- Confirmed authentication as `PolyELO Bot Beta`
+  (`479029527553638401`) and successful startup.
+- Accepted a running-by-default policy with restart after significant,
+  validated work units so code and development-guild registrations stay
+  current.
+- Kept production, global synchronization, alternate profiles/guilds,
+  background tasks, API enablement, dependency changes, and broader live
+  tests outside this standing authorization.
 
 ### 2026-07-30 — Show, ping, and logs naming accepted
 
