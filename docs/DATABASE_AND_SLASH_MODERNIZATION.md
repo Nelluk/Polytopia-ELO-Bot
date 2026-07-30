@@ -4,7 +4,7 @@ Last updated: 2026-07-29
 
 Status: Active
 
-Current branch at last update: `codex/p3-2-elo-maintenance-consistency`
+Current branch at last update: `codex/p4-1a-ranked-state-correction`
 
 Source task: `thread://019fae66-8e3a-7a50-9a0f-d3d7160d2287`
 
@@ -160,6 +160,9 @@ For every command touched:
 5. Keep permission checks equivalent between prefix and slash paths.
 6. Make error visibility deliberate; permission or validation errors should
    generally be ephemeral for slash users.
+   Successful competitive-state mutations should generally be public so the
+   native interface preserves the transparency of the corresponding prefix
+   command. Deviations require a recorded privacy or safety reason.
 7. Add registration tests for both interfaces.
 8. Record any native-interface compromise in the compatibility ledger below,
    including user impact, acceptance, and a possible mitigation. Do not let
@@ -219,6 +222,7 @@ check:
 - P3.1 accumulation merge: `5f62998`
 - P3.2 implementation checkpoint: `63c9378`
 - P3.2 accumulation merge: `41bd614`
+- P4.1a implementation checkpoints: `3e1f395`, `d2526b4`
 - T1 fixture-harness implementation checkpoint: `4551bec`
 - T1 roadmap-evidence checkpoint: `d6e826b`
 - T1 accumulation merge: `aacace4`
@@ -226,7 +230,7 @@ check:
   working
 - combined development sync: all eight expected commands synchronized to
   guild `478571892832206869`; P2.2 and P3.1 accepted by the user
-- complete offline suite: 108 tests passed, with eight gated database tests
+- complete offline suite: 115 tests passed, with eight gated database tests
   skipped as designed
 - gated `polytopia_dev` suite: eight tests passed under the required
   `development` / `polytopia_dev` / `polybot_dev` checks
@@ -234,9 +238,9 @@ check:
 - optional cleanup: unused `Team.id=9`, `Phase7 Test Team`, remains in
   `polytopia_dev` with zero players and zero game sides
 
-Current unit: **P4.1a — Ranked-state correction**, Planned on
-`codex/database-slash-modernization` at integrated checkpoint `41bd614`.
-P2.2, P3.1, and T1 are Complete on the intended accumulation branch.
+Current unit: **P4.1a — Ranked-state correction**, Beta-validated on
+`codex/p4-1a-ranked-state-correction` from accumulation checkpoint `f215bae`.
+P0 through P3 and T1 are Complete on the intended accumulation branch.
 
 Owned games `115`-`117` were removed successfully after the combined beta
 session, and a gated status check reports no owned fixtures. Interactive
@@ -1075,6 +1079,65 @@ Keep `unstart` separate because it deletes Discord channels and edits an
 announcement; keep `extend` separate because it is a pending-game timer
 operation with no ELO interaction.
 
+#### P4.1a — Ranked-state correction
+
+Status: **Beta-validated**
+
+Branch/base: `codex/p4-1a-ranked-state-correction` from
+`codex/database-slash-modernization` at `f215bae`.
+
+Commit(s):
+
+- `3e1f395` — Modernize ranked state corrections.
+- `d2526b4` — Complete ranked correction coverage.
+
+Implementation evidence:
+
+- Prefix `rankset` and `rankunset` remain registered and staff-gated through
+  the administration cog.
+- New staff-only `/set-ranked game_id ranked` uses typed integer and Boolean
+  options and defers before worker submission.
+- One bounded ordinary-game worker opens its own connection, reloads by
+  primitive game/guild IDs, revalidates incomplete and cross-guild state, and
+  commits the flag plus audit log in one synchronous transaction.
+- The existing per-game claim rejects overlapping mutation attempts.
+- Squad-channel notification and completion output happen only after commit;
+  fault injection proves database failure prevents those effects.
+- No ELO coordinator is used because completed games are rejected.
+- No slash compatibility compromise was introduced.
+
+Validation evidence:
+
+- `tests.test_ranked_state`: seven passed, covering commit, rollback,
+  connection cleanup, event-loop responsiveness, registration, permission
+  denial, defer ordering, and post-commit ordering.
+- Complete offline suite: 115 passed with eight gated skips.
+- Existing gated development-database suite: eight passed after confirming
+  `development`, `polytopia_dev`, and `polybot_dev`.
+- `git diff --check`: clean.
+
+Beta result: accepted by the user on 2026-07-29. Startup synchronized all nine
+expected commands to the development guild, including `/set-ranked`.
+Fixture-backed ranked/unranked corrections and the preserved prefix commands
+worked as expected. The test exposed that successful slash responses were
+ephemeral; the user requested public success output for competitive
+transparency and waived a second live retest. Permission, validation, and
+database-error responses remain ephemeral.
+
+Fixture result: the task-owned beta process stopped cleanly. The retained
+owned set remains games `149`-`151`; game `149` is incomplete and unranked
+after the smoke test, while `150` remains unconfirmed ranked and `151`
+confirmed ranked. The set was intentionally retained for later units and
+must be inspected before reuse.
+
+Remaining limitations:
+
+- The short post-commit game reload remains synchronous on the event-loop
+  thread.
+- `unstart` and `extend` remain unchanged for separate bounded units.
+
+Next action: integrate P4.1a into `codex/database-slash-modernization`.
+
 Use typed game IDs and choices. If these commands can race with finalized ELO
 state, use the ELO coordinator; otherwise use a per-game claim rather than
 blocking all ELO work.
@@ -1498,6 +1561,16 @@ repairs use the serialized recalculation-from-game workflow or, when a full
 rebuild is deliberately required, the separately operated command-line
 recalculation.
 
+### D-017 — Keep successful competitive mutations public
+
+Status: Accepted
+
+Successful slash-command results that change competitive game state should be
+public by default, preserving the transparency and shared audit context of
+their prefix equivalents. Permission denials, validation failures, and
+database errors should generally remain ephemeral. A command may make success
+private only for a recorded privacy or safety reason.
+
 ## Progress log
 
 ### 2026-07-29 — ELO/slash pilot beta accepted
@@ -1730,6 +1803,40 @@ recalculation.
 - Selected paired `rankset`/`rankunset` modernization as P4.1a; `unstart` and
   `extend` remain separate later units.
 - Next: create P4.1a from `41bd614`.
+
+### 2026-07-29 — P4.1a ranked-state correction implemented
+
+- Created `codex/p4-1a-ranked-state-correction` from accumulation checkpoint
+  `f215bae`.
+- Preserved prefix `rankset` and `rankunset` and added typed staff-only
+  `/set-ranked`.
+- Moved ranked-state validation, mutation, and audit logging into one bounded
+  worker-local transaction using primitive IDs.
+- Kept the per-game claim through post-commit Discord notification and
+  guaranteed cleanup.
+- Passed seven focused tests, the complete 115-test offline suite with eight
+  gated skips, and all eight gated development-database tests.
+- Recorded implementation checkpoints `3e1f395` and `d2526b4`.
+- No beta launch, synchronization, production operation, dependency change,
+  or schema change was performed.
+- Next: obtain separate approval for a fixture-backed beta sync/smoke test.
+
+### 2026-07-29 — P4.1a beta accepted and transparency policy corrected
+
+- Seeded owned development fixtures `149`-`151` while the beta was stopped.
+- Verified the development profile selected the beta application,
+  `polytopia_dev`, guild `478571892832206869`, and disabled background
+  tasks/API/Bullet integration.
+- Synchronized nine development-guild commands, including `/set-ranked`.
+- The user accepted `/set-ranked`, `rankset`, and `rankunset` behavior.
+- Changed successful `/set-ranked` output from ephemeral to public at the
+  user's request; permission, validation, and database-error output remains
+  ephemeral. The user waived a second live retest.
+- Passed seven focused tests and the complete 115-test offline suite with
+  eight gated skips after the visibility adjustment.
+- Stopped the beta cleanly. Retained owned game `149` incomplete/unranked,
+  `150` unconfirmed/ranked, and `151` confirmed/ranked for later units.
+- Next: integrate P4.1a into the accumulation branch.
 
 ## Resume checklist
 

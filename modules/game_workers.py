@@ -7,6 +7,8 @@ import functools
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 
+import peewee
+
 from modules import exceptions, models
 
 
@@ -41,6 +43,16 @@ class NewGameRequest:
 class NewGameResult:
     game_id: int
     warnings: tuple[str, ...]
+
+
+class RankedStateValidationError(RuntimeError):
+    """The game cannot receive the requested ranked-state correction."""
+
+
+@dataclass(frozen=True)
+class RankedStateResult:
+    game_id: int
+    is_ranked: bool
 
 
 @dataclass(frozen=True)
@@ -125,4 +137,67 @@ async def run_new_game_creation(request: NewGameRequest) -> NewGameResult:
 
     loop = asyncio.get_running_loop()
     call = functools.partial(create_new_game, request)
+    return await loop.run_in_executor(_new_game_executor, call)
+
+
+def set_game_ranked_state(
+    game_id: int,
+    guild_id: int,
+    is_ranked: bool,
+    requester_description: str,
+) -> RankedStateResult:
+    """Set an incomplete game's ranked state in one local transaction."""
+
+    with models.db.connection_context():
+        with models.db.atomic():
+            try:
+                game = models.Game.get_by_id(game_id)
+            except peewee.DoesNotExist as exc:
+                raise RankedStateValidationError(
+                    f'Game with ID {game_id} cannot be found.'
+                ) from exc
+            if game.guild_id != guild_id:
+                raise RankedStateValidationError(
+                    f'Game with ID {game_id} is associated with a different '
+                    'Discord server.'
+                )
+            if game.is_completed or game.is_confirmed:
+                raise RankedStateValidationError(
+                    'This can only be used on an incomplete game.'
+                )
+            if game.is_ranked == is_ranked:
+                state = 'ranked' if is_ranked else 'unranked'
+                raise RankedStateValidationError(
+                    f'Game {game.id} is already marked as {state}.'
+                )
+
+            game.is_ranked = is_ranked
+            game.save()
+            state = 'ranked' if is_ranked else 'unranked'
+            models.GameLog.write(
+                game_id=game.id,
+                guild_id=guild_id,
+                message=(
+                    f'{requester_description} set game to be {state}.'
+                ),
+            )
+            return RankedStateResult(game_id=game.id, is_ranked=is_ranked)
+
+
+async def run_ranked_state_correction(
+    game_id: int,
+    guild_id: int,
+    is_ranked: bool,
+    requester_description: str,
+) -> RankedStateResult:
+    """Submit a ranked-state correction to the bounded game executor."""
+
+    loop = asyncio.get_running_loop()
+    call = functools.partial(
+        set_game_ranked_state,
+        game_id,
+        guild_id,
+        is_ranked,
+        requester_description,
+    )
     return await loop.run_in_executor(_new_game_executor, call)
