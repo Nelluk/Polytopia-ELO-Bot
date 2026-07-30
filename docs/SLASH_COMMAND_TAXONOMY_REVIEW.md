@@ -1,13 +1,15 @@
 # Slash Command Taxonomy Review
 
-Last updated: 2026-07-29
+Last updated: 2026-07-30
 
-Status: T-A domain groups provisionally selected for development
+Status: Revised T-A approved for development
 
 This review covers the bot's complete repository-backed command surface, not
-only commands already converted to Discord application commands. T-A domain
-groups are authorized as the working development architecture. This does not
-authorize Discord synchronization, which remains separately gated.
+only commands already converted to Discord application commands. The revised
+T-A proposal uses one `/game` domain for open, pending, started, completed,
+and corrected games. It does not use a separate user-facing `/match` domain.
+The user approved this architecture on 2026-07-30. Discord synchronization
+remains separately gated.
 
 ## Inventory scope
 
@@ -15,7 +17,8 @@ Static inspection found:
 
 - 83 in-scope explicit prefix command handlers;
 - one customized framework `help` command;
-- 10 native registrations, including the uncommitted P4.1b `/extend`;
+- nine previously synchronized native commands plus two locally implemented,
+  unsynchronized P4.1d subcommands;
 - many additional prefix aliases;
 - a conditional command family for the Bullet cog.
 
@@ -34,7 +37,7 @@ automatic merely because a command exists.
 
 ### Disposition key
 
-- **Native now**: already implemented or present in the current P4.1b work.
+- **Native now**: already beta-tested or implemented locally.
 - **Strong candidate**: clear typed slash model; convert in its roadmap phase.
 - **Redesign**: worthwhile native capability, but free-form grammar, aliases,
   attachments, pagination, or confirmation needs a deliberate interaction UX.
@@ -49,15 +52,19 @@ automatic merely because a command exists.
 T-A, the recommended taxonomy, uses domain roots. Existing prefix names and
 aliases remain unchanged during migration.
 
-### Games and game communication
+### Complete game lifecycle and communication
+
+Users treat open, joinable, started, and completed records as games. The
+native taxonomy follows that mental model even though legacy code, database
+state, and prefix aliases sometimes use “match” or “matchmaking.”
 
 | Current prefix handler(s) | Recommended native home | Disposition / note |
 |---|---|---|
 | `newgame` | `/game create` | Native now; preserve C-001 limits until a custom draft UX is justified |
 | `game` | `/game show` | Strong candidate |
 | `allgames` | `/game search` | Redesign typed filters and pagination |
-| `incomplete` | `/game list status:incomplete` | Redesign; aliases currently also request completed games |
-| `wins` | `/game results outcome:wins|losses` | Redesign alias-driven outcome as a choice |
+| `incomplete` | `/game search status:incomplete|completed` | Fold alias-driven status into typed search filters |
+| `wins` | `/game search outcome:win|loss` | Fold alias-driven outcome into typed search filters |
 | `win` | `/game win` | Native now |
 | `unwin` | `/game unwin` | Native now |
 | `delete` | `/game delete` | Native now |
@@ -69,23 +76,33 @@ aliases remain unchanged during migration.
 | `settribe` | `/game set-tribe` | Redesign bulk grammar; begin with one member and one tribe |
 | `getnames` | `/game player-names` | Strong candidate |
 | `logs` | `/game logs` | Redesign search scope and pagination |
-| `ping` | `/game ping` | Redesign explicit game ID, message, and optional attachment |
-| `pingall` | `/game ping-all` | Redesign with confirmation; hidden mass-notification operation |
+| `ping`, `pingall` | `/game ping scope:game|all` | Redesign explicit target/message/attachment; require confirmation for hidden mass mode |
+| `opengame` | `/game open` | Redesign flexible side shapes and expiry/rules |
+| `games` | `/game search status:open` | Fold the joinable-game list into typed game search |
+| `join` | `/game join` | Strong candidate |
+| `leave` | `/game leave` | Strong candidate |
+| `gameside` | `/game set-side` | Redesign role locking and side naming |
+| `gamenotes` | `/game notes` | Strong candidate; modal is an option |
+| `kick` | `/game kick` | Strong candidate with native member input |
+| `start` | `/game start` | Strong candidate after lifecycle worker separation |
+| `extend` | `/game extend` | Proposed replacement for implemented, unsynchronized `/match extend` |
+| `unstart` | `/game unstart` | Proposed replacement for implemented, unsynchronized `/match unstart` |
 
-### Matchmaking lifecycle
+The combined inventory has 28 legacy capability rows. Four overlapping list
+and history handlers (`allgames`, `incomplete`, `wins`, and `games`) become
+one `/game search` command, while `ping` and `pingall` become one typed
+command. That leaves at most 24 named `/game` subcommands if every other
+candidate is eventually exposed, within Discord's 25-child group limit.
+Low-value hidden or bulk operations should remain prefix/operator-only or be
+folded into typed options before the group reaches that limit.
 
-| Current prefix handler(s) | Recommended native home | Disposition / note |
-|---|---|---|
-| `opengame` | `/match open` | Redesign flexible side shapes and expiry/rules |
-| `games` | `/match list` | Strong candidate with pagination |
-| `join` | `/match join` | Strong candidate |
-| `leave` | `/match leave` | Strong candidate |
-| `gameside` | `/match set-side` | Redesign role locking and side naming |
-| `gamenotes` | `/match notes` | Strong candidate; modal is an option |
-| `kick` | `/match kick` | Strong candidate with native member input |
-| `start` | `/match start` | Strong candidate after lifecycle worker separation |
-| `extend` | `/match extend` | Native now in P4.1b work; not yet beta-synchronized |
-| `unstart` | `/match unstart` | Strong candidate, but destructive post-commit Discord effects require its own unit |
+### Effect on the current implementation
+
+P4.1d has locally implemented `/match extend` and `/match unstart`, but those
+commands have not been synchronized to Discord. If this revision is approved,
+rename that group to `/game` and update its tests, audit attribution, roadmap,
+and beta runbook before the first live sync. No compatibility alias is needed
+for an application-command name that users have never received.
 
 ### Players, teams, squads, and ratings
 
@@ -185,28 +202,31 @@ vote decides how native commands are addressed.
 
 Examples:
 
+- `/game open`, `/game join`, `/game start`;
 - `/game show`, `/game win`, `/game set-map`;
-- `/match open`, `/match join`, `/match start`;
 - `/player show`, `/player set-name`;
 - `/leaderboard players`, `/leaderboard teams`;
 - `/team show`, `/house list`, `/league season`;
 - `/elo recalculate`, `/elo status`;
 - `/tools random-tribes`, `/support request`.
 
-This produces roughly a dozen understandable roots and keeps each family
-within Discord's subcommand limits. Permissions remain command-specific:
-placing a staff operation under `/game` does not make it public.
+This produces roughly eleven understandable roots and keeps each family
+within Discord's subcommand limits. `/game` spans the full game lifecycle;
+permissions remain command-specific, so placing a staff operation under
+`/game` does not make it public.
 
 The main cost is converting current hybrids into unchanged prefix commands
 plus thin slash wrappers. Bare `/game` cannot also mean “show a game” once it
-is a group, so that capability becomes `/game show`.
+is a group, so that capability becomes `/game show`. The unified group also
+requires the query and notification consolidation described above to preserve
+headroom below Discord's 25-child limit.
 
 ### T-B — One application umbrella
 
 Use one root, preferably `/poly`, with domain subcommand groups:
 
 - `/poly game show`, `/poly game unwin`;
-- `/poly match join`, `/poly match start`;
+- `/poly game open`, `/poly game join`, `/poly game start`;
 - `/poly player show`, `/poly leaderboard teams`;
 - `/poly league season`, `/poly team rename`;
 - `/poly elo recalculate`, `/poly tools random-tribes`.
@@ -225,7 +245,7 @@ Keep existing beta names where possible and name future commands with
 hyphenated domains:
 
 - `/game-info`, `/game-search`, `/game-rename`, `/game-set-map`;
-- `/match-open`, `/match-join`, `/match-start`;
+- `/game-open`, `/game-join`, `/game-start`;
 - `/player-info`, `/player-set-name`;
 - `/leaderboard-players`, `/leaderboard-teams`;
 - `/league-season`, `/team-rename`, `/elo-recalculate`.
@@ -253,7 +273,7 @@ After the architecture vote, run a short spelling review rather than mixing
 dozens of word choices into the first ballot:
 
 - `create` versus `new`;
-- `match` versus `lobby`;
+- `open` versus `host`;
 - `show` versus `info`;
 - `unconfirmed` versus `pending-confirmation`;
 - `player-names` versus `codes`.
@@ -265,8 +285,9 @@ dozens of word choices into the first ballot:
    production if staff select a different architecture.
 3. Build reusable slash groups/wrappers without changing prefix command names,
    aliases, permissions, workers, or transaction boundaries.
-4. Move the current native surface in one bounded registration unit and add
-   tests for old prefix registration plus new slash paths.
+4. Rename the unsynchronized P4.1d `/match` group to `/game`, then move the
+   remaining current native surface into that group in bounded registration
+   units with prefix-registration and slash-path tests.
 5. Synchronize only the development guild in a separately approved beta
    session and run the existing mutation/permission smoke matrix.
 6. Because no names are in production, prefer a clean beta rename. Retain old

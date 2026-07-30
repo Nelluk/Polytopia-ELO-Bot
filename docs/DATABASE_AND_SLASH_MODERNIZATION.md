@@ -1,6 +1,6 @@
 # Database Access and Slash Command Modernization
 
-Last updated: 2026-07-29
+Last updated: 2026-07-30
 
 Status: Active
 
@@ -173,13 +173,13 @@ compatibility and deprecation decision.
 
 ### Slash taxonomy review
 
-Status: **Provisionally selected — T-A domain groups**
+Status: **Accepted — unified `/game` domain**
 
-T-A domain groups are the authorized working taxonomy for development. New
-slash work may proceed under the domain map, and the current beta slash
-surface may be migrated in a bounded registration unit. Prefix names and
-aliases remain unchanged. Staff may still vote; an unexpected different
-result can replace this provisional choice before production deployment.
+T-A domain groups remain the working architecture. The user approved one
+user-facing `/game` domain for open/pending matchmaking records and
+started/completed records. Prefix names and aliases remain unchanged. Replace
+the unsynchronized P4.1d `/match` group and migrate the previously tested
+top-level native commands before the next development-guild sync.
 
 The repository-wide inventory and conversion dispositions are maintained in
 `docs/SLASH_COMMAND_TAXONOMY_REVIEW.md`. It covers all 83 in-scope explicit prefix
@@ -192,12 +192,16 @@ the complete modernization inventory.
 The current native surface under review is:
 
 - `/newgame`, `/win`, `/unwin`, `/delete`, `/confirm`, `/unconfirmed`;
-- `/set-ranked`, `/extend`;
+- `/set-ranked`;
 - `/recalc-games-from`, `/elo-job-status`.
+- locally implemented but unsynchronized `/match extend` and
+  `/match unstart`.
 
-`/extend` is present in the uncommitted P4.1b worktree and has not yet been
-beta-synchronized. The first nine commands have already been synchronized
-during approved development-guild sessions.
+The first nine commands have already been synchronized during approved
+development-guild sessions. P4.1d locally replaced the never-synchronized
+top-level `/extend` with `/match extend` and added `/match unstart`; neither
+grouped command has been synchronized. The revised proposal moves both to
+`/game` before their first live sync.
 
 #### T-A — Domain groups (recommended)
 
@@ -212,23 +216,26 @@ Organize commands by the object or workflow they affect:
 | `/confirm` | `/game confirm` |
 | `/unconfirmed` | `/game unconfirmed` |
 | `/set-ranked` | `/game set-ranked` |
-| `/extend` | `/match extend` |
+| `/extend` | `/game extend` |
 | `/recalc-games-from` | `/elo recalculate` |
 | `/elo-job-status` | `/elo status` |
 
-Future families would use `/game show|rename|set-map|set-tribe|notes|logs`,
-`/match open|join|leave|kick|start|list`,
+Future game commands would use
+`/game open|join|leave|kick|start|unstart|extend|show|search|rename|set-map|set-tribe|notes|logs`,
 `/player show|set-name|set-time|names`, and
 `/leaderboard players|teams|squads`.
 
-Advantages: the vocabulary follows user-facing domain concepts; ranked and
-unranked games remain under `/game`; matchmaking has a clear lifecycle; ELO
-is reserved for rating-specific maintenance and reporting. It scales without
-turning one root into a miscellaneous drawer.
+Advantages: the vocabulary follows the actual user model; open, pending,
+started, completed, ranked, and unranked records are all games. ELO remains
+reserved for rating-specific maintenance and reporting.
 
 Costs: every current native name changes; `/game` becomes a group, so viewing
 a game is `/game show` rather than bare `/game`; grouped wrappers must be
-separate from the preserved prefix decorators.
+separate from the preserved prefix decorators. The combined legacy inventory
+has 28 capability rows, so overlapping list/history commands must share typed
+`/game search` filters and `ping`/`pingall` must share one typed command. This
+produces at most 24 proposed immediate children, within Discord's 25-child
+group limit.
 
 #### T-B — One ELO-branded umbrella
 
@@ -244,13 +251,13 @@ one root:
 | `/confirm` | `/elo game confirm` |
 | `/unconfirmed` | `/elo game unconfirmed` |
 | `/set-ranked` | `/elo game set-ranked` |
-| `/extend` | `/elo match extend` |
+| `/extend` | `/elo game extend` |
 | `/recalc-games-from` | `/elo admin recalculate` |
 | `/elo-job-status` | `/elo admin status` |
 
-Future subcommand groups would include `game`, `match`, `player`,
-`leaderboard`, `team`, and `admin`. Discord supports this root/group/command
-shape, such as `/elo game unwin`.
+Future subcommand groups would include `game`, `player`, `leaderboard`,
+`team`, and `admin`. Discord supports this root/group/command shape, such as
+`/elo game unwin`.
 
 Advantages: users learn one root; autocomplete after `/elo` exposes the
 available families; the application has a strong branded identity.
@@ -271,7 +278,7 @@ additions:
 | Existing names retained | Example future names |
 |---|---|
 | `/newgame`, `/win`, `/unwin`, `/delete` | `/game-info`, `/game-rename`, `/game-set-map` |
-| `/confirm`, `/unconfirmed`, `/set-ranked`, `/extend` | `/match-open`, `/match-join`, `/match-start` |
+| `/confirm`, `/unconfirmed`, `/set-ranked`, `/extend` | `/game-open`, `/game-join`, `/game-start` |
 | `/recalc-games-from`, `/elo-job-status` | `/player-info`, `/player-set-name`, `/leaderboard` |
 
 Advantages: least migration work and no relearning of the already-tested
@@ -1537,6 +1544,12 @@ ready fixture for `/match unstart`, then `/match extend`, prefix parity,
 public-success visibility, ephemeral denial/validation, responsiveness, and
 clean shutdown checks.
 
+Naming hold: do not run that beta procedure yet. The 2026-07-30 taxonomy
+revision proposes `/game unstart` and `/game extend` because users do not
+distinguish open/pending “matches” from other games. If approved, revise this
+unit's registration, tests, audit attribution, and runbook before sync. The
+existing worker and transaction evidence is unaffected.
+
 Remaining limitations:
 
 - P4.1c's short post-commit announcement model reload and non-persistent
@@ -1549,9 +1562,10 @@ Remaining limitations:
   T-A groups. This unit deliberately establishes only the first coherent
   group.
 
-Next action: commit this evidence, then obtain separate approval to launch and
-synchronize the development beta for the documented P4.1d smoke matrix. Do
-not integrate P4.1d into accumulation until its live behavior is accepted.
+Next action: obtain user review of the unified `/game` proposal. If approved,
+rename the unsynchronized P4.1d group and update its focused tests and beta
+runbook before requesting launch/synchronization approval. Do not integrate
+P4.1d into accumulation until its live behavior is accepted.
 
 ### P4.2 — Game metadata
 
@@ -1612,14 +1626,15 @@ Required design:
 
 Likely slash interfaces:
 
-- `/open-game`
-- `/join game_id side`
-- `/leave game_id`
-- `/kick game_id member`
-- `/start-game game_id name`
+- `/game open`
+- `/game join game_id side`
+- `/game leave game_id`
+- `/game kick game_id member`
+- `/game start game_id name`
 
-Names and grouping must be reviewed against Discord's application-command
-limits and existing top-level commands before implementation.
+The lifecycle shares `/game` with tracked-game commands. Consolidate game
+lists/history under `/game search` and enforce the 25-child group limit before
+each new registration.
 
 ## P6 — Registration and player preferences
 
@@ -1994,7 +2009,53 @@ cleanly in one bounded unit rather than preserving top-level aliases by
 default. Staff may still select another recorded taxonomy; if they do, revise
 the registration layer and documentation before P9 deployment.
 
+### D-019 — Use one game namespace across lifecycle states
+
+Status: Accepted
+
+Open, joinable, pending, started, completed, ranked, and unranked records are
+all “games” in normal user language. The revised T-A taxonomy therefore
+removes the user-facing `/match` root and places matchmaking lifecycle actions
+under `/game`. Legacy code/model names and prefix aliases may continue to say
+“match” internally during migration.
+
+The unified legacy inventory has 28 capability rows. Typed `/game search`
+filters consolidate `allgames`, `incomplete`, `wins`, and the joinable `games`
+list; typed `/game ping` scope consolidates `ping` and `pingall`. This yields
+at most 24 named child commands if every remaining candidate ships, below
+Discord's 25-child limit. P4.1d's unsynchronized `/match extend` and
+`/match unstart` must not be beta-synchronized while this proposal is under
+review. The user approved this proposal on 2026-07-30 before any `/match`
+command was synchronized.
+
 ## Progress log
+
+### 2026-07-30 — Unified game taxonomy proposed
+
+- Revised T-A so users see one `/game` domain for open, pending, started,
+  completed, and corrected games; `/match` remains only legacy internal or
+  prefix terminology.
+- Proposed `/game open|join|leave|kick|start|unstart|extend` alongside the
+  existing tracked-game operations.
+- Consolidated overlapping list/history behaviors into typed `/game search`
+  filters and `ping`/`pingall` into one scoped command, keeping the full
+  candidate group at no more than 24 children against Discord's 25-child
+  limit.
+- Placed the unsynchronized P4.1d `/match` beta procedure on naming hold.
+- Made no command-code, synchronization, runtime, database, production, or
+  service change; user review is the next action.
+
+### 2026-07-30 — Unified game taxonomy approved
+
+- The user approved D-019 and requested that all native commands implemented
+  in the prior pilot units conform before the next beta sync.
+- Authorized clean migration of the development-only native surface to
+  `/game create|win|unwin|delete|confirm|unconfirmed|set-ranked|extend|unstart`
+  and `/elo recalculate|status`.
+- Prefix commands and aliases remain unchanged. Old top-level slash names and
+  the unsynchronized `/match` group receive no compatibility aliases because
+  none has reached production.
+- No Discord synchronization or beta launch occurred at approval time.
 
 ### 2026-07-29 — Slash taxonomy review prepared
 
