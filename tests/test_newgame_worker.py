@@ -326,12 +326,17 @@ class GameRecordViewTests(unittest.IsolatedAsyncioTestCase):
             game_name='Valid Game',
             roster='alpha vs beta gamma',
             ranked=True,
-            sides=(('Alpha',), ('Beta', 'Gamma')),
+            sides=(
+                (game_record_views.RosterMember(1, 'Alpha'),),
+                (
+                    game_record_views.RosterMember(2, 'Beta'),
+                    game_record_views.RosterMember(3, 'Gamma'),
+                ),
+            ),
         )
         return game_record_views.GameRecordView(
             requester_id=100,
             preview=preview,
-            previewer=mock.AsyncMock(return_value=preview),
             confirmer=mock.AsyncMock(),
         )
 
@@ -373,6 +378,53 @@ class GameRecordViewTests(unittest.IsolatedAsyncioTestCase):
         view.confirmer.assert_not_awaited()
         self.assertTrue(view.finished)
         self.assertIn('Cancelled', view.status)
+
+    async def test_edit_sides_uses_native_user_selector(self):
+        view = self.make_view()
+        interaction = SimpleNamespace(
+            response=SimpleNamespace(edit_message=mock.AsyncMock()),
+        )
+        await view._edit(interaction)
+        self.assertTrue(view.editing)
+        self.assertIsInstance(view.member_select, discord.ui.UserSelect)
+        self.assertEqual(
+            [item.id for item in view.member_select.default_values],
+            [1],
+        )
+
+        view.member_select._values = [
+            SimpleNamespace(id=10, display_name='New Alpha'),
+            SimpleNamespace(id=11, display_name='New Ally'),
+        ]
+        await view._replace_side(interaction)
+        self.assertEqual(
+            view.preview.roster,
+            '<@10> <@11> vs <@2> <@3>',
+        )
+        self.assertEqual(
+            [member.display_name for member in view.preview.sides[0]],
+            ['New Alpha', 'New Ally'],
+        )
+
+    async def test_side_editor_can_add_and_remove_sides(self):
+        view = self.make_view()
+        interaction = SimpleNamespace(
+            response=SimpleNamespace(
+                edit_message=mock.AsyncMock(),
+                send_message=mock.AsyncMock(),
+            ),
+        )
+        await view._edit(interaction)
+        await view._add_side(interaction)
+        self.assertEqual(len(view.preview.sides), 3)
+        self.assertEqual(view.preview.sides[2], ())
+        await view._done_editing(interaction)
+        interaction.response.send_message.assert_awaited_once_with(
+            'Select at least one player for every side.',
+            ephemeral=True,
+        )
+        await view._remove_side(interaction)
+        self.assertEqual(len(view.preview.sides), 2)
 
 
 class NewGameCommandTests(unittest.IsolatedAsyncioTestCase):
@@ -470,13 +522,13 @@ class NewGameCommandTests(unittest.IsolatedAsyncioTestCase):
         )
         resolved = (
             (
-                SimpleNamespace(display_name='One'),
-                SimpleNamespace(display_name='Two'),
+                SimpleNamespace(id=101, display_name='One'),
+                SimpleNamespace(id=102, display_name='Two'),
             ),
             (
-                SimpleNamespace(display_name='Three'),
-                SimpleNamespace(display_name='Four'),
-                SimpleNamespace(display_name='Five'),
+                SimpleNamespace(id=201, display_name='Three'),
+                SimpleNamespace(id=202, display_name='Four'),
+                SimpleNamespace(id=203, display_name='Five'),
             ),
         )
 
@@ -507,31 +559,24 @@ class NewGameCommandTests(unittest.IsolatedAsyncioTestCase):
         view = edited['view']
         self.assertIsInstance(view, game_record_views.GameRecordView)
         self.assertEqual(
-            view.preview.sides,
+            tuple(
+                tuple(member.display_name for member in side)
+                for side in view.preview.sides
+            ),
             (('One', 'Two'), ('Three', 'Four', 'Five')),
         )
 
-        confirmation_context = SimpleNamespace()
         confirmation = SimpleNamespace(
             user=SimpleNamespace(id=101),
             guild=SimpleNamespace(id=300),
             response=SimpleNamespace(edit_message=mock.AsyncMock()),
+            edit_original_response=mock.AsyncMock(),
         )
-        with mock.patch.object(
-            self.games.commands.Context,
-            'from_interaction',
-            new=mock.AsyncMock(return_value=confirmation_context),
-        ), mock.patch.object(
-            self.games.settings,
-            'guild_setting',
-            return_value='$',
-        ):
-            await view._confirm(confirmation)
+        await view._confirm(confirmation)
 
         self.assertEqual(events, ['defer', 'checks', 'preview', 'prefix'])
-        self.assertEqual(confirmation_context.invoked_with, 'newgameunranked')
+        self.assertEqual(context.invoked_with, 'newgameunranked')
         self.assertEqual(context.prefix, '$')
-        self.assertEqual(confirmation_context.prefix, '$')
 
     async def test_slash_check_failure_stops_before_prefix_pipeline(self):
         prefix_command = SimpleNamespace(

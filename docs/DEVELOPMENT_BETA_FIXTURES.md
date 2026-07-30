@@ -301,8 +301,8 @@ available. They should fail ephemerally before worker submission.
 
 1. Use `/game record` to create one disposable ranked game with a roster such
    as `@PlayerOne vs @PlayerTwo`.
-2. Confirm that the parsed requester-only preview is correct, edit the roster
-   once if useful, then select Confirm record.
+2. Confirm that the parsed requester-only preview is correct, use Edit sides
+   and the native member selector once if useful, then select Confirm record.
 3. Record the returned game ID immediately; it is an ordinary unowned game.
 4. Delete it with `/game delete` and confirm the public result.
 5. Verify one low-impact preserved prefix creation/deletion or `$help`

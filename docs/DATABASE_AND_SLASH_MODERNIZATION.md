@@ -325,7 +325,7 @@ longer be retained.
 
 | ID / command | Native coverage | Accepted compromise and message-intent impact | Possible future mitigation | Status |
 |---|---|---|---|---|
-| C-001 `/newgame` | `/game record` accepts one roster string using the established `vs` grammar, infers arbitrary/unequal side sizes, preserves the one-opponent requester shortcut, and requires an interaction preview before creation | The former two-sided 1v1–4v4 limit is resolved without message-content intent. Text tokens can still be ambiguous when users do not supply mentions, and the first stage does not provide native member selectors for each roster position. Per-game Mobile/Steam input was deliberately removed because full cross-play makes it obsolete. | Add a guided Edit-sides workflow with native member selectors if beta usage shows that mention/text parsing is too error-prone; keep the fast roster string for experienced users. | Initial shape gap resolved by P2.3; text-resolution usability remains for beta evaluation |
+| C-001 `/newgame` | `/game record` accepts one roster string using the established `vs` grammar, infers arbitrary/unequal side sizes, preserves the one-opponent requester shortcut, and requires an interaction preview before creation. Edit sides provides native member selection plus add/remove-side controls. | The former two-sided 1v1–4v4 and raw-text-edit limits are resolved without message-content intent. Initial text tokens can still be ambiguous when users do not supply mentions, but the parsed draft can be corrected with native selectors. Per-game Mobile/Steam input was deliberately removed because full cross-play makes it obsolete. | If initial parsing remains troublesome, allow `/game record` to open an empty guided draft without requiring a seed roster. | Shape and edit gaps resolved by P2.3; initial parser usability remains for beta evaluation |
 
 Every later slash conversion must add a row when parity is intentionally
 reduced. If there is no compromise, its unit evidence should explicitly say
@@ -821,7 +821,7 @@ Selected interface:
 - required roster string using `player ... vs player ...` grammar;
 - optional ranked Boolean;
 - no platform option;
-- requester-only parsed preview with Edit roster, Confirm record, and Cancel;
+- requester-only parsed preview with Edit sides, Confirm record, and Cancel;
 - confirmation alone enters the existing prefix validation, bounded worker,
   transaction, and post-commit Discord effects.
 
@@ -855,7 +855,8 @@ Implementation evidence:
 
 - `modules/game_record_views.py` parses the legacy `vs` grammar with quoted
   tokens, rejects incomplete/ambiguous side syntax, renders a Components v2
-  preview, and owns requester-only Edit/Confirm/Cancel controls.
+  preview, and owns requester-only native side/member editing plus
+  Confirm/Cancel controls.
 - `/game record` accepts only `game_name`, `roster`, and optional `ranked`;
   the former platform and ten fixed member options are absent.
 - Preview member resolution and existing registration/channel/participation
@@ -871,10 +872,11 @@ Implementation evidence:
 Validation:
 
 - Focused: `POLYBOT_ENV=development MPLCONFIGDIR=/tmp/polybot-matplotlib
-  .venv/bin/python -m unittest tests.test_newgame_worker -v` — 16 passed.
+  .venv/bin/python -m unittest tests.test_newgame_worker -v` — 18 passed
+  after the beta confirmation-context and native side-editor fixes.
 - Complete offline: `POLYBOT_ENV=development
   MPLCONFIGDIR=/tmp/polybot-matplotlib .venv/bin/python -m unittest discover
-  -v` — 181 passed, 9 gated skips.
+  -v` — 183 passed, 9 gated skips.
 - Development database: `POLYBOT_ENV=development
   POLYBOT_RUN_DB_INTEGRATION=1 MPLCONFIGDIR=/tmp/polybot-matplotlib
   .venv/bin/python -m unittest tests.test_database_integration -v` — 8
@@ -2760,15 +2762,33 @@ Status: Accepted for implementation; beta acceptance pending
 `vs` grammar, and an optional ranked flag. It parses arbitrary and unequal
 sides, resolves members, and presents a requester-only Components v2 preview.
 Only Confirm submits the existing validation/worker/post-commit pipeline;
-Edit reopens the roster text and Cancel makes no database or Discord change.
+Edit sides uses a native Discord member selector and add/remove-side controls,
+while Cancel makes no database or Discord change.
 
 This staged design restores the prefix command's flexible shapes without
 message-content intent and avoids a large fixed slash option matrix. Mentions
-remain the safest input. A later guided side editor with native member
-selectors is optional mitigation if beta testing finds text resolution too
-ambiguous.
+remain the safest initial input; the native side editor corrects the parsed
+draft without exposing raw mention strings.
 
 ## Progress log
+
+### 2026-07-30 — `/game record` beta findings fixed
+
+- Live confirmation exposed that component interactions have no application
+  command data and cannot be passed to `Context.from_interaction`.
+- Confirmed from the traceback that both failed attempts stopped before the
+  worker and made no game/database changes.
+- Retained the original slash context through the short-lived preview and
+  used it for the existing prefix/worker pipeline on confirmation.
+- Replaced the raw mention-string Edit modal with a native side editor:
+  choose a side, replace its players through Discord's user selector, add or
+  remove sides, and return to review.
+- Made the finished preview report completion or unexpected failure instead
+  of remaining indefinitely at “Creating the game…”.
+- Passed 18 focused and 183 complete offline tests with nine gated skips.
+- The existing gated database result remains valid because this correction
+  changes interaction/context handling only; no worker or schema behavior
+  changed.
 
 ### 2026-07-30 — Flexible `/game record` implemented
 

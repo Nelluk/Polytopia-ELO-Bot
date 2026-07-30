@@ -216,7 +216,7 @@ Taxonomy v2.2 applies this rule system-wide:
 | `/game search` | optional initial query or player | status/outcome/scope filters and paging |
 | `/game show` | optional game ID when it cannot be inferred from the channel | players, logs, attributes, and permitted actions |
 | `/game ping` | optional game ID when it cannot be inferred | audience/scope, long message, multiple uploads, preview, confirmation |
-| `/game record` | game name, one roster string, and optional ranked state | parsed arbitrary sides, preview, roster editing, confirmation |
+| `/game record` | game name, one roster string, and optional ranked state | parsed arbitrary sides, native side/member editing, preview, confirmation |
 | `/player show` | optional member; requester by default | history, teams, leaderboard position, permitted profile edits |
 | `/player register` | optional staff-selected member | one canonical Polytopia name and review |
 | `/team show` | optional team when requester context is unambiguous | roster, history, attributes, and permitted edits |
@@ -243,7 +243,7 @@ options or a coherent existing group over consuming the remaining headroom.
 | `/game join` | `join` | Join an available game using typed game/side options |
 | `/game leave` | `leave` | Leave an unstarted game |
 | `/game start` | `start` | Move a filled/open game into play |
-| `/game record` | `newgame` | Record an already-created Polytopia game; one roster string reuses the `vs` grammar, previews inferred sides, and supports editing before confirmation |
+| `/game record` | `newgame` | Record an already-created Polytopia game; one roster string reuses the `vs` grammar, previews inferred sides, and provides native side/member editing before confirmation |
 | `/game show` | `game` | Display one game's full summary |
 | `/game search` | `games`, `allgames`, `incomplete`, `wins`, no-arg `confirm` | Typed, paginated discovery across lifecycle and result states |
 | `/game players` | `getnames` | Return draft-ordered canonical Polytopia names |
@@ -508,7 +508,7 @@ paths apply only if the feature remains active.
 | Player leaderboards | `/leaderboard players` opens the accepted Components v2 workspace with presets, population toggle, paging, page modal, and requester-rank jump | Replaces four presentation-oriented slash options with a discoverable mobile/desktop UI |
 | Game/player detail | Show the primary record immediately, then offer contextual history, players, attributes, and permitted actions | Keeps common lookup short while making secondary information discoverable |
 | Search and history | Essential target/query at invocation; Components v2 filters and pages refine the immutable result | Avoids large option lists and repeated commands while keeping reads bounded |
-| Arbitrary game recording | `/game record` parses one roster string using the established `vs` grammar, then opens a short-lived preview with Edit/Confirm/Cancel; a later guided member-selector editor can supplement the fast text path | Restores uneven, larger, and multi-side coverage without message-content intent while retaining an upgrade path for ambiguous names |
+| Arbitrary game recording | `/game record` parses one roster string using the established `vs` grammar, then opens a short-lived preview with native side/member editing plus Confirm/Cancel | Restores uneven, larger, and multi-side coverage without message-content intent while keeping the initial fast text path |
 | Game notes | `/game notes` reads directly; an Edit button opens a paragraph modal | Long text is awkward as a slash option and benefits from prefilled review |
 | Player registration | `/player register` modal with one canonical Polytopia name and optional staff-selected member | Removes an obsolete platform/name/code distinction while keeping onboarding short |
 | Team/house creation | Modal for name and typed attributes, followed by a review/confirm view | Multi-field creation is clearer than many optional slash arguments |

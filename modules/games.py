@@ -2104,7 +2104,12 @@ class polygames(commands.Cog):
                 ranked=ranked,
                 sides=tuple(
                     tuple(
-                        discord.utils.escape_markdown(member.display_name)
+                        game_record_views.RosterMember(
+                            discord_id=member.id,
+                            display_name=discord.utils.escape_markdown(
+                                member.display_name
+                            ),
+                        )
                         for member in side
                     )
                     for side in resolved_sides
@@ -2120,20 +2125,17 @@ class polygames(commands.Cog):
             confirmation: discord.Interaction,
             roster_value: str,
         ) -> None:
-            confirmation_ctx = await commands.Context.from_interaction(
-                confirmation
-            )
-            confirmation_ctx.prefix = settings.guild_setting(
-                confirmation.guild.id,
-                'command_prefix',
-            )
-            confirmation_ctx.invoked_with = (
+            # Component interactions do not carry application-command data
+            # and therefore cannot create a new commands.Context. Retain the
+            # original slash context; its interaction webhook remains valid
+            # for this short-lived confirmation flow.
+            ctx.invoked_with = (
                 'newgame' if ranked else 'newgameunranked'
             )
             parsed_sides = game_record_views.parse_roster_string(roster_value)
             await self.newgame.callback(
                 self,
-                confirmation_ctx,
+                ctx,
                 game_name,
                 *game_record_views.roster_arguments(parsed_sides),
             )
@@ -2141,7 +2143,6 @@ class polygames(commands.Cog):
         view = game_record_views.GameRecordView(
             requester_id=interaction.user.id,
             preview=preview,
-            previewer=build_preview,
             confirmer=confirm_record,
         )
         view.message = await interaction.edit_original_response(view=view)
