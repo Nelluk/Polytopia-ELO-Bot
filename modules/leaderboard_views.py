@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 import discord
 
 from modules import leaderboard_workers
@@ -41,29 +43,110 @@ def player_leaderboard_embed(
     return embed
 
 
-class PlayerLeaderboardView(discord.ui.View):
-    """Requester-controlled public pagination for one immutable result."""
+def activity_leaderboard_embed(
+    result: leaderboard_workers.ActivityLeaderboardResult,
+    page_index: int,
+) -> discord.Embed:
+    """Render one immutable activity page without database access."""
+
+    rows, page_count, start, end = (
+        leaderboard_workers.leaderboard_page_rows(
+            result.rows,
+            page_index,
+            leaderboard_workers.DEFAULT_PAGE_SIZE,
+        )
+    )
+    embed = discord.Embed(
+        title=f'**{result.title}**\n{result.total_players} players',
+    )
+    for row in rows:
+        count_label = (
+            'Games Played'
+            if result.view == 'global-all-time'
+            else 'Recent Games'
+        )
+        embed.add_field(
+            name=f'{row.rank:>3}. {row.team_emoji}{row.name}'[:256],
+            value=(
+                f'`ELO {row.elo}\u00a0\u00a0\u00a0\u00a0'
+                f'{count_label} {row.games}`'
+            ),
+            inline=False,
+        )
+    if not rows:
+        embed.description = 'No activity found.'
+    embed.set_footer(
+        text=(
+            f'Page {page_index + 1} of {page_count}'
+            f' • showing {(start + 1) if rows else 0}-{end}'
+            f' of {len(result.rows)}'
+        )
+    )
+    return embed
+
+
+def squad_leaderboard_embed(
+    result: leaderboard_workers.SquadLeaderboardResult,
+    page_index: int,
+) -> discord.Embed:
+    """Render one immutable squad page without database access."""
+
+    rows, page_count, start, end = (
+        leaderboard_workers.leaderboard_page_rows(
+            result.rows,
+            page_index,
+            leaderboard_workers.DEFAULT_PAGE_SIZE,
+        )
+    )
+    embed = discord.Embed(
+        title=f'**{result.title}**\n{result.total_squads} ranked squads',
+    )
+    for row in rows:
+        squad_name = f'{row.squad_name}\n' if row.squad_name else ''
+        emojis = ' '.join(row.member_emojis)
+        member_names = ' / '.join(row.member_names)
+        name = (
+            f'{row.rank:>3}. {squad_name}'
+            f'{emojis}{member_names}'
+        )
+        embed.add_field(
+            name=name[:256],
+            value=(
+                f'`#{row.squad_id} (ELO: {row.elo:4}) '
+                f'W {row.wins} / L {row.losses}`'
+            ),
+            inline=False,
+        )
+    if not rows:
+        embed.description = 'No ranked squads found.'
+    embed.set_footer(
+        text=(
+            f'Page {page_index + 1} of {page_count}'
+            f' • showing {(start + 1) if rows else 0}-{end}'
+            f' of {len(result.rows)}'
+        )
+    )
+    return embed
+
+
+class _LeaderboardView(discord.ui.View):
+    """Shared requester-controlled buttons for a public leaderboard."""
 
     def __init__(
         self,
-        result: leaderboard_workers.PlayerLeaderboardResult,
         requester_id: int,
+        page_count: int,
+        render_page: Callable[[int], discord.Embed],
         *,
         timeout: float = 120.0,
     ):
         super().__init__(timeout=timeout)
-        self.result = result
         self.requester_id = requester_id
         self.page_index = 0
+        self.page_count = page_count
+        self.render_page = render_page
         self.message: discord.Message | None = None
         self._update_buttons()
-
-    @property
-    def page_count(self) -> int:
-        return leaderboard_workers.player_leaderboard_page(
-            self.result,
-            self.page_index,
-        ).page_count
 
     def _update_buttons(self) -> None:
         last_page = self.page_count - 1
@@ -90,10 +173,7 @@ class PlayerLeaderboardView(discord.ui.View):
     async def _show_page(self, interaction: discord.Interaction) -> None:
         self._update_buttons()
         await interaction.response.edit_message(
-            embed=player_leaderboard_embed(
-                self.result,
-                self.page_index,
-            ),
+            embed=self.render_page(self.page_index),
             view=self,
         )
 
@@ -166,3 +246,87 @@ class PlayerLeaderboardView(discord.ui.View):
                 await self.message.edit(view=self)
             except discord.HTTPException:
                 pass
+
+
+class PlayerLeaderboardView(_LeaderboardView):
+    """Public component pagination for a player ELO leaderboard."""
+
+    def __init__(
+        self,
+        result: leaderboard_workers.PlayerLeaderboardResult,
+        requester_id: int,
+        *,
+        timeout: float = 120.0,
+    ):
+        self.result = result
+        page_count = leaderboard_workers.player_leaderboard_page(
+            result,
+            0,
+        ).page_count
+        super().__init__(
+            requester_id,
+            page_count,
+            lambda page_index: player_leaderboard_embed(
+                result,
+                page_index,
+            ),
+            timeout=timeout,
+        )
+
+
+class ActivityLeaderboardView(_LeaderboardView):
+    """Public component pagination for player activity."""
+
+    def __init__(
+        self,
+        result: leaderboard_workers.ActivityLeaderboardResult,
+        requester_id: int,
+        *,
+        timeout: float = 120.0,
+    ):
+        self.result = result
+        _, page_count, _, _ = (
+            leaderboard_workers.leaderboard_page_rows(
+                result.rows,
+                0,
+                leaderboard_workers.DEFAULT_PAGE_SIZE,
+            )
+        )
+        super().__init__(
+            requester_id,
+            page_count,
+            lambda page_index: activity_leaderboard_embed(
+                result,
+                page_index,
+            ),
+            timeout=timeout,
+        )
+
+
+class SquadLeaderboardView(_LeaderboardView):
+    """Public component pagination for squad rankings."""
+
+    def __init__(
+        self,
+        result: leaderboard_workers.SquadLeaderboardResult,
+        requester_id: int,
+        *,
+        timeout: float = 120.0,
+    ):
+        self.result = result
+        _, page_count, _, _ = (
+            leaderboard_workers.leaderboard_page_rows(
+                result.rows,
+                0,
+                leaderboard_workers.DEFAULT_PAGE_SIZE,
+            )
+        )
+        super().__init__(
+            requester_id,
+            page_count,
+            lambda page_index: squad_leaderboard_embed(
+                result,
+                page_index,
+            ),
+            timeout=timeout,
+        )

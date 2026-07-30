@@ -60,7 +60,7 @@ class SlashTaxonomyRegistrationTests(unittest.TestCase):
         )
         self.assertEqual(
             {command.name for command in leaderboard_group.commands},
-            {'players'},
+            {'activity', 'players', 'squads'},
         )
 
     def test_typed_shapes_and_prefix_aliases_are_preserved(self):

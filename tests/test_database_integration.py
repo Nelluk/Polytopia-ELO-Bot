@@ -132,36 +132,68 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
         actual_tables = {row[0] for row in rows}
         self.assertTrue(expected_tables.issubset(actual_tables))
 
-    def test_player_leaderboard_worker_reads_real_schema(self):
+    def test_leaderboard_workers_read_real_schema(self):
         from modules import leaderboard_workers
 
-        request = leaderboard_workers.PlayerLeaderboardRequest(
-            guild_id=self.settings.server_ids['test'],
-            scope='global',
-            rating='peak',
-            era='all-time',
-            population='all',
-            active_cutoff=self.settings.date_cutoff,
-        )
-        result = asyncio.run(
-            leaderboard_workers.run_player_leaderboard(request)
-        )
-
-        self.assertIsInstance(
-            result,
-            leaderboard_workers.PlayerLeaderboardResult,
-        )
-        self.assertIsInstance(result.rows, tuple)
-        self.assertGreaterEqual(result.total_ranked, len(result.rows))
-        self.assertEqual(
-            [row.rank for row in result.rows],
-            list(range(1, len(result.rows) + 1)),
-        )
-        for row in result.rows:
-            self.assertIsInstance(
-                row,
+        guild_id = self.settings.server_ids['test']
+        requests = (
+            (
+                leaderboard_workers.run_player_leaderboard,
+                leaderboard_workers.PlayerLeaderboardRequest(
+                    guild_id=guild_id,
+                    scope='global',
+                    rating='peak',
+                    era='all-time',
+                    population='all',
+                    active_cutoff=self.settings.date_cutoff,
+                ),
+                leaderboard_workers.PlayerLeaderboardResult,
                 leaderboard_workers.PlayerLeaderboardRow,
-            )
+            ),
+            (
+                leaderboard_workers.run_activity_leaderboard,
+                leaderboard_workers.ActivityLeaderboardRequest(
+                    guild_id=guild_id,
+                    view='server-30-days',
+                    recent_cutoff=(
+                        datetime.datetime.now()
+                        - datetime.timedelta(days=30)
+                    ),
+                ),
+                leaderboard_workers.ActivityLeaderboardResult,
+                leaderboard_workers.ActivityLeaderboardRow,
+            ),
+            (
+                leaderboard_workers.run_squad_leaderboard,
+                leaderboard_workers.SquadLeaderboardRequest(
+                    guild_id=guild_id,
+                    period='all-time',
+                    active_cutoff=self.settings.date_cutoff,
+                ),
+                leaderboard_workers.SquadLeaderboardResult,
+                leaderboard_workers.SquadLeaderboardRow,
+            ),
+        )
+        results = []
+        for runner, request, result_type, row_type in requests:
+            with self.subTest(result_type=result_type.__name__):
+                result = asyncio.run(runner(request))
+                results.append(result)
+                self.assertIsInstance(result, result_type)
+                self.assertIsInstance(result.rows, tuple)
+                self.assertEqual(
+                    [row.rank for row in result.rows],
+                    list(range(1, len(result.rows) + 1)),
+                )
+                for row in result.rows:
+                    self.assertIsInstance(row, row_type)
+
+        player_result = results[0]
+        self.assertGreaterEqual(
+            player_result.total_ranked,
+            len(player_result.rows),
+        )
+        for row in player_result.rows:
             self.assertIsInstance(row.name, str)
             self.assertIsInstance(row.elo, int)
             self.assertIsInstance(row.wins, int)
