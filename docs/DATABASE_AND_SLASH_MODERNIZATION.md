@@ -227,9 +227,19 @@ check:
 - optional cleanup: unused `Team.id=9`, `Phase7 Test Team`, remains in
   `polytopia_dev` with zero players and zero game sides
 
-Current unit: **P3.1 — Recalculation control and active-job status**,
-Implemented on `codex/p3-1-elo-maintenance-ux`, stacked from P2.2 checkpoint
-`4a7fba6`.
+Current unit: **T1 — Development beta fixture harness**, Implemented on
+`codex/dev-beta-fixture-harness`, stacked from P3.1 checkpoint `013bab2`.
+P2.2 and P3.1 remain Implemented pending their combined beta session; this
+testing-support unit does not change their integration boundaries.
+
+The current owned `polytopia_dev` fixture set references the previously used
+Nelluk and `testaccount12174` development players:
+
+- game `115`: ready/incomplete ranked game;
+- game `116`: unconfirmed ranked win;
+- game `117`: confirmed ranked game suitable for recalculation.
+
+The beta bot is not running. Stop it before later fixture cleanup.
 
 Runtime status is deliberately not recorded as fact here. Verify whether a
 beta process is running before starting or stopping one.
@@ -266,6 +276,7 @@ beta launches, command synchronization, pushes, or PR operations by itself.
 | P1 | Complete | Close out and establish the pilot on the accumulation branch | Clean tests, beta stopped, reviewed branch, local accumulation branch |
 | P2 | In progress | Fix known game-creation transaction boundary | `newgame` workflow atomic and Discord effects post-commit |
 | P3 | In progress | Owner ELO maintenance and job observability | Typed slash maintenance interface and active-job status |
+| T1 | Implemented | Deterministic development beta fixtures | Gated, idempotent seed/status/cleanup tooling |
 | P4 | Planned | Game correction and metadata mutations | Bounded workers plus slash interfaces for clear typed operations |
 | P5 | Planned | Matchmaking lifecycle | Atomic open/join/leave/kick/start flows and native interactions |
 | P6 | Planned | Registration and player preferences | Worker-safe profile writes and slash UX |
@@ -384,7 +395,7 @@ Exit criteria:
 
 ## P2 — Game creation transaction boundary
 
-Status: **In progress**
+Status: **Implemented**
 
 Why this phase is next:
 
@@ -764,6 +775,119 @@ Exit criteria:
 - conflict and status behavior tested;
 - beta acceptance covers defer, confirmation, conflict, and harmless-command
   responsiveness.
+
+## T1 — Development beta fixture harness
+
+Status: **In progress**
+
+Branch/base: `codex/dev-beta-fixture-harness`, stacked from P3.1 checkpoint
+`013bab2`.
+
+Objective: make repeatable beta command testing practical using selected real
+development-guild users without weakening database isolation or relying on
+ad-hoc rows.
+
+In scope:
+
+- A separate repository-backed `seed`, `status`, and `cleanup` command.
+- Hard refusal unless the runtime profile and live session both identify
+  `development`, database `polytopia_dev`, and role `polybot_dev`.
+- Primitive Discord user IDs supplied explicitly; existing `DiscordMember`
+  and guild `Player` records are validated and reused, never fabricated or
+  modified.
+- Clearly named fixture games covering incomplete, unconfirmed, and confirmed
+  ranked states useful for P2.2/P3.1 and pilot command testing.
+- Idempotent discovery and narrowly owned cleanup with a required confirmation
+  option.
+- An ignored local manifest for operator visibility, with database ownership
+  markers remaining authoritative if the manifest is stale or absent.
+
+Out of scope:
+
+- Discord login, beta launch, or command synchronization.
+- Production data, schema changes, permanent default/reference data, or fake
+  Discord identities.
+- Automatic cleanup of arbitrary games that do not carry the fixture ownership
+  marker.
+
+Database boundary: each operation opens its own Peewee connection and keeps
+seed/cleanup transactions synchronous. Ranked fixture cleanup uses the model's
+existing ELO reversal/recalculation behavior before deleting fixture rows.
+
+Slash decision: not applicable. This is an offline development operator tool,
+not a Discord command.
+
+Tests required:
+
+- [x] focused offline safety, ownership, idempotency, and rollback tests
+- [x] complete offline suite
+- [x] gated development-database seed/status/cleanup round trip
+
+Approvals required: implementation and gated development-database validation
+are approved. Beta launch/sync, dependency changes, push, integration, and
+production work remain separately gated.
+
+Implementation evidence:
+
+- `modules/dev_fixtures.py` owns exact profile/live-session gates, fixture
+  validation, atomic scenario creation, state reporting, and synchronous
+  cleanup using the existing ranked-game ELO reversal/recalculation path.
+- `scripts/manage_dev_fixtures.py` imports database models only after the
+  static development-profile gate and exposes `seed`, `status`, and
+  explicitly confirmed `cleanup`.
+- User inputs are primitive Discord IDs. Seed requires 2, 4, 6, or 8 unique
+  users and reuses only existing guild `Player` records.
+- Database ownership requires the exact notes marker, allowed guild, and
+  fixture name prefix. Unknown or duplicate owned scenarios stop seeding;
+  cleanup refuses any selected row that fails ownership validation.
+- Seed is idempotent for one user set. The manifest is written atomically
+  after commit and is ignored by Git; database markers remain authoritative.
+- Focused fault injection proves seed rollback, connection cleanup, no
+  manifest write after failure, cleanup confirmation before database access,
+  and refusal/rollback when ownership validation fails.
+- The gated PostgreSQL round trip created three scenarios twice, preserved
+  their IDs on the second seed, reported them, removed them with ELO-aware
+  cleanup, preserved an ordinary control game, and removed its temporary
+  users.
+- The first gated run exposed a test-finalizer generator bug after the fixture
+  and control games had already been removed. Two verified zero-game
+  temporary users remained; they were narrowly deleted. The corrected full
+  gated suite then passed 8/8 with no test rows left.
+- The operator fixture set was seeded after verification using the two real
+  development players from prior beta testing. Repeating seed returned the
+  same game IDs `115`, `116`, and `117`.
+
+Commit(s): pending.
+
+Beta result: not applicable; the harness prepares data but never connects to
+Discord.
+
+Remaining limitations:
+
+- The CLI coordinator is process-local and cannot serialize against a running
+  beta bot. Seed and cleanup must be run while the beta process is stopped.
+- Interactive `/newgame` output is not automatically adopted; its game ID
+  must be deleted through beta or recorded for explicit cleanup.
+- One owned fixture set is supported per development guild. Change users by
+  cleaning the current set first.
+
+Validation evidence:
+
+- `POLYBOT_ENV=development MPLCONFIGDIR=/tmp/polybot-matplotlib
+  .venv/bin/python -m unittest tests.test_dev_fixtures -v`: 8 passed.
+- `POLYBOT_ENV=development MPLCONFIGDIR=/tmp/polybot-matplotlib
+  .venv/bin/python -m unittest discover -v`: 106 passed, eight gated database
+  tests skipped as designed.
+- `POLYBOT_ENV=development POLYBOT_RUN_DB_INTEGRATION=1
+  MPLCONFIGDIR=/tmp/polybot-matplotlib .venv/bin/python -m unittest
+  tests.test_database_integration -v`: corrected suite passed 8/8 after the
+  gate confirmed `polytopia_dev` and role `polybot_dev`.
+- `git diff --check`: clean.
+
+Next action: commit the fixture harness, then run the combined P2.2/P3.1 beta
+session from this branch using games `115`-`117`. After beta acceptance, stop
+the beta, clean owned fixtures, and integrate P2.2, P3.1, then T1 sequentially
+into the accumulation branch.
 
 ## P4 — Game correction and metadata mutations
 
@@ -1169,6 +1293,17 @@ Complete before that acceptance. After the combined smoke test, preserve unit
 boundaries by merging P2.2 and then P3.1 sequentially into
 `codex/database-slash-modernization`.
 
+### D-014 — Keep beta fixtures separate from default data
+
+Status: Accepted
+
+Permanent reference initialization remains in `--add_default_data`.
+Disposable beta games use a separate, strictly gated operator command and
+existing real development-guild players so native Discord member selectors
+remain testable. Database ownership markers, not the ignored local manifest,
+control cleanup. Seed and cleanup run only while the beta bot is stopped
+because job coordinators do not cross process boundaries.
+
 ## Progress log
 
 ### 2026-07-29 — ELO/slash pilot beta accepted
@@ -1294,6 +1429,25 @@ boundaries by merging P2.2 and then P3.1 sequentially into
 - No beta launch or P3.1 command synchronization was performed.
 - Next: user runs one combined P2.2/P3.1 beta sync and smoke matrix, then the
   accepted unit branches merge sequentially into accumulation.
+
+### 2026-07-29 — Development beta fixture harness implemented
+
+- Created `codex/dev-beta-fixture-harness` from P3.1 checkpoint `013bab2`.
+- Added strictly gated, idempotent `seed`, `status`, and confirmed `cleanup`
+  tooling plus an operator runbook.
+- Added eight focused offline tests and a real PostgreSQL round trip that
+  preserves unowned games and cleans its temporary users.
+- Passed 106 offline tests with eight gated skips and all eight gated
+  development-database tests.
+- Removed two zero-game temporary users left by the first test-finalizer
+  failure; no failed-run fixture games remained.
+- Seeded games `115`, `116`, and `117` with the prior Nelluk and
+  `testaccount12174` beta participants; an idempotency rerun preserved those
+  IDs.
+- No beta launch, Discord synchronization, dependency, schema, production, or
+  service operation was performed.
+- Next: commit this checkpoint and use the seeded games in the combined
+  P2.2/P3.1 beta session.
 
 ## Resume checklist
 

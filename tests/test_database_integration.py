@@ -6,6 +6,8 @@ import datetime
 from io import BytesIO
 import json
 import os
+from pathlib import Path
+import tempfile
 from types import SimpleNamespace
 import unittest
 from unittest import mock
@@ -151,6 +153,146 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
             ).count(),
             0,
         )
+
+    def test_development_fixture_seed_status_cleanup_round_trip(self):
+        from modules import dev_fixtures
+
+        guild_id = self.profile.allowed_guild_ids[0]
+        suffix = uuid.uuid4().hex[:10]
+        base_discord_id = (
+            8_800_000_000_000_000 + uuid.uuid4().int % 1_000_000
+        )
+        discord_ids = (base_discord_id, base_discord_id + 1)
+        ordinary_game_id = None
+        created_fixture_ids = set()
+
+        existing_fixture_ids = {
+            game.id for game in self.models.Game.select().where(
+                (self.models.Game.guild_id == guild_id)
+                & (
+                    self.models.Game.notes
+                    == dev_fixtures.FIXTURE_NOTES_MARKER
+                )
+            )
+        }
+        if existing_fixture_ids:
+            self.skipTest(
+                'preserving an existing operator-managed beta fixture set'
+            )
+
+        first_member = self.models.DiscordMember.create(
+            discord_id=discord_ids[0],
+            name=f'Fixture Integration One {suffix}',
+        )
+        second_member = self.models.DiscordMember.create(
+            discord_id=discord_ids[1],
+            name=f'Fixture Integration Two {suffix}',
+        )
+        self.models.Player.create(
+            discord_member=first_member,
+            guild_id=guild_id,
+            name=f'Fixture Integration One {suffix}',
+        )
+        self.models.Player.create(
+            discord_member=second_member,
+            guild_id=guild_id,
+            name=f'Fixture Integration Two {suffix}',
+        )
+        ordinary_game = self.models.Game.create(
+            guild_id=guild_id,
+            name=f'Ordinary Integration Game {suffix}',
+            notes='not owned by the fixture harness',
+            size=[1, 1],
+        )
+        ordinary_game_id = ordinary_game.id
+        self.models.db.close()
+
+        with tempfile.TemporaryDirectory() as directory:
+            manifest_path = Path(directory) / 'manifest.json'
+            try:
+                seeded = dev_fixtures.seed_fixtures(
+                    profile=self.profile,
+                    models_module=self.models,
+                    guild_id=guild_id,
+                    user_ids=discord_ids,
+                    manifest_path=manifest_path,
+                )
+                self.assertEqual(
+                    {game.scenario for game in seeded.games},
+                    {'ready', 'unconfirmed', 'completed'},
+                )
+                self.assertTrue(manifest_path.is_file())
+                seeded_ids = {game.game_id for game in seeded.games}
+                created_fixture_ids.update(seeded_ids)
+
+                repeated = dev_fixtures.seed_fixtures(
+                    profile=self.profile,
+                    models_module=self.models,
+                    guild_id=guild_id,
+                    user_ids=discord_ids,
+                    manifest_path=manifest_path,
+                )
+                self.assertEqual(
+                    {game.game_id for game in repeated.games},
+                    seeded_ids,
+                )
+
+                status = dev_fixtures.fixture_status(
+                    profile=self.profile,
+                    models_module=self.models,
+                    guild_id=guild_id,
+                )
+                self.assertEqual(
+                    {game.game_id for game in status.games},
+                    seeded_ids,
+                )
+
+                remaining = dev_fixtures.cleanup_fixtures(
+                    profile=self.profile,
+                    models_module=self.models,
+                    guild_id=guild_id,
+                    manifest_path=manifest_path,
+                    confirmed=True,
+                )
+                self.assertEqual(remaining.games, ())
+                self.assertFalse(manifest_path.exists())
+
+                self.models.db.connect(reuse_if_open=True)
+                self.assertTrue(
+                    self.models.Game.select().where(
+                        self.models.Game.id == ordinary_game_id
+                    ).exists()
+                )
+            finally:
+                self.models.db.connect(reuse_if_open=True)
+                fixture_games = list(self.models.Game.select().where(
+                    self.models.Game.id.in_(created_fixture_ids)
+                ))
+                for game in sorted(
+                    fixture_games,
+                    key=lambda item: (
+                        item.completed_ts or datetime.datetime.min
+                    ),
+                    reverse=True,
+                ):
+                    game.delete_game()
+                if ordinary_game_id is not None:
+                    self.models.Game.delete().where(
+                        self.models.Game.id == ordinary_game_id
+                    ).execute()
+                player_ids = [
+                    player.id for player in self.models.Player.select().join(
+                        self.models.DiscordMember
+                    ).where(
+                        self.models.DiscordMember.discord_id.in_(discord_ids)
+                    )
+                ]
+                self.models.Player.delete().where(
+                    self.models.Player.id.in_(player_ids)
+                ).execute()
+                self.models.DiscordMember.delete().where(
+                    self.models.DiscordMember.discord_id.in_(discord_ids)
+                ).execute()
 
     def test_newgame_worker_creates_complete_graph_and_rolls_back(self):
         from modules import game_workers
