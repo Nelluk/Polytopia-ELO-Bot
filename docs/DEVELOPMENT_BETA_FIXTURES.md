@@ -67,7 +67,9 @@ if it is stale, it cannot authorize an unrelated deletion.
 
 Games created interactively with `/newgame` are not automatically adopted.
 Delete those through the beta command after testing, or record their IDs for
-explicit cleanup.
+explicit cleanup. A recorded interactive game may instead be intentionally
+retained for later development testing, but it is not reset or protected by
+the harness and its current state must be checked before each reuse.
 
 ## Combined P2.2/P3.1 beta procedure
 
@@ -199,8 +201,9 @@ POLYBOT_ENV=development .venv/bin/python \
 
 The final status should show no owned fixture games. This cleanup does not
 authorize or remove interactive `/newgame` rows. Confirm each recorded
-interactive ID was deleted through Discord, or handle it through a separate,
-explicitly scoped cleanup before closing the beta unit.
+interactive ID was deleted through Discord, place it on an explicitly scoped
+cleanup list, or document that it is intentionally retained for a later
+development unit.
 
 Record the tested branch/commit, synchronized command list, command results,
 fixture mutations, interactive game IDs, final cleanup result, and beta

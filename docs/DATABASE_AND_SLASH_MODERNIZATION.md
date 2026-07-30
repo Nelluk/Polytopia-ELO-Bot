@@ -237,7 +237,9 @@ testing-support unit does not change their sequential integration boundaries.
 Owned games `115`-`117` were removed successfully after the combined beta
 session, and a gated status check reports no owned fixtures. Interactive
 `/newgame` game `118` (`Foobar`) is not harness-owned and has no deletion
-record in the development logs; it remains on the explicit cleanup list.
+record in the development logs. It is intentionally retained as a manual
+development fixture for upcoming command units; its state must be inspected
+before reuse because the harness does not reset or own it.
 
 Runtime status is deliberately not recorded as fact here. Verify whether a
 beta process is running before starting or stopping one.
@@ -606,7 +608,8 @@ commands. Development logs confirm live `/newgame` creation of ranked Mobile
 game `118`; the user reported the tested command behavior looked correct.
 Unranked Steam creation and optional 2v2 were not separately evidenced in the
 logs, but their option mapping and shape remain covered offline. Game `118`
-is ordinary/unowned and remains pending explicit cleanup.
+is ordinary/unowned and is intentionally retained for later development
+testing.
 
 Remaining limitations:
 
@@ -622,9 +625,9 @@ Remaining limitations:
 - P2.1's recorded post-commit synchronous model reads/writes and cancellation
   limitation remain unchanged.
 
-Next action: explicitly clean interactive development game `118`, then merge
-P2.2, P3.1, and T1 sequentially into the accumulation branch. Owned fixture
-cleanup is complete.
+Next action: merge P2.2, P3.1, and T1 sequentially into the accumulation
+branch. Owned fixture cleanup is complete; retained manual fixture `118` is
+not an integration blocker.
 
 Exit criteria:
 
@@ -772,9 +775,9 @@ Remaining limitations:
 - Hidden unfinished `reverse_duplicated_elo` remains disabled and requires a
   separate retain/retire decision; it was not exposed as slash.
 
-Next action: explicitly clean interactive development game `118`, then merge
-P2.2, P3.1, and T1 sequentially into the accumulation branch. No owned
-fixture cleanup remains.
+Next action: merge P2.2, P3.1, and T1 sequentially into the accumulation
+branch. No owned fixture cleanup remains, and manual fixture `118` is
+intentionally retained.
 
 Exit criteria:
 
@@ -875,7 +878,8 @@ Remaining limitations:
 - The CLI coordinator is process-local and cannot serialize against a running
   beta bot. Seed and cleanup must be run while the beta process is stopped.
 - Interactive `/newgame` output is not automatically adopted; its game ID
-  must be deleted through beta or recorded for explicit cleanup.
+  must be deleted through beta, recorded for explicit cleanup, or documented
+  as an intentionally retained manual fixture.
 - One owned fixture set is supported per development guild. Change users by
   cleaning the current set first.
 
@@ -912,11 +916,11 @@ Combined beta/cleanup result:
 - Owned games `115`-`117` were removed with confirmed harness cleanup while
   the beta was stopped.
 - A final gated status check reports no owned fixtures.
-- Interactive game `118` remains outside harness authority and requires
-  separate explicit cleanup.
+- Interactive game `118` remains outside harness authority and is
+  intentionally retained for later command testing.
 
-Next action: clean interactive game `118`, then integrate P2.2, P3.1, and T1
-sequentially into the accumulation branch.
+Next action: integrate P2.2, P3.1, and T1 sequentially into the accumulation
+branch.
 
 ## P4 — Game correction and metadata mutations
 
@@ -1333,6 +1337,18 @@ remain testable. Database ownership markers, not the ignored local manifest,
 control cleanup. Seed and cleanup run only while the beta bot is stopped
 because job coordinators do not cross process boundaries.
 
+### D-015 — Retain useful manual development games deliberately
+
+Status: Accepted
+
+Development database hygiene does not require deleting every interactive test
+game after each unit. A useful unowned game may be retained across adjacent
+modernization units when its ID and purpose are recorded. It is never treated
+as harness-owned or assumed to be in its original state; inspect it before
+reuse and clean it when stale, confusing, or before a production-oriented
+cutover review. Game `118` (`Foobar`) is the first intentionally retained
+manual fixture.
+
 ## Progress log
 
 ### 2026-07-29 — ELO/slash pilot beta accepted
@@ -1492,8 +1508,8 @@ because job coordinators do not cross process boundaries.
 - Reduced the required `/newgame` live matrix to ranked Mobile and unranked
   Steam 1v1s; 2v2 is optional when four distinct development members are
   available because option structure is covered offline.
-- Kept interactive game IDs on a separate explicit cleanup list because
-  ownership-gated harness cleanup intentionally cannot remove them.
+- Kept interactive game IDs outside ownership-gated harness cleanup and
+  required an explicit cleanup-or-retention decision for each.
 - Required beta shutdown before owned status/cleanup and a final empty-owned
   status check.
 
@@ -1511,9 +1527,11 @@ because job coordinators do not cross process boundaries.
 - Ran the gated, confirmed harness cleanup; owned games `115`-`117` were
   removed, and a final gated status check showed no owned fixtures.
 - Interactive game `118` has no deletion record and remains outside harness
-  authority on the explicit cleanup list.
-- Next: obtain a separately safe cleanup path for game `118`, then integrate
-  P2.2, P3.1, and T1 sequentially into accumulation.
+  authority.
+- The user chose to retain game `118` for later modified-command testing; it
+  is documented as manual development data rather than an integration
+  blocker.
+- Next: integrate P2.2, P3.1, and T1 sequentially into accumulation.
 
 ## Resume checklist
 
