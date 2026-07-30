@@ -1,7 +1,7 @@
 """Offline tests for the development beta fixture safety boundary."""
 
 from contextlib import contextmanager
-from contextlib import redirect_stderr
+from contextlib import redirect_stderr, redirect_stdout
 from io import StringIO
 from pathlib import Path
 from types import SimpleNamespace
@@ -51,6 +51,30 @@ class RecordingDatabase:
 
 
 class DevelopmentFixtureSafetyTests(unittest.TestCase):
+    def test_status_output_includes_pending_state_and_expiration(self):
+        state = dev_fixtures.FixtureState(
+            guild_id=1234,
+            user_ids=(1, 2),
+            games=(
+                dev_fixtures.FixtureGame(
+                    scenario='ready',
+                    game_id=42,
+                    name='Beta Fixture Ready',
+                    is_completed=False,
+                    is_confirmed=False,
+                    is_ranked=True,
+                    is_pending=True,
+                    expiration='2026-07-30T12:00:00',
+                ),
+            ),
+        )
+        output = StringIO()
+        with redirect_stdout(output):
+            manage_dev_fixtures._print_state(state)
+
+        self.assertIn('pending=True', output.getvalue())
+        self.assertIn('expiration=2026-07-30T12:00:00', output.getvalue())
+
     def test_cli_refuses_unsafe_profile_before_importing_models(self):
         stderr = StringIO()
         with (

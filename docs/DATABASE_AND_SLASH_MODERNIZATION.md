@@ -4,7 +4,7 @@ Last updated: 2026-07-29
 
 Status: Active
 
-Current branch at last update: `codex/p4-1c-unstart-separation`
+Current branch at last update: `codex/p4-1d-match-slash-group`
 
 Source task: `thread://019fae66-8e3a-7a50-9a0f-d3d7160d2287`
 
@@ -364,6 +364,8 @@ check:
 - P4.1a accumulation merge: `5888c02`
 - P4.1b implementation checkpoint: `c0945a3`
 - P4.1c implementation checkpoint: `204ab40`
+- P4.1b/P4.1c accumulation merge: `31c84d7`
+- P4.1d implementation checkpoint: `416ca30`
 - T1 fixture-harness implementation checkpoint: `4551bec`
 - T1 roadmap-evidence checkpoint: `d6e826b`
 - T1 accumulation merge: `aacace4`
@@ -379,10 +381,9 @@ check:
 - optional cleanup: unused `Team.id=9`, `Phase7 Test Team`, remains in
   `polytopia_dev` with zero players and zero game sides
 
-Current unit: **P4.1c — Unstart transaction separation**, Implemented on
-`codex/p4-1c-unstart-separation`, stacked from the P4.1b evidence checkpoint
-`af4ef51`. P0 through P3 and T1 are Complete on the intended accumulation
-branch.
+Current unit: **P4.1d — Match slash group**, Implemented on
+`codex/p4-1d-match-slash-group` from accumulation checkpoint `31c84d7`.
+P0 through P3 and T1 are Complete on the intended accumulation branch.
 
 Owned fixture games `149`-`151` are intentionally retained. At the latest
 gated status check, `149` is incomplete/unranked, `150` is
@@ -1464,6 +1465,94 @@ accumulation branch, then create a bounded domain-group registration unit for
 the current native surface, including `/match extend` and `/match unstart`.
 Use one separately approved beta session after that unit.
 
+#### P4.1d — Match slash group
+
+Status: **Implemented**
+
+Branch/base: `codex/p4-1d-match-slash-group` from accumulation checkpoint
+`31c84d7`, which integrates the P4.1b/P4.1c worker units.
+
+Commit(s):
+
+- `416ca30` — Add match slash commands for unstart and extend.
+
+Objective: apply the provisionally accepted T-A taxonomy to the two pending
+matchmaking corrections and expose P4.1c through a typed native interaction.
+
+Slash interface:
+
+- Add guild-only `/match unstart game_id`.
+- Move the not-yet-beta-synchronized top-level `/extend` registration to
+  `/match extend game_id`; no temporary top-level alias is retained.
+- Preserve prefix `$unstart` and `$extend` unchanged.
+- Both successful mutations defer and complete publicly under D-017.
+  Permission, validation, per-game conflict, and database failures remain
+  ephemeral.
+
+Implementation evidence:
+
+- One `discord.app_commands.Group` owns both typed integer subcommands.
+- `/match unstart` performs the staff check before defer, then calls the same
+  P4.1c worker/post-commit pipeline as the prefix command.
+- The primitive invocation channel ID now crosses into the worker so the
+  prefix safety rule is authoritatively revalidated before mutation for slash
+  users as well.
+- Slash audit logging identifies `/match unstart` rather than attributing the
+  transition to the prefix spelling.
+- Registration tests prove the `match` group contains both subcommands, the
+  obsolete top-level `/extend` and `/unstart` registrations are absent, and
+  both prefix commands remain.
+- No native behavior is omitted, so no compatibility-ledger row is required.
+
+Files changed:
+
+- `modules/administration.py`
+- `modules/game_workers.py`
+- `tests/test_game_extension.py`
+- `tests/test_game_unstart.py`
+- `modules/dev_fixtures.py`
+- `scripts/manage_dev_fixtures.py`
+- `tests/test_dev_fixtures.py`
+- `docs/DEVELOPMENT_BETA_FIXTURES.md`
+- `docs/DATABASE_AND_SLASH_MODERNIZATION.md`
+
+Validation evidence:
+
+- Focused P4.1b/P4.1c registration and behavior suite: 21 passed.
+- Complete offline suite: 137 passed with eight gated database tests skipped
+  as designed.
+- Existing gated development-database suite: seven passed and the fixture
+  round-trip skipped itself to preserve operator-managed games `149`-`151`;
+  the gate confirmed `development`, `polytopia_dev`, and `polybot_dev`.
+- Gated fixture status confirmed game `149` ready/incomplete/unranked, game
+  `150` unconfirmed/ranked, and game `151` confirmed/ranked while no beta
+  process was running.
+- Fixture status now reports pending state and expiration, so the post-smoke
+  database state can be verified without an ad hoc query.
+- `git diff --check`: clean before this documentation update.
+
+Beta result: pending separate launch/synchronization approval. The exact smoke
+matrix is recorded in `docs/DEVELOPMENT_BETA_FIXTURES.md`: use the current
+ready fixture for `/match unstart`, then `/match extend`, prefix parity,
+public-success visibility, ephemeral denial/validation, responsiveness, and
+clean shutdown checks.
+
+Remaining limitations:
+
+- P4.1c's short post-commit announcement model reload and non-persistent
+  reconciliation limitation remain.
+- The fixture-backed smoke test does not normally exercise real announcement
+  editing or channel deletion; focused fault/ordering tests cover those
+  boundaries unless a separately recorded disposable interactive game is
+  used.
+- Other beta-tested top-level slash commands have not yet moved into their
+  T-A groups. This unit deliberately establishes only the first coherent
+  group.
+
+Next action: commit this evidence, then obtain separate approval to launch and
+synchronize the development beta for the documented P4.1d smoke matrix. Do
+not integrate P4.1d into accumulation until its live behavior is accepted.
+
 ### P4.2 — Game metadata
 
 Candidates:
@@ -2257,6 +2346,27 @@ the registration layer and documentation before P9 deployment.
 - Next: integrate P4.1b/P4.1c, implement the bounded domain-group registration
   unit, and use one separately approved beta session for `/match extend`,
   `/match unstart`, and preserved prefix behavior.
+
+### 2026-07-29 — P4.1d match slash group implemented
+
+- Integrated P4.1b/P4.1c into `codex/database-slash-modernization` as
+  `31c84d7`, preserving their implementation checkpoints.
+- Created `codex/p4-1d-match-slash-group` from that accumulation checkpoint.
+- Added guild-only `/match unstart game_id` and moved the unsynchronized
+  `/extend` adapter to `/match extend game_id`; prefix commands remain.
+- Added worker-side invocation-channel revalidation for slash/prefix parity.
+- Passed 21 focused command tests, the complete offline suite with 137 passes
+  and
+  eight gated skips, and seven gated development-database tests with the
+  operator-fixture round trip safely skipped.
+- Confirmed the beta was stopped and fixtures `149`-`151` remained available;
+  enhanced status with pending/expiration fields and recorded the exact live
+  smoke sequence in the fixture runbook.
+- Recorded implementation checkpoint `416ca30`. No beta launch, Discord
+  synchronization, production operation, dependency change, schema change,
+  push, or PR was performed.
+- Next: commit the evidence and request separate approval for the documented
+  development beta sync/smoke session.
 
 ## Resume checklist
 

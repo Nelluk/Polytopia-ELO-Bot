@@ -35,6 +35,8 @@ class FixtureGame:
     is_completed: bool
     is_confirmed: bool
     is_ranked: bool
+    is_pending: bool
+    expiration: str | None
 
 
 @dataclass(frozen=True)
@@ -229,6 +231,12 @@ def _game_view(game: Any) -> FixtureGame:
         is_completed=bool(game.is_completed),
         is_confirmed=bool(game.is_confirmed),
         is_ranked=bool(game.is_ranked),
+        is_pending=bool(game.is_pending),
+        expiration=(
+            game.expiration.isoformat()
+            if game.expiration is not None
+            else None
+        ),
     )
 
 

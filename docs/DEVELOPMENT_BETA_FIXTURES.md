@@ -208,3 +208,104 @@ development unit.
 Record the tested branch/commit, synchronized command list, command results,
 fixture mutations, interactive game IDs, final cleanup result, and beta
 shutdown result in the modernization roadmap.
+
+## P4.1 match-group beta procedure
+
+Use this sequence for checkpoint `416ca30` or its later documentation
+checkpoint. It tests the first T-A domain group without retesting every
+previous command.
+
+### 1. Preflight while the beta is stopped
+
+Confirm no development beta process is running, then run:
+
+```bash
+POLYBOT_ENV=development .venv/bin/python \
+  scripts/manage_dev_fixtures.py status
+
+POLYBOT_ENV=development .venv/bin/python \
+  scripts/check_runtime_config.py
+```
+
+At preparation time the owned set is:
+
+- game `149`: ready/incomplete and unranked;
+- game `150`: claimed but unconfirmed and ranked;
+- game `151`: completed/confirmed and ranked.
+
+Use the current ready game reported by `status` rather than assuming ID 149
+if the set is later reseeded. Do not seed while this owned set exists.
+
+### 2. Launch and verify development-guild synchronization
+
+Launch remains separately approved:
+
+```bash
+POLYBOT_ENV=development .venv/bin/python bot.py --skip_tasks
+```
+
+The preflight and startup must select the beta application, `polytopia_dev`,
+role `polybot_dev`, development guild `478571892832206869`, and disabled
+background tasks/API.
+
+The synchronized top-level tree should contain the nine previously tested
+top-level commands plus `match`. Expanding `/match` must show:
+
+- `/match unstart game_id`
+- `/match extend game_id`
+
+The unsynchronized top-level `/extend` name should be absent. Prefix
+`$unstart` and `$extend` remain registered.
+
+### 3. Smoke `/match unstart`
+
+Run these in a bot-command channel that is not associated with the ready
+fixture:
+
+1. If a non-staff account is available, attempt `/match unstart` against the
+   ready game. It should deny ephemerally without changing the game.
+2. As staff, run `/match unstart` against the ready game. Discord should show
+   an immediate public defer and then a public success message mentioning the
+   players.
+3. Confirm the game is now an open matchmaking game and its deadline is at
+   least 24 hours in the future.
+4. Repeat `/match unstart` against the same game. It should report
+   ephemerally that the game is already pending.
+5. Run `$unstart READY_ID`; it should reach the preserved prefix path and
+   report that the same game is already pending.
+
+The harness fixture normally has no real announcement or game channels, so
+this live case proves the native interaction and database transition but not
+Discord channel deletion. Post-commit ordering, failed-effect retention, and
+channel reconciliation remain covered by focused offline tests. A separate
+interactive game with disposable beta channels may be used only if those
+resources and its cleanup are recorded.
+
+### 4. Smoke `/match extend`
+
+1. Run `/match extend` against the now-pending ready game. It should defer
+   publicly and report the old and new deadlines publicly.
+2. Verify the new deadline is 24 hours later than the prior future deadline.
+3. Run `$extend READY_ID` once to confirm the preserved prefix path; it should
+   add another 24 hours.
+4. If a non-staff account is available, verify `/match extend` denies before
+   deferring or changing the deadline.
+5. Run a harmless command such as `/elo-job-status` between mutations to
+   confirm the bot remains responsive.
+
+### 5. Stop and record state
+
+Stop the beta cleanly. With the beta stopped, rerun fixture `status` and
+record that the ready fixture is now pending plus its final deadline. Retain
+games `149`-`151` unless there is an explicit cleanup decision; this smoke
+test does not require harness cleanup.
+
+Record:
+
+- tested branch and commit;
+- synchronized top-level command tree and both `/match` subcommands;
+- public-success and ephemeral-denial behavior;
+- ready fixture ID and final deadline;
+- prefix results;
+- beta shutdown result;
+- any interactive channel/announcement test resources.
