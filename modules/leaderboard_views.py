@@ -129,6 +129,63 @@ def squad_leaderboard_embed(
     return embed
 
 
+class JumpToPageModal(discord.ui.Modal):
+    """Validate a page number before updating a public leaderboard."""
+
+    def __init__(self, leaderboard_view: '_LeaderboardView'):
+        super().__init__(
+            title='Jump to leaderboard page',
+            timeout=60.0,
+        )
+        self.leaderboard_view = leaderboard_view
+        self.page_number = discord.ui.TextInput(
+            placeholder=str(leaderboard_view.page_index + 1),
+            default=str(leaderboard_view.page_index + 1),
+            min_length=1,
+            max_length=max(1, len(str(leaderboard_view.page_count))),
+        )
+        self.page_label = discord.ui.Label(
+            text=f'Page number (1-{leaderboard_view.page_count})',
+            description='Enter the page to display publicly.',
+            component=self.page_number,
+        )
+        self.add_item(self.page_label)
+
+    async def on_submit(
+        self,
+        interaction: discord.Interaction,
+    ) -> None:
+        view = self.leaderboard_view
+        if interaction.user.id != view.requester_id:
+            await interaction.response.send_message(
+                'Only the requester can change this leaderboard page.',
+                ephemeral=True,
+            )
+            return
+        if view.is_finished():
+            await interaction.response.send_message(
+                'This leaderboard paginator has expired. Run the command '
+                'again for a fresh result.',
+                ephemeral=True,
+            )
+            return
+
+        value = self.page_number.value.strip()
+        try:
+            requested_page = int(value)
+        except ValueError:
+            requested_page = 0
+        if requested_page < 1 or requested_page > view.page_count:
+            await interaction.response.send_message(
+                f'Enter a page number from 1 to {view.page_count}.',
+                ephemeral=True,
+            )
+            return
+
+        view.page_index = requested_page - 1
+        await view._show_page(interaction)
+
+
 class _LeaderboardView(discord.ui.View):
     """Shared requester-controlled buttons for a public leaderboard."""
 
@@ -155,7 +212,7 @@ class _LeaderboardView(discord.ui.View):
         self.next_page.disabled = self.page_index == last_page
         self.last_page.disabled = self.page_index == last_page
         self.page_indicator.label = (
-            f'{self.page_index + 1}/{self.page_count}'
+            f'Page {self.page_index + 1}/{self.page_count}'
         )
 
     async def interaction_check(
@@ -202,16 +259,17 @@ class _LeaderboardView(discord.ui.View):
         await self._show_page(interaction)
 
     @discord.ui.button(
-        label='1/1',
+        label='Page 1/1',
         style=discord.ButtonStyle.secondary,
-        disabled=True,
     )
     async def page_indicator(
         self,
         interaction: discord.Interaction,
         button: discord.ui.Button,
     ) -> None:
-        return
+        await interaction.response.send_modal(
+            JumpToPageModal(self),
+        )
 
     @discord.ui.button(
         label='Next',
