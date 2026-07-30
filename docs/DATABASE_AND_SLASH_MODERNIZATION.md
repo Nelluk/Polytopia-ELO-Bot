@@ -173,22 +173,20 @@ compatibility and deprecation decision.
 
 ### Slash taxonomy review
 
-Status: **Accepted — unified `/game` domain**
+Status: **Taxonomy v2.1 proposed; attribute-command rule accepted;
+registration changes pending review**
 
-T-A domain groups are the approved working architecture. The user approved one
-user-facing `/game` domain for open/pending matchmaking records and
-started/completed records. Prefix names and aliases remain unchanged.
-Checkpoint `63af179` replaced the unsynchronized P4.1d `/match` group and
-migrated the previously tested top-level native commands before the next
-development-guild sync.
+The accepted architecture remains T-A domain roots with one user-facing
+`/game` domain across open, pending, started, and completed states. On
+2026-07-30 the user reopened the spelling and internal-grouping review before
+the first synchronization of checkpoint `63af179`.
 
-The repository-wide inventory and conversion dispositions are maintained in
-`docs/SLASH_COMMAND_TAXONOMY_REVIEW.md`. It covers all 83 in-scope explicit prefix
-handlers, the customized help command, optional command families, commands
-that need interaction redesign, and commands that should remain
-operator-only. The legacy API cog and its seven hidden commands are excluded.
-The table below is only the current native surface being renamed; it is not
-the complete modernization inventory.
+The repository-wide v2.1 proposal and conversion dispositions are maintained in
+`docs/SLASH_COMMAND_TAXONOMY_REVIEW.md`. It covers all 83 in-scope explicit
+prefix handlers, the customized help command, optional command families,
+commands needing interaction redesign, and commands that should remain
+operator-only. The legacy API cog and its seven hidden commands remain
+excluded.
 
 The current locally implemented native surface is:
 
@@ -203,118 +201,37 @@ cleanly rather than registering compatibility aliases. The never-synchronized
 `/match` group is also absent. The unified tree remains pending its first
 separately approved development-guild synchronization and smoke test.
 
-#### T-A — Domain groups (recommended)
+#### Taxonomy v2.1 — journey-first domain groups
 
-Organize commands by the object or workflow they affect:
+The revision keeps common actions directly under `/game`:
 
-| Current native name | Proposed name |
-|---|---|
-| `/newgame` | `/game create` |
-| `/win` | `/game win` |
-| `/unwin` | `/game unwin` |
-| `/delete` | `/game delete` |
-| `/confirm` | `/game confirm` |
-| `/unconfirmed` | `/game unconfirmed` |
-| `/set-ranked` | `/game set-ranked` |
-| `/extend` | `/game extend` |
-| `/unstart` | `/game unstart` |
-| `/recalc-games-from` | `/elo recalculate` |
-| `/elo-job-status` | `/elo status` |
+- `/game open|join|leave|start|record|show|search|players|win|history|notify`.
 
-Future game commands would use
-`/game open|join|leave|kick|start|unstart|extend|show|search|rename|set-map|set-tribe|notes|logs`,
-`/player show|set-name|set-time|names`, and
-`/leaderboard players|teams|squads`.
+Less-common operations use one additional conceptual group:
 
-Advantages: the vocabulary follows the actual user model; open, pending,
-started, completed, ranked, and unranked records are all games. ELO remains
-reserved for rating-specific maintenance and reporting.
+- `/game result undo|confirm|auto-confirm`;
+- `/game manage kick|extend|unstart|delete`.
 
-Costs: every current native name changes; `/game` becomes a group, so viewing
-a game is `/game show` rather than bare `/game`; grouped wrappers must be
-separate from the preserved prefix decorators. The combined legacy inventory
-has 28 capability rows, so overlapping list/history commands must share typed
-`/game search` filters and `ping`/`pingall` must share one typed command. This
-produces at most 24 proposed immediate children, within Discord's 25-child
-group limit.
+The proposal deliberately uses `/game record` for the existing `newgame`
+workflow, `/game players` for `getnames`, and
+`/game search status:unconfirmed` for the current unconfirmed-game list. It
+does not add generic `get` or `set` groups: useful attributes become focused
+read-or-edit commands such as
+`/game name|map|tribe|notes|side|ranked` and
+`/team emoji|image|server|name|house|tier`. Omitting the replacement value
+reads the current setting; supplying one edits it with command-specific
+permission checks; clearing uses an explicit option.
 
-#### T-B — One ELO-branded umbrella
+The proposed `/game` root has nineteen immediate children, including its two
+subcommand groups, leaving six slots below Discord's 25-child limit. The same
+system-wide rules apply to `/player`, `/team`, `/squad`, `/leaderboard`,
+`/league`, `/house`, `/elo`, optional `/bullet`, `/tools`, `/about`, and
+`/support`.
 
-Treat the bot as one ELO application and put nearly all native commands under
-one root:
-
-| Current native name | Proposed name |
-|---|---|
-| `/newgame` | `/elo game create` |
-| `/win` | `/elo game win` |
-| `/unwin` | `/elo game unwin` |
-| `/delete` | `/elo game delete` |
-| `/confirm` | `/elo game confirm` |
-| `/unconfirmed` | `/elo game unconfirmed` |
-| `/set-ranked` | `/elo game set-ranked` |
-| `/extend` | `/elo game extend` |
-| `/recalc-games-from` | `/elo admin recalculate` |
-| `/elo-job-status` | `/elo admin status` |
-
-Future subcommand groups would include `game`, `player`, `leaderboard`,
-`team`, and `admin`. Discord supports this root/group/command shape, such as
-`/elo game unwin`.
-
-Advantages: users learn one root; autocomplete after `/elo` exposes the
-available families; the application has a strong branded identity.
-
-Costs: unranked games, registration, matchmaking, and league operations are
-not naturally ELO concepts; the root can become crowded; Discord permits only
-one subcommand-group level, so deeper organization is unavailable. The
-meaning of `/elo` becomes “everything PolyBot does,” not specifically rating.
-
-If staff prefer this structure but dislike the semantic mismatch, `/poly` or
-`/bot` can replace `/elo` without changing the rest of the proposal.
-
-#### T-C — Conservative flat commands
-
-Keep the beta-tested names and use consistent prefixes only for future
-additions:
-
-| Existing names retained | Example future names |
-|---|---|
-| `/newgame`, `/win`, `/unwin`, `/delete` | `/game-info`, `/game-rename`, `/game-set-map` |
-| `/confirm`, `/unconfirmed`, `/set-ranked`, `/extend` | `/game-open`, `/game-join`, `/game-start` |
-| `/recalc-games-from`, `/elo-job-status` | `/player-info`, `/player-set-name`, `/leaderboard` |
-
-Advantages: least migration work and no relearning of the already-tested
-surface; hybrid commands can remain hybrids; each command is directly visible
-at the top level.
-
-Costs: the command picker becomes a long alphabetical list; related operations
-are scattered; naming conventions remain partly historical (`newgame` versus
-hyphenated names); later cleanup becomes harder after production adoption.
-
-#### Vote and transition rules
-
-Staff should vote on the taxonomy, not individual spellings. After a winner is
-selected, perform a short spelling review for terms such as `create` versus
-`new`, `unconfirmed` versus `pending-confirmation`, and `match` versus
-`lobby`.
-
-Recommended ballot:
-
-1. T-A — domain groups;
-2. T-B — one umbrella (with a second choice of `/elo`, `/poly`, or `/bot`);
-3. T-C — conservative flat commands.
-
-Use ranked-choice voting if practical. Include “no preference” rather than
-forcing a random ranking. Until a result is available, T-A and the spellings
-in its capability map are the development defaults and do not block
-registrations.
-
-Because these commands have not reached production, the cleanest transition
-is one coordinated beta rename followed by a development-guild sync and
-smoke test. If staff need an adjustment period, old top-level slash names may
-remain as explicitly deprecated wrappers for one beta cycle. Discord does not
-redirect renamed commands, so every retained alias is a separately registered
-application command. Do not carry transitional aliases into production
-without a separate decision.
+The current registrations have not reached production, so an approved revision
+can be applied cleanly without slash compatibility aliases. No registration
+change should occur until the user accepts or revises v2.1. Prefix interfaces,
+permissions, worker boundaries, and transaction behavior remain unaffected.
 
 ## Slash compatibility compromise ledger
 
@@ -395,6 +312,12 @@ check:
 Current unit: **P4.1d — Unified native registration**, Implemented on
 `codex/p4-1d-match-slash-group` from accumulation checkpoint `31c84d7`.
 P0 through P3 and T1 are Complete on the intended accumulation branch.
+Taxonomy v2 review is now the blocking design action before P4.1d beta
+synchronization; the implemented command tree has not changed.
+Implementation is intentionally paused while staff review taxonomy v2.1,
+global-versus-guild command deployment, management-guild scope, and possible
+future web administration. Keep the current unit branch reviewable and do not
+synchronize its command tree until those decisions settle.
 
 Owned fixture games `149`-`151` are intentionally retained. At the latest
 gated status check, `149` is incomplete/unranked, `150` is
@@ -1555,11 +1478,10 @@ Validation evidence:
   database state can be verified without an ad hoc query.
 - `git diff --check`: clean before this documentation update.
 
-Beta result: pending separate launch/synchronization approval. The exact smoke
-matrix is recorded in `docs/DEVELOPMENT_BETA_FIXTURES.md`: verify only
-`/game` and `/elo` are synchronized, exercise all eleven migrated
-subcommands, verify prefix parity, public-success visibility, ephemeral
-denial/validation, responsiveness, and clean shutdown.
+Beta result: pending taxonomy v2 approval and then separate
+launch/synchronization approval. The existing smoke matrix in
+`docs/DEVELOPMENT_BETA_FIXTURES.md` still describes checkpoint `63af179` and
+must be updated if v2 paths are accepted before beta testing.
 
 Remaining limitations:
 
@@ -1573,10 +1495,10 @@ Remaining limitations:
   command tree are authoritative. Renaming the local branch is unnecessary
   churn before integration.
 
-Next action: commit the corrected roadmap/runbook checkpoint, then request
-separate approval to launch and synchronize the beta bot for the unified
-fixture-backed smoke matrix. Do not integrate P4.1d into accumulation until
-its live behavior is accepted.
+Next action: obtain review of taxonomy v2. If accepted, implement a narrow
+registration-only P4.1d follow-up, update the smoke runbook and tests, and
+then request separate approval to launch and synchronize the beta bot. Do not
+integrate P4.1d into accumulation until its live behavior is accepted.
 
 ### P4.2 — Game metadata
 
@@ -1590,6 +1512,11 @@ Candidates:
 Recommended slash shape:
 
 - typed game ID;
+- focused `/game name|map|tribe|notes` commands that display the current value
+  when no replacement is supplied;
+- optional replacement values that enter the existing permission-equivalent
+  mutation path;
+- an explicit `clear` option where clearing is supported;
 - map/tribe choices or cheap autocomplete;
 - Discord member input for a single-player tribe update;
 - a separate bulk staff operation if bulk tribe assignment remains necessary.
@@ -1939,8 +1866,12 @@ Status: Accepted
 The native command supports common two-sided games through 4v4 with Discord
 member selectors and explicit ranked/platform options. The existing prefix
 grammar remains the supported path for larger or multi-side games. A modal
-was rejected because free-text member entry would discard Discord's native
-member selection and recreate the ambiguity of prefix parsing.
+was initially rejected because the available design assumed free-text member
+entry, which would discard Discord's native member selection and recreate the
+ambiguity of prefix parsing. Discord and discord.py 2.7.1 now support native
+user selects and additional typed components inside modals. D-022 therefore
+reopens a modal/component-driven custom draft as a viable future mitigation
+without changing the accepted initial bounded interface.
 
 ### D-012 — Track accepted slash compromises centrally
 
@@ -2036,9 +1967,129 @@ at most 24 named child commands if every remaining candidate ships, below
 Discord's 25-child limit. P4.1d's unsynchronized `/match extend` and
 `/match unstart` were replaced locally before synchronization. The user
 approved this structure on 2026-07-30 before any `/match` command was
-synchronized.
+synchronized. This was the original flat-child capacity calculation;
+taxonomy v2.1's accepted attribute-command refinement instead proposes
+nineteen immediate `/game` children, including two subcommand groups.
+
+### D-020 — Use journey-first paths and semantic subgroups
+
+Status: Proposed; awaiting user/staff review
+
+Taxonomy v2 retains the accepted domain-root architecture and unified
+`/game` vocabulary but optimizes the tree for common user flows. Direct
+commands cover open/join/leave/start, recording, viewing, searching, player
+names, and reporting a winner. Uncommon result corrections use
+`/game result ...`; uncommon lifecycle operations use `/game manage ...`.
+
+The proposal prefers `/game record` over `/game create`,
+`/game players` over `/game player-names`, and
+`/game search status:unconfirmed` over `/game unconfirmed`. It rejects a
+generic `/game get ...` group because outcome-oriented read names are shorter
+and clearer. D-021's accepted attribute-command rule further removes a generic
+`set` group where the individual value is useful to inspect.
+
+Checkpoint `63af179` remains unchanged while this decision is reviewed. If
+accepted before the first unified beta synchronization, apply the rename
+cleanly in the registration layer without compatibility aliases, then update
+registration tests and the beta runbook.
+
+### D-021 — Let useful attribute commands read or edit
+
+Status: Accepted
+
+For a property that users reasonably inspect on its own, use the property as
+the command: `/team emoji`, `/team image`, `/team server`, `/game map`,
+`/game notes`, `/house image`, and similar paths. Omitting the replacement
+value displays the current setting. Supplying a value performs the
+permission-checked edit. Clearing uses an explicit `clear` option because an
+omitted value already means “view.”
+
+The target may be optional only when it can be inferred unambiguously;
+otherwise use a typed/autocompleted target. Read and mutation permissions are
+evaluated separately, and a current value is exposed only when safe for the
+requester. This pattern does not apply to actions such as win, join, confirm,
+delete, or unstart.
+
+This accepted refinement replaces v2's generic game/team/house/squad `set`
+subgroups. The overall v2 taxonomy remains under review, and no command code
+has changed.
+
+### D-022 — Use modal components for multi-field interaction design
+
+Status: Proposed; awaiting user/staff review and command-specific units
+
+The locked discord.py 2.7.1 environment exposes Discord's newer modal
+components, including native user/role/channel selectors, file uploads, radio
+groups, checkboxes, text inputs, labels, and explanatory text. Modals are
+therefore no longer limited to ambiguous free-form text.
+
+Prefer modals when a workflow collects several related fields, long text, or
+an attachment. Prefer direct slash options for short one-step actions, and
+prefer message buttons/selects for pagination, iterative editing, previews,
+and destructive confirmation.
+
+Best candidates are:
+
+- an arbitrary-side `/game record` draft with native member selectors,
+  add/edit-side controls, review, and confirmation;
+- `/game notes` editing;
+- `/player register`;
+- team/house creation and image upload;
+- `/support request`;
+- longer game notifications with optional uploads.
+
+Modal submission is a fresh interaction. Collect inputs before work, then
+defer the modal submission before any bounded worker/database operation.
+Permissions, primitive thread boundaries, synchronous transactions, and
+post-commit Discord effects remain unchanged. Draft state should be
+short-lived and in-memory initially unless restart persistence becomes a
+demonstrated requirement.
 
 ## Progress log
+
+### 2026-07-30 — Taxonomy review paused and modal opportunities recorded
+
+- Paused new registration implementation while staff continue reviewing
+  taxonomy v2.1, registration scope, management-guild placement, and possible
+  future web administration.
+- Confirmed the locked discord.py 2.7.1 environment supports typed selectors,
+  file uploads, radio groups, checkboxes, and text inside modals.
+- Reopened an arbitrary-side game-recording draft as a viable future C-001
+  mitigation because native user selection can now remain inside the modal
+  workflow.
+- Recorded focused candidates for modal/component UX without authorizing code,
+  beta launch, synchronization, database work, or a web-architecture pivot.
+
+### 2026-07-30 — Attribute-focused read/edit rule accepted
+
+- Accepted `/team emoji|image|server|name|house|tier` as focused commands
+  instead of placing them under `/team set`.
+- Defined omission as a read, a supplied replacement as a permission-checked
+  edit, and explicit `clear:true` as removal.
+- Applied the same rule where useful to
+  `/game name|map|tribe|notes|side|ranked`, `/squad name`,
+  `/house name|image`, and `/player timezone`.
+- Recalculated the proposed `/game` root at nineteen immediate children,
+  leaving six slots under Discord's 25-child limit.
+- Left the rest of taxonomy v2 under review and made no code, beta, Discord,
+  database, or production change.
+
+### 2026-07-30 — Journey-first system taxonomy v2 proposed
+
+- Revisited the complete 83-handler taxonomy in response to user and staff
+  feedback; no command code was changed.
+- Proposed `/game record`, `/game players`, and
+  `/game search status:unconfirmed`.
+- Kept common actions directly discoverable while grouping result corrections
+  under `/game result` and uncommon lifecycle administration under
+  `/game manage`. D-021 later refined metadata into focused read/edit commands.
+- Applied the same direct-action/property/maintenance conventions across player,
+  team, squad, leaderboard, league, house, ELO, optional Bullet, tools, about,
+  and support domains.
+- Recorded that a generic `get` subgroup is less usable than explicit
+  `/game show|search|players|history` paths.
+- Left checkpoint `63af179`, the beta runtime, Discord synchronization, and
+  databases untouched. User/staff review is the next action.
 
 ### 2026-07-30 — Unified game taxonomy proposed
 

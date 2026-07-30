@@ -2,14 +2,32 @@
 
 Last updated: 2026-07-30
 
-Status: Revised T-A approved for development
+Status: Taxonomy v2.1 proposed for user/staff review; attribute-command rule
+accepted; command code unchanged
 
 This review covers the bot's complete repository-backed command surface, not
-only commands already converted to Discord application commands. The revised
-T-A proposal uses one `/game` domain for open, pending, started, completed,
-and corrected games. It does not use a separate user-facing `/match` domain.
-The user approved this architecture on 2026-07-30. Discord synchronization
-remains separately gated.
+only commands already converted to Discord application commands. Taxonomy v2.1
+retains the approved domain-root architecture and the single user-facing
+`/game` domain, but revises command placement around common user journeys:
+
+- common game actions stay short and directly discoverable;
+- useful attributes use focused commands that read by default and edit when a
+  new value is supplied;
+- less-common corrections and management actions use deeper, coherent paths;
+- read commands say what they return rather than using developer terms such
+  as “getter”;
+- open, pending, started, completed, and corrected records are all games.
+
+This is a naming and interaction proposal. It does not authorize a beta
+launch, command synchronization, or a code rename. The current locally
+implemented registration remains the source of truth until this revision is
+approved and implemented.
+
+Implementation is intentionally paused while staff continue reviewing command
+names, command-registration scope, and whether some rare administration
+workflows belong in Discord or a later web interface. The pause does not
+invalidate checkpoint `63af179`; it prevents an unsettled public surface from
+being synchronized.
 
 ## Inventory scope
 
@@ -17,289 +35,414 @@ Static inspection found:
 
 - 83 in-scope explicit prefix command handlers;
 - one customized framework `help` command;
-- nine previously synchronized native commands plus two P4.1d subcommands,
-  all now migrated locally into the approved groups;
+- nine locally implemented `/game` subcommands and two `/elo` subcommands;
 - many additional prefix aliases;
 - a conditional command family for the Bullet cog.
 
-The count describes handlers, not distinct user tasks. Several pairs or aliases
-are one capability in a typed interface: `rankset` and `rankunset` become one
-Boolean operation, while `wins` and `losses` can become one query with a
-result choice.
+The count describes handlers, not distinct user tasks. Alias-selected
+behaviors and overlapping list commands should become typed choices rather
+than duplicate slash commands.
 
 The seven hidden commands in `modules/api_cog.py` are legacy and explicitly
-excluded from this inventory, staff vote, slash-capacity planning, and P4-P8
-conversion backlog. Retaining or deleting that cog is a separate cleanup
-decision.
-
-Every current handler is classified below. A native conversion is not
-automatic merely because a command exists.
+excluded from the inventory, slash-capacity planning, and P4-P8 conversion
+backlog. Retaining or deleting that cog is a separate cleanup decision.
 
 ### Disposition key
 
-- **Native now**: already beta-tested or implemented locally.
+- **Native now**: implemented locally, although its path may change if v2 is
+  approved before the next development sync.
 - **Strong candidate**: clear typed slash model; convert in its roadmap phase.
-- **Redesign**: worthwhile native capability, but free-form grammar, aliases,
-  attachments, pagination, or confirmation needs a deliberate interaction UX.
+- **Redesign**: useful native capability whose existing free-form grammar,
+  aliases, attachments, pagination, or confirmation need deliberate UX.
 - **Conditional**: convert only if the optional domain remains enabled and
   actively used.
-- **Prefix/operator only**: intentionally keep out of the public slash picker.
-- **Retire/review**: hidden test or legacy behavior that needs a retain/retire
-  decision before modernization.
+- **Prefix/operator only**: intentionally omit from the public slash picker.
+- **Retire/review**: hidden test or legacy behavior needing an explicit
+  retain/retire decision.
 
-## Complete capability map under T-A
+## Taxonomy v2.1 design rules
 
-T-A, the recommended taxonomy, uses domain roots. Existing prefix names and
-aliases remain unchanged during migration.
+### 1. Optimize the common journeys
 
-### Complete game lifecycle and communication
+The shortest paths should support what ordinary users do most often:
 
-Users treat open, joinable, started, and completed records as games. The
-native taxonomy follows that mental model even though legacy code, database
-state, and prefix aliases sometimes use “match” or “matchmaking.”
+1. find or open a game;
+2. join or leave it;
+3. start it;
+4. record a game that already exists in Polytopia;
+5. see a game or its player names;
+6. report a winner.
 
-| Current prefix handler(s) | Recommended native home | Disposition / note |
+Those actions stay directly under `/game`. An uncommon staff correction may
+take one additional word if that makes the picker easier to scan.
+
+### 2. Group by user concept, not code implementation
+
+- A useful property such as `/team emoji` or `/game map` reads its current
+  value when the replacement value is omitted and edits it when supplied.
+- `/game result ...` is for reviewing or correcting a reported result.
+- `/game manage ...` is for uncommon lifecycle or membership administration.
+- `/game show`, `/game search`, `/game players`, and `/game history` are
+  descriptive reads.
+
+There is no `/game get ...` group. “Get” is API vocabulary and makes the next
+word do all the explanatory work. It would also create awkward paths such as
+`/game get players` when `/game players` is both shorter and clearer.
+
+There is also no general `set` subgroup for attributes that users reasonably
+inspect on their own. For these commands:
+
+- omit the replacement value to view the current setting;
+- provide the replacement value to update it, subject to mutation permissions;
+- use an explicit `clear:true` option where clearing is supported, because an
+  omitted value already means “view”;
+- infer an omitted target only when the requester has one unambiguous target;
+  otherwise require a typed/autocompleted selection;
+- expose the read path only when the current value is safe for that audience.
+
+The same slash command may therefore have broad read permission while checking
+staff/host permission only when an edit or clear option is supplied. Actions
+such as win, join, confirm, delete, and unstart do not use this pattern because
+omission cannot naturally mean “view.”
+
+### 3. Names describe effects
+
+- Use `/game record`, not `/game create`, for `newgame`: the command records
+  a game that users already created in Polytopia.
+- Reserve `/game open` for advertising an unstarted game with available
+  places.
+- Use `/game players` for the draft-ordered in-game names currently returned
+  by `$getnames`, `$names`, and `$codes`.
+- Use `/game notes` as a focused read-or-edit attribute. Notes also remain
+  visible in the normal game display.
+- Use `/game search status:unconfirmed`, not `/game unconfirmed`.
+
+### 4. Preserve migration safety
+
+Prefix names and aliases remain unchanged. Slash wrappers should stay thin
+over shared application/worker services so a pre-production spelling change
+does not alter permissions, transactions, or Discord-effect ordering. Once a
+path reaches production, rename it only through an explicit compatibility
+decision.
+
+### 5. Use modal components for forms, not simple actions
+
+Discord's current modal component model and the repository's locked
+discord.py 2.7.1 support more than free-form text. A modal may include typed
+user, role, mentionable, and channel selectors, string/radio choices,
+checkboxes, file uploads, text inputs, labels, and explanatory text.
+
+That makes modals a strong fit when a command needs several related values,
+long text, an attachment, or a reviewable draft. It also removes the earlier
+assumption that a custom game modal would require users to type ambiguous
+member names.
+
+Use modals/components selectively:
+
+- keep one-step commands such as win, join, leave, confirm, extend, and
+  delete as direct typed slash commands;
+- prefer a modal for `/game notes`, `/support request`, team/house image
+  replacement, and multi-field create/register forms;
+- use a modal plus buttons/selects for an arbitrary-side `/game record`
+  draft, with native member selection, review, and explicit confirmation;
+- use message buttons/selects rather than a modal for pagination, repeated
+  edits, previews, and destructive confirmation;
+- treat a modal submission as a new interaction: collect input first, then
+  defer the submission before worker/database work;
+- keep all existing permission checks, primitive worker inputs, transaction
+  boundaries, and post-commit Discord effects.
+
+Modal state should remain ephemeral and short-lived unless a concrete workflow
+needs restart persistence. A modal is a presentation layer over the same
+application/worker service, not a second mutation implementation.
+
+## Proposed game command tree
+
+Discord permits a root, one optional subcommand-group level, and a command.
+The following paths fit that model. `/game` would have nineteen immediate
+children—seventeen direct commands and two groups—leaving six slots below
+Discord's 25-child limit. Before adding later game capabilities, prefer typed
+options or a coherent existing group over consuming the remaining headroom.
+
+### Common and read flows
+
+| Proposed native path | Current prefix handler(s) | Purpose / notes |
 |---|---|---|
-| `newgame` | `/game create` | Native now; preserve C-001 limits until a custom draft UX is justified |
-| `game` | `/game show` | Strong candidate |
-| `allgames` | `/game search` | Redesign typed filters and pagination |
-| `incomplete` | `/game search status:incomplete|completed` | Fold alias-driven status into typed search filters |
-| `wins` | `/game search outcome:win|loss` | Fold alias-driven outcome into typed search filters |
-| `win` | `/game win` | Native now |
-| `unwin` | `/game unwin` | Native now |
-| `delete` | `/game delete` | Native now |
-| `confirm` | `/game confirm` | Native now |
-| `unconfirmed` | `/game unconfirmed` | Native now; spelling may become `pending-confirmation` |
-| `rankset`, `rankunset` | `/game set-ranked` | Native now as one typed Boolean command |
-| `rename` | `/game rename` | Strong candidate |
-| `setmap` | `/game set-map` | Strong candidate with choices/autocomplete |
-| `settribe` | `/game set-tribe` | Redesign bulk grammar; begin with one member and one tribe |
-| `getnames` | `/game player-names` | Strong candidate |
-| `logs` | `/game logs` | Redesign search scope and pagination |
-| `ping`, `pingall` | `/game ping scope:game|all` | Redesign explicit target/message/attachment; require confirmation for hidden mass mode |
-| `opengame` | `/game open` | Redesign flexible side shapes and expiry/rules |
-| `games` | `/game search status:open` | Fold the joinable-game list into typed game search |
-| `join` | `/game join` | Strong candidate |
-| `leave` | `/game leave` | Strong candidate |
-| `gameside` | `/game set-side` | Redesign role locking and side naming |
-| `gamenotes` | `/game notes` | Strong candidate; modal is an option |
-| `kick` | `/game kick` | Strong candidate with native member input |
-| `start` | `/game start` | Strong candidate after lifecycle worker separation |
-| `extend` | `/game extend` | Native now; staff-only |
-| `unstart` | `/game unstart` | Native now; staff-only |
+| `/game open` | `opengame` | Advertise an unstarted game and recruit players |
+| `/game join` | `join` | Join an available game using typed game/side options |
+| `/game leave` | `leave` | Leave an unstarted game |
+| `/game start` | `start` | Move a filled/open game into play |
+| `/game record` | `newgame` | Record an already-created Polytopia game; Native now as `/game create` |
+| `/game show` | `game` | Display one game's full summary |
+| `/game search` | `games`, `allgames`, `incomplete`, `wins`, no-arg `confirm` | Typed, paginated discovery across lifecycle and result states |
+| `/game players` | `getnames` | Return draft-ordered in-game player names/codes |
+| `/game win` | `win` | Report the winner; common enough to remain a short direct action |
+| `/game history` | `logs` | View/search audit history with permission-aware scope |
+| `/game notify` | `ping`, `pingall` | Typed target/scope, message, attachment, and confirmation options |
 
-The combined inventory has 28 legacy capability rows. Four overlapping list
-and history handlers (`allgames`, `incomplete`, `wins`, and `games`) become
-one `/game search` command, while `ping` and `pingall` become one typed
-command. That leaves at most 24 named `/game` subcommands if every other
-candidate is eventually exposed, within Discord's 25-child group limit.
-Low-value hidden or bulk operations should remain prefix/operator-only or be
-folded into typed options before the group reaches that limit.
+Recommended `/game search` options include:
 
-### Effect on the current implementation
+- `status: open | active | completed | unconfirmed | all`;
+- `player`, `team`, or free-text `query`;
+- `outcome: win | loss | any`;
+- `size`;
+- pagination controls or interaction components.
 
-Checkpoint `63af179` implements the approved surface locally. The bot now
-registers only `/game` and `/elo` at the top level: all previously synchronized
-native game commands moved beneath `/game`, ELO maintenance moved beneath
-`/elo`, and the never-synchronized `/match` group was removed. Prefix commands
-and aliases remain unchanged. No compatibility aliases were added because no
-native name has reached production. Development-guild synchronization and
-live smoke testing remain separately gated.
+`status:unconfirmed` is staff-gated and replaces the current standalone
+`/game unconfirmed`. This keeps “unconfirmed” where users already look for
+lists of games rather than presenting a read-only status as an action.
+
+### Focused game attributes
+
+| Proposed native path | Current prefix handler(s) | Purpose / notes |
+|---|---|---|
+| `/game name` | `rename` | View the tracked name; optional `name` edits it |
+| `/game map` | `setmap` | View map type; optional `map` edits it |
+| `/game tribe` | `settribe` | View one/all player tribes; optional typed player/tribe edits one |
+| `/game notes` | `gamenotes` | View notes; optional text/modal edits them |
+| `/game side` | `gameside` | View a side; optional name/assignment edits it |
+| `/game ranked` | `rankset`, `rankunset` | View ranked state; optional Boolean changes it with staff permission; Native now as `/game set-ranked` |
+
+Bulk tribe assignment remains on the prefix path initially. A later native
+bulk editor should be interaction-driven rather than a long opaque argument.
+Commands that support clearing use an explicit `clear` option rather than
+overloading an omitted value.
+
+### Result review and correction
+
+| Proposed native path | Current prefix behavior | Purpose / notes |
+|---|---|---|
+| `/game result undo` | `unwin` | Remove a reported winner while preserving player-versus-staff behavior; Native now as `/game unwin` |
+| `/game result confirm` | `confirm GAME_ID` | Staff-confirm one result and finalize ELO; Native now as `/game confirm` |
+| `/game result auto-confirm` | `confirm auto` | Rare staff batch action with explicit preview/confirmation |
+
+The staff suggestion to group winner operations is sound for the uncommon
+review/correction paths. `/game win` remains direct because reporting a winner
+is a primary user journey; treating it as a generic property setter would
+describe the database implementation rather than the user's action.
+
+### Lifecycle and membership management
+
+| Proposed native path | Current prefix handler | Purpose / notes |
+|---|---|---|
+| `/game manage kick` | `kick` | Host/staff removal from an open game |
+| `/game manage extend` | `extend` | Staff extension of an open-game deadline; Native now as `/game extend` |
+| `/game manage unstart` | `unstart` | Staff return of a started game to open/pending; Native now as `/game unstart` |
+| `/game manage delete` | `delete` | Permission-sensitive game deletion; Native now as `/game delete` |
+
+`manage` is intentionally not named `staff`: some operations may also be
+available to a host or participant, and permissions belong to each command
+rather than its spelling.
+
+## Complete system-wide capability map
+
+The same conventions apply outside `/game`: common reads/actions stay direct,
+independently useful attributes use read-or-edit commands, and dangerous
+operator repair commands stay out of the public tree.
 
 ### Players, teams, squads, and ratings
 
-| Current prefix handler(s) | Recommended native home | Disposition / note |
+| Current prefix handler(s) | Taxonomy v2.1 native home | Disposition / note |
 |---|---|---|
 | `player` | `/player show` | Strong candidate |
-| `setname` | `/player set-name` | Redesign platform and staff-target behavior as typed options |
-| `getname` | `/player game-name` | Strong candidate |
-| `settime` | `/player set-time` | Strong candidate with UTC-offset choices |
+| `setname`, `steamname` alias behavior | `/player register` | Redesign typed platform, name, and optional staff target |
+| `getname` | `/player game-name` | Strong candidate; returns the selected member's in-game name/code |
+| `settime` | `/player timezone` | Strong candidate with UTC-offset choices |
 | `team` | `/team show` | Strong candidate |
+| `team_add` | `/team create` | Redesign staff options, including junior-team behavior |
+| `team_emoji` | `/team emoji` | View by default; optional emoji edits with staff permission |
+| `team_image` | `/team image` | View by default; optional attachment/URL edits |
+| `team_name` | `/team name` | View exact name; optional name edits |
+| `team_server` | `/team server` | View when safe; optional configured server edits with staff permission |
+| `team_edit` aliases | `/team house`, `/team tier` | View by default; optional typed value edits |
 | `squad` | `/squad show` | Redesign one-to-three member search |
-| `squadname` | `/squad set-name` | Strong candidate |
+| `squadname` | `/squad name` | View by default; optional name edits |
 | `lb` | `/leaderboard players` | Redesign filters and pagination |
-| `lbrecent` | `/leaderboard activity` | Fold hidden command into a typed leaderboard view |
+| `lbrecent` | `/leaderboard activity` | Fold hidden view into typed time range |
 | `lbteam` | `/leaderboard teams` | Strong candidate |
 | `lbsquad` | `/leaderboard squads` | Strong candidate |
-| `roleelo` | `/leaderboard roles` | Redesign roles, any/all matching, sorting, and file export |
+| `roleelo` | `/leaderboard roles` | Redesign role filters, sorting, and export |
 | `recalc_games_from` | `/elo recalculate` | Native now; owner-only and confirmed |
 | active job status (slash-only) | `/elo status` | Native now; staff-only |
 
-### Team and league administration
+`/player register` is preferred over `/player set name` because the common
+flow establishes or updates the user's bot registration, not merely a display
+field. Staff targeting can be an optional typed member rather than a separate
+public command.
 
-| Current prefix handler(s) | Recommended native home | Disposition / note |
+The intended team option shape is attribute-focused:
+
+- `/team emoji team:[optional] emoji:[optional] clear:[optional]`;
+- `/team image team:[optional] image:[optional] clear:[optional]`;
+- `/team server team:[optional] server:[optional] clear:[optional]`.
+
+With no replacement or `clear` option, the command displays the current
+setting. An omitted team is inferred only when the requester has one
+unambiguous team; otherwise autocomplete/selection is required. Equivalent
+safe patterns apply to team name/house/tier, squad name, house name/image,
+player timezone, and focused game attributes.
+
+### League and house workflows
+
+| Current prefix handler(s) | Taxonomy v2.1 native home | Disposition / note |
 |---|---|---|
-| `team_add` | `/team create` | Redesign staff options, including junior-team behavior |
-| `team_emoji` | `/team set-emoji` | Strong candidate |
-| `team_image` | `/team set-image` | Redesign URL versus attachment |
-| `team_name` | `/team rename` | Strong candidate |
-| `team_server` | `/team set-server` | Strong candidate, staff-only |
-| `team_edit` | `/team set-house`, `/team set-tier` | Split aliases with different meanings |
 | `tutorial` | `/league guide` | Strong candidate |
-| `newfreeagent` | `/league post-free-agents` | Redesign channel and message options; moderator-only |
+| `newfreeagent` | `/league free-agents post` | Redesign channel/message options; moderator-only |
 | `tokens` | `/league tokens` | Redesign view/update permission behavior |
 | `imalive` | `/league mark-active` | Strong candidate |
 | `season` | `/league season` | Strong candidate |
 | `novas` | `/league join-novas` | Strong candidate |
-| `promote` | `/league promote`, `/league trade` | Split alias-driven image modes |
-| `draft` | `/league draft` | Strong candidate with native member/team options |
-| `tradeprice` | `/league trade-price` | Retain/review hidden read command before exposing |
-| `league_export` | `/league export` | Redesign staff-only deferred file generation |
-| `deactivate_players` | `/league deactivate-players` | Redesign confirmation and preview |
-| `kick_inactive` | `/league kick-inactive` | Redesign confirmation, preview, and reconciliation |
+| `promote` | `/league roster promote` | Split alias-driven image modes |
+| `trade` alias | `/league roster trade` | Split from promote |
+| `draft` | `/league roster draft` | Strong candidate with member/team options |
+| `tradeprice` | `/league roster price` | Retain/review hidden read before exposure |
+| `league_export` | `/league maintenance export` | Redesign staff-only deferred generation |
+| `deactivate_players` | `/league maintenance deactivate` | Preview and confirmation required |
+| `kick_inactive` | `/league maintenance kick-inactive` | Preview, confirmation, reconciliation |
 | `house` | `/house show` | Strong candidate |
 | `houses` | `/house list` | Strong candidate |
-| `house_add` | `/house create`, `/house rename`, `/house set-image` | Split three alias-selected operations |
+| `house_add` | `/house create` | Split create from alias-selected edits |
+| `house_rename` alias | `/house name` | View by default; optional name edits |
+| `house_image` alias | `/house image` | View by default; optional attachment/URL edits |
 | `gtest` | none | Retire/review hidden hard-coded test command |
+
+The deeper `roster` and `maintenance` paths reserve the short `/league`
+surface for ordinary league participants. They also make destructive batch
+operations harder to invoke accidentally without pretending that nesting is
+a permission control.
 
 ### Bullet tournament
 
-The Bullet cog is conditionally loaded and uses an external spreadsheet.
-These names belong in the taxonomy only if the feature remains enabled and is
-included in a later modernization unit.
+The Bullet cog is conditional and relies on an external spreadsheet. These
+paths apply only if the feature remains active.
 
-| Current prefix handler(s) | Recommended native home | Disposition / note |
+| Current prefix handler(s) | Taxonomy v2.1 native home | Disposition / note |
 |---|---|---|
 | `bullet` | `/bullet join` | Conditional |
-| `nobullet` | `/bullet leave` | Conditional; separate role removal option |
-| `bulletstart` | `/bullet start` | Conditional, director-only |
-| `bulletsub` | `/bullet substitute` | Conditional with two native members |
-| `bullettoggle` | `/bullet automation` | Conditional operator control; retain/review before exposure |
+| `nobullet` | `/bullet leave` | Conditional |
+| `bulletstart` | `/bullet manage start` | Conditional, director-only |
+| `bulletsub` | `/bullet manage substitute` | Conditional with two members |
+| `bullettoggle` | `/bullet manage automation` | Conditional operator control; retain/review |
 
 ### General utilities and support
 
-| Current prefix handler(s) | Recommended native home | Disposition / note |
+| Current prefix handler(s) | Taxonomy v2.1 native home | Disposition / note |
 |---|---|---|
-| customized `help` | `/help` or native command discovery | Redesign after taxonomy selection |
+| customized `help` | `/help` or native discovery | Redesign after the registered tree stabilizes |
 | `guide` | `/guide` | Strong candidate |
 | `tribepoints` | `/tools tribe-points` | Strong candidate with map/mode choices |
-| `rtribes` | `/tools random-tribes` | Redesign bans, seed, free-tribe count, and duplicates |
+| `rtribes` | `/tools random-tribes` | Redesign bans, free-tribe count, and duplicates |
 | `credits` | `/about credits` | Strong candidate |
 | `stats` | `/about stats` | Strong candidate after bounded read work |
-| `staffhelp` | `/support request` | Redesign message, game ID, and attachment options |
+| `staffhelp` | `/support request` | Redesign message, game ID, and attachments |
 
-### Operator and repair commands
+### Best modal/component candidates
 
-These commands should not inflate the public taxonomy. “Prefix/operator only”
-does not mean their internals are exempt from database and event-loop review.
-
-| Current prefix handler(s) | Recommended native home | Disposition / note |
+| Capability | Recommended interaction | Why |
 |---|---|---|
-| `restart` | none | Prefix/operator only; service lifecycle remains separately approved |
-| `purge_game_channels` | none | Prefix/operator only; destructive bulk Discord operation |
-| `tribe_emoji` | none initially | Prefix/operator only; rare owner configuration |
+| Arbitrary game recording | `/game record` opens a short-lived draft; modal collects name/options and native user selects fill sides; buttons add/edit sides and confirm | Restores large and multi-side coverage without message-content intent |
+| Game notes | `/game notes` reads directly; an Edit button opens a paragraph modal | Long text is awkward as a slash option and benefits from prefilled review |
+| Player registration | `/player register` modal with platform choice, name text, and optional staff-selected member | Several related fields form one understandable task |
+| Team/house creation | Modal for name and typed attributes, followed by a review/confirm view | Multi-field creation is clearer than many optional slash arguments |
+| Team/house image | Focused attribute command; Edit opens a modal file upload with explicit replace/clear choice | Native file upload avoids URL-only workflows |
+| Support request | Modal with summary/details, game reference, and optional file upload | Supports structured reports and screenshots |
+| Game notification | Modal for longer message and optional upload, then a public preview/confirm message | Separates authoring from potentially broad notification |
+| League bulk maintenance | Buttons/selects for preview and confirmation; modal only for a reason/note | Bulk target selection and result review are iterative, not a one-shot form |
+
+Search filters, leaderboards, and audit-history pagination should use slash
+options plus message components rather than modals. ELO recalculation and
+other long jobs should retain immediate confirmation/defer behavior; a modal
+adds little to a two-option command.
+
+### Prefix/operator-only and repair commands
+
+These operations should not inflate the public slash tree. Their internals
+still require the same database, transaction, and event-loop review when
+touched.
+
+| Current prefix handler(s) | Native home | Disposition / note |
+|---|---|---|
+| `restart` | none | Prefix/operator only; service lifecycle separately approved |
+| `purge_game_channels` | none | Destructive bulk Discord operation |
+| `tribe_emoji` | none initially | Rare owner configuration |
 | `ptrophies` | none | Retire/review hidden repair |
-| `boost_from` | none | Prefix/operator only; owner bulk repair |
-| `migrate_player` | none initially | Prefix/operator only; sensitive cross-record migration |
-| `delete_player` | none | Prefix/operator only; destructive owner repair |
-| `backup_db` | none | Prefix/operator only; operational backup |
+| `boost_from` | none | Owner bulk repair |
+| `migrate_player` | none initially | Sensitive cross-record migration |
+| `delete_player` | none | Destructive owner repair |
+| `backup_db` | none | Operational backup |
 | `test` | none | Retire hidden diagnostic |
 
-## Three complete taxonomy choices
+## Proposed top-level roots
 
-The capability inventory above remains the same under all three options. The
-vote decides how native commands are addressed.
+Taxonomy v2.1 uses these domain roots:
 
-### T-A — Domain roots (recommended)
+- `/game`
+- `/player`
+- `/team`
+- `/squad`
+- `/leaderboard`
+- `/league`
+- `/house`
+- `/elo`
+- `/bullet` when enabled
+- `/tools`
+- `/about`
+- `/support`
+- `/guide` and possibly `/help`
 
-Examples:
+This remains the earlier T-A domain-root architecture. T-B's one `/poly`
+umbrella and T-C's flat hyphenated commands remain rejected design history:
+the umbrella makes common commands unnecessarily long, while flat names make
+dozens of capabilities harder to scan and organize.
 
-- `/game open`, `/game join`, `/game start`;
-- `/game show`, `/game win`, `/game set-map`;
-- `/player show`, `/player set-name`;
-- `/leaderboard players`, `/leaderboard teams`;
-- `/team show`, `/house list`, `/league season`;
-- `/elo recalculate`, `/elo status`;
-- `/tools random-tribes`, `/support request`.
+## Effect on the current implementation if approved
 
-This produces roughly eleven understandable roots and keeps each family
-within Discord's subcommand limits. `/game` spans the full game lifecycle;
-permissions remain command-specific, so placing a staff operation under
-`/game` does not make it public.
+Checkpoint `63af179` currently registers:
 
-The main cost is converting current hybrids into unchanged prefix commands
-plus thin slash wrappers. Bare `/game` cannot also mean “show a game” once it
-is a group, so that capability becomes `/game show`. The unified group also
-requires the query and notification consolidation described above to preserve
-headroom below Discord's 25-child limit.
+- `/game create|win|unwin|delete|confirm|unconfirmed|set-ranked|extend|unstart`;
+- `/elo recalculate|status`.
 
-### T-B — One application umbrella
+Taxonomy v2.1 would change only the slash registration/adapters:
 
-Use one root, preferably `/poly`, with domain subcommand groups:
+| Current local path | Taxonomy v2.1 path |
+|---|---|
+| `/game create` | `/game record` |
+| `/game win` | unchanged |
+| `/game unwin` | `/game result undo` |
+| `/game delete` | `/game manage delete` |
+| `/game confirm` | `/game result confirm` |
+| `/game unconfirmed` | `/game search status:unconfirmed` |
+| `/game set-ranked` | `/game ranked` |
+| `/game extend` | `/game manage extend` |
+| `/game unstart` | `/game manage unstart` |
+| `/elo recalculate` | unchanged |
+| `/elo status` | unchanged |
 
-- `/poly game show`, `/poly game unwin`;
-- `/poly game open`, `/poly game join`, `/poly game start`;
-- `/poly player show`, `/poly leaderboard teams`;
-- `/poly league season`, `/poly team rename`;
-- `/poly elo recalculate`, `/poly tools random-tribes`.
-
-`/elo` or `/bot` could replace `/poly`, but `/elo` is semantically misleading
-for unranked games, matchmaking, support, and league administration.
-
-This gives the bot one obvious entry point and keeps Discord's top-level
-picker compact. Its costs are longer three-word invocations, one allowable
-subcommand-group level, and a very broad root whose internal families must
-remain below Discord limits.
-
-### T-C — Flat names with systematic prefixes
-
-Keep existing beta names where possible and name future commands with
-hyphenated domains:
-
-- `/game-info`, `/game-search`, `/game-rename`, `/game-set-map`;
-- `/game-open`, `/game-join`, `/game-start`;
-- `/player-info`, `/player-set-name`;
-- `/leaderboard-players`, `/leaderboard-teams`;
-- `/league-season`, `/team-rename`, `/elo-recalculate`.
-
-This minimizes changes to beta-tested registrations and permits the current
-hybrid decorators to remain. It is a complete naming rule, but dozens of
-top-level commands become a long alphabetical picker, related commands are
-less visibly grouped, and the design approaches Discord's top-level command
-limit sooner.
-
-## Taxonomy decision record
-
-The alternatives considered were:
-
-1. T-A — domain roots;
-2. T-B — one umbrella;
-3. T-C — systematic flat names.
-
-The user selected T-A with a unified `/game` domain on 2026-07-30. The other
-options remain documented as design history, not open implementation choices.
-Any later change requires an explicit compatibility decision.
-
-Future spelling reviews should remain separate from architecture changes:
-
-- `create` versus `new`;
-- `open` versus `host`;
-- `show` versus `info`;
-- `unconfirmed` versus `pending-confirmation`;
-- `player-names` versus `codes`.
+The unified tree has not been synchronized to Discord, so approval now allows
+a clean development rename without compatibility aliases. Prefix commands,
+permissions, workers, transactions, and post-commit effects would remain
+unchanged. `/game search` itself belongs to the P7 bounded-read work; until
+that exists, the already-tested top-level `/unconfirmed` prefix behavior
+remains available and the slash list can be temporarily omitted rather than
+shipping a name already marked for replacement.
 
 ## Implementation and migration plan
 
-1. Use the approved T-A domain roots for new development.
-2. Treat later taxonomy changes as explicit compatibility decisions,
-   especially after the first production synchronization.
-3. Build reusable slash groups/wrappers without changing prefix command names,
-   aliases, permissions, workers, or transaction boundaries.
-4. Preserve checkpoint `63af179`'s `/game` and `/elo` registration structure
-   and extend it through bounded units with prefix-registration and slash-path
-   tests.
+1. Review and approve or revise taxonomy v2 before changing registration code.
+2. If approved, create a narrow P4.1d follow-up that changes only slash groups,
+   paths, audit attribution, registration tests, and the beta runbook.
+3. Preserve prefix commands, aliases, permissions, workers, transactions, and
+   Discord-effect ordering.
+4. Do not implement placeholder read commands merely to fill the proposed
+   tree. Add `/game search` in P7 with its bounded read/pagination design.
 5. Synchronize only the development guild in a separately approved beta
-   session and run the existing mutation/permission smoke matrix.
-6. Because no names are in production, prefer a clean beta rename. Retain old
-   top-level slash wrappers for at most one beta cycle only if staff need them.
-7. Continue P4-P8 in small transactional units, using the capability map to
-   assign names and dispositions. Do not convert operator commands by default.
-8. Before P9, audit the actual registered tree, descriptions, permissions,
-   autocomplete cost, compatibility ledger, and Discord limits.
+   session and verify the exact registered tree.
+6. Extend the taxonomy through bounded P4-P8 units, checking Discord's group
+   and option limits before each registration.
+7. Before P9, audit the actual tree, descriptions, permissions,
+   autocomplete cost, compatibility ledger, and naming consistency.
 
-The legacy API cog is outside this plan and should not receive slash wrappers.
-
-Changing slash placement later remains technically manageable because command
-adapters should stay thin over shared application/worker logic. Once names
-reach production they should be treated as a public API and changed through an
-explicit deprecation window.
+Changing slash placement remains technically manageable because adapters stay
+thin over shared application/worker logic. Once paths reach production they
+should be treated as a public API and changed only through a deliberate
+deprecation window.
