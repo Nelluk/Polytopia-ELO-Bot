@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import datetime
 import functools
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
@@ -55,6 +56,17 @@ class RankedStateResult:
     is_ranked: bool
 
 
+class GameExtensionValidationError(RuntimeError):
+    """The game cannot receive the requested expiration extension."""
+
+
+@dataclass(frozen=True)
+class GameExtensionResult:
+    game_id: int
+    old_expiration: datetime.datetime
+    new_expiration: datetime.datetime
+
+
 @dataclass(frozen=True)
 class _RoleView:
     name: str
@@ -71,9 +83,9 @@ class _MemberView:
     roles: tuple[_RoleView, ...]
 
 
-_new_game_executor = ThreadPoolExecutor(
+_game_write_executor = ThreadPoolExecutor(
     max_workers=1,
-    thread_name_prefix='polybot-newgame',
+    thread_name_prefix='polybot-game-write',
 )
 
 
@@ -137,7 +149,7 @@ async def run_new_game_creation(request: NewGameRequest) -> NewGameResult:
 
     loop = asyncio.get_running_loop()
     call = functools.partial(create_new_game, request)
-    return await loop.run_in_executor(_new_game_executor, call)
+    return await loop.run_in_executor(_game_write_executor, call)
 
 
 def set_game_ranked_state(
@@ -200,4 +212,71 @@ async def run_ranked_state_correction(
         is_ranked,
         requester_description,
     )
-    return await loop.run_in_executor(_new_game_executor, call)
+    return await loop.run_in_executor(_game_write_executor, call)
+
+
+def extend_pending_game(
+    game_id: int,
+    guild_id: int,
+    requester_description: str,
+    now: datetime.datetime | None = None,
+) -> GameExtensionResult:
+    """Extend one pending game's expiration in a local transaction."""
+
+    now = now or datetime.datetime.now()
+    with models.db.connection_context():
+        with models.db.atomic():
+            try:
+                game = models.Game.get_by_id(game_id)
+            except peewee.DoesNotExist as exc:
+                raise GameExtensionValidationError(
+                    f'Game with ID {game_id} cannot be found.'
+                ) from exc
+            if game.guild_id != guild_id:
+                raise GameExtensionValidationError(
+                    f'Game with ID {game_id} is associated with a different '
+                    'Discord server.'
+                )
+            if not game.is_pending:
+                raise GameExtensionValidationError(
+                    f'Game {game.id} is no longer an open game so cannot be '
+                    'extended.'
+                )
+
+            old_expiration = game.expiration
+            if old_expiration < now:
+                new_expiration = now + datetime.timedelta(hours=24)
+            else:
+                new_expiration = old_expiration + datetime.timedelta(hours=24)
+            game.expiration = new_expiration
+            game.save()
+            models.GameLog.write(
+                game_id=game.id,
+                guild_id=guild_id,
+                message=(
+                    f'{requester_description} extended the pending-game '
+                    f'deadline from {old_expiration} to {new_expiration}.'
+                ),
+            )
+            return GameExtensionResult(
+                game_id=game.id,
+                old_expiration=old_expiration,
+                new_expiration=new_expiration,
+            )
+
+
+async def run_pending_game_extension(
+    game_id: int,
+    guild_id: int,
+    requester_description: str,
+) -> GameExtensionResult:
+    """Submit one extension to the bounded ordinary-game executor."""
+
+    loop = asyncio.get_running_loop()
+    call = functools.partial(
+        extend_pending_game,
+        game_id,
+        guild_id,
+        requester_description,
+    )
+    return await loop.run_in_executor(_game_write_executor, call)
