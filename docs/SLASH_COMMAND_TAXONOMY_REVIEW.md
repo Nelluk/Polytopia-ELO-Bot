@@ -3,7 +3,7 @@
 Last updated: 2026-07-30
 
 Status: Taxonomy v2.1 proposed for user/staff review; attribute-command rule
-accepted; command code unchanged
+accepted; approved `/leaderboard` paths implemented locally
 
 This review covers the bot's complete repository-backed command surface, not
 only commands already converted to Discord application commands. Taxonomy v2.1
@@ -258,9 +258,9 @@ operator repair commands stay out of the public tree.
 | `squad` | `/squad show` | Redesign one-to-three member search |
 | `squadname` | `/squad name` | View by default; optional name edits |
 | `lb` | `/leaderboard players` | Typed local/global, current/peak, current-era/all-time, and active/all-player options with component pagination |
-| `lbrecent` | `/leaderboard activity` | Fold hidden view into typed time range |
+| `lbrecent` | `/leaderboard activity` | Native now with explicit server-30-days and global-all-time views |
 | `lbteam` | `/leaderboard teams` | Strong candidate |
-| `lbsquad` | `/leaderboard squads` | Strong candidate |
+| `lbsquad` | `/leaderboard squads` | Native now with current/all-time eligibility choices |
 | `roleelo` | `/leaderboard roles` | Redesign role filters, sorting, and export |
 | `recalc_games_from` | `/elo recalculate` | Native now; owner-only and confirmed |
 | active job status (slash-only) | `/elo status` | Native now; staff-only |
@@ -311,10 +311,20 @@ scope. P7.1 preserves that behavior by delegating selection to the unchanged
 model method rather than silently redefining leaderboard membership. A later
 rules decision may remove or label the fallback.
 
-`$lbrecent`/`$recent`/`$active` and `$lbactivealltime` are distinct activity
-views and remain for a later `/leaderboard activity` unit. `$lbteam`,
-`$lbsquad`, and `$roleelo` also remain separate units because their filters,
-permissions, rendering, and data sources differ.
+`/leaderboard activity` exposes the two existing activity views without
+inventing unsupported combinations:
+
+- **This server — past 30 days** preserves `$lbrecent`, `$recent`, and
+  `$active`;
+- **Global — all time** preserves `$lbactivealltime`.
+
+`/leaderboard squads` preserves `$lbsquad` and `$squadlb`, with **Current
+eligibility** retaining the 365-day cutoff and **All time** preserving the
+legacy `alltime` argument. Both native commands use the same public component
+pagination foundation as `/leaderboard players`.
+
+`$lbteam` and `$roleelo` remain separate later units because their Discord-role
+dependencies, graph/export behavior, filters, and permissions differ.
 
 `$lbteamjr` is legacy. It remains prefix-only until a later prefix-retirement
 decision and receives no slash conversion; its documented junior-team

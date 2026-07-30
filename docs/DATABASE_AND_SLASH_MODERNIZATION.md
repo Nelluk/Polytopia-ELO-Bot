@@ -1715,10 +1715,119 @@ Limitations:
 - Button state is process-local and expires after 120 seconds; the public
   rendered page remains visible afterward.
 
-Next action: commit this locally green unit, then obtain separate approval for
-development-guild synchronization and a beta smoke test of representative
-local/global and pagination combinations. Integration remains sequenced
-behind the unresolved P4.1d review checkpoint on which this branch is stacked.
+P7.1 is committed at `6774d31` with roadmap evidence at `cd65d24`. Its beta
+acceptance is intentionally batched with P7.2/P7.3. Integration remains
+sequenced behind the unresolved P4.1d review checkpoint on which these
+branches are stacked.
+
+### P7.2 — Player activity leaderboard
+
+Status: **Implemented; pending beta acceptance and integration**
+
+Branch/base: `codex/p7-2-3-activity-squad-leaderboards`, stacked from P7.1
+checkpoint `cd65d24`.
+
+Objective: preserve the two distinct `$lbrecent` activity views while adding
+typed `/leaderboard activity` and moving all database work into the bounded
+leaderboard read service.
+
+Native choices deliberately describe the complete legacy view rather than
+pretending time and scope are independently combinable:
+
+- `server-30-days` — this guild's player participation over the last 30 days;
+- `global-all-time` — cross-guild Discord-member participation over all
+  non-pending recorded games.
+
+In scope:
+
+- Preserve `$lbrecent`, `$recent`, `$active`, and `$lbactivealltime`.
+- Return immutable primitive rows with existing limits of 500 server rows and
+  1,000 global rows.
+- Reuse public requester-controlled component pagination.
+- Preserve current ordering, ELO display, team emoji behavior, and activity
+  counts.
+
+### P7.3 — Squad leaderboard
+
+Status: **Implemented; pending beta acceptance and integration**
+
+Branch/base: shared P7.2/P7.3 branch above.
+
+Objective: preserve `$lbsquad [alltime]` while adding typed
+`/leaderboard squads period:current|all-time` and replacing its default
+executor/database closure with the bounded leaderboard read service.
+
+In scope:
+
+- Preserve `$lbsquad` and `$squadlb`.
+- Preserve the current 365-day eligibility cutoff and `alltime` override.
+- Preserve the model's adaptive minimum-games eligibility rule.
+- Return immutable squad ID, name, member names/emojis, ELO, and record values.
+- Reuse public requester-controlled component pagination.
+
+Shared validation requirements:
+
+- [x] exact prefix-alias/view mapping
+- [x] typed slash registration and immediate public defer
+- [x] worker-local connection and immutable primitive DTO boundary
+- [x] deterministic activity and squad page rendering
+- [x] bounded concurrency and event-loop responsiveness
+- [x] existing model eligibility and row limits preserved
+- [x] complete offline suite
+- [x] gated development-database suite
+
+Out of scope:
+
+- Team leaderboard graph generation and Discord role-derived member counts.
+- Role-filtered leaderboard sorting/export behavior.
+- Changing activity or squad eligibility rules.
+- Beta launch or command synchronization without separate approval.
+
+Implementation evidence:
+
+- Implementation checkpoint: `6f6ca1c`.
+- Both prefix commands now submit immutable requests to the same dedicated
+  two-thread leaderboard executor introduced in P7.1.
+- Activity preserves its original two non-combinable query shapes and removes
+  two unused per-row record queries that never affected displayed output.
+- Squad snapshots contain only primitive IDs, names, emoji strings, ELO, and
+  record counts; no live Peewee model reaches Discord rendering.
+- `/leaderboard activity` uses human-readable **This server — past 30 days**
+  and **Global — all time** choices.
+- `/leaderboard squads` uses **Current eligibility** and **All time** choices.
+- Both slash commands defer publicly, reuse their prefix command checks, and
+  render public requester-controlled component pages.
+- The shared view base now supplies identical first/previous/next/last,
+  unauthorized-user denial, and timeout behavior for all three leaderboard
+  types.
+- No compatibility-ledger entry is required: every displayed legacy view,
+  alias, filter, limit, and eligibility rule remains available.
+
+Validation:
+
+- Focused leaderboard/taxonomy suite: 22 passed.
+- Complete offline suite: 160 passed, with 9 explicitly gated database tests
+  skipped.
+- Gated development-database suite: 8 passed and 1 fixture round-trip skipped
+  to preserve the existing operator-managed fixtures. The gate confirmed
+  `POLYBOT_ENV=development`, database `polytopia_dev`, and role
+  `polybot_dev`; real player, activity, and squad queries all passed.
+- Syntax compilation and `git diff --check`: passed.
+
+Limitations:
+
+- Team leaderboard and role-filtered leaderboard work remains deferred as
+  recorded above.
+- Native pagination holds an immutable process-local snapshot for 120 seconds;
+  users rerun the command for refreshed rankings.
+- The global all-time activity view retains the current non-pending-game
+  definition, while the server 30-day view retains its broader dated-game
+  definition. This unit labels that difference but does not change it.
+
+Next action: create implementation and roadmap checkpoints, then obtain
+separate approval for one development-guild sync and combined beta test of
+`/leaderboard players`, `/leaderboard activity`, and
+`/leaderboard squads`.
 
 ## P8 — League and remaining administration workflows
 
@@ -2143,6 +2252,24 @@ short-lived and in-memory initially unless restart persistence becomes a
 demonstrated requirement.
 
 ## Progress log
+
+### 2026-07-30 — Activity and squad leaderboards implemented
+
+- Added `/leaderboard activity` with explicit server-30-days and
+  global-all-time views, preserving `$lbrecent`, `$recent`, `$active`, and
+  `$lbactivealltime`.
+- Added `/leaderboard squads` with current/all-time eligibility, preserving
+  `$lbsquad` and `$squadlb`.
+- Routed both prefix and slash reads through the P7.1 two-thread
+  worker-local leaderboard executor.
+- Generalized public requester-controlled component pagination across player,
+  activity, and squad leaderboard snapshots.
+- Preserved activity query definitions and row limits plus the squad model's
+  adaptive minimum-games rule.
+- Passed 22 focused tests, 160 offline tests with 9 gated skips, and 8 gated
+  `polytopia_dev` tests with 1 intentional fixture-preservation skip.
+- Did not launch the beta bot, synchronize Discord commands, modify fixture
+  ownership, or perform production work.
 
 ### 2026-07-30 — Player leaderboard matrix and native pagination implemented
 
