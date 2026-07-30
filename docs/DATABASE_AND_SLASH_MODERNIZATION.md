@@ -4,7 +4,7 @@ Last updated: 2026-07-29
 
 Status: Active
 
-Current branch at last update: `codex/database-slash-modernization`
+Current branch at last update: `codex/p4-1c-unstart-separation`
 
 Source task: `thread://019fae66-8e3a-7a50-9a0f-d3d7160d2287`
 
@@ -171,6 +171,143 @@ For every command touched:
 Do not rename the five beta-validated pilot slash commands without a separate
 compatibility and deprecation decision.
 
+### Slash taxonomy review
+
+Status: **Provisionally selected — T-A domain groups**
+
+T-A domain groups are the authorized working taxonomy for development. New
+slash work may proceed under the domain map, and the current beta slash
+surface may be migrated in a bounded registration unit. Prefix names and
+aliases remain unchanged. Staff may still vote; an unexpected different
+result can replace this provisional choice before production deployment.
+
+The repository-wide inventory and conversion dispositions are maintained in
+`docs/SLASH_COMMAND_TAXONOMY_REVIEW.md`. It covers all 83 in-scope explicit prefix
+handlers, the customized help command, optional command families, commands
+that need interaction redesign, and commands that should remain
+operator-only. The legacy API cog and its seven hidden commands are excluded.
+The table below is only the current native surface being renamed; it is not
+the complete modernization inventory.
+
+The current native surface under review is:
+
+- `/newgame`, `/win`, `/unwin`, `/delete`, `/confirm`, `/unconfirmed`;
+- `/set-ranked`, `/extend`;
+- `/recalc-games-from`, `/elo-job-status`.
+
+`/extend` is present in the uncommitted P4.1b worktree and has not yet been
+beta-synchronized. The first nine commands have already been synchronized
+during approved development-guild sessions.
+
+#### T-A — Domain groups (recommended)
+
+Organize commands by the object or workflow they affect:
+
+| Current native name | Proposed name |
+|---|---|
+| `/newgame` | `/game create` |
+| `/win` | `/game win` |
+| `/unwin` | `/game unwin` |
+| `/delete` | `/game delete` |
+| `/confirm` | `/game confirm` |
+| `/unconfirmed` | `/game unconfirmed` |
+| `/set-ranked` | `/game set-ranked` |
+| `/extend` | `/match extend` |
+| `/recalc-games-from` | `/elo recalculate` |
+| `/elo-job-status` | `/elo status` |
+
+Future families would use `/game show|rename|set-map|set-tribe|notes|logs`,
+`/match open|join|leave|kick|start|list`,
+`/player show|set-name|set-time|names`, and
+`/leaderboard players|teams|squads`.
+
+Advantages: the vocabulary follows user-facing domain concepts; ranked and
+unranked games remain under `/game`; matchmaking has a clear lifecycle; ELO
+is reserved for rating-specific maintenance and reporting. It scales without
+turning one root into a miscellaneous drawer.
+
+Costs: every current native name changes; `/game` becomes a group, so viewing
+a game is `/game show` rather than bare `/game`; grouped wrappers must be
+separate from the preserved prefix decorators.
+
+#### T-B — One ELO-branded umbrella
+
+Treat the bot as one ELO application and put nearly all native commands under
+one root:
+
+| Current native name | Proposed name |
+|---|---|
+| `/newgame` | `/elo game create` |
+| `/win` | `/elo game win` |
+| `/unwin` | `/elo game unwin` |
+| `/delete` | `/elo game delete` |
+| `/confirm` | `/elo game confirm` |
+| `/unconfirmed` | `/elo game unconfirmed` |
+| `/set-ranked` | `/elo game set-ranked` |
+| `/extend` | `/elo match extend` |
+| `/recalc-games-from` | `/elo admin recalculate` |
+| `/elo-job-status` | `/elo admin status` |
+
+Future subcommand groups would include `game`, `match`, `player`,
+`leaderboard`, `team`, and `admin`. Discord supports this root/group/command
+shape, such as `/elo game unwin`.
+
+Advantages: users learn one root; autocomplete after `/elo` exposes the
+available families; the application has a strong branded identity.
+
+Costs: unranked games, registration, matchmaking, and league operations are
+not naturally ELO concepts; the root can become crowded; Discord permits only
+one subcommand-group level, so deeper organization is unavailable. The
+meaning of `/elo` becomes “everything PolyBot does,” not specifically rating.
+
+If staff prefer this structure but dislike the semantic mismatch, `/poly` or
+`/bot` can replace `/elo` without changing the rest of the proposal.
+
+#### T-C — Conservative flat commands
+
+Keep the beta-tested names and use consistent prefixes only for future
+additions:
+
+| Existing names retained | Example future names |
+|---|---|
+| `/newgame`, `/win`, `/unwin`, `/delete` | `/game-info`, `/game-rename`, `/game-set-map` |
+| `/confirm`, `/unconfirmed`, `/set-ranked`, `/extend` | `/match-open`, `/match-join`, `/match-start` |
+| `/recalc-games-from`, `/elo-job-status` | `/player-info`, `/player-set-name`, `/leaderboard` |
+
+Advantages: least migration work and no relearning of the already-tested
+surface; hybrid commands can remain hybrids; each command is directly visible
+at the top level.
+
+Costs: the command picker becomes a long alphabetical list; related operations
+are scattered; naming conventions remain partly historical (`newgame` versus
+hyphenated names); later cleanup becomes harder after production adoption.
+
+#### Vote and transition rules
+
+Staff should vote on the taxonomy, not individual spellings. After a winner is
+selected, perform a short spelling review for terms such as `create` versus
+`new`, `unconfirmed` versus `pending-confirmation`, and `match` versus
+`lobby`.
+
+Recommended ballot:
+
+1. T-A — domain groups;
+2. T-B — one umbrella (with a second choice of `/elo`, `/poly`, or `/bot`);
+3. T-C — conservative flat commands.
+
+Use ranked-choice voting if practical. Include “no preference” rather than
+forcing a random ranking. Until a result is available, T-A and the spellings
+in its capability map are the development defaults and do not block
+registrations.
+
+Because these commands have not reached production, the cleanest transition
+is one coordinated beta rename followed by a development-guild sync and
+smoke test. If staff need an adjustment period, old top-level slash names may
+remain as explicitly deprecated wrappers for one beta cycle. Discord does not
+redirect renamed commands, so every retained alias is a separately registered
+application command. Do not carry transitional aliases into production
+without a separate decision.
+
 ## Slash compatibility compromise ledger
 
 This is the running record of behavior that a native interaction does not
@@ -225,6 +362,8 @@ check:
 - P4.1a implementation checkpoints: `3e1f395`, `d2526b4`
 - P4.1a visibility checkpoint: `2cba1cc`
 - P4.1a accumulation merge: `5888c02`
+- P4.1b implementation checkpoint: `c0945a3`
+- P4.1c implementation checkpoint: `204ab40`
 - T1 fixture-harness implementation checkpoint: `4551bec`
 - T1 roadmap-evidence checkpoint: `d6e826b`
 - T1 accumulation merge: `aacace4`
@@ -232,7 +371,7 @@ check:
   working
 - combined development sync: all eight expected commands synchronized to
   guild `478571892832206869`; P2.2 and P3.1 accepted by the user
-- complete offline suite: 115 tests passed, with eight gated database tests
+- complete offline suite: 123 tests passed, with eight gated database tests
   skipped as designed
 - gated `polytopia_dev` suite: eight tests passed under the required
   `development` / `polytopia_dev` / `polybot_dev` checks
@@ -240,16 +379,16 @@ check:
 - optional cleanup: unused `Team.id=9`, `Phase7 Test Team`, remains in
   `polytopia_dev` with zero players and zero game sides
 
-Current unit: **P4.1b — Pending-game extension**, Planned on
-`codex/database-slash-modernization` at integrated checkpoint `5888c02`.
-P0 through P3 and T1 are Complete on the intended accumulation branch.
+Current unit: **P4.1c — Unstart transaction separation**, Implemented on
+`codex/p4-1c-unstart-separation`, stacked from the P4.1b evidence checkpoint
+`af4ef51`. P0 through P3 and T1 are Complete on the intended accumulation
+branch.
 
-Owned games `115`-`117` were removed successfully after the combined beta
-session, and a gated status check reports no owned fixtures. Interactive
-`/newgame` game `118` (`Foobar`) is not harness-owned and has no deletion
-record in the development logs. It is intentionally retained as a manual
-development fixture for upcoming command units; its state must be inspected
-before reuse because the harness does not reset or own it.
+Owned fixture games `149`-`151` are intentionally retained. At the latest
+gated status check, `149` is incomplete/unranked, `150` is
+unconfirmed/ranked, and `151` is confirmed/ranked. Inspect them before reuse.
+Interactive `/newgame` game `118` (`Foobar`) also remains an unowned manual
+fixture whose state must be inspected before reuse.
 
 Runtime status is deliberately not recorded as fact here. Verify whether a
 beta process is running before starting or stopping one.
@@ -287,7 +426,7 @@ beta launches, command synchronization, pushes, or PR operations by itself.
 | P2 | Complete | Fix known game-creation transaction boundary | `newgame` workflow atomic and Discord effects post-commit |
 | P3 | Complete | Owner ELO maintenance and job observability | Typed slash maintenance interface and active-job status |
 | T1 | Complete | Deterministic development beta fixtures | Gated, idempotent seed/status/cleanup tooling |
-| P4 | Planned | Game correction and metadata mutations | Bounded workers plus slash interfaces for clear typed operations |
+| P4 | In progress | Game correction and metadata mutations | Bounded workers plus slash interfaces for clear typed operations |
 | P5 | Planned | Matchmaking lifecycle | Atomic open/join/leave/kick/start flows and native interactions |
 | P6 | Planned | Registration and player preferences | Worker-safe profile writes and slash UX |
 | P7 | Planned | Read-heavy game, player, and leaderboard commands | Bounded read path and responsive slash queries |
@@ -1061,7 +1200,7 @@ separately from harness-owned fixtures.
 
 ## P4 — Game correction and metadata mutations
 
-Status: **Planned**
+Status: **In progress**
 
 Split this phase into small vertical units. Do not implement all candidates in
 one commit.
@@ -1145,9 +1284,185 @@ Next action: P4.1b pending-game extension. Preserve prefix `extend`, add a
 typed native interface, and move timer validation/mutation into the bounded
 ordinary-game worker.
 
+#### P4.1b — Pending-game extension
+
+Status: **Implemented**
+
+Branch/base: `codex/p4-1b-pending-game-extension` from
+`codex/database-slash-modernization` at `62ea671`.
+
+Commit(s):
+
+- `c0945a3` — Modernize pending game extension.
+
+Objective: preserve the staff prefix timer extension while moving its
+database mutation off the event loop and adding a transparent typed native
+interface.
+
+Database boundary:
+
+- The bounded ordinary-game executor accepts primitive game/guild/requester
+  data and opens a worker-local Peewee connection.
+- The worker reloads and revalidates the game, computes the new deadline, and
+  commits the expiration plus a new audit log in one synchronous transaction.
+- A per-game claim covers the worker lifecycle. There are no Discord effects
+  beyond the post-commit completion response and no model reload is needed
+  after commit.
+
+Slash decision: preserve prefix `$extend` and add staff-only
+`/extend game_id`. A separate slash wrapper keeps the existing `PolyGame`
+prefix converter intact while providing a typed integer option. Successful
+output is public under D-017; denials, validation failures, lock conflicts,
+and database errors are ephemeral. No compatibility-ledger gap was
+introduced.
+
+Implementation evidence:
+
+- The legacy rule is preserved: a future deadline gains 24 hours from its
+  existing value, while an expired deadline becomes 24 hours from execution.
+- Worker validation rejects cross-guild and non-pending games before writes.
+- Audit-log failure rolls back the expiration and closes the worker
+  connection.
+- A simulated slow worker leaves an unrelated event-loop timer responsive.
+- Prefix and slash registration, staff denial before defer, public defer
+  ordering, and typed option shape are covered offline.
+- The shared executor was renamed from `polybot-newgame` to
+  `polybot-game-write` because it now bounds multiple ordinary game-write
+  workflows.
+
+Files changed:
+
+- `modules/game_workers.py`
+- `modules/administration.py`
+- `tests/test_game_extension.py`
+- `docs/DATABASE_AND_SLASH_MODERNIZATION.md`
+
+Validation evidence:
+
+- `POLYBOT_ENV=development MPLCONFIGDIR=/tmp/polybot-matplotlib
+  .venv/bin/python -m unittest tests.test_game_extension -v`: eight passed.
+- Complete offline suite: 123 passed with eight gated database tests skipped
+  as designed.
+- Existing gated development-database suite: seven passed and the fixture
+  round-trip test skipped itself to preserve operator-managed games
+  `149`-`151`; the gate confirmed `development`, `polytopia_dev`, and
+  `polybot_dev`.
+- `git diff --check`: clean.
+
+Beta result: pending. None of the retained owned fixtures is a known pending
+matchmaking game. A later smoke test needs a safely created pending game, or
+can be combined with P4.1c `unstart`, which converts the retained started
+fixture into the state required by `/extend`.
+
+Remaining limitations:
+
+- Prefix `PolyGame` conversion remains a short synchronous event-loop lookup.
+- Ordinary game writes share one bounded executor and therefore queue behind
+  one another; Discord events and ELO jobs use separate execution paths.
+
+Next action: commit P4.1b. Prefer stacking the separately bounded P4.1c
+`unstart` unit for one combined beta session unless review finds its Discord
+channel reconciliation too broad.
+
 Use typed game IDs and choices. If these commands can race with finalized ELO
 state, use the ELO coordinator; otherwise use a per-game claim rather than
 blocking all ELO work.
+
+#### P4.1c — Unstart transaction separation
+
+Status: **Implemented**
+
+Branch/base: `codex/p4-1c-unstart-separation`, stacked from P4.1b evidence
+checkpoint `af4ef51`.
+
+Commit(s):
+
+- `204ab40` — Separate unstart database and Discord effects.
+
+Objective: preserve the staff prefix workflow while committing the
+started-to-pending transition before announcement edits or channel deletion,
+and make partial Discord cleanup observable and reconcilable.
+
+Database boundary:
+
+- The ordinary-game worker accepts primitive game/guild/request data, opens a
+  worker-local connection, reloads the game, revalidates guild and mutable
+  state, and commits `is_pending`, the minimum 24-hour expiration, and the
+  audit log in one synchronous transaction.
+- The immutable result carries only primitive announcement IDs, mentions, and
+  channel targets. No Peewee or Discord object crosses into the worker.
+- Discord announcement/channel effects run only after commit. Successfully
+  deleted channel IDs are cleared in a second bounded worker-local
+  reconciliation transaction; failed or deliberately skipped deletions retain
+  their database references and produce a visible warning.
+- The existing per-game claim remains held through the database transition,
+  Discord effects, and reconciliation. This operation does not interact with
+  completed games or use the ELO coordinator.
+
+Slash decision: preserve staff-only prefix `$unstart`. D-018 now authorizes
+the typed integer adapter at `/match unstart`; implement it in the bounded
+domain-group registration unit rather than adding a temporary top-level
+`/unstart`. This is sequencing rather than reduced native parity, so it adds
+no compatibility-ledger row.
+
+Implementation evidence:
+
+- Invocation from a game-associated channel remains rejected before worker
+  submission, preserving the safety rule against deleting the command's own
+  channel.
+- Worker validation preserves completed/confirmed and already-pending
+  rejection behavior and adds authoritative cross-guild rejection.
+- The announcement still renders the legacy display-only
+  `GAME CANCELLED` name without persisting that name to the database.
+- `channels.delete_game_channel` now reports deletion success, treats an
+  already-absent Discord channel as successfully gone, and reports archived,
+  permission-blocked, or failed deletions as unsuccessful for reconciliation.
+- Database-failure injection proves no announcement or channel effect runs.
+  Ordering coverage proves the initial commit precedes Discord deletion and
+  reconciliation follows only successful deletion.
+- A simulated slow transition leaves an unrelated event-loop timer
+  responsive.
+
+Files changed:
+
+- `modules/game_workers.py`
+- `modules/administration.py`
+- `modules/channels.py`
+- `tests/test_game_unstart.py`
+- `docs/DATABASE_AND_SLASH_MODERNIZATION.md`
+
+Validation evidence:
+
+- `POLYBOT_ENV=development MPLCONFIGDIR=/tmp/polybot-matplotlib
+  .venv/bin/python -m unittest tests.test_game_unstart -v`: nine passed.
+- Complete offline suite: 132 passed with eight gated database tests skipped
+  as designed.
+- Existing gated development-database suite: seven passed and the fixture
+  round-trip skipped itself to preserve the retained operator fixture set;
+  the gate confirmed `development`, `polytopia_dev`, and `polybot_dev`.
+- `git diff --check`: clean before this documentation update.
+
+Beta result: pending. After the domain-group registration unit, a combined
+session can test `/match unstart` followed by `/match extend` while also
+checking preserved `$unstart 149`. Inspect fixture 149 immediately before use
+and record any announcement or channel resources affected.
+
+Remaining limitations:
+
+- Announcement rendering reloads the committed model synchronously on the
+  event-loop thread before the Discord edit. The transition and all
+  potentially material writes are bounded, but a later read/display DTO unit
+  should remove this short post-commit model load.
+- Cancellation after the synchronous transition commits can skip some or all
+  Discord effects. Retained channel references make failed/skipped deletion
+  discoverable, but no persistent reconciliation queue exists yet.
+- The command remains prefix-only until the authorized domain-group
+  registration unit adds `/match unstart`.
+
+Next action: integrate the reviewed P4.1b/P4.1c checkpoints into the
+accumulation branch, then create a bounded domain-group registration unit for
+the current native surface, including `/match extend` and `/match unstart`.
+Use one separately approved beta session after that unit.
 
 ### P4.2 — Game metadata
 
@@ -1578,7 +1893,52 @@ their prefix equivalents. Permission denials, validation failures, and
 database errors should generally remain ephemeral. A command may make success
 private only for a recorded privacy or safety reason.
 
+### D-018 — Select slash taxonomy before expanding the public surface
+
+Status: Provisionally accepted for development
+
+T-A domain groups are the working architecture and unblock further native
+development. Prefix commands remain stable, and grouped slash commands are
+thin adapters over existing shared worker/application paths. Because the
+surface has not reached production, migrate the current beta registrations
+cleanly in one bounded unit rather than preserving top-level aliases by
+default. Staff may still select another recorded taxonomy; if they do, revise
+the registration layer and documentation before P9 deployment.
+
 ## Progress log
+
+### 2026-07-29 — Slash taxonomy review prepared
+
+- Inventoried the complete in-scope repository-backed surface: 83 explicit prefix
+  handlers, customized framework help, 10 current native registrations,
+  aliases, and the optional Bullet family. Excluded the seven-command legacy
+  API cog from the modernization taxonomy and backlog.
+- Added `docs/SLASH_COMMAND_TAXONOMY_REVIEW.md` with a disposition and
+  recommended native home for every existing command handler, including
+  explicit operator-only and retain/retire classifications.
+- Proposed three staff-vote alternatives: domain groups (recommended), one
+  application umbrella, and systematic flat commands.
+- Confirmed that grouped slash wrappers can preserve the existing prefix
+  names; no transaction worker or permission behavior needs to change solely
+  for a rename.
+- Froze further slash naming decisions after P4.1b until staff select a
+  taxonomy and approve final spellings.
+- Made no command-registration, synchronization, beta-runtime, database, or
+  production change.
+
+### 2026-07-29 — Domain taxonomy provisionally selected
+
+- Authorized T-A domain groups as the working development taxonomy without
+  waiting for the staff vote.
+- Removed the naming freeze for new slash work; the documented T-A spellings
+  are now the defaults.
+- Kept prefix names and aliases stable and kept registration changes separate
+  from transaction-worker units.
+- Selected a bounded current-surface registration migration as the next unit
+  after P4.1b/P4.1c integration, followed by one separately approved beta
+  synchronization and smoke session.
+- Retained the ability to revise the slash registration layer before
+  production if staff unexpectedly choose another taxonomy.
 
 ### 2026-07-29 — ELO/slash pilot beta accepted
 
@@ -1854,6 +2214,49 @@ private only for a recorded privacy or safety reason.
   recorded post-test states remain authoritative until inspected again.
 - Next: P4.1b pending-game extension, followed separately by the more
   destructive `unstart` workflow.
+
+### 2026-07-29 — P4.1b pending-game extension implemented
+
+- Created `codex/p4-1b-pending-game-extension` from accumulation checkpoint
+  `62ea671`.
+- Preserved `$extend` and added staff-only typed `/extend game_id` with
+  public successful output.
+- Moved deadline validation, mutation, and audit logging into one bounded
+  worker-local transaction using primitive inputs and a per-game claim.
+- Preserved both future-deadline and expired-deadline calculation behavior.
+- Passed eight focused tests and the complete 123-test offline suite with
+  eight gated skips.
+- The gated development-database suite passed seven tests; its fixture
+  round-trip safely skipped to preserve the retained operator fixture set.
+- No beta launch, synchronization, production operation, dependency change,
+  or schema change was performed.
+- Recorded implementation checkpoint `c0945a3`.
+- Next: commit P4.1b and review P4.1c `unstart` as a separately bounded unit
+  suitable for the same later beta session.
+
+### 2026-07-29 — P4.1c unstart separation implemented
+
+- Created `codex/p4-1c-unstart-separation`, stacked from P4.1b evidence
+  checkpoint `af4ef51`.
+- Preserved staff prefix `$unstart` and its game-channel invocation guard.
+- Moved mutable-state validation, pending/expiration mutation, and audit
+  logging into one bounded worker-local transaction.
+- Moved announcement editing and channel deletion after commit, then
+  reconciled only confirmed deletions in a second bounded transaction.
+- Initially deferred the typed slash adapter under D-018; the subsequent
+  provisional T-A decision authorizes `/match unstart` in the bounded
+  domain-group registration unit.
+- Passed nine focused tests and the complete offline suite: 132 passed with
+  eight gated skips.
+- Passed seven gated development-database tests; the fixture round-trip
+  skipped to preserve operator fixtures after confirming `development`,
+  `polytopia_dev`, and `polybot_dev`.
+- Recorded implementation checkpoint `204ab40`. No beta launch, command
+  synchronization, production operation, dependency change, or schema change
+  was performed.
+- Next: integrate P4.1b/P4.1c, implement the bounded domain-group registration
+  unit, and use one separately approved beta session for `/match extend`,
+  `/match unstart`, and preserved prefix behavior.
 
 ## Resume checklist
 

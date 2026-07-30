@@ -2,6 +2,7 @@ from discord.ext import commands
 import modules.models as models
 import modules.utilities as utilities
 import modules.image_storage as image_storage
+import modules.channels as channels
 import settings
 import logging
 import peewee
@@ -181,6 +182,113 @@ class administration(commands.Cog):
                 f'Game {game.id} is now marked as {state}.\n'
                 f'Notifying players: {" ".join(game.mentions())}'
             )
+        finally:
+            utilities.unlock_game(game_id)
+
+    async def _extend_pending_game(
+        self,
+        *,
+        game_id: int,
+        guild_id: int,
+        requester,
+    ):
+        utilities.lock_game(game_id)
+        try:
+            return await game_workers.run_pending_game_extension(
+                game_id,
+                guild_id,
+                models.GameLog.member_string(requester),
+            )
+        finally:
+            utilities.unlock_game(game_id)
+
+    async def _unstart_game_and_post(
+        self,
+        *,
+        game_id: int,
+        guild,
+        prefix: str,
+        requester,
+    ):
+        utilities.lock_game(game_id)
+        try:
+            result = await game_workers.run_game_unstart(
+                game_id,
+                guild.id,
+                models.GameLog.member_string(requester),
+                f'{prefix}unstart',
+            )
+
+            warnings = []
+            if (
+                result.announcement_channel_id is not None
+                and result.announcement_message_id is not None
+            ):
+                try:
+                    game = models.Game.load_full_game(result.game_id)
+                    # Render the same cancelled in-progress card as the
+                    # legacy command without persisting the display-only name.
+                    game.is_pending = False
+                    game.name = f'~~{result.game_name}~~ GAME CANCELLED'
+                    await game.update_announcement(
+                        guild=guild,
+                        prefix=prefix,
+                    )
+                except (peewee.PeeweeException, exceptions.MyBaseException):
+                    logger.exception(
+                        'Could not update the cancelled announcement for '
+                        'unstarted game %s',
+                        result.game_id,
+                    )
+                    warnings.append('the game announcement was not updated')
+
+            deleted_targets = []
+            for target in result.channel_targets:
+                target_guild = discord.utils.get(
+                    self.bot.guilds,
+                    id=target.guild_id,
+                )
+                if target_guild is None:
+                    logger.warning(
+                        'Could not find guild %s for game %s channel %s',
+                        target.guild_id,
+                        result.game_id,
+                        target.channel_id,
+                    )
+                    continue
+                if await channels.delete_game_channel(
+                    target_guild,
+                    target.channel_id,
+                ):
+                    deleted_targets.append(target)
+
+            if deleted_targets:
+                try:
+                    await game_workers.run_deleted_channel_reconciliation(
+                        result.game_id,
+                        guild.id,
+                        tuple(deleted_targets),
+                    )
+                except peewee.PeeweeException:
+                    logger.exception(
+                        'Could not reconcile deleted channels for unstarted '
+                        'game %s',
+                        result.game_id,
+                    )
+                    warnings.append(
+                        'deleted channel references need reconciliation'
+                    )
+
+            if len(deleted_targets) != len(result.channel_targets):
+                warnings.append('one or more game channels were not deleted')
+
+            message = (
+                f'Game {result.game_id} is now an open game and no longer in '
+                f'progress.\nNotifying players: {" ".join(result.mentions)}'
+            )
+            if warnings:
+                message += f'\n:warning: {"; ".join(warnings)}.'
+            return message
         finally:
             utilities.unlock_game(game_id)
 
@@ -843,27 +951,20 @@ class administration(commands.Cog):
 
         if game is None:
             return await ctx.send('No matching game was found.')
-        if game.is_completed or game.is_confirmed:
-            return await ctx.send(f'Game {game.id} is marked as completed already.')
-        if game.is_pending:
-            return await ctx.send(f'Game {game.id} is already a pending matchmaking session.')
 
         if game.uses_channel_id(ctx.channel.id):
             return await ctx.send(':warning: This command must be used from a channel that is not related to the game.')
 
-        if game.announcement_message:
-            game.name = f'~~{game.name}~~ GAME CANCELLED'
-            await game.update_announcement(guild=ctx.guild, prefix=ctx.prefix)
-
-        await game.delete_game_channels(self.bot.guilds, ctx.guild.id)
-
-        game.is_pending = True
-        tomorrow = (datetime.datetime.now() + datetime.timedelta(hours=24))
-        game.expiration = tomorrow if game.expiration < tomorrow else game.expiration
-        game.save()
-        models.GameLog.write(game_id=game, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} changed in-progress game to an open game. (`{ctx.prefix}unstart`)')
-
-        await ctx.send(f'Game {game.id} is now an open game and no longer in progress.\nNotifying players: {" ".join(game.mentions())}')
+        try:
+            message = await self._unstart_game_and_post(
+                game_id=game.id,
+                guild=ctx.guild,
+                prefix=ctx.prefix,
+                requester=ctx.author,
+            )
+        except game_workers.GameUnstartValidationError as exc:
+            return await ctx.send(str(exc))
+        await ctx.send(message)
 
     @commands.command(usage='game_id')
     async def extend(self, ctx, game: PolyGame = None):
@@ -876,19 +977,58 @@ class administration(commands.Cog):
         if not game:
             return await ctx.send('No game ID provided.')
 
-        if not game.is_pending:
-            return await ctx.send(f'Game {game.id} is no longer an open game so cannot be extended.')
+        try:
+            result = await self._extend_pending_game(
+                game_id=game.id,
+                guild_id=ctx.guild.id,
+                requester=ctx.author,
+            )
+        except game_workers.GameExtensionValidationError as exc:
+            return await ctx.send(str(exc))
+        return await ctx.send(
+            f'Game {result.game_id}\'s deadline has been extended to '
+            f'**{result.new_expiration}**. Previous expiration was '
+            f'**{result.old_expiration}**.'
+        )
 
-        old_expiration = game.expiration
-
-        if game.expiration < datetime.datetime.now():
-            new_expiration = datetime.datetime.now() + datetime.timedelta(hours=24)
-        else:
-            new_expiration = game.expiration + datetime.timedelta(hours=24)
-
-        game.expiration = new_expiration
-        game.save()
-        return await ctx.send(f'Game {game.id}\'s deadline has been extended to **{game.expiration}**. Previous expiration was **{old_expiration}**.')
+    @discord.app_commands.command(
+        name='extend',
+        description='Extend an open game deadline by 24 hours.',
+    )
+    @discord.app_commands.guild_only()
+    @discord.app_commands.describe(game_id='Open game to extend.')
+    async def extend_slash(
+        self,
+        interaction: discord.Interaction,
+        game_id: int,
+    ):
+        if not settings.is_staff(interaction.user):
+            return await interaction.response.send_message(
+                'You do not have permission to use this command.',
+                ephemeral=True,
+            )
+        await interaction.response.defer()
+        try:
+            result = await self._extend_pending_game(
+                game_id=game_id,
+                guild_id=interaction.guild.id,
+                requester=interaction.user,
+            )
+        except game_workers.GameExtensionValidationError as exc:
+            return await interaction.followup.send(str(exc), ephemeral=True)
+        except exceptions.RecordLocked as exc:
+            return await interaction.followup.send(str(exc), ephemeral=True)
+        except peewee.PeeweeException:
+            logger.exception('Failed pending-game extension for %s', game_id)
+            return await interaction.followup.send(
+                'Game extension failed and rolled back.',
+                ephemeral=True,
+            )
+        await interaction.followup.send(
+            f'Game {result.game_id}\'s deadline has been extended to '
+            f'**{result.new_expiration}**. Previous expiration was '
+            f'**{result.old_expiration}**.'
+        )
 
     @commands.command(usage='tribe_name new_emoji')
     @commands.is_owner()

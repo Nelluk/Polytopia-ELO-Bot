@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import datetime
 import functools
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
@@ -55,6 +56,39 @@ class RankedStateResult:
     is_ranked: bool
 
 
+class GameExtensionValidationError(RuntimeError):
+    """The game cannot receive the requested expiration extension."""
+
+
+@dataclass(frozen=True)
+class GameExtensionResult:
+    game_id: int
+    old_expiration: datetime.datetime
+    new_expiration: datetime.datetime
+
+
+class GameUnstartValidationError(RuntimeError):
+    """The game cannot be returned to pending matchmaking."""
+
+
+@dataclass(frozen=True)
+class GameChannelTarget:
+    gameside_id: int | None
+    channel_id: int
+    guild_id: int
+
+
+@dataclass(frozen=True)
+class GameUnstartResult:
+    game_id: int
+    game_name: str
+    announcement_channel_id: int | None
+    announcement_message_id: int | None
+    mentions: tuple[str, ...]
+    channel_targets: tuple[GameChannelTarget, ...]
+    new_expiration: datetime.datetime
+
+
 @dataclass(frozen=True)
 class _RoleView:
     name: str
@@ -71,9 +105,9 @@ class _MemberView:
     roles: tuple[_RoleView, ...]
 
 
-_new_game_executor = ThreadPoolExecutor(
+_game_write_executor = ThreadPoolExecutor(
     max_workers=1,
-    thread_name_prefix='polybot-newgame',
+    thread_name_prefix='polybot-game-write',
 )
 
 
@@ -137,7 +171,7 @@ async def run_new_game_creation(request: NewGameRequest) -> NewGameResult:
 
     loop = asyncio.get_running_loop()
     call = functools.partial(create_new_game, request)
-    return await loop.run_in_executor(_new_game_executor, call)
+    return await loop.run_in_executor(_game_write_executor, call)
 
 
 def set_game_ranked_state(
@@ -200,4 +234,217 @@ async def run_ranked_state_correction(
         is_ranked,
         requester_description,
     )
-    return await loop.run_in_executor(_new_game_executor, call)
+    return await loop.run_in_executor(_game_write_executor, call)
+
+
+def extend_pending_game(
+    game_id: int,
+    guild_id: int,
+    requester_description: str,
+    now: datetime.datetime | None = None,
+) -> GameExtensionResult:
+    """Extend one pending game's expiration in a local transaction."""
+
+    now = now or datetime.datetime.now()
+    with models.db.connection_context():
+        with models.db.atomic():
+            try:
+                game = models.Game.get_by_id(game_id)
+            except peewee.DoesNotExist as exc:
+                raise GameExtensionValidationError(
+                    f'Game with ID {game_id} cannot be found.'
+                ) from exc
+            if game.guild_id != guild_id:
+                raise GameExtensionValidationError(
+                    f'Game with ID {game_id} is associated with a different '
+                    'Discord server.'
+                )
+            if not game.is_pending:
+                raise GameExtensionValidationError(
+                    f'Game {game.id} is no longer an open game so cannot be '
+                    'extended.'
+                )
+
+            old_expiration = game.expiration
+            if old_expiration < now:
+                new_expiration = now + datetime.timedelta(hours=24)
+            else:
+                new_expiration = old_expiration + datetime.timedelta(hours=24)
+            game.expiration = new_expiration
+            game.save()
+            models.GameLog.write(
+                game_id=game.id,
+                guild_id=guild_id,
+                message=(
+                    f'{requester_description} extended the pending-game '
+                    f'deadline from {old_expiration} to {new_expiration}.'
+                ),
+            )
+            return GameExtensionResult(
+                game_id=game.id,
+                old_expiration=old_expiration,
+                new_expiration=new_expiration,
+            )
+
+
+async def run_pending_game_extension(
+    game_id: int,
+    guild_id: int,
+    requester_description: str,
+) -> GameExtensionResult:
+    """Submit one extension to the bounded ordinary-game executor."""
+
+    loop = asyncio.get_running_loop()
+    call = functools.partial(
+        extend_pending_game,
+        game_id,
+        guild_id,
+        requester_description,
+    )
+    return await loop.run_in_executor(_game_write_executor, call)
+
+
+def unstart_game(
+    game_id: int,
+    guild_id: int,
+    requester_description: str,
+    invoked_with: str,
+    now: datetime.datetime | None = None,
+) -> GameUnstartResult:
+    """Return one started game to pending state in a local transaction."""
+
+    now = now or datetime.datetime.now()
+    with models.db.connection_context():
+        with models.db.atomic():
+            try:
+                game = models.Game.get_by_id(game_id)
+            except peewee.DoesNotExist as exc:
+                raise GameUnstartValidationError(
+                    f'Game with ID {game_id} cannot be found.'
+                ) from exc
+            if game.guild_id != guild_id:
+                raise GameUnstartValidationError(
+                    f'Game with ID {game_id} is associated with a different '
+                    'Discord server.'
+                )
+            if game.is_completed or game.is_confirmed:
+                raise GameUnstartValidationError(
+                    f'Game {game.id} is marked as completed already.'
+                )
+            if game.is_pending:
+                raise GameUnstartValidationError(
+                    f'Game {game.id} is already a pending matchmaking '
+                    'session.'
+                )
+
+            gamesides = tuple(game.gamesides)
+            channel_targets = []
+            for gameside in gamesides:
+                if gameside.team_chan:
+                    channel_targets.append(GameChannelTarget(
+                        gameside_id=gameside.id,
+                        channel_id=gameside.team_chan,
+                        guild_id=(
+                            gameside.team_chan_external_server or guild_id
+                        ),
+                    ))
+            if game.game_chan:
+                channel_targets.append(GameChannelTarget(
+                    gameside_id=None,
+                    channel_id=game.game_chan,
+                    guild_id=guild_id,
+                ))
+
+            tomorrow = now + datetime.timedelta(hours=24)
+            if game.expiration is None or game.expiration < tomorrow:
+                game.expiration = tomorrow
+            game.is_pending = True
+            game.save()
+            models.GameLog.write(
+                game_id=game.id,
+                guild_id=guild_id,
+                message=(
+                    f'{requester_description} changed in-progress game to '
+                    f'an open game. (`{invoked_with}`)'
+                ),
+            )
+            return GameUnstartResult(
+                game_id=game.id,
+                game_name=game.name,
+                announcement_channel_id=game.announcement_channel,
+                announcement_message_id=game.announcement_message,
+                mentions=tuple(game.mentions()),
+                channel_targets=tuple(channel_targets),
+                new_expiration=game.expiration,
+            )
+
+
+async def run_game_unstart(
+    game_id: int,
+    guild_id: int,
+    requester_description: str,
+    invoked_with: str,
+) -> GameUnstartResult:
+    """Submit one unstart transition to the bounded game-write executor."""
+
+    loop = asyncio.get_running_loop()
+    call = functools.partial(
+        unstart_game,
+        game_id,
+        guild_id,
+        requester_description,
+        invoked_with,
+    )
+    return await loop.run_in_executor(_game_write_executor, call)
+
+
+def clear_deleted_game_channels(
+    game_id: int,
+    guild_id: int,
+    deleted_targets: tuple[GameChannelTarget, ...],
+) -> int:
+    """Clear channel references after their Discord channels were deleted."""
+
+    cleared = 0
+    with models.db.connection_context():
+        with models.db.atomic():
+            game = models.Game.get_by_id(game_id)
+            if game.guild_id != guild_id:
+                raise GameUnstartValidationError(
+                    f'Game with ID {game_id} is associated with a different '
+                    'Discord server.'
+                )
+            for target in deleted_targets:
+                if target.gameside_id is None:
+                    if game.game_chan == target.channel_id:
+                        game.game_chan = None
+                        game.save()
+                        cleared += 1
+                    continue
+                gameside = models.GameSide.get_by_id(target.gameside_id)
+                if (
+                    gameside.game_id == game_id
+                    and gameside.team_chan == target.channel_id
+                ):
+                    gameside.team_chan = None
+                    gameside.team_chan_external_server = None
+                    gameside.save()
+                    cleared += 1
+    return cleared
+
+
+async def run_deleted_channel_reconciliation(
+    game_id: int,
+    guild_id: int,
+    deleted_targets: tuple[GameChannelTarget, ...],
+) -> int:
+    """Reconcile successful post-commit Discord channel deletions."""
+
+    loop = asyncio.get_running_loop()
+    call = functools.partial(
+        clear_deleted_game_channels,
+        game_id,
+        guild_id,
+        deleted_targets,
+    )
+    return await loop.run_in_executor(_game_write_executor, call)
