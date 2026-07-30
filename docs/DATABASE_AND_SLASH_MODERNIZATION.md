@@ -1099,10 +1099,10 @@ Implementation evidence:
 
 Validation evidence:
 
-- `tests.test_ranked_state`: five passed, covering commit, rollback,
-  connection cleanup, event-loop responsiveness, registration, and
-  post-commit ordering.
-- Complete offline suite: 113 passed with eight gated skips.
+- `tests.test_ranked_state`: seven passed, covering commit, rollback,
+  connection cleanup, event-loop responsiveness, registration, permission
+  denial, defer ordering, and post-commit ordering.
+- Complete offline suite: 115 passed with eight gated skips.
 - Existing gated development-database suite: eight passed after confirming
   `development`, `polytopia_dev`, and `polybot_dev`.
 - `git diff --check`: clean.

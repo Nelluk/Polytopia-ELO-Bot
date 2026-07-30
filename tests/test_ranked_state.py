@@ -135,6 +135,75 @@ class RankedStateCommandTests(unittest.IsolatedAsyncioTestCase):
                 )
         load_game.assert_not_called()
 
+    async def test_slash_rejects_non_staff_before_defer(self):
+        cog = administration.administration.__new__(
+            administration.administration
+        )
+        interaction = SimpleNamespace(
+            user=SimpleNamespace(id=1),
+            response=SimpleNamespace(
+                send_message=mock.AsyncMock(),
+                defer=mock.AsyncMock(),
+            ),
+        )
+        with mock.patch.object(
+            administration.settings, 'is_staff', return_value=False
+        ), mock.patch.object(
+            cog, '_set_ranked_state_and_post', new=mock.AsyncMock()
+        ) as run_correction:
+            await administration.administration.set_ranked_slash.callback(
+                cog,
+                interaction,
+                42,
+                True,
+            )
+
+        interaction.response.send_message.assert_awaited_once()
+        interaction.response.defer.assert_not_awaited()
+        run_correction.assert_not_awaited()
+
+    async def test_slash_defers_before_worker_pipeline(self):
+        events = []
+        cog = administration.administration.__new__(
+            administration.administration
+        )
+
+        async def defer(**kwargs):
+            events.append(('defer', kwargs))
+
+        async def run_correction(**kwargs):
+            events.append(('worker', kwargs))
+            return 'Game 42 is now marked as ranked.'
+
+        interaction = SimpleNamespace(
+            user=SimpleNamespace(id=1, display_name='Staff'),
+            guild=SimpleNamespace(id=300),
+            response=SimpleNamespace(
+                send_message=mock.AsyncMock(),
+                defer=mock.AsyncMock(side_effect=defer),
+            ),
+            followup=SimpleNamespace(send=mock.AsyncMock()),
+        )
+        with mock.patch.object(
+            administration.settings, 'is_staff', return_value=True
+        ), mock.patch.object(
+            cog,
+            '_set_ranked_state_and_post',
+            new=mock.AsyncMock(side_effect=run_correction),
+        ):
+            await administration.administration.set_ranked_slash.callback(
+                cog,
+                interaction,
+                42,
+                True,
+            )
+
+        self.assertEqual([event[0] for event in events], ['defer', 'worker'])
+        interaction.followup.send.assert_awaited_once_with(
+            'Game 42 is now marked as ranked.',
+            ephemeral=True,
+        )
+
     async def test_slow_correction_does_not_block_event_loop(self):
         started = threading.Event()
         release = threading.Event()

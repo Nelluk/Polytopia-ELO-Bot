@@ -167,23 +167,22 @@ class administration(commands.Cog):
                 is_ranked,
                 models.GameLog.member_string(requester),
             )
+            game = models.Game.load_full_game(result.game_id)
+            state = 'ranked' if result.is_ranked else 'unranked'
+            await game.update_squad_channels(
+                guild_list=settings.bot.guilds,
+                guild_id=guild.id,
+                message=(
+                    f'Staff member **{requester.display_name}** has set this '
+                    f'game to be *{state}*.'
+                ),
+            )
+            return (
+                f'Game {game.id} is now marked as {state}.\n'
+                f'Notifying players: {" ".join(game.mentions())}'
+            )
         finally:
             utilities.unlock_game(game_id)
-
-        game = models.Game.load_full_game(result.game_id)
-        state = 'ranked' if result.is_ranked else 'unranked'
-        await game.update_squad_channels(
-            guild_list=settings.bot.guilds,
-            guild_id=guild.id,
-            message=(
-                f'Staff member **{requester.display_name}** has set this '
-                f'game to be *{state}*.'
-            ),
-        )
-        return (
-            f'Game {game.id} is now marked as {state}.\n'
-            f'Notifying players: {" ".join(game.mentions())}'
-        )
 
     @settings.is_superuser_check()
     @commands.command(aliases=['quit', 'restart_force'])
