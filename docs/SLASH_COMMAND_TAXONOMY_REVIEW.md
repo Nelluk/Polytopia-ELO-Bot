@@ -216,7 +216,7 @@ Taxonomy v2.2 applies this rule system-wide:
 | `/game search` | optional initial query or player | status/outcome/scope filters and paging |
 | `/game show` | optional game ID when it cannot be inferred from the channel | players, logs, attributes, and permitted actions |
 | `/game ping` | optional game ID when it cannot be inferred | audience/scope, long message, multiple uploads, preview, confirmation |
-| `/game record` | none for the normal draft flow | name, platform/ranked state, sides, members, review, confirmation |
+| `/game record` | game name, one roster string, and optional ranked state | parsed arbitrary sides, preview, roster editing, confirmation |
 | `/player show` | optional member; requester by default | history, teams, leaderboard position, permitted profile edits |
 | `/player register` | optional staff-selected member | one canonical Polytopia name and review |
 | `/team show` | optional team when requester context is unambiguous | roster, history, attributes, and permitted edits |
@@ -243,7 +243,7 @@ options or a coherent existing group over consuming the remaining headroom.
 | `/game join` | `join` | Join an available game using typed game/side options |
 | `/game leave` | `leave` | Leave an unstarted game |
 | `/game start` | `start` | Move a filled/open game into play |
-| `/game record` | `newgame` | Record an already-created Polytopia game; Native now as `/game create` |
+| `/game record` | `newgame` | Record an already-created Polytopia game; one roster string reuses the `vs` grammar, previews inferred sides, and supports editing before confirmation |
 | `/game show` | `game` | Display one game's full summary |
 | `/game search` | `games`, `allgames`, `incomplete`, `wins`, no-arg `confirm` | Typed, paginated discovery across lifecycle and result states |
 | `/game players` | `getnames` | Return draft-ordered canonical Polytopia names |
@@ -265,13 +265,15 @@ lists of games rather than presenting a read-only status as an action.
 
 #### Game ping composer
 
-`/game ping` consolidates `ping`, `pingall`, `pingmobile`, and `pingsteam`
-without reproducing their argument grammar as slash options:
+`/game ping` consolidates `ping` and `pingall` without reproducing their
+argument grammar as slash options. The platform-specific `pingmobile` and
+`pingsteam` aliases are obsolete under full cross-play and receive no native
+equivalent:
 
 1. Infer the current game when invoked in an unambiguous game channel;
    otherwise accept or request a game selection.
 2. Open a requester-only draft with audience choices for one game or, when
-   permitted, the requester's incomplete games and platform scope.
+   permitted, the requester's incomplete games.
 3. Collect long-form text in one or more modal sections and accept multiple
    uploads.
 4. Show a public-effect preview with the resolved game count, recipient
@@ -506,7 +508,7 @@ paths apply only if the feature remains active.
 | Player leaderboards | `/leaderboard players` opens the accepted Components v2 workspace with presets, population toggle, paging, page modal, and requester-rank jump | Replaces four presentation-oriented slash options with a discoverable mobile/desktop UI |
 | Game/player detail | Show the primary record immediately, then offer contextual history, players, attributes, and permitted actions | Keeps common lookup short while making secondary information discoverable |
 | Search and history | Essential target/query at invocation; Components v2 filters and pages refine the immutable result | Avoids large option lists and repeated commands while keeping reads bounded |
-| Arbitrary game recording | `/game record` opens a short-lived draft; modal collects name/options and native user selects fill sides; buttons add/edit sides and confirm | Restores large and multi-side coverage without message-content intent |
+| Arbitrary game recording | `/game record` parses one roster string using the established `vs` grammar, then opens a short-lived preview with Edit/Confirm/Cancel; a later guided member-selector editor can supplement the fast text path | Restores uneven, larger, and multi-side coverage without message-content intent while retaining an upgrade path for ambiguous names |
 | Game notes | `/game notes` reads directly; an Edit button opens a paragraph modal | Long text is awkward as a slash option and benefits from prefilled review |
 | Player registration | `/player register` modal with one canonical Polytopia name and optional staff-selected member | Removes an obsolete platform/name/code distinction while keeping onboarding short |
 | Team/house creation | Modal for name and typed attributes, followed by a review/confirm view | Multi-field creation is clearer than many optional slash arguments |

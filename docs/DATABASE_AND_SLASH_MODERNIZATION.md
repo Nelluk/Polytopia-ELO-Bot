@@ -4,7 +4,7 @@ Last updated: 2026-07-30
 
 Status: Active
 
-Current branch at last update: `codex/p7-5-lb2-components-v2`
+Current branch at last update: `codex/p2-3-game-record-roster`
 
 Source task: `thread://019fae66-8e3a-7a50-9a0f-d3d7160d2287`
 
@@ -243,7 +243,7 @@ excluded.
 
 The current locally implemented native surface is:
 
-- `/game create`, `/game win`, `/game unwin`, `/game delete`;
+- `/game record`, `/game win`, `/game unwin`, `/game delete`;
 - `/game confirm`, `/game unconfirmed`, `/game set-ranked`;
 - `/game extend`, `/game unstart`;
 - `/elo recalculate`, `/elo status`.
@@ -290,7 +290,7 @@ Additional staff/user feedback incorporated in v2.2:
   `/player show` defaults to the requester; `/game show` uses an inferred
   game only when context is unambiguous and otherwise requests a game ID.
 - `/game ping` opens an interactive composer instead of exposing message,
-  scope, platform, attachments, and confirmation as slash options. It must
+  scope, attachments, and confirmation as slash options. It must
   support multiple uploads and a high, explicit aggregate text limit through
   bounded multi-message delivery; it cannot promise unlimited Discord
   messages.
@@ -325,7 +325,7 @@ longer be retained.
 
 | ID / command | Native coverage | Accepted compromise and message-intent impact | Possible future mitigation | Status |
 |---|---|---|---|---|
-| C-001 `/newgame` | Typed two-sided games from 1v1 through 4v4; explicit ranked and Mobile/Steam options; requester is selected explicitly when participating | Native slash does not cover more than two sides, more than four players per side, or the one-opponent shortcut that infers the requester. Those shapes/conveniences currently remain on the prefix command and would be unavailable if message-content intent were retired. This is accepted for the initial conversion: `newgame` is rare in practice and normal usage is overwhelmingly even, two-sided games. Ranked/platform alias behavior is preserved as slash options. | If actual demand warrants it, add an interaction-only `/game custom` draft: modal for name, buttons to add/edit/remove sides, Discord user-select components to fill each side, review/validation, then explicit confirmation into the existing worker transaction. A short-lived in-memory draft is sufficient initially; persistence can be added only if restart survival matters. | Accepted temporary gap; not a P2.2 blocker |
+| C-001 `/newgame` | `/game record` accepts one roster string using the established `vs` grammar, infers arbitrary/unequal side sizes, preserves the one-opponent requester shortcut, and requires an interaction preview before creation | The former two-sided 1v1–4v4 limit is resolved without message-content intent. Text tokens can still be ambiguous when users do not supply mentions, and the first stage does not provide native member selectors for each roster position. Per-game Mobile/Steam input was deliberately removed because full cross-play makes it obsolete. | Add a guided Edit-sides workflow with native member selectors if beta usage shows that mention/text parsing is too error-prone; keep the fast roster string for experienced users. | Initial shape gap resolved by P2.3; text-resolution usability remains for beta evaluation |
 
 Every later slash conversion must add a row when parity is intentionally
 reduced. If there is no compromise, its unit evidence should explicitly say
@@ -394,13 +394,12 @@ check:
 - retained P7.5 showcase: 24 owned players (`163`-`186`) and 48 owned games
   (`200`-`247`), with gated status/confirmed-cleanup tooling
 
-Current unit: **P7.5 — Experimental Components v2 player leaderboard**,
-Beta-validated on `codex/p7-5-lb2-components-v2`, stacked from P7.4 checkpoint
-`ba717de`. The user explicitly authorized implementation, development-fixture
-seeding, development-guild synchronization, and a beta launch. `/lb2` is a
-temporary no-option test command and does not settle the still-reviewed
-system-wide taxonomy. The user accepted its desktop and mobile behavior as
-strictly preferable to the typed `/leaderboard players` result.
+Current unit: **P2.3 — Flexible `/game record` roster and cross-play
+cleanup**, In progress on `codex/p2-3-game-record-roster` from checkpoint
+`dd20e9b`. The accepted unit replaces the fixed `/game create` member matrix
+with one parsed roster string and a Components v2 review gate, removes
+platform from the native interface, and retains the existing transactional
+worker. Taxonomy v2.2 as a whole remains pending final approval.
 
 Owned fixture games `149`-`151` are intentionally retained. At the latest
 gated status check, `149` is incomplete/unranked, `150` is
@@ -793,9 +792,8 @@ Remaining limitations:
 - P2.1's recorded post-commit synchronous model reads/writes and cancellation
   limitation remain unchanged.
 
-Next action: P2 is closed on the accumulation branch. Preserve C-001 as the
-accepted native-interface limitation, and inspect retained manual fixture
-`118` before any later reuse.
+Next action: P2.3 supersedes the fixed P2.2 option matrix. Inspect retained
+manual fixture `118` before any later reuse.
 
 Exit criteria:
 
@@ -805,6 +803,89 @@ Exit criteria:
 - prefix behavior preserved;
 - slash decision implemented or explicitly deferred;
 - approved beta test if an application command is added.
+
+### P2.3 — Flexible `/game record` roster and cross-play cleanup
+
+Status: **Implemented; development beta acceptance pending**
+
+Branch/base: `codex/p2-3-game-record-roster` from P7.5 Components v2
+checkpoint `dd20e9b`.
+
+Objective: replace the fixed two-sided `/game create` option matrix with the
+taxonomy-proposed `/game record`, using one roster string and a Components v2
+review gate before the existing transactional worker.
+
+Selected interface:
+
+- required exact game name;
+- required roster string using `player ... vs player ...` grammar;
+- optional ranked Boolean;
+- no platform option;
+- requester-only parsed preview with Edit roster, Confirm record, and Cancel;
+- confirmation alone enters the existing prefix validation, bounded worker,
+  transaction, and post-commit Discord effects.
+
+The parser supports arbitrary side counts and unequal sizes subject to the
+existing guild/game rules. A single roster token retains the requester-versus-
+opponent shortcut. Mentions are recommended; quoted tokens are accepted, but
+ambiguous text names remain a documented usability limitation.
+
+Mobile/Steam is obsolete for new native recording because Polytopia now has
+full cross-play. The legacy database Boolean remains temporarily populated
+with its canonical compatibility value so this unit does not combine command
+UX with a schema/history migration. Existing Steam prefix aliases remain
+registered during transition but no longer create a distinct platform type.
+Broader removal of platform-specific open-game filters, stored names, emojis,
+and ping aliases is a separate compatibility unit.
+
+Required evidence:
+
+- [x] flexible parser coverage, including uneven and multiple sides;
+- [x] preview precedes worker submission;
+- [x] requester-only Edit/Confirm/Cancel controls;
+- [x] no slash platform option and canonical compatibility storage;
+- [x] prefix aliases preserved;
+- [x] rollback, responsiveness, and post-commit tests remain green;
+- [x] complete offline suite;
+- [x] gated development-database suite;
+- [ ] development beta restart/sync and smoke acceptance.
+
+Implementation evidence:
+
+- `modules/game_record_views.py` parses the legacy `vs` grammar with quoted
+  tokens, rejects incomplete/ambiguous side syntax, renders a Components v2
+  preview, and owns requester-only Edit/Confirm/Cancel controls.
+- `/game record` accepts only `game_name`, `roster`, and optional `ranked`;
+  the former platform and ten fixed member options are absent.
+- Preview member resolution and existing registration/channel/participation
+  checks happen before confirmation. The prefix callback and bounded P2.1
+  worker are not invoked until Confirm.
+- The shared prefix/slash resolver preserves permissions and the one-opponent
+  shortcut. Prefix aliases remain registered.
+- All new recorded games use the legacy `is_mobile=True` compatibility value,
+  including requests invoked through a retained Steam alias.
+- The gated real-schema test creates three sides, verifies three lineups, and
+  rolls the complete graph back.
+
+Validation:
+
+- Focused: `POLYBOT_ENV=development MPLCONFIGDIR=/tmp/polybot-matplotlib
+  .venv/bin/python -m unittest tests.test_newgame_worker -v` — 16 passed.
+- Complete offline: `POLYBOT_ENV=development
+  MPLCONFIGDIR=/tmp/polybot-matplotlib .venv/bin/python -m unittest discover
+  -v` — 181 passed, 9 gated skips.
+- Development database: `POLYBOT_ENV=development
+  POLYBOT_RUN_DB_INTEGRATION=1 MPLCONFIGDIR=/tmp/polybot-matplotlib
+  .venv/bin/python -m unittest tests.test_database_integration -v` — 8
+  passed; one fixture round trip safely skipped to preserve the
+  operator-managed set after confirming `polytopia_dev` and `polybot_dev`.
+- Compilation and `git diff --check`: passed.
+
+Implementation checkpoint: `6af7c92`.
+
+Next action: checkpoint this evidence, restart the standing development beta,
+verify `/game record` replaced `/game create`, and obtain a smoke result for
+preview/edit/cancel/confirm plus one multi-side roster.
 
 ## P3 — Owner ELO maintenance and observability
 
@@ -2582,7 +2663,7 @@ Four user/staff decisions refine the system-wide proposal:
 
 1. `/game ping` is an interactive composer. The invocation accepts only an
    optional game target when channel inference cannot identify it. Audience,
-   platform/scope, long-form text, uploads, preview, and confirmation are
+   scope, long-form text, uploads, preview, and confirmation are
    interactive refinements. The composer must accept multiple attachments.
    Discord currently permits up to 4,000 characters in one modal text input
    and up to 10 files in one File Upload component, so the design uses
@@ -2649,7 +2730,54 @@ This standing authorization does not apply to production operations, global
 command synchronization, other guilds or runtime profiles, dependency
 installation, or materially broader live tests.
 
+### D-027 — Retire per-game platform distinctions under cross-play
+
+Status: Accepted
+
+Mobile and Steam now have full Polytopia cross-play, so new slash commands
+must not ask for a per-game platform. As related commands are modernized,
+remove platform-specific native choices and treat `newsteamgame`,
+`newsteamgameunranked`, `pingmobile`, `pingsteam`, platform filters, display
+emoji, and dual stored-name behavior as legacy compatibility surfaces.
+
+P2.3 removes the platform option from `/game record` and stores the existing
+database Boolean at its canonical compatibility value. The Boolean and
+historical rows remain until a separately gated schema/data cleanup can
+retire all readers safely. Prefix aliases remain registered during transition
+but must not imply a meaningful platform difference in newly recorded games.
+
+### D-028 — Use a roster string plus component review for `/game record`
+
+Status: Accepted for implementation; beta acceptance pending
+
+`/game record` takes the exact game name, one roster string using the familiar
+`vs` grammar, and an optional ranked flag. It parses arbitrary and unequal
+sides, resolves members, and presents a requester-only Components v2 preview.
+Only Confirm submits the existing validation/worker/post-commit pipeline;
+Edit reopens the roster text and Cancel makes no database or Discord change.
+
+This staged design restores the prefix command's flexible shapes without
+message-content intent and avoids a large fixed slash option matrix. Mentions
+remain the safest input. A later guided side editor with native member
+selectors is optional mitigation if beta testing finds text resolution too
+ambiguous.
+
 ## Progress log
+
+### 2026-07-30 — Flexible `/game record` implemented
+
+- Replaced the fixed two-sided `/game create` option matrix with
+  `/game record game_name roster ranked`.
+- Added arbitrary/unequal-side parsing, the requester shortcut, and a
+  requester-controlled Components v2 preview with Edit/Confirm/Cancel.
+- Kept worker submission behind Confirm and retained the P2.1 synchronous
+  transaction/post-commit boundary.
+- Removed platform from the slash interface and treated retained Steam prefix
+  aliases as cross-play compatibility names rather than a distinct game type.
+- Passed 16 focused tests, the 181-test offline suite with nine gated skips,
+  and eight gated `polytopia_dev` tests with one safe fixture skip.
+- Recorded implementation checkpoint `6af7c92`; beta acceptance remains
+  pending.
 
 ### 2026-07-30 — Standing development-beta runtime policy accepted
 
