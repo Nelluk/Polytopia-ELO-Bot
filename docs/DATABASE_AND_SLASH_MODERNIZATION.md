@@ -218,6 +218,7 @@ check:
 - P3.1 implementation checkpoint: `1bebce6`
 - P3.1 accumulation merge: `5f62998`
 - P3.2 implementation checkpoint: `63c9378`
+- P3.2 accumulation merge: `41bd614`
 - T1 fixture-harness implementation checkpoint: `4551bec`
 - T1 roadmap-evidence checkpoint: `d6e826b`
 - T1 accumulation merge: `aacace4`
@@ -233,9 +234,8 @@ check:
 - optional cleanup: unused `Team.id=9`, `Phase7 Test Team`, remains in
   `polytopia_dev` with zero players and zero game sides
 
-Current unit: **P3.2 — ELO maintenance consistency review**, Implemented on
-`codex/p3-2-elo-maintenance-consistency` from accumulation checkpoint
-`55425a5`.
+Current unit: **P4.1a — Ranked-state correction**, Planned on
+`codex/database-slash-modernization` at integrated checkpoint `41bd614`.
 P2.2, P3.1, and T1 are Complete on the intended accumulation branch.
 
 Owned games `115`-`117` were removed successfully after the combined beta
@@ -279,7 +279,7 @@ beta launches, command synchronization, pushes, or PR operations by itself.
 | P0 | Complete | Serialized ELO workers and first five slash commands | Commits `a9375b3`, `9a64ce1`; live beta acceptance; accumulation-branch base |
 | P1 | Complete | Close out and establish the pilot on the accumulation branch | Clean tests, beta stopped, reviewed branch, local accumulation branch |
 | P2 | Complete | Fix known game-creation transaction boundary | `newgame` workflow atomic and Discord effects post-commit |
-| P3 | In progress | Owner ELO maintenance and job observability | Typed slash maintenance interface and active-job status |
+| P3 | Complete | Owner ELO maintenance and job observability | Typed slash maintenance interface and active-job status |
 | T1 | Complete | Deterministic development beta fixtures | Gated, idempotent seed/status/cleanup tooling |
 | P4 | Planned | Game correction and metadata mutations | Bounded workers plus slash interfaces for clear typed operations |
 | P5 | Planned | Matchmaking lifecycle | Atomic open/join/leave/kick/start flows and native interactions |
@@ -645,7 +645,7 @@ Exit criteria:
 
 ## P3 — Owner ELO maintenance and observability
 
-Status: **In progress**
+Status: **Complete**
 
 Candidate scope:
 
@@ -797,7 +797,7 @@ Exit criteria:
 
 ### P3.2 — ELO maintenance consistency review
 
-Status: **Implemented**
+Status: **Complete**
 
 Branch/base: `codex/p3-2-elo-maintenance-consistency` from
 `codex/database-slash-modernization` at `55425a5`.
@@ -860,6 +860,7 @@ Files changed:
 Commit(s):
 
 - `63c9378` — Harden ELO maintenance paths.
+- `41bd614` — Merge P3.2 into `codex/database-slash-modernization`.
 
 Tests required:
 
@@ -910,8 +911,7 @@ Operational guidance:
 - P3.2 retired `reverse_duplicated_elo`; supported repairs use recalculation
   from a game or the separately controlled full CLI rebuild.
 
-Next action: review and integrate P3.2 into
-`codex/database-slash-modernization`; then begin P4.1 as the next code unit.
+Next action: begin P4.1a ranked-state correction as the first P4 code unit.
 
 ## T1 — Development beta fixture harness
 
@@ -1068,6 +1068,12 @@ Candidates:
 - `rankunset`
 - `unstart`
 - `extend`
+
+Start with P4.1a as a paired `rankset`/`rankunset` unit. They share one
+staff-only ranked-state mutation and post-commit notification boundary.
+Keep `unstart` separate because it deletes Discord channels and edits an
+announcement; keep `extend` separate because it is a pending-game timer
+operation with no ELO interaction.
 
 Use typed game IDs and choices. If these commands can race with finalized ELO
 state, use the ELO coordinator; otherwise use a per-game claim rather than
@@ -1714,6 +1720,16 @@ recalculation.
   change, or schema change was performed.
 - Next: review and integrate P3.2 into the accumulation branch, then start
   P4.1 staff state corrections.
+
+### 2026-07-29 — P3.2 integrated
+
+- Consolidated the maintenance guidance into this durable roadmap and removed
+  the isolated `docs/ELO_MAINTENANCE.md` file in checkpoint `294b4aa`.
+- Merged P3.2 into `codex/database-slash-modernization` as `41bd614`.
+- Marked P3 Complete on its intended accumulation branch.
+- Selected paired `rankset`/`rankunset` modernization as P4.1a; `unstart` and
+  `extend` remain separate later units.
+- Next: create P4.1a from `41bd614`.
 
 ## Resume checklist
 
