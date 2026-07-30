@@ -1952,9 +1952,21 @@ Evidence so far:
 - The real bounded local leaderboard worker returned 26 rows, including all
   24 showcase profiles with four recent ranked games each.
 
-Next action: commit the implementation, synchronize the explicitly approved
-development guild, launch the beta, and smoke-test `/lb2` alongside
-`/leaderboard players`.
+Next action: smoke-test `/lb2` alongside `/leaderboard players`, record
+acceptance findings, then stop the task-owned beta before any fixture cleanup
+or reseeding.
+
+Beta launch evidence:
+
+- Implementation checkpoint: `c4b34df`.
+- Development preflight reconfirmed beta application `479029527553638401`,
+  database `polytopia_dev`, the one approved guild `478571892832206869`, and
+  background tasks/API/Bullet disabled.
+- The bot authenticated as **PolyELO Bot Beta** and Discord accepted exactly
+  four guild roots: `game`, `leaderboard`, `lb2`, and `elo`.
+- The beta remains running for functional `/lb2` acceptance. Do not mark the
+  experiment Beta-validated until the user reports the Components v2 controls
+  working.
 
 ## P8 — League and remaining administration workflows
 
@@ -2400,6 +2412,10 @@ demonstrated requirement.
   8 gated database tests with 1 operator-fixture-preserving skip.
 - No dependency, schema, production, service, or production database change
   occurred. Development beta launch/sync remains the next approved action.
+- Committed the implementation as `c4b34df`, then launched the explicitly
+  approved development profile. Discord synchronized `game`, `leaderboard`,
+  temporary `lb2`, and `elo` only to guild `478571892832206869`; functional
+  Components v2 acceptance remains pending.
 
 ### 2026-07-30 — Shared leaderboard page-jump modal implemented
 
