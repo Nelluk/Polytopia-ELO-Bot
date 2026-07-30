@@ -219,8 +219,8 @@ check:
 - T1 roadmap-evidence checkpoint: `d6e826b`
 - pilot beta acceptance: all five original application commands reported
   working
-- P2.2 development sync: six commands, including `/newgame`, synchronized to
-  guild `478571892832206869`; functional acceptance remains pending
+- combined development sync: all eight expected commands synchronized to
+  guild `478571892832206869`; P2.2 and P3.1 accepted by the user
 - complete offline suite: 106 tests passed, with eight gated database tests
   skipped as designed
 - gated `polytopia_dev` suite: eight tests passed under the required
@@ -231,17 +231,13 @@ check:
 
 Current unit: **T1 — Development beta fixture harness**, Implemented on
 `codex/dev-beta-fixture-harness`, stacked from P3.1 checkpoint `013bab2`.
-P2.2 and P3.1 remain Implemented pending their combined beta session; this
-testing-support unit does not change their integration boundaries.
+P2.2 and P3.1 are Beta-validated from their combined session; this
+testing-support unit does not change their sequential integration boundaries.
 
-The current owned `polytopia_dev` fixture set references the previously used
-Nelluk and `testaccount12174` development players:
-
-- game `115`: ready/incomplete ranked game;
-- game `116`: unconfirmed ranked win;
-- game `117`: confirmed ranked game suitable for recalculation.
-
-The beta bot is not running. Stop it before later fixture cleanup.
+Owned games `115`-`117` were removed successfully after the combined beta
+session, and a gated status check reports no owned fixtures. Interactive
+`/newgame` game `118` (`Foobar`) is not harness-owned and has no deletion
+record in the development logs; it remains on the explicit cleanup list.
 
 Runtime status is deliberately not recorded as fact here. Verify whether a
 beta process is running before starting or stopping one.
@@ -531,7 +527,7 @@ the flexible prefix interface.
 
 ### P2.2 — Decide the native command UX
 
-Status: **Implemented**
+Status: **Beta-validated**
 
 Branch/base: `codex/p2-2-newgame-slash-ux` from
 `codex/database-slash-modernization` at `f7b1e3e`.
@@ -586,7 +582,7 @@ Tests required:
 - [x] P2.1 rollback, responsiveness, and post-commit ordering remain green
 - [x] complete offline suite
 - [x] gated development-database suite
-- [ ] approved beta synchronization and smoke test
+- [x] approved beta synchronization and smoke test
 
 Commit(s):
 
@@ -599,10 +595,18 @@ selected environment `development`, beta application `479029527553638401`,
 database `polytopia_dev`, development guild `478571892832206869`, and disabled
 background tasks, API, and Bullet integration. Discord authenticated the
 expected beta bot and synchronized six guild commands: `win`, `unwin`,
-`delete`, `newgame`, `confirm`, and `unconfirmed`. Functional `/newgame`
-acceptance and fixture cleanup remain pending. The task-owned beta session was
-then stopped cleanly so P2.2 acceptance can be combined with P3.1 in one later
-beta launch.
+`delete`, `newgame`, `confirm`, and `unconfirmed`. At that checkpoint,
+functional `/newgame` acceptance was still pending, and the task-owned beta
+session was stopped cleanly so P2.2 acceptance could be combined with P3.1 in
+one later beta launch.
+
+Combined beta result: accepted by the user on 2026-07-29 from
+`codex/dev-beta-fixture-harness`. Startup synchronized all eight expected
+commands. Development logs confirm live `/newgame` creation of ranked Mobile
+game `118`; the user reported the tested command behavior looked correct.
+Unranked Steam creation and optional 2v2 were not separately evidenced in the
+logs, but their option mapping and shape remain covered offline. Game `118`
+is ordinary/unowned and remains pending explicit cleanup.
 
 Remaining limitations:
 
@@ -618,11 +622,9 @@ Remaining limitations:
 - P2.1's recorded post-commit synchronous model reads/writes and cancellation
   limitation remain unchanged.
 
-Next action: use the fixture-backed combined beta procedure in
-`docs/DEVELOPMENT_BETA_FIXTURES.md` to test P2.2 `/newgame` and the P3.1
-commands. After acceptance, stop the beta, clean owned and interactive
-fixtures through their separately documented paths, and merge P2.2, P3.1,
-then T1 sequentially into the accumulation branch.
+Next action: explicitly clean interactive development game `118`, then merge
+P2.2, P3.1, and T1 sequentially into the accumulation branch. Owned fixture
+cleanup is complete.
 
 Exit criteria:
 
@@ -663,12 +665,12 @@ tested, documented as emergency-only, or retired.
 
 ### P3.1 — Recalculation control and active-job status
 
-Status: **Implemented**
+Status: **Beta-validated**
 
 Branch/base: `codex/p3-1-elo-maintenance-ux`, stacked from
-`codex/p2-2-newgame-slash-ux` at `4a7fba6`. P2.2 remains Implemented pending
-the same combined beta session; this does not mark either unit Complete or
-merge either unit implicitly.
+`codex/p2-2-newgame-slash-ux` at `4a7fba6`. P2.2 and P3.1 are
+Beta-validated from the same combined session; this does not mark either unit
+Complete or merge either unit implicitly.
 
 Objective: add a confirmed, owner-only native entry point for the existing
 serialized recalculation worker and expose useful active-job state to staff.
@@ -706,7 +708,7 @@ Tests required:
 - [x] recalculation worker connection, commit, and rollback behavior
 - [x] complete offline suite
 - [x] gated development-database suite
-- [ ] combined P2.2/P3.1 beta smoke test
+- [x] combined P2.2/P3.1 beta smoke test
 
 Implementation evidence:
 
@@ -753,8 +755,14 @@ Validation evidence:
   `polytopia_dev` and role `polybot_dev`.
 - `git diff --check`: clean.
 
-Beta result: pending the user-run combined P2.2/P3.1 session. No beta process
-is running and no P3.1 synchronization has been performed.
+Beta result: accepted by the user on 2026-07-29 from
+`codex/dev-beta-fixture-harness`. Startup synchronized
+`recalc-games-from` and `elo-job-status` with the six prior commands.
+Development logs confirm recalculation from owned confirmed game `117`
+completed. The user reported the tested status/confirmation behavior looked
+correct. Active-conflict timing and non-owner denial were not independently
+observable in the logs and remain covered by focused offline tests. The beta
+process was stopped after testing.
 
 Remaining limitations:
 
@@ -764,12 +772,9 @@ Remaining limitations:
 - Hidden unfinished `reverse_duplicated_elo` remains disabled and requires a
   separate retain/retire decision; it was not exposed as slash.
 
-Next action: user launches the development beta from
-`codex/dev-beta-fixture-harness` and follows the combined procedure in
-`docs/DEVELOPMENT_BETA_FIXTURES.md`, using the owned confirmed fixture for
-recalculation and separately recording every interactive `/newgame` ID. After
-acceptance, stop the beta, clean fixtures, and merge P2.2, P3.1, then T1
-sequentially into the accumulation branch.
+Next action: explicitly clean interactive development game `118`, then merge
+P2.2, P3.1, and T1 sequentially into the accumulation branch. No owned
+fixture cleanup remains.
 
 Exit criteria:
 
@@ -898,10 +903,20 @@ Updated beta procedure:
 - Stop the beta before harness status/cleanup, confirm cleanup explicitly, and
   verify the owned set is empty afterward.
 
-Next action: run the combined P2.2/P3.1 beta session from this branch using
-the fixture runbook. After beta acceptance, stop the beta, clean owned
-fixtures, separately resolve any interactive games, and integrate P2.2, P3.1,
-then T1 sequentially into the accumulation branch.
+Combined beta/cleanup result:
+
+- The user accepted the observed P2.2/P3.1 behavior.
+- All eight expected application commands synchronized to the development
+  guild.
+- Owned game `117` successfully exercised recalculation.
+- Owned games `115`-`117` were removed with confirmed harness cleanup while
+  the beta was stopped.
+- A final gated status check reports no owned fixtures.
+- Interactive game `118` remains outside harness authority and requires
+  separate explicit cleanup.
+
+Next action: clean interactive game `118`, then integrate P2.2, P3.1, and T1
+sequentially into the accumulation branch.
 
 ## P4 — Game correction and metadata mutations
 
@@ -1417,7 +1432,7 @@ because job coordinators do not cross process boundaries.
 ### 2026-07-29 — P2.2/P3.1 combined beta gate approved
 
 - Stopped the task-owned development beta session cleanly after successful
-  synchronization; P2.2 functional acceptance remains pending.
+  synchronization; P2.2 functional acceptance was pending at that checkpoint.
 - Approved stacking P3.1 on the validated P2.2 checkpoint so both units can
   use one later beta launch and smoke matrix.
 - Kept P2.2 Implemented rather than Complete and retained sequential
@@ -1481,6 +1496,24 @@ because job coordinators do not cross process boundaries.
   ownership-gated harness cleanup intentionally cannot remove them.
 - Required beta shutdown before owned status/cleanup and a final empty-owned
   status check.
+
+### 2026-07-29 — Combined P2.2/P3.1 beta accepted
+
+- The user reported the tested commands appeared correct.
+- Development logs confirmed all eight expected guild commands synchronized,
+  ranked Mobile `/newgame` created game `118`, and recalculation from owned
+  confirmed game `117` completed.
+- Recorded P2.2 and P3.1 as Beta-validated. Unranked Steam/2v2 creation,
+  active-conflict timing, and non-owner denial were not independently visible
+  in logs and remain covered by offline tests rather than overclaimed as live
+  evidence.
+- Confirmed the beta process was stopped.
+- Ran the gated, confirmed harness cleanup; owned games `115`-`117` were
+  removed, and a final gated status check showed no owned fixtures.
+- Interactive game `118` has no deletion record and remains outside harness
+  authority on the explicit cleanup list.
+- Next: obtain a separately safe cleanup path for game `118`, then integrate
+  P2.2, P3.1, and T1 sequentially into accumulation.
 
 ## Resume checklist
 

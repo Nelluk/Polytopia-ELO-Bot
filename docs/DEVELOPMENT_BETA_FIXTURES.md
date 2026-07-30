@@ -71,8 +71,9 @@ explicit cleanup.
 
 ## Combined P2.2/P3.1 beta procedure
 
-Use this sequence for the pending `/newgame`, `/recalc-games-from`, and
-`/elo-job-status` acceptance session.
+This sequence was used for the accepted `/newgame`,
+`/recalc-games-from`, and `/elo-job-status` session and remains the reusable
+procedure for a later regression run.
 
 ### 1. Verify fixtures while the beta is stopped
 
@@ -83,7 +84,7 @@ POLYBOT_ENV=development .venv/bin/python \
   scripts/manage_dev_fixtures.py status
 ```
 
-The currently seeded set is:
+The accepted session used:
 
 - users `272510639124250625` (Nelluk) and `481525222072254484`
   (`testaccount12174`);
@@ -91,9 +92,10 @@ The currently seeded set is:
 - game `116`: claimed but unconfirmed ranked;
 - game `117`: confirmed ranked and the recalculation target.
 
-`status` is read-only. Do not reseed when these fixtures are present. If the
-owned set was intentionally cleaned and must be recreated, seed it only while
-the beta remains stopped:
+The owned set was cleaned successfully after acceptance, so current `status`
+reports no owned games. `status` is read-only. Do not reseed when fixtures are
+present. To recreate this set for a later session, seed it only while the beta
+remains stopped:
 
 ```bash
 POLYBOT_ENV=development .venv/bin/python \
