@@ -219,6 +219,7 @@ check:
 - P3.1 accumulation merge: `5f62998`
 - P3.2 implementation checkpoint: `63c9378`
 - P3.2 accumulation merge: `41bd614`
+- P4.1a implementation checkpoints: `3e1f395`, `d2526b4`
 - T1 fixture-harness implementation checkpoint: `4551bec`
 - T1 roadmap-evidence checkpoint: `d6e826b`
 - T1 accumulation merge: `aacace4`
@@ -226,7 +227,7 @@ check:
   working
 - combined development sync: all eight expected commands synchronized to
   guild `478571892832206869`; P2.2 and P3.1 accepted by the user
-- complete offline suite: 108 tests passed, with eight gated database tests
+- complete offline suite: 115 tests passed, with eight gated database tests
   skipped as designed
 - gated `polytopia_dev` suite: eight tests passed under the required
   `development` / `polytopia_dev` / `polybot_dev` checks
@@ -236,7 +237,7 @@ check:
 
 Current unit: **P4.1a — Ranked-state correction**, Implemented on
 `codex/p4-1a-ranked-state-correction` from accumulation checkpoint `f215bae`.
-P2.2, P3.1, and T1 are Complete on the intended accumulation branch.
+P0 through P3 and T1 are Complete on the intended accumulation branch.
 
 Owned games `115`-`117` were removed successfully after the combined beta
 session, and a gated status check reports no owned fixtures. Interactive
@@ -1082,6 +1083,11 @@ Status: **Implemented**
 Branch/base: `codex/p4-1a-ranked-state-correction` from
 `codex/database-slash-modernization` at `f215bae`.
 
+Commit(s):
+
+- `3e1f395` — Modernize ranked state corrections.
+- `d2526b4` — Complete ranked correction coverage.
+
 Implementation evidence:
 
 - Prefix `rankset` and `rankunset` remain registered and staff-gated through
@@ -1116,8 +1122,8 @@ Remaining limitations:
   thread.
 - `unstart` and `extend` remain unchanged for separate bounded units.
 
-Next action: commit P4.1a, then prepare a fixture-backed beta test for
-`/set-ranked`, `rankset`, and `rankunset`.
+Next action: with separate beta launch/synchronization approval, run a
+fixture-backed smoke test for `/set-ranked`, `rankset`, and `rankunset`.
 
 Use typed game IDs and choices. If these commands can race with finalized ELO
 state, use the ELO coordinator; otherwise use a per-game claim rather than
@@ -1774,6 +1780,23 @@ recalculation.
 - Selected paired `rankset`/`rankunset` modernization as P4.1a; `unstart` and
   `extend` remain separate later units.
 - Next: create P4.1a from `41bd614`.
+
+### 2026-07-29 — P4.1a ranked-state correction implemented
+
+- Created `codex/p4-1a-ranked-state-correction` from accumulation checkpoint
+  `f215bae`.
+- Preserved prefix `rankset` and `rankunset` and added typed staff-only
+  `/set-ranked`.
+- Moved ranked-state validation, mutation, and audit logging into one bounded
+  worker-local transaction using primitive IDs.
+- Kept the per-game claim through post-commit Discord notification and
+  guaranteed cleanup.
+- Passed seven focused tests, the complete 115-test offline suite with eight
+  gated skips, and all eight gated development-database tests.
+- Recorded implementation checkpoints `3e1f395` and `d2526b4`.
+- No beta launch, synchronization, production operation, dependency change,
+  or schema change was performed.
+- Next: obtain separate approval for a fixture-backed beta sync/smoke test.
 
 ## Resume checklist
 
