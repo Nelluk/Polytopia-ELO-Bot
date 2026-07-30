@@ -848,7 +848,8 @@ Required evidence:
 - [x] rollback, responsiveness, and post-commit tests remain green;
 - [x] complete offline suite;
 - [x] gated development-database suite;
-- [ ] development beta restart/sync and smoke acceptance.
+- [x] development beta restart and development-guild sync;
+- [ ] live preview/edit/cancel/confirm smoke acceptance.
 
 Implementation evidence:
 
@@ -883,9 +884,14 @@ Validation:
 
 Implementation checkpoint: `6af7c92`.
 
-Next action: checkpoint this evidence, restart the standing development beta,
-verify `/game record` replaced `/game create`, and obtain a smoke result for
-preview/edit/cancel/confirm plus one multi-side roster.
+Runtime evidence: the task-owned beta was stopped cleanly after checkpointing,
+then restarted from `da21786` with `POLYBOT_ENV=development` and
+`--skip_tasks`. It authenticated as `PolyELO Bot Beta`
+(`479029527553638401`) and completed startup/development-guild sync without a
+reported error. The beta remains running.
+
+Next action: verify in Discord that `/game record` replaced `/game create`,
+then smoke preview/edit/cancel/confirm plus one multi-side roster.
 
 ## P3 — Owner ELO maintenance and observability
 
@@ -2778,6 +2784,16 @@ ambiguous.
   and eight gated `polytopia_dev` tests with one safe fixture skip.
 - Recorded implementation checkpoint `6af7c92`; beta acceptance remains
   pending.
+
+### 2026-07-30 — `/game record` beta restarted and synchronized
+
+- Stopped only the standing task-owned development beta cleanly.
+- Restarted from roadmap checkpoint `da21786` with the development profile and
+  background tasks disabled.
+- Confirmed authentication as `PolyELO Bot Beta`
+  (`479029527553638401`) and startup/synchronization without a reported error.
+- Left the beta running under D-026; functional preview/edit/cancel/confirm
+  acceptance remains pending.
 
 ### 2026-07-30 — Standing development-beta runtime policy accepted
 
