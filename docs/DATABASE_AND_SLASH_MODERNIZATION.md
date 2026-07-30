@@ -217,6 +217,7 @@ check:
 - P2.2 accumulation merge: `2b77f13`
 - P3.1 implementation checkpoint: `1bebce6`
 - P3.1 accumulation merge: `5f62998`
+- P3.2 implementation checkpoint: `63c9378`
 - T1 fixture-harness implementation checkpoint: `4551bec`
 - T1 roadmap-evidence checkpoint: `d6e826b`
 - T1 accumulation merge: `aacace4`
@@ -856,6 +857,10 @@ Files changed:
 - `tests/test_runtime_config.py`
 - `tests/test_elo_jobs.py`
 - `docs/DATABASE_AND_SLASH_MODERNIZATION.md`
+
+Commit(s):
+
+- `63c9378` — Harden ELO maintenance paths.
 
 Tests required:
 
@@ -1685,6 +1690,7 @@ recalculation.
   recalculation paths, and operator separation requirements.
 - Retired the hidden unfinished `reverse_duplicated_elo` prefix command; no
   slash replacement or compatibility compromise was introduced.
+- Recorded implementation checkpoint `63c9378`.
 - Passed three focused tests and the complete offline suite: 108 passed with
   eight gated database tests skipped as designed.
 - Passed all eight gated development-database tests after confirming
