@@ -4,7 +4,7 @@ Last updated: 2026-07-29
 
 Status: Active
 
-Current branch at last update: `codex/p2-2-newgame-slash-ux`
+Current branch at last update: `codex/p3-1-elo-maintenance-ux`
 
 Source task: `thread://019fae66-8e3a-7a50-9a0f-d3d7160d2287`
 
@@ -214,11 +214,12 @@ check:
 - P2.1 accumulation merge: `ecdd01e`
 - P2.2 implementation checkpoints: `25b9d50`, `8c350c1`
 - P2.2 sync-evidence checkpoint: `5bb67c2`
+- P3.1 implementation checkpoint: `1bebce6`
 - pilot beta acceptance: all five original application commands reported
   working
 - P2.2 development sync: six commands, including `/newgame`, synchronized to
   guild `478571892832206869`; functional acceptance remains pending
-- complete offline suite: 88 tests passed, with seven gated database tests
+- complete offline suite: 97 tests passed, with seven gated database tests
   skipped as designed
 - gated `polytopia_dev` suite: seven tests passed under the required
   `development` / `polytopia_dev` / `polybot_dev` checks
@@ -226,9 +227,9 @@ check:
 - optional cleanup: unused `Team.id=9`, `Phase7 Test Team`, remains in
   `polytopia_dev` with zero players and zero game sides
 
-Current unit: **P2.2 — Decide the native `newgame` command UX**, Implemented
-on `codex/p2-2-newgame-slash-ux`, based on
-`codex/database-slash-modernization` at `f7b1e3e`.
+Current unit: **P3.1 — Recalculation control and active-job status**,
+Implemented on `codex/p3-1-elo-maintenance-ux`, stacked from P2.2 checkpoint
+`4a7fba6`.
 
 Runtime status is deliberately not recorded as fact here. Verify whether a
 beta process is running before starting or stopping one.
@@ -264,7 +265,7 @@ beta launches, command synchronization, pushes, or PR operations by itself.
 | P0 | Complete | Serialized ELO workers and first five slash commands | Commits `a9375b3`, `9a64ce1`; live beta acceptance; accumulation-branch base |
 | P1 | Complete | Close out and establish the pilot on the accumulation branch | Clean tests, beta stopped, reviewed branch, local accumulation branch |
 | P2 | In progress | Fix known game-creation transaction boundary | `newgame` workflow atomic and Discord effects post-commit |
-| P3 | Planned | Owner ELO maintenance and job observability | Typed slash maintenance interface and active-job status |
+| P3 | In progress | Owner ELO maintenance and job observability | Typed slash maintenance interface and active-job status |
 | P4 | Planned | Game correction and metadata mutations | Bounded workers plus slash interfaces for clear typed operations |
 | P5 | Planned | Matchmaking lifecycle | Atomic open/join/leave/kick/start flows and native interactions |
 | P6 | Planned | Registration and player preferences | Worker-safe profile writes and slash UX |
@@ -648,12 +649,12 @@ tested, documented as emergency-only, or retired.
 
 ### P3.1 — Recalculation control and active-job status
 
-Status: **In progress**
+Status: **Implemented**
 
-Branch/base: planned stacked branch from the latest
-`codex/p2-2-newgame-slash-ux` checkpoint. P2.2 remains Implemented pending the
-same combined beta session; this does not mark either unit Complete or merge
-either unit implicitly.
+Branch/base: `codex/p3-1-elo-maintenance-ux`, stacked from
+`codex/p2-2-newgame-slash-ux` at `4a7fba6`. P2.2 remains Implemented pending
+the same combined beta session; this does not mark either unit Complete or
+merge either unit implicitly.
 
 Objective: add a confirmed, owner-only native entry point for the existing
 serialized recalculation worker and expose useful active-job state to staff.
@@ -682,20 +683,79 @@ planned unless implementation review discovers one.
 
 Tests required:
 
-- [ ] prefix registration and owner permission preserved
-- [ ] slash registration and option types
-- [ ] non-owner and unconfirmed requests rejected before defer/submission
-- [ ] confirmed request defers before coordinator submission
-- [ ] conflict and worker error responses
-- [ ] active and idle status formatting and staff permissions
-- [ ] complete offline suite
-- [ ] gated development-database suite
+- [x] prefix registration and owner permission preserved
+- [x] slash registration and option types
+- [x] non-owner and unconfirmed requests rejected before defer/submission
+- [x] confirmed request defers before coordinator submission
+- [x] conflict and worker error responses
+- [x] active and idle status formatting and staff permissions
+- [x] recalculation worker connection, commit, and rollback behavior
+- [x] complete offline suite
+- [x] gated development-database suite
 - [ ] combined P2.2/P3.1 beta smoke test
 
-Next action: create the stacked P3.1 branch, implement the shared recalculation
-entry point and job-status formatter, and run offline and gated development
-validation. Do not launch or synchronize the beta until the user begins the
-combined test session.
+Implementation evidence:
+
+- Prefix `recalc_games_from` remains hidden and owner-checked.
+- Prefix and slash paths call one `_run_recalculation_job` entry point using
+  the existing ELO coordinator and synchronous worker.
+- Prefix validation no longer loads a Peewee game on the event-loop thread;
+  the worker reloads and validates the primitive game ID inside its local
+  connection and transaction.
+- `/recalc-games-from` requires typed integer `game_id` and required Boolean
+  `confirm`; non-owner and false-confirmation requests return ephemerally
+  without deferring or submitting work.
+- Confirmed slash requests defer ephemerally before coordinator submission and
+  report conflicts, validation failures, database rollback, or success only
+  after the worker returns.
+- `/elo-job-status` is staff-visible, read-only, and ephemeral. It reports
+  operation, game, requester, absolute/relative start time, and elapsed time
+  from the coordinator's single source of truth.
+- Focused tests prove the recalculation worker owns and closes its connection,
+  commits success, rolls back failure, and accepts only a primitive game ID.
+- No slash compatibility compromise was introduced: the native maintenance
+  path adds explicit confirmation, and the existing owner prefix behavior is
+  retained. No ledger row is required.
+
+Files changed:
+
+- `modules/administration.py`
+- `tests/test_elo_jobs.py`
+- `docs/DATABASE_AND_SLASH_MODERNIZATION.md`
+
+Commit(s): `1bebce6` — Add ELO maintenance slash controls.
+
+Validation evidence:
+
+- `POLYBOT_ENV=development MPLCONFIGDIR=/tmp/polybot-matplotlib
+  .venv/bin/python -m unittest tests.test_elo_jobs.EloWorkerTests
+  tests.test_elo_jobs.HybridUnwinCommandTests -v`: 28 passed.
+- `POLYBOT_ENV=development MPLCONFIGDIR=/tmp/polybot-matplotlib
+  .venv/bin/python -m unittest discover -v`: 97 passed, seven gated database
+  tests skipped as designed.
+- `POLYBOT_ENV=development POLYBOT_RUN_DB_INTEGRATION=1
+  MPLCONFIGDIR=/tmp/polybot-matplotlib .venv/bin/python -m unittest
+  tests.test_database_integration -v`: seven passed after the gate confirmed
+  `polytopia_dev` and role `polybot_dev`.
+- `git diff --check`: clean.
+
+Beta result: pending the user-run combined P2.2/P3.1 session. No beta process
+is running and no P3.1 synchronization has been performed.
+
+Remaining limitations:
+
+- Status is a current in-process snapshot; it does not persist job history.
+- Running synchronous workers cannot be safely cancelled, so P3.1 exposes no
+  abort command.
+- Hidden unfinished `reverse_duplicated_elo` remains disabled and requires a
+  separate retain/retire decision; it was not exposed as slash.
+
+Next action: user launches the development beta from this branch and performs
+one guild sync, then tests P2.2 `/newgame`, owner-only confirmed
+`/recalc-games-from`, staff-visible `/elo-job-status`, denial/confirmation
+paths, conflict visibility where practical, and preserved prefix commands.
+After acceptance, clean fixtures and merge P2.2 then P3.1 sequentially into
+the accumulation branch.
 
 Exit criteria:
 
@@ -1213,6 +1273,27 @@ boundaries by merging P2.2 and then P3.1 sequentially into
   use one later beta launch and smoke matrix.
 - Kept P2.2 Implemented rather than Complete and retained sequential
   accumulation-branch integration after combined acceptance.
+
+### 2026-07-29 — P3.1 ELO maintenance UX implemented
+
+- Created stacked branch `codex/p3-1-elo-maintenance-ux` from P2.2 checkpoint
+  `4a7fba6`.
+- Added owner-only, explicitly confirmed `/recalc-games-from` and
+  staff-visible ephemeral `/elo-job-status`.
+- Preserved the hidden owner prefix recalculation command and routed both
+  mutation entry points through the existing coordinator/worker.
+- Removed the prefix path's event-loop Peewee game lookup; worker-local
+  validation remains authoritative.
+- Added worker connection/transaction/rollback tests plus native
+  registration, permissions, confirmation, defer, conflict, validation, and
+  status tests.
+- Passed 28 focused tests, 97 complete offline tests with seven gated skips,
+  and all seven explicitly gated development-database tests.
+- Recorded implementation checkpoint `1bebce6`; no new slash compatibility
+  compromise was introduced.
+- No beta launch or P3.1 command synchronization was performed.
+- Next: user runs one combined P2.2/P3.1 beta sync and smoke matrix, then the
+  accepted unit branches merge sequentially into accumulation.
 
 ## Resume checklist
 

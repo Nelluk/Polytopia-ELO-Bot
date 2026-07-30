@@ -2,6 +2,7 @@
 
 import asyncio
 from contextlib import AbstractContextManager
+import datetime
 import importlib
 import inspect
 from types import SimpleNamespace
@@ -22,7 +23,7 @@ from discord.ext import commands
 from peewee import SchemaManager
 from playhouse.postgres_ext import PostgresqlExtDatabase
 
-from modules.elo_jobs import EloJobConflict, EloJobCoordinator
+from modules.elo_jobs import EloJob, EloJobConflict, EloJobCoordinator
 
 
 def import_offline_runtime(module_name):
@@ -622,6 +623,54 @@ class EloWorkerTests(unittest.TestCase):
             ),
             ['game_id', 'guild_id', 'requester_description'],
         )
+        self.assertEqual(
+            list(
+                inspect.signature(
+                    self.workers.recalculate_games_from
+                ).parameters
+            ),
+            ['game_id'],
+        )
+
+    def test_recalculation_worker_owns_connection_and_transaction(self):
+        game = FakeGame(ranked=True)
+        logs = []
+        database = FakeDatabase(game, logs)
+        models = fake_models(game, database, logs)
+
+        with mock.patch.object(self.workers, 'models', models):
+            timestamp = self.workers.recalculate_games_from(game.id)
+
+        self.assertEqual(timestamp, game.completed_ts)
+        self.assertEqual(database.connection_opened, 1)
+        self.assertEqual(database.connection_closed, 1)
+        self.assertEqual(database.commits, 1)
+        self.assertEqual(database.rollbacks, 0)
+
+    def test_recalculation_worker_rolls_back_and_closes_on_failure(self):
+        game = FakeGame(ranked=True)
+        logs = []
+        database = FakeDatabase(game, logs)
+        models = fake_models(
+            game,
+            database,
+            logs,
+            recalculation_error=peewee.OperationalError(
+                'simulated recalculation failure'
+            ),
+        )
+
+        with mock.patch.object(self.workers, 'models', models):
+            with self.assertRaisesRegex(
+                peewee.OperationalError,
+                'simulated recalculation failure',
+            ):
+                self.workers.recalculate_games_from(game.id)
+
+        self.assertEqual(database.connection_opened, 1)
+        self.assertEqual(database.connection_closed, 1)
+        self.assertEqual(database.commits, 0)
+        self.assertEqual(database.rollbacks, 1)
 
     def test_record_win_commits_confirmation_bookkeeping_and_claim(self):
         game = FakeWinGame()
@@ -810,6 +859,288 @@ class HybridUnwinCommandTests(unittest.IsolatedAsyncioTestCase):
             [('game_id', discord.AppCommandOptionType.integer)],
         )
         self.assertEqual(app_commands['unconfirmed'].parameters, [])
+
+    def test_recalculation_prefix_and_maintenance_slash_commands_registered(
+        self,
+    ):
+        prefix_command = next(
+            command
+            for command
+            in self.administration.administration.__cog_commands__
+            if command.name == 'recalc_games_from'
+        )
+        self.assertIsInstance(prefix_command, commands.Command)
+        self.assertTrue(prefix_command.hidden)
+        self.assertTrue(
+            any(
+                check.__qualname__ == 'is_owner.<locals>.predicate'
+                for check in prefix_command.checks
+            )
+        )
+
+        app_commands = {
+            command.name: command
+            for command
+            in self.administration.administration.__cog_app_commands__
+        }
+        self.assertEqual(
+            {
+                'recalc-games-from',
+                'elo-job-status',
+            }.intersection(app_commands),
+            {'recalc-games-from', 'elo-job-status'},
+        )
+        self.assertEqual(
+            [
+                (parameter.name, parameter.type, parameter.required)
+                for parameter
+                in app_commands['recalc-games-from'].parameters
+            ],
+            [
+                ('game_id', discord.AppCommandOptionType.integer, True),
+                ('confirm', discord.AppCommandOptionType.boolean, True),
+            ],
+        )
+        self.assertEqual(app_commands['elo-job-status'].parameters, [])
+
+    async def test_recalculation_slash_rejects_non_owner_before_defer(self):
+        interaction = SimpleNamespace(
+            user=SimpleNamespace(id=400),
+            response=SimpleNamespace(
+                send_message=mock.AsyncMock(),
+                defer=mock.AsyncMock(),
+            ),
+        )
+        command = next(
+            command
+            for command
+            in self.administration.administration.__cog_app_commands__
+            if command.name == 'recalc-games-from'
+        )
+        cog = SimpleNamespace(
+            _run_recalculation_job=mock.AsyncMock(),
+        )
+
+        with mock.patch.object(
+            self.administration.settings,
+            'owner_id',
+            999,
+        ):
+            await command.callback(cog, interaction, 42, True)
+
+        interaction.response.send_message.assert_awaited_once_with(
+            'Only the bot owner can use this command.',
+            ephemeral=True,
+        )
+        interaction.response.defer.assert_not_awaited()
+        cog._run_recalculation_job.assert_not_awaited()
+
+    async def test_recalculation_slash_requires_confirmation_before_defer(self):
+        interaction = SimpleNamespace(
+            user=SimpleNamespace(id=999),
+            response=SimpleNamespace(
+                send_message=mock.AsyncMock(),
+                defer=mock.AsyncMock(),
+            ),
+        )
+        command = next(
+            command
+            for command
+            in self.administration.administration.__cog_app_commands__
+            if command.name == 'recalc-games-from'
+        )
+        cog = SimpleNamespace(
+            _run_recalculation_job=mock.AsyncMock(),
+        )
+
+        with mock.patch.object(
+            self.administration.settings,
+            'owner_id',
+            999,
+        ):
+            await command.callback(cog, interaction, 42, False)
+
+        interaction.response.send_message.assert_awaited_once()
+        interaction.response.defer.assert_not_awaited()
+        cog._run_recalculation_job.assert_not_awaited()
+
+    async def test_confirmed_recalculation_defers_before_job_submission(self):
+        events = []
+        timestamp = datetime.datetime(
+            2026,
+            7,
+            29,
+            12,
+            0,
+            tzinfo=datetime.timezone.utc,
+        )
+
+        async def run_job(**kwargs):
+            events.append('run')
+            self.assertEqual(events[0], 'defer')
+            self.assertEqual(kwargs['game_id'], 42)
+            return timestamp
+
+        interaction = SimpleNamespace(
+            user=SimpleNamespace(
+                id=999,
+                display_name='Owner Tester',
+            ),
+            response=SimpleNamespace(
+                send_message=mock.AsyncMock(),
+                defer=mock.AsyncMock(
+                    side_effect=lambda **kwargs: events.append('defer')
+                ),
+            ),
+            followup=SimpleNamespace(send=mock.AsyncMock()),
+        )
+        command = next(
+            command
+            for command
+            in self.administration.administration.__cog_app_commands__
+            if command.name == 'recalc-games-from'
+        )
+        cog = SimpleNamespace(_run_recalculation_job=run_job)
+
+        with mock.patch.object(
+            self.administration.settings,
+            'owner_id',
+            999,
+        ):
+            await command.callback(cog, interaction, 42, True)
+
+        self.assertEqual(events, ['defer', 'run'])
+        interaction.response.defer.assert_awaited_once_with(ephemeral=True)
+        interaction.followup.send.assert_awaited_once_with(
+            f'DB has been refreshed from {timestamp} onward.',
+            ephemeral=True,
+        )
+
+    async def test_recalculation_slash_reports_conflict_and_validation(self):
+        active_job = EloJob(
+            operation='unwin',
+            game_id=81,
+            requester_id=12,
+            requester_name='Staff Tester',
+            started_at=datetime.datetime.now(datetime.timezone.utc),
+        )
+        command = next(
+            command
+            for command
+            in self.administration.administration.__cog_app_commands__
+            if command.name == 'recalc-games-from'
+        )
+
+        for exception, expected in (
+            (EloJobConflict(active_job), 'already running'),
+            (
+                self.administration.elo_workers.RecalculationValidationError(
+                    'not completed'
+                ),
+                'not completed',
+            ),
+        ):
+            with self.subTest(exception=exception):
+                interaction = SimpleNamespace(
+                    user=SimpleNamespace(
+                        id=999,
+                        display_name='Owner Tester',
+                    ),
+                    response=SimpleNamespace(
+                        send_message=mock.AsyncMock(),
+                        defer=mock.AsyncMock(),
+                    ),
+                    followup=SimpleNamespace(send=mock.AsyncMock()),
+                )
+                cog = SimpleNamespace(
+                    _run_recalculation_job=mock.AsyncMock(
+                        side_effect=exception
+                    ),
+                )
+                with mock.patch.object(
+                    self.administration.settings,
+                    'owner_id',
+                    999,
+                ):
+                    await command.callback(cog, interaction, 42, True)
+
+                interaction.response.defer.assert_awaited_once_with(
+                    ephemeral=True
+                )
+                self.assertIn(
+                    expected,
+                    interaction.followup.send.await_args.args[0],
+                )
+
+    def test_elo_job_status_formats_idle_and_active_state(self):
+        self.assertEqual(
+            self.administration.format_elo_job_status(None),
+            'No ELO mutation job is currently running.',
+        )
+        started_at = datetime.datetime(
+            2026,
+            7,
+            29,
+            12,
+            0,
+            tzinfo=datetime.timezone.utc,
+        )
+        active_job = EloJob(
+            operation='recalc_games_from',
+            game_id=42,
+            requester_id=999,
+            requester_name='Owner Tester',
+            started_at=started_at,
+        )
+        message = self.administration.format_elo_job_status(
+            active_job,
+            now=started_at + datetime.timedelta(seconds=3723),
+        )
+
+        self.assertIn('`recalc_games_from`', message)
+        self.assertIn('Game: `42`', message)
+        self.assertIn('Owner Tester (`999`)', message)
+        self.assertIn(f'<t:{int(started_at.timestamp())}:F>', message)
+        self.assertIn('Elapsed: 1h 2m 3s', message)
+
+    async def test_elo_job_status_is_staff_only_and_ephemeral(self):
+        command = next(
+            command
+            for command
+            in self.administration.administration.__cog_app_commands__
+            if command.name == 'elo-job-status'
+        )
+        interaction = SimpleNamespace(
+            user=SimpleNamespace(id=400),
+            response=SimpleNamespace(send_message=mock.AsyncMock()),
+        )
+
+        with mock.patch.object(
+            self.administration.settings,
+            'is_staff',
+            return_value=False,
+        ):
+            await command.callback(SimpleNamespace(), interaction)
+        interaction.response.send_message.assert_awaited_once_with(
+            'You do not have permission to use this command.',
+            ephemeral=True,
+        )
+
+        interaction.response.send_message.reset_mock()
+        with mock.patch.object(
+            self.administration.settings,
+            'is_staff',
+            return_value=True,
+        ), mock.patch.object(
+            self.administration.settings,
+            'elo_job_coordinator',
+            SimpleNamespace(active_job=None),
+        ):
+            await command.callback(SimpleNamespace(), interaction)
+        interaction.response.send_message.assert_awaited_once_with(
+            'No ELO mutation job is currently running.',
+            ephemeral=True,
+        )
 
     async def test_slash_context_is_deferred_before_worker_submission(self):
         events = []
