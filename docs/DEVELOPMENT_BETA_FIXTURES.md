@@ -363,3 +363,56 @@ Record:
 - prefix results;
 - beta shutdown result;
 - any interactive channel/announcement test resources.
+
+## Components v2 leaderboard showcase
+
+The player-leaderboard showcase is a separate owned fixture family. It does
+not change or take ownership of the three reusable game-command fixtures.
+Run these operations only while the development beta is stopped:
+
+```bash
+cd /home/nelluk/PolyBot39-dev
+
+POLYBOT_ENV=development .venv/bin/python \
+  scripts/manage_dev_fixtures.py leaderboard-status
+
+POLYBOT_ENV=development .venv/bin/python \
+  scripts/manage_dev_fixtures.py leaderboard-seed
+```
+
+`leaderboard-seed` is idempotent. It creates 24 exact
+`LB2 Showcase 01`-through-`24` profiles and 48 recent ranked 1v1 games, enough
+to exercise several pages, varied records, current/peak/all-time ratings,
+local/global views, and active/all toggles.
+
+The data is independently owned by all of:
+
+- exact `development` / `polytopia_dev` / `polybot_dev` gates;
+- the configured development guild;
+- a reserved Discord-ID range;
+- exact generated player/member names;
+- a dedicated exact game notes marker and generated game-name set.
+
+Cleanup is confirmed and applies only to rows satisfying every ownership
+check:
+
+```bash
+POLYBOT_ENV=development .venv/bin/python \
+  scripts/manage_dev_fixtures.py leaderboard-cleanup --confirm
+```
+
+For P7.5 beta testing:
+
+1. Run `/lb2`; it should have no slash options.
+2. Compare its default local/current/active result with
+   `/leaderboard players`.
+3. Change the preset to global current, local peak, local all-time, and global
+   all-time.
+4. Toggle **Show all players** and back to **Show active only**.
+5. Use Previous/Next and the page-number modal.
+6. Use **My rank**; it should jump when the requester is present or explain
+   ephemerally when absent.
+7. Have another user try a control; the public result should not change and
+   the denial should be ephemeral.
+8. Confirm ordinary commands remain responsive while an uncached preset is
+   loading.

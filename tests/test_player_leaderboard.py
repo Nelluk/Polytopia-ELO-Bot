@@ -88,12 +88,14 @@ class PlayerLeaderboardWorkerTests(unittest.TestCase):
                 name='Alpha',
                 elo_field=1450,
                 team=SimpleNamespace(emoji='🏹'),
+                discord_member=SimpleNamespace(discord_id=101),
                 get_record=lambda version=None: (7, 3),
             ),
             SimpleNamespace(
                 name='Beta',
                 elo_field=1400,
                 team=None,
+                discord_member=SimpleNamespace(discord_id=102),
                 get_record=lambda version=None: (5, 4),
             ),
         ]
@@ -134,6 +136,7 @@ class PlayerLeaderboardWorkerTests(unittest.TestCase):
         member = SimpleNamespace(
             name='Global Alpha',
             elo_field=1700,
+            discord_id=201,
             get_record=lambda version=None: (
                 9 if version == 'ALLTIME' else 0,
                 2,

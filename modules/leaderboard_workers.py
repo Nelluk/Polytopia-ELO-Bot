@@ -47,6 +47,7 @@ class PlayerLeaderboardRow:
     wins: int
     losses: int
     team_emoji: str
+    discord_id: int | None = None
 
 
 @dataclass(frozen=True)
@@ -203,6 +204,11 @@ def load_player_leaderboard(
                     wins=int(wins),
                     losses=int(losses),
                     team_emoji=str(team_emoji),
+                    discord_id=int(
+                        player.discord_id
+                        if global_scope
+                        else player.discord_member.discord_id
+                    ),
                 )
             )
 

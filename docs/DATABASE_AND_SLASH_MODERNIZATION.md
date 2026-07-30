@@ -4,7 +4,7 @@ Last updated: 2026-07-30
 
 Status: Active
 
-Current branch at last update: `codex/p4-1d-match-slash-group`
+Current branch at last update: `codex/p7-5-lb2-components-v2`
 
 Source task: `thread://019fae66-8e3a-7a50-9a0f-d3d7160d2287`
 
@@ -309,15 +309,13 @@ check:
 - optional cleanup: unused `Team.id=9`, `Phase7 Test Team`, remains in
   `polytopia_dev` with zero players and zero game sides
 
-Current unit: **P4.1d — Unified native registration**, Implemented on
-`codex/p4-1d-match-slash-group` from accumulation checkpoint `31c84d7`.
-P0 through P3 and T1 are Complete on the intended accumulation branch.
-Taxonomy v2 review is now the blocking design action before P4.1d beta
-synchronization; the implemented command tree has not changed.
-Implementation is intentionally paused while staff review taxonomy v2.1,
-global-versus-guild command deployment, management-guild scope, and possible
-future web administration. Keep the current unit branch reviewable and do not
-synchronize its command tree until those decisions settle.
+Current unit: **P7.5 — Experimental Components v2 player leaderboard**,
+Implemented on `codex/p7-5-lb2-components-v2`, stacked from P7.4 checkpoint
+`ba717de`. The user explicitly authorized implementation, development-fixture
+seeding, development-guild synchronization, and a beta launch. `/lb2` is a
+temporary no-option test command and does not settle the still-reviewed
+system-wide taxonomy. Existing `/leaderboard` commands remain unchanged for
+side-by-side beta comparison.
 
 Owned fixture games `149`-`151` are intentionally retained. At the latest
 gated status check, `149` is incomplete/unranked, `150` is
@@ -1598,7 +1596,7 @@ if P2 and P4 demonstrate common infrastructure.
 
 ## P7 — Read-heavy commands and analytics
 
-Status: **In progress**
+Status: **Implemented; pending beta acceptance**
 
 Candidate scope:
 
@@ -1890,6 +1888,73 @@ Validation:
 
 Next action: create implementation and roadmap checkpoints, then include page
 jumps in the separately approved combined leaderboard beta smoke test.
+
+### P7.5 — Experimental Components v2 player leaderboard
+
+Status: **Implemented; pending beta acceptance**
+
+Branch/base: `codex/p7-5-lb2-components-v2`, stacked from P7.4 checkpoint
+`ba717de`.
+
+Objective: test whether Discord Components v2 can make the common player
+leaderboard flow more discoverable and reduce slash-option overload without
+changing the accepted `/leaderboard players` interface.
+
+In scope:
+
+- Add a temporary guild-only `/lb2` command with no slash options.
+- Render the public result entirely through a Components v2 `LayoutView`,
+  `Container`, `TextDisplay`, separators, select menu, and action buttons.
+- Default to this server/current ELO/active players.
+- Switch among common local/global, current/peak, and current/all-time presets
+  inside the message.
+- Toggle active versus all players inside the message.
+- Support previous/next, numeric page jump, and requester-rank navigation.
+- Keep page/rank changes on the immutable snapshot; load alternate presets
+  lazily through the existing bounded worker and cache them in the view.
+- Keep controls requester-only while leaving the displayed result public.
+- Seed a separately owned 24-player, 48-game showcase in `polytopia_dev`
+  through the existing fixture CLI and unchanged profile/live-identity gates.
+
+Out of scope:
+
+- Replacing `/leaderboard players` or deciding the production command name.
+- Adding activity, squad, or team views to the experiment.
+- Persistent interaction state across restarts.
+- Any production synchronization, production database access, schema change,
+  or dependency change.
+
+Fixture safety:
+
+- Showcase profiles use an exact reserved Discord-ID range and exact generated
+  player/member names.
+- Showcase games use a separate exact notes marker and generated-name set.
+- Status, seed, and confirmed cleanup independently recheck development
+  profile, live database `polytopia_dev`, role `polybot_dev`, guild, and every
+  ownership marker.
+- The existing reusable beta games and real development users are not owned by
+  this fixture set.
+
+Evidence so far:
+
+- Locked discord.py 2.7.1 supplies `LayoutView`, `Container`, `TextDisplay`,
+  `Separator`, `ActionRow`, modern modal `Label`, selects, and buttons; no
+  dependency change was needed.
+- Focused Components v2, fixture, player-leaderboard, and taxonomy tests:
+  31 passed.
+- Complete offline suite: 174 passed with 9 gated database skips.
+- Existing gated development-database suite: 8 passed with 1 intentional
+  operator-fixture-preserving skip.
+- Initial real seed created player IDs `163`-`186` and game IDs `200`-`247`.
+  A model title-case normalization mismatch was caught by the idempotency
+  check, corrected without weakening ownership, and the second seed then
+  returned the same IDs.
+- The real bounded local leaderboard worker returned 26 rows, including all
+  24 showcase profiles with four recent ranked games each.
+
+Next action: commit the implementation, synchronize the explicitly approved
+development guild, launch the beta, and smoke-test `/lb2` alongside
+`/leaderboard players`.
 
 ## P8 — League and remaining administration workflows
 
@@ -2314,6 +2379,27 @@ short-lived and in-memory initially unless restart persistence becomes a
 demonstrated requirement.
 
 ## Progress log
+
+### 2026-07-30 — Components v2 leaderboard showcase implemented
+
+- Created `codex/p7-5-lb2-components-v2` from the green P7.4 checkpoint.
+- Added temporary no-option `/lb2` as a public Components v2 experiment,
+  without changing `/leaderboard players` or settling the broader taxonomy.
+- Used a `LayoutView` container, markdown text displays, preset select,
+  active/all toggle, requester-only paging, numeric page modal, and **My
+  rank** navigation.
+- Kept page and rank changes database-free; alternate views use the existing
+  bounded two-thread leaderboard worker and are cached per message.
+- Extended immutable player rows with primitive Discord IDs solely for
+  requester-rank lookup.
+- Added separately gated/idempotent leaderboard fixture status, seed, and
+  confirmed-cleanup operations.
+- Seeded 24 owned profiles and 48 ranked games into `polytopia_dev`; verified
+  an idempotent rerun retained player IDs `163`-`186` and game IDs `200`-`247`.
+- Passed 31 focused tests, 174 complete offline tests with 9 gated skips, and
+  8 gated database tests with 1 operator-fixture-preserving skip.
+- No dependency, schema, production, service, or production database change
+  occurred. Development beta launch/sync remains the next approved action.
 
 ### 2026-07-30 — Shared leaderboard page-jump modal implemented
 

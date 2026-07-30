@@ -8,6 +8,7 @@ from modules import channels
 from modules import image_storage
 from modules import leaderboard_views
 from modules import leaderboard_workers
+from modules import leaderboard_v2
 from modules import elo_workers
 from modules import game_workers
 from modules.elo_jobs import EloJobConflict
@@ -550,6 +551,58 @@ class polygames(commands.Cog):
             embed=leaderboard_views.player_leaderboard_embed(result, 0),
             view=view,
         )
+
+    @discord.app_commands.command(
+        name='lb2',
+        description='Try an experimental interactive player leaderboard.',
+    )
+    @discord.app_commands.guild_only()
+    @discord.app_commands.checks.cooldown(
+        2,
+        30.0,
+        key=lambda interaction: interaction.channel_id,
+    )
+    async def player_leaderboard_v2_slash(
+        self,
+        interaction: discord.Interaction,
+    ):
+        """Components v2 experiment with in-message leaderboard controls."""
+
+        await interaction.response.defer()
+        ctx = await commands.Context.from_interaction(interaction)
+        ctx.prefix = settings.guild_setting(
+            interaction.guild.id,
+            'command_prefix',
+        )
+        ctx.invoked_with = 'lb'
+        if not await self.lb.can_run(ctx):
+            return
+
+        request = leaderboard_workers.PlayerLeaderboardRequest(
+            guild_id=interaction.guild.id,
+            scope='local',
+            rating='current',
+            era='current',
+            population='active',
+            active_cutoff=settings.date_cutoff,
+        )
+        try:
+            result = await self._load_player_leaderboard(request)
+        except (peewee.PeeweeException, ValueError) as exc:
+            logger.exception('Could not load experimental leaderboard')
+            return await interaction.followup.send(
+                f'Could not load the player leaderboard: {exc}',
+                ephemeral=True,
+            )
+
+        view = leaderboard_v2.ExperimentalLeaderboardView(
+            guild_id=interaction.guild.id,
+            requester_id=interaction.user.id,
+            result=result,
+            loader=self._load_player_leaderboard,
+            active_cutoff=settings.date_cutoff,
+        )
+        view.message = await interaction.edit_original_response(view=view)
 
     @settings.in_bot_channel_strict()
     @commands.command(aliases=['recent', 'active', 'lbactivealltime'], hidden=True)

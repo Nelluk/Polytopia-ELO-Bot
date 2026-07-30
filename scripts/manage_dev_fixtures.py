@@ -55,6 +55,23 @@ def _parser() -> argparse.ArgumentParser:
         action='store_true',
         help='Required acknowledgement before deleting owned fixture games.',
     )
+    commands.add_parser(
+        'leaderboard-seed',
+        help='Seed the separately owned 24-player LB2 showcase.',
+    )
+    commands.add_parser(
+        'leaderboard-status',
+        help='Inspect the separately owned LB2 showcase.',
+    )
+    leaderboard_cleanup = commands.add_parser(
+        'leaderboard-cleanup',
+        help='Delete only the separately owned LB2 showcase.',
+    )
+    leaderboard_cleanup.add_argument(
+        '--confirm',
+        action='store_true',
+        help='Required acknowledgement before deleting LB2 showcase data.',
+    )
     return parser
 
 
@@ -87,6 +104,27 @@ def _print_state(state: dev_fixtures.FixtureState) -> None:
         )
 
 
+def _print_leaderboard_state(
+    state: dev_fixtures.LeaderboardFixtureState,
+) -> None:
+    print(f'Development guild: {state.guild_id}')
+    print(
+        f'Owned LB2 showcase players: {len(state.players)}; '
+        f'games: {len(state.game_ids)}'
+    )
+    if state.players:
+        top = state.players[0]
+        bottom = state.players[-1]
+        print(
+            f'  rating range: {top.elo}–{bottom.elo}; '
+            f'player IDs {top.player_id}–{bottom.player_id}'
+        )
+    if state.game_ids:
+        print(
+            f'  game IDs: {state.game_ids[0]}–{state.game_ids[-1]}'
+        )
+
+
 def main(argv=None) -> int:
     args = _parser().parse_args(argv)
     try:
@@ -105,13 +143,15 @@ def main(argv=None) -> int:
                 user_ids=args.user,
                 manifest_path=args.manifest,
             )
+            _print_state(state)
         elif args.command == 'status':
             state = dev_fixtures.fixture_status(
                 profile=profile,
                 models_module=models,
                 guild_id=guild_id,
             )
-        else:
+            _print_state(state)
+        elif args.command == 'cleanup':
             state = dev_fixtures.cleanup_fixtures(
                 profile=profile,
                 models_module=models,
@@ -119,7 +159,29 @@ def main(argv=None) -> int:
                 manifest_path=args.manifest,
                 confirmed=args.confirm,
             )
-        _print_state(state)
+            _print_state(state)
+        elif args.command == 'leaderboard-seed':
+            state = dev_fixtures.seed_leaderboard_fixtures(
+                profile=profile,
+                models_module=models,
+                guild_id=guild_id,
+            )
+            _print_leaderboard_state(state)
+        elif args.command == 'leaderboard-status':
+            state = dev_fixtures.leaderboard_fixture_status(
+                profile=profile,
+                models_module=models,
+                guild_id=guild_id,
+            )
+            _print_leaderboard_state(state)
+        else:
+            state = dev_fixtures.cleanup_leaderboard_fixtures(
+                profile=profile,
+                models_module=models,
+                guild_id=guild_id,
+                confirmed=args.confirm,
+            )
+            _print_leaderboard_state(state)
         return 0
     except (
         dev_fixtures.FixtureSafetyError,

@@ -51,6 +51,58 @@ class RecordingDatabase:
 
 
 class DevelopmentFixtureSafetyTests(unittest.TestCase):
+    def test_leaderboard_fixture_ownership_requires_id_name_and_guild(self):
+        index = 4
+        name = dev_fixtures._leaderboard_name(index)
+        player = SimpleNamespace(
+            guild_id=1234,
+            name=name,
+            discord_member=SimpleNamespace(
+                discord_id=dev_fixtures._leaderboard_discord_id(index),
+                name=name,
+            ),
+        )
+        self.assertTrue(
+            dev_fixtures.is_owned_leaderboard_player(player, 1234)
+        )
+        player.name = 'Real Player'
+        self.assertFalse(
+            dev_fixtures.is_owned_leaderboard_player(player, 1234)
+        )
+        game = SimpleNamespace(
+            guild_id=1234,
+            notes=dev_fixtures.LEADERBOARD_GAME_MARKER,
+            name=dev_fixtures._leaderboard_game_name(1),
+        )
+        self.assertTrue(
+            dev_fixtures.is_owned_leaderboard_game(game, 1234)
+        )
+        game.name = 'Lb2 Showcase Game 99'
+        self.assertFalse(
+            dev_fixtures.is_owned_leaderboard_game(game, 1234)
+        )
+
+    def test_leaderboard_pairings_produce_four_games_per_player(self):
+        players = tuple(range(dev_fixtures.LEADERBOARD_FIXTURE_COUNT))
+        pairs = dev_fixtures._round_robin_pairs(players)
+        self.assertEqual(len(pairs), 48)
+        appearances = {
+            player: sum(player in pair for pair in pairs)
+            for player in players
+        }
+        self.assertEqual(set(appearances.values()), {4})
+
+    def test_leaderboard_cleanup_requires_confirmation_before_database(self):
+        models = SimpleNamespace(db=RecordingDatabase())
+        with self.assertRaises(dev_fixtures.FixtureValidationError):
+            dev_fixtures.cleanup_leaderboard_fixtures(
+                profile=profile(),
+                models_module=models,
+                guild_id=1234,
+                confirmed=False,
+            )
+        self.assertEqual(models.db.events, [])
+
     def test_status_output_includes_pending_state_and_expiration(self):
         state = dev_fixtures.FixtureState(
             guild_id=1234,
