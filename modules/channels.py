@@ -191,17 +191,27 @@ async def delete_game_channel(guild, channel_id: int):
 
     try:
         chan = await settings.bot.fetch_channel(channel_id)
+    except discord.NotFound:
+        logger.info(
+            f'Channel with id {channel_id} is already absent; treating it as '
+            'deleted.'
+        )
+        return True
     except discord.DiscordException as e:
-        return logger.warning(f'Could not retrieve channel with id {channel_id}: {e}')
+        logger.warning(f'Could not retrieve channel with id {channel_id}: {e}')
+        return False
 
     if 'ARCHIVE' in chan.name.upper() or (chan.category and 'ARCHIVE' in chan.category.name.upper()) or chan.permissions_for(guild.me).manage_channels is False:
-        return logger.info(f'Skipping deletion for channel {chan.name} - appears to be archived by name or category name, or has manage_channel denied to me.')
+        logger.info(f'Skipping deletion for channel {chan.name} - appears to be archived by name or category name, or has manage_channel denied to me.')
+        return False
 
     try:
         logger.warning(f'Deleting channel {chan.name}')
         await chan.delete(reason='Game concluded')
     except discord.DiscordException as e:
         logger.error(f'Could not delete channel: {e}')
+        return False
+    return True
 
 
 async def send_message_to_channel(guild, channel_id: int, message: str, suppress_errors=True):
