@@ -352,6 +352,7 @@ check:
 - P4.1a implementation checkpoints: `3e1f395`, `d2526b4`
 - P4.1a visibility checkpoint: `2cba1cc`
 - P4.1a accumulation merge: `5888c02`
+- P4.1b implementation checkpoint: `c0945a3`
 - T1 fixture-harness implementation checkpoint: `4551bec`
 - T1 roadmap-evidence checkpoint: `d6e826b`
 - T1 accumulation merge: `aacace4`
@@ -1278,6 +1279,10 @@ Status: **Implemented**
 Branch/base: `codex/p4-1b-pending-game-extension` from
 `codex/database-slash-modernization` at `62ea671`.
 
+Commit(s):
+
+- `c0945a3` — Modernize pending game extension.
+
 Objective: preserve the staff prefix timer extension while moving its
 database mutation off the event loop and adding a transparent typed native
 interface.
@@ -2097,6 +2102,7 @@ temporary beta aliases must be recorded before implementation.
   round-trip safely skipped to preserve the retained operator fixture set.
 - No beta launch, synchronization, production operation, dependency change,
   or schema change was performed.
+- Recorded implementation checkpoint `c0945a3`.
 - Next: commit P4.1b and review P4.1c `unstart` as a separately bounded unit
   suitable for the same later beta session.
 
