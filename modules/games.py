@@ -66,6 +66,11 @@ class PolyGame(commands.Converter):
 
 
 class polygames(commands.Cog):
+    game_group = discord.app_commands.Group(
+        name='game',
+        description='Create, manage, and correct games.',
+        guild_only=True,
+    )
 
     def __init__(self, bot):
         self.bot = bot
@@ -1656,11 +1661,10 @@ class polygames(commands.Cog):
         newgame = Game.load_full_game(game_id=result.game_id)
         await post_newgame_messaging(ctx, game=newgame)
 
-    @discord.app_commands.command(
-        name='newgame',
+    @game_group.command(
+        name='create',
         description='Track an existing two-sided Polytopia game.',
     )
-    @discord.app_commands.guild_only()
     @discord.app_commands.describe(
         game_name='The exact game name shown in Polytopia.',
         side_one_player_one='First player on side one.',
@@ -1732,7 +1736,7 @@ class polygames(commands.Cog):
 
     @settings.in_bot_channel_strict()
     @models.is_registered_member()
-    @commands.hybrid_command(
+    @commands.command(
         usage='game_id winner',
         aliases=['lose'],
     )
@@ -1902,9 +1906,33 @@ class polygames(commands.Cog):
                 f'claim with the command `{ctx.prefix}unwin {game_id}`'
             )
 
+    @game_group.command(
+        name='win',
+        description='Declare or confirm the winner of a game.',
+    )
+    @discord.app_commands.describe(
+        game_id='Game receiving the win claim.',
+        winner='Player or side that won.',
+    )
+    async def win_slash(
+        self,
+        interaction: discord.Interaction,
+        game_id: int,
+        winner: str,
+    ):
+        ctx = await commands.Context.from_interaction(interaction)
+        ctx.prefix = settings.guild_setting(
+            interaction.guild.id,
+            'command_prefix',
+        )
+        ctx.invoked_with = 'win'
+        if not await self.win.can_run(ctx):
+            return
+        await self.win.callback(self, ctx, game_id, winner=winner)
+
     @settings.in_bot_channel()
     @models.is_registered_member()
-    @commands.hybrid_command(usage='game_id')
+    @commands.command(usage='game_id')
     async def unwin(self, ctx, game_id: int):
         """Reset a completed game to incomplete
 
@@ -1997,9 +2025,29 @@ class polygames(commands.Cog):
             )
         await ctx.send(result.message)
 
+    @game_group.command(
+        name='unwin',
+        description='Reset a win claim or completed game.',
+    )
+    @discord.app_commands.describe(game_id='Game whose win should be reset.')
+    async def unwin_slash(
+        self,
+        interaction: discord.Interaction,
+        game_id: int,
+    ):
+        ctx = await commands.Context.from_interaction(interaction)
+        ctx.prefix = settings.guild_setting(
+            interaction.guild.id,
+            'command_prefix',
+        )
+        ctx.invoked_with = 'unwin'
+        if not await self.unwin.can_run(ctx):
+            return
+        await self.unwin.callback(self, ctx, game_id)
+
     @settings.in_bot_channel()
     @models.is_registered_member()
-    @commands.hybrid_command(
+    @commands.command(
         usage='game_id',
         aliases=['delete_game', 'delgame', 'delmatch', 'deletegame'],
     )
@@ -2178,6 +2226,131 @@ class polygames(commands.Cog):
                 target_guild,
                 channel_id=channel_id,
             )
+
+    @game_group.command(
+        name='delete',
+        description='Delete a game when your permissions allow it.',
+    )
+    @discord.app_commands.describe(game_id='Game to delete.')
+    async def delete_slash(
+        self,
+        interaction: discord.Interaction,
+        game_id: int,
+    ):
+        ctx = await commands.Context.from_interaction(interaction)
+        ctx.prefix = settings.guild_setting(
+            interaction.guild.id,
+            'command_prefix',
+        )
+        ctx.invoked_with = 'delete'
+        if not await self.delete.can_run(ctx):
+            return
+        await self.delete.callback(self, ctx, game_id)
+
+    async def _delegate_administration_slash(
+        self,
+        interaction: discord.Interaction,
+        method_name: str,
+        *args,
+    ):
+        administration_cog = self.bot.get_cog('administration')
+        if administration_cog is None:
+            message = 'The administration command handler is unavailable.'
+            if interaction.response.is_done():
+                return await interaction.followup.send(
+                    message,
+                    ephemeral=True,
+                )
+            return await interaction.response.send_message(
+                message,
+                ephemeral=True,
+            )
+        method = getattr(administration_cog, method_name)
+        return await method(interaction, *args)
+
+    @game_group.command(
+        name='confirm',
+        description='Confirm the claimed winner of a game.',
+    )
+    @discord.app_commands.describe(game_id='Game whose winner to confirm.')
+    async def confirm_slash(
+        self,
+        interaction: discord.Interaction,
+        game_id: int,
+    ):
+        await self._delegate_administration_slash(
+            interaction,
+            'confirm_slash',
+            game_id,
+        )
+
+    @game_group.command(
+        name='unconfirmed',
+        description='List games with claimed but unconfirmed winners.',
+    )
+    async def unconfirmed_slash(
+        self,
+        interaction: discord.Interaction,
+    ):
+        await self._delegate_administration_slash(
+            interaction,
+            'unconfirmed_slash',
+        )
+
+    @game_group.command(
+        name='set-ranked',
+        description='Set whether an incomplete game is ranked.',
+    )
+    @discord.app_commands.describe(
+        game_id='Incomplete game to correct.',
+        ranked='True for ranked; false for unranked.',
+    )
+    async def set_ranked_slash(
+        self,
+        interaction: discord.Interaction,
+        game_id: int,
+        ranked: bool,
+    ):
+        await self._delegate_administration_slash(
+            interaction,
+            'set_ranked_slash',
+            game_id,
+            ranked,
+        )
+
+    @game_group.command(
+        name='unstart',
+        description='Return an in-progress game to open matchmaking.',
+    )
+    @discord.app_commands.describe(
+        game_id='In-progress game to return to matchmaking.',
+    )
+    async def unstart_slash(
+        self,
+        interaction: discord.Interaction,
+        game_id: int,
+    ):
+        await self._delegate_administration_slash(
+            interaction,
+            'unstart_slash',
+            game_id,
+        )
+
+    @game_group.command(
+        name='extend',
+        description='Extend an open game deadline by 24 hours.',
+    )
+    @discord.app_commands.describe(game_id='Open game to extend.')
+    async def extend_slash(
+        self,
+        interaction: discord.Interaction,
+        game_id: int,
+    ):
+        await self._delegate_administration_slash(
+            interaction,
+            'extend_slash',
+            game_id,
+        )
 
     @commands.command(usage='game_id "New Name"')
     @models.is_registered_member()

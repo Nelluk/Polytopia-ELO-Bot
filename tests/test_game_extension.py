@@ -16,6 +16,7 @@ from tests.test_newgame_worker import FakeDatabase, import_offline_runtime
 
 game_workers = import_offline_runtime('modules.game_workers')
 administration = import_offline_runtime('modules.administration')
+games = import_offline_runtime('modules.games')
 
 
 class GameExtensionWorkerTests(unittest.TestCase):
@@ -142,11 +143,11 @@ class GameExtensionCommandTests(unittest.IsolatedAsyncioTestCase):
             for command in administration.administration.__cog_commands__
         }
         self.assertIsInstance(prefix['extend'], commands.Command)
-        match_group = {
+        game_group = {
             command.name: command
-            for command in administration.administration.__cog_app_commands__
-        }['match']
-        slash = match_group.get_command('extend')
+            for command in games.polygames.__cog_app_commands__
+        }['game']
+        slash = game_group.get_command('extend')
         self.assertIsNotNone(slash)
         self.assertEqual(
             [(parameter.name, parameter.type) for parameter in slash.parameters],
@@ -157,7 +158,7 @@ class GameExtensionCommandTests(unittest.IsolatedAsyncioTestCase):
             {
                 command.name
                 for command
-                in administration.administration.__cog_app_commands__
+                in games.polygames.__cog_app_commands__
             },
         )
 
@@ -177,7 +178,7 @@ class GameExtensionCommandTests(unittest.IsolatedAsyncioTestCase):
         ), mock.patch.object(
             cog, '_extend_pending_game', new=mock.AsyncMock()
         ) as run_extension:
-            await administration.administration.extend_slash.callback(
+            await administration.administration.extend_slash(
                 cog, interaction, 42
             )
 
@@ -218,7 +219,7 @@ class GameExtensionCommandTests(unittest.IsolatedAsyncioTestCase):
             '_extend_pending_game',
             new=mock.AsyncMock(side_effect=extend),
         ):
-            await administration.administration.extend_slash.callback(
+            await administration.administration.extend_slash(
                 cog, interaction, 42
             )
 

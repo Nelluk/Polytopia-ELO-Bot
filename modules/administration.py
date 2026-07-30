@@ -74,9 +74,9 @@ def format_elo_job_status(active_job, now=None):
 
 
 class administration(commands.Cog):
-    match_group = discord.app_commands.Group(
-        name='match',
-        description='Manage pending matchmaking games.',
+    elo_group = discord.app_commands.Group(
+        name='elo',
+        description='Inspect and maintain ELO calculations.',
         guild_only=True,
     )
 
@@ -510,11 +510,6 @@ class administration(commands.Cog):
             f'**{result.winner_name}**'
         )
 
-    @discord.app_commands.command(
-        name='confirm',
-        description='Confirm the claimed winner of a game.',
-    )
-    @discord.app_commands.guild_only()
     async def confirm_slash(
         self,
         interaction: discord.Interaction,
@@ -564,11 +559,6 @@ class administration(commands.Cog):
             f'**{result.winner_name}**'
         )
 
-    @discord.app_commands.command(
-        name='unconfirmed',
-        description='List games with claimed but unconfirmed winners.',
-    )
-    @discord.app_commands.guild_only()
     async def unconfirmed_slash(
         self,
         interaction: discord.Interaction,
@@ -908,15 +898,6 @@ class administration(commands.Cog):
             return await ctx.send(str(exc))
         return await ctx.send(message)
 
-    @discord.app_commands.command(
-        name='set-ranked',
-        description='Set whether an incomplete game is ranked.',
-    )
-    @discord.app_commands.guild_only()
-    @discord.app_commands.describe(
-        game_id='Incomplete game to correct.',
-        ranked='True for ranked; false for unranked.',
-    )
     async def set_ranked_slash(
         self,
         interaction: discord.Interaction,
@@ -976,13 +957,6 @@ class administration(commands.Cog):
             return await ctx.send(str(exc))
         await ctx.send(message)
 
-    @match_group.command(
-        name='unstart',
-        description='Return an in-progress game to open matchmaking.',
-    )
-    @discord.app_commands.describe(
-        game_id='In-progress game to return to matchmaking.',
-    )
     async def unstart_slash(
         self,
         interaction: discord.Interaction,
@@ -1005,7 +979,7 @@ class administration(commands.Cog):
                 prefix=prefix,
                 requester=interaction.user,
                 invocation_channel_id=interaction.channel_id,
-                invoked_with='/match unstart',
+                invoked_with='/game unstart',
             )
         except game_workers.GameUnstartValidationError as exc:
             return await interaction.followup.send(str(exc), ephemeral=True)
@@ -1045,11 +1019,6 @@ class administration(commands.Cog):
             f'**{result.old_expiration}**.'
         )
 
-    @match_group.command(
-        name='extend',
-        description='Extend an open game deadline by 24 hours.',
-    )
-    @discord.app_commands.describe(game_id='Open game to extend.')
     async def extend_slash(
         self,
         interaction: discord.Interaction,
@@ -1593,11 +1562,10 @@ class administration(commands.Cog):
 
         await ctx.send(f'DB has been refreshed from {timestamp} onward')
 
-    @discord.app_commands.command(
-        name='recalc-games-from',
+    @elo_group.command(
+        name='recalculate',
         description='Recalculate ELO from a completed game onward.',
     )
-    @discord.app_commands.guild_only()
     @discord.app_commands.describe(
         game_id='Completed game that establishes the recalculation timestamp.',
         confirm='Must be true to start this destructive maintenance job.',
@@ -1663,11 +1631,10 @@ class administration(commands.Cog):
             ephemeral=True,
         )
 
-    @discord.app_commands.command(
-        name='elo-job-status',
+    @elo_group.command(
+        name='status',
         description='Show the currently running ELO mutation job.',
     )
-    @discord.app_commands.guild_only()
     async def elo_job_status_slash(
         self,
         interaction: discord.Interaction,

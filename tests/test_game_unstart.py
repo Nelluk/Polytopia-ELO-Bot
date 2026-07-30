@@ -16,6 +16,7 @@ from tests.test_newgame_worker import FakeDatabase, import_offline_runtime
 
 game_workers = import_offline_runtime('modules.game_workers')
 administration = import_offline_runtime('modules.administration')
+games = import_offline_runtime('modules.games')
 
 
 class GameUnstartWorkerTests(unittest.TestCase):
@@ -226,17 +227,17 @@ class GameUnstartWorkerTests(unittest.TestCase):
 
 
 class GameUnstartCommandTests(unittest.IsolatedAsyncioTestCase):
-    def test_prefix_and_match_unstart_slash_are_registered(self):
+    def test_prefix_and_game_unstart_slash_are_registered(self):
         prefix = {
             command.name: command
             for command in administration.administration.__cog_commands__
         }
         self.assertIsInstance(prefix['unstart'], commands.Command)
-        match_group = {
+        game_group = {
             command.name: command
-            for command in administration.administration.__cog_app_commands__
-        }['match']
-        slash = match_group.get_command('unstart')
+            for command in games.polygames.__cog_app_commands__
+        }['game']
+        slash = game_group.get_command('unstart')
         self.assertIsNotNone(slash)
         self.assertEqual(
             [(parameter.name, parameter.type) for parameter in slash.parameters],
@@ -247,7 +248,7 @@ class GameUnstartCommandTests(unittest.IsolatedAsyncioTestCase):
             {
                 command.name
                 for command
-                in administration.administration.__cog_app_commands__
+                in games.polygames.__cog_app_commands__
             },
         )
 
@@ -267,7 +268,7 @@ class GameUnstartCommandTests(unittest.IsolatedAsyncioTestCase):
         ), mock.patch.object(
             cog, '_unstart_game_and_post', new=mock.AsyncMock()
         ) as run_unstart:
-            await administration.administration.unstart_slash.callback(
+            await administration.administration.unstart_slash(
                 cog, interaction, 42
             )
 
@@ -312,14 +313,14 @@ class GameUnstartCommandTests(unittest.IsolatedAsyncioTestCase):
             '_unstart_game_and_post',
             new=mock.AsyncMock(side_effect=run_unstart),
         ):
-            await administration.administration.unstart_slash.callback(
+            await administration.administration.unstart_slash(
                 cog, interaction, 42
             )
 
         self.assertEqual([event[0] for event in events], ['defer', 'pipeline'])
         self.assertEqual(events[0][1], {})
         self.assertEqual(events[1][1]['invocation_channel_id'], 999)
-        self.assertEqual(events[1][1]['invoked_with'], '/match unstart')
+        self.assertEqual(events[1][1]['invoked_with'], '/game unstart')
         interaction.followup.send.assert_awaited_once_with(
             'Game 42 is now an open game and no longer in progress.'
         )
@@ -353,7 +354,7 @@ class GameUnstartCommandTests(unittest.IsolatedAsyncioTestCase):
                 )
             ),
         ):
-            await administration.administration.unstart_slash.callback(
+            await administration.administration.unstart_slash(
                 cog, interaction, 42
             )
 

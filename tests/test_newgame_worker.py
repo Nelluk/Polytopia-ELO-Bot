@@ -292,11 +292,12 @@ class NewGameCommandTests(unittest.IsolatedAsyncioTestCase):
         )
 
     def newgame_slash_command(self):
-        return next(
+        game_group = next(
             command
             for command in self.games.polygames.__cog_app_commands__
-            if command.name == 'newgame'
+            if command.name == 'game'
         )
+        return game_group.get_command('create')
 
     def test_prefix_command_and_aliases_are_preserved(self):
         command = self.newgame_command()

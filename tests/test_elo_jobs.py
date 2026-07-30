@@ -789,6 +789,23 @@ class HybridUnwinCommandTests(unittest.IsolatedAsyncioTestCase):
             'modules.administration'
         )
 
+    def game_app_command(self, name):
+        game_group = next(
+            command
+            for command in self.games.polygames.__cog_app_commands__
+            if command.name == 'game'
+        )
+        return game_group.get_command(name)
+
+    def elo_app_command(self, name):
+        elo_group = next(
+            command
+            for command
+            in self.administration.administration.__cog_app_commands__
+            if command.name == 'elo'
+        )
+        return elo_group.get_command(name)
+
     def test_unwin_is_registered_for_prefix_and_slash(self):
         matches = [
             command for command in self.games.polygames.__cog_commands__
@@ -796,12 +813,13 @@ class HybridUnwinCommandTests(unittest.IsolatedAsyncioTestCase):
         ]
         self.assertEqual(len(matches), 1)
         command = matches[0]
-        self.assertIsInstance(command, commands.HybridCommand)
+        self.assertIsInstance(command, commands.Command)
+        self.assertNotIsInstance(command, commands.HybridCommand)
         self.assertEqual(command.name, 'unwin')
-        self.assertIsNotNone(command.app_command)
-        self.assertEqual(command.app_command.name, 'unwin')
+        app_command = self.game_app_command('unwin')
+        self.assertIsNotNone(app_command)
         self.assertEqual(
-            command.app_command.parameters[0].type,
+            app_command.parameters[0].type,
             discord.AppCommandOptionType.integer,
         )
 
@@ -810,15 +828,16 @@ class HybridUnwinCommandTests(unittest.IsolatedAsyncioTestCase):
             command for command in self.games.polygames.__cog_commands__
             if command.name == 'delete'
         )
-        self.assertIsInstance(command, commands.HybridCommand)
+        self.assertIsInstance(command, commands.Command)
+        self.assertNotIsInstance(command, commands.HybridCommand)
         self.assertEqual(
             {alias for alias in command.aliases},
             {'delete_game', 'delgame', 'delmatch', 'deletegame'},
         )
-        self.assertIsNotNone(command.app_command)
-        self.assertEqual(command.app_command.name, 'delete')
+        app_command = self.game_app_command('delete')
+        self.assertIsNotNone(app_command)
         self.assertEqual(
-            command.app_command.parameters[0].type,
+            app_command.parameters[0].type,
             discord.AppCommandOptionType.integer,
         )
 
@@ -827,13 +846,15 @@ class HybridUnwinCommandTests(unittest.IsolatedAsyncioTestCase):
             command for command in self.games.polygames.__cog_commands__
             if command.name == 'win'
         )
-        self.assertIsInstance(command, commands.HybridCommand)
+        self.assertIsInstance(command, commands.Command)
+        self.assertNotIsInstance(command, commands.HybridCommand)
         self.assertEqual(command.aliases, ['lose'])
-        self.assertEqual(command.app_command.name, 'win')
+        app_command = self.game_app_command('win')
+        self.assertIsNotNone(app_command)
         self.assertEqual(
             [
                 (parameter.name, parameter.type)
-                for parameter in command.app_command.parameters
+                for parameter in app_command.parameters
             ],
             [
                 ('game_id', discord.AppCommandOptionType.integer),
@@ -842,23 +863,16 @@ class HybridUnwinCommandTests(unittest.IsolatedAsyncioTestCase):
         )
 
     def test_confirm_and_unconfirmed_slash_commands_are_registered(self):
-        app_commands = {
-            command.name: command
-            for command
-            in self.administration.administration.__cog_app_commands__
-        }
-        self.assertEqual(
-            {'confirm', 'unconfirmed'}.intersection(app_commands),
-            {'confirm', 'unconfirmed'},
-        )
+        confirm = self.game_app_command('confirm')
+        unconfirmed = self.game_app_command('unconfirmed')
         self.assertEqual(
             [
                 (parameter.name, parameter.type)
-                for parameter in app_commands['confirm'].parameters
+                for parameter in confirm.parameters
             ],
             [('game_id', discord.AppCommandOptionType.integer)],
         )
-        self.assertEqual(app_commands['unconfirmed'].parameters, [])
+        self.assertEqual(unconfirmed.parameters, [])
 
     def test_recalculation_prefix_and_maintenance_slash_commands_registered(
         self,
@@ -884,30 +898,20 @@ class HybridUnwinCommandTests(unittest.IsolatedAsyncioTestCase):
             )
         )
 
-        app_commands = {
-            command.name: command
-            for command
-            in self.administration.administration.__cog_app_commands__
-        }
-        self.assertEqual(
-            {
-                'recalc-games-from',
-                'elo-job-status',
-            }.intersection(app_commands),
-            {'recalc-games-from', 'elo-job-status'},
-        )
+        recalculate = self.elo_app_command('recalculate')
+        status = self.elo_app_command('status')
         self.assertEqual(
             [
                 (parameter.name, parameter.type, parameter.required)
                 for parameter
-                in app_commands['recalc-games-from'].parameters
+                in recalculate.parameters
             ],
             [
                 ('game_id', discord.AppCommandOptionType.integer, True),
                 ('confirm', discord.AppCommandOptionType.boolean, True),
             ],
         )
-        self.assertEqual(app_commands['elo-job-status'].parameters, [])
+        self.assertEqual(status.parameters, [])
 
     async def test_recalculation_slash_rejects_non_owner_before_defer(self):
         interaction = SimpleNamespace(
@@ -917,12 +921,7 @@ class HybridUnwinCommandTests(unittest.IsolatedAsyncioTestCase):
                 defer=mock.AsyncMock(),
             ),
         )
-        command = next(
-            command
-            for command
-            in self.administration.administration.__cog_app_commands__
-            if command.name == 'recalc-games-from'
-        )
+        command = self.elo_app_command('recalculate')
         cog = SimpleNamespace(
             _run_recalculation_job=mock.AsyncMock(),
         )
@@ -949,12 +948,7 @@ class HybridUnwinCommandTests(unittest.IsolatedAsyncioTestCase):
                 defer=mock.AsyncMock(),
             ),
         )
-        command = next(
-            command
-            for command
-            in self.administration.administration.__cog_app_commands__
-            if command.name == 'recalc-games-from'
-        )
+        command = self.elo_app_command('recalculate')
         cog = SimpleNamespace(
             _run_recalculation_job=mock.AsyncMock(),
         )
@@ -1000,12 +994,7 @@ class HybridUnwinCommandTests(unittest.IsolatedAsyncioTestCase):
             ),
             followup=SimpleNamespace(send=mock.AsyncMock()),
         )
-        command = next(
-            command
-            for command
-            in self.administration.administration.__cog_app_commands__
-            if command.name == 'recalc-games-from'
-        )
+        command = self.elo_app_command('recalculate')
         cog = SimpleNamespace(_run_recalculation_job=run_job)
 
         with mock.patch.object(
@@ -1030,12 +1019,7 @@ class HybridUnwinCommandTests(unittest.IsolatedAsyncioTestCase):
             requester_name='Staff Tester',
             started_at=datetime.datetime.now(datetime.timezone.utc),
         )
-        command = next(
-            command
-            for command
-            in self.administration.administration.__cog_app_commands__
-            if command.name == 'recalc-games-from'
-        )
+        command = self.elo_app_command('recalculate')
 
         for exception, expected in (
             (EloJobConflict(active_job), 'already running'),
@@ -1110,12 +1094,7 @@ class HybridUnwinCommandTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn('Elapsed: 1h 2m 3s', message)
 
     async def test_elo_job_status_is_staff_only_and_ephemeral(self):
-        command = next(
-            command
-            for command
-            in self.administration.administration.__cog_app_commands__
-            if command.name == 'elo-job-status'
-        )
+        command = self.elo_app_command('status')
         interaction = SimpleNamespace(
             user=SimpleNamespace(id=400),
             response=SimpleNamespace(send_message=mock.AsyncMock()),
@@ -1441,12 +1420,6 @@ class HybridUnwinCommandTests(unittest.IsolatedAsyncioTestCase):
             ),
             followup=SimpleNamespace(send=mock.AsyncMock()),
         )
-        command = next(
-            command
-            for command
-            in self.administration.administration.__cog_app_commands__
-            if command.name == 'confirm'
-        )
         cog = SimpleNamespace(
             _confirm_game_and_post=confirm_and_post
         )
@@ -1460,7 +1433,11 @@ class HybridUnwinCommandTests(unittest.IsolatedAsyncioTestCase):
             'guild_setting',
             return_value='$',
         ):
-            await command.callback(cog, interaction, 99)
+            await self.administration.administration.confirm_slash(
+                cog,
+                interaction,
+                99,
+            )
 
         self.assertEqual(events[:2], ['defer', 'confirm'])
         interaction.followup.send.assert_awaited_once_with('not eligible')
@@ -1473,18 +1450,15 @@ class HybridUnwinCommandTests(unittest.IsolatedAsyncioTestCase):
                 defer=mock.AsyncMock(),
             ),
         )
-        command = next(
-            command
-            for command
-            in self.administration.administration.__cog_app_commands__
-            if command.name == 'unconfirmed'
-        )
         with mock.patch.object(
             self.administration.settings,
             'is_staff',
             return_value=False,
         ):
-            await command.callback(SimpleNamespace(), interaction)
+            await self.administration.administration.unconfirmed_slash(
+                SimpleNamespace(),
+                interaction,
+            )
 
         interaction.response.send_message.assert_awaited_once_with(
             'You do not have permission to use this command.',
