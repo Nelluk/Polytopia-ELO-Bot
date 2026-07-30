@@ -160,6 +160,9 @@ For every command touched:
 5. Keep permission checks equivalent between prefix and slash paths.
 6. Make error visibility deliberate; permission or validation errors should
    generally be ephemeral for slash users.
+   Successful competitive-state mutations should generally be public so the
+   native interface preserves the transparency of the corresponding prefix
+   command. Deviations require a recorded privacy or safety reason.
 7. Add registration tests for both interfaces.
 8. Record any native-interface compromise in the compatibility ledger below,
    including user impact, acceptance, and a possible mitigation. Do not let
@@ -235,7 +238,7 @@ check:
 - optional cleanup: unused `Team.id=9`, `Phase7 Test Team`, remains in
   `polytopia_dev` with zero players and zero game sides
 
-Current unit: **P4.1a — Ranked-state correction**, Implemented on
+Current unit: **P4.1a — Ranked-state correction**, Beta-validated on
 `codex/p4-1a-ranked-state-correction` from accumulation checkpoint `f215bae`.
 P0 through P3 and T1 are Complete on the intended accumulation branch.
 
@@ -1078,7 +1081,7 @@ operation with no ELO interaction.
 
 #### P4.1a — Ranked-state correction
 
-Status: **Implemented**
+Status: **Beta-validated**
 
 Branch/base: `codex/p4-1a-ranked-state-correction` from
 `codex/database-slash-modernization` at `f215bae`.
@@ -1113,8 +1116,19 @@ Validation evidence:
   `development`, `polytopia_dev`, and `polybot_dev`.
 - `git diff --check`: clean.
 
-Beta result: pending. The new `/set-ranked` application command requires an
-approved later development-guild sync and smoke test before integration.
+Beta result: accepted by the user on 2026-07-29. Startup synchronized all nine
+expected commands to the development guild, including `/set-ranked`.
+Fixture-backed ranked/unranked corrections and the preserved prefix commands
+worked as expected. The test exposed that successful slash responses were
+ephemeral; the user requested public success output for competitive
+transparency and waived a second live retest. Permission, validation, and
+database-error responses remain ephemeral.
+
+Fixture result: the task-owned beta process stopped cleanly. The retained
+owned set remains games `149`-`151`; game `149` is incomplete and unranked
+after the smoke test, while `150` remains unconfirmed ranked and `151`
+confirmed ranked. The set was intentionally retained for later units and
+must be inspected before reuse.
 
 Remaining limitations:
 
@@ -1122,8 +1136,7 @@ Remaining limitations:
   thread.
 - `unstart` and `extend` remain unchanged for separate bounded units.
 
-Next action: with separate beta launch/synchronization approval, run a
-fixture-backed smoke test for `/set-ranked`, `rankset`, and `rankunset`.
+Next action: integrate P4.1a into `codex/database-slash-modernization`.
 
 Use typed game IDs and choices. If these commands can race with finalized ELO
 state, use the ELO coordinator; otherwise use a per-game claim rather than
@@ -1548,6 +1561,16 @@ repairs use the serialized recalculation-from-game workflow or, when a full
 rebuild is deliberately required, the separately operated command-line
 recalculation.
 
+### D-017 — Keep successful competitive mutations public
+
+Status: Accepted
+
+Successful slash-command results that change competitive game state should be
+public by default, preserving the transparency and shared audit context of
+their prefix equivalents. Permission denials, validation failures, and
+database errors should generally remain ephemeral. A command may make success
+private only for a recorded privacy or safety reason.
+
 ## Progress log
 
 ### 2026-07-29 — ELO/slash pilot beta accepted
@@ -1797,6 +1820,23 @@ recalculation.
 - No beta launch, synchronization, production operation, dependency change,
   or schema change was performed.
 - Next: obtain separate approval for a fixture-backed beta sync/smoke test.
+
+### 2026-07-29 — P4.1a beta accepted and transparency policy corrected
+
+- Seeded owned development fixtures `149`-`151` while the beta was stopped.
+- Verified the development profile selected the beta application,
+  `polytopia_dev`, guild `478571892832206869`, and disabled background
+  tasks/API/Bullet integration.
+- Synchronized nine development-guild commands, including `/set-ranked`.
+- The user accepted `/set-ranked`, `rankset`, and `rankunset` behavior.
+- Changed successful `/set-ranked` output from ephemeral to public at the
+  user's request; permission, validation, and database-error output remains
+  ephemeral. The user waived a second live retest.
+- Passed seven focused tests and the complete 115-test offline suite with
+  eight gated skips after the visibility adjustment.
+- Stopped the beta cleanly. Retained owned game `149` incomplete/unranked,
+  `150` unconfirmed/ranked, and `151` confirmed/ranked for later units.
+- Next: integrate P4.1a into the accumulation branch.
 
 ## Resume checklist
 

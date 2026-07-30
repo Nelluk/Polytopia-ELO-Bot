@@ -811,7 +811,10 @@ class administration(commands.Cog):
                 'You do not have permission to use this command.',
                 ephemeral=True,
             )
-        await interaction.response.defer(ephemeral=True)
+        # Successful competitive-state corrections are intentionally public
+        # so server members can see the same audit-facing result as the
+        # preserved prefix commands.
+        await interaction.response.defer()
         try:
             message = await self._set_ranked_state_and_post(
                 game_id=game_id,
@@ -827,7 +830,7 @@ class administration(commands.Cog):
                 'Ranked-state correction failed; no Discord update was made.',
                 ephemeral=True,
             )
-        await interaction.followup.send(message, ephemeral=True)
+        await interaction.followup.send(message)
 
     @settings.in_bot_channel()
     @commands.command(usage='game_id')

@@ -199,9 +199,9 @@ class RankedStateCommandTests(unittest.IsolatedAsyncioTestCase):
             )
 
         self.assertEqual([event[0] for event in events], ['defer', 'worker'])
+        self.assertEqual(events[0][1], {})
         interaction.followup.send.assert_awaited_once_with(
             'Game 42 is now marked as ranked.',
-            ephemeral=True,
         )
 
     async def test_slow_correction_does_not_block_event_loop(self):
