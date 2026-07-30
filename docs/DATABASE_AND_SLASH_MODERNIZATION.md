@@ -2047,6 +2047,20 @@ demonstrated requirement.
 
 ## Progress log
 
+### 2026-07-30 — Modernization review checkpoints published
+
+- Committed the current taxonomy v2.1, attribute-command, and modal/component
+  discussion as `40bc816`.
+- Published `codex/database-slash-modernization` as the stable accumulation
+  checkpoint through integrated P4.1b/P4.1c.
+- Published `codex/p4-1d-match-slash-group` as the current review branch
+  containing P4.1d registration code and the still-unapproved taxonomy v2.1
+  proposal.
+- Passed the complete offline suite: 142 tests passed with eight gated
+  development-database tests skipped as designed.
+- Opened no pull request and performed no merge, beta launch, Discord
+  synchronization, database operation, or production action.
+
 ### 2026-07-30 — Taxonomy review paused and modal opportunities recorded
 
 - Paused new registration implementation while staff continue reviewing
