@@ -687,6 +687,41 @@ the P7 bounded-read work; until that exists, the already-tested argument-free
 `$confirm` behavior remains available and the slash list can be temporarily
 omitted rather than shipping a name already marked for replacement.
 
+## Guild capability policy and root-scope implications
+
+P8.0 makes registration default-deny and repository-backed. The policy groups
+top-level roots into explicit capability families:
+
+| Capability | Current/reserved top-level roots | Intended scope |
+|---|---|---|
+| `core_user` | `game`, `leaderboard`, `player` | public user surface |
+| `elo_maintenance` | `elo` | staff/maintenance |
+| `team` | `team` | reserved future family |
+| `league` | `league` | reserved future family |
+| `house` | `house` | reserved future family |
+| `squad` | `squad` | reserved future family |
+| `tools_support` | `about`, `guide`, `help`, `staffhelp`, `support`, `tools` | reserved future family |
+| `operator_only` | none | never an application command |
+
+Each server-settings profile may assign only known capabilities to guild IDs
+already present in that runtime profile's allowlist. Missing or empty
+assignments register nothing. Unknown capabilities/roots, duplicate or
+conflicting root definitions, operator-only assignments, and out-of-profile
+guild IDs fail before remote work.
+
+Discord filters application commands at top-level-root granularity. A policy
+can therefore keep the `elo` root out of a user guild, but cannot hide one
+staff subcommand inside a root that is otherwise public. A future command with
+different visibility must use runtime permission checks or receive a separate
+top-level root through a taxonomy decision; P8.0 does not rename roots or add
+placeholder commands. The manager's desired-state plan includes creates,
+updates, unchanged roots, and removals for each selected guild, and the only
+supported remote scope is explicit guild scope. There is no global fallback.
+
+The normal bot launch does not synchronize commands. Operators stop the beta,
+run/review the offline plan, explicitly inspect/apply the exact development
+guild when approved, then launch the beta without startup synchronization.
+
 ## Implementation and migration plan
 
 1. Continue reviewing and approving or revising unsettled Taxonomy v2.2
@@ -697,8 +732,10 @@ omitted rather than shipping a name already marked for replacement.
    Discord-effect ordering.
 4. Do not implement placeholder read commands merely to fill the proposed
    tree. Add `/game search` in P7 with its bounded read/pagination design.
-5. Synchronize only the development guild in a separately approved beta
-   session and verify the exact registered tree.
+5. Use the P8.0 default-deny capability policy and offline desired-state plan
+   before any separately approved guild-scoped inspection/apply session. The
+   bot's normal startup performs no command synchronization; launch it only
+   after the explicit registration step and verify the exact registered tree.
 6. Extend the taxonomy through bounded P4-P8 units, checking Discord's group,
    option, component, text, and attachment limits before each registration.
    Each unit must justify every slash option that remains instead of moving it
@@ -708,9 +745,9 @@ omitted rather than shipping a name already marked for replacement.
    as a target.
 8. Before P9, audit the actual tree, descriptions, permissions,
    autocomplete cost, compatibility ledger, and naming consistency.
-9. Implement a default-deny guild capability policy before the production
-   canary. Keep prefixes available and do not use a second bot process against
-   the production database.
+9. Implement and review a default-deny guild capability policy before the
+   production canary. Keep prefixes available, use only explicit guild scope,
+   and do not use a second bot process against the production database.
 
 Changing slash placement remains technically manageable because adapters stay
 thin over shared application/worker logic. Once paths reach production they

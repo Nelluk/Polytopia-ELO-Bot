@@ -5,6 +5,7 @@ from discord.ext import commands
 import discord
 import re
 from runtime_config import get_runtime_profile
+from modules.application_command_policy import policy_from_server_settings
 from modules.elo_jobs import elo_job_coordinator
 
 logger = logging.getLogger('polybot.' + __name__)
@@ -26,6 +27,10 @@ bot_id_beta = 479029527553638401
 bot_id = runtime_profile.expected_bot_id
 
 config = server_settings.server_list  # list of allowed servers and server-level settings
+application_command_policy = policy_from_server_settings(
+    server_settings,
+    runtime_profile.allowed_guild_ids,
+)
 bot = None
 run_tasks = runtime_profile.background_tasks_enabled
 maintenance_mode = False  # if set as True bot will ignore all commands (TODO: respond to all commands?)

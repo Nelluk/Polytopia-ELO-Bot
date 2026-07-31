@@ -1,6 +1,13 @@
 # make a copy of this file called server_settings.py
 
 server_shortcut_ids = {'main': 283436219780825088, 'polychampions': 447883341463814144, 'test': 478571892832206869}
+
+# Guild-scoped application-command capability assignments are default-deny.
+# Keys must be guild IDs present in this file's server_list.  Assign only
+# capability names from modules.application_command_policy; an empty mapping
+# registers no application commands until an operator runs the explicit,
+# guild-scoped deployment tool.
+application_command_capabilities = {}
 # this is a convenience list of frequently-referred to servers in the code.
 # main and polychampions are the primary game discord servers and should remain as they are
 # test can be a development server. the bot will treat that as having the same abilities as polychampions
