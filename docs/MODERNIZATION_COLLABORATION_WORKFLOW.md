@@ -85,8 +85,13 @@ Rules:
 - Git objects and refs are shared across worktrees. Branches are not; Git
   prevents one branch from being checked out in both worktrees.
 - Runtime processes are host-wide, not worktree-local. Before launching or
-  restarting beta, inspect all development `bot.py --skip_tasks` processes,
-  compare start times and command paths, and leave exactly one intended beta.
+  restarting beta, use a host-wide process view capable of seeing sibling
+  Codex task/PTY sessions; an ordinary sandboxed `ps` result is not sufficient
+  evidence that no beta is running. Inspect all development
+  `bot.py --skip_tasks` processes, compare command paths, working directories,
+  start times, and ancestry, identify production processes separately, and
+  leave exactly one intended development beta. Never stop a production
+  process while cleaning up a development duplicate.
 - A worktree is isolation for files/index/HEAD, not authorization for
   production, database, Discord, dependency, push, merge, or service actions.
 

@@ -2652,6 +2652,7 @@ Commit:
 
 - `24a435b` — Add unified game detail workspace.
 - `22023f4` — Restore game detail parity boundaries.
+- `60989a5` — Record the Tier 2 parity-correction handoff.
 
 Compatibility implications:
 
@@ -2667,16 +2668,21 @@ Compatibility implications:
   and lifecycle mutations continue through their existing permission-checked
   prefix/native commands.
 
-Beta result: **D-026 launch/sync succeeded; beta currently stopped/exited;
-interactive smoke pending.** The managed worktree previously launched exactly
-one intended beta (PID `1784646`), authenticated as **PolyELO Bot Beta**
-(`479029527553638401`), connected successfully, and synced exactly four
-application-command roots (`game`, `leaderboard`, `player`, `elo`) to guild
-`478571892832206869`. Fresh host-wide review after the Tier 2 correction found
-no `bot.py --skip_tasks` process; PID `1784646` is no longer running. The
-headless execution task has no Discord client surface for explicit-ID,
-channel-inference, prefix, or desktop/mobile interaction smoke, so beta
-acceptance remains pending. No production process or database was accessed.
+Beta result: **D-026 launch/sync succeeded; exactly one corrected development
+beta is currently running; interactive smoke pending.** A sandboxed process
+check incorrectly reported no beta because it could not see sibling Codex
+task/PTY sessions. Sol's escalated host-wide process view then found
+production PID `1534787` (untouched), old Luna beta PID `1784646`, and a
+transient duplicate PID `1788948`. Only duplicate `1788948` was immediately
+stopped; old beta `1784646` was then cleanly stopped because it had loaded
+pre-correction code. That brief duplicate/cleanup episode is operational
+evidence, not a successful steady state. Corrected branch HEAD `60989a5` was
+launched as exactly one development beta, now PID `1790485`, with cwd in the
+managed P7.9 worktree. It authenticated as **PolyELO Bot Beta**
+(`479029527553638401`) and synced exactly four application-command roots
+(`game`, `leaderboard`, `player`, `elo`) only to guild `478571892832206869`.
+Interactive Discord/mobile/desktop smoke remains pending. Production
+processes, checkouts, services, and databases were not operated on.
 
 Known limitations and next action:
 
@@ -3234,11 +3240,17 @@ the existing development-guild-only synchronization performed at startup.
 Before launching or restarting, verify the development environment, beta
 application identity, `polytopia_dev` profile, disabled background tasks/API,
 configured development guild, current branch/worktree, and absence or exact
-identity of every existing development `bot.py --skip_tasks` process. Match
-the process command independently of whether its Python path is absolute,
-compare start times, and confirm exactly one beta remains after restart.
-Do not rely only on the current task's attached terminal session. Keep the bot
-stopped while fixture seed/cleanup tooling requires exclusive access.
+identity of every existing development `bot.py --skip_tasks` process. The
+process view must be host-wide and capable of seeing sibling Codex task/PTY
+sessions; a sandboxed `ps` result is not sufficient evidence that no beta is
+running. Match the process command independently of whether its Python path
+is absolute, compare working directories, start times, and ancestry, identify
+production processes separately, and confirm exactly one beta remains after
+restart. A brief development duplicate and its immediate cleanup is
+operational evidence to record, not an accepted steady state. Never stop a
+production process while cleaning up a development duplicate. Do not rely
+only on the current task's attached terminal session. Keep the bot stopped
+while fixture seed/cleanup tooling requires exclusive access.
 
 This standing authorization does not apply to production operations, global
 command synchronization, other guilds or runtime profiles, dependency
@@ -3379,8 +3391,26 @@ refs and do not grant operational authority.
 - Added focused privacy and pending-parity coverage. The corrected branch now
   passes 24 focused tests, 238 offline tests with 12 gated skips, and 12 gated
   development tests with one retained-fixture skip.
-- Fresh host-wide process review found the prior D-026 beta exited; no beta is
-  currently running. Interactive Discord smoke remains pending.
+- At the correction handoff, the prior D-026 beta had exited. Interactive
+  Discord smoke remained pending.
+
+### 2026-07-31 — P7.9 corrected D-026 beta evidence refreshed
+
+- A sandboxed `ps` check incorrectly reported no beta because it could not see
+  sibling Codex task/PTY sessions; it was not sufficient host-wide evidence.
+- Sol's escalated host-wide process view found production PID `1534787`
+  (untouched), old Luna beta PID `1784646`, and transient duplicate PID
+  `1788948`. Only duplicate `1788948` was immediately stopped; old beta
+  `1784646` was then cleanly stopped because it held pre-correction code. The
+  brief duplicate/cleanup episode is recorded as operational evidence, not a
+  successful steady state.
+- Corrected branch HEAD `60989a5` was launched as exactly one development beta,
+  now PID `1790485` in the managed P7.9 worktree. It authenticated as
+  **PolyELO Bot Beta** (`479029527553638401`) and synced exactly four roots
+  (`game`, `leaderboard`, `player`, `elo`) only to development guild
+  `478571892832206869`.
+- Interactive Discord/mobile/desktop smoke remains pending. Production
+  processes, checkouts, services, and databases were not operated on.
 
 ### 2026-07-31 — P7.9 game-detail workspace implemented
 
