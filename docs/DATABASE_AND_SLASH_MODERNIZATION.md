@@ -2729,7 +2729,7 @@ Known limitations and next action:
 
 ## P8.0 — Guild application-command capability policy and explicit deployment tooling
 
-Status: **Implemented; beta running, pending user acceptance**
+Status: **Accepted; pending integration into the accumulation branch**
 
 Branch/base: `codex/p8-0-command-capabilities` from exact accumulation
 checkpoint `3990c65c375542d2a1b5b6e16bae1d30eacf38d2`.
@@ -2796,10 +2796,8 @@ Validation/evidence so far:
   `479029527553638401`; host-wide verification showed beta PID `1832908`
   alongside untouched production PID `1534787`.
 
-Next action: user verifies the four deployed roots in development guild
-`478571892832206869`, including one representative subcommand from each root.
-After beta acceptance is green, stop the beta cleanly and integrate P8.0 into
-the accumulation branch.
+Next action: integrate the accepted unit into
+`codex/database-slash-modernization`, then mark P8.0 Complete.
 
 ## P8 — League and remaining administration workflows
 
@@ -3551,7 +3549,11 @@ refs and do not grant operational authority.
 - Launched the beta only after the repeat inspection was unchanged. Startup did
   not synchronize commands and authenticated as application
   `479029527553638401`. Host-wide inspection showed development PID `1832908`
-  and untouched production PID `1534787`; beta acceptance remains pending.
+  and untouched production PID `1534787`; acceptance followed user testing.
+- User testing accepted all four roots with no visible regression, which is the
+  intended result for this deployment-infrastructure unit. Stopped beta PID
+  `1832908` cleanly afterward; host-wide verification showed only untouched
+  production PID `1534787`. P8.0 is accepted pending accumulation integration.
 
 ### 2026-07-31 — P7.9 final classic card accepted and integrated
 
