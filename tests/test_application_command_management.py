@@ -5,7 +5,12 @@ from types import SimpleNamespace
 import unittest
 from unittest import mock
 
+import discord
+from discord import app_commands
+from discord.ext import commands
+
 from modules.application_command_policy import (
+    CapabilityFamily,
     build_capability_policy,
     plan_application_commands,
 )
@@ -67,7 +72,9 @@ class ApplicationCommandManagementTests(unittest.TestCase):
 
     def test_apply_only_syncs_changed_guilds_with_explicit_scope(self):
         policy = build_capability_policy({10: ('core_user',)}, [10, 20])
-        source = (FakeCommand('game'),)
+        source = tuple(FakeCommand(name) for name in (
+            'game', 'leaderboard', 'player',
+        ))
         plans = plan_application_commands(
             policy,
             source,
@@ -76,9 +83,11 @@ class ApplicationCommandManagementTests(unittest.TestCase):
         )
 
         class FakeTree:
-            def __init__(self, guild):
-                self.guild = guild
+            def __init__(self):
                 self.added = []
+
+            def clear_commands(self, *, guild):
+                self.cleared_guild = guild
 
             def add_command(self, command, *, guild):
                 self.added.append((command.name, guild.id))
@@ -87,28 +96,29 @@ class ApplicationCommandManagementTests(unittest.TestCase):
                 self.sync_guild = guild
                 return [SimpleNamespace(name=name) for name, _ in self.added]
 
-        trees = []
-
-        def scoped_tree(_client, desired, guild):
-            tree = FakeTree(guild)
-            for descriptor in desired:
-                tree.add_command(descriptor.command, guild=guild)
-            trees.append(tree)
-            return tree
-
-        with mock.patch.object(manager, '_scoped_tree', side_effect=scoped_tree):
-            synced = asyncio.run(manager.apply_guild_plans(SimpleNamespace(), plans))
+        tree = FakeTree()
+        synced = asyncio.run(manager.apply_guild_plans(
+            SimpleNamespace(tree=tree), plans
+        ))
 
         # Guild 10 creates its root; guild 20 is default-deny but has no
         # current root, so no remote mutation is necessary for either plan.
-        self.assertEqual(synced, {10: [SimpleNamespace(name='game')]})
-        self.assertEqual(len(trees), 1)
-        self.assertEqual(trees[0].sync_guild.id, 10)
-        self.assertEqual(trees[0].added, [('game', 10)])
+        self.assertEqual(
+            [command.name for command in synced[10]],
+            ['game', 'leaderboard', 'player'],
+        )
+        self.assertEqual(tree.sync_guild.id, 10)
+        self.assertEqual(tree.cleared_guild.id, 10)
+        self.assertEqual(
+            tree.added,
+            [('game', 10), ('leaderboard', 10), ('player', 10)],
+        )
 
     def test_repeat_plan_is_unchanged_and_skips_remote_apply(self):
         policy = build_capability_policy({10: ('core_user',)}, [10])
-        source = (FakeCommand('game'),)
+        source = tuple(FakeCommand(name) for name in (
+            'game', 'leaderboard', 'player',
+        ))
         first = plan_application_commands(policy, source, guild_ids=(10,))[0]
         repeat = plan_application_commands(
             policy,
@@ -118,12 +128,59 @@ class ApplicationCommandManagementTests(unittest.TestCase):
         )[0]
 
         self.assertFalse(repeat.diff.has_changes)
-        with mock.patch.object(manager, '_scoped_tree') as scoped_tree:
-            synced = asyncio.run(
-                manager.apply_guild_plans(SimpleNamespace(), (repeat,))
-            )
+        tree = mock.Mock()
+        synced = asyncio.run(
+            manager.apply_guild_plans(SimpleNamespace(tree=tree), (repeat,))
+        )
         self.assertEqual(synced, {})
-        scoped_tree.assert_not_called()
+        tree.clear_commands.assert_not_called()
+
+    def test_apply_uses_existing_tree_and_preserves_other_scopes(self):
+        async def callback(_interaction):
+            return None
+
+        client = commands.Bot(command_prefix='!', intents=discord.Intents.none())
+        global_command = app_commands.Command(
+            name='global-only', description='global', callback=callback,
+        )
+        other_guild_command = app_commands.Command(
+            name='other-only', description='other', callback=callback,
+        )
+        desired_command = app_commands.Command(
+            name='game', description='game', callback=callback,
+        )
+        other_guild = discord.Object(id=20)
+        client.tree.add_command(global_command)
+        client.tree.add_command(other_guild_command, guild=other_guild)
+        policy = build_capability_policy(
+            {10: ('test',)},
+            [10, 20],
+            families=(
+                CapabilityFamily('test', ('game',)),
+            ),
+            available_roots=('game',),
+        )
+        plans = plan_application_commands(
+            policy, (desired_command,), guild_ids=(10,), tree=client.tree,
+        )
+
+        async def run_apply():
+            with mock.patch.object(
+                    client.tree, 'sync', new=mock.AsyncMock(return_value=[])) as sync:
+                await manager.apply_guild_plans(client, plans)
+                sync.assert_awaited_once()
+            await client.close()
+
+        asyncio.run(run_apply())
+
+        self.assertEqual(
+            [command.name for command in client.tree.get_commands()],
+            ['global-only'],
+        )
+        self.assertEqual(
+            [command.name for command in client.tree.get_commands(guild=other_guild)],
+            ['other-only'],
+        )
 
     def test_manager_source_is_explicitly_not_the_bot_module(self):
         self.assertNotIn('import bot', manager.load_command_source.__doc__ or '')

@@ -415,6 +415,12 @@ def select_command_templates(
             )
         seen.add(descriptor.name)
         selected.append(descriptor)
+    missing = allowed - seen
+    if missing:
+        raise ApplicationCommandPolicyError(
+            "Configured application-command root(s) are not present in the "
+            "loaded command source: " + ", ".join(sorted(missing)) + "."
+        )
     return tuple(sorted(selected, key=lambda item: item.name))
 
 

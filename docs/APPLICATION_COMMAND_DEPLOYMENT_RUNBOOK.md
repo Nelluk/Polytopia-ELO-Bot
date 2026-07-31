@@ -59,9 +59,11 @@ runtime permission check or a separately approved root for that case.
    ```
 
    `--mode inspect` fetches current guild commands without mutation. `--mode
-   apply` creates/replaces desired roots and prunes obsolete roots by syncing
-   a fresh guild-local `CommandTree`. Repeating an unchanged plan performs no
-   remote sync. There is no global mode or global fallback.
+   apply` creates/replaces desired roots and prunes obsolete roots by replacing
+   only the selected guild's local definitions on the client's existing
+   `CommandTree`, then syncing with an explicit guild. Global definitions and
+   every other guild scope remain untouched. Repeating an unchanged plan
+   performs no remote sync. There is no global mode or global fallback.
 4. After the explicit guild operation is complete and separately approved,
    launch exactly one development beta from the reviewed checkpoint. Startup
    performs no command synchronization. Verify the authenticated application,
@@ -78,7 +80,9 @@ runtime permission check or a separately approved root for that case.
 - Planning and application-command synchronization do not require a database;
   do not add a database fixture or weaken a database gate for them.
 - A failed validation must be fixed in policy/configuration before any remote
-  mutation. Unknown roots and capabilities are not silently ignored.
+  mutation. Unknown capabilities and assigned roots absent from the loaded
+  command source are not silently ignored. Reserved roots are harmless while
+  their capabilities remain unassigned.
 
 P8.0 evidence for this repository records offline planning only. No live
 Discord inspection or apply is implied by the runbook or by a green offline

@@ -2729,7 +2729,7 @@ Known limitations and next action:
 
 ## P8.0 — Guild application-command capability policy and explicit deployment tooling
 
-Status: **In progress; implementation branch open for Tier 2 review**
+Status: **Implemented; Tier 2 review green, pending explicit development-guild apply and beta acceptance**
 
 Branch/base: `codex/p8-0-command-capabilities` from exact accumulation
 checkpoint `3990c65c375542d2a1b5b6e16bae1d30eacf38d2`.
@@ -2762,9 +2762,12 @@ Implemented shape:
   guild inspect/apply -> launch beta without synchronization.
 - The manager reads the real loaded command metadata through an isolated
   model-free source loader. It never imports `bot.py` or the database-backed
-  model module for planning/sync, and each applied guild receives a fresh
-  guild-local `CommandTree` assembled from copied local templates without
-  changing global or other-guild state.
+  model module for planning/sync. Apply replaces only the selected guild's
+  local definitions on the client's existing tree using copied templates and
+  an explicit guild sync; globals and other guild scopes remain unchanged.
+- A capability assignment fails closed when any required root is absent from
+  the loaded command source. Reserved future roots remain harmless while their
+  capabilities are unassigned.
 
 Discord limitation: capability filtering cannot hide an individual staff or
 operator subcommand inside a public top-level root. Commands with different
@@ -2774,22 +2777,23 @@ permission redesign, taxonomy rename, database query, or production rollout.
 
 Validation/evidence so far:
 
-- focused policy/manager tests: 17 passed;
+- focused policy/manager tests: 20 passed, including real discord.py tree
+  preservation and missing-root fail-closed coverage;
 - dependency/on-startup compatibility tests: 13 passed under the required
   development environment; existing taxonomy and accepted P7 workspace
   tests remain green;
-- complete offline suite: 253 passed with 12 explicitly gated database tests
+- complete offline suite: 256 passed with 12 explicitly gated database tests
   skipped; compilation and `git diff --check` passed;
 - offline plan was exercised for development guild
   `478571892832206869`; it produced an empty default-deny desired tree without
   connecting to Discord or a database;
 - no live Discord inspection or apply occurred, and no beta was launched.
 
-Next action: Sol reviews the complete Tier 2 branch, especially the isolated
-command-source loading boundary, exact confirmation behavior, top-level-root
-limitation, and full offline suite before integration. A later approved
-operator session may plan/apply only the intended development guild and then
-launch a beta without startup sync.
+Next action: obtain separate approval to add the intended capabilities to the
+ignored development profile, inspect/apply only development guild
+`478571892832206869`, and launch one beta without startup synchronization for
+acceptance. After that evidence is green, integrate P8.0 into the accumulation
+branch.
 
 ## P8 — League and remaining administration workflows
 
@@ -3509,15 +3513,25 @@ refs and do not grant operational authority.
   selected guild deterministically, supports explicit remote inspect/apply,
   prunes obsolete roots, and has no global synchronization path.
 - Added the model-free command-source loading boundary so planning/sync does
-  not import `bot.py` or open Peewee; each guild apply uses a fresh local tree
-  from copied command templates. Added the operator runbook and separated
+  not import `bot.py` or open Peewee; each guild apply uses copied command
+  templates in only that guild's scope on the existing client tree. Added the
+  operator runbook and separated
   beta command sync from beta launch.
-- Focused policy/manager tests pass (17), the complete offline suite passes
-  (253 with 12 gated skips), and compilation/diff checks are green.
+- Focused policy/manager tests pass (20), the complete offline suite passes
+  (256 with 12 gated skips), and compilation/diff checks are green.
 - The unchanged worker/database behavior means the gated PostgreSQL suite was
   not rerun; the existing 12-pass gated evidence remains applicable. No live
   Discord inspection/apply, beta launch, database access, or production
   operation occurred for P8.0.
+- Tier 2 review found and corrected two deployment-safety gaps before any live
+  use: discord.py forbids constructing a second tree for an existing client,
+  and an assigned-but-unloaded root was previously omitted silently. Apply now
+  reuses the client's existing tree while clearing only the selected guild's
+  local scope, and planning fails closed for missing assigned roots.
+- Added a real `commands.Bot`/`CommandTree` regression proving a target-guild
+  apply preserves global definitions and another guild's definitions. Focused
+  policy/manager coverage is now 20 passing tests. The corrected default-deny
+  development plan remains empty and made no Discord or database connection.
 
 ### 2026-07-31 — P7.9 final classic card accepted and integrated
 

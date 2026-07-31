@@ -286,13 +286,14 @@ async def fetch_current_commands(
     return current
 
 
-def _scoped_tree(
+def _prepare_guild_commands(
         client: commands.Bot,
         desired: Iterable[CommandDescriptor],
         guild: discord.Object) -> app_commands.CommandTree:
-    """Build an isolated guild-local tree without touching global templates."""
+    """Replace one guild's local commands on the client's existing tree."""
 
-    tree = app_commands.CommandTree(client, fallback_to_global=False)
+    tree = client.tree
+    tree.clear_commands(guild=guild)
     for descriptor in desired:
         if descriptor.command is None:
             raise CommandManagementError(
@@ -317,10 +318,10 @@ async def apply_guild_plans(
         if not plan.diff.has_changes:
             continue
         guild = discord.Object(id=plan.guild_id)
-        tree = _scoped_tree(client, plan.desired, guild)
+        tree = _prepare_guild_commands(client, plan.desired, guild)
         # This is the only sync call in the tool.  It always has an explicit
-        # guild, and the isolated desired tree causes Discord to prune roots
-        # that are absent from the desired state.
+        # guild. Replacing only that guild's local definitions causes Discord
+        # to prune absent roots without touching globals or another guild.
         synced[plan.guild_id] = await tree.sync(guild=guild)
     return synced
 

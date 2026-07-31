@@ -29,6 +29,12 @@ class FakeCommand:
 
 
 class ApplicationCommandPolicyTests(unittest.TestCase):
+    @staticmethod
+    def core_source():
+        return tuple(FakeCommand(name) for name in (
+            'game', 'leaderboard', 'player',
+        ))
+
     def test_default_deny_and_immutable_policy(self):
         policy = build_capability_policy({}, [20, 10])
 
@@ -127,7 +133,7 @@ class ApplicationCommandPolicyTests(unittest.TestCase):
 
     def test_unassigned_allowed_guilds_are_planned_for_pruning(self):
         policy = build_capability_policy({10: ('core_user',)}, [10, 20])
-        source = (FakeCommand('game'),)
+        source = self.core_source()
 
         plans = plan_application_commands(
             policy,
@@ -136,7 +142,10 @@ class ApplicationCommandPolicyTests(unittest.TestCase):
         )
 
         self.assertEqual([plan.guild_id for plan in plans], [10, 20])
-        self.assertEqual(plans[0].diff.creates, ('game',))
+        self.assertEqual(
+            plans[0].diff.creates,
+            ('game', 'leaderboard', 'player'),
+        )
         self.assertEqual(plans[1].diff.removals, ('game',))
 
     def test_guild_plans_do_not_leak_capabilities_or_mutate_source(self):
@@ -144,20 +153,21 @@ class ApplicationCommandPolicyTests(unittest.TestCase):
             10: ('core_user',),
             20: ('elo_maintenance',),
         }, [10, 20])
-        source = (
-            FakeCommand('game'),
-            FakeCommand('elo'),
-        )
+        source = self.core_source() + (FakeCommand('elo'),)
 
         plans = plan_application_commands(policy, source)
 
         self.assertEqual(
-            tuple(item.name for item in plans[0].desired), ('game',)
+            tuple(item.name for item in plans[0].desired),
+            ('game', 'leaderboard', 'player'),
         )
         self.assertEqual(
             tuple(item.name for item in plans[1].desired), ('elo',)
         )
-        self.assertEqual(tuple(command.name for command in source), ('game', 'elo'))
+        self.assertEqual(
+            tuple(command.name for command in source),
+            ('game', 'leaderboard', 'player', 'elo'),
+        )
 
     def test_selected_guilds_must_stay_within_runtime_allowlist(self):
         policy = build_capability_policy({}, [10])
@@ -188,6 +198,23 @@ class ApplicationCommandPolicyTests(unittest.TestCase):
         self.assertIsInstance(descriptor, CommandDescriptor)
         with self.assertRaises(FrozenInstanceError):
             descriptor.name = 'elo'
+
+    def test_assigned_but_unloaded_root_is_rejected(self):
+        policy = build_capability_policy({10: ('core_user',)}, [10])
+
+        with self.assertRaisesRegex(
+                ApplicationCommandPolicyError, 'not present.*leaderboard'):
+            plan_application_commands(
+                policy,
+                (FakeCommand('game'), FakeCommand('player')),
+            )
+
+    def test_unassigned_future_roots_need_not_be_loaded(self):
+        policy = build_capability_policy({}, [10])
+
+        plans = plan_application_commands(policy, ())
+
+        self.assertEqual(plans[0].desired, ())
 
 
 if __name__ == '__main__':
