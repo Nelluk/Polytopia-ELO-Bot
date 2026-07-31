@@ -315,17 +315,44 @@ def _permission_value(value: Any) -> Any:
     return getattr(value, 'value', str(value))
 
 
+_EMPTY_EQUIVALENT_FIELDS = frozenset({
+    'channel_types', 'choices', 'description_localizations',
+    'name_localizations', 'options',
+})
+
+
+def _canonicalize_discord_defaults(value: Any) -> Any:
+    """Remove API response defaults that discord.py omits when sending."""
+
+    if isinstance(value, Mapping):
+        canonical: dict[str, Any] = {}
+        for key, item in value.items():
+            # Guild-scoped commands cannot be invoked in DMs. Discord returns
+            # dm_permission=True even when the local guild template serializes
+            # False, so it is not meaningful in this tool's only scope.
+            if key in {'dm_permission', 'contexts', 'integration_types'}:
+                continue
+            normalized = _canonicalize_discord_defaults(item)
+            if normalized is None:
+                continue
+            if key in _EMPTY_EQUIVALENT_FIELDS and normalized in ({}, []):
+                continue
+            if key == 'autocomplete' and normalized is False:
+                continue
+            canonical[str(key)] = normalized
+        return canonical
+    if isinstance(value, list):
+        return [_canonicalize_discord_defaults(item) for item in value]
+    return value
+
+
 def _canonical_command_payload(command: Any, payload: Mapping[str, Any]) -> Mapping[str, Any]:
     """Align discord.py local and fetched command serialization shapes."""
 
     canonical = dict(payload)
-    canonical.setdefault('name_localizations', {})
-    canonical.setdefault('description_localizations', {})
 
     if hasattr(command, 'nsfw'):
         canonical.setdefault('nsfw', bool(command.nsfw))
-    if hasattr(command, 'dm_permission'):
-        canonical.setdefault('dm_permission', bool(command.dm_permission))
     if hasattr(command, 'default_member_permissions'):
         canonical.setdefault(
             'default_member_permissions',
@@ -336,7 +363,7 @@ def _canonical_command_payload(command: Any, payload: Mapping[str, Any]) -> Mapp
             'default_member_permissions',
             _permission_value(command.default_permissions),
         )
-    return canonical
+    return _canonicalize_discord_defaults(canonical)
 
 
 def command_payload(command: Any, *, tree: Any = None) -> Mapping[str, Any]:

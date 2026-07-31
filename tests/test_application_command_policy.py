@@ -104,6 +104,55 @@ class ApplicationCommandPolicyTests(unittest.TestCase):
         )
         self.assertEqual(local.fingerprint, remote.fingerprint)
 
+    def test_command_fingerprint_normalizes_discord_response_defaults(self):
+        local = FakeCommand('game')
+        local._payload.update({
+            'dm_permission': False,
+            'options': [{
+                'name': 'show',
+                'description': 'Show a game.',
+                'type': 1,
+                'options': [{
+                    'name': 'game_id',
+                    'description': 'Game ID.',
+                    'type': 4,
+                    'required': False,
+                }],
+            }],
+        })
+        remote = FakeCommand('game', id=999, application_id=888)
+        remote._payload.update({
+            'dm_permission': True,
+            'contexts': None,
+            'integration_types': None,
+            'name_localizations': {},
+            'description_localizations': {},
+            'options': [{
+                'name': 'show',
+                'description': 'Show a game.',
+                'type': 1,
+                'name_localizations': {},
+                'description_localizations': {},
+                'options': [{
+                    'name': 'game_id',
+                    'description': 'Game ID.',
+                    'type': 4,
+                    'required': False,
+                    'autocomplete': False,
+                    'choices': [],
+                    'channel_types': [],
+                    'options': [],
+                    'min_value': None,
+                    'max_value': None,
+                }],
+            }],
+        })
+
+        self.assertEqual(
+            describe_command(local).fingerprint,
+            describe_command(remote).fingerprint,
+        )
+
     def test_deterministic_create_update_unchanged_and_remove_diff(self):
         policy = build_capability_policy({
             10: ('core_user',),

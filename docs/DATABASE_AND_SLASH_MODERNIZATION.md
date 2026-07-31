@@ -2729,7 +2729,7 @@ Known limitations and next action:
 
 ## P8.0 — Guild application-command capability policy and explicit deployment tooling
 
-Status: **Implemented; Tier 2 review green, pending explicit development-guild apply and beta acceptance**
+Status: **Implemented; development-guild deployment verified, pending beta acceptance**
 
 Branch/base: `codex/p8-0-command-capabilities` from exact accumulation
 checkpoint `3990c65c375542d2a1b5b6e16bae1d30eacf38d2`.
@@ -2777,23 +2777,25 @@ permission redesign, taxonomy rename, database query, or production rollout.
 
 Validation/evidence so far:
 
-- focused policy/manager tests: 20 passed, including real discord.py tree
+- focused policy/manager tests: 21 passed, including real discord.py tree
   preservation and missing-root fail-closed coverage;
 - dependency/on-startup compatibility tests: 13 passed under the required
   development environment; existing taxonomy and accepted P7 workspace
   tests remain green;
-- complete offline suite: 256 passed with 12 explicitly gated database tests
+- complete offline suite: 257 passed with 12 explicitly gated database tests
   skipped; compilation and `git diff --check` passed;
 - offline plan was exercised for development guild
   `478571892832206869`; it produced an empty default-deny desired tree without
   connecting to Discord or a database;
-- no live Discord inspection or apply occurred, and no beta was launched.
+- explicit development-guild inspect/apply synchronized exactly `elo`, `game`,
+  `leaderboard`, and `player`; immediate re-inspection reported all four
+  unchanged after normalizing Discord's response-only default fields;
+- no global synchronization, database access, or beta launch occurred during
+  deployment.
 
-Next action: obtain separate approval to add the intended capabilities to the
-ignored development profile, inspect/apply only development guild
-`478571892832206869`, and launch one beta without startup synchronization for
-acceptance. After that evidence is green, integrate P8.0 into the accumulation
-branch.
+Next action: launch one beta without startup synchronization and verify the
+four deployed roots in development guild `478571892832206869`. After beta
+acceptance is green, integrate P8.0 into the accumulation branch.
 
 ## P8 — League and remaining administration workflows
 
@@ -3517,8 +3519,8 @@ refs and do not grant operational authority.
   templates in only that guild's scope on the existing client tree. Added the
   operator runbook and separated
   beta command sync from beta launch.
-- Focused policy/manager tests pass (20), the complete offline suite passes
-  (256 with 12 gated skips), and compilation/diff checks are green.
+- Focused policy/manager tests pass (21), the complete offline suite passes
+  (257 with 12 gated skips), and compilation/diff checks are green.
 - The unchanged worker/database behavior means the gated PostgreSQL suite was
   not rerun; the existing 12-pass gated evidence remains applicable. No live
   Discord inspection/apply, beta launch, database access, or production
@@ -3530,8 +3532,18 @@ refs and do not grant operational authority.
   local scope, and planning fails closed for missing assigned roots.
 - Added a real `commands.Bot`/`CommandTree` regression proving a target-guild
   apply preserves global definitions and another guild's definitions. Focused
-  policy/manager coverage is now 20 passing tests. The corrected default-deny
+  policy/manager coverage is now 21 passing tests. The corrected default-deny
   development plan remains empty and made no Discord or database connection.
+- Configured the ignored development profile for `core_user` and
+  `elo_maintenance`, then explicitly inspected and applied only guild
+  `478571892832206869`. Discord accepted exactly `elo`, `game`, `leaderboard`,
+  and `player`; no root was created or removed unexpectedly and no global sync
+  path was available.
+- Immediate verification initially exposed a false-positive update diff caused
+  by Discord returning guild-irrelevant DM permission and empty nested option
+  defaults that discord.py omits locally. Canonical comparison now removes only
+  those response defaults; focused coverage includes the real payload shape,
+  and repeat live inspection reports all four roots unchanged.
 
 ### 2026-07-31 — P7.9 final classic card accepted and integrated
 
