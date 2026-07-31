@@ -402,9 +402,9 @@ check:
 - retained P7.5 showcase: 24 owned players (`163`-`186`) and 48 owned games
   (`200`-`247`), with gated status/confirmed-cleanup tooling
 
-Current unit: **P7.8 accepted; integration in progress.** P7.6 and P7.7 are
-integrated into `codex/database-slash-modernization`; P7.8 passed functional
-beta smoke testing. Taxonomy v2.2 as a whole remains pending final approval;
+Current unit: **P7.8 Complete; next unit not started.** P7.6, P7.7, and P7.8
+are integrated into `codex/database-slash-modernization` after functional beta
+smoke testing. Taxonomy v2.2 as a whole remains pending final approval;
 `/game search` is an accepted, noncontroversial path that completes the
 player/game-history split.
 
@@ -2423,7 +2423,7 @@ unit.
 
 ### P7.8 — Unified game-search workspace
 
-Status: **Accepted; integration in progress**
+Status: **Complete; integrated into the accumulation branch**
 
 Branch/base: `codex/p7-8-game-search-workspace` from the P7.7 accumulation
 merge.
@@ -2478,6 +2478,8 @@ Validation evidence:
 Commit(s):
 
 - `d6bebcd` — Add unified game search workspace.
+- `79f5185` — Merge P7.8 into
+  `codex/database-slash-modernization`.
 
 Compatibility implications:
 
@@ -2490,7 +2492,9 @@ Compatibility implications:
 - C-002 player-card analytics remain explicitly deferred and are not part of
   this unit.
 
-Next action: integrate P7.8 into `codex/database-slash-modernization`.
+Next action: keep the accepted accumulation checkpoint stable while taxonomy
+review concludes, then select the smallest independently testable P8
+team/house or administration unit whose slash path is no longer ambiguous.
 
 Beta result: D-026 launch from `d6bebcd` authenticated as **PolyELO Bot
 Beta** (`479029527553638401`) and synchronized exactly the `game`,
