@@ -2404,13 +2404,20 @@ Compatibility implications:
   discloses and paginates the loaded snapshot; more complex/unbounded history
   belongs in `/game search` or an export.
 
-Commit(s): pending checkpoint.
+Commit(s):
 
-Beta result: pending D-026 restart/sync and desktop/mobile smoke acceptance.
+- `58c8224` — Add unified player profile workspace.
 
-Next action: checkpoint P7.7, restart the authorized development beta from
-that commit, and smoke `/player show` plus the prefix deep links before
-integration.
+Beta result: D-026 restart from `58c8224` stopped the prior P7.6 beta cleanly,
+authenticated as **PolyELO Bot Beta** (`479029527553638401`), and completed
+development startup/synchronization without a reported error. The beta
+remains running. Functional desktop/mobile smoke acceptance of `/player show`
+and the prefix deep links remains pending.
+
+Next action: smoke `/player show` with requester/default and explicit member,
+all sections/filters/pages, `/leaderboard players`, `/leaderboard activity`,
+and representative `$player`/`$incomplete`/`$wins`/single-player `$allgames`
+deep links. Review C-002 before integrating P7.7.
 
 ## P8 — League and remaining administration workflows
 
