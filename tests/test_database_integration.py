@@ -214,13 +214,36 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
                 ).count(),
                 1,
             )
-
         self.assertEqual(
             self.models.GameLog.select().where(
                 self.models.GameLog.message == marker
             ).count(),
             0,
         )
+
+    def test_player_workspace_reads_real_schema(self):
+        from modules import player_workers
+
+        guild_id = self.profile.allowed_guild_ids[0]
+        player = (
+            self.models.Player.select()
+            .join(self.models.DiscordMember)
+            .where(self.models.Player.guild_id == guild_id)
+            .first()
+        )
+        if player is None:
+            self.skipTest('development guild has no registered player')
+        result = asyncio.run(player_workers.run_player_workspace(
+            player_workers.PlayerWorkspaceRequest(
+                guild_id=guild_id,
+                discord_id=player.discord_member.discord_id,
+            )
+        ))
+        self.assertEqual(result.player_id, player.id)
+        self.assertEqual(result.discord_id, player.discord_member.discord_id)
+        self.assertIsInstance(result.games, tuple)
+        for row in result.games:
+            self.assertIsInstance(row, player_workers.PlayerGameRow)
 
     def test_development_fixture_seed_status_cleanup_round_trip(self):
         from modules import dev_fixtures

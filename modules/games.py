@@ -9,6 +9,8 @@ from modules import image_storage
 from modules import leaderboard_views
 from modules import leaderboard_workers
 from modules import leaderboard_v2
+from modules import player_views
+from modules import player_workers
 from modules import elo_workers
 from modules import game_workers
 from modules import game_record_views
@@ -140,6 +142,11 @@ class polygames(commands.Cog):
     leaderboard_group = discord.app_commands.Group(
         name='leaderboard',
         description='View competitive rankings and activity.',
+        guild_only=True,
+    )
+    player_group = discord.app_commands.Group(
+        name='player',
+        description='View and manage player profiles.',
         guild_only=True,
     )
 
@@ -1063,6 +1070,84 @@ class polygames(commands.Cog):
 
         await ctx.send(embed=embed)
 
+    async def _load_player_workspace(
+        self,
+        request: player_workers.PlayerWorkspaceRequest,
+    ) -> player_workers.PlayerWorkspaceSnapshot:
+        return await player_workers.run_player_workspace(request)
+
+    async def _send_player_workspace(
+        self,
+        ctx,
+        *,
+        request: player_workers.PlayerWorkspaceRequest,
+        initial_section: str = 'overview',
+        completed_filter: str = 'all',
+    ) -> bool:
+        try:
+            snapshot = await self._load_player_workspace(request)
+        except (player_workers.PlayerNotFound,
+                player_workers.AmbiguousPlayer,
+                peewee.PeeweeException,
+                ValueError) as exc:
+            await ctx.send(str(exc))
+            return False
+        view = player_views.PlayerWorkspace(
+            requester_id=ctx.author.id,
+            snapshot=snapshot,
+            initial_section=initial_section,
+            completed_filter=completed_filter,
+            can_edit=(
+                ctx.author.id == snapshot.discord_id
+                or settings.is_staff(ctx.author)
+            ),
+        )
+        view.message = await ctx.send(view=view)
+        return True
+
+    @player_group.command(
+        name='show',
+        description='Open a player profile and game-history workspace.',
+    )
+    @discord.app_commands.describe(
+        member='Player to view; defaults to you.',
+    )
+    async def player_show_slash(
+        self,
+        interaction: discord.Interaction,
+        member: discord.Member | None = None,
+    ):
+        await interaction.response.defer()
+        ctx = await commands.Context.from_interaction(interaction)
+        ctx.prefix = settings.guild_setting(
+            interaction.guild.id,
+            'command_prefix',
+        )
+        ctx.invoked_with = 'player'
+        if not await self.player.can_run(ctx):
+            return
+        target = member or interaction.user
+        request = player_workers.PlayerWorkspaceRequest(
+            guild_id=interaction.guild.id,
+            discord_id=target.id,
+        )
+        try:
+            snapshot = await self._load_player_workspace(request)
+        except (player_workers.PlayerNotFound,
+                player_workers.AmbiguousPlayer,
+                peewee.PeeweeException,
+                ValueError) as exc:
+            return await interaction.followup.send(str(exc), ephemeral=True)
+        view = player_views.PlayerWorkspace(
+            requester_id=interaction.user.id,
+            snapshot=snapshot,
+            can_edit=(
+                interaction.user.id == snapshot.discord_id
+                or settings.is_staff(interaction.user)
+            ),
+        )
+        view.message = await interaction.edit_original_response(view=view)
+
     @settings.in_bot_channel()
     @commands.command(brief='See details on a player', usage='player_name', aliases=['elo', 'rank'])
     async def player(self, ctx, *, args=None):
@@ -1073,270 +1158,25 @@ class polygames(commands.Cog):
         `[p]player` - See your own player card
         `[p]player Nelluk` - See Nelluk's card
         """
-        # hidden argument: add 'alltime' as an argument to view alltime ELO.
-        args_list = args.lower().split() if args else []
-
-        if 'alltime' in args_list:
-            alltime_flag = True
-            args_list.remove('alltime')
-        else:
-            alltime_flag = False
-
-        if len(args_list) == 0:
-            # Player looking for info on themselves
-            args_list.append(f'<@{ctx.author.id}>')
-
-        # Otherwise look for a player matching whatever they entered
-        player_mention = ' '.join(args_list)
-        player_mention_safe = utilities.escape_role_mentions(player_mention)
-
-        guild_matches = await utilities.get_guild_member(ctx, player_mention)
-        if len(guild_matches) == 1:
-            # If there is one exact match from active guild members, use their precise member ID to pull up the player
-            # Helps in a scenario where there are two existing players in the DB with the same name, but only one is actively on the server
-            player_mention = str(guild_matches[0].id)
-
-        player_results = Player.string_matches(player_string=player_mention, guild_id=ctx.guild.id)
-
-        if len(player_results) > 1:
-            p_names = [f'{p.mention()} ({p.name})' for p in player_results]
-            p_names_str = ', '.join(p_names[:10])
-            return await ctx.send(f'Found {len(player_results)} players matching *{player_mention_safe}*. Be more specific or use an @Mention.\nFound: {p_names_str}', allowed_mentions=discord.AllowedMentions(everyone=False, users=False, roles=False))
-        elif len(player_results) == 0:
-            # No Player matches - check for guild membership
-            if len(guild_matches) > 1:
-                p_names = [f'{p.mention} ({p.name})' for p in guild_matches]
-                p_names_str = ', '.join(p_names[:10])
-                return await ctx.send(f'There is more than one member found with name *{player_mention_safe}*. Be more specific or use an @Mention.\nFound: {p_names_str}', allowed_mentions=discord.AllowedMentions(everyone=False, users=False, roles=False))
-            if len(guild_matches) == 0:
-                return await ctx.send(f'Could not find *{player_mention_safe}* by Discord name, Polytopia name, or Polytopia ID.')
-
-            player, _ = Player.get_by_discord_id(discord_id=guild_matches[0].id, discord_name=guild_matches[0].name, discord_nick=guild_matches[0].nick, guild_id=ctx.guild.id)
-            if not player:
-                # Matching guild member but no Player or DiscordMember
-                return await ctx.send(f'*{player_mention_safe}* was found in the server but is not registered with me. '
-                    f'Players can register themselves with  `{ctx.prefix}setname Your In-Game Name`.')
-            # if still running here that means there was a DiscordMember match not in current guild, and upserted into guild
-        else:
-            player = player_results[0]
-
-        def async_create_player_embed():
-            utilities.connect()
-            wins, losses = player.get_record(version='alltime' if alltime_flag else None)
-            rank, lb_length = player.leaderboard_rank(settings.date_cutoff)
-
-            wins_g, losses_g = player.discord_member.get_record(version='alltime' if alltime_flag else None)
-            rank_g, lb_length_g = player.discord_member.leaderboard_rank(settings.date_cutoff)
-
-            polychamps_record = player.discord_member.get_polychamps_record()
-
-            image = None
-            air_record = []
-
-            if alltime_flag:
-                elo = player.elo_alltime
-                g_elo = player.discord_member.elo_alltime
-                elo_max = player.elo_max_alltime
-                g_elo_max = player.discord_member.elo_max_alltime
-            else:
-                if models.is_post_moonrise():
-                    elo = player.elo_moonrise
-                    g_elo = player.discord_member.elo_moonrise
-                    elo_max = player.elo_max_moonrise
-                    g_elo_max = player.discord_member.elo_max_moonrise
-
-                    air_record_g = player.discord_member.get_record(version='air')
-
-                    if air_record_g[0] or air_record_g[1]:
-                        air_record_l = player.get_record(version='air')
-                        air_record = [('Global Record', f'W {air_record_g[0]} / L {air_record_g[1]}'),
-                                      ('Global ELO', f'{player.discord_member.elo} / {player.discord_member.elo_max} Max'),
-                                      ('Local Record', f'W {air_record_l[0]} / L {air_record_l[1]}'),
-                                      ('Local ELO', f'{player.elo} / {player.elo_max} Max')]
-                else:
-                    elo = player.elo
-                    g_elo = player.discord_member.elo
-                    elo_max = player.elo_max
-                    g_elo_max = player.discord_member.elo_max
-
-            if rank is None:
-                rank_str = 'Unranked'
-            else:
-                rank_str = f'{rank} of {lb_length}'
-
-            results_str = f'ELO: {elo}\nW\u00A0{wins}\u00A0/\u00A0L\u00A0{losses}'
-
-            if rank_g:
-                rank_str = f'{rank_str}\n{rank_g} of {lb_length_g} *Global*'
-                results_str = f'{results_str}\n**Global**\nELO: {g_elo}\nW\u00A0{wins_g}\u00A0/\u00A0L\u00A0{losses_g}'
-
-            # embed = discord.Embed(title=f'Player card for __{player.name}__')
-            embed = discord.Embed(description=f'__{"Alltime ELO " if alltime_flag else ""}Player card for <@{player.discord_member.discord_id}>__')
-            embed.add_field(name='**Results**', value=results_str)
-            embed.add_field(name='**Ranking**', value=rank_str)
-
-            guild_member = ctx.guild.get_member(player.discord_member.discord_id)
-            if guild_member:
-                # embed.set_thumbnail(url=guild_member.avatar_url_as(size=512))
-                embed.set_thumbnail(url=guild_member.display_avatar.replace(size=512, format='webp'))
-            
-            content_str = ''
-            if player.team:
-                team_str = f'{player.team.name} {player.team.emoji}' if player.team.emoji else player.team.name
-                embed.add_field(name='**Last-known Team**', value=team_str)
-            if player.discord_member.polytopia_name:
-                embed.add_field(name='Polytopia Game Name', value=player.discord_member.polytopia_name[:1000])
-                content_str = player.discord_member.polytopia_name  # Used as a single message before player card so users can easily copy/paste Poly ID
-            if player.discord_member.name_steam:
-                embed.add_field(name='Steam Name', value=player.discord_member.name_steam)
-
-            if player.discord_member.trophies:
-                if 'polympics2021' in player.discord_member.trophies:
-                    embed.add_field(name='Polympics 2021 Trophies', value=player.discord_member.trophies['polympics2021'])
-
-            if player.discord_member.timezone_offset:
-                offset_str = f'UTC+{player.discord_member.timezone_offset}' if player.discord_member.timezone_offset > 0 else f'UTC{player.discord_member.timezone_offset}'
-                embed.add_field(value=offset_str, name='Timezone Offset', inline=True)
-
-            if polychamps_record:
-
-                # Limiting record to first 4 entries; full season plus highest three tiers
-                record_truncated = list(polychamps_record.items())[:4]
-                pc_record_str_list = []
-                for rec in record_truncated[1:4]:
-                    tier_name = settings.tier_lookup(rec[0])[1]
-                    pc_record_str_list.append(f'{tier_name} Tier: {rec[1][0]}W / {rec[1][1]}L')
-
-                embed.add_field(value='\n'.join(pc_record_str_list), name=f'PolyChampions Record {record_truncated[0][1][0]}W / {record_truncated[0][1][1]}L', inline=True)
-
-
-            misc_stats = []
-            (winning_streak, losing_streak, v2_count, v3_count, duel_wins, duel_losses, wins_as_host, ranked_games_played) = player.discord_member.advanced_stats()
-            if winning_streak or losing_streak:
-                misc_stats.append(('Longest streaks', f'{winning_streak} wins, {losing_streak} losses'))
-            if v2_count:
-                misc_stats.append(('1v2 games won', v2_count))
-            if v3_count:
-                misc_stats.append(('1v3 games won', v3_count))
-            if duel_wins or duel_losses:
-                misc_stats.append(('1v1 games', f'W {duel_wins} / L {duel_losses}'))
-            # misc_stats.append(('Wins as game host', f'W {wins_as_host} / L {ranked_games_played - wins_as_host} ({int((wins_as_host / ranked_games_played) * 100)}%)'))
-
-            # TODO: maybe "adjusted ELO" for how big game is?
-
-            if g_elo_max > 1000:
-                misc_stats.append(('Max ELO achieved', f'{g_elo_max} G \u200b - \u200b {elo_max} L'))
-
-            favorite_tribes = player.discord_member.favorite_tribes(limit=3)
-            if favorite_tribes:
-                tribes_str = ' '.join([f'{t["emoji"] if t["emoji"] else t["name"]}' for t in favorite_tribes])
-                misc_stats.append(('Most-logged tribes', tribes_str))
-
-            misc_stats = [f'`{stat[0]:.<25}` {stat[1]}' for stat in misc_stats]
-            misc_stats = [stat.replace(".", "\u200b ") for stat in misc_stats]
-
-            if misc_stats:
-                embed.add_field(name='__Miscellaneous Global Stats__', value='\n'.join(misc_stats), inline=False)
-
-            if air_record:
-                air_record = [f'`{stat[0]:.<25}` {stat[1]}' for stat in air_record]
-                air_record = [stat.replace(".", "\u200b ") for stat in air_record]
-                embed.add_field(name='__Pre-Moonrise Reset Stats__', value='\n'.join(air_record), inline=False)
-
-            global_elo_history_query = (Player
-                .select(Game.completed_ts, Lineup.elo_after_game_global, Lineup.elo_after_game_global_moonrise, Lineup.elo_after_game_global_alltime)
-                .join(Lineup)
-                .join(Game)
-                .where((Player.discord_member_id == player.discord_member_id) & ((Lineup.elo_after_game_global.is_null(False)) | (Lineup.elo_after_game_global_moonrise.is_null(False))))
-                .order_by(Game.completed_ts))
-
-            global_elo_history_dates = [l.completed_ts for l in global_elo_history_query.objects()]
-
-            # if global_elo_history_dates:
-            local_elo_history_query = (Lineup
-                .select(Game.completed_ts, Lineup.elo_after_game, Lineup.elo_after_game_alltime, Lineup.elo_after_game_moonrise)
-                .join(Game)
-                .where((Lineup.player_id == player.id) & ((Lineup.elo_after_game.is_null(False)) | (Lineup.elo_after_game_moonrise.is_null(False))))
-            )
-
-            local_elo_history_dates = [l.completed_ts for l in local_elo_history_query.objects()]
-            local_elo_history_elos = [l.elo_after_game_alltime for l in local_elo_history_query.objects()] if alltime_flag else [l.elo_after_game or l.elo_after_game_moonrise for l in local_elo_history_query.objects()]
-
-            global_elo_history_elos = [l.elo_after_game_global_alltime for l in global_elo_history_query.objects()] if alltime_flag else [l.elo_after_game_global or l.elo_after_game_global_moonrise for l in global_elo_history_query.objects()]
-
-            try:
-                server_name = settings.guild_setting(guild_id=player.guild_id, setting_name='display_name')
-            except exceptions.CheckFailedError:
-                server_name = settings.guild_setting(guild_id=None, setting_name='display_name')
-
-            if global_elo_history_dates or local_elo_history_dates:
-
-                plt.style.use('default')
-
-                plt.switch_backend('Agg')
-
-                fig, ax = plt.subplots()
-                fig.suptitle(f'{"Alltime" if alltime_flag else ""} ELO History (' + server_name + ')', fontsize=16)
-                fig.autofmt_xdate()
-
-                plt.plot(local_elo_history_dates, local_elo_history_elos, 'o', markersize=3, label=server_name)
-                plt.plot(global_elo_history_dates, global_elo_history_elos, 'o', markersize=3, label='Global')
-
-                ax.yaxis.grid()
-                ax.spines['top'].set_visible(False)
-                ax.spines['right'].set_visible(False)
-                ax.spines['left'].set_visible(False)
-
-                plt.legend(loc="best")
-
-                plt.savefig('graph.png', transparent=False)
-                plt.close(fig)
-
-                embed.set_image(url='attachment://graph.png')
-
-                with open('graph.png', 'rb') as f:
-                    file = io.BytesIO(f.read())
-
-                image = discord.File(file, filename='graph.png')
-
-            games_list = Game.search(player_filter=[player])
-            if not games_list:
-                recent_games_str = 'No games played'
-            else:
-                recent_games_count = player.games_played(in_days=30).count()
-                recent_games_str = f'__Most recent games ({len(games_list)} total, {recent_games_count} recently):__'
-            embed.add_field(value='\u200b', name=recent_games_str, inline=False)
-
-            game_list = utilities.summarize_game_list(games_list[:5])
-            for game, result in game_list:
-                embed.add_field(name=game, value=result, inline=False)
-
-            if player.discord_member.discord_id != ctx.author.id:
-                # Look up 1v1 record between ctx.author and the card target
-                try:
-                    author_player = Player.get_or_except(player_string=str(ctx.author.id), guild_id=ctx.guild.id)
-                except exceptions.MyBaseException:
-                    matchup_games = []  # author not registered
-                else:
-                    matchup_games = Game.search(player_filter=[player, author_player], size_filter=[1, 1]).limit(1)
-            else:
-                matchup_games = []
-
-            return content_str, embed, image, matchup_games
-
+        # The hidden legacy ``alltime`` modifier now deep-links the Ratings
+        # section, where both current-era and permanent ratings are visible.
+        tokens = args.split() if args else []
+        all_time = any(token.lower() == 'alltime' for token in tokens)
+        if all_time:
+            args = ' '.join(
+                token for token in tokens if token.lower() != 'alltime'
+            ).strip() or None
+        request = player_workers.PlayerWorkspaceRequest(
+            guild_id=ctx.guild.id,
+            discord_id=ctx.author.id if not args else None,
+            player_query=args,
+        )
         async with ctx.typing():
-            content_str, embed, image, matchup_games = await asyncio.get_running_loop().run_in_executor(None, async_create_player_embed)
-
-        field_counter = 0
-        for field in embed.fields:
-            field_counter += 1
-        await ctx.send(content=content_str, file=image, embed=embed)
-
-        if matchup_games:
-            series_record = matchup_games[0].series_record()
-            await ctx.send(f'Your local 1v1 record against this opponent: **{series_record[0][0].name()}** {series_record[0][1]} wins - **{series_record[1][0].name()}** {series_record[1][1]} wins')
-        if settings.elo_job_coordinator.is_active:
-            await ctx.send(f':warning: {ctx.author.mention} - I am currently recalculating the results of prior games. Results from player cards will be incomplete.')
+            await self._send_player_workspace(
+                ctx,
+                request=request,
+                initial_section='ratings' if all_time else 'overview',
+            )
 
     @settings.in_bot_channel()
     @settings.guild_has_setting(setting_name='allow_teams')
@@ -1823,7 +1663,32 @@ class polygames(commands.Cog):
         You can also filter with separate commands: `[p]wins`, `[p]losses`, `[p]completed`, `[p]incomplete` - See `[p]help wins`, etc. for more detail.
         """
 
-        # TODO: make all caps argument like OCEANS force it to a title search?
+        if args:
+            request = player_workers.PlayerWorkspaceRequest(
+                guild_id=ctx.guild.id,
+                player_query=args,
+            )
+            try:
+                snapshot = await self._load_player_workspace(request)
+            except (player_workers.PlayerNotFound,
+                    player_workers.AmbiguousPlayer,
+                    peewee.PeeweeException,
+                    ValueError):
+                pass
+            else:
+                view = player_views.PlayerWorkspace(
+                    requester_id=ctx.author.id,
+                    snapshot=snapshot,
+                    initial_section='recent',
+                    can_edit=(
+                        ctx.author.id == snapshot.discord_id
+                        or settings.is_staff(ctx.author)
+                    ),
+                )
+                view.message = await ctx.send(view=view)
+                return
+
+        # Complex and non-player searches retain the separate game-search path.
         target_list = args.split() if args else []
         await self.game_search(ctx=ctx, mode='ALLGAMES', arg_list=target_list)
 
@@ -1843,6 +1708,36 @@ class polygames(commands.Cog):
 
         You can also include a game size such as *2v2* to limit by size.
         """
+        request = player_workers.PlayerWorkspaceRequest(
+            guild_id=ctx.guild.id,
+            discord_id=ctx.author.id if not args else None,
+            player_query=args,
+        )
+        try:
+            snapshot = await self._load_player_workspace(request)
+        except (player_workers.PlayerNotFound,
+                player_workers.AmbiguousPlayer,
+                peewee.PeeweeException,
+                ValueError):
+            snapshot = None
+        if snapshot is not None:
+            section = (
+                'completed'
+                if ctx.invoked_with.upper() in ('COMPLETED', 'COMPLETE')
+                else 'incomplete'
+            )
+            view = player_views.PlayerWorkspace(
+                requester_id=ctx.author.id,
+                snapshot=snapshot,
+                initial_section=section,
+                can_edit=(
+                    ctx.author.id == snapshot.discord_id
+                    or settings.is_staff(ctx.author)
+                ),
+            )
+            view.message = await ctx.send(view=view)
+            return
+
         target_list = args.split() if args else []
         if ctx.invoked_with.upper() in ['COMPLETED', 'COMPLETE']:
             await self.game_search(ctx=ctx, mode='COMPLETE', arg_list=target_list)
@@ -1864,6 +1759,37 @@ class polygames(commands.Cog):
 
         You can also include a game size such as *2v2* to limit by size.
         """
+        request = player_workers.PlayerWorkspaceRequest(
+            guild_id=ctx.guild.id,
+            discord_id=ctx.author.id if not args else None,
+            player_query=args,
+        )
+        try:
+            snapshot = await self._load_player_workspace(request)
+        except (player_workers.PlayerNotFound,
+                player_workers.AmbiguousPlayer,
+                peewee.PeeweeException,
+                ValueError):
+            snapshot = None
+        if snapshot is not None:
+            completed_filter = (
+                'losses'
+                if ctx.invoked_with.upper() in ('LOSS', 'LOSSES')
+                else 'wins'
+            )
+            view = player_views.PlayerWorkspace(
+                requester_id=ctx.author.id,
+                snapshot=snapshot,
+                initial_section='completed',
+                completed_filter=completed_filter,
+                can_edit=(
+                    ctx.author.id == snapshot.discord_id
+                    or settings.is_staff(ctx.author)
+                ),
+            )
+            view.message = await ctx.send(view=view)
+            return
+
         target_list = args.split() if args else []
         if ctx.invoked_with.upper() in ['LOSS', 'LOSSES']:
             await self.game_search(ctx=ctx, mode='LOSSES', arg_list=target_list)

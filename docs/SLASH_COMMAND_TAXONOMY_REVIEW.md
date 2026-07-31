@@ -4,8 +4,8 @@ Last updated: 2026-07-30
 
 Status: Taxonomy v2.2 proposed for user/staff review; attribute-command,
 component-first interaction, show/ping/logs naming, and legacy-module
-exclusions accepted; unified player workspace proposed; approved
-`/leaderboard` paths implemented locally
+exclusions accepted; unified player workspace implemented locally; approved
+`/leaderboard` paths and `/player show` workspace implemented locally
 
 This review covers the bot's complete repository-backed command surface, not
 only commands already converted to Discord application commands. Taxonomy v2.2
@@ -222,7 +222,7 @@ Taxonomy v2.2 applies this rule system-wide:
 | `/game show` | optional game ID when it cannot be inferred from the channel | players, logs, attributes, and permitted actions |
 | `/game ping` | optional game ID when it cannot be inferred | audience/scope, long message, multiple uploads, preview, confirmation |
 | `/game record` | game name, one roster string, and optional ranked state | parsed arbitrary sides, native side/member editing, preview, confirmation |
-| `/player show` | optional member; requester by default | overview, ratings, recent/incomplete/completed/season games, results, teams, and permitted profile edits |
+| `/player show` | optional member; requester by default | Accepted Components v2 overview, ratings, recent/incomplete/completed/season games, results, teams, and permitted profile edits; legacy analytics remain deferred under C-002 |
 | `/player register` | optional staff-selected member | one canonical Polytopia name and review |
 | `/team show` | optional team when requester context is unambiguous | roster, history, attributes, and permitted edits |
 | `/staffhelp` | none | game reference, long description, multiple uploads, review, submit |
@@ -348,7 +348,7 @@ operator repair commands stay out of the public tree.
 
 | Current prefix handler(s) | Taxonomy v2.2 native home | Disposition / note |
 |---|---|---|
-| `player` | `/player show` | Strong candidate |
+| `player` | `/player show` | Implemented locally as public Components v2 workspace |
 | `setname`, `steamname`, `setcode` alias behavior | `/player register` | One canonical Polytopia name; requester by default, optional staff target; do not expose platform/name/code type |
 | `getname` | `/player show` | Fold the useful canonical name into the normal profile workspace rather than preserving a name/code-specific lookup |
 | `settime` | `/player timezone` | Strong candidate with UTC-offset choices |
@@ -386,7 +386,7 @@ must not silently discard stored values.
 
 #### Unified player workspace
 
-`/player show member:[optional]` should open one Components v2 workspace
+`/player show member:[optional]` now opens one Components v2 workspace
 rather than making users learn separate slash commands for the same player's
 rating and game lists. It defaults to the requester and initially displays
 **Overview**. A section selector and contextual controls expose:
@@ -610,12 +610,12 @@ dozens of capabilities harder to scan and organize.
 
 ## Effect on the current implementation if approved
 
-The current `codex/database-slash-modernization` accumulation branch
-registers:
+The current modernization stack registers:
 
 - `/game record|win|unwin|delete|confirm|unconfirmed|set-ranked|extend|unstart`;
 - `/elo recalculate|status`;
-- `/leaderboard players|activity|squads` and temporary `/lb2`.
+- `/leaderboard players|activity|squads` with temporary `/lb2` removed;
+- `/player show`.
 
 For the already implemented game/ELO surface, Taxonomy v2.2 would change only
 the slash registration/adapters:

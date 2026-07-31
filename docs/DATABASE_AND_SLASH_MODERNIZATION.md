@@ -333,6 +333,7 @@ longer be retained.
 | ID / command | Native coverage | Accepted compromise and message-intent impact | Possible future mitigation | Status |
 |---|---|---|---|---|
 | C-001 `/newgame` | `/game record` accepts one roster string using the established `vs` grammar, infers arbitrary/unequal side sizes, preserves the one-opponent requester shortcut, and requires an interaction preview before creation. Edit sides provides native member selection plus add/remove-side controls. | The former two-sided 1v1–4v4 and raw-text-edit limits are resolved without message-content intent. Initial text tokens can still be ambiguous when users do not supply mentions, but the parsed draft can be corrected with native selectors. Per-game Mobile/Steam input was deliberately removed because full cross-play makes it obsolete. | If initial parsing remains troublesome, allow `/game record` to open an empty guided draft without requiring a seed roster. | Shape and edit gaps resolved by P2.3; initial parser usability remains for beta evaluation |
+| C-002 `/player show` and player-card prefixes | The shared workspace preserves identity, canonical name, current/peak/all-time local/global ratings, records, ranks, timezone, team/squad context, and paged game sections/filters. | The legacy generated rating-history image, requester head-to-head follow-up, trophies, favorite-tribe summary, and pre-Moonrise miscellaneous statistics are not yet displayed after the prefix commands deep-link the workspace. These become unavailable from those commands even while message intent remains enabled. | Add a bounded analytics/details section and media attachment renderer after observing which legacy details staff/users still value; keep graph generation outside the event loop. | Open for beta/user review in P7.7 |
 
 Every later slash conversion must add a row when parity is intentionally
 reduced. If there is no compromise, its unit evidence should explicitly say
@@ -401,15 +402,11 @@ check:
 - retained P7.5 showcase: 24 owned players (`163`-`186`) and 48 owned games
   (`200`-`247`), with gated status/confirmed-cleanup tooling
 
-Current unit: **None active.** P2.3 is Complete on
-`codex/database-slash-modernization` through merge `688b9d6`. It replaces the
-fixed `/game create` member matrix with one parsed roster string and a native
-Components v2 side editor, removes platform from the native interface, and
-retains the existing transactional worker. Taxonomy v2.2 as a whole remains
-pending final approval. The next taxonomy-independent implementation unit is
-P7.6, the reusable Components v2 toolkit and player-leaderboard promotion;
-P7.7 then applies that foundation to the unified player profile/game-history
-workspace proposed in D-030.
+Current unit: **P7.7 accepted; integration in progress.** P7.6 is integrated
+into `codex/database-slash-modernization`; P7.7 passed its combined beta smoke
+and is ready to merge from its sequential unit branch. Taxonomy v2.2 as a
+whole remains pending final approval; these accepted `/leaderboard` and
+`/player show` paths do not depend on the unsettled game/team spellings.
 
 Owned fixture games `149`-`151` are intentionally retained. At the latest
 gated status check, `149` is incomplete/unranked, `150` is
@@ -2176,7 +2173,7 @@ Beta launch and acceptance evidence:
 
 ### P7.6 — Reusable Components v2 toolkit and leaderboard promotion
 
-Status: **Implemented; beta acceptance pending**
+Status: **Complete; integrated into the accumulation branch**
 
 Branch/base: `codex/p7-6-components-toolkit` from accumulation checkpoint
 `39d09f6`.
@@ -2281,16 +2278,26 @@ Remaining limitations:
 - Squad leaderboard retains the earlier component paginator; migrating every
   existing view was explicitly outside this bounded extraction.
 
-Commit(s): pending checkpoint.
+Commit(s):
 
-Beta result: pending D-026 restart/synchronization and smoke acceptance.
+- `981fa0f` — Promote Components v2 leaderboard toolkit.
+- `e77e69b` — Merge P7.6 into
+  `codex/database-slash-modernization`.
 
-Next action: checkpoint and integrate P7.6 into the accumulation branch, then
-branch P7.7 from that merge.
+Beta result: D-026 restart from `981fa0f` stopped the prior task-owned beta
+cleanly, authenticated as **PolyELO Bot Beta** (`479029527553638401`), and
+completed development startup/synchronization without a reported error.
+Functional desktop/mobile smoke acceptance of the promoted command remains
+pending.
+
+Next action: smoke the promoted player and activity leaderboards during the
+combined P7.6/P7.7 beta session.
 
 ### P7.7 — Unified player profile and game-history workspace
 
-Status: **Planned**
+Status: **Accepted; integration in progress**
+
+Branch/base: `codex/p7-7-player-workspace` from P7.6 accumulation merge.
 
 Objective: replace overlapping player-card and single-player game-list
 presentations with one Components v2 workspace while preserving prefix
@@ -2338,6 +2345,79 @@ Implementation requirements:
 
 This unit follows P7.6 and does not depend on final approval of unrelated
 game/team taxonomy spellings.
+
+Implementation evidence:
+
+- Added optional-member `/player show`; omission targets the requester and
+  the command has no `section` option or `/elo` slash alias.
+- One public Components v2 workspace opens on Overview and provides Ratings,
+  Recent, Incomplete, Completed, Season, and Team & squads sections.
+  Completed games refine to all/wins/losses; season games refine by recorded
+  season.
+- Overview includes the canonical Polytopia name, team, timezone, current
+  local/global rating and records. Ratings adds current/peak/local/global and
+  permanent all-time values and ranks.
+- A two-thread bounded player-read service owns each Peewee connection and
+  returns one frozen profile plus immutable game-row snapshot capped at 500
+  games. It is separate from leaderboard and future `/game search` query
+  services.
+- All section, filter, page, and page-jump navigation uses that immutable
+  snapshot and performs no database query. Timeout recursively disables
+  controls and tells users to rerun after expiration/restart.
+- `$player`, `$elo`, and `$rank` deep-link Overview; the hidden
+  `$player ... alltime` modifier deep-links Ratings, where current and
+  permanent values are both present.
+- `$incomplete` deep-links Incomplete; `$complete`/`$completed` deep-link
+  Completed; `$wins` and `$loss`/`$losses` select the appropriate Completed
+  result filter.
+- `$allgames PLAYER` opens Recent only when the complete input resolves to
+  exactly one player. Multi-player, team, title/notes, game-size, `all`, and
+  otherwise complex inputs continue through the separate legacy game-search
+  path pending `/game search`.
+- Existing bot-channel and registered-member command checks remain attached.
+  Results are public, controls are requester-only, and failures/unauthorized
+  interactions are ephemeral.
+- Profile actions are shown only to the target or staff and currently direct
+  users to the existing permission-checked prefix edit commands; native
+  mutations remain P6 work.
+
+Validation evidence:
+
+- Focused player-workspace/taxonomy suite: 15 passed.
+- Complete offline suite: 196 passed with 10 explicitly gated database tests
+  skipped.
+- Existing gated development-database suite: 9 passed and 1
+  operator-fixture-preserving skip after confirming `development`,
+  `polytopia_dev`, and `polybot_dev`; the new real-schema player snapshot
+  read passed.
+- Compilation and `git diff --check`: passed.
+
+Compatibility implications:
+
+- The former prefix player card's generated ELO-history image, requester
+  head-to-head follow-up, trophies, favorite-tribe summary, and pre-Moonrise
+  miscellaneous statistics are not yet represented in the new workspace.
+  Core identity, rating, record, rank, team, timezone, and game-history data
+  are preserved. This gap is recorded in the compatibility ledger rather than
+  silently treated as parity.
+- The player service returns at most 500 game rows per snapshot. The UI
+  discloses and paginates the loaded snapshot; more complex/unbounded history
+  belongs in `/game search` or an export.
+
+Commit(s):
+
+- `58c8224` — Add unified player profile workspace.
+
+Beta result: D-026 restart from `58c8224` stopped the prior P7.6 beta cleanly,
+authenticated as **PolyELO Bot Beta** (`479029527553638401`), and completed
+development startup/synchronization without a reported error. The beta
+remains the intended default runtime. The user accepted the combined P7.6/P7.7
+smoke as a sufficient proof of concept on 2026-07-30.
+
+Next action: integrate P7.7 into `codex/database-slash-modernization`, then
+start the bounded `/game search` workspace as the next unit. C-002 analytics
+restoration is explicitly deferred until usage demonstrates which legacy
+details justify a separate bounded unit.
 
 ## P8 — League and remaining administration workflows
 
@@ -2917,7 +2997,7 @@ expansion require a new explicit decision.
 
 ### D-030 — Unify player detail and simple game lists in one workspace
 
-Status: Proposed for implementation after P7.6
+Status: Accepted, implemented, and beta-smoke accepted in P7.7
 
 Use `/player show member:[optional]` as the one native entry to an interactive
 player workspace. It defaults to the requester and opens Overview. Components
@@ -2935,6 +3015,40 @@ presentation primitives may come from P7.6, but player-detail and game-search
 database services remain distinct.
 
 ## Progress log
+
+### 2026-07-30 — P7.7 beta smoke accepted
+
+- Accepted the unified `/player show` workspace and promoted leaderboard as a
+  sufficient Components v2 proof of concept.
+- Approved P7.7 for integration into the accumulation branch.
+- Kept C-002 visible in the compatibility ledger while deferring its analytics
+  and media restoration to a later evidence-driven unit.
+- Selected the bounded `/game search` workspace as the next code unit.
+
+### 2026-07-30 — P7.7 unified player workspace implemented
+
+- Added optional-member `/player show`, defaulting to the requester, with one
+  public Components v2 Overview/Ratings/game-history/team workspace.
+- Routed the overlapping player and simple single-player prefix commands to
+  their documented initial sections while leaving complex queries in the
+  separate game-search workflow.
+- Added a bounded worker-local immutable player snapshot and database-free
+  section/filter/page navigation.
+- Passed 15 focused tests, 196 offline tests with 10 gated skips, and 9 gated
+  development-database tests with one fixture-preserving skip.
+- Recorded the remaining legacy player-card analytics gap as C-002.
+
+### 2026-07-30 — P7.6 Components v2 toolkit promoted
+
+- Extracted database-agnostic requester authorization, cached loading,
+  pagination, expiry, and timeout primitives proven by P7.5.
+- Promoted the accepted no-option experience to `/leaderboard players`,
+  exposed all sixteen legacy `$lb` combinations interactively, and removed
+  temporary `/lb2`.
+- Applied the toolkit to player and activity leaderboards.
+- Passed 30 focused tests, 185 offline tests with 9 gated skips, and 8 gated
+  development-database tests with one fixture-preserving skip.
+- Integrated the unit before branching P7.7.
 
 ### 2026-07-30 — Legacy exclusions and unified player workspace proposed
 
