@@ -1,18 +1,16 @@
-"""Experimental Components v2 player leaderboard interface."""
+"""Components v2 leaderboard interfaces."""
 
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
 import datetime
-import math
-
 import discord
 
-from modules import leaderboard_workers
+from modules import components_v2, leaderboard_workers
 
 
 PAGE_SIZE = 8
-ACCENT_COLOUR = discord.Colour.from_rgb(83, 126, 231)
+ACCENT_COLOUR = components_v2.DEFAULT_ACCENT
 
 
 class LeaderboardPreset:
@@ -79,8 +77,13 @@ PRESETS = (
 PRESET_BY_KEY = {preset.key: preset for preset in PRESETS}
 
 
-def _page_count(result: leaderboard_workers.PlayerLeaderboardResult) -> int:
-    return max(1, math.ceil(len(result.rows) / PAGE_SIZE))
+FILTER_KEYS = tuple(
+    f'{scope}:{rating}:{era}:{population}'
+    for scope in ('local', 'global')
+    for rating in ('current', 'peak')
+    for era in ('current', 'all-time')
+    for population in ('active', 'all')
+)
 
 
 def _mode_summary(preset: LeaderboardPreset, population: str) -> str:
@@ -112,48 +115,7 @@ def _rankings_text(
     return '\n'.join(lines), start + 1 if rows else 0, start + len(rows)
 
 
-class Lb2JumpModal(discord.ui.Modal):
-    """Jump to a page in an experimental Components v2 leaderboard."""
-
-    def __init__(self, view: 'ExperimentalLeaderboardView'):
-        super().__init__(title='Jump to leaderboard page', timeout=60.0)
-        self.leaderboard_view = view
-        self.page_number = discord.ui.TextInput(
-            placeholder=str(view.page_index + 1),
-            default=str(view.page_index + 1),
-            min_length=1,
-            max_length=max(1, len(str(view.page_count))),
-        )
-        self.add_item(discord.ui.Label(
-            text=f'Page number (1–{view.page_count})',
-            description='The public leaderboard will move to this page.',
-            component=self.page_number,
-        ))
-
-    async def on_submit(self, interaction: discord.Interaction) -> None:
-        view = self.leaderboard_view
-        if interaction.user.id != view.requester_id:
-            await interaction.response.send_message(
-                'Only the requester can control this leaderboard.',
-                ephemeral=True,
-            )
-            return
-        try:
-            page = int(self.page_number.value.strip())
-        except ValueError:
-            page = 0
-        if page < 1 or page > view.page_count:
-            await interaction.response.send_message(
-                f'Enter a page number from 1 to {view.page_count}.',
-                ephemeral=True,
-            )
-            return
-        view.page_index = page - 1
-        view.rebuild()
-        await interaction.response.edit_message(view=view)
-
-
-class ExperimentalLeaderboardView(discord.ui.LayoutView):
+class PlayerLeaderboardWorkspace(components_v2.CachedRequesterLayoutView):
     """A requester-controlled, public Components v2 leaderboard."""
 
     def __init__(
@@ -171,22 +133,47 @@ class ExperimentalLeaderboardView(discord.ui.LayoutView):
         population: str = 'active',
         timeout: float = 300.0,
     ):
-        super().__init__(timeout=timeout)
+        initial_key = (preset_key, population)
+        super().__init__(
+            requester_id=requester_id,
+            initial_key=initial_key,
+            initial_result=result,
+            loader=self._load_request_key,
+            timeout=timeout,
+        )
         self.guild_id = guild_id
-        self.requester_id = requester_id
-        self.loader = loader
+        self.result_loader = loader
         self.active_cutoff = active_cutoff
         self.preset_key = preset_key
         self.population = population
-        self.result = result
-        self.page_index = 0
-        self.message: discord.Message | None = None
-        self._cache = {(preset_key, population): result}
         self.rebuild()
 
     @property
     def page_count(self) -> int:
-        return _page_count(self.result)
+        return components_v2.page_count(self.result.rows, PAGE_SIZE)
+
+    async def _load_request_key(self, key):
+        preset_key, population = key
+        preset = PRESET_BY_KEY.get(preset_key)
+        if preset is None:
+            scope, rating, era = preset_key.split(':')
+            preset = LeaderboardPreset(
+                preset_key,
+                f'{scope.title()} · {rating} · {era}',
+                'Advanced filter combination',
+                scope=scope,
+                rating=rating,
+                era=era,
+            )
+        request = leaderboard_workers.PlayerLeaderboardRequest(
+            guild_id=self.guild_id,
+            scope=preset.scope,
+            rating=preset.rating,
+            era=preset.era,
+            population=population,
+            active_cutoff=self.active_cutoff,
+        )
+        return await self.result_loader(request)
 
     def _request(self) -> leaderboard_workers.PlayerLeaderboardRequest:
         preset = PRESET_BY_KEY[self.preset_key]
@@ -199,38 +186,14 @@ class ExperimentalLeaderboardView(discord.ui.LayoutView):
             active_cutoff=self.active_cutoff,
         )
 
-    async def interaction_check(
-        self,
-        interaction: discord.Interaction,
-    ) -> bool:
-        if interaction.user.id == self.requester_id:
-            return True
-        await interaction.response.send_message(
-            'Only the requester can control this leaderboard.',
-            ephemeral=True,
-        )
-        return False
-
     async def _load_selected_result(
         self,
         interaction: discord.Interaction,
     ) -> bool:
-        key = (self.preset_key, self.population)
-        cached = self._cache.get(key)
-        if cached is not None:
-            self.result = cached
-            return True
-        await interaction.response.defer()
-        try:
-            self.result = await self.loader(self._request())
-        except Exception as exc:
-            await interaction.followup.send(
-                f'Could not load that leaderboard view: {exc}',
-                ephemeral=True,
-            )
-            return False
-        self._cache[key] = self.result
-        return True
+        return await self.load_key(
+            interaction,
+            (self.preset_key, self.population),
+        )
 
     async def _edit_after_selection(
         self,
@@ -254,6 +217,21 @@ class ExperimentalLeaderboardView(discord.ui.LayoutView):
         self.preset_key = self.preset_select.values[0]
         if not await self._edit_after_selection(interaction):
             self.preset_key = previous
+
+    async def _select_advanced(
+        self,
+        interaction: discord.Interaction,
+    ) -> None:
+        previous_preset = self.preset_key
+        previous_population = self.population
+        scope, rating, era, population = (
+            self.advanced_select.values[0].split(':')
+        )
+        self.preset_key = f'{scope}:{rating}:{era}'
+        self.population = population
+        if not await self._edit_after_selection(interaction):
+            self.preset_key = previous_preset
+            self.population = previous_population
 
     async def _toggle_population(
         self,
@@ -284,7 +262,7 @@ class ExperimentalLeaderboardView(discord.ui.LayoutView):
         self,
         interaction: discord.Interaction,
     ) -> None:
-        await interaction.response.send_modal(Lb2JumpModal(self))
+        await self.open_page_modal(interaction)
 
     async def _show_requester_rank(
         self,
@@ -310,7 +288,17 @@ class ExperimentalLeaderboardView(discord.ui.LayoutView):
     def rebuild(self) -> None:
         self.clear_items()
         self.page_index = min(self.page_index, self.page_count - 1)
-        preset = PRESET_BY_KEY[self.preset_key]
+        preset = PRESET_BY_KEY.get(self.preset_key)
+        if preset is None:
+            scope, rating, era = self.preset_key.split(':')
+            preset = LeaderboardPreset(
+                self.preset_key,
+                f'{scope.title()} · {rating} · {era}',
+                'Advanced filters',
+                scope=scope,
+                rating=rating,
+                era=era,
+            )
         rankings, start, end = _rankings_text(
             self.result,
             self.page_index,
@@ -329,6 +317,24 @@ class ExperimentalLeaderboardView(discord.ui.LayoutView):
             ],
         )
         self.preset_select.callback = self._select_preset
+        current_advanced = (
+            f'{preset.scope}:{preset.rating}:{preset.era}:{self.population}'
+        )
+        self.advanced_select = discord.ui.Select(
+            placeholder='Advanced filters · all 16 legacy combinations',
+            options=[
+                discord.SelectOption(
+                    label=(
+                        f'{scope.title()} · {rating} · {era} · {population}'
+                    )[:100],
+                    value=key,
+                    default=key == current_advanced,
+                )
+                for key in FILTER_KEYS
+                for scope, rating, era, population in [key.split(':')]
+            ],
+        )
+        self.advanced_select.callback = self._select_advanced
 
         previous = discord.ui.Button(
             label='Previous',
@@ -377,6 +383,7 @@ class ExperimentalLeaderboardView(discord.ui.LayoutView):
                 f'showing {start}–{end} of {len(self.result.rows)} loaded'
             ),
             discord.ui.ActionRow(self.preset_select),
+            discord.ui.ActionRow(self.advanced_select),
             discord.ui.ActionRow(
                 previous,
                 page,
@@ -388,12 +395,78 @@ class ExperimentalLeaderboardView(discord.ui.LayoutView):
         )
         self.add_item(container)
 
-    async def on_timeout(self) -> None:
-        for item in self.walk_children():
-            if isinstance(item, (discord.ui.Button, discord.ui.Select)):
-                item.disabled = True
-        if self.message is not None:
-            try:
-                await self.message.edit(view=self)
-            except discord.HTTPException:
-                pass
+
+# Compatibility name for tests and retained internal imports during P7.6.
+ExperimentalLeaderboardView = PlayerLeaderboardWorkspace
+
+
+class ActivityLeaderboardWorkspace(components_v2.RequesterLayoutView):
+    """Components v2 pagination for one immutable activity snapshot."""
+
+    def __init__(
+        self,
+        *,
+        requester_id: int,
+        result: leaderboard_workers.ActivityLeaderboardResult,
+        timeout: float = 300.0,
+    ):
+        super().__init__(requester_id=requester_id, timeout=timeout)
+        self.result = result
+        self.rebuild()
+
+    @property
+    def page_count(self) -> int:
+        return components_v2.page_count(self.result.rows, PAGE_SIZE)
+
+    def rebuild(self) -> None:
+        self.clear_items()
+        self.page_index = min(self.page_index, self.page_count - 1)
+        rows, start, end = components_v2.page_slice(
+            self.result.rows,
+            self.page_index,
+            PAGE_SIZE,
+        )
+        count_label = (
+            'games played'
+            if self.result.view == 'global-all-time'
+            else 'recent games'
+        )
+        lines = [
+            (
+                f'`{row.rank:>2}.` **{row.team_emoji}{row.name}**\n'
+                f'> `{row.elo:>4} ELO` · **{row.games} {count_label}**'
+            )
+            for row in rows
+        ] or ['*No activity found.*']
+        previous = discord.ui.Button(
+            label='Previous',
+            emoji='◀️',
+            disabled=self.page_index == 0,
+        )
+        previous.callback = self.show_previous
+        page = discord.ui.Button(
+            label=f'Page {self.page_index + 1}/{self.page_count}',
+            style=discord.ButtonStyle.primary,
+        )
+        page.callback = self.open_page_modal
+        next_page = discord.ui.Button(
+            label='Next',
+            emoji='▶️',
+            disabled=self.page_index == self.page_count - 1,
+        )
+        next_page.callback = self.show_next
+        self.add_item(discord.ui.Container(
+            discord.ui.TextDisplay(
+                f'# 📊 {self.result.title}\n'
+                f'-# {self.result.total_players} players'
+            ),
+            discord.ui.Separator(spacing=discord.SeparatorSpacing.small),
+            discord.ui.TextDisplay('\n'.join(lines)),
+            discord.ui.Separator(spacing=discord.SeparatorSpacing.small),
+            discord.ui.TextDisplay(
+                f'-# Page {self.page_index + 1} of {self.page_count} · '
+                f'showing {start}–{end} of {len(self.result.rows)}'
+            ),
+            discord.ui.ActionRow(previous, page, next_page),
+            accent_colour=ACCENT_COLOUR,
+        ))

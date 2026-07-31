@@ -2176,7 +2176,10 @@ Beta launch and acceptance evidence:
 
 ### P7.6 — Reusable Components v2 toolkit and leaderboard promotion
 
-Status: **Planned**
+Status: **Implemented; beta acceptance pending**
+
+Branch/base: `codex/p7-6-components-toolkit` from accumulation checkpoint
+`39d09f6`.
 
 Objective: turn the accepted P7.5 experiment into a small reusable interaction
 foundation and make it the production-intended player leaderboard without
@@ -2229,6 +2232,61 @@ Exit criteria:
 
 Next action: P7.5 is integrated. Implement P7.6 as a separate bounded unit,
 then use its proven primitives in P7.7.
+
+Implementation evidence:
+
+- `modules/components_v2.py` contains only presentation/state primitives:
+  requester authorization, page slicing/counting, cached async snapshot
+  loading, numeric page jumps, recursive timeout disabling, and explicit
+  rerun guidance. It imports neither Peewee nor database models.
+- `/leaderboard players` is now the accepted no-option public workspace.
+  Temporary `/lb2` is absent.
+- Common presets remain one-click choices. A separate advanced selector
+  exposes all sixteen scope/rating/era/population combinations represented by
+  the legacy `$lb` grammar.
+- `$lb`, `$leaderboard`, `$leaderboards`, `$lbglobal`, and `$lbg` remain
+  registered and retain their existing filter parser and bounded worker.
+- Player pages, requester-rank jumps, and cached preset/filter navigation do
+  not requery the database. Only an uncached filter selection invokes the
+  existing bounded leaderboard loader.
+- `/leaderboard activity` is the second real toolkit consumer and now renders
+  its immutable worker result through the same public/requester-controlled
+  Components v2 page primitives.
+- Serialization stays below the tested Components v2 count limit; timeout
+  disables nested controls, unauthorized and expired interactions fail
+  ephemerally, and expired page submissions direct users to rerun the command.
+
+Validation evidence:
+
+- Focused leaderboard/taxonomy suite: 30 passed.
+- Complete offline suite: 185 passed with 9 explicitly gated database tests
+  skipped.
+- Existing gated development-database suite: 8 passed and 1 operator-fixture
+  round trip skipped after confirming `development`, `polytopia_dev`, and
+  role `polybot_dev`.
+- Compilation and `git diff --check`: passed.
+
+Compatibility: no ledger entry is required. Every legacy player-leaderboard
+dimension remains reachable, all prefix aliases remain, and slash command
+completion makes a separate `/lb` or `/lb2` application-command alias
+unnecessary.
+
+Remaining limitations:
+
+- Activity gains the shared v2 presentation but retains its direct slash
+  `view` choice; redesigning that already clear two-view interface was not
+  needed to prove the toolkit.
+- Cached view state remains process-local and intentionally expires. A bot
+  restart requires rerunning the command.
+- Squad leaderboard retains the earlier component paginator; migrating every
+  existing view was explicitly outside this bounded extraction.
+
+Commit(s): pending checkpoint.
+
+Beta result: pending D-026 restart/synchronization and smoke acceptance.
+
+Next action: checkpoint and integrate P7.6 into the accumulation branch, then
+branch P7.7 from that merge.
 
 ### P7.7 — Unified player profile and game-history workspace
 

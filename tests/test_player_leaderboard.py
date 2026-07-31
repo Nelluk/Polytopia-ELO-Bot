@@ -19,6 +19,7 @@ leaderboard_workers = import_offline_runtime(
     'modules.leaderboard_workers'
 )
 leaderboard_views = import_offline_runtime('modules.leaderboard_views')
+leaderboard_v2 = import_offline_runtime('modules.leaderboard_v2')
 games = import_offline_runtime('modules.games')
 
 
@@ -288,7 +289,7 @@ class PlayerLeaderboardCommandTests(unittest.IsolatedAsyncioTestCase):
             )
             self.assertEqual(request.scope, 'global')
 
-    def test_prefix_aliases_and_typed_slash_registration(self):
+    def test_prefix_aliases_and_no_option_slash_registration(self):
         prefix = next(
             command
             for command in games.polygames.__cog_commands__
@@ -302,22 +303,7 @@ class PlayerLeaderboardCommandTests(unittest.IsolatedAsyncioTestCase):
             games.polygames,
             'leaderboard',
         ).get_command('players')
-        self.assertEqual(
-            [
-                (parameter.name, parameter.type)
-                for parameter in command.parameters
-            ],
-            [
-                ('scope', discord.AppCommandOptionType.string),
-                ('rating', discord.AppCommandOptionType.string),
-                ('era', discord.AppCommandOptionType.string),
-                ('population', discord.AppCommandOptionType.string),
-            ],
-        )
-        self.assertEqual(
-            [choice.value for choice in command.parameters[0].choices],
-            ['local', 'global'],
-        )
+        self.assertEqual(command.parameters, [])
 
     async def test_slash_defers_checks_then_edits_public_result(self):
         events = []
@@ -343,10 +329,10 @@ class PlayerLeaderboardCommandTests(unittest.IsolatedAsyncioTestCase):
 
         async def edit_original_response(**kwargs):
             events.append('edit')
-            self.assertIsInstance(kwargs['embed'], discord.Embed)
+            self.assertEqual(set(kwargs), {'view'})
             self.assertIsInstance(
                 kwargs['view'],
-                leaderboard_views.PlayerLeaderboardView,
+                leaderboard_v2.PlayerLeaderboardWorkspace,
             )
             return SimpleNamespace(edit=mock.AsyncMock())
 
@@ -377,21 +363,14 @@ class PlayerLeaderboardCommandTests(unittest.IsolatedAsyncioTestCase):
             'guild_setting',
             return_value='$',
         ):
-            await command.callback(
-                cog,
-                interaction,
-                'global',
-                'peak',
-                'all-time',
-                'all',
-            )
+            await command.callback(cog, interaction)
 
         self.assertEqual(
             events[:3],
             [
                 'defer',
                 'checks',
-                ('load', 'global', 'peak', 'all-time', 'all'),
+                ('load', 'local', 'current', 'current', 'active'),
             ],
         )
         self.assertEqual(events[-1], 'edit')

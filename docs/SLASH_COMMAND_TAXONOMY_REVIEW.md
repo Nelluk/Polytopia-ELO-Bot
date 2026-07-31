@@ -203,10 +203,9 @@ The accepted P7.5 player-leaderboard experiment is the reference:
 - desktop and mobile beta testing found it strictly preferable to the
   four-option `/leaderboard players` interface.
 
-The production-intended path remains `/leaderboard players`; `lb2` is a
-temporary experiment, not a taxonomy root or slash alias. P7.6 promotes the
-accepted renderer to that path, adds an Advanced filters interaction for all
-sixteen legacy combinations, and removes `lb2`.
+The production-intended path is `/leaderboard players`; P7.6 promoted the
+accepted renderer to that path, added an Advanced filters interaction for all
+sixteen legacy combinations, and removed temporary `lb2`.
 
 Use this approach for leaderboards, searches, profile/detail workspaces,
 multi-step drafts, and preview/confirmation flows. Do not bury a simple
@@ -218,7 +217,7 @@ Taxonomy v2.2 applies this rule system-wide:
 
 | Capability | Essential invocation input | Interactive refinement |
 |---|---|---|
-| `/leaderboard players` | none | presets, advanced filters, paging, requester rank |
+| `/leaderboard players` | none | Implemented Components v2 presets, all 16 advanced-filter combinations, cached paging, and requester rank |
 | `/game search` | optional initial query or player | status/outcome/scope filters and paging |
 | `/game show` | optional game ID when it cannot be inferred from the channel | players, logs, attributes, and permitted actions |
 | `/game ping` | optional game ID when it cannot be inferred | audience/scope, long message, multiple uploads, preview, confirmation |
