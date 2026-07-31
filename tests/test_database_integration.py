@@ -621,6 +621,122 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
             0,
         )
 
+    def test_open_game_worker_commits_and_rolls_back_complete_graph(self):
+        from modules import game_open_workers
+
+        guild_id = self.profile.allowed_guild_ids[0]
+        suffix = uuid.uuid4().hex
+        discord_id = 8_600_000_000_000_000 + uuid.uuid4().int % 1_000_000
+        member_name = f'P51 Integration Host {suffix}'
+        marker = f'P5.1 integration {suffix}'
+        team = None
+        created_game_ids = set()
+
+        try:
+            if self.settings.guild_setting(guild_id, 'require_teams'):
+                team = self.models.Team.create(
+                    name=f'P51 Integration Team {suffix}',
+                    guild_id=guild_id,
+                )
+            member = self.models.DiscordMember.create(
+                discord_id=discord_id,
+                name=member_name,
+                polytopia_name=f'P51Mobile{suffix}',
+            )
+            host = self.models.Player.create(
+                discord_member=member,
+                guild_id=guild_id,
+                name=member_name,
+                team=team,
+            )
+            request = game_open_workers.OpenGameRequest(
+                guild_id=guild_id,
+                requester_id=discord_id,
+                requester_name=member_name,
+                requester_nick=None,
+                prefix='$',
+                requester_role_ids=(),
+                requester_role_names=(team.name,) if team else (),
+                requester_level=3,
+                requester_is_mod=False,
+                requester_is_staff=False,
+                sides=(
+                    game_open_workers.OpenGameSide(1),
+                    game_open_workers.OpenGameSide(1),
+                ),
+                expiration_hours=24,
+                is_ranked=True,
+                is_mobile=True,
+                notes=marker,
+                notes_display=marker,
+                requester_description=(
+                    f'**{member_name}** (`{discord_id}`)'
+                ),
+                invoked_with='opengame',
+            )
+
+            result = asyncio.run(
+                game_open_workers.run_open_game_creation(request)
+            )
+            created_game_ids.add(result.game_id)
+            game = self.models.Game.get_by_id(result.game_id)
+            self.assertEqual(game.host.id, host.id)
+            self.assertEqual(
+                self.models.GameSide.select().where(
+                    self.models.GameSide.game == game
+                ).count(),
+                2,
+            )
+            self.assertEqual(
+                self.models.Lineup.select().where(
+                    self.models.Lineup.game == game
+                ).count(),
+                1,
+            )
+            self.assertEqual(
+                self.models.GameLog.select().where(
+                    self.models.GameLog.message.contains(marker)
+                ).count(),
+                1,
+            )
+
+            failing_log = mock.patch.object(
+                self.models.GameLog,
+                'write',
+                side_effect=RuntimeError('P5.1 audit failure'),
+            )
+            with failing_log, self.assertRaises(RuntimeError):
+                asyncio.run(
+                    game_open_workers.run_open_game_creation(request)
+                )
+            self.assertEqual(
+                self.models.Game.select().where(
+                    self.models.Game.notes == marker
+                ).count(),
+                1,
+            )
+        finally:
+            self.models.db.connect(reuse_if_open=True)
+            for game_id in sorted(created_game_ids):
+                game = self.models.Game.get_or_none(
+                    self.models.Game.id == game_id
+                )
+                if game is not None:
+                    game.delete_game()
+            self.models.GameLog.delete().where(
+                self.models.GameLog.message.contains(marker)
+            ).execute()
+            self.models.Player.delete().where(
+                self.models.Player.discord_member == discord_id
+            ).execute()
+            self.models.DiscordMember.delete().where(
+                self.models.DiscordMember.discord_id == discord_id
+            ).execute()
+            if team is not None:
+                self.models.Team.delete().where(
+                    self.models.Team.id == team.id
+                ).execute()
+
     def test_bot_extensions_load_with_background_tasks_disabled(self):
         import bot as bot_module
 
