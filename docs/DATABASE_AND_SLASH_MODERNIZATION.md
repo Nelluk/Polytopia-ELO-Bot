@@ -806,7 +806,7 @@ Exit criteria:
 
 ### P2.3 — Flexible `/game record` roster and cross-play cleanup
 
-Status: **Implemented; development beta acceptance pending**
+Status: **Beta-validated**
 
 Branch/base: `codex/p2-3-game-record-roster` from P7.5 Components v2
 checkpoint `dd20e9b`.
@@ -849,7 +849,7 @@ Required evidence:
 - [x] complete offline suite;
 - [x] gated development-database suite;
 - [x] development beta restart and development-guild sync;
-- [ ] live preview/edit/cancel/confirm smoke acceptance.
+- [x] live preview/edit/cancel/confirm smoke acceptance.
 
 Implementation evidence:
 
@@ -884,16 +884,23 @@ Validation:
   operator-managed set after confirming `polytopia_dev` and `polybot_dev`.
 - Compilation and `git diff --check`: passed.
 
-Implementation checkpoint: `6af7c92`.
+Implementation checkpoints:
+
+- `6af7c92` — flexible roster parser and first preview implementation;
+- `b54618e` — component-confirmation fix and native side/member editor.
 
 Runtime evidence: the task-owned beta was stopped cleanly after checkpointing,
 then restarted from `da21786` with `POLYBOT_ENV=development` and
 `--skip_tasks`. It authenticated as `PolyELO Bot Beta`
 (`479029527553638401`) and completed startup/development-guild sync without a
-reported error. The beta remains running.
+reported error. After the first smoke exposed a component-context failure,
+the beta restarted from `b54618e`. The user then reported the corrected
+record, confirmation, and native side-editing flow worked well and accepted
+the unit. No further live exception appeared in the task-owned beta output.
+The beta remains running.
 
-Next action: verify in Discord that `/game record` replaced `/game create`,
-then smoke preview/edit/cancel/confirm plus one multi-side roster.
+Next action: integrate P2.3 in the intended modernization-branch sequence.
+Keep the broader Taxonomy v2.2 status pending final approval.
 
 ## P3 — Owner ELO maintenance and observability
 
@@ -2771,6 +2778,16 @@ remain the safest initial input; the native side editor corrects the parsed
 draft without exposing raw mention strings.
 
 ## Progress log
+
+### 2026-07-30 — `/game record` beta accepted
+
+- The user retested the corrected workflow and reported that it worked well.
+- Accepted the roster parser, preview/confirmation flow, and native
+  side/member editor.
+- Observed no further live exception in the task-owned beta output.
+- Marked P2.3 Beta-validated; final integration and the broader Taxonomy v2.2
+  decision remain separate.
+- Left the development beta running under D-026.
 
 ### 2026-07-30 — `/game record` beta findings fixed
 
