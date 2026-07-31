@@ -1138,7 +1138,7 @@ class polygames(commands.Cog):
                 server_name = f'guild {source_guild_id}'
         return f'{error} __{server_name}__.'
 
-    async def _send_game_detail_workspace(
+    async def _send_game_detail(
         self,
         target,
         *,
@@ -1187,25 +1187,17 @@ class polygames(commands.Cog):
             prefix=self._game_detail_prefix(target, guild, slash=slash),
             join_emoji=getattr(settings, 'emoji_join_game', ''),
         )
+        classic = game_detail_views.render_classic_game_detail(display)
+        kwargs = {
+            'embed': classic.embed,
+            'content': classic.content,
+        }
+        file = classic.new_file()
+        if file is not None:
+            kwargs['file'] = file
         if slash:
-            view = game_detail_views.GameDetailWorkspace(
-                requester_id=requester_id,
-                display=display,
-            )
-            kwargs = {'view': view}
-            file = view.new_file()
-            if file is not None:
-                kwargs['attachments'] = [file]
-            view.message = await target.edit_original_response(**kwargs)
+            await target.edit_original_response(**kwargs)
         else:
-            classic = game_detail_views.render_classic_game_detail(display)
-            kwargs = {
-                'embed': classic.embed,
-                'content': classic.content,
-            }
-            file = classic.new_file()
-            if file is not None:
-                kwargs['file'] = file
             await target.send(**kwargs)
         return True
 
@@ -1813,7 +1805,7 @@ class polygames(commands.Cog):
         channel_id = getattr(channel, 'id', None)
         if channel_id is None and getattr(ctx, 'message', None) is not None:
             channel_id = getattr(ctx.message.channel, 'id', 0)
-        return await self._send_game_detail_workspace(
+        return await self._send_game_detail(
             ctx,
             guild=ctx.guild,
             requester_id=ctx.author.id,
@@ -1823,7 +1815,7 @@ class polygames(commands.Cog):
 
     @game_group.command(
         name='show',
-        description='Open one game detail workspace.',
+        description='Show one game in the standard game card.',
     )
     @discord.app_commands.describe(
         game_id='Game ID; omit it only in an unambiguous game channel.',
@@ -1833,12 +1825,12 @@ class polygames(commands.Cog):
         interaction: discord.Interaction,
         game_id: int | None = None,
     ):
-        """Open the shared public game-detail workspace."""
+        """Show the shared public game-detail card."""
 
         # The legacy $game command has no bot-channel or registration check;
         # retain that visibility rule while the native group remains guild-only.
         await interaction.response.defer()
-        await self._send_game_detail_workspace(
+        await self._send_game_detail(
             interaction,
             guild=interaction.guild,
             requester_id=interaction.user.id,

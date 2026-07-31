@@ -1,4 +1,4 @@
-"""Focused offline coverage for the unified game-detail workspace."""
+"""Focused offline coverage for the bounded game-detail read and card."""
 
 import asyncio
 from contextlib import contextmanager
@@ -444,105 +444,7 @@ class GameDetailExecutorTests(unittest.IsolatedAsyncioTestCase):
             workers.load_game_detail = original
 
 
-class GameDetailViewTests(unittest.IsolatedAsyncioTestCase):
-    def make_view(self):
-        guild = SimpleNamespace(
-            id=10,
-            name='Test Guild',
-            get_member=lambda member_id: None,
-            get_role=lambda role_id: None,
-        )
-        bot = SimpleNamespace(
-            guilds=[guild],
-            get_guild=lambda guild_id: guild if guild_id == 10 else None,
-            get_user=lambda member_id: None,
-            get_channel=lambda channel_id: None,
-        )
-        display = views.resolve_display(snapshot(), guild=guild, bot=bot)
-        return views.GameDetailWorkspace(requester_id=900, display=display)
-
-    async def test_public_result_has_requester_only_controls(self):
-        view = self.make_view()
-        denied = SimpleNamespace(
-            user=SimpleNamespace(id=901),
-            response=SimpleNamespace(send_message=mock.AsyncMock()),
-        )
-        self.assertFalse(await view.interaction_check(denied))
-        denied.response.send_message.assert_awaited_once_with(
-            view.unauthorized_message,
-            ephemeral=True,
-        )
-        allowed = SimpleNamespace(user=SimpleNamespace(id=900))
-        self.assertTrue(await view.interaction_check(allowed))
-
-    async def test_section_navigation_is_snapshot_only(self):
-        view = self.make_view()
-        response = SimpleNamespace(
-            is_done=lambda: False,
-            send_message=mock.AsyncMock(),
-            edit_message=mock.AsyncMock(),
-        )
-        interaction = SimpleNamespace(
-            user=SimpleNamespace(id=900),
-            response=response,
-        )
-        view.section_select._values = ['players']
-        await view._select_section(interaction)
-        self.assertEqual(view.section, 'players')
-        response.edit_message.assert_awaited_once()
-
-    async def test_expired_request_is_ephemeral(self):
-        view = self.make_view()
-        view.stop()
-        response = SimpleNamespace(send_message=mock.AsyncMock())
-        interaction = SimpleNamespace(
-            user=SimpleNamespace(id=900),
-            response=response,
-        )
-        self.assertFalse(await view.interaction_check(interaction))
-        response.send_message.assert_awaited_once_with(
-            view.expired_message,
-            ephemeral=True,
-        )
-
-    def test_v2_serialization_and_component_count(self):
-        view = self.make_view()
-        self.assertIsInstance(view, discord.ui.LayoutView)
-        self.assertEqual(len(view.children), 1)
-        self.assertLessEqual(view.total_children_count, 40)
-        self.assertTrue(view.to_components())
-        text = '\n'.join(
-            item.content
-            for item in view.walk_children()
-            if isinstance(item, discord.ui.TextDisplay)
-        )
-        self.assertIn('Game 7', text)
-        self.assertIn('Dryland', text)
-
-    def test_compact_overview_uses_thumbnail_accessory_and_dense_roster(self):
-        view = self.make_view()
-        root = view.children[0]
-        sections = [
-            child for child in root.children
-            if isinstance(child, discord.ui.Section)
-        ]
-        self.assertEqual(len(sections), 1)
-        self.assertIsInstance(sections[0].accessory, discord.ui.Thumbnail)
-        self.assertFalse(any(
-            isinstance(child, discord.ui.MediaGallery)
-            for child in root.children
-        ))
-        text = '\n'.join(
-            item.content
-            for item in view.walk_children()
-            if isinstance(item, discord.ui.TextDisplay)
-        )
-        self.assertIn('Sides & players', text)
-        self.assertIn('Alpha', text)
-        self.assertIn('Beta', text)
-        self.assertIn('ELO', text)
-        self.assertIn('Side 1', text)
-
+class GameDetailViewTests(unittest.TestCase):
     def test_classic_completed_renderer_preserves_embed_density_and_media(self):
         guild = SimpleNamespace(
             id=10,
@@ -561,6 +463,18 @@ class GameDetailViewTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn('Dryland', rendered.embed.footer.text)
         self.assertIn('Season notes', rendered.content)
         self.assertIsNotNone(rendered.embed.thumbnail.url)
+        rendered_text = '\n'.join(
+            [
+                rendered.embed.title,
+                *(field.name + field.value for field in rendered.embed.fields),
+                rendered.embed.footer.text,
+                rendered.content or '',
+            ]
+        )
+        self.assertIn('Alpha', rendered_text)
+        self.assertIn('Beta', rendered_text)
+        self.assertIn('🐻', rendered_text)
+        self.assertIn('💎', rendered_text)
 
     def test_classic_pending_renderer_preserves_open_and_full_guidance(self):
         guild = SimpleNamespace(
@@ -590,67 +504,6 @@ class GameDetailViewTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn('__`$codes 7`__', full_rendered.content)
         self.assertIn('Balanced Draft Order', full_rendered.content)
         self.assertIn('Side Home', full_rendered.content)
-
-    def test_pending_open_view_preserves_join_guidance_and_platform_name(self):
-        guild = SimpleNamespace(
-            id=10,
-            name='Test Guild',
-            get_member=lambda member_id: None,
-            get_role=lambda role_id: None,
-        )
-        display = views.resolve_display(
-            snapshot(
-                pending=True,
-                completed=False,
-                pending_full=False,
-            ),
-            guild=guild,
-            prefix='!',
-            join_emoji='✅',
-        )
-        view = views.GameDetailWorkspace(requester_id=900, display=display)
-        text = '\n'.join(
-            item.content
-            for item in view.walk_children()
-            if isinstance(item, discord.ui.TextDisplay)
-        )
-        self.assertIn('`!join 7`', text)
-        self.assertIn('✅', text)
-        view.section = 'players'
-        view.rebuild()
-        text = '\n'.join(
-            item.content
-            for item in view.walk_children()
-            if isinstance(item, discord.ui.TextDisplay)
-        )
-        self.assertIn('Alpha Poly', text)
-
-    def test_pending_full_view_preserves_start_codes_and_draft_order(self):
-        guild = SimpleNamespace(
-            id=10,
-            name='Test Guild',
-            get_member=lambda member_id: None,
-            get_role=lambda role_id: None,
-        )
-        display = views.resolve_display(
-            snapshot(
-                pending=True,
-                completed=False,
-                draft=True,
-            ),
-            guild=guild,
-            prefix='$',
-        )
-        view = views.GameDetailWorkspace(requester_id=900, display=display)
-        text = '\n'.join(
-            item.content
-            for item in view.walk_children()
-            if isinstance(item, discord.ui.TextDisplay)
-        )
-        self.assertIn('`$start 7 Name of Game`', text)
-        self.assertIn('`$codes 7`', text)
-        self.assertIn('Balanced draft order', text)
-        self.assertIn('Side Home: Alpha', text)
 
     def test_cross_guild_display_hides_source_discord_identifiers(self):
         source_member = SimpleNamespace(
@@ -686,25 +539,8 @@ class GameDetailViewTests(unittest.IsolatedAsyncioTestCase):
             guild=current_guild,
             bot=bot,
         )
-        view = views.GameDetailWorkspace(requester_id=900, display=display)
-        text = '\n'.join(
-            item.content
-            for item in view.walk_children()
-            if isinstance(item, discord.ui.TextDisplay)
-        )
-        self.assertEqual(display.channels, ())
-        self.assertEqual(display.player_label(101, 'Alpha'), 'Alpha')
-        self.assertEqual(
-            display.role_label(501),
-            'source-server role restriction',
-        )
-        self.assertIn('Source Guild', text)
-        self.assertNotIn('<@101>', text)
-        self.assertNotIn('<@&501>', text)
-        self.assertNotIn('<#701>', text)
-        self.assertNotIn('<#702>', text)
         classic = views.render_classic_game_detail(display)
-        classic_text = '\n'.join(
+        text = '\n'.join(
             [
                 classic.embed.title,
                 *(field.name + field.value for field in classic.embed.fields),
@@ -712,10 +548,16 @@ class GameDetailViewTests(unittest.IsolatedAsyncioTestCase):
                 classic.content or '',
             ]
         )
-        self.assertNotIn('<@101>', classic_text)
-        self.assertNotIn('<@&501>', classic_text)
-        self.assertNotIn('<#701>', classic_text)
-        self.assertNotIn('<#702>', classic_text)
+        self.assertEqual(display.channels, ())
+        self.assertEqual(display.player_label(101, 'Alpha'), 'Alpha')
+        self.assertEqual(
+            display.role_label(501),
+            'source-server role restriction',
+        )
+        self.assertNotIn('<@101>', text)
+        self.assertNotIn('<@&501>', text)
+        self.assertNotIn('<#701>', text)
+        self.assertNotIn('<#702>', text)
 
     def test_team_image_preserves_local_attachment_fallback(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -748,24 +590,20 @@ class GameDetailViewTests(unittest.IsolatedAsyncioTestCase):
                     guild=guild,
                     bot=bot,
                 )
-                view = views.GameDetailWorkspace(
-                    requester_id=900,
-                    display=display,
-                )
+                rendered = views.render_classic_game_detail(display)
 
             self.assertEqual(display.asset.source, 'attachment://team-logo-31.png')
-            uploaded_file = view.new_file()
+            uploaded_file = rendered.new_file()
             try:
                 self.assertEqual(uploaded_file.filename, 'team-logo-31.png')
             finally:
                 uploaded_file.close()
-            self.assertTrue(view.to_components())
 
 
 class GameDetailAdapterTests(unittest.IsolatedAsyncioTestCase):
-    async def test_numeric_prefix_uses_shared_workspace_and_alias(self):
+    async def test_numeric_prefix_uses_shared_detail_reader_and_alias(self):
         cog = games.polygames.__new__(games.polygames)
-        cog._send_game_detail_workspace = mock.AsyncMock(return_value=True)
+        cog._send_game_detail = mock.AsyncMock(return_value=True)
         ctx = SimpleNamespace(
             guild=SimpleNamespace(id=10),
             author=SimpleNamespace(id=900),
@@ -776,7 +614,7 @@ class GameDetailAdapterTests(unittest.IsolatedAsyncioTestCase):
             if command.name == 'game'
         )
         await command.callback(cog, ctx, game_search='7')
-        cog._send_game_detail_workspace.assert_awaited_once_with(
+        cog._send_game_detail.assert_awaited_once_with(
             ctx,
             guild=ctx.guild,
             requester_id=900,
@@ -811,7 +649,7 @@ class GameDetailAdapterTests(unittest.IsolatedAsyncioTestCase):
             'render_classic_game_detail',
             return_value=render,
         ) as classic_renderer:
-            result = await cog._send_game_detail_workspace(
+            result = await cog._send_game_detail(
                 ctx,
                 guild=ctx.guild,
                 requester_id=900,
@@ -829,9 +667,8 @@ class GameDetailAdapterTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(kwargs['content'], render.content)
         self.assertNotIn('view', kwargs)
 
-    async def test_slash_success_uses_components_workspace(self):
+    async def test_slash_defers_then_edits_classic_embed(self):
         cog = games.polygames.__new__(games.polygames)
-        cog._load_game_detail = mock.AsyncMock(return_value=snapshot())
         cog._game_detail_prefix = mock.Mock(return_value='$')
         cog.bot = SimpleNamespace(
             guilds=[],
@@ -839,26 +676,37 @@ class GameDetailAdapterTests(unittest.IsolatedAsyncioTestCase):
             get_user=lambda discord_id: None,
             get_channel=lambda channel_id: None,
         )
+        events = []
+
+        async def defer():
+            events.append('defer')
+
+        async def load(_request):
+            events.append('load')
+            return snapshot()
+
+        cog._load_game_detail = load
         interaction = SimpleNamespace(
             guild=SimpleNamespace(
                 id=10,
                 get_member=lambda member_id: None,
                 get_role=lambda role_id: None,
             ),
+            user=SimpleNamespace(id=900),
+            channel_id=702,
+            response=SimpleNamespace(defer=defer),
             edit_original_response=mock.AsyncMock(),
         )
-        result = await cog._send_game_detail_workspace(
-            interaction,
-            guild=interaction.guild,
-            requester_id=900,
-            channel_id=702,
-            game_id=7,
-            slash=True,
-        )
-        self.assertTrue(result)
+        command = next(
+            command for command in games.polygames.__cog_app_commands__
+            if command.name == 'game'
+        ).get_command('show')
+        await command.callback(cog, interaction, 7)
+        self.assertEqual(events, ['defer', 'load'])
         kwargs = interaction.edit_original_response.await_args.kwargs
-        self.assertIsInstance(kwargs['view'], views.GameDetailWorkspace)
-        self.assertNotIn('embed', kwargs)
+        self.assertIsInstance(kwargs['embed'], discord.Embed)
+        self.assertNotIn('view', kwargs)
+        self.assertNotIsInstance(kwargs.get('view'), discord.ui.LayoutView)
 
     async def test_nonnumeric_prefix_keeps_game_search_delegation(self):
         cog = games.polygames.__new__(games.polygames)
@@ -909,7 +757,7 @@ class GameDetailAdapterTests(unittest.IsolatedAsyncioTestCase):
             guild=SimpleNamespace(id=10),
             followup=SimpleNamespace(send=mock.AsyncMock()),
         )
-        result = await cog._send_game_detail_workspace(
+        result = await cog._send_game_detail(
             interaction,
             guild=interaction.guild,
             requester_id=900,
