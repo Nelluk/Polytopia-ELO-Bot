@@ -13,6 +13,11 @@ For database-access and slash-command work, read and update
 record for completed phases, current work, decisions, validation evidence,
 and the next recommended unit.
 
+For work split across planning/review and implementation Codex tasks, also
+read `docs/MODERNIZATION_COLLABORATION_WORKFLOW.md`. Use separate Git
+worktrees and its checkpoint/handoff protocol; never let two tasks switch or
+edit the same checkout concurrently.
+
 ## Tech Stack
 
 - CPython 3.12

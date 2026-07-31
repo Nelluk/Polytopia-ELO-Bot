@@ -1,11 +1,12 @@
 # Slash Command Taxonomy Review
 
-Last updated: 2026-07-30
+Last updated: 2026-07-31
 
 Status: Taxonomy v2.2 proposed for user/staff review; attribute-command,
 component-first interaction, show/ping/logs naming, and legacy-module
-exclusions accepted; unified player workspace implemented locally; approved
-`/leaderboard` paths and `/player show` workspace implemented locally
+exclusions accepted; single-writer compatibility/canary policy accepted;
+approved `/leaderboard`, `/player show`, and `/game search` workspaces
+implemented locally
 
 This review covers the bot's complete repository-backed command surface, not
 only commands already converted to Discord application commands. Taxonomy v2.2
@@ -153,6 +154,19 @@ over shared application/worker services so a pre-production spelling change
 does not alter permissions, transactions, or Discord-effect ordering. Once a
 path reaches production, rename it only through an explicit compatibility
 decision.
+
+Compatibility is evaluated in layers. Database semantics, permissions,
+transactions, audit attribution, and post-commit effects require parity.
+Prefix invocation remains available during transition. Presentation may move
+from embeds/reactions to Components v2 when the compatibility ledger records
+material omissions and desktop/mobile beta evidence covers the replacement.
+Do not maintain parallel classic and modern mutation implementations.
+
+The production canary must use one bot process: retain prefix commands while
+enabling the new native/component surface only in the approved PolyChampions
+guild through explicit capability policy. Do not connect a beta bot as a
+second writer to the production database; current coordinators and
+reconciliation are process-local.
 
 ### 5. Use modal components for forms, not simple actions
 
@@ -666,6 +680,9 @@ omitted rather than shipping a name already marked for replacement.
    as a target.
 8. Before P9, audit the actual tree, descriptions, permissions,
    autocomplete cost, compatibility ledger, and naming consistency.
+9. Implement a default-deny guild capability policy before the production
+   canary. Keep prefixes available and do not use a second bot process against
+   the production database.
 
 Changing slash placement remains technically manageable because adapters stay
 thin over shared application/worker logic. Once paths reach production they

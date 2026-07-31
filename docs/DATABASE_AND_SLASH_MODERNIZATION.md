@@ -441,6 +441,69 @@ Creating, pushing, merging, or deleting a branch still requires the authority
 applicable to that task. This strategy does not authorize production work,
 beta launches, command synchronization, pushes, or PR operations by itself.
 
+### Planning and execution worktrees
+
+Sol planning/oversight and Luna implementation tasks use the protocol in
+`docs/MODERNIZATION_COLLABORATION_WORKFLOW.md`:
+
+- `/home/nelluk/PolyBot39-dev` remains the planning/integration checkout;
+- `/home/nelluk/PolyBot39-dev/.worktrees/luna` is the isolated execution
+  checkout;
+- Luna creates one bounded unit branch from the exact clean accumulation
+  checkpoint supplied by Sol;
+- Sol remains read-only while Luna implements and reviews the complete unit
+  at its integration gate rather than reviewing every intermediate commit;
+- review depth is risk-tiered, with design review before Tier 3 mutation,
+  coordination, schema, security, or production units.
+
+Worktrees isolate files, indexes, and checked-out branches. They do not
+isolate runtime processes, database state, Discord registrations, or Git refs,
+and they do not broaden operational authority.
+
+## Compatibility and production-canary strategy
+
+Modernization preserves one database/application implementation while allowing
+invocation and presentation to evolve at different rates.
+
+1. **Semantic compatibility is mandatory.** Prefix and slash paths preserve
+   permissions, validation, database effects, transactions, audit
+   attribution, coordinator use, and post-commit Discord ordering.
+2. **Invocation compatibility remains during transition.** Prefix names and
+   aliases stay registered as thin adapters over the same bounded service used
+   by native commands. A hybrid decorator is optional and used only when its
+   grammar and slash placement map cleanly.
+3. **Presentation compatibility may intentionally change.** Components v2 may
+   replace embeds, reactions, pagination, or option-heavy output. Material
+   omissions or changed workflows are recorded in the compatibility ledger
+   and beta-tested on desktop/mobile.
+4. **Classic presentation is exceptional and temporary.** A high-use or
+   high-risk workflow may temporarily keep a separate legacy renderer, but it
+   consumes the same DTO/service and has an explicit removal condition. There
+   must never be separate classic and modern mutation implementations.
+
+Do not run production and beta bot processes as concurrent writers to the
+same database. ELO coordination, per-game claims, component state, fixture
+coordination, and reconciliation are process-local. A second process could
+bypass serialization, duplicate prefix responses/listeners, or perform
+conflicting Discord effects.
+
+The intended production observation path is instead a **single-process guild
+canary** after P9 approval:
+
+- deploy the modernized production bot once;
+- keep legacy prefixes enabled;
+- register/enable the new native/component interface initially only in the
+  approved PolyChampions guild through explicit capability policy;
+- route both interfaces through the same in-process services, coordinators,
+  and workers;
+- observe and expand to other guilds only after acceptance;
+- deprecate prefixes later using compatibility and usage evidence.
+
+Suggested policy concepts are `native_components_enabled_guilds`,
+`native_mutations_enabled_guilds`, and `legacy_prefix_enabled`. Their exact
+configuration and default-deny behavior belong to a separate pre-P9 unit;
+this decision does not authorize production deployment or synchronization.
+
 ## Phase summary
 
 | Phase | Status | Scope | Exit checkpoint |
@@ -2546,6 +2609,21 @@ Required gates:
 - monitoring and log checks defined;
 - explicit approval for production deployment/restart/sync.
 
+Before deployment, implement and test the single-process guild capability
+policy described in D-031. The initial production observation stage should:
+
+- keep legacy prefix commands enabled;
+- expose new native/component commands only in the explicitly approved
+  PolyChampions canary guild;
+- use the same production bot process and in-process services for both
+  interfaces;
+- verify that no beta or second bot process connects as another writer to
+  `polytopia2`;
+- define an immediate configuration/code rollback that removes the canary
+  native surface without removing prefix access.
+
+Do not use a beta process connected to `polytopia2` as the canary mechanism.
+
 After a stable observation period, separately decide whether to:
 
 - keep prefix commands indefinitely;
@@ -3112,7 +3190,75 @@ P7.7 records the bounded implementation and evidence requirements. Shared
 presentation primitives may come from P7.6, but player-detail and game-search
 database services remain distinct.
 
+### D-031 — Use one writer process and a guild-scoped production canary
+
+Status: Accepted
+
+Do not run the beta and production bots concurrently against `polytopia2`.
+Current ELO coordination, per-game claims, component state, fixture
+coordination, and reconciliation are process-local. Two writer processes
+could bypass serialization, duplicate prefix/listener handling, or perform
+conflicting Discord effects.
+
+Preserve compatibility in three layers:
+
+- semantic parity is mandatory for permissions, validation, mutations,
+  transactions, audit attribution, coordinator use, and post-commit effects;
+- prefix names/aliases remain thin invocation adapters over the same bounded
+  services as native commands;
+- Components v2 may intentionally change presentation when the compatibility
+  ledger records material omissions and beta evidence covers the new flow.
+
+A temporary classic renderer is allowed only for a justified high-use or
+high-risk transition, must consume the same DTO/service, and needs a removal
+condition. Separate classic and modern mutation implementations are
+prohibited.
+
+After P9 approval, production observation uses one production bot process:
+legacy prefixes remain enabled while new native/component capabilities are
+initially enabled only for the approved PolyChampions guild. Expansion and
+prefix deprecation are later evidence-based decisions. The capability-policy
+implementation and rollback are a separate pre-P9 unit.
+
+### D-032 — Split Sol oversight and Luna execution with worktree isolation
+
+Status: Accepted
+
+Use Sol-Medium for roadmap reconciliation, bounded-unit planning, prompts,
+and integration review. Use Luna-Max experimentally for implementation,
+self-review, tests, and the unit handoff. Sol normally reviews once per
+bounded branch at its integration gate rather than every Luna commit.
+
+Review depth is risk-tiered:
+
+- Tier 1 documentation/test/isolated presentation work receives a lightweight
+  integration review;
+- Tier 2 read workers, Components workspaces, registration, visibility, and
+  permissions receive a complete branch review;
+- Tier 3 mutations, destructive operations, coordination, schema/data,
+  security/privacy, or production work receive design review before coding
+  and a complete final review.
+
+The primary checkout and Luna execution worktree, ownership rules, unit
+lifecycle, prompt header, and required handoff packet are authoritative in
+`docs/MODERNIZATION_COLLABORATION_WORKFLOW.md`. Worktrees prevent branch/index
+collisions but do not isolate host processes, database state, Discord, or Git
+refs and do not grant operational authority.
+
 ## Progress log
+
+### 2026-07-31 — Compatibility canary and Sol/Luna workflow accepted
+
+- Rejected concurrent beta/production writers against one database while job
+  coordination and reconciliation remain process-local.
+- Adopted semantic parity, retained prefix invocation, and intentionally
+  evolvable Components v2 presentation as separate compatibility layers.
+- Chose a future single-production-process, PolyChampions-guild canary with
+  legacy prefixes retained instead of a beta process on `polytopia2`.
+- Added a risk-tiered Sol planning/review and Luna execution workflow with one
+  isolated reusable development worktree and unit-level integration reviews.
+- Recorded that worktree isolation does not isolate runtime processes or
+  broaden database, Discord, production, push, or merge authority.
 
 ### 2026-07-30 — P7.8 beta smoke accepted
 
