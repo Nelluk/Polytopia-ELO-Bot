@@ -240,9 +240,8 @@ page changes and other snapshot-only navigation must not query the database.
 
 ### Slash taxonomy review
 
-Status: **Taxonomy v2.2 proposed; attribute-command, component-first,
-show/ping/logs naming, and legacy-module exclusion rules accepted; unified
-player workspace proposed; registration changes pending review**
+Status: **Taxonomy v2.2 provisionally accepted as the working implementation
+taxonomy**
 
 The accepted architecture remains T-A domain roots with one user-facing
 `/game` domain across open, pending, started, and completed states. On
@@ -327,10 +326,10 @@ system-wide rules apply to `/player`, `/team`, `/squad`, `/leaderboard`,
 `/league`, `/house`, `/elo`, `/tools`, `/about`, and
 top-level `/staffhelp`.
 
-The current registrations have not reached production, so an approved revision
-can be applied cleanly without slash compatibility aliases. No registration
-change should occur until the user accepts or revises v2.2. Prefix interfaces,
-permissions, worker boundaries, and transaction behavior remain unaffected.
+The current registrations have not reached production, so minor approved
+revisions can be applied cleanly without slash compatibility aliases. Prefix
+interfaces, permissions, worker boundaries, and transaction behavior remain
+unaffected.
 
 ## Slash compatibility compromise ledger
 
@@ -345,6 +344,7 @@ longer be retained.
 |---|---|---|---|---|
 | C-001 `/newgame` | `/game record` accepts one roster string using the established `vs` grammar, infers arbitrary/unequal side sizes, preserves the one-opponent requester shortcut, and requires an interaction preview before creation. Edit sides provides native member selection plus add/remove-side controls. | The former two-sided 1v1–4v4 and raw-text-edit limits are resolved without message-content intent. Initial text tokens can still be ambiguous when users do not supply mentions, but the parsed draft can be corrected with native selectors. Per-game Mobile/Steam input was deliberately removed because full cross-play makes it obsolete. | If initial parsing remains troublesome, allow `/game record` to open an empty guided draft without requiring a seed roster. | Shape and edit gaps resolved by P2.3; initial parser usability remains for beta evaluation |
 | C-002 `/player show` and player-card prefixes | The shared workspace preserves identity, canonical name, current/peak/all-time local/global ratings, records, ranks, timezone, team/squad context, and paged game sections/filters. | The legacy generated rating-history image, requester head-to-head follow-up, trophies, favorite-tribe summary, and pre-Moonrise miscellaneous statistics are not yet displayed after the prefix commands deep-link the workspace. These become unavailable from those commands even while message intent remains enabled. | Add a bounded analytics/details section and media attachment renderer after observing which legacy details staff/users still value; keep graph generation outside the event loop. | Open for beta/user review in P7.7 |
+| C-003 `/game open` | P5.1 covers arbitrary common size shapes plus requester-controlled ranked, expiration, notes, preview, and confirmation. Native cross-play intentionally has no platform choice. | Advanced role-locked sides and mention-restricted recruitment may remain prefix-only in the initial bounded unit. If message content intent were later removed before a native role/member editor exists, those uncommon restrictions would be unavailable. | Add side-by-side native role selectors and an allowed-member editor to the open-game draft after the shared join-eligibility service exists. | Planned for explicit P5.1 implementation evidence |
 
 Every later slash conversion must add a row when parity is intentionally
 reduced. If there is no compromise, its unit evidence should explicitly say
@@ -421,13 +421,11 @@ check:
   numeric `$match` accepted with the shared production-style presentation;
   accumulation merge `fdacd88`.
 
-Current unit: **P7.9 Complete; beta accepted and integrated.** P7.6 through
-P7.9 are integrated into `codex/database-slash-modernization` after functional
-beta smoke testing. The next code unit should be selected from P8, constrained
-to a settled taxonomy and the opt-in Components usability standard.
-Taxonomy v2.2 as a whole remains pending final approval; `/game show` is the
-D-025-approved detail path and `/game search` remains the accepted,
-noncontroversial discovery path.
+Current unit: **P5.1 `/game open` In progress.** P8.0 is complete and
+integrated as `d6ee47c`, with explicit guild-only command deployment accepted
+in beta. Taxonomy v2.2 is provisionally accepted as the working implementation
+contract; minor wording refinements remain possible before P9 but no longer
+block flow-first units. P5.1 begins from accumulation checkpoint `d6f84b3`.
 
 Owned fixture games `149`-`151` are intentionally retained. At the latest
 gated status check, `149` is incomplete/unranked, `150` is
@@ -535,7 +533,7 @@ this decision does not authorize production deployment or synchronization.
 | P3 | Complete | Owner ELO maintenance and job observability | Typed slash maintenance interface and active-job status |
 | T1 | Complete | Deterministic development beta fixtures | Gated, idempotent seed/status/cleanup tooling |
 | P4 | In progress | Game correction and metadata mutations | Bounded workers plus slash interfaces for clear typed operations |
-| P5 | Planned | Matchmaking lifecycle | Atomic open/join/leave/kick/start flows and native interactions |
+| P5 | In progress | Matchmaking lifecycle | Atomic open/join/leave/kick/start flows and native interactions |
 | P6 | Planned | Registration and player preferences | Worker-safe profile writes and slash UX |
 | P7 | In progress | Read-heavy game, player, and leaderboard commands | Bounded read path and responsive slash queries |
 | P8 | In progress | Guild application-command capability policy, explicit deployment tooling, then league and remaining administration workflows | Audited guild-scoped command policy and subsequent domain workers/native interfaces |
@@ -1811,7 +1809,66 @@ Exit criteria for each unit:
 
 ## P5 — Matchmaking lifecycle
 
-Status: **Planned**
+Status: **In progress**
+
+### P5.1 — Atomic open-game creation and `/game open`
+
+Status: **In progress; design approved for implementation**
+
+Risk tier: **Tier 3**. This unit creates a pending game graph and sends public
+Discord effects.
+
+Branch/base: `codex/p5-1-game-open` from accumulation checkpoint `d6f84b3`.
+
+Interface and compatibility:
+
+- preserve `$opengame` and aliases `openmatch`, `open`, and `opensteam`,
+  including the existing advanced free-text grammar and public output;
+- add `/game open size`, where `size` accepts the existing arbitrary `v`,
+  `vs`, and FFA shapes;
+- use a requester-controlled preview for common refinements: ranked state,
+  expiration, notes, and confirmation/cancel. Do not add a native platform
+  option; D-027 makes cross-play the canonical native behavior;
+- keep the confirmed creation result public. Draft controls may be private,
+  but final game creation and warnings retain competitive transparency;
+- initially keep role-locked sides and mention-restricted recruitment on the
+  advanced prefix grammar unless they fit cleanly within the bounded preview.
+  Record any native parity gap in the compatibility ledger rather than
+  expanding this unit into the entire join-eligibility redesign.
+
+Database and concurrency boundary:
+
+- parse Discord roles/members on the event-loop side into primitive IDs and
+  immutable values; never pass Discord or Peewee objects to the worker;
+- perform mutable validation, host/team refresh, open-game limit checking,
+  game/sides/host-lineup creation, and audit logging in one worker-local
+  synchronous transaction;
+- use a bounded dedicated pending-game executor and serialize concurrent open
+  requests sufficiently to prevent the per-host open-game limit from racing;
+- return immutable primitive result/effect data. All channel messages,
+  announcement/broadcast work, reactions, and embeds occur after commit;
+- preserve committed database state if a Discord effect fails and return
+  enough data for an operator-visible reconciliation message.
+
+Required validation:
+
+- parser and permission parity for prefix aliases and common native shapes;
+- worker-local connection ownership and complete rollback after failures in
+  side, lineup, or audit-log creation;
+- simulated slow creation leaves the event loop responsive;
+- concurrent open attempts cannot bypass host limits;
+- no public Discord creation/broadcast effect after database failure;
+- requester-only preview controls, cancel-without-mutation, timeout/rerun
+  guidance, and public post-commit completion;
+- slash registration under the existing `/game` root and unchanged prefix
+  registrations;
+- complete offline suite and gated `polytopia_dev` integration tests through
+  the existing `development` / `polytopia_dev` / `polybot_dev` gate.
+
+Out of scope: join/leave/kick/start mutation refactors, reaction-listener
+rewrites, background purge jobs, platform-field schema cleanup, production
+deployment, and live Discord synchronization. Beta sync/launch remains a
+separate approval after Tier 3 review.
 
 Candidate order:
 
@@ -3503,7 +3560,40 @@ lifecycle, prompt header, and required handoff packet are authoritative in
 collisions but do not isolate host processes, database state, Discord, or Git
 refs and do not grant operational authority.
 
+### D-033 — Treat Taxonomy v2.2 as the working implementation contract
+
+Status: Accepted
+
+Staff and user review have reached sufficient consensus to remove the broad
+taxonomy pause. Taxonomy v2.2 is the working implementation contract for new
+bounded units. Common user journeys should now be completed flow-first under
+the agreed domain roots instead of selecting only taxonomy-independent work.
+
+This is provisional in the release-engineering sense: minor names may still
+be refined before P9, and thin slash adapters must remain easy to rename. Such
+nitpicks no longer block worker, transaction, compatibility, or interaction
+work. Prefix names and aliases remain unchanged during transition. This
+decision does not authorize wholesale registration, beta synchronization, or
+production deployment.
+
 ## Progress log
+
+### 2026-07-31 — Taxonomy v2.2 accepted and P5.1 designed
+
+- Accepted Taxonomy v2.2 as the provisional working implementation contract;
+  minor pre-P9 naming refinements remain possible but no longer block bounded
+  workflow work.
+- Reordered execution around the common game journey and selected P5.1
+  `/game open` from accumulation checkpoint `d6f84b3`.
+- Completed the Tier 3 design review: one worker-local transaction owns mutable
+  validation, pending-game graph creation, host lineup, and audit log; all
+  Discord effects remain post-commit and concurrent opens cannot race the host
+  limit.
+- Preserved the full prefix grammar. Scoped the native path to common cross-play
+  creation plus preview/refinement and recorded advanced role/member
+  restrictions as compatibility item C-003 if they do not fit this unit.
+- No bot, Discord registration, database, production, or service operation
+  occurred while recording the design.
 
 ### 2026-07-31 — P8.0 capability policy and explicit deployment tooling
 

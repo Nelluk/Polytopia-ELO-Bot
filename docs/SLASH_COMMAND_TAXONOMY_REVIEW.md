@@ -2,12 +2,8 @@
 
 Last updated: 2026-07-31
 
-Status: Taxonomy v2.2 proposed for user/staff review; attribute-command,
-component-first interaction, show/ping/logs naming, and legacy-module
-exclusions accepted; single-writer compatibility/canary policy accepted;
-approved `/leaderboard`, `/player show`, and `/game search` workspaces
-implemented locally; the D-025-approved `/game show` card is now also
-implemented locally
+Status: Taxonomy v2.2 provisionally accepted as the working implementation
+taxonomy; minor pre-deployment wording refinements remain allowed
 
 This review covers the bot's complete repository-backed command surface, not
 only commands already converted to Discord application commands. Taxonomy v2.2
@@ -27,20 +23,11 @@ common user journeys:
   attachments, previews, paging, and iterative refinement when it provides a
   concrete current usability benefit.
 
-This is a naming and interaction proposal. It does not authorize a beta
-launch, command synchronization, or a code rename. The current locally
-implemented registration remains the source of truth until this revision is
-approved and implemented.
-
-Taxonomy-wide implementation remains paused while staff continue reviewing
-command names, command-registration scope, and whether some rare
-administration workflows belong in Discord or a later web interface. That
-pause does not block the explicitly accepted, bounded `/game show` unit: P7.9
-implements its local registration and shared bounded read/card while it
-remains outside production until the unit's beta and integration gates pass. The
-checkpoint's `/game` root has since been synchronized and exercised only in
-the development guild; Taxonomy v2.2 has not been registered wholesale, and
-neither surface has reached production.
+Taxonomy v2.2 is now the working implementation contract. This acceptance does
+not authorize a beta launch, command synchronization, production deployment,
+or wholesale registration. Minor staff-requested wording refinements may be
+made before P9 as thin adapter changes, but they no longer block bounded
+workflow units using the agreed domain roots and interaction rules.
 
 ## Inventory scope
 
