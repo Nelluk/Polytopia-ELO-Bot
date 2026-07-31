@@ -5,6 +5,7 @@ venv/
 bin/
 lib/
 include/
+.worktrees/
 
 # Python bytecode:
 *.py[co]
