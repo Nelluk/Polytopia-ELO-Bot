@@ -402,11 +402,11 @@ check:
 - retained P7.5 showcase: 24 owned players (`163`-`186`) and 48 owned games
   (`200`-`247`), with gated status/confirmed-cleanup tooling
 
-Current unit: **P7.7 accepted; integration in progress.** P7.6 is integrated
-into `codex/database-slash-modernization`; P7.7 passed its combined beta smoke
-and is ready to merge from its sequential unit branch. Taxonomy v2.2 as a
-whole remains pending final approval; these accepted `/leaderboard` and
-`/player show` paths do not depend on the unsettled game/team spellings.
+Current unit: **P7.8 accepted; integration in progress.** P7.6 and P7.7 are
+integrated into `codex/database-slash-modernization`; P7.8 passed functional
+beta smoke testing. Taxonomy v2.2 as a whole remains pending final approval;
+`/game search` is an accepted, noncontroversial path that completes the
+player/game-history split.
 
 Owned fixture games `149`-`151` are intentionally retained. At the latest
 gated status check, `149` is incomplete/unranked, `150` is
@@ -2295,7 +2295,7 @@ combined P7.6/P7.7 beta session.
 
 ### P7.7 — Unified player profile and game-history workspace
 
-Status: **Accepted; integration in progress**
+Status: **Complete; integrated into the accumulation branch**
 
 Branch/base: `codex/p7-7-player-workspace` from P7.6 accumulation merge.
 
@@ -2407,6 +2407,8 @@ Compatibility implications:
 Commit(s):
 
 - `58c8224` — Add unified player profile workspace.
+- `c00f3ca` — Merge P7.7 into
+  `codex/database-slash-modernization`.
 
 Beta result: D-026 restart from `58c8224` stopped the prior P7.6 beta cleanly,
 authenticated as **PolyELO Bot Beta** (`479029527553638401`), and completed
@@ -2414,10 +2416,92 @@ development startup/synchronization without a reported error. The beta
 remains the intended default runtime. The user accepted the combined P7.6/P7.7
 smoke as a sufficient proof of concept on 2026-07-30.
 
-Next action: integrate P7.7 into `codex/database-slash-modernization`, then
-start the bounded `/game search` workspace as the next unit. C-002 analytics
-restoration is explicitly deferred until usage demonstrates which legacy
-details justify a separate bounded unit.
+Next action: P7.7 is integrated. Implement and beta-smoke the bounded
+`/game search` workspace. C-002 analytics restoration is explicitly deferred
+until usage demonstrates which legacy details justify a separate bounded
+unit.
+
+### P7.8 — Unified game-search workspace
+
+Status: **Accepted; integration in progress**
+
+Branch/base: `codex/p7-8-game-search-workspace` from the P7.7 accumulation
+merge.
+
+Objective: add the accepted `/game search query:[optional]` Components v2
+workspace and move complex prefix game searches to a separate bounded,
+worker-local read service without changing their grammar.
+
+Interface and behavior:
+
+- the optional query accepts the legacy mix of Discord mentions, players,
+  teams, uppercase title/notes terms, and arbitrary side shapes such as
+  `1v1v1`;
+- the public result provides requester-only status, outcome, common-size,
+  pagination, and page-jump controls;
+- `status:unconfirmed` is omitted for ordinary users and independently
+  staff-checked in the worker;
+- outcome uses the first resolved player, or first team when no player
+  resolves, matching the legacy `$wins`/`$losses` rule;
+- cached pages and previously loaded filter combinations perform no database
+  read; new filter combinations use the separate bounded search executor;
+- `$allgames`, complex `$incomplete`/`$complete`, and complex
+  `$wins`/`$losses` retain their argument grammar and deep-link the matching
+  initial workspace filter;
+- bare prefix forms still default to the requester, while the explicit `all`
+  token remains unscoped;
+- one-player incomplete results retain their game-side channel link.
+
+Implementation evidence:
+
+- added frozen request/key/result/game-row DTOs in
+  `modules/game_search_workers.py`;
+- added a two-thread bounded executor with a worker-local Peewee connection
+  and a 500-row result cap;
+- added `modules/game_search_views.py` using only the database-independent
+  P7.6 Components toolkit;
+- added `/game search` as one optional string option and kept `/player show`
+  and game search on independent read services;
+- removed the complex prefix path's unbounded default-executor closure and
+  unmanaged connection.
+
+Validation evidence:
+
+- focused game-search/taxonomy suite: 21 passed;
+- complete offline suite: 213 passed with 11 explicitly gated database tests
+  skipped;
+- gated development-database suite: 10 passed and one
+  operator-fixture-preserving skip after confirming `development`,
+  `polytopia_dev`, and `polybot_dev`; the real-schema game-search read passed;
+- compilation and `git diff --check`: passed.
+
+Commit(s):
+
+- `d6bebcd` — Add unified game search workspace.
+
+Compatibility implications:
+
+- prefix parsing and result scope are preserved, but presentation changes from
+  reaction pagination to public Components v2 controls;
+- slash exposes common size choices while arbitrary and unequal side shapes
+  remain available through the query grammar;
+- results are capped at 500 rows per immutable snapshot and disclose
+  truncation; broader exports remain separate;
+- C-002 player-card analytics remain explicitly deferred and are not part of
+  this unit.
+
+Next action: integrate P7.8 into `codex/database-slash-modernization`.
+
+Beta result: D-026 launch from `d6bebcd` authenticated as **PolyELO Bot
+Beta** (`479029527553638401`) and synchronized exactly the `game`,
+`leaderboard`, `player`, and `elo` roots to development guild
+`478571892832206869`. A narrow preflight process match missed an older beta
+started from P7.7. Live testing exposed duplicate prefix replies and
+`CommandNotFound` errors from that stale process. Host-wide process inspection
+identified both exact development `bot.py --skip_tasks` PIDs; the older
+process stopped cleanly with SIGINT and only the current P7.8 beta remains.
+The user then accepted `/game search`, its filters/navigation, and the
+representative prefix deep links as working.
 
 ## P8 — League and remaining administration workflows
 
@@ -2593,6 +2677,13 @@ approval are one combined operational gate.
 Status: Accepted
 
 Slash commands are additive until a separate deprecation plan is approved.
+Message-content commands are thin transition adapters only: preserve their
+names, permissions, argument resolution, and initial workspace mapping, then
+delegate to the same bounded service and Components v2 presentation used by
+slash commands. Do not add prefix-only UI, pagination, database execution
+paths, or new features. Limit prefix work to narrow compatibility regressions
+while message-content intent remains available; removing these adapters later
+must not affect the slash services, DTOs, or renderers.
 
 ### D-002 — Use hybrid commands only for clean grammar parity
 
@@ -2940,8 +3031,11 @@ the existing development-guild-only synchronization performed at startup.
 Before launching or restarting, verify the development environment, beta
 application identity, `polytopia_dev` profile, disabled background tasks/API,
 configured development guild, current branch/worktree, and absence or exact
-identity of an existing beta process. Keep the bot stopped while fixture
-seed/cleanup tooling requires exclusive access.
+identity of every existing development `bot.py --skip_tasks` process. Match
+the process command independently of whether its Python path is absolute,
+compare start times, and confirm exactly one beta remains after restart.
+Do not rely only on the current task's attached terminal session. Keep the bot
+stopped while fixture seed/cleanup tooling requires exclusive access.
 
 This standing authorization does not apply to production operations, global
 command synchronization, other guilds or runtime profiles, dependency
@@ -3015,6 +3109,31 @@ presentation primitives may come from P7.6, but player-detail and game-search
 database services remain distinct.
 
 ## Progress log
+
+### 2026-07-30 — P7.8 beta smoke accepted
+
+- Accepted `/game search`, its status/outcome/size/page controls, and
+  representative complex prefix deep links.
+- Confirmed that the observed duplicate prefix panels came from two beta
+  processes rather than command fall-through.
+- Approved P7.8 for accumulation-branch integration.
+- Reaffirmed prefix/message-content commands as low-investment migration
+  adapters rather than a continuing feature surface.
+
+### 2026-07-30 — P7.8 game-search workspace implemented
+
+- Added option-light `/game search` with interactive status, outcome, size,
+  and page controls.
+- Preserved complex legacy player/team/title/notes/size parsing and prefix
+  initial-state mappings in a separate bounded worker-local query service.
+- Kept public results, requester-only controls, ephemeral failures, immutable
+  cached navigation, and the 500-row disclosure policy.
+- Added focused and real-schema gated coverage; beta acceptance remains.
+- Launched the D-026 development beta from the implementation checkpoint and
+  confirmed synchronization only to the configured development guild.
+- Diagnosed duplicated prefix panels as two simultaneous beta processes,
+  stopped only the stale P7.7 process, and strengthened D-026's host-wide
+  duplicate-process verification.
 
 ### 2026-07-30 — P7.7 beta smoke accepted
 

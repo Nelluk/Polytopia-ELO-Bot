@@ -14,6 +14,8 @@ from modules import player_workers
 from modules import elo_workers
 from modules import game_workers
 from modules import game_record_views
+from modules import game_search_views
+from modules import game_search_workers
 from modules.elo_jobs import EloJobConflict
 import peewee
 import modules.models as models
@@ -1076,6 +1078,54 @@ class polygames(commands.Cog):
     ) -> player_workers.PlayerWorkspaceSnapshot:
         return await player_workers.run_player_workspace(request)
 
+    async def _load_game_search(
+        self,
+        request: game_search_workers.GameSearchRequest,
+    ) -> game_search_workers.GameSearchSnapshot:
+        return await asyncio.wait_for(
+            game_search_workers.run_game_search(request),
+            timeout=20.0,
+        )
+
+    async def _send_game_search_workspace(
+        self,
+        ctx,
+        *,
+        query: str,
+        key: game_search_workers.GameSearchKey,
+    ) -> bool:
+        request_kwargs = {
+            'guild_id': ctx.guild.id,
+            'requester_discord_id': ctx.author.id,
+            'query': query,
+            'staff': settings.is_staff(ctx.author),
+        }
+
+        async def loader(filter_key):
+            return await self._load_game_search(
+                game_search_workers.GameSearchRequest(
+                    **request_kwargs,
+                    key=filter_key,
+                )
+            )
+
+        try:
+            snapshot = await loader(key)
+        except (game_search_workers.GameSearchError,
+                peewee.PeeweeException,
+                asyncio.TimeoutError,
+                ValueError) as exc:
+            await ctx.send(str(exc) or 'Game search timed out.')
+            return False
+        view = game_search_views.GameSearchWorkspace(
+            requester_id=ctx.author.id,
+            initial_result=snapshot,
+            loader=loader,
+            can_view_unconfirmed=request_kwargs['staff'],
+        )
+        view.message = await ctx.send(view=view)
+        return True
+
     async def _send_player_workspace(
         self,
         ctx,
@@ -1644,6 +1694,62 @@ class polygames(commands.Cog):
         return await image_storage.send_game_embed(
             ctx, game, embed=embed, content=content
         )
+
+    @game_group.command(
+        name='search',
+        description='Search games and refine the public results.',
+    )
+    @discord.app_commands.describe(
+        query=(
+            'Optional player, team, title/notes terms, or size such as 2v2.'
+        ),
+    )
+    async def game_search_slash(
+        self,
+        interaction: discord.Interaction,
+        query: str | None = None,
+    ):
+        await interaction.response.defer()
+        ctx = await commands.Context.from_interaction(interaction)
+        ctx.prefix = settings.guild_setting(
+            interaction.guild.id,
+            'command_prefix',
+        )
+        ctx.invoked_with = 'allgames'
+        if not await self.allgames.can_run(ctx):
+            return
+        request_kwargs = {
+            'guild_id': interaction.guild.id,
+            'requester_discord_id': interaction.user.id,
+            'query': (query or '').strip(),
+            'staff': settings.is_staff(interaction.user),
+        }
+
+        async def loader(filter_key):
+            return await self._load_game_search(
+                game_search_workers.GameSearchRequest(
+                    **request_kwargs,
+                    key=filter_key,
+                )
+            )
+
+        try:
+            snapshot = await loader(game_search_workers.GameSearchKey())
+        except (game_search_workers.GameSearchError,
+                peewee.PeeweeException,
+                asyncio.TimeoutError,
+                ValueError) as exc:
+            return await interaction.followup.send(
+                str(exc) or 'Game search timed out.',
+                ephemeral=True,
+            )
+        view = game_search_views.GameSearchWorkspace(
+            requester_id=interaction.user.id,
+            initial_result=snapshot,
+            loader=loader,
+            can_view_unconfirmed=request_kwargs['staff'],
+        )
+        view.message = await interaction.edit_original_response(view=view)
 
     @settings.in_bot_channel_strict()
     @models.is_registered_member()
@@ -2909,93 +3015,33 @@ class polygames(commands.Cog):
         await utilities.paginate(self.bot, ctx, title=title_str, message_list=paginated_message_list, page_start=0, page_end=10, page_size=10)
 
     async def game_search(self, ctx, mode: str, arg_list):
-
-        target_list = [arg.replace('"', '') for arg in arg_list]  # should enable it to handle "multi word" args
-        target_list = [i for i in target_list if len(i) > 2]  # strip 1-2 character arguments that match too easily to random players
-        player_discord_id = None  # Filled by author.id if command is just bare $incomplete - list will include channel links
-
-        if mode.upper() == 'ALLGAMES':
-            status_filter, status_str = 0, 'game'
-        elif mode.upper() == 'COMPLETE':
-            status_filter, status_str = 1, 'completed game'
-        elif mode.upper() == 'INCOMPLETE':
-            status_filter, status_str = 2, 'incomplete game'
-        elif mode.upper() == 'WINS':
-            status_filter, status_str = 3, 'winning game'
-        elif mode.upper() == 'LOSSES':
-            status_filter, status_str = 4, 'losing game'
-        else:
-            logger.error(f'Invalid mode passed to game_search: {mode}. Using default of allgames/0')
-            status_filter, status_str = 0, 'game'
-
-        if len(target_list) == 1 and target_list[0].upper() == 'ALL':
-            results_str = f'All {status_str}s'
-
-            def async_game_search():
-                utilities.connect()
-                query = Game.search(status_filter=status_filter, guild_id=ctx.guild.id)
-                if status_filter == 2:
-                    query = list(query)  # reversing 'Incomplete' queries so oldest is at top
-                    query.reverse()
-                logger.debug(f'Searching games, status filter: {status_filter}')
-                logger.debug(f'Returned {len(query)} results')
-                list_name = f'All {status_str}s ({len(query)})'
-                game_list = utilities.summarize_game_list(query[:500])
-                return game_list, list_name
-
-            game_list, list_name = await asyncio.get_running_loop().run_in_executor(None, async_game_search)
-        else:
-            if not target_list:
-                # Target is person issuing command
-                target_list.append(str(ctx.author.id))
-
-            team_size_str, team_sizes = '', []
-            for arg in target_list:
-                m = re.fullmatch(r"\d+(?:(v|vs)\d+)+", arg.lower())
-                if m:
-                    # arg looks like '3v3' or '1v1v1'
-                    team_size_str = m[0]
-                    team_sizes = [int(x) for x in arg.lower().split(m[1])]
-                    target_list.remove(arg)
-                    continue
-
-            results_title = []
-
-            player_matches, team_matches, remaining_args = parse_players_and_teams(target_list, ctx.guild.id)
-            p_names, t_names = [p.name for p in player_matches], [t.name for t in team_matches]
-
-            if mode.upper() == 'INCOMPLETE' and len(player_matches) == 1:
-                # show gameside channel links for one-player target of #incomplete command
-                player_discord_id = player_matches[0].discord_member.discord_id
-
-            if p_names:
-                results_title.append(f'Including players: *{"* & *".join(p_names)}*')
-            if t_names:
-                results_title.append(f'Including teams: *{"* & *".join(t_names)}*')
-            if remaining_args:
-                remaining_args = [utilities.escape_role_mentions(x) for x in remaining_args]
-                results_title.append(f'Included in name/notes: *{"* *".join(remaining_args)}*')
-            if team_size_str:
-                results_title.append(f'Game size: *{team_size_str}*')
-
-            results_str = '\n'.join(results_title)
-            if not results_title:
-                results_str = 'No filters applied'
-
-            def async_game_search():
-                utilities.connect()
-                query = Game.search(status_filter=status_filter, player_filter=player_matches, team_filter=team_matches, title_filter=remaining_args, guild_id=ctx.guild.id, size_filter=team_sizes)
-                logger.debug(f'Searching games, status filter: {status_filter}, player_filter: {player_matches}, team_filter: {team_matches}, title_filter: {remaining_args}')
-                logger.debug(f'Returned {len(query)} results')
-                game_list = utilities.summarize_game_list(query[:500], player_discord_id=player_discord_id)
-                list_name = f'{len(query)} {status_str}{"s" if len(query) != 1 else ""}\n{results_str}'
-                return game_list, list_name
-
-            game_list, list_name = await asyncio.get_running_loop().run_in_executor(None, async_game_search)
-
-        if len(game_list) == 0:
-            return await ctx.send(f'No results. See `{ctx.prefix}help {ctx.invoked_with}` for usage examples. Searched for:\n{results_str}')
-        await utilities.paginate(self.bot, ctx, title=list_name, message_list=game_list, page_start=0, page_end=15, page_size=15)
+        target_list = [
+            arg.replace('"', '') for arg in arg_list
+            if len(arg.replace('"', '')) > 2
+        ]
+        show_all = (
+            len(target_list) == 1 and target_list[0].upper() == 'ALL'
+        )
+        if show_all:
+            target_list = []
+        elif not target_list:
+            target_list = [str(ctx.author.id)]
+        key = {
+            'ALLGAMES': game_search_workers.GameSearchKey(),
+            'COMPLETE': game_search_workers.GameSearchKey(
+                status='completed',
+            ),
+            'INCOMPLETE': game_search_workers.GameSearchKey(
+                status='unfinished',
+            ),
+            'WINS': game_search_workers.GameSearchKey(outcome='win'),
+            'LOSSES': game_search_workers.GameSearchKey(outcome='loss'),
+        }.get(mode.upper(), game_search_workers.GameSearchKey())
+        await self._send_game_search_workspace(
+            ctx,
+            query=' '.join(target_list),
+            key=key,
+        )
 
     async def task_purge_game_channels(self):
         await self.bot.wait_until_ready()
