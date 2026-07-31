@@ -46,16 +46,24 @@ The primary planning/integration checkout remains:
 /home/nelluk/PolyBot39-dev
 ```
 
-The reusable Luna execution checkout is:
+When Sol spawns Luna through Codex, the app-managed isolated task worktree
+supplied by Codex is the preferred execution checkout. Its path is supplied
+in the task prompt and is authoritative for that task; do not substitute the
+primary checkout or another worktree.
+
+The manually prepared Luna checkout is only the fallback when no app-managed
+task worktree is available:
 
 ```text
 /home/nelluk/PolyBot39-dev/.worktrees/luna
 ```
 
-It is created detached at a clean accumulation checkpoint. At the start of a
-unit, Luna creates a dedicated `codex/<unit-name>` branch in that worktree.
-After integration, the worktree returns to a clean detached accumulation
-checkpoint before being assigned another unit.
+Whether app-managed or fallback, the execution checkout starts detached at a
+clean accumulation checkpoint. At the start of a unit, Luna creates a
+dedicated `codex/<unit-name>` branch in that checkout. After integration, the
+manually prepared fallback returns to a clean detached accumulation checkpoint
+before being assigned another unit; an app-managed checkout is disposed of by
+Codex according to its task lifecycle.
 
 The worktree reuses only development-local resources:
 
@@ -77,10 +85,37 @@ Rules:
 - Git objects and refs are shared across worktrees. Branches are not; Git
   prevents one branch from being checked out in both worktrees.
 - Runtime processes are host-wide, not worktree-local. Before launching or
-  restarting beta, inspect all development `bot.py --skip_tasks` processes,
-  compare start times and command paths, and leave exactly one intended beta.
+  restarting beta, use a host-wide process view capable of seeing sibling
+  Codex task/PTY sessions; an ordinary sandboxed `ps` result is not sufficient
+  evidence that no beta is running. Inspect all development
+  `bot.py --skip_tasks` processes, compare command paths, working directories,
+  start times, and ancestry, identify production processes separately, and
+  leave exactly one intended development beta. Never stop a production
+  process while cleaning up a development duplicate.
 - A worktree is isolation for files/index/HEAD, not authorization for
   production, database, Discord, dependency, push, merge, or service actions.
+
+### Presentation-transition policy
+
+Components v2 is opt-in, not the default presentation for every slash read.
+Require a concrete current usability benefit before adding interaction:
+pagination/filtering, genuine multi-view consolidation, drafts/previews,
+attachment authoring, or review/confirmation workflows are strong examples.
+The initial output must preserve or improve the common legacy view; a future
+hypothetical feature is not a reason to hide useful information behind extra
+taps now. Prefer progressive enhancement: provide the complete proven embed
+first, then add optional controls when a demonstrated need exists.
+
+When a native experiment does not provide that benefit, remove the dormant
+game-specific UI and keep both interfaces on the proven renderer over the same
+immutable DTO/read service. A temporary classic split renderer is not the
+default transition pattern. If a genuinely justified high-use/high-risk
+transition ever needs one, it must share the DTO/service, never add a second
+database query, mutation implementation, or permission path, and record its
+user impact plus an explicit removal condition in the roadmap compatibility
+ledger and handoff. A visual rejection is a correction signal, not beta
+acceptance, and no integration claim should be made until the required review
+passes.
 
 ## Unit lifecycle
 

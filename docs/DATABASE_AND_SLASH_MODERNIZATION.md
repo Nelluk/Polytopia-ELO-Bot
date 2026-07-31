@@ -1,10 +1,10 @@
 # Database Access and Slash Command Modernization
 
-Last updated: 2026-07-30
+Last updated: 2026-07-31
 
 Status: Active
 
-Current branch at last update: `codex/database-slash-modernization`
+Current branch at last update: `codex/p7-9-game-detail-workspace`
 
 Source task: `thread://019fae66-8e3a-7a50-9a0f-d3d7160d2287`
 
@@ -192,6 +192,17 @@ preferred presentation layer for interaction-rich workflows. Slash commands
 should state the task and collect inputs necessary to identify its target.
 Options that merely change presentation or let the user explore the result
 should normally move into the response.
+
+Components v2 is opt-in, not the default presentation for every slash read.
+A simple read command should keep the proven embed/card when it already
+communicates the common result clearly. Adopt Components only for a concrete
+current usability benefit: pagination or filtering, genuine multi-view
+consolidation, iterative drafts/previews, attachment authoring, or
+review/confirmation workflows. Future hypothetical features are not a reason
+to add interaction now. Prefer progressive enhancement: ship the complete
+proven output first, then add optional controls when a demonstrated need
+exists. The initial native output must preserve or improve the common legacy
+view rather than hide useful information behind extra taps.
 
 Prefer Components v2 for:
 
@@ -401,12 +412,19 @@ check:
   `polytopia_dev` with zero players and zero game sides
 - retained P7.5 showcase: 24 owned players (`163`-`186`) and 48 owned games
   (`200`-`247`), with gated status/confirmed-cleanup tooling
+- P7.9 implementation checkpoint: `24a435b` with Tier 2 parity correction
+  `22023f4` on `codex/p7-9-game-detail-workspace`, based on `16fc6565`
+- P7.9 beta-correction checkpoint: `7c4eb21` restored the classic numeric
+  prefix card and compacted the native `/game show` Overview; that native
+  Components experiment was subsequently removed in `07cdb94`.
 
-Current unit: **P7.8 Complete; next unit not started.** P7.6, P7.7, and P7.8
-are integrated into `codex/database-slash-modernization` after functional beta
-smoke testing. Taxonomy v2.2 as a whole remains pending final approval;
-`/game search` is an accepted, noncontroversial path that completes the
-player/game-history split.
+Current unit: **P7.9 Implemented; beta acceptance pending.** P7.6, P7.7, and
+P7.8 are integrated into `codex/database-slash-modernization` after functional
+beta smoke testing. P7.9 remains on its dedicated branch for Sol's complete
+Tier 2 review and D-026 beta gate; it is not integrated or marked Complete.
+Taxonomy v2.2 as a whole remains pending final approval; `/game show` is the
+D-025-approved detail path and `/game search` remains the accepted,
+noncontroversial discovery path.
 
 Owned fixture games `149`-`151` are intentionally retained. At the latest
 gated status check, `149` is incomplete/unranked, `150` is
@@ -2555,8 +2573,8 @@ Compatibility implications:
 - C-002 player-card analytics remain explicitly deferred and are not part of
   this unit.
 
-Next action: keep the accepted accumulation checkpoint stable while taxonomy
-review concludes, then select the smallest independently testable P8
+Next action: review and beta-validate the separately branched P7.9 unified
+game-detail workspace before selecting the smallest independently testable P8
 team/house or administration unit whose slash path is no longer ambiguous.
 
 Beta result: D-026 launch from `d6bebcd` authenticated as **PolyELO Bot
@@ -2569,6 +2587,141 @@ identified both exact development `bot.py --skip_tasks` PIDs; the older
 process stopped cleanly with SIGINT and only the current P7.8 beta remains.
 The user then accepted `/game search`, its filters/navigation, and the
 representative prefix deep links as working.
+
+### P7.9 — Unified game-detail workspace
+
+Status: **Implemented; beta acceptance pending; not integrated**
+
+Branch/base: `codex/p7-9-game-detail-workspace` from the exact clean
+`codex/database-slash-modernization` checkpoint `16fc6565dccddc4341c8925b1667beba041c7384`.
+
+Objective: implement the D-025-approved public `/game show game_id:[optional
+integer]` detail card and route numeric `$game GAME_ID` / `$match GAME_ID`
+through the same bounded read and classic presentation path without touching
+the unsettled team/house taxonomy.
+
+Interface and behavior:
+
+- `/game show` accepts exactly one optional integer `game_id`. With no ID, the
+  worker uses `Game.by_channel_id` only when the current channel has one
+  associated game; no match and multiple matches return an ephemeral request
+  for an explicit ID.
+- Numeric `$game` and its preserved `$match` alias use the same classic
+  production-style embed/card from the same snapshot/display DTO as slash.
+  Nonnumeric `$game`/`$match` input still delegates to the existing game-search
+  workflow. Prefix failures remain public; slash failures are ephemeral.
+- `/game show` deliberately uses the proven classic card rather than adding
+  interaction without a concrete current benefit. Its initial output retains
+  the production information density: game name, status/result, ranked state,
+  size/platform, roster, player ELO and tribe emoji, notes, series summary,
+  map, dates, season footer, and safe winning-player/team imagery. Pending
+  cards retain open join guidance and full-game creator/start/codes/balanced
+  draft guidance. There is no game-specific Components navigation or expiry
+  behavior in this read unit; the generic Components toolkit remains available
+  to workflows that meet the opt-in usability standard.
+- Cross-guild explicit reads remain visible to the same public audience with a
+  legacy-equivalent nonpending card. Pending cross-guild reads are withheld
+  before a snapshot is returned, matching legacy `$game` behavior. Nonpending
+  cross-guild cards use plain database names only: source member mentions,
+  role mentions, and game/side channel links are not resolved. The native
+  `/game` group remains guild-only, while `/game show` adds no new bot-channel
+  or registration check beyond the legacy numeric prefix behavior.
+- Pending snapshots preserve the legacy open-game join guidance, configured
+  per-guild prefix, platform/friend-name values, full-game creator start/codes
+  guidance, and balanced draft order as immutable primitives. Prefix
+  configuration is supplied by the event-loop/display adapter, never the DB
+  worker.
+- No mutation or interactive control was added. Results remain public, and the
+  existing slash/prefix error visibility differences remain unchanged.
+
+Implementation and boundary evidence:
+
+- `modules/game_detail_workers.py` adds a two-thread bounded executor, frozen
+  primitive request/snapshot/side/lineup/draft DTOs, worker-local Peewee
+  connection ownership, channel inference, meaningful invalid/not-found
+  errors, pending operational metadata, and an optional frozen series summary.
+- `modules/game_detail_views.py` resolves Discord-only display values outside
+  the worker and provides `render_classic_game_detail` for both interfaces.
+  The renderer mirrors `Game.embed`/`embed_pending_game` field order, status,
+  roster/ELO, notes, series, season/footer, join/start/codes, balanced-draft
+  content, and local/remote winning-player/team imagery. No game-specific
+  Components presentation remains in the integration candidate.
+- `modules/games.py` provides the shared slash/prefix adapter and 20-second
+  bounded read timeout. `tests/test_game_detail_workspace.py` covers the
+  registration shape, classic slash/prefix routing, channel inference outcomes,
+  visibility, worker lifecycle, event-loop responsiveness, immutable snapshot
+  values, media, timeout, and pending/cross-guild parity.
+- `tests/test_database_integration.py` adds one read-only real-schema worker
+  check under the existing strict development database gate.
+
+Validation evidence:
+
+- focused game-detail suite: 22 passed;
+- complete offline suite: 236 passed with 12 explicitly gated database tests
+  skipped;
+- compilation and `git diff --check`: passed;
+- runtime preflight selected `POLYBOT_ENV=development`, `polytopia_dev`,
+  `polybot_dev`, development guild `478571892832206869`, and disabled
+  background tasks/API;
+- gated development suite: 12 passed and one retained operator-fixture skip;
+  the new real-schema game-detail worker read passed under the unchanged gate.
+  The gated suite was not rerun for this presentation-only correction because
+  the worker query, connection, and database boundaries are unchanged; the
+  added `sidename` snapshot value is derived from the already-loaded row.
+
+Commit:
+
+- `24a435b` — Add unified game detail workspace.
+- `22023f4` — Restore game detail parity boundaries.
+- `60989a5` — Record the Tier 2 parity-correction handoff.
+- `7c4eb21` — Restore classic prefix cards and compact the native Overview.
+- `07cdb94` — Use classic game cards for both interfaces and remove the
+  rejected game-detail Components surface.
+
+Compatibility implications:
+
+- The Components game-detail experiment was beta-rejected and removed rather
+  than preserved as dormant UI or a split presentation. Both slash and numeric
+  prefix paths now use the same dense classic renderer over the immutable
+  P7.9 display DTO, so no C-003 compatibility-ledger row is needed. The shared
+  snapshot preserves the material `Game.embed` fields, optional two-side series
+  summary, pending join/start/codes/draft guidance, and local/remote winning
+  imagery; there is no second database or mutation implementation. The old
+  cross-guild summary/privacy boundary remains: pending cards are withheld
+  cross-guild, and nonpending cards do not resolve source-only member/role/
+  channel identifiers.
+- Audit logs and mutation/permitted-action controls remain separate from this
+  read-only unit; no database logic is duplicated for them. Pending-game join
+  and lifecycle mutations continue through their existing permission-checked
+  prefix/native commands.
+
+Beta result: **prior D-026 launch/sync succeeded; this correction's beta is
+stopped; interactive smoke pending.** The user reported that behavior worked,
+but rejected the Components game card visually because it was much less dense
+than the production embed and its full-width player/team image dominated the
+card. The task-owned beta was stopped cleanly before this correction. Current
+host-wide verification finds only production PID `1534787`, which was not
+touched; no beta launch or synchronization was performed for this correction.
+The corrected code checkpoint is `07cdb94`, which removes the Components card
+and uses the classic presentation for both interfaces. Interactive
+Discord/mobile/desktop smoke of the final classic slash and prefix card
+remains pending for Sol's final visual check. Production checkouts, services,
+and databases were not operated on.
+
+Known limitations and next action:
+
+- The card does not add a game-log section or new mutation buttons; those
+  remain later bounded units/paths. If optional historical series data cannot
+  be read, the primary immutable card still renders without that optional
+  line. Cross-guild pending games intentionally expose only the association
+  error, matching the legacy privacy boundary. Components are intentionally
+  absent from this simple read path until a concrete current interaction need
+  is demonstrated.
+- Sol should perform the final visual check from the corrected checkpoint,
+  including explicit-ID, channel-inference, numeric-prefix/search, pending,
+  and desktop/mobile smoke as practical. No Luna beta relaunch is required for
+  this correction. Return the exact handoff packet to Sol for Tier 2 review;
+  do not integrate this branch from Luna.
 
 ## P8 — League and remaining administration workflows
 
@@ -3031,12 +3184,16 @@ Status: Accepted
 
 Desktop and mobile beta testing found the no-option P7.5 `/lb2` workspace
 strictly preferable to the four-option `/leaderboard players` response.
-Slash commands should identify the task and essential target; message
-components should handle exploratory filters, alternate views, pagination,
-cached refreshes, and iterative review.
+Components v2 is nevertheless opt-in, not a default for every slash response:
+use it when it provides a concrete current benefit such as exploratory
+filters, alternate views, pagination, cached refreshes, iterative drafts,
+attachment authoring, or review/confirmation.
 
 This is a design preference, not a requirement to make every response
-interactive. Simple one-step mutations retain direct typed inputs.
+interactive. Simple reads should preserve or improve the complete common
+legacy output before any optional controls are added; hypothetical future
+features do not justify present interaction. Simple one-step mutations retain
+direct typed inputs.
 Database-backed view changes continue through bounded workers, while
 snapshot-only navigation remains database-free. Public competitive results
 retain requester-only controls and ephemeral authorization failures.
@@ -3113,11 +3270,17 @@ the existing development-guild-only synchronization performed at startup.
 Before launching or restarting, verify the development environment, beta
 application identity, `polytopia_dev` profile, disabled background tasks/API,
 configured development guild, current branch/worktree, and absence or exact
-identity of every existing development `bot.py --skip_tasks` process. Match
-the process command independently of whether its Python path is absolute,
-compare start times, and confirm exactly one beta remains after restart.
-Do not rely only on the current task's attached terminal session. Keep the bot
-stopped while fixture seed/cleanup tooling requires exclusive access.
+identity of every existing development `bot.py --skip_tasks` process. The
+process view must be host-wide and capable of seeing sibling Codex task/PTY
+sessions; a sandboxed `ps` result is not sufficient evidence that no beta is
+running. Match the process command independently of whether its Python path
+is absolute, compare working directories, start times, and ancestry, identify
+production processes separately, and confirm exactly one beta remains after
+restart. A brief development duplicate and its immediate cleanup is
+operational evidence to record, not an accepted steady state. Never stop a
+production process while cleaning up a development duplicate. Do not rely
+only on the current task's attached terminal session. Keep the bot stopped
+while fixture seed/cleanup tooling requires exclusive access.
 
 This standing authorization does not apply to production operations, global
 command synchronization, other guilds or runtime profiles, dependency
@@ -3206,13 +3369,21 @@ Preserve compatibility in three layers:
   transactions, audit attribution, coordinator use, and post-commit effects;
 - prefix names/aliases remain thin invocation adapters over the same bounded
   services as native commands;
-- Components v2 may intentionally change presentation when the compatibility
-  ledger records material omissions and beta evidence covers the new flow.
+- Components v2 is opt-in, not a default slash presentation. Use it when there
+  is a concrete current usability benefit such as pagination/filtering,
+  genuine multi-view consolidation, drafts/previews, attachment authoring, or
+  review/confirmation. The initial output must preserve or improve the common
+  legacy view; future hypothetical features do not justify present interaction.
+  Prefer progressive enhancement: proven embed first, optional controls after a
+  demonstrated need.
 
-A temporary classic renderer is allowed only for a justified high-use or
-high-risk transition, must consume the same DTO/service, and needs a removal
-condition. Separate classic and modern mutation implementations are
-prohibited.
+If a native experiment does not provide that benefit, remove its dormant
+game-specific UI and use the proven renderer for both interfaces. A temporary
+classic split is therefore not a default migration pattern. If a genuinely
+justified high-use transition ever needs one, it must consume the same immutable
+DTO/service, record user impact and an explicit removal condition in the
+compatibility ledger, and never duplicate mutation or database logic. Separate
+classic and modern mutation implementations are prohibited.
 
 After P9 approval, production observation uses one production bot process:
 legacy prefixes remain enabled while new native/component capabilities are
@@ -3246,6 +3417,100 @@ collisions but do not isolate host processes, database state, Discord, or Git
 refs and do not grant operational authority.
 
 ## Progress log
+
+### 2026-07-31 — P7.9 Components experiment removed
+
+- The user rejected the game-detail Components presentation because it added
+  interaction without a concrete current benefit and reduced information
+  density versus the proven production embed. The experiment was removed,
+  including its game-specific navigation, authorization, expiry, and
+  serialization tests; the reusable generic Components toolkit remains for
+  accepted interaction-rich units.
+- `/game show`, numeric `$game`, and numeric `$match` now all defer/read or
+  read through the same bounded worker and render the same classic
+  production-style card. Channel inference, nonnumeric search delegation,
+  visibility/error behavior, cross-guild privacy, pending guidance, and
+  imagery remain covered.
+- Code/test checkpoint: `07cdb94`. No beta was relaunched or synchronized;
+  the focused suite passed 22 tests and the complete offline suite passed 236
+  tests with 12 gated skips. Interactive desktop/mobile smoke remains pending
+  for Sol's final visual check.
+
+### 2026-07-31 — P7.9 beta visual correction
+
+- The user reported that the P7.9 behavior worked, but rejected the initial
+  Components v2 game card for being materially less dense than the production
+  embed and dominated by an oversized full-width player/team image.
+- Stopped the task-owned beta cleanly before this correction. The current
+  host-wide process check finds only production PID `1534787`, which was not
+  touched; no beta launch or synchronization was performed for this pass.
+- Restored numeric `$game`/`$match` to a classic production-style embed/card
+  rendered from the immutable game-detail display DTO, including pending
+  join/start/codes/draft guidance and existing local/remote winning imagery.
+- Kept `/game show` as Components v2, replaced the full-width gallery with a
+  compact `Section` thumbnail accessory, and placed dense sides, players,
+  ratings, result/status, and core metadata on Overview. Notes, dates, season,
+  and channels remain navigable in the snapshot.
+- Added C-003 to the compatibility ledger with the explicit removal condition
+  for the temporary classic prefix renderer. Implementation/test checkpoint:
+  `7c4eb21`. Interactive desktop/mobile smoke remains pending.
+
+### 2026-07-31 — P7.9 Tier 2 parity corrections
+
+- Withheld pending cross-guild game-detail cards before returning a snapshot;
+  retained nonpending cross-guild public detail while suppressing source
+  member/role/channel Discord identifiers.
+- Preserved pending open-game join guidance and full-game start, codes, and
+  balanced-draft guidance in immutable worker DTOs, with the configured prefix
+  resolved only on the event-loop/display side.
+- Added focused privacy and pending-parity coverage. The corrected branch now
+  passes 24 focused tests, 238 offline tests with 12 gated skips, and 12 gated
+  development tests with one retained-fixture skip.
+- At the correction handoff, the prior D-026 beta had exited. Interactive
+  Discord smoke remained pending.
+
+### 2026-07-31 — P7.9 corrected D-026 beta evidence refreshed
+
+- A sandboxed `ps` check incorrectly reported no beta because it could not see
+  sibling Codex task/PTY sessions; it was not sufficient host-wide evidence.
+- Sol's escalated host-wide process view found production PID `1534787`
+  (untouched), old Luna beta PID `1784646`, and transient duplicate PID
+  `1788948`. Only duplicate `1788948` was immediately stopped; old beta
+  `1784646` was then cleanly stopped because it held pre-correction code. The
+  brief duplicate/cleanup episode is recorded as operational evidence, not a
+  successful steady state.
+- Corrected branch HEAD `60989a5` was launched as exactly one development beta,
+  now PID `1790485` in the managed P7.9 worktree. It authenticated as
+  **PolyELO Bot Beta** (`479029527553638401`) and synced exactly four roots
+  (`game`, `leaderboard`, `player`, `elo`) only to development guild
+  `478571892832206869`.
+- Interactive Discord/mobile/desktop smoke remains pending. Production
+  processes, checkouts, services, and databases were not operated on.
+
+### 2026-07-31 — P7.9 game-detail workspace implemented
+
+- Added the D-025-approved `/game show game_id:[optional integer]` public
+  Components v2 workspace with unambiguous current-channel inference and
+  explicit-ID fallback errors.
+- Routed numeric `$game`/`$match` through the same immutable worker snapshot;
+  preserved nonnumeric prefix delegation to game search and public-prefix /
+  ephemeral-slash failure visibility.
+- Added a bounded worker-local read service and event-loop-only Discord display
+  resolution, including series metadata and safe local/remote game imagery.
+- Added 19 focused tests, a strict gated real-schema test, and updated the
+  taxonomy implementation-state notes. The complete offline suite passed 233
+  tests with 12 gated skips.
+- Recorded the app-managed Codex task worktree as the preferred Luna execution
+  path; the manually prepared `.worktrees/luna` checkout is fallback only.
+- Passed the unchanged gated `polytopia_dev` suite: 12 tests passed and one
+  retained operator-fixture set was skipped; the real-schema game-detail read
+  passed.
+- Launched one D-026 development beta from the managed worktree as
+  **PolyELO Bot Beta** and verified host-wide exactly-one process state. Live
+  Discord client/mobile/desktop smoke remains pending because this headless
+  execution task has no client surface.
+- Beta acceptance and accumulation-branch integration remain pending Sol's
+  Tier 2 review and interactive D-026 smoke gate.
 
 ### 2026-07-31 — Compatibility canary and Sol/Luna workflow accepted
 

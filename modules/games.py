@@ -16,6 +16,8 @@ from modules import game_workers
 from modules import game_record_views
 from modules import game_search_views
 from modules import game_search_workers
+from modules import game_detail_views
+from modules import game_detail_workers
 from modules.elo_jobs import EloJobConflict
 import peewee
 import modules.models as models
@@ -1087,6 +1089,118 @@ class polygames(commands.Cog):
             timeout=20.0,
         )
 
+    async def _load_game_detail(
+        self,
+        request: game_detail_workers.GameDetailRequest,
+    ) -> game_detail_workers.GameDetailSnapshot:
+        return await asyncio.wait_for(
+            game_detail_workers.run_game_detail(request),
+            timeout=20.0,
+        )
+
+    def _game_detail_prefix(self, target, guild, *, slash: bool) -> str:
+        """Resolve prefix configuration on the event-loop/display side."""
+
+        if not slash:
+            target_prefix = getattr(target, 'prefix', None)
+            if isinstance(target_prefix, str) and target_prefix:
+                return target_prefix
+        try:
+            return settings.guild_setting(
+                guild_id=guild.id,
+                setting_name='command_prefix',
+            )
+        except exceptions.CheckFailedError:
+            return settings.guild_setting(
+                guild_id=None,
+                setting_name='command_prefix',
+            )
+
+    def _game_detail_error_message(self, error) -> str:
+        if getattr(error, 'code', None) != 'cross_guild_pending':
+            return str(error) or 'Could not load that game.'
+
+        source_guild_id = getattr(error, 'source_guild_id', None)
+        if source_guild_id is None:
+            return str(error) or 'Could not load that game.'
+        try:
+            server_name = settings.guild_setting(
+                guild_id=source_guild_id,
+                setting_name='display_name',
+            )
+        except exceptions.CheckFailedError:
+            try:
+                server_name = settings.guild_setting(
+                    guild_id=None,
+                    setting_name='display_name',
+                )
+            except exceptions.CheckFailedError:
+                server_name = f'guild {source_guild_id}'
+        return f'{error} __{server_name}__.'
+
+    async def _send_game_detail(
+        self,
+        target,
+        *,
+        guild,
+        requester_id: int,
+        channel_id: int,
+        game_id: int | None,
+        slash: bool = False,
+    ) -> bool:
+        request = game_detail_workers.GameDetailRequest(
+            guild_id=guild.id,
+            channel_id=channel_id,
+            requester_discord_id=requester_id,
+            game_id=game_id,
+        )
+        try:
+            snapshot = await self._load_game_detail(request)
+        except (
+            game_detail_workers.GameDetailError,
+            peewee.PeeweeException,
+            asyncio.TimeoutError,
+            ValueError,
+        ) as exc:
+            if isinstance(exc, asyncio.TimeoutError):
+                message = 'Game detail lookup timed out. Please try again.'
+            else:
+                message = self._game_detail_error_message(exc)
+            if slash:
+                await target.followup.send(message, ephemeral=True)
+            else:
+                await target.send(message)
+            return False
+        except Exception:
+            logger.exception('Unexpected failure loading game detail')
+            message = 'Could not load that game. Please try again.'
+            if slash:
+                await target.followup.send(message, ephemeral=True)
+            else:
+                await target.send(message)
+            return False
+
+        display = game_detail_views.resolve_display(
+            snapshot,
+            guild=guild,
+            bot=self.bot,
+            prefix=self._game_detail_prefix(target, guild, slash=slash),
+            join_emoji=getattr(settings, 'emoji_join_game', ''),
+        )
+        classic = game_detail_views.render_classic_game_detail(display)
+        kwargs = {
+            'embed': classic.embed,
+            'content': classic.content,
+        }
+        file = classic.new_file()
+        if file is not None:
+            kwargs['file'] = file
+        if slash:
+            await target.edit_original_response(**kwargs)
+        else:
+            await target.send(**kwargs)
+        return True
+
     async def _send_game_search_workspace(
         self,
         ctx,
@@ -1687,12 +1801,42 @@ class polygames(commands.Cog):
             # User passed in non-numeric, probably searching by game title
             return await ctx.invoke(self.bot.get_command('allgames'), args=game_search)
 
-        # Converting manually here to handle case of user passing a game name so info can be redirected to games() command
-        game = await PolyGame().convert(ctx, game_search)
+        channel = getattr(ctx, 'channel', None)
+        channel_id = getattr(channel, 'id', None)
+        if channel_id is None and getattr(ctx, 'message', None) is not None:
+            channel_id = getattr(ctx.message.channel, 'id', 0)
+        return await self._send_game_detail(
+            ctx,
+            guild=ctx.guild,
+            requester_id=ctx.author.id,
+            channel_id=channel_id or 0,
+            game_id=int(game_search),
+        )
 
-        embed, content = game.embed(guild=ctx.guild, prefix=ctx.prefix)
-        return await image_storage.send_game_embed(
-            ctx, game, embed=embed, content=content
+    @game_group.command(
+        name='show',
+        description='Show one game in the standard game card.',
+    )
+    @discord.app_commands.describe(
+        game_id='Game ID; omit it only in an unambiguous game channel.',
+    )
+    async def game_show_slash(
+        self,
+        interaction: discord.Interaction,
+        game_id: int | None = None,
+    ):
+        """Show the shared public game-detail card."""
+
+        # The legacy $game command has no bot-channel or registration check;
+        # retain that visibility rule while the native group remains guild-only.
+        await interaction.response.defer()
+        await self._send_game_detail(
+            interaction,
+            guild=interaction.guild,
+            requester_id=interaction.user.id,
+            channel_id=interaction.channel_id or 0,
+            game_id=game_id,
+            slash=True,
         )
 
     @game_group.command(
