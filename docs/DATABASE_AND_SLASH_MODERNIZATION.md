@@ -193,6 +193,17 @@ should state the task and collect inputs necessary to identify its target.
 Options that merely change presentation or let the user explore the result
 should normally move into the response.
 
+Components v2 is opt-in, not the default presentation for every slash read.
+A simple read command should keep the proven embed/card when it already
+communicates the common result clearly. Adopt Components only for a concrete
+current usability benefit: pagination or filtering, genuine multi-view
+consolidation, iterative drafts/previews, attachment authoring, or
+review/confirmation workflows. Future hypothetical features are not a reason
+to add interaction now. Prefer progressive enhancement: ship the complete
+proven output first, then add optional controls when a demonstrated need
+exists. The initial native output must preserve or improve the common legacy
+view rather than hide useful information behind extra taps.
+
 Prefer Components v2 for:
 
 - multiple useful views or filter combinations over one result domain;
@@ -334,7 +345,6 @@ longer be retained.
 |---|---|---|---|---|
 | C-001 `/newgame` | `/game record` accepts one roster string using the established `vs` grammar, infers arbitrary/unequal side sizes, preserves the one-opponent requester shortcut, and requires an interaction preview before creation. Edit sides provides native member selection plus add/remove-side controls. | The former two-sided 1v1–4v4 and raw-text-edit limits are resolved without message-content intent. Initial text tokens can still be ambiguous when users do not supply mentions, but the parsed draft can be corrected with native selectors. Per-game Mobile/Steam input was deliberately removed because full cross-play makes it obsolete. | If initial parsing remains troublesome, allow `/game record` to open an empty guided draft without requiring a seed roster. | Shape and edit gaps resolved by P2.3; initial parser usability remains for beta evaluation |
 | C-002 `/player show` and player-card prefixes | The shared workspace preserves identity, canonical name, current/peak/all-time local/global ratings, records, ranks, timezone, team/squad context, and paged game sections/filters. | The legacy generated rating-history image, requester head-to-head follow-up, trophies, favorite-tribe summary, and pre-Moonrise miscellaneous statistics are not yet displayed after the prefix commands deep-link the workspace. These become unavailable from those commands even while message intent remains enabled. | Add a bounded analytics/details section and media attachment renderer after observing which legacy details staff/users still value; keep graph generation outside the event loop. | Open for beta/user review in P7.7 |
-| C-003 `/game show` and numeric `$game`/`$match` | `/game show` remains a compact Components v2 workspace; numeric prefix aliases use a temporary classic embed renderer. Both consume the same immutable P7.9 snapshot/display DTO. | Beta review found the first native card materially less dense than the production embed and visually dominated by a full-width player/team gallery. During transition, message-intent users retain the familiar classic card while slash users receive the compact native workspace. | Remove the classic prefix renderer only after desktop/mobile beta accepts the compact `/game show` layout and a follow-up compatibility checkpoint confirms no high-use prefix regression. Keep the DTO/service and mutation paths shared throughout. | Open during P7.9 beta correction |
 
 Every later slash conversion must add a row when parity is intentionally
 reduced. If there is no compromise, its unit evidence should explicitly say
@@ -404,8 +414,9 @@ check:
   (`200`-`247`), with gated status/confirmed-cleanup tooling
 - P7.9 implementation checkpoint: `24a435b` with Tier 2 parity correction
   `22023f4` on `codex/p7-9-game-detail-workspace`, based on `16fc6565`
-- P7.9 beta-correction checkpoint: `7c4eb21` restores the classic numeric
-  prefix card and compacts the native `/game show` Overview
+- P7.9 beta-correction checkpoint: `7c4eb21` restored the classic numeric
+  prefix card and compacted the native `/game show` Overview; that native
+  Components experiment was subsequently removed in `07cdb94`.
 
 Current unit: **P7.9 Implemented; beta acceptance pending.** P7.6, P7.7, and
 P7.8 are integrated into `codex/database-slash-modernization` after functional
@@ -2585,9 +2596,9 @@ Branch/base: `codex/p7-9-game-detail-workspace` from the exact clean
 `codex/database-slash-modernization` checkpoint `16fc6565dccddc4341c8925b1667beba041c7384`.
 
 Objective: implement the D-025-approved public `/game show game_id:[optional
-integer]` detail workspace and route numeric `$game GAME_ID` / `$match GAME_ID`
-through the same bounded read and presentation path without touching the
-unsettled team/house taxonomy.
+integer]` detail card and route numeric `$game GAME_ID` / `$match GAME_ID`
+through the same bounded read and classic presentation path without touching
+the unsettled team/house taxonomy.
 
 Interface and behavior:
 
@@ -2595,19 +2606,21 @@ Interface and behavior:
   worker uses `Game.by_channel_id` only when the current channel has one
   associated game; no match and multiple matches return an ephemeral request
   for an explicit ID.
-- Numeric `$game` and its preserved `$match` alias now use a temporary classic
-  production-style embed/card from the same snapshot/display DTO. Nonnumeric
-  `$game`/`$match` input still delegates to the existing game-search workflow.
-  Prefix failures remain public; slash failures are ephemeral, including
-  timeout and expired-control reruns.
-- `/game show` remains the Components v2 path. Its compact initial Overview
-  shows game name, status/result, ranked state, size/platform, dates/deadline,
-  map, sides, players, tribes, and ELO labels densely; notes, season metadata,
-  and channel links remain in requester-only navigation without another
-  database read. A winning player/team image, when available, is a compact
-  `Section` thumbnail accessory rather than a full-width `MediaGallery`.
+- Numeric `$game` and its preserved `$match` alias use the same classic
+  production-style embed/card from the same snapshot/display DTO as slash.
+  Nonnumeric `$game`/`$match` input still delegates to the existing game-search
+  workflow. Prefix failures remain public; slash failures are ephemeral.
+- `/game show` deliberately uses the proven classic card rather than adding
+  interaction without a concrete current benefit. Its initial output retains
+  the production information density: game name, status/result, ranked state,
+  size/platform, roster, player ELO and tribe emoji, notes, series summary,
+  map, dates, season footer, and safe winning-player/team imagery. Pending
+  cards retain open join guidance and full-game creator/start/codes/balanced
+  draft guidance. There is no game-specific Components navigation or expiry
+  behavior in this read unit; the generic Components toolkit remains available
+  to workflows that meet the opt-in usability standard.
 - Cross-guild explicit reads remain visible to the same public audience with a
-  source-guild compatibility banner. Pending cross-guild reads are withheld
+  legacy-equivalent nonpending card. Pending cross-guild reads are withheld
   before a snapshot is returned, matching legacy `$game` behavior. Nonpending
   cross-guild cards use plain database names only: source member mentions,
   role mentions, and game/side channel links are not resolved. The native
@@ -2618,8 +2631,8 @@ Interface and behavior:
   guidance, and balanced draft order as immutable primitives. Prefix
   configuration is supplied by the event-loop/display adapter, never the DB
   worker.
-- No mutation was added. Controls are requester-only, unauthorized and
-  expired interactions are ephemeral, and the result itself remains public.
+- No mutation or interactive control was added. Results remain public, and the
+  existing slash/prefix error visibility differences remain unchanged.
 
 Implementation and boundary evidence:
 
@@ -2627,28 +2640,24 @@ Implementation and boundary evidence:
   primitive request/snapshot/side/lineup/draft DTOs, worker-local Peewee
   connection ownership, channel inference, meaningful invalid/not-found
   errors, pending operational metadata, and an optional frozen series summary.
-- `modules/game_detail_views.py` uses the P7.6 Components v2 toolkit for slash
-  responses and adds `render_classic_game_detail` for the temporary prefix
-  presentation. Both consume the same display DTO; the classic renderer
-  mirrors `Game.embed`/`embed_pending_game` field order, status, roster/ELO,
-  notes, season/footer, join/start/codes, and balanced-draft content. Discord
-  members, roles, channels, guild labels, and local/remote winning-player/team
-  imagery are resolved outside the worker. The native card uses a compact
-  thumbnail accessory, applies the legacy cross-guild privacy boundary, and
-  reattaches local team files when a section is edited so `attachment://`
-  media remains valid.
+- `modules/game_detail_views.py` resolves Discord-only display values outside
+  the worker and provides `render_classic_game_detail` for both interfaces.
+  The renderer mirrors `Game.embed`/`embed_pending_game` field order, status,
+  roster/ELO, notes, series, season/footer, join/start/codes, balanced-draft
+  content, and local/remote winning-player/team imagery. No game-specific
+  Components presentation remains in the integration candidate.
 - `modules/games.py` provides the shared slash/prefix adapter and 20-second
   bounded read timeout. `tests/test_game_detail_workspace.py` covers the
-  registration shape, routing, channel inference outcomes, visibility,
-  worker lifecycle, event-loop responsiveness, immutable navigation, media,
-  timeout, expiry, and Components v2 limits.
+  registration shape, classic slash/prefix routing, channel inference outcomes,
+  visibility, worker lifecycle, event-loop responsiveness, immutable snapshot
+  values, media, timeout, and pending/cross-guild parity.
 - `tests/test_database_integration.py` adds one read-only real-schema worker
   check under the existing strict development database gate.
 
 Validation evidence:
 
-- focused game-detail suite: 29 passed;
-- complete offline suite: 243 passed with 12 explicitly gated database tests
+- focused game-detail suite: 22 passed;
+- complete offline suite: 236 passed with 12 explicitly gated database tests
   skipped;
 - compilation and `git diff --check`: passed;
 - runtime preflight selected `POLYBOT_ENV=development`, `polytopia_dev`,
@@ -2666,20 +2675,21 @@ Commit:
 - `22023f4` — Restore game detail parity boundaries.
 - `60989a5` — Record the Tier 2 parity-correction handoff.
 - `7c4eb21` — Restore classic prefix cards and compact the native Overview.
+- `07cdb94` — Use classic game cards for both interfaces and remove the
+  rejected game-detail Components surface.
 
 Compatibility implications:
 
-- C-003 records the beta-driven presentation compromise: numeric prefixes
-  temporarily retain the dense classic card while `/game show` uses the
-  compact Components v2 workspace. The shared snapshot preserves the material
-  `Game.embed` fields, optional two-side series summary, pending
-  join/start/codes/draft guidance, and local/remote winning imagery; there is
-  no second database or mutation implementation. The classic renderer's
-  removal condition is acceptance of the compact native layout on desktop and
-  mobile plus a follow-up compatibility checkpoint. The old cross-guild
-  summary-plus-message remains a public compatibility notice, pending cards
-  are withheld cross-guild, and nonpending cards do not resolve source-only
-  member/role/channel identifiers.
+- The Components game-detail experiment was beta-rejected and removed rather
+  than preserved as dormant UI or a split presentation. Both slash and numeric
+  prefix paths now use the same dense classic renderer over the immutable
+  P7.9 display DTO, so no C-003 compatibility-ledger row is needed. The shared
+  snapshot preserves the material `Game.embed` fields, optional two-side series
+  summary, pending join/start/codes/draft guidance, and local/remote winning
+  imagery; there is no second database or mutation implementation. The old
+  cross-guild summary/privacy boundary remains: pending cards are withheld
+  cross-guild, and nonpending cards do not resolve source-only member/role/
+  channel identifiers.
 - Audit logs and mutation/permitted-action controls remain separate from this
   read-only unit; no database logic is duplicated for them. Pending-game join
   and lifecycle mutations continue through their existing permission-checked
@@ -2687,29 +2697,31 @@ Compatibility implications:
 
 Beta result: **prior D-026 launch/sync succeeded; this correction's beta is
 stopped; interactive smoke pending.** The user reported that behavior worked,
-but rejected the initial Components card visually because it was much less
-dense than the production embed and its full-width player/team image
-dominated the card. The task-owned beta was stopped cleanly before this
-correction. Current host-wide verification finds only production PID
-`1534787`, which was not touched; no beta launch or synchronization was
-performed for this correction. The corrected code is checkpoint `7c4eb21`.
-Interactive Discord/mobile/desktop smoke of the classic prefix card and
-compact `/game show` remains pending. Production checkouts, services, and
-databases were not operated on.
+but rejected the Components game card visually because it was much less dense
+than the production embed and its full-width player/team image dominated the
+card. The task-owned beta was stopped cleanly before this correction. Current
+host-wide verification finds only production PID `1534787`, which was not
+touched; no beta launch or synchronization was performed for this correction.
+The corrected code checkpoint is `07cdb94`, which removes the Components card
+and uses the classic presentation for both interfaces. Interactive
+Discord/mobile/desktop smoke of the final classic slash and prefix card
+remains pending for Sol's final visual check. Production checkouts, services,
+and databases were not operated on.
 
 Known limitations and next action:
 
-- The workspace does not add a game-log section or new mutation buttons; those
+- The card does not add a game-log section or new mutation buttons; those
   remain later bounded units/paths. If optional historical series data cannot
   be read, the primary immutable card still renders without that optional
   line. Cross-guild pending games intentionally expose only the association
-  error, matching the legacy privacy boundary.
-- Have Sol or an available Discord client launch only the approved development
-  beta from `7c4eb21` under D-026, then perform explicit-ID,
-  channel-inference, numeric-prefix/search, pending, and desktop/mobile smoke.
-  Remove the classic prefix renderer only after the C-003 removal condition is
-  separately accepted. Return the exact handoff packet to Sol for Tier 2
-  review; do not integrate this branch from Luna.
+  error, matching the legacy privacy boundary. Components are intentionally
+  absent from this simple read path until a concrete current interaction need
+  is demonstrated.
+- Sol should perform the final visual check from the corrected checkpoint,
+  including explicit-ID, channel-inference, numeric-prefix/search, pending,
+  and desktop/mobile smoke as practical. No Luna beta relaunch is required for
+  this correction. Return the exact handoff packet to Sol for Tier 2 review;
+  do not integrate this branch from Luna.
 
 ## P8 — League and remaining administration workflows
 
@@ -3172,12 +3184,16 @@ Status: Accepted
 
 Desktop and mobile beta testing found the no-option P7.5 `/lb2` workspace
 strictly preferable to the four-option `/leaderboard players` response.
-Slash commands should identify the task and essential target; message
-components should handle exploratory filters, alternate views, pagination,
-cached refreshes, and iterative review.
+Components v2 is nevertheless opt-in, not a default for every slash response:
+use it when it provides a concrete current benefit such as exploratory
+filters, alternate views, pagination, cached refreshes, iterative drafts,
+attachment authoring, or review/confirmation.
 
 This is a design preference, not a requirement to make every response
-interactive. Simple one-step mutations retain direct typed inputs.
+interactive. Simple reads should preserve or improve the complete common
+legacy output before any optional controls are added; hypothetical future
+features do not justify present interaction. Simple one-step mutations retain
+direct typed inputs.
 Database-backed view changes continue through bounded workers, while
 snapshot-only navigation remains database-free. Public competitive results
 retain requester-only controls and ephemeral authorization failures.
@@ -3353,15 +3369,21 @@ Preserve compatibility in three layers:
   transactions, audit attribution, coordinator use, and post-commit effects;
 - prefix names/aliases remain thin invocation adapters over the same bounded
   services as native commands;
-- Components v2 may intentionally change presentation when the compatibility
-  ledger records material omissions and beta evidence covers the new flow.
+- Components v2 is opt-in, not a default slash presentation. Use it when there
+  is a concrete current usability benefit such as pagination/filtering,
+  genuine multi-view consolidation, drafts/previews, attachment authoring, or
+  review/confirmation. The initial output must preserve or improve the common
+  legacy view; future hypothetical features do not justify present interaction.
+  Prefer progressive enhancement: proven embed first, optional controls after a
+  demonstrated need.
 
-A temporary classic renderer is allowed only for a justified high-use or
-high-risk transition whose materially changed native presentation has not yet
-been accepted. It must consume the same immutable DTO/service, record its
-user-facing impact and explicit removal condition in the compatibility ledger,
-and never duplicate mutation or database logic. Separate classic and modern
-mutation implementations are prohibited.
+If a native experiment does not provide that benefit, remove its dormant
+game-specific UI and use the proven renderer for both interfaces. A temporary
+classic split is therefore not a default migration pattern. If a genuinely
+justified high-use transition ever needs one, it must consume the same immutable
+DTO/service, record user impact and an explicit removal condition in the
+compatibility ledger, and never duplicate mutation or database logic. Separate
+classic and modern mutation implementations are prohibited.
 
 After P9 approval, production observation uses one production bot process:
 legacy prefixes remain enabled while new native/component capabilities are
@@ -3395,6 +3417,24 @@ collisions but do not isolate host processes, database state, Discord, or Git
 refs and do not grant operational authority.
 
 ## Progress log
+
+### 2026-07-31 — P7.9 Components experiment removed
+
+- The user rejected the game-detail Components presentation because it added
+  interaction without a concrete current benefit and reduced information
+  density versus the proven production embed. The experiment was removed,
+  including its game-specific navigation, authorization, expiry, and
+  serialization tests; the reusable generic Components toolkit remains for
+  accepted interaction-rich units.
+- `/game show`, numeric `$game`, and numeric `$match` now all defer/read or
+  read through the same bounded worker and render the same classic
+  production-style card. Channel inference, nonnumeric search delegation,
+  visibility/error behavior, cross-guild privacy, pending guidance, and
+  imagery remain covered.
+- Code/test checkpoint: `07cdb94`. No beta was relaunched or synchronized;
+  the focused suite passed 22 tests and the complete offline suite passed 236
+  tests with 12 gated skips. Interactive desktop/mobile smoke remains pending
+  for Sol's final visual check.
 
 ### 2026-07-31 — P7.9 beta visual correction
 

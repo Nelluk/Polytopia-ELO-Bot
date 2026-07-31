@@ -97,15 +97,25 @@ Rules:
 
 ### Presentation-transition policy
 
-When a high-use or high-risk prefix workflow receives a materially different
-native presentation, beta feedback may justify a temporary classic prefix
-renderer during the transition. Luna must keep that renderer on the same
-immutable DTO/read service as the native path; it must not add a second
-database query, mutation implementation, or permission path. The roadmap
-compatibility ledger and handoff must name the user impact and an explicit
-removal condition. A visual rejection is a correction signal, not beta
-acceptance, and no integration claim should be made until the native layout
-passes its required desktop/mobile review.
+Components v2 is opt-in, not the default presentation for every slash read.
+Require a concrete current usability benefit before adding interaction:
+pagination/filtering, genuine multi-view consolidation, drafts/previews,
+attachment authoring, or review/confirmation workflows are strong examples.
+The initial output must preserve or improve the common legacy view; a future
+hypothetical feature is not a reason to hide useful information behind extra
+taps now. Prefer progressive enhancement: provide the complete proven embed
+first, then add optional controls when a demonstrated need exists.
+
+When a native experiment does not provide that benefit, remove the dormant
+game-specific UI and keep both interfaces on the proven renderer over the same
+immutable DTO/read service. A temporary classic split renderer is not the
+default transition pattern. If a genuinely justified high-use/high-risk
+transition ever needs one, it must share the DTO/service, never add a second
+database query, mutation implementation, or permission path, and record its
+user impact plus an explicit removal condition in the roadmap compatibility
+ledger and handoff. A visual rejection is a correction signal, not beta
+acceptance, and no integration claim should be made until the required review
+passes.
 
 ## Unit lifecycle
 
