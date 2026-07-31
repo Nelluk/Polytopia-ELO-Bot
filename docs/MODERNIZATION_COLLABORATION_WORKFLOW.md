@@ -95,6 +95,18 @@ Rules:
 - A worktree is isolation for files/index/HEAD, not authorization for
   production, database, Discord, dependency, push, merge, or service actions.
 
+### Presentation-transition policy
+
+When a high-use or high-risk prefix workflow receives a materially different
+native presentation, beta feedback may justify a temporary classic prefix
+renderer during the transition. Luna must keep that renderer on the same
+immutable DTO/read service as the native path; it must not add a second
+database query, mutation implementation, or permission path. The roadmap
+compatibility ledger and handoff must name the user impact and an explicit
+removal condition. A visual rejection is a correction signal, not beta
+acceptance, and no integration claim should be made until the native layout
+passes its required desktop/mobile review.
+
 ## Unit lifecycle
 
 1. Sol verifies that the accumulation branch and its GitHub tracking branch

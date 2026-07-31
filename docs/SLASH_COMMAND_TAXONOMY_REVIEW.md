@@ -456,7 +456,10 @@ cross-guild lookups retain only the legacy server-association error; nonpending
 cross-guild cards use plain names and suppress source member/role/channel
 identifiers. Pending open/full cards retain join, start, friend-name, and
 balanced-draft guidance with the configured prefix supplied by the display
-adapter.
+adapter. Following beta visual review, numeric `$game`/`$match` retain a
+temporary classic embed renderer while `/game show` uses a compact Overview
+with a thumbnail accessory; both presentations consume the same snapshot and
+display DTO.
 
 The intended team option shape is attribute-focused:
 
