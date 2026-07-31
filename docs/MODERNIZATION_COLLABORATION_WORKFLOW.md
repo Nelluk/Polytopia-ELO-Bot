@@ -57,6 +57,16 @@ unit, Luna creates a dedicated `codex/<unit-name>` branch in that worktree.
 After integration, the worktree returns to a clean detached accumulation
 checkpoint before being assigned another unit.
 
+The worktree reuses only development-local resources:
+
+- ignored `config.development.ini` and `server_settings_dev.py` symlinks point
+  to the same files in the primary development clone;
+- Python commands use
+  `/home/nelluk/PolyBot39-dev/.venv/bin/python` explicitly rather than
+  creating, synchronizing, or symlinking another environment;
+- production configuration and credentials are never linked into the
+  worktree.
+
 Rules:
 
 - Never use or modify `/home/nelluk/PolyBot39`, the production checkout.
@@ -162,6 +172,9 @@ Read AGENTS.md, docs/DATABASE_AND_SLASH_MODERNIZATION.md, and any unit-specific
 runbook in full. Verify that the worktree is clean and detached at EXPECTED_SHA.
 Create and switch to BRANCH_NAME before editing. Stop if the base, branch,
 worktree, or runtime state differs from the prompt.
+
+Run Python through /home/nelluk/PolyBot39-dev/.venv/bin/python; do not install
+or synchronize dependencies unless separately approved.
 ```
 
 The remainder of the prompt supplies the selected unit's objective, scope,
