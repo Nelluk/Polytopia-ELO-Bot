@@ -245,6 +245,26 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
         for row in result.games:
             self.assertIsInstance(row, player_workers.PlayerGameRow)
 
+    def test_game_search_workspace_reads_real_schema(self):
+        from modules import game_search_workers
+
+        guild_id = self.profile.allowed_guild_ids[0]
+        result = asyncio.run(game_search_workers.run_game_search(
+            game_search_workers.GameSearchRequest(
+                guild_id=guild_id,
+                requester_discord_id=self.settings.owner_id,
+                staff=True,
+            )
+        ))
+        self.assertIsInstance(
+            result,
+            game_search_workers.GameSearchSnapshot,
+        )
+        self.assertIsInstance(result.rows, tuple)
+        for row in result.rows:
+            self.assertIsInstance(row, game_search_workers.GameSearchRow)
+            self.assertGreater(row.game_id, 0)
+
     def test_development_fixture_seed_status_cleanup_round_trip(self):
         from modules import dev_fixtures
 
