@@ -132,6 +132,74 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
         actual_tables = {row[0] for row in rows}
         self.assertTrue(expected_tables.issubset(actual_tables))
 
+    def test_leaderboard_workers_read_real_schema(self):
+        from modules import leaderboard_workers
+
+        guild_id = self.settings.server_ids['test']
+        requests = (
+            (
+                leaderboard_workers.run_player_leaderboard,
+                leaderboard_workers.PlayerLeaderboardRequest(
+                    guild_id=guild_id,
+                    scope='global',
+                    rating='peak',
+                    era='all-time',
+                    population='all',
+                    active_cutoff=self.settings.date_cutoff,
+                ),
+                leaderboard_workers.PlayerLeaderboardResult,
+                leaderboard_workers.PlayerLeaderboardRow,
+            ),
+            (
+                leaderboard_workers.run_activity_leaderboard,
+                leaderboard_workers.ActivityLeaderboardRequest(
+                    guild_id=guild_id,
+                    view='server-30-days',
+                    recent_cutoff=(
+                        datetime.datetime.now()
+                        - datetime.timedelta(days=30)
+                    ),
+                ),
+                leaderboard_workers.ActivityLeaderboardResult,
+                leaderboard_workers.ActivityLeaderboardRow,
+            ),
+            (
+                leaderboard_workers.run_squad_leaderboard,
+                leaderboard_workers.SquadLeaderboardRequest(
+                    guild_id=guild_id,
+                    period='all-time',
+                    active_cutoff=self.settings.date_cutoff,
+                ),
+                leaderboard_workers.SquadLeaderboardResult,
+                leaderboard_workers.SquadLeaderboardRow,
+            ),
+        )
+        results = []
+        for runner, request, result_type, row_type in requests:
+            with self.subTest(result_type=result_type.__name__):
+                result = asyncio.run(runner(request))
+                results.append(result)
+                self.assertIsInstance(result, result_type)
+                self.assertIsInstance(result.rows, tuple)
+                self.assertEqual(
+                    [row.rank for row in result.rows],
+                    list(range(1, len(result.rows) + 1)),
+                )
+                for row in result.rows:
+                    self.assertIsInstance(row, row_type)
+
+        player_result = results[0]
+        self.assertGreaterEqual(
+            player_result.total_ranked,
+            len(player_result.rows),
+        )
+        for row in player_result.rows:
+            self.assertIsInstance(row.name, str)
+            self.assertIsInstance(row.elo, int)
+            self.assertIsInstance(row.wins, int)
+            self.assertIsInstance(row.losses, int)
+            self.assertIsInstance(row.team_emoji, str)
+
     def test_representative_write_is_rolled_back(self):
         marker = f'phase6-rollback-{uuid.uuid4()}'
         with self.rollback_scope():
@@ -301,6 +369,7 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
         id_base = 800_000_000_000_000_000
         host_id = id_base + (uuid.uuid4().int % 10_000_000)
         opponent_id = id_base + (uuid.uuid4().int % 10_000_000)
+        third_side_id = id_base + (uuid.uuid4().int % 10_000_000)
         request = game_workers.NewGameRequest(
             guild_id=self.profile.allowed_guild_ids[0],
             name=marker,
@@ -332,6 +401,15 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
                         role_names=(),
                     ),
                 ),
+                (
+                    game_workers.NewGameParticipant(
+                        discord_id=third_side_id,
+                        discord_name='p23-third-side',
+                        discord_nick=None,
+                        display_name='P2.3 Third Side',
+                        role_names=(),
+                    ),
+                ),
             ),
         )
 
@@ -352,13 +430,13 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
                 self.models.GameSide.select().where(
                     self.models.GameSide.game == game
                 ).count(),
-                2,
+                3,
             )
             self.assertEqual(
                 self.models.Lineup.select().where(
                     self.models.Lineup.game == game
                 ).count(),
-                2,
+                3,
             )
             self.assertEqual(
                 self.models.GameLog.select().where(
@@ -376,7 +454,7 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
         self.assertEqual(
             self.models.DiscordMember.select().where(
                 self.models.DiscordMember.discord_id.in_(
-                    (host_id, opponent_id)
+                    (host_id, opponent_id, third_side_id)
                 )
             ).count(),
             0,

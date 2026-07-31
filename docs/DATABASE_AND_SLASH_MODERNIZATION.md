@@ -1,10 +1,10 @@
 # Database Access and Slash Command Modernization
 
-Last updated: 2026-07-29
+Last updated: 2026-07-30
 
 Status: Active
 
-Current branch at last update: `codex/p4-1c-unstart-separation`
+Current branch at last update: `codex/p2-3-game-record-roster`
 
 Source task: `thread://019fae66-8e3a-7a50-9a0f-d3d7160d2287`
 
@@ -31,8 +31,15 @@ configuration, and `AGENTS.md` remain authoritative.
 - Do not connect to or modify the production database `polytopia2`.
 - Production services, production command synchronization, and production
   deployment require separate explicit approval.
-- A beta-bot launch or Discord command synchronization requires explicit
-  approval for that test session.
+- Standing authorization granted on 2026-07-30 keeps the development beta bot
+  running by default. After a significant completed and validated work unit,
+  restart only that development process from the intended checkpoint so it
+  picks up code changes and performs its normal development-guild-only
+  synchronization. Stop it temporarily when a gated fixture operation or
+  other documented safety procedure requires the bot to be offline.
+- The standing beta authorization does not cover production, a global command
+  synchronization, a different guild/profile, enabling background tasks or
+  the API, dependency installation, or materially broader live testing.
 - Development-database integration tests may run only through the existing
   gates that verify:
   - `POLYBOT_ENV=development`
@@ -156,157 +163,156 @@ For every command touched:
    - Discord members rather than free-form mentions;
    - choices for stable enumerations;
    - autocomplete only when it can respond cheaply.
-4. Defer immediately before potentially slow work.
-5. Keep permission checks equivalent between prefix and slash paths.
-6. Make error visibility deliberate; permission or validation errors should
+4. Evaluate whether secondary options belong in a Components v2 interaction
+   after invocation. Prefer a short task-oriented command plus an interactive
+   result when several options select views, filters, pages, or iterative
+   edits rather than defining the command's primary target or effect.
+5. Defer immediately before potentially slow work.
+6. Keep permission checks equivalent between prefix and slash paths.
+7. Make error visibility deliberate; permission or validation errors should
    generally be ephemeral for slash users.
    Successful competitive-state mutations should generally be public so the
    native interface preserves the transparency of the corresponding prefix
    command. Deviations require a recorded privacy or safety reason.
-7. Add registration tests for both interfaces.
-8. Record any native-interface compromise in the compatibility ledger below,
+8. Add registration tests for both interfaces.
+9. Record any native-interface compromise in the compatibility ledger below,
    including user impact, acceptance, and a possible mitigation. Do not let
    parity gaps live only in task commentary.
 
 Do not rename the five beta-validated pilot slash commands without a separate
 compatibility and deprecation decision.
 
+### Components v2 interaction standard
+
+Desktop and mobile beta testing of P7.5 established Components v2 as the
+preferred presentation layer for interaction-rich workflows. Slash commands
+should state the task and collect inputs necessary to identify its target.
+Options that merely change presentation or let the user explore the result
+should normally move into the response.
+
+Prefer Components v2 for:
+
+- multiple useful views or filter combinations over one result domain;
+- pagination, requester-rank jumps, search refinement, and cached refreshes;
+- iterative drafts, previews, and review/confirmation steps;
+- focused read-or-edit attributes whose current value should be visible;
+- public results with requester-only controls;
+- staff workflows that benefit from preview, explicit confirmation, and
+  visible job state.
+
+Keep direct slash options for:
+
+- identifiers and targets required to know what operation to perform;
+- one-step mutations such as join, leave, win, confirm, extend, and delete;
+- a small number of safety-critical choices that should be visible in the
+  submitted command;
+- accessibility or automation paths where an interactive draft adds no value.
+
+A conversion unit must now classify each proposed option as **essential
+invocation input** or **interactive refinement**. It should not reproduce a
+large prefix argument matrix as a large slash option matrix merely because
+Discord permits it.
+
+Components v2 messages cannot mix ordinary content or embeds, cannot be
+downgraded after the v2 message flag is set, and have component/count/layout
+limits. Every implementation must therefore provide a complete v2 renderer,
+mobile/desktop beta evidence for novel layouts, bounded state, deliberate
+timeout behavior, and an explicit rerun path after expiration.
+
+The preferred visibility model remains public competitive results with
+requester-only controls. Unauthorized controls fail ephemerally without
+changing the public message. Database loads use existing bounded workers;
+page changes and other snapshot-only navigation must not query the database.
+
 ### Slash taxonomy review
 
-Status: **Provisionally selected — T-A domain groups**
+Status: **Taxonomy v2.2 proposed; attribute-command, component-first, and
+show/ping/logs naming rules accepted; registration changes pending review**
 
-T-A domain groups are the authorized working taxonomy for development. New
-slash work may proceed under the domain map, and the current beta slash
-surface may be migrated in a bounded registration unit. Prefix names and
-aliases remain unchanged. Staff may still vote; an unexpected different
-result can replace this provisional choice before production deployment.
+The accepted architecture remains T-A domain roots with one user-facing
+`/game` domain across open, pending, started, and completed states. On
+2026-07-30 the user reopened the spelling and internal-grouping review before
+the first synchronization of checkpoint `63af179`.
 
-The repository-wide inventory and conversion dispositions are maintained in
-`docs/SLASH_COMMAND_TAXONOMY_REVIEW.md`. It covers all 83 in-scope explicit prefix
-handlers, the customized help command, optional command families, commands
-that need interaction redesign, and commands that should remain
-operator-only. The legacy API cog and its seven hidden commands are excluded.
-The table below is only the current native surface being renamed; it is not
-the complete modernization inventory.
+The repository-wide v2.2 proposal and conversion dispositions are maintained in
+`docs/SLASH_COMMAND_TAXONOMY_REVIEW.md`. It covers all 83 in-scope explicit
+prefix handlers, the customized help command, optional command families,
+commands needing interaction redesign, and commands that should remain
+operator-only. The legacy API cog and its seven hidden commands remain
+excluded.
 
-The current native surface under review is:
+The current locally implemented native surface is:
 
-- `/newgame`, `/win`, `/unwin`, `/delete`, `/confirm`, `/unconfirmed`;
-- `/set-ranked`, `/extend`;
-- `/recalc-games-from`, `/elo-job-status`.
+- `/game record`, `/game win`, `/game unwin`, `/game delete`;
+- `/game confirm`, `/game unconfirmed`, `/game set-ranked`;
+- `/game extend`, `/game unstart`;
+- `/elo recalculate`, `/elo status`.
 
-`/extend` is present in the uncommitted P4.1b worktree and has not yet been
-beta-synchronized. The first nine commands have already been synchronized
-during approved development-guild sessions.
+The prior top-level names were synchronized only to the development guild.
+None reached production. The approved migration therefore removes them
+cleanly rather than registering compatibility aliases. The never-synchronized
+`/match` group is also absent. The unified `/game` tree was later synchronized
+and exercised only in the development guild during P7 testing. Taxonomy v2.2
+has not been registered, and a later approved development sync must verify
+that renamed or removed guild commands are pruned.
 
-#### T-A — Domain groups (recommended)
+#### Taxonomy v2.2 — component-first journey groups
 
-Organize commands by the object or workflow they affect:
+The revision keeps common actions directly under `/game`:
 
-| Current native name | Proposed name |
-|---|---|
-| `/newgame` | `/game create` |
-| `/win` | `/game win` |
-| `/unwin` | `/game unwin` |
-| `/delete` | `/game delete` |
-| `/confirm` | `/game confirm` |
-| `/unconfirmed` | `/game unconfirmed` |
-| `/set-ranked` | `/game set-ranked` |
-| `/extend` | `/match extend` |
-| `/recalc-games-from` | `/elo recalculate` |
-| `/elo-job-status` | `/elo status` |
+- `/game open|join|leave|start|record|show|search|players|win|logs|ping`.
 
-Future families would use `/game show|rename|set-map|set-tribe|notes|logs`,
-`/match open|join|leave|kick|start|list`,
-`/player show|set-name|set-time|names`, and
-`/leaderboard players|teams|squads`.
+Less-common operations use one additional conceptual group:
 
-Advantages: the vocabulary follows user-facing domain concepts; ranked and
-unranked games remain under `/game`; matchmaking has a clear lifecycle; ELO
-is reserved for rating-specific maintenance and reporting. It scales without
-turning one root into a miscellaneous drawer.
+- `/game result undo|confirm|auto-confirm`;
+- `/game manage kick|extend|unstart|delete`.
 
-Costs: every current native name changes; `/game` becomes a group, so viewing
-a game is `/game show` rather than bare `/game`; grouped wrappers must be
-separate from the preserved prefix decorators.
+The proposal deliberately uses `/game record` for the existing `newgame`
+workflow, `/game players` for `getnames`, and
+`/game search status:unconfirmed` for the current unconfirmed-game list. It
+does not add generic `get` or `set` groups: useful attributes become focused
+read-or-edit commands such as
+`/game name|map|tribe|notes|side|ranked` and
+`/team emoji|image|server|name|house|tier`. Omitting the replacement value
+reads the current setting; supplying one edits it with command-specific
+permission checks; clearing uses an explicit option.
 
-#### T-B — One ELO-branded umbrella
+The accepted Components v2 rule now changes the interaction shape without
+changing those domain homes. Slash invocation supplies only the task and an
+essential target that cannot be inferred. Filters, optional attributes,
+long-form authoring, multiple uploads, previews, confirmation, and pagination
+move into a requester-controlled workspace when they are not necessary to
+identify the operation.
 
-Treat the bot as one ELO application and put nearly all native commands under
-one root:
+Additional staff/user feedback incorporated in v2.2:
 
-| Current native name | Proposed name |
-|---|---|
-| `/newgame` | `/elo game create` |
-| `/win` | `/elo game win` |
-| `/unwin` | `/elo game unwin` |
-| `/delete` | `/elo game delete` |
-| `/confirm` | `/elo game confirm` |
-| `/unconfirmed` | `/elo game unconfirmed` |
-| `/set-ranked` | `/elo game set-ranked` |
-| `/extend` | `/elo match extend` |
-| `/recalc-games-from` | `/elo admin recalculate` |
-| `/elo-job-status` | `/elo admin status` |
+- `/game show` and `/player show` remain the explicit detail commands.
+  `/player show` defaults to the requester; `/game show` uses an inferred
+  game only when context is unambiguous and otherwise requests a game ID.
+- `/game ping` opens an interactive composer instead of exposing message,
+  scope, attachments, and confirmation as slash options. It must
+  support multiple uploads and a high, explicit aggregate text limit through
+  bounded multi-message delivery; it cannot promise unlimited Discord
+  messages.
+- `/player register` collects one canonical Polytopia name. The slash surface
+  no longer distinguishes mobile name, Steam name, and legacy friend code;
+  existing stored values require a separate migration decision.
+- optional `/bullet` includes a participant-facing `/bullet log` result
+  workflow with matchup/result selection, replay evidence, preview, and
+  confirmation.
+- the established top-level `/staffhelp` name remains. It opens a structured
+  modal/workspace rather than becoming `/support request`.
 
-Future subcommand groups would include `game`, `match`, `player`,
-`leaderboard`, `team`, and `admin`. Discord supports this root/group/command
-shape, such as `/elo game unwin`.
+The proposed `/game` root has nineteen immediate children, including its two
+subcommand groups, leaving six slots below Discord's 25-child limit. The same
+system-wide rules apply to `/player`, `/team`, `/squad`, `/leaderboard`,
+`/league`, `/house`, `/elo`, optional `/bullet`, `/tools`, `/about`, and
+top-level `/staffhelp`.
 
-Advantages: users learn one root; autocomplete after `/elo` exposes the
-available families; the application has a strong branded identity.
-
-Costs: unranked games, registration, matchmaking, and league operations are
-not naturally ELO concepts; the root can become crowded; Discord permits only
-one subcommand-group level, so deeper organization is unavailable. The
-meaning of `/elo` becomes “everything PolyBot does,” not specifically rating.
-
-If staff prefer this structure but dislike the semantic mismatch, `/poly` or
-`/bot` can replace `/elo` without changing the rest of the proposal.
-
-#### T-C — Conservative flat commands
-
-Keep the beta-tested names and use consistent prefixes only for future
-additions:
-
-| Existing names retained | Example future names |
-|---|---|
-| `/newgame`, `/win`, `/unwin`, `/delete` | `/game-info`, `/game-rename`, `/game-set-map` |
-| `/confirm`, `/unconfirmed`, `/set-ranked`, `/extend` | `/match-open`, `/match-join`, `/match-start` |
-| `/recalc-games-from`, `/elo-job-status` | `/player-info`, `/player-set-name`, `/leaderboard` |
-
-Advantages: least migration work and no relearning of the already-tested
-surface; hybrid commands can remain hybrids; each command is directly visible
-at the top level.
-
-Costs: the command picker becomes a long alphabetical list; related operations
-are scattered; naming conventions remain partly historical (`newgame` versus
-hyphenated names); later cleanup becomes harder after production adoption.
-
-#### Vote and transition rules
-
-Staff should vote on the taxonomy, not individual spellings. After a winner is
-selected, perform a short spelling review for terms such as `create` versus
-`new`, `unconfirmed` versus `pending-confirmation`, and `match` versus
-`lobby`.
-
-Recommended ballot:
-
-1. T-A — domain groups;
-2. T-B — one umbrella (with a second choice of `/elo`, `/poly`, or `/bot`);
-3. T-C — conservative flat commands.
-
-Use ranked-choice voting if practical. Include “no preference” rather than
-forcing a random ranking. Until a result is available, T-A and the spellings
-in its capability map are the development defaults and do not block
-registrations.
-
-Because these commands have not reached production, the cleanest transition
-is one coordinated beta rename followed by a development-guild sync and
-smoke test. If staff need an adjustment period, old top-level slash names may
-remain as explicitly deprecated wrappers for one beta cycle. Discord does not
-redirect renamed commands, so every retained alias is a separately registered
-application command. Do not carry transitional aliases into production
-without a separate decision.
+The current registrations have not reached production, so an approved revision
+can be applied cleanly without slash compatibility aliases. No registration
+change should occur until the user accepts or revises v2.2. Prefix interfaces,
+permissions, worker boundaries, and transaction behavior remain unaffected.
 
 ## Slash compatibility compromise ledger
 
@@ -319,7 +325,7 @@ longer be retained.
 
 | ID / command | Native coverage | Accepted compromise and message-intent impact | Possible future mitigation | Status |
 |---|---|---|---|---|
-| C-001 `/newgame` | Typed two-sided games from 1v1 through 4v4; explicit ranked and Mobile/Steam options; requester is selected explicitly when participating | Native slash does not cover more than two sides, more than four players per side, or the one-opponent shortcut that infers the requester. Those shapes/conveniences currently remain on the prefix command and would be unavailable if message-content intent were retired. This is accepted for the initial conversion: `newgame` is rare in practice and normal usage is overwhelmingly even, two-sided games. Ranked/platform alias behavior is preserved as slash options. | If actual demand warrants it, add an interaction-only `/game custom` draft: modal for name, buttons to add/edit/remove sides, Discord user-select components to fill each side, review/validation, then explicit confirmation into the existing worker transaction. A short-lived in-memory draft is sufficient initially; persistence can be added only if restart survival matters. | Accepted temporary gap; not a P2.2 blocker |
+| C-001 `/newgame` | `/game record` accepts one roster string using the established `vs` grammar, infers arbitrary/unequal side sizes, preserves the one-opponent requester shortcut, and requires an interaction preview before creation. Edit sides provides native member selection plus add/remove-side controls. | The former two-sided 1v1–4v4 and raw-text-edit limits are resolved without message-content intent. Initial text tokens can still be ambiguous when users do not supply mentions, but the parsed draft can be corrected with native selectors. Per-game Mobile/Steam input was deliberately removed because full cross-play makes it obsolete. | If initial parsing remains troublesome, allow `/game record` to open an empty guided draft without requiring a seed roster. | Shape and edit gaps resolved by P2.3; initial parser usability remains for beta evaluation |
 
 Every later slash conversion must add a row when parity is intentionally
 reduced. If there is no compromise, its unit evidence should explicitly say
@@ -364,6 +370,12 @@ check:
 - P4.1a accumulation merge: `5888c02`
 - P4.1b implementation checkpoint: `c0945a3`
 - P4.1c implementation checkpoint: `204ab40`
+- P4.1b/P4.1c accumulation merge: `31c84d7`
+- P4.1d initial `/match` checkpoint: `416ca30`
+- unified taxonomy approval checkpoint: `951460a`
+- unified native registration checkpoint: `63af179`
+- P7.5 Components v2 leaderboard checkpoint: `c4b34df`
+- P7.5 development-guild sync checkpoint: `96c6981`
 - T1 fixture-harness implementation checkpoint: `4551bec`
 - T1 roadmap-evidence checkpoint: `d6e826b`
 - T1 accumulation merge: `aacace4`
@@ -371,18 +383,23 @@ check:
   working
 - combined development sync: all eight expected commands synchronized to
   guild `478571892832206869`; P2.2 and P3.1 accepted by the user
-- complete offline suite: 123 tests passed, with eight gated database tests
+- complete offline suite: 142 tests passed, with eight gated database tests
   skipped as designed
-- gated `polytopia_dev` suite: eight tests passed under the required
-  `development` / `polytopia_dev` / `polybot_dev` checks
+- gated `polytopia_dev` suite: seven tests passed and one operator-fixture
+  round trip skipped under the required `development` / `polytopia_dev` /
+  `polybot_dev` checks
 - live-test game fixture: game `61` was deleted successfully
 - optional cleanup: unused `Team.id=9`, `Phase7 Test Team`, remains in
   `polytopia_dev` with zero players and zero game sides
+- retained P7.5 showcase: 24 owned players (`163`-`186`) and 48 owned games
+  (`200`-`247`), with gated status/confirmed-cleanup tooling
 
-Current unit: **P4.1c — Unstart transaction separation**, Implemented on
-`codex/p4-1c-unstart-separation`, stacked from the P4.1b evidence checkpoint
-`af4ef51`. P0 through P3 and T1 are Complete on the intended accumulation
-branch.
+Current unit: **P2.3 — Flexible `/game record` roster and cross-play
+cleanup**, In progress on `codex/p2-3-game-record-roster` from checkpoint
+`dd20e9b`. The accepted unit replaces the fixed `/game create` member matrix
+with one parsed roster string and a Components v2 review gate, removes
+platform from the native interface, and retains the existing transactional
+worker. Taxonomy v2.2 as a whole remains pending final approval.
 
 Owned fixture games `149`-`151` are intentionally retained. At the latest
 gated status check, `149` is incomplete/unranked, `150` is
@@ -429,7 +446,7 @@ beta launches, command synchronization, pushes, or PR operations by itself.
 | P4 | In progress | Game correction and metadata mutations | Bounded workers plus slash interfaces for clear typed operations |
 | P5 | Planned | Matchmaking lifecycle | Atomic open/join/leave/kick/start flows and native interactions |
 | P6 | Planned | Registration and player preferences | Worker-safe profile writes and slash UX |
-| P7 | Planned | Read-heavy game, player, and leaderboard commands | Bounded read path and responsive slash queries |
+| P7 | In progress | Read-heavy game, player, and leaderboard commands | Bounded read path and responsive slash queries |
 | P8 | Planned | League and remaining administration workflows | Audited domain workers and selected native interfaces |
 | P9 | Planned | Production rollout and later prefix deprecation decision | Approved deployment, monitoring, and separate deprecation plan |
 
@@ -775,9 +792,8 @@ Remaining limitations:
 - P2.1's recorded post-commit synchronous model reads/writes and cancellation
   limitation remain unchanged.
 
-Next action: P2 is closed on the accumulation branch. Preserve C-001 as the
-accepted native-interface limitation, and inspect retained manual fixture
-`118` before any later reuse.
+Next action: P2.3 supersedes the fixed P2.2 option matrix. Inspect retained
+manual fixture `118` before any later reuse.
 
 Exit criteria:
 
@@ -787,6 +803,104 @@ Exit criteria:
 - prefix behavior preserved;
 - slash decision implemented or explicitly deferred;
 - approved beta test if an application command is added.
+
+### P2.3 — Flexible `/game record` roster and cross-play cleanup
+
+Status: **Beta-validated**
+
+Branch/base: `codex/p2-3-game-record-roster` from P7.5 Components v2
+checkpoint `dd20e9b`.
+
+Objective: replace the fixed two-sided `/game create` option matrix with the
+taxonomy-proposed `/game record`, using one roster string and a Components v2
+review gate before the existing transactional worker.
+
+Selected interface:
+
+- required exact game name;
+- required roster string using `player ... vs player ...` grammar;
+- optional ranked Boolean;
+- no platform option;
+- requester-only parsed preview with Edit sides, Confirm record, and Cancel;
+- confirmation alone enters the existing prefix validation, bounded worker,
+  transaction, and post-commit Discord effects.
+
+The parser supports arbitrary side counts and unequal sizes subject to the
+existing guild/game rules. A single roster token retains the requester-versus-
+opponent shortcut. Mentions are recommended; quoted tokens are accepted, but
+ambiguous text names remain a documented usability limitation.
+
+Mobile/Steam is obsolete for new native recording because Polytopia now has
+full cross-play. The legacy database Boolean remains temporarily populated
+with its canonical compatibility value so this unit does not combine command
+UX with a schema/history migration. Existing Steam prefix aliases remain
+registered during transition but no longer create a distinct platform type.
+Broader removal of platform-specific open-game filters, stored names, emojis,
+and ping aliases is a separate compatibility unit.
+
+Required evidence:
+
+- [x] flexible parser coverage, including uneven and multiple sides;
+- [x] preview precedes worker submission;
+- [x] requester-only Edit/Confirm/Cancel controls;
+- [x] no slash platform option and canonical compatibility storage;
+- [x] prefix aliases preserved;
+- [x] rollback, responsiveness, and post-commit tests remain green;
+- [x] complete offline suite;
+- [x] gated development-database suite;
+- [x] development beta restart and development-guild sync;
+- [x] live preview/edit/cancel/confirm smoke acceptance.
+
+Implementation evidence:
+
+- `modules/game_record_views.py` parses the legacy `vs` grammar with quoted
+  tokens, rejects incomplete/ambiguous side syntax, renders a Components v2
+  preview, and owns requester-only native side/member editing plus
+  Confirm/Cancel controls.
+- `/game record` accepts only `game_name`, `roster`, and optional `ranked`;
+  the former platform and ten fixed member options are absent.
+- Preview member resolution and existing registration/channel/participation
+  checks happen before confirmation. The prefix callback and bounded P2.1
+  worker are not invoked until Confirm.
+- The shared prefix/slash resolver preserves permissions and the one-opponent
+  shortcut. Prefix aliases remain registered.
+- All new recorded games use the legacy `is_mobile=True` compatibility value,
+  including requests invoked through a retained Steam alias.
+- The gated real-schema test creates three sides, verifies three lineups, and
+  rolls the complete graph back.
+
+Validation:
+
+- Focused: `POLYBOT_ENV=development MPLCONFIGDIR=/tmp/polybot-matplotlib
+  .venv/bin/python -m unittest tests.test_newgame_worker -v` — 18 passed
+  after the beta confirmation-context and native side-editor fixes.
+- Complete offline: `POLYBOT_ENV=development
+  MPLCONFIGDIR=/tmp/polybot-matplotlib .venv/bin/python -m unittest discover
+  -v` — 183 passed, 9 gated skips.
+- Development database: `POLYBOT_ENV=development
+  POLYBOT_RUN_DB_INTEGRATION=1 MPLCONFIGDIR=/tmp/polybot-matplotlib
+  .venv/bin/python -m unittest tests.test_database_integration -v` — 8
+  passed; one fixture round trip safely skipped to preserve the
+  operator-managed set after confirming `polytopia_dev` and `polybot_dev`.
+- Compilation and `git diff --check`: passed.
+
+Implementation checkpoints:
+
+- `6af7c92` — flexible roster parser and first preview implementation;
+- `b54618e` — component-confirmation fix and native side/member editor.
+
+Runtime evidence: the task-owned beta was stopped cleanly after checkpointing,
+then restarted from `da21786` with `POLYBOT_ENV=development` and
+`--skip_tasks`. It authenticated as `PolyELO Bot Beta`
+(`479029527553638401`) and completed startup/development-guild sync without a
+reported error. After the first smoke exposed a component-context failure,
+the beta restarted from `b54618e`. The user then reported the corrected
+record, confirmation, and native side-editing flow worked well and accepted
+the unit. No further live exception appeared in the task-owned beta output.
+The beta remains running.
+
+Next action: integrate P2.3 in the intended modernization-branch sequence.
+Keep the broader Taxonomy v2.2 status pending final approval.
 
 ## P3 — Owner ELO maintenance and observability
 
@@ -1464,6 +1578,107 @@ accumulation branch, then create a bounded domain-group registration unit for
 the current native surface, including `/match extend` and `/match unstart`.
 Use one separately approved beta session after that unit.
 
+#### P4.1d — Unified native registration
+
+Status: **Implemented**
+
+Branch/base: `codex/p4-1d-match-slash-group` from accumulation checkpoint
+`31c84d7`, which integrates the P4.1b/P4.1c worker units.
+
+Commit(s):
+
+- `416ca30` — Add match slash commands for unstart and extend.
+- `951460a` — Approve unified game slash taxonomy.
+- `63af179` — Unify native commands under game and elo.
+
+Objective: apply the approved T-A taxonomy to every native command implemented
+through P4.1d and expose P4.1c through a typed native interaction.
+
+Slash interface:
+
+- Register one guild-only `/game` group containing
+  `create|win|unwin|delete|confirm|unconfirmed|set-ranked|extend|unstart`.
+- Register one guild-only `/elo` group containing `recalculate|status`.
+- Remove the development-only top-level native names and the
+  never-synchronized `/match` group; no temporary slash aliases are retained.
+- Preserve all corresponding prefix commands and aliases unchanged.
+- Both successful mutations defer and complete publicly under D-017.
+  Permission, validation, per-game conflict, and database failures remain
+  ephemeral.
+
+Implementation evidence:
+
+- The games cog owns the `/game` group and its nine typed subcommands; the
+  administration cog owns `/elo` and its two maintenance subcommands.
+- `/game unstart` performs the staff check before defer, then calls the same
+  P4.1c worker/post-commit pipeline as the prefix command.
+- The primitive invocation channel ID now crosses into the worker so the
+  prefix safety rule is authoritatively revalidated before mutation for slash
+  users as well.
+- Slash audit logging identifies `/game unstart` rather than attributing the
+  transition to the prefix spelling.
+- Thin `/game` adapters reuse existing prefix checks/callbacks or delegate to
+  the existing administration handlers, avoiding duplicate permissions and
+  mutation logic.
+- Registration tests prove the only top-level roots are `game` and `elo`,
+  their exact eleven subcommands and typed shapes are correct, obsolete
+  top-level names and `match` are absent, and prefix commands/aliases remain.
+- No native behavior is omitted, so no compatibility-ledger row is required.
+
+Files changed:
+
+- `modules/administration.py`
+- `modules/games.py`
+- `modules/game_workers.py`
+- `tests/test_game_extension.py`
+- `tests/test_game_unstart.py`
+- `tests/test_elo_jobs.py`
+- `tests/test_newgame_worker.py`
+- `tests/test_ranked_state.py`
+- `tests/test_slash_taxonomy.py`
+- `modules/dev_fixtures.py`
+- `scripts/manage_dev_fixtures.py`
+- `tests/test_dev_fixtures.py`
+- `docs/DEVELOPMENT_BETA_FIXTURES.md`
+- `docs/DATABASE_AND_SLASH_MODERNIZATION.md`
+
+Validation evidence:
+
+- Focused taxonomy and affected command suite: 74 passed.
+- Complete offline suite: 142 passed with eight gated database tests skipped
+  as designed.
+- Existing gated development-database suite: seven passed and the fixture
+  round-trip skipped itself to preserve operator-managed games `149`-`151`;
+  the gate confirmed `development`, `polytopia_dev`, and `polybot_dev`.
+- Gated fixture status confirmed game `149` ready/incomplete/unranked, game
+  `150` unconfirmed/ranked, and game `151` confirmed/ranked while no beta
+  process was running.
+- Fixture status now reports pending state and expiration, so the post-smoke
+  database state can be verified without an ad hoc query.
+- `git diff --check`: clean before this documentation update.
+
+Beta result: pending taxonomy v2 approval and then separate
+launch/synchronization approval. The existing smoke matrix in
+`docs/DEVELOPMENT_BETA_FIXTURES.md` still describes checkpoint `63af179` and
+must be updated if v2 paths are accepted before beta testing.
+
+Remaining limitations:
+
+- P4.1c's short post-commit announcement model reload and non-persistent
+  reconciliation limitation remain.
+- The fixture-backed smoke test does not normally exercise real announcement
+  editing or channel deletion; focused fault/ordering tests cover those
+  boundaries unless a separately recorded disposable interactive game is
+  used.
+- The branch name retains the superseded `match` wording; the commit and
+  command tree are authoritative. Renaming the local branch is unnecessary
+  churn before integration.
+
+Next action: obtain review of taxonomy v2. If accepted, implement a narrow
+registration-only P4.1d follow-up, update the smoke runbook and tests, and
+then request separate approval to launch and synchronize the beta bot. Do not
+integrate P4.1d into accumulation until its live behavior is accepted.
+
 ### P4.2 — Game metadata
 
 Candidates:
@@ -1476,6 +1691,11 @@ Candidates:
 Recommended slash shape:
 
 - typed game ID;
+- focused `/game name|map|tribe|notes` commands that display the current value
+  when no replacement is supplied;
+- optional replacement values that enter the existing permission-equivalent
+  mutation path;
+- an explicit `clear` option where clearing is supported;
 - map/tribe choices or cheap autocomplete;
 - Discord member input for a single-player tribe update;
 - a separate bulk staff operation if bulk tribe assignment remains necessary.
@@ -1523,14 +1743,15 @@ Required design:
 
 Likely slash interfaces:
 
-- `/open-game`
-- `/join game_id side`
-- `/leave game_id`
-- `/kick game_id member`
-- `/start-game game_id name`
+- `/game open`
+- `/game join game_id side`
+- `/game leave game_id`
+- `/game kick game_id member`
+- `/game start game_id name`
 
-Names and grouping must be reviewed against Discord's application-command
-limits and existing top-level commands before implementation.
+The lifecycle shares `/game` with tracked-game commands. Consolidate game
+lists/history under `/game search` and enforce the 25-child group limit before
+each new registration.
 
 ## P6 — Registration and player preferences
 
@@ -1539,6 +1760,8 @@ Status: **Planned**
 Candidate scope:
 
 - `setname`
+- `steamname` and `setcode` compatibility/data review
+- `getname`
 - `settime`
 - squad naming and similar low-risk profile writes
 
@@ -1547,16 +1770,23 @@ Goals:
 - use typed Discord member inputs for staff overrides;
 - place lookup/create/update/log operations in one worker transaction;
 - keep role changes and direct messages post-commit;
-- add `/set-name` and `/set-time` or a reviewed command group while preserving
-  prefix aliases;
+- add `/player register` with one canonical Polytopia name and
+  `/player timezone` while preserving prefix aliases during transition;
+- show the canonical name in `/player show` and offer an authorized edit
+  control rather than adding a separate name/code lookup command;
+- inventory existing mobile-name, Steam-name, and legacy-code values and
+  define deterministic migration/conflict behavior before removing or
+  overwriting any stored field;
 - avoid exposing sensitive identifiers in public error messages.
 
-This phase is a suitable proving ground for a reusable non-ELO write executor
-if P2 and P4 demonstrate common infrastructure.
+`/player register` should open a small modal/workspace rather than ask users
+to choose platform or name type as slash options. This phase is a suitable
+proving ground for a reusable non-ELO write executor if P2 and P4 demonstrate
+common infrastructure.
 
 ## P7 — Read-heavy commands and analytics
 
-Status: **Planned**
+Status: **Implemented; pending beta acceptance**
 
 Candidate scope:
 
@@ -1580,6 +1810,411 @@ Goals:
 
 Read commands should be migrated in small related groups. Leaderboards and
 image/graph generation should not share the ELO mutation worker.
+
+### P7.1 — Player leaderboard read and pagination foundation
+
+Status: **Implemented; pending beta acceptance and integration**
+
+Branch/base: `codex/p7-1-player-leaderboard`, stacked from published P4.1d
+review checkpoint `b45e3ea`. The leaderboard taxonomy is not disputed, but
+this unit must remain independently reviewable and must not imply acceptance
+or integration of P4.1d's still-reviewed game-command spellings.
+
+Objective: preserve the complete `$lb` behavior while moving its query into a
+bounded worker-local read service and adding typed
+`/leaderboard players`.
+
+In scope:
+
+- Preserve `$lb`, `$leaderboard`, `$leaderboards`, `$lbglobal`, and `$lbg`.
+- Represent the existing freely combinable dimensions as typed options:
+  - `scope: local|global`;
+  - `rating: current|peak`;
+  - `era: current|all-time`;
+  - `population: active|all`.
+- Preserve the current fewer-than-ten fallback pending a later rules decision.
+- Return immutable primitive leaderboard rows and page metadata.
+- Use a bounded read executor separate from the ELO and ordinary-write
+  executors.
+- Give each worker job its own Peewee connection.
+- Add public component pagination for slash results while preserving prefix
+  reaction pagination during transition.
+- Defer the slash interaction before worker submission.
+
+Out of scope:
+
+- `/leaderboard activity`, teams, squads, or role-filtered leaderboards.
+- Converting legacy `$lbteamjr`; it remains prefix-only and receives no slash
+  equivalent.
+- Changing ELO formulas, eligibility rules, fallback membership, or prefix
+  aliases.
+- Beta launch or command synchronization without separate approval.
+
+Tests required:
+
+- [x] complete option-matrix mapping
+- [x] worker-local connection and primitive result boundary
+- [x] deterministic ranking and page boundaries
+- [x] slow-query event-loop responsiveness
+- [x] bounded concurrent reads
+- [x] slash registration, typed options, immediate defer, and component pages
+- [x] prefix aliases and legacy filter combinations preserved
+- [x] complete offline suite
+- [x] gated development-database suite
+
+Implementation evidence:
+
+- `modules/leaderboard_workers.py` owns a dedicated two-thread read executor,
+  opens and closes each worker-local Peewee connection, and returns frozen
+  primitive rows capped at the existing 2,000-row display limit.
+- `modules/leaderboard_views.py` renders immutable ten-row pages with
+  requester-controlled First/Previous/Next/Last buttons. Results and page
+  changes remain public, matching the shared visibility of the prefix
+  leaderboard.
+- `$lb` and all four aliases now use the shared bounded service while retaining
+  reaction pagination and every legacy filter combination.
+- `/leaderboard players` exposes all sixteen combinations through four typed
+  choices and defers publicly before the database read.
+- The existing model eligibility query and its fewer-than-ten fallback remain
+  unchanged; this unit delegates selection to that model method rather than
+  redefining the rule.
+- No compatibility-ledger entry is required: all `$lb` result dimensions are
+  represented natively, the prefix aliases remain available, and slash
+  autocomplete makes a separate `/lb` registration unnecessary.
+
+Validation:
+
+- Focused leaderboard and taxonomy suite: 13 passed.
+- Complete offline suite: 151 passed, with 9 explicitly gated database tests
+  skipped.
+- Gated development-database suite: 8 passed and 1 fixture round-trip skipped
+  to preserve the existing operator-managed fixtures. The gate confirmed
+  `POLYBOT_ENV=development`, database `polytopia_dev`, and role
+  `polybot_dev`; the real-schema leaderboard worker test passed.
+- Syntax compilation and `git diff --check`: passed.
+
+Limitations:
+
+- Only the existing player ELO leaderboard is included. Activity, team,
+  squad, and role-filtered rankings retain their prefix interfaces for later
+  units.
+- The immutable snapshot preserves the existing 2,000-row cap. Its footer
+  distinguishes the full ranked count from the loaded/displayable row count.
+- Button state is process-local and expires after 120 seconds; the public
+  rendered page remains visible afterward.
+
+P7.1 is committed at `6774d31` with roadmap evidence at `cd65d24`. Its beta
+acceptance is intentionally batched with P7.2/P7.3. Integration remains
+sequenced behind the unresolved P4.1d review checkpoint on which these
+branches are stacked.
+
+### P7.2 — Player activity leaderboard
+
+Status: **Implemented; pending beta acceptance and integration**
+
+Branch/base: `codex/p7-2-3-activity-squad-leaderboards`, stacked from P7.1
+checkpoint `cd65d24`.
+
+Objective: preserve the two distinct `$lbrecent` activity views while adding
+typed `/leaderboard activity` and moving all database work into the bounded
+leaderboard read service.
+
+Native choices deliberately describe the complete legacy view rather than
+pretending time and scope are independently combinable:
+
+- `server-30-days` — this guild's player participation over the last 30 days;
+- `global-all-time` — cross-guild Discord-member participation over all
+  non-pending recorded games.
+
+In scope:
+
+- Preserve `$lbrecent`, `$recent`, `$active`, and `$lbactivealltime`.
+- Return immutable primitive rows with existing limits of 500 server rows and
+  1,000 global rows.
+- Reuse public requester-controlled component pagination.
+- Preserve current ordering, ELO display, team emoji behavior, and activity
+  counts.
+
+### P7.3 — Squad leaderboard
+
+Status: **Implemented; pending beta acceptance and integration**
+
+Branch/base: shared P7.2/P7.3 branch above.
+
+Objective: preserve `$lbsquad [alltime]` while adding typed
+`/leaderboard squads period:current|all-time` and replacing its default
+executor/database closure with the bounded leaderboard read service.
+
+In scope:
+
+- Preserve `$lbsquad` and `$squadlb`.
+- Preserve the current 365-day eligibility cutoff and `alltime` override.
+- Preserve the model's adaptive minimum-games eligibility rule.
+- Return immutable squad ID, name, member names/emojis, ELO, and record values.
+- Reuse public requester-controlled component pagination.
+
+Shared validation requirements:
+
+- [x] exact prefix-alias/view mapping
+- [x] typed slash registration and immediate public defer
+- [x] worker-local connection and immutable primitive DTO boundary
+- [x] deterministic activity and squad page rendering
+- [x] bounded concurrency and event-loop responsiveness
+- [x] existing model eligibility and row limits preserved
+- [x] complete offline suite
+- [x] gated development-database suite
+
+Out of scope:
+
+- Team leaderboard graph generation and Discord role-derived member counts.
+- Role-filtered leaderboard sorting/export behavior.
+- Changing activity or squad eligibility rules.
+- Beta launch or command synchronization without separate approval.
+
+Implementation evidence:
+
+- Implementation checkpoint: `6f6ca1c`.
+- Both prefix commands now submit immutable requests to the same dedicated
+  two-thread leaderboard executor introduced in P7.1.
+- Activity preserves its original two non-combinable query shapes and removes
+  two unused per-row record queries that never affected displayed output.
+- Squad snapshots contain only primitive IDs, names, emoji strings, ELO, and
+  record counts; no live Peewee model reaches Discord rendering.
+- `/leaderboard activity` uses human-readable **This server — past 30 days**
+  and **Global — all time** choices.
+- `/leaderboard squads` uses **Current eligibility** and **All time** choices.
+- Both slash commands defer publicly, reuse their prefix command checks, and
+  render public requester-controlled component pages.
+- The shared view base now supplies identical first/previous/next/last,
+  unauthorized-user denial, and timeout behavior for all three leaderboard
+  types.
+- No compatibility-ledger entry is required: every displayed legacy view,
+  alias, filter, limit, and eligibility rule remains available.
+
+Validation:
+
+- Focused leaderboard/taxonomy suite: 22 passed.
+- Complete offline suite: 160 passed, with 9 explicitly gated database tests
+  skipped.
+- Gated development-database suite: 8 passed and 1 fixture round-trip skipped
+  to preserve the existing operator-managed fixtures. The gate confirmed
+  `POLYBOT_ENV=development`, database `polytopia_dev`, and role
+  `polybot_dev`; real player, activity, and squad queries all passed.
+- Syntax compilation and `git diff --check`: passed.
+
+Limitations:
+
+- Team leaderboard and role-filtered leaderboard work remains deferred as
+  recorded above.
+- Native pagination holds an immutable process-local snapshot for 120 seconds;
+  users rerun the command for refreshed rankings.
+- The global all-time activity view retains the current non-pending-game
+  definition, while the server 30-day view retains its broader dated-game
+  definition. This unit labels that difference but does not change it.
+
+Next action: create implementation and roadmap checkpoints, then obtain
+separate approval for one development-guild sync and combined beta test of
+`/leaderboard players`, `/leaderboard activity`, and
+`/leaderboard squads`.
+
+### P7.4 — Shared leaderboard page-jump modal
+
+Status: **Implemented; pending beta acceptance and integration**
+
+Branch/base: `codex/p7-4-leaderboard-jump-modal`, stacked from P7.2/P7.3
+checkpoint `bb15fa8`.
+
+Objective: make large immutable leaderboard snapshots practical to navigate
+without adding command names or database work.
+
+In scope:
+
+- Replace the disabled page-count indicator with an active **Page X/Y** button.
+- Open a numeric page-jump modal from that button.
+- Validate non-numeric and out-of-range input ephemerally.
+- Update the existing public leaderboard message on valid submission.
+- Keep controls requester-only and disable them at the existing timeout.
+- Apply the same behavior to player, activity, and squad leaderboards.
+- Perform no query, model access, or snapshot refresh during page jumps.
+
+Tests required:
+
+- [x] button opens the modal for the requester
+- [x] valid first, middle, and last page submissions update public output
+- [x] non-numeric and out-of-range submissions are rejected ephemerally
+- [x] unauthorized users remain unable to open controls
+- [x] timeout disables the page-jump button with the other controls
+- [x] existing paginator and complete offline suites remain green
+
+Out of scope:
+
+- Persistent paginator state across bot restarts.
+- Refreshing database results from the modal.
+- New leaderboard commands or taxonomy decisions.
+- Beta launch or command synchronization without separate approval.
+
+Implementation evidence:
+
+- Implementation checkpoint: `fa61510`.
+- The shared page indicator is now an active **Page X/Y** button that opens
+  `JumpToPageModal` for player, activity, and squad results.
+- The modal uses discord.py 2.7's modern `Label` plus numeric `TextInput`
+  component rather than the deprecated directly labelled text-input shape.
+- Valid submissions update the original public message through the existing
+  immutable renderer; no query, worker submission, or model access occurs.
+- Invalid, unauthorized, and expired submissions respond ephemerally without
+  changing the public page.
+- Timeout disables the jump button with every other component.
+
+Validation:
+
+- Jump-modal tests: 5 passed.
+- Combined leaderboard tests: 22 passed.
+- Complete offline suite: 165 passed, with 9 explicitly gated database tests
+  skipped.
+- Syntax compilation and `git diff --check`: passed.
+- Development-database integration was not rerun because P7.4 changes only
+  in-memory Discord component behavior and performs no database operation.
+
+Next action: create implementation and roadmap checkpoints, then include page
+jumps in the separately approved combined leaderboard beta smoke test.
+
+### P7.5 — Experimental Components v2 player leaderboard
+
+Status: **Beta-validated; pending integration**
+
+Branch/base: `codex/p7-5-lb2-components-v2`, stacked from P7.4 checkpoint
+`ba717de`.
+
+Objective: test whether Discord Components v2 can make the common player
+leaderboard flow more discoverable and reduce slash-option overload without
+changing the accepted `/leaderboard players` interface.
+
+In scope:
+
+- Add a temporary guild-only `/lb2` command with no slash options.
+- Render the public result entirely through a Components v2 `LayoutView`,
+  `Container`, `TextDisplay`, separators, select menu, and action buttons.
+- Default to this server/current ELO/active players.
+- Switch among common local/global, current/peak, and current/all-time presets
+  inside the message.
+- Toggle active versus all players inside the message.
+- Support previous/next, numeric page jump, and requester-rank navigation.
+- Keep page/rank changes on the immutable snapshot; load alternate presets
+  lazily through the existing bounded worker and cache them in the view.
+- Keep controls requester-only while leaving the displayed result public.
+- Seed a separately owned 24-player, 48-game showcase in `polytopia_dev`
+  through the existing fixture CLI and unchanged profile/live-identity gates.
+
+Out of scope:
+
+- Replacing `/leaderboard players` or deciding the production command name.
+- Adding activity, squad, or team views to the experiment.
+- Persistent interaction state across restarts.
+- Any production synchronization, production database access, schema change,
+  or dependency change.
+
+Fixture safety:
+
+- Showcase profiles use an exact reserved Discord-ID range and exact generated
+  player/member names.
+- Showcase games use a separate exact notes marker and generated-name set.
+- Status, seed, and confirmed cleanup independently recheck development
+  profile, live database `polytopia_dev`, role `polybot_dev`, guild, and every
+  ownership marker.
+- The existing reusable beta games and real development users are not owned by
+  this fixture set.
+
+Evidence so far:
+
+- Locked discord.py 2.7.1 supplies `LayoutView`, `Container`, `TextDisplay`,
+  `Separator`, `ActionRow`, modern modal `Label`, selects, and buttons; no
+  dependency change was needed.
+- Focused Components v2, fixture, player-leaderboard, and taxonomy tests:
+  31 passed.
+- Complete offline suite: 174 passed with 9 gated database skips.
+- Existing gated development-database suite: 8 passed with 1 intentional
+  operator-fixture-preserving skip.
+- Initial real seed created player IDs `163`-`186` and game IDs `200`-`247`.
+  A model title-case normalization mismatch was caught by the idempotency
+  check, corrected without weakening ownership, and the second seed then
+  returned the same IDs.
+- The real bounded local leaderboard worker returned 26 rows, including all
+  24 showcase profiles with four recent ranked games each.
+
+Next action: integrate the accepted P7.5 checkpoint in sequence, retain its
+showcase fixtures, and implement the P7.6 toolkit/promotion unit separately.
+
+Beta launch and acceptance evidence:
+
+- Implementation checkpoint: `c4b34df`.
+- Development preflight reconfirmed beta application `479029527553638401`,
+  database `polytopia_dev`, the one approved guild `478571892832206869`, and
+  background tasks/API/Bullet disabled.
+- The bot authenticated as **PolyELO Bot Beta** and Discord accepted exactly
+  four guild roots: `game`, `leaderboard`, `lb2`, and `elo`.
+- The user tested `/lb2` on desktop and mobile and reported it strictly
+  superior to the existing player leaderboard.
+- The task-owned beta stopped cleanly after acceptance.
+- All 24 showcase profiles and 48 games are intentionally retained for later
+  leaderboard/component testing.
+
+### P7.6 — Reusable Components v2 toolkit and leaderboard promotion
+
+Status: **Planned**
+
+Objective: turn the accepted P7.5 experiment into a small reusable interaction
+foundation and make it the production-intended player leaderboard without
+prematurely generalizing every Discord view.
+
+In scope:
+
+- Extract only the patterns proven by P7.5:
+  - complete Components v2 container/text rendering;
+  - public-result/requester-control authorization;
+  - standard loading, ephemeral error, timeout, and expired-rerun behavior;
+  - cached async view switching;
+  - previous/next, numeric page jump, and requester-rank navigation;
+  - recursive component disabling at timeout.
+- Keep immutable DTOs and bounded worker loaders outside the presentation
+  toolkit; the toolkit must not know Peewee or open database connections.
+- Promote the accepted no-option interaction to `/leaderboard players`.
+- Remove temporary `/lb2` before production synchronization; it is a test
+  registration, not a long-term alias.
+- Retain the legacy prefix `$lb` grammar during transition.
+- Preserve all sixteen player-leaderboard combinations through an
+  **Advanced filters** interaction over scope, rating, era, and population;
+  common presets remain one-click choices and the initial slash command stays
+  option-free.
+- Decide whether direct-linkable presets are valuable enough for one optional
+  `view` choice; do not restore the four-dimensional slash option matrix.
+- Apply the shared primitives to at least one additional existing leaderboard
+  view (activity or squads) so the abstraction is proven by two consumers.
+- Add serialization/component-count, desktop/mobile layout checklist,
+  authorization, cache, load-failure, timeout, and restart-expiration tests.
+
+Out of scope:
+
+- Converting unrelated commands while the taxonomy is still under review.
+- Persisting arbitrary live view objects or database snapshots across bot
+  restarts.
+- A universal UI framework for every command.
+
+Exit criteria:
+
+- `/leaderboard players` delivers the accepted Components v2 experience with
+  no temporary `/lb2` registration;
+- every legacy `$lb` dimension remains reachable through the common presets
+  or Advanced filters interaction, so no compatibility-ledger gap is added;
+- shared toolkit code has at least two real consumers and no database imports;
+- ordinary prefix behavior, bounded reads, public transparency, and event-loop
+  responsiveness remain green;
+- complete offline and gated database suites pass;
+- a separately approved development-guild beta confirms the promoted path.
+
+Next action: integrate the accepted P7.5 checkpoint into the modernization
+accumulation sequence when appropriate, then implement P7.6 as a separate
+bounded unit.
 
 ## P8 — League and remaining administration workflows
 
@@ -1646,6 +2281,10 @@ Database boundary:
 
 Slash decision:
 
+Essential invocation inputs:
+
+Interactive refinements / Components v2 decision:
+
 Permissions to preserve:
 
 Discord effects after commit:
@@ -1660,6 +2299,8 @@ Tests required:
 - [ ] conflict/concurrency when relevant
 - [ ] prefix registration/behavior
 - [ ] slash registration/defer/permissions
+- [ ] Components v2 serialization/count/authorization/timeout, when relevant
+- [ ] desktop and mobile layout smoke test for a novel interaction
 - [ ] complete offline suite
 - [ ] gated development-database suite
 - [ ] beta smoke test, if an application command or Discord effect changed
@@ -1693,6 +2334,8 @@ Apply the rows relevant to the unit.
 | Permission parity | Prefix and slash paths allow/deny the same actors |
 | Command compatibility | Prefix command and aliases remain registered |
 | Interaction timing | Slash path defers before slow work |
+| Components v2 state | Controls authorize correctly, cached navigation avoids unnecessary reads, load failures preserve coherent state, and timeout/expiry has a rerun path |
+| Components v2 layout | Payload serializes within Discord limits and novel layouts receive desktop/mobile beta evidence |
 | Guild isolation | Development sync targets only the approved development guild |
 | Production safety | No production checkout, service, bot, or database touched |
 
@@ -1824,8 +2467,12 @@ Status: Accepted
 The native command supports common two-sided games through 4v4 with Discord
 member selectors and explicit ranked/platform options. The existing prefix
 grammar remains the supported path for larger or multi-side games. A modal
-was rejected because free-text member entry would discard Discord's native
-member selection and recreate the ambiguity of prefix parsing.
+was initially rejected because the available design assumed free-text member
+entry, which would discard Discord's native member selection and recreate the
+ambiguity of prefix parsing. Discord and discord.py 2.7.1 now support native
+user selects and additional typed components inside modals. D-022 therefore
+reopens a modal/component-driven custom draft as a viable future mitigation
+without changing the accepted initial bounded interface.
 
 ### D-012 — Track accepted slash compromises centrally
 
@@ -1895,17 +2542,534 @@ private only for a recorded privacy or safety reason.
 
 ### D-018 — Select slash taxonomy before expanding the public surface
 
-Status: Provisionally accepted for development
+Status: Accepted
 
-T-A domain groups are the working architecture and unblock further native
-development. Prefix commands remain stable, and grouped slash commands are
-thin adapters over existing shared worker/application paths. Because the
-surface has not reached production, migrate the current beta registrations
-cleanly in one bounded unit rather than preserving top-level aliases by
-default. Staff may still select another recorded taxonomy; if they do, revise
-the registration layer and documentation before P9 deployment.
+T-A domain groups are the working architecture for native development.
+Prefix commands remain stable, and grouped slash commands are thin adapters
+over existing shared worker/application paths. Because the surface has not
+reached production, checkpoint `63af179` migrates the current beta
+registrations cleanly without preserving top-level aliases. Any later
+taxonomy change requires an explicit compatibility decision.
+
+### D-019 — Use one game namespace across lifecycle states
+
+Status: Accepted
+
+Open, joinable, pending, started, completed, ranked, and unranked records are
+all “games” in normal user language. The revised T-A taxonomy therefore
+removes the user-facing `/match` root and places matchmaking lifecycle actions
+under `/game`. Legacy code/model names and prefix aliases may continue to say
+“match” internally during migration.
+
+The unified legacy inventory has 28 capability rows. Typed `/game search`
+filters consolidate `allgames`, `incomplete`, `wins`, and the joinable `games`
+list; typed `/game ping` scope consolidates `ping` and `pingall`. This yields
+at most 24 named child commands if every remaining candidate ships, below
+Discord's 25-child limit. P4.1d's unsynchronized `/match extend` and
+`/match unstart` were replaced locally before synchronization. The user
+approved this structure on 2026-07-30 before any `/match` command was
+synchronized. This was the original flat-child capacity calculation;
+taxonomy v2.2's accepted attribute-command refinement instead proposes
+nineteen immediate `/game` children, including two subcommand groups.
+
+### D-020 — Use component-first journey paths and semantic subgroups
+
+Status: Proposed; awaiting user/staff review
+
+Taxonomy v2.2 retains the accepted domain-root architecture and unified
+`/game` vocabulary but optimizes the tree for common user flows. Direct
+commands cover open/join/leave/start, recording, viewing, searching, player
+names, and reporting a winner. Uncommon result corrections use
+`/game result ...`; uncommon lifecycle operations use `/game manage ...`.
+
+The proposal prefers `/game record` over `/game create`,
+`/game players` over `/game player-names`, and
+`/game search status:unconfirmed` over `/game unconfirmed`. It rejects a
+generic `/game get ...` group because outcome-oriented read names are shorter
+and clearer. D-021's accepted attribute-command rule further removes a generic
+`set` group where the individual value is useful to inspect. D-023 further
+keeps invocation short by moving exploratory choices into Components v2.
+
+Checkpoint `63af179` remains unchanged while this decision is reviewed. If
+accepted before production, apply the rename cleanly in the registration
+layer without production compatibility aliases, update registration tests and
+the beta runbook, and verify that the approved development-guild sync prunes
+the older beta-only paths.
+
+### D-021 — Let useful attribute commands read or edit
+
+Status: Accepted
+
+For a property that users reasonably inspect on its own, use the property as
+the command: `/team emoji`, `/team image`, `/team server`, `/game map`,
+`/game notes`, `/house image`, and similar paths. Omitting the replacement
+value displays the current setting. Supplying a value performs the
+permission-checked edit. Clearing uses an explicit `clear` option because an
+omitted value already means “view.”
+
+The target may be optional only when it can be inferred unambiguously;
+otherwise use a typed/autocompleted target. Read and mutation permissions are
+evaluated separately, and a current value is exposed only when safe for the
+requester. This pattern does not apply to actions such as win, join, confirm,
+delete, or unstart.
+
+This accepted refinement replaces v2's generic game/team/house/squad `set`
+subgroups. The overall v2.2 taxonomy remains under review, and no command code
+has changed.
+
+### D-022 — Use modal components for multi-field interaction design
+
+Status: Proposed; awaiting user/staff review and command-specific units
+
+The locked discord.py 2.7.1 environment exposes Discord's newer modal
+components, including native user/role/channel selectors, file uploads, radio
+groups, checkboxes, text inputs, labels, and explanatory text. Modals are
+therefore no longer limited to ambiguous free-form text.
+
+Prefer modals when a workflow collects several related fields, long text, or
+an attachment. Prefer direct slash options for short one-step actions, and
+prefer message buttons/selects for pagination, iterative editing, previews,
+and destructive confirmation.
+
+Best candidates are:
+
+- an arbitrary-side `/game record` draft with native member selectors,
+  add/edit-side controls, review, and confirmation;
+- `/game notes` editing;
+- `/player register`;
+- team/house creation and image upload;
+- `/staffhelp`;
+- longer game notifications with optional uploads.
+
+Modal submission is a fresh interaction. Collect inputs before work, then
+defer the modal submission before any bounded worker/database operation.
+Permissions, primitive thread boundaries, synchronous transactions, and
+post-commit Discord effects remain unchanged. Draft state should be
+short-lived and in-memory initially unless restart persistence becomes a
+demonstrated requirement.
+
+### D-023 — Prefer Components v2 workspaces over slash option matrices
+
+Status: Accepted
+
+Desktop and mobile beta testing found the no-option P7.5 `/lb2` workspace
+strictly preferable to the four-option `/leaderboard players` response.
+Slash commands should identify the task and essential target; message
+components should handle exploratory filters, alternate views, pagination,
+cached refreshes, and iterative review.
+
+This is a design preference, not a requirement to make every response
+interactive. Simple one-step mutations retain direct typed inputs.
+Database-backed view changes continue through bounded workers, while
+snapshot-only navigation remains database-free. Public competitive results
+retain requester-only controls and ephemeral authorization failures.
+
+P7.6 will extract only the component behavior proven in P7.5, require at least
+two real consumers, promote the accepted UI to `/leaderboard players`, and
+remove temporary `/lb2` before production. Later units must classify proposed
+slash options as essential invocation inputs or interactive refinements.
+
+### D-024 — Incorporate component-first taxonomy feedback
+
+Status: Accepted as command-specific direction; overall taxonomy v2.2 remains
+under review
+
+Four user/staff decisions refine the system-wide proposal:
+
+1. `/game ping` is an interactive composer. The invocation accepts only an
+   optional game target when channel inference cannot identify it. Audience,
+   scope, long-form text, uploads, preview, and confirmation are
+   interactive refinements. The composer must accept multiple attachments.
+   Discord currently permits up to 4,000 characters in one modal text input
+   and up to 10 files in one File Upload component, so the design uses
+   repeatable text sections and bounded multi-message delivery rather than
+   claiming an unlimited message. These limits must be rechecked against
+   Discord's
+   [component reference](https://docs.discord.com/developers/components/reference)
+   during implementation.
+2. `/player register` uses one canonical Polytopia name. The native interface
+   does not distinguish mobile name, Steam name, or legacy friend code.
+   Existing prefix aliases and stored fields remain until a separately tested
+   migration resolves records that contain conflicting values.
+3. The optional Bullet surface gains `/bullet log`. It should infer an active
+   matchup when unambiguous, otherwise offer selection, then collect the
+   result and replay evidence, preview the effect, and confirm. This provides
+   a message-content-independent replacement for the current results-channel
+   listener.
+4. The familiar top-level `/staffhelp` name is preserved. It opens a
+   structured modal/workspace for game reference, long description, and
+   multiple uploads; `/support request` is removed from the proposal.
+
+These decisions simplify invocation without changing permission boundaries.
+Notification delivery, player-field migration, Bullet spreadsheet mutation,
+and staff-help routing each remain separate bounded implementation units.
+
+### D-025 — Keep explicit show commands and established ping/logs vocabulary
+
+Status: Accepted as command-specific naming; overall taxonomy v2.2 remains
+under review
+
+Keep `/game show` and `/player show` as the explicit detail commands. Discord
+command groups do not provide a default no-subcommand action, so the native
+surface accepts the extra `show` word instead of creating a misleading
+alternative. `/player show` defaults to the requester. `/game show` may infer
+the current game only from unambiguous context; otherwise it requests a game
+ID or selection.
+
+Use `/game ping`, not `/game notify`, for the interactive notification
+composer. Use `/game logs`, not `/game history`, for permission-aware game
+audit records. These names preserve established user vocabulary and map
+directly to the current `$ping`/`$pingall` and `$logs` commands without
+changing the proposed Components v2 interaction design.
+
+This is a naming decision inside the proposal, not final approval of Taxonomy
+v2.2. No registration change is authorized by this decision.
+
+### D-026 — Keep the development beta running between work units
+
+Status: Accepted
+
+The development beta is now expected to be running by default. After a
+significant code unit is completed, validated, and checkpointed, restart only
+the beta process from that intended checkpoint so runtime code and the
+development-guild command tree are current. A routine beta restart includes
+the existing development-guild-only synchronization performed at startup.
+
+Before launching or restarting, verify the development environment, beta
+application identity, `polytopia_dev` profile, disabled background tasks/API,
+configured development guild, current branch/worktree, and absence or exact
+identity of an existing beta process. Keep the bot stopped while fixture
+seed/cleanup tooling requires exclusive access.
+
+This standing authorization does not apply to production operations, global
+command synchronization, other guilds or runtime profiles, dependency
+installation, or materially broader live tests.
+
+### D-027 — Retire per-game platform distinctions under cross-play
+
+Status: Accepted
+
+Mobile and Steam now have full Polytopia cross-play, so new slash commands
+must not ask for a per-game platform. As related commands are modernized,
+remove platform-specific native choices and treat `newsteamgame`,
+`newsteamgameunranked`, `pingmobile`, `pingsteam`, platform filters, display
+emoji, and dual stored-name behavior as legacy compatibility surfaces.
+
+P2.3 removes the platform option from `/game record` and stores the existing
+database Boolean at its canonical compatibility value. The Boolean and
+historical rows remain until a separately gated schema/data cleanup can
+retire all readers safely. Prefix aliases remain registered during transition
+but must not imply a meaningful platform difference in newly recorded games.
+
+### D-028 — Use a roster string plus component review for `/game record`
+
+Status: Accepted for implementation; beta acceptance pending
+
+`/game record` takes the exact game name, one roster string using the familiar
+`vs` grammar, and an optional ranked flag. It parses arbitrary and unequal
+sides, resolves members, and presents a requester-only Components v2 preview.
+Only Confirm submits the existing validation/worker/post-commit pipeline;
+Edit sides uses a native Discord member selector and add/remove-side controls,
+while Cancel makes no database or Discord change.
+
+This staged design restores the prefix command's flexible shapes without
+message-content intent and avoids a large fixed slash option matrix. Mentions
+remain the safest initial input; the native side editor corrects the parsed
+draft without exposing raw mention strings.
 
 ## Progress log
+
+### 2026-07-30 — `/game record` beta accepted
+
+- The user retested the corrected workflow and reported that it worked well.
+- Accepted the roster parser, preview/confirmation flow, and native
+  side/member editor.
+- Observed no further live exception in the task-owned beta output.
+- Marked P2.3 Beta-validated; final integration and the broader Taxonomy v2.2
+  decision remain separate.
+- Left the development beta running under D-026.
+
+### 2026-07-30 — `/game record` beta findings fixed
+
+- Live confirmation exposed that component interactions have no application
+  command data and cannot be passed to `Context.from_interaction`.
+- Confirmed from the traceback that both failed attempts stopped before the
+  worker and made no game/database changes.
+- Retained the original slash context through the short-lived preview and
+  used it for the existing prefix/worker pipeline on confirmation.
+- Replaced the raw mention-string Edit modal with a native side editor:
+  choose a side, replace its players through Discord's user selector, add or
+  remove sides, and return to review.
+- Made the finished preview report completion or unexpected failure instead
+  of remaining indefinitely at “Creating the game…”.
+- Passed 18 focused and 183 complete offline tests with nine gated skips.
+- The existing gated database result remains valid because this correction
+  changes interaction/context handling only; no worker or schema behavior
+  changed.
+
+### 2026-07-30 — Flexible `/game record` implemented
+
+- Replaced the fixed two-sided `/game create` option matrix with
+  `/game record game_name roster ranked`.
+- Added arbitrary/unequal-side parsing, the requester shortcut, and a
+  requester-controlled Components v2 preview with Edit/Confirm/Cancel.
+- Kept worker submission behind Confirm and retained the P2.1 synchronous
+  transaction/post-commit boundary.
+- Removed platform from the slash interface and treated retained Steam prefix
+  aliases as cross-play compatibility names rather than a distinct game type.
+- Passed 16 focused tests, the 181-test offline suite with nine gated skips,
+  and eight gated `polytopia_dev` tests with one safe fixture skip.
+- Recorded implementation checkpoint `6af7c92`; beta acceptance remains
+  pending.
+
+### 2026-07-30 — `/game record` beta restarted and synchronized
+
+- Stopped only the standing task-owned development beta cleanly.
+- Restarted from roadmap checkpoint `da21786` with the development profile and
+  background tasks disabled.
+- Confirmed authentication as `PolyELO Bot Beta`
+  (`479029527553638401`) and startup/synchronization without a reported error.
+- Left the beta running under D-026; functional preview/edit/cancel/confirm
+  acceptance remains pending.
+
+### 2026-07-30 — Standing development-beta runtime policy accepted
+
+- Launched the beta from checkpoint `5f01aba` with
+  `POLYBOT_ENV=development` and `--skip_tasks`.
+- Confirmed authentication as `PolyELO Bot Beta`
+  (`479029527553638401`) and successful startup.
+- Accepted a running-by-default policy with restart after significant,
+  validated work units so code and development-guild registrations stay
+  current.
+- Kept production, global synchronization, alternate profiles/guilds,
+  background tasks, API enablement, dependency changes, and broader live
+  tests outside this standing authorization.
+
+### 2026-07-30 — Show, ping, and logs naming accepted
+
+- Retained `/game show` and `/player show` as explicit detail commands.
+- Recorded requester-default behavior for `/player show` and
+  context-sensitive inference for `/game show`.
+- Renamed the proposed `/game notify` composer to `/game ping`.
+- Renamed the proposed `/game history` audit view to `/game logs`.
+- Left final approval of Taxonomy v2.2 pending and made no registration,
+  runtime, synchronization, database, fixture, or production change.
+
+### 2026-07-30 — Component-first taxonomy v2.2 proposed
+
+- Applied the accepted P7.5 interaction lesson across the full taxonomy:
+  slash commands identify the task and essential target, while optional
+  filters, long-form input, uploads, previews, and paging move into
+  Components v2 workspaces.
+- Added an invocation-versus-interaction matrix for the major game, player,
+  team, leaderboard, Bullet, and staff-help journeys.
+- Redesigned the game notification workflow as a previewed composer with
+  multiple uploads (subsequently named `/game ping` by D-025),
+  repeatable text sections, and bounded multi-message delivery. Recorded
+  Discord's concrete per-input/file limits instead of promising unlimited
+  messages.
+- Collapsed mobile name, Steam name, and legacy friend code into one canonical
+  native Polytopia-name concept while requiring a separate stored-data
+  migration decision.
+- Added participant-facing `/bullet log`.
+- Preserved the established top-level `/staffhelp` name and removed
+  `/support request` from the proposal.
+- Made documentation-only changes; command registrations, beta runtime,
+  Discord synchronization, databases, fixtures, and production remained
+  untouched.
+
+### 2026-07-30 — Components v2 interaction preference accepted
+
+- The user accepted `/lb2` after desktop and mobile testing and described it
+  as strictly superior to the regular player leaderboard.
+- Stopped the task-owned beta cleanly after testing.
+- Retained all 24 owned showcase profiles and 48 games for future component
+  and leaderboard work.
+- Accepted D-023: task/target inputs stay on slash commands while exploratory
+  filters, views, pages, edits, previews, and confirmation should normally
+  move into Components v2.
+- Added P7.6 for a bounded reusable toolkit, promotion to
+  `/leaderboard players`, removal of temporary `/lb2`, and a second real
+  toolkit consumer.
+- Made Components v2 suitability and option classification part of every
+  later slash-conversion review without changing unresolved taxonomy names.
+
+### 2026-07-30 — Components v2 leaderboard showcase implemented
+
+- Created `codex/p7-5-lb2-components-v2` from the green P7.4 checkpoint.
+- Added temporary no-option `/lb2` as a public Components v2 experiment,
+  without changing `/leaderboard players` or settling the broader taxonomy.
+- Used a `LayoutView` container, markdown text displays, preset select,
+  active/all toggle, requester-only paging, numeric page modal, and **My
+  rank** navigation.
+- Kept page and rank changes database-free; alternate views use the existing
+  bounded two-thread leaderboard worker and are cached per message.
+- Extended immutable player rows with primitive Discord IDs solely for
+  requester-rank lookup.
+- Added separately gated/idempotent leaderboard fixture status, seed, and
+  confirmed-cleanup operations.
+- Seeded 24 owned profiles and 48 ranked games into `polytopia_dev`; verified
+  an idempotent rerun retained player IDs `163`-`186` and game IDs `200`-`247`.
+- Passed 31 focused tests, 174 complete offline tests with 9 gated skips, and
+  8 gated database tests with 1 operator-fixture-preserving skip.
+- No dependency, schema, production, service, or production database change
+  occurred.
+- Committed the implementation as `c4b34df`, then launched the explicitly
+  approved development profile. Discord synchronized `game`, `leaderboard`,
+  temporary `lb2`, and `elo` only to guild `478571892832206869`; the user
+  subsequently accepted the UI on desktop and mobile.
+
+### 2026-07-30 — Shared leaderboard page-jump modal implemented
+
+- Replaced the disabled page indicator with a requester-controlled
+  **Page X/Y** button across player, activity, and squad leaderboards.
+- Added a modern modal `Label` and numeric `TextInput` with ephemeral
+  non-numeric, range, authorization, and expiry validation.
+- Kept valid jumps public and database-free by rendering the existing
+  immutable snapshot.
+- Passed 5 focused modal tests, 22 combined leaderboard tests, and the complete
+  165-test offline suite with 9 gated skips.
+- Did not run database integration because the unit has no database path, and
+  did not launch or synchronize the beta bot.
+
+### 2026-07-30 — Activity and squad leaderboards implemented
+
+- Added `/leaderboard activity` with explicit server-30-days and
+  global-all-time views, preserving `$lbrecent`, `$recent`, `$active`, and
+  `$lbactivealltime`.
+- Added `/leaderboard squads` with current/all-time eligibility, preserving
+  `$lbsquad` and `$squadlb`.
+- Routed both prefix and slash reads through the P7.1 two-thread
+  worker-local leaderboard executor.
+- Generalized public requester-controlled component pagination across player,
+  activity, and squad leaderboard snapshots.
+- Preserved activity query definitions and row limits plus the squad model's
+  adaptive minimum-games rule.
+- Passed 22 focused tests, 160 offline tests with 9 gated skips, and 8 gated
+  `polytopia_dev` tests with 1 intentional fixture-preservation skip.
+- Did not launch the beta bot, synchronize Discord commands, modify fixture
+  ownership, or perform production work.
+
+### 2026-07-30 — Player leaderboard matrix and native pagination implemented
+
+- Audited `$lb` as four independently combinable dimensions, documented all
+  sixteen combinations, and retained `$leaderboard`, `$leaderboards`,
+  `$lbglobal`, and `$lbg`.
+- Recorded `$lbteamjr` as legacy prefix-only functionality with no planned
+  slash conversion.
+- Added the canonical `/leaderboard players` path with typed scope, rating,
+  era, and population choices.
+- Moved both prefix and slash player-leaderboard reads to a dedicated bounded
+  worker-local service returning immutable primitive snapshots.
+- Added public requester-controlled component pagination while preserving
+  prefix reaction pagination.
+- Passed 13 focused tests, 151 offline tests with 9 gated skips, and 8 gated
+  `polytopia_dev` tests with 1 intentional fixture-preservation skip.
+- Did not launch the beta bot, synchronize Discord commands, modify fixture
+  ownership, or perform production work.
+
+### 2026-07-30 — Modernization review checkpoints published
+
+- Committed the current taxonomy v2.1, attribute-command, and modal/component
+  discussion as `40bc816`.
+- Published `codex/database-slash-modernization` as the stable accumulation
+  checkpoint through integrated P4.1b/P4.1c.
+- Published `codex/p4-1d-match-slash-group` as the current review branch
+  containing P4.1d registration code and the still-unapproved taxonomy v2.1
+  proposal.
+- Passed the complete offline suite: 142 tests passed with eight gated
+  development-database tests skipped as designed.
+- Opened no pull request and performed no merge, beta launch, Discord
+  synchronization, database operation, or production action.
+
+### 2026-07-30 — Taxonomy review paused and modal opportunities recorded
+
+- Paused new registration implementation while staff continue reviewing
+  taxonomy v2.1, registration scope, management-guild placement, and possible
+  future web administration.
+- Confirmed the locked discord.py 2.7.1 environment supports typed selectors,
+  file uploads, radio groups, checkboxes, and text inside modals.
+- Reopened an arbitrary-side game-recording draft as a viable future C-001
+  mitigation because native user selection can now remain inside the modal
+  workflow.
+- Recorded focused candidates for modal/component UX without authorizing code,
+  beta launch, synchronization, database work, or a web-architecture pivot.
+
+### 2026-07-30 — Attribute-focused read/edit rule accepted
+
+- Accepted `/team emoji|image|server|name|house|tier` as focused commands
+  instead of placing them under `/team set`.
+- Defined omission as a read, a supplied replacement as a permission-checked
+  edit, and explicit `clear:true` as removal.
+- Applied the same rule where useful to
+  `/game name|map|tribe|notes|side|ranked`, `/squad name`,
+  `/house name|image`, and `/player timezone`.
+- Recalculated the proposed `/game` root at nineteen immediate children,
+  leaving six slots under Discord's 25-child limit.
+- Left the rest of taxonomy v2 under review and made no code, beta, Discord,
+  database, or production change.
+
+### 2026-07-30 — Journey-first system taxonomy v2 proposed
+
+- Revisited the complete 83-handler taxonomy in response to user and staff
+  feedback; no command code was changed.
+- Proposed `/game record`, `/game players`, and
+  `/game search status:unconfirmed`.
+- Kept common actions directly discoverable while grouping result corrections
+  under `/game result` and uncommon lifecycle administration under
+  `/game manage`. D-021 later refined metadata into focused read/edit commands.
+- Applied the same direct-action/property/maintenance conventions across player,
+  team, squad, leaderboard, league, house, ELO, optional Bullet, tools, about,
+  and support domains.
+- Recorded that a generic `get` subgroup is less usable than explicit
+  `/game show|search|players|logs` paths.
+- Left checkpoint `63af179`, the beta runtime, Discord synchronization, and
+  databases untouched. User/staff review is the next action.
+
+### 2026-07-30 — Unified game taxonomy proposed
+
+- Revised T-A so users see one `/game` domain for open, pending, started,
+  completed, and corrected games; `/match` remains only legacy internal or
+  prefix terminology.
+- Proposed `/game open|join|leave|kick|start|unstart|extend` alongside the
+  existing tracked-game operations.
+- Consolidated overlapping list/history behaviors into typed `/game search`
+  filters and `ping`/`pingall` into one scoped command, keeping the full
+  candidate group at no more than 24 children against Discord's 25-child
+  limit.
+- Placed the unsynchronized P4.1d `/match` beta procedure on naming hold.
+- Made no command-code, synchronization, runtime, database, production, or
+  service change; user review is the next action.
+
+### 2026-07-30 — Unified game taxonomy approved
+
+- The user approved D-019 and requested that all native commands implemented
+  in the prior pilot units conform before the next beta sync.
+- Authorized clean migration of the development-only native surface to
+  `/game create|win|unwin|delete|confirm|unconfirmed|set-ranked|extend|unstart`
+  and `/elo recalculate|status`.
+- Prefix commands and aliases remain unchanged. Old top-level slash names and
+  the unsynchronized `/match` group receive no compatibility aliases because
+  none has reached production.
+- No Discord synchronization or beta launch occurred at approval time.
+
+### 2026-07-30 — Existing native commands unified
+
+- Migrated all native commands implemented through P4.1d to the approved
+  `/game` and `/elo` roots in checkpoint `63af179`.
+- Registered `/game create|win|unwin|delete|confirm|unconfirmed|set-ranked`,
+  `/game extend|unstart`, and `/elo recalculate|status`; removed the
+  development-only top-level native names and the never-synchronized
+  `/match` root.
+- Preserved all prefix commands and aliases and reused their existing checks,
+  callbacks, workers, and post-commit behavior through thin adapters.
+- Added exact-tree, typed-option, delegation, prefix-registration, and
+  permission-check reuse coverage. The affected focused suite passed 74
+  tests; the full offline suite passed 142 with eight gated skips; the gated
+  database suite passed seven with one operator-fixture-preserving skip.
+- Updated the fixture-backed beta procedure for all eleven subcommands. No
+  beta launch or Discord synchronization occurred; that remains the next
+  separately approved action.
 
 ### 2026-07-29 — Slash taxonomy review prepared
 
@@ -2257,6 +3421,27 @@ the registration layer and documentation before P9 deployment.
 - Next: integrate P4.1b/P4.1c, implement the bounded domain-group registration
   unit, and use one separately approved beta session for `/match extend`,
   `/match unstart`, and preserved prefix behavior.
+
+### 2026-07-29 — P4.1d match slash group implemented
+
+- Integrated P4.1b/P4.1c into `codex/database-slash-modernization` as
+  `31c84d7`, preserving their implementation checkpoints.
+- Created `codex/p4-1d-match-slash-group` from that accumulation checkpoint.
+- Added guild-only `/match unstart game_id` and moved the unsynchronized
+  `/extend` adapter to `/match extend game_id`; prefix commands remain.
+- Added worker-side invocation-channel revalidation for slash/prefix parity.
+- Passed 21 focused command tests, the complete offline suite with 137 passes
+  and
+  eight gated skips, and seven gated development-database tests with the
+  operator-fixture round trip safely skipped.
+- Confirmed the beta was stopped and fixtures `149`-`151` remained available;
+  enhanced status with pending/expiration fields and recorded the exact live
+  smoke sequence in the fixture runbook.
+- Recorded implementation checkpoint `416ca30`. No beta launch, Discord
+  synchronization, production operation, dependency change, schema change,
+  push, or PR was performed.
+- Next: commit the evidence and request separate approval for the documented
+  development beta sync/smoke session.
 
 ## Resume checklist
 

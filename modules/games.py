@@ -6,8 +6,12 @@ import modules.exceptions as exceptions
 import modules.achievements as achievements
 from modules import channels
 from modules import image_storage
+from modules import leaderboard_views
+from modules import leaderboard_workers
+from modules import leaderboard_v2
 from modules import elo_workers
 from modules import game_workers
+from modules import game_record_views
 from modules.elo_jobs import EloJobConflict
 import peewee
 import modules.models as models
@@ -65,7 +69,79 @@ class PolyGame(commands.Converter):
             return game
 
 
+class NewGameRosterError(ValueError):
+    """User-facing roster resolution or permission failure."""
+
+
+async def resolve_newgame_roster(ctx, args, *, ranked_flag):
+    """Resolve the shared prefix/slash roster grammar to Discord members."""
+
+    if len(args) == 1:
+        args_list = [str(ctx.author.id), 'vs', args[0]]
+    else:
+        args_list = list(args)
+
+    player_groups = [
+        list(group)
+        for is_separator, group in groupby(
+            args_list,
+            lambda value: value.lower() in ('vs', 'versus'),
+        )
+        if not is_separator
+    ]
+    total_players = sum(map(len, player_groups))
+    game_allowed, join_error_message = settings.can_user_join_game(
+        user_level=settings.get_user_level(ctx.author),
+        game_size=total_players,
+        is_ranked=ranked_flag,
+        is_host=True,
+    )
+    if not game_allowed:
+        raise NewGameRosterError(join_error_message)
+
+    discord_groups = []
+    author_found = False
+    for group in player_groups:
+        discord_group = []
+        for player_argument in group:
+            guild_matches = await utilities.get_guild_member(
+                ctx,
+                player_argument,
+            )
+            if len(guild_matches) == 0:
+                raise NewGameRosterError(
+                    f'Could not match “{player_argument}” to a server '
+                    'member. Try using an @mention.'
+                )
+            if len(guild_matches) > 1:
+                raise NewGameRosterError(
+                    f'More than one server match was found for '
+                    f'“{player_argument}”. Use an @mention.'
+                )
+            member = guild_matches[0]
+            if member == ctx.author:
+                author_found = True
+            discord_group.append(member)
+        discord_groups.append(discord_group)
+
+    if not author_found and not settings.is_staff(ctx.author):
+        raise NewGameRosterError(
+            'You cannot record a game that you are not participating in.'
+        )
+    return tuple(tuple(group) for group in discord_groups)
+
+
 class polygames(commands.Cog):
+    game_group = discord.app_commands.Group(
+        name='game',
+        description='Create, manage, and correct games.',
+        guild_only=True,
+    )
+    leaderboard_group = discord.app_commands.Group(
+        name='leaderboard',
+        description='View competitive rankings and activity.',
+        guild_only=True,
+    )
 
     def __init__(self, bot):
         self.bot = bot
@@ -273,8 +349,148 @@ class polygames(commands.Cog):
             player.generate_display_name(player_name=after.name, player_nick=after.nick)
             models.GameLog.write(game_id=0, guild_id=after.guild.id, message=f'{models.GameLog.member_string(after)} had changed nickname from "{before.nick}" to "{after.nick}"')
 
+    @staticmethod
+    def _player_leaderboard_request(
+        guild_id: int,
+        invoked_with: str,
+        filters: str = '',
+    ) -> leaderboard_workers.PlayerLeaderboardRequest:
+        filter_text = filters.upper()
+        global_alias = invoked_with in ('lbglobal', 'lbg')
+        return leaderboard_workers.PlayerLeaderboardRequest(
+            guild_id=guild_id,
+            scope=(
+                'global'
+                if global_alias or 'GLOBAL' in filter_text
+                else 'local'
+            ),
+            rating='peak' if 'MAX' in filter_text else 'current',
+            era=(
+                'all-time'
+                if 'ALLTIME' in filter_text
+                else 'current'
+            ),
+            population=(
+                'all'
+                if 'ALLPLAYERS' in filter_text
+                else 'active'
+            ),
+            active_cutoff=settings.date_cutoff,
+        )
+
+    @staticmethod
+    def _player_leaderboard_entries(
+        result: leaderboard_workers.PlayerLeaderboardResult,
+    ) -> list[tuple[str, str]]:
+        return [
+            (
+                f'{row.rank:>3}. {row.team_emoji}{row.name}',
+                (
+                    f'`ELO {row.elo}\u00a0\u00a0\u00a0\u00a0'
+                    f'W {row.wins} / L {row.losses}`'
+                ),
+            )
+            for row in result.rows
+        ]
+
+    async def _load_player_leaderboard(
+        self,
+        request: leaderboard_workers.PlayerLeaderboardRequest,
+    ) -> leaderboard_workers.PlayerLeaderboardResult:
+        return await leaderboard_workers.run_player_leaderboard(request)
+
+    @staticmethod
+    def _activity_leaderboard_request(
+        guild_id: int,
+        invoked_with: str,
+    ) -> leaderboard_workers.ActivityLeaderboardRequest:
+        return leaderboard_workers.ActivityLeaderboardRequest(
+            guild_id=guild_id,
+            view=(
+                'global-all-time'
+                if invoked_with == 'lbactivealltime'
+                else 'server-30-days'
+            ),
+            recent_cutoff=(
+                datetime.datetime.now()
+                - datetime.timedelta(days=30)
+            ),
+        )
+
+    @staticmethod
+    def _activity_leaderboard_entries(
+        result: leaderboard_workers.ActivityLeaderboardResult,
+    ) -> list[tuple[str, str]]:
+        count_label = (
+            'Games Played'
+            if result.view == 'global-all-time'
+            else 'Recent Games'
+        )
+        return [
+            (
+                f'{row.rank:>3}. {row.team_emoji}{row.name}',
+                (
+                    f'`ELO {row.elo}\u00a0\u00a0\u00a0\u00a0'
+                    f'{count_label} {row.games}`'
+                ),
+            )
+            for row in result.rows
+        ]
+
+    async def _load_activity_leaderboard(
+        self,
+        request: leaderboard_workers.ActivityLeaderboardRequest,
+    ) -> leaderboard_workers.ActivityLeaderboardResult:
+        return await leaderboard_workers.run_activity_leaderboard(request)
+
+    @staticmethod
+    def _squad_leaderboard_request(
+        guild_id: int,
+        filters: str = '',
+    ) -> leaderboard_workers.SquadLeaderboardRequest:
+        return leaderboard_workers.SquadLeaderboardRequest(
+            guild_id=guild_id,
+            period=(
+                'all-time'
+                if 'ALLTIME' in filters.upper()
+                else 'current'
+            ),
+            active_cutoff=settings.date_cutoff,
+        )
+
+    @staticmethod
+    def _squad_leaderboard_entries(
+        result: leaderboard_workers.SquadLeaderboardResult,
+    ) -> list[tuple[str, str]]:
+        entries = []
+        for row in result.rows:
+            squad_name = f'{row.squad_name}\n' if row.squad_name else ''
+            emojis = ' '.join(row.member_emojis)
+            member_names = ' / '.join(row.member_names)
+            entries.append(
+                (
+                    (
+                        f'{row.rank:>3}. {squad_name}'
+                        f'{emojis}{member_names}'
+                    ),
+                    (
+                        f'`#{row.squad_id} (ELO: {row.elo:4}) '
+                        f'W {row.wins} / L {row.losses}`'
+                    ),
+                )
+            )
+        return entries
+
+    async def _load_squad_leaderboard(
+        self,
+        request: leaderboard_workers.SquadLeaderboardRequest,
+    ) -> leaderboard_workers.SquadLeaderboardResult:
+        return await leaderboard_workers.run_squad_leaderboard(request)
+
     @settings.in_bot_channel_strict()
-    @commands.command(aliases=['leaderboard', 'leaderboards', 'lbglobal', 'lbg'])
+    @commands.command(
+        aliases=['leaderboard', 'leaderboards', 'lbglobal', 'lbg'],
+    )
     @commands.cooldown(2, 30, commands.BucketType.channel)
     async def lb(self, ctx, *, filters: str = ''):
         """ Display individual leaderboard
@@ -311,53 +527,145 @@ class polygames(commands.Cog):
         `[p]lb global alltime allplayers max` - Global leaderboard, including inactive players, ranked by maximum hstoric Alltime ELO
         """
 
-        leaderboard = []
-        max_flag, global_flag, version = False, False, None
-        target_model = Player
-        lb_title = 'Individual Leaderboard'
-        date_cutoff = settings.date_cutoff
-
-        if ctx.invoked_with == 'lbglobal' or ctx.invoked_with == 'lbg':
-            filters = filters + 'GLOBAL'
-
-        if 'GLOBAL' in filters.upper():
-            global_flag = True
-            lb_title = 'Global Leaderboard'
-            target_model = DiscordMember
-
-        if 'ALLPLAYERS' in filters.upper():
-            lb_title += ' - Including Inactive Players'
-            date_cutoff = datetime.date.min
-
-        if 'MAX' in filters.upper():
-            max_flag = True  # leaderboard ranked by player.max_elo
-            lb_title += ' - Maximum ELO Achieved'
-
-        if 'ALLTIME' in filters.upper():
-            version = 'ALLTIME'  # leaderboard ranked by player.elo_alltime
-            lb_title += ' - Alltime (not reset)'
-
-        def process_leaderboard():
-            utilities.connect()
-            leaderboard_query = target_model.leaderboard(date_cutoff=date_cutoff, guild_id=ctx.guild.id, max_flag=max_flag, version=version)
-
-            for counter, player in enumerate(leaderboard_query[:2000]):
-                wins, losses = player.get_record(version=version)
-                emoji_str = player.team.emoji if not global_flag and player.team else ''
-
-                leaderboard.append(
-                    (f'{(counter + 1):>3}. {emoji_str}{player.name}', f'`ELO {player.elo_field}\u00A0\u00A0\u00A0\u00A0W {wins} / L {losses}`')
-                )
-            return leaderboard, leaderboard_query.count()
-
+        request = self._player_leaderboard_request(
+            guild_id=ctx.guild.id,
+            invoked_with=ctx.invoked_with,
+            filters=filters,
+        )
         async with ctx.typing():
-            leaderboard, leaderboard_size = await asyncio.get_running_loop().run_in_executor(None, process_leaderboard)
+            try:
+                result = await self._load_player_leaderboard(request)
+            except (peewee.PeeweeException, ValueError) as exc:
+                logger.exception('Could not load player leaderboard')
+                return await ctx.send(
+                    f'Could not load the player leaderboard: {exc}'
+                )
 
-        # if ctx.guild.id != settings.server_ids['polychampions']:
-        #     await ctx.send('Powered by PolyChampions. League server with a team focus and competitive players.\n'
-        #         'Supporting up to 6-player team ELO games and automatic team channels. - <https://tinyurl.com/polychampions>')
-        #     # link put behind url shortener to not show big invite embed
-        await utilities.paginate(self.bot, ctx, title=f'**{lb_title}**\n{leaderboard_size} ranked players', message_list=leaderboard, page_start=0, page_end=10, page_size=10)
+        await utilities.paginate(
+            self.bot,
+            ctx,
+            title=(
+                f'**{result.title}**\n'
+                f'{result.total_ranked} ranked players'
+            ),
+            message_list=self._player_leaderboard_entries(result),
+            page_start=0,
+            page_end=10,
+            page_size=10,
+        )
+
+    @leaderboard_group.command(
+        name='players',
+        description='View local or global individual player rankings.',
+    )
+    @discord.app_commands.describe(
+        scope='Use this server or cross-server global ratings.',
+        rating='Rank by current ELO or maximum ELO achieved.',
+        era='Use the current rating era or permanent all-time ratings.',
+        population='Include recently active players or all players.',
+    )
+    @discord.app_commands.checks.cooldown(
+        2,
+        30.0,
+        key=lambda interaction: interaction.channel_id,
+    )
+    async def player_leaderboard_slash(
+        self,
+        interaction: discord.Interaction,
+        scope: Literal['local', 'global'] = 'local',
+        rating: Literal['current', 'peak'] = 'current',
+        era: Literal['current', 'all-time'] = 'current',
+        population: Literal['active', 'all'] = 'active',
+    ):
+        """Typed native player leaderboard with component pagination."""
+
+        await interaction.response.defer()
+        ctx = await commands.Context.from_interaction(interaction)
+        ctx.prefix = settings.guild_setting(
+            interaction.guild.id,
+            'command_prefix',
+        )
+        ctx.invoked_with = 'lb'
+        if not await self.lb.can_run(ctx):
+            return
+
+        request = leaderboard_workers.PlayerLeaderboardRequest(
+            guild_id=interaction.guild.id,
+            scope=scope,
+            rating=rating,
+            era=era,
+            population=population,
+            active_cutoff=settings.date_cutoff,
+        )
+        try:
+            result = await self._load_player_leaderboard(request)
+        except (peewee.PeeweeException, ValueError) as exc:
+            logger.exception('Could not load slash player leaderboard')
+            return await interaction.followup.send(
+                f'Could not load the player leaderboard: {exc}',
+                ephemeral=True,
+            )
+
+        view = leaderboard_views.PlayerLeaderboardView(
+            result,
+            requester_id=interaction.user.id,
+        )
+        view.message = await interaction.edit_original_response(
+            embed=leaderboard_views.player_leaderboard_embed(result, 0),
+            view=view,
+        )
+
+    @discord.app_commands.command(
+        name='lb2',
+        description='Try an experimental interactive player leaderboard.',
+    )
+    @discord.app_commands.guild_only()
+    @discord.app_commands.checks.cooldown(
+        2,
+        30.0,
+        key=lambda interaction: interaction.channel_id,
+    )
+    async def player_leaderboard_v2_slash(
+        self,
+        interaction: discord.Interaction,
+    ):
+        """Components v2 experiment with in-message leaderboard controls."""
+
+        await interaction.response.defer()
+        ctx = await commands.Context.from_interaction(interaction)
+        ctx.prefix = settings.guild_setting(
+            interaction.guild.id,
+            'command_prefix',
+        )
+        ctx.invoked_with = 'lb'
+        if not await self.lb.can_run(ctx):
+            return
+
+        request = leaderboard_workers.PlayerLeaderboardRequest(
+            guild_id=interaction.guild.id,
+            scope='local',
+            rating='current',
+            era='current',
+            population='active',
+            active_cutoff=settings.date_cutoff,
+        )
+        try:
+            result = await self._load_player_leaderboard(request)
+        except (peewee.PeeweeException, ValueError) as exc:
+            logger.exception('Could not load experimental leaderboard')
+            return await interaction.followup.send(
+                f'Could not load the player leaderboard: {exc}',
+                ephemeral=True,
+            )
+
+        view = leaderboard_v2.ExperimentalLeaderboardView(
+            guild_id=interaction.guild.id,
+            requester_id=interaction.user.id,
+            result=result,
+            loader=self._load_player_leaderboard,
+            active_cutoff=settings.date_cutoff,
+        )
+        view.message = await interaction.edit_original_response(view=view)
 
     @settings.in_bot_channel_strict()
     @commands.command(aliases=['recent', 'active', 'lbactivealltime'], hidden=True)
@@ -367,40 +675,105 @@ class polygames(commands.Cog):
 
         Alternative command is `[p]lbactivealltime`
         """
-        last_month = (datetime.datetime.now() + datetime.timedelta(days=-30))
-
-        leaderboard = []
-
-        query = Player.select(Player, peewee.fn.COUNT(Lineup.id).alias('count')).join(Lineup).join(Game).where(
-            (Lineup.player == Player.id) & ((Game.date > last_month) | (Game.completed_ts > last_month)) & (Game.guild_id == ctx.guild.id)
-        ).group_by(Player.id).order_by(-peewee.SQL('count'))
-
-        if ctx.invoked_with == 'lbactivealltime':
-            # special command to see all time active list by discord member
-            query = DiscordMember.select(DiscordMember, peewee.fn.COUNT(Lineup.id).alias('count')).join(Player).join(Lineup).join(Game).where(
-                (Lineup.player.discord_member == DiscordMember.id) & (Game.is_pending == 0)
-            ).group_by(DiscordMember.id).order_by(-peewee.SQL('count'))
-
-            for counter, discord_member in enumerate(query[:1000]):
-                wins, losses = discord_member.get_record()
-                leaderboard.append(
-                    (f'{(counter + 1):>3}. {discord_member.name}', f'`ELO {discord_member.elo_moonrise}\u00A0\u00A0\u00A0\u00A0Games Played {discord_member.count}`')
+        request = self._activity_leaderboard_request(
+            guild_id=ctx.guild.id,
+            invoked_with=ctx.invoked_with,
+        )
+        async with ctx.typing():
+            try:
+                result = await self._load_activity_leaderboard(request)
+            except (peewee.PeeweeException, ValueError) as exc:
+                logger.exception('Could not load activity leaderboard')
+                return await ctx.send(
+                    f'Could not load the activity leaderboard: {exc}'
                 )
-            title = '**Most active players of all time**'
-        else:
-            for counter, player in enumerate(query[:500]):
-                wins, losses = player.get_record()
-                emoji_str = player.team.emoji if player.team else ''
-                leaderboard.append(
-                    (f'{(counter + 1):>3}. {emoji_str}{player.name}', f'`ELO {player.elo_moonrise}\u00A0\u00A0\u00A0\u00A0Recent Games {player.count}`')
-                )
-            title = f'**Most Active Recent Players**\n{query.count()} players in past 30 days'
 
-        # if ctx.guild.id != settings.server_ids['polychampions']:
-        #     await ctx.send('Powered by PolyChampions. League server with a team focus and competitive players.\n'
-        #         'Supporting up to 6-player team ELO games and automatic team channels. - <https://tinyurl.com/polychampions>')
-        #     # link put behind url shortener to not show big invite embed
-        await utilities.paginate(self.bot, ctx, title=title, message_list=leaderboard, page_start=0, page_end=10, page_size=10)
+        await utilities.paginate(
+            self.bot,
+            ctx,
+            title=(
+                f'**{result.title}**\n'
+                f'{result.total_players} players'
+            ),
+            message_list=self._activity_leaderboard_entries(result),
+            page_start=0,
+            page_end=10,
+            page_size=10,
+        )
+
+    @leaderboard_group.command(
+        name='activity',
+        description='View recent server or all-time global game activity.',
+    )
+    @discord.app_commands.describe(
+        view='Choose the complete scope and time window.',
+    )
+    @discord.app_commands.choices(
+        view=[
+            discord.app_commands.Choice(
+                name='This server — past 30 days',
+                value='server-30-days',
+            ),
+            discord.app_commands.Choice(
+                name='Global — all time',
+                value='global-all-time',
+            ),
+        ],
+    )
+    @discord.app_commands.checks.cooldown(
+        2,
+        30.0,
+        key=lambda interaction: interaction.channel_id,
+    )
+    async def activity_leaderboard_slash(
+        self,
+        interaction: discord.Interaction,
+        view: str = 'server-30-days',
+    ):
+        """Typed native activity leaderboard with component pagination."""
+
+        await interaction.response.defer()
+        ctx = await commands.Context.from_interaction(interaction)
+        ctx.prefix = settings.guild_setting(
+            interaction.guild.id,
+            'command_prefix',
+        )
+        ctx.invoked_with = (
+            'lbactivealltime'
+            if view == 'global-all-time'
+            else 'lbrecent'
+        )
+        if not await self.lbrecent.can_run(ctx):
+            return
+
+        request = leaderboard_workers.ActivityLeaderboardRequest(
+            guild_id=interaction.guild.id,
+            view=view,
+            recent_cutoff=(
+                datetime.datetime.now()
+                - datetime.timedelta(days=30)
+            ),
+        )
+        try:
+            result = await self._load_activity_leaderboard(request)
+        except (peewee.PeeweeException, ValueError) as exc:
+            logger.exception('Could not load slash activity leaderboard')
+            return await interaction.followup.send(
+                f'Could not load the activity leaderboard: {exc}',
+                ephemeral=True,
+            )
+
+        view_control = leaderboard_views.ActivityLeaderboardView(
+            result,
+            requester_id=interaction.user.id,
+        )
+        view_control.message = await interaction.edit_original_response(
+            embed=leaderboard_views.activity_leaderboard_embed(
+                result,
+                0,
+            ),
+            view=view_control,
+        )
 
     @settings.in_bot_channel_strict()
     @settings.guild_has_setting(setting_name='allow_teams')
@@ -532,34 +905,95 @@ class polygames(commands.Cog):
         `[p]lbsquad alltime` - Alltime leaderboard.
         """
 
-        leaderboard = []
-        lb_title = 'Squad Leaderboard'
-        date_cutoff = settings.date_cutoff
-
-        if 'ALLTIME' in filters.upper():
-            lb_title += ' - Alltime'
-            date_cutoff = datetime.date.min
-
-        def process_leaderboard():
-            utilities.connect()
-            squads = Squad.leaderboard(date_cutoff=date_cutoff, guild_id=ctx.guild.id)
-            for counter, sq in enumerate(squads[:500]):
-                wins, losses = sq.get_record()
-                squad_members = sq.get_members()
-                emoji_list = [p.team.emoji for p in squad_members if p.team is not None]
-                emoji_string = ' '.join(emoji_list)
-                squad_member_names = ' / '.join(sq.get_names())
-                squad_name_str = f'{sq.name}\n' if sq.name else ''
-
-                leaderboard.append(
-                    (f'{(counter + 1):>3}. {squad_name_str}{emoji_string}{squad_member_names}', f'`#{sq.id} (ELO: {sq.elo:4}) W {wins} / L {losses}`')
-                )
-            return leaderboard, squads.count()
-
+        request = self._squad_leaderboard_request(
+            guild_id=ctx.guild.id,
+            filters=filters,
+        )
         async with ctx.typing():
-            leaderboard, leaderboard_size = await asyncio.get_running_loop().run_in_executor(None, process_leaderboard)
+            try:
+                result = await self._load_squad_leaderboard(request)
+            except (peewee.PeeweeException, ValueError) as exc:
+                logger.exception('Could not load squad leaderboard')
+                return await ctx.send(
+                    f'Could not load the squad leaderboard: {exc}'
+                )
 
-        await utilities.paginate(self.bot, ctx, title=f'**{lb_title}**\n{leaderboard_size} ranked squads', message_list=leaderboard, page_start=0, page_end=10, page_size=10)
+        await utilities.paginate(
+            self.bot,
+            ctx,
+            title=(
+                f'**{result.title}**\n'
+                f'{result.total_squads} ranked squads'
+            ),
+            message_list=self._squad_leaderboard_entries(result),
+            page_start=0,
+            page_end=10,
+            page_size=10,
+        )
+
+    @leaderboard_group.command(
+        name='squads',
+        description='View current or all-time squad rankings.',
+    )
+    @discord.app_commands.describe(
+        period='Use current eligibility or include all squad history.',
+    )
+    @discord.app_commands.choices(
+        period=[
+            discord.app_commands.Choice(
+                name='Current eligibility',
+                value='current',
+            ),
+            discord.app_commands.Choice(
+                name='All time',
+                value='all-time',
+            ),
+        ],
+    )
+    @discord.app_commands.checks.cooldown(
+        2,
+        20.0,
+        key=lambda interaction: interaction.channel_id,
+    )
+    async def squad_leaderboard_slash(
+        self,
+        interaction: discord.Interaction,
+        period: str = 'current',
+    ):
+        """Typed native squad leaderboard with component pagination."""
+
+        await interaction.response.defer()
+        ctx = await commands.Context.from_interaction(interaction)
+        ctx.prefix = settings.guild_setting(
+            interaction.guild.id,
+            'command_prefix',
+        )
+        ctx.invoked_with = 'lbsquad'
+        if not await self.lbsquad.can_run(ctx):
+            return
+
+        request = leaderboard_workers.SquadLeaderboardRequest(
+            guild_id=interaction.guild.id,
+            period=period,
+            active_cutoff=settings.date_cutoff,
+        )
+        try:
+            result = await self._load_squad_leaderboard(request)
+        except (peewee.PeeweeException, ValueError) as exc:
+            logger.exception('Could not load slash squad leaderboard')
+            return await interaction.followup.send(
+                f'Could not load the squad leaderboard: {exc}',
+                ephemeral=True,
+            )
+
+        view = leaderboard_views.SquadLeaderboardView(
+            result,
+            requester_id=interaction.user.id,
+        )
+        view.message = await interaction.edit_original_response(
+            embed=leaderboard_views.squad_leaderboard_embed(result, 0),
+            view=view,
+        )
 
     @settings.in_bot_channel()
     @settings.guild_has_setting(setting_name='allow_teams')
@@ -1515,14 +1949,18 @@ class polygames(commands.Cog):
         `[p]newgame "Name of Game" nelluk frodakcin vs bakalol ben` - Sets up a 2v2 game
 
         Use `[p]newgameunranked` to create the game as unranked
-        Use `[p]newsteamgame` or `[p]newsteamgameunranked` to specify Steam platform.
+        Legacy `[p]newsteamgame` aliases remain accepted, but platform no
+        longer changes game behavior because Polytopia supports cross-play.
         """
 
         if ctx.guild.id == 814317488418193478 and not settings.is_staff(ctx.author):
             return await ctx.send('For **The Polympics** only server staff may open games.')
 
         ranked_flag = not (ctx.invoked_with in ['newgameunranked', 'newsteamgameunranked'])
-        is_mobile = ctx.invoked_with in ['newgame', 'newgameunranked']
+        # Mobile and Steam now have full cross-play. Retain the legacy field
+        # with its canonical compatibility value until the schema and all
+        # historical filters are retired in a separate migration.
+        is_mobile = True
 
         example_usage = (f'Example usage:\n`{ctx.prefix}newgame "Name of Game" player1 VS player2` - Start a 1v1 game\n'
                          f'`{ctx.prefix}newgame "Name of Game" player1 player2 VS player3 player4` - Start a 2v2 game')
@@ -1561,50 +1999,14 @@ class polygames(commands.Cog):
                 'to override due to your user level.'
             )
 
-        if len(args) == 1:
-            args_list = [str(ctx.author.id), 'vs', args[0]]
-        else:
-            args_list = list(args)
-
-        player_groups = [list(group) for k, group in groupby(args_list, lambda x: x.lower() in ('vs', 'versus')) if not k]
-        # split ['foo', 'bar', 'vs', 'baz', 'bat'] into [['foo', 'bar']['baz', 'bat']]
-
-        total_players = sum(map(len, player_groups))
-        game_allowed, join_error_message = settings.can_user_join_game(
-            user_level=settings.get_user_level(ctx.author), game_size=total_players, is_ranked=ranked_flag, is_host=True
-        )
-        if not game_allowed:
-            return await ctx.send(join_error_message)
-
-        discord_groups = []
-        author_found = False
-        for group in player_groups:
-            # Convert each arg into a Discord guild member and build a new
-            # list of lists, or return if any arg can't be matched.
-            discord_group = []
-            for p in group:
-                guild_matches = await utilities.get_guild_member(ctx, p)
-                if len(guild_matches) == 0:
-                    return await ctx.send(
-                        f'Could not match "**{p}**" to a server member. '
-                        'Try using an @Mention.'
-                    )
-                if len(guild_matches) > 1:
-                    return await ctx.send(
-                        f'More than one server matches found for "**{p}**". '
-                        'Try being more specific or using an @Mention.'
-                    )
-                if guild_matches[0] == ctx.author:
-                    author_found = True
-                discord_group.append(guild_matches[0])
-            discord_groups.append(discord_group)
-
-        if not author_found and not settings.is_staff(ctx.author):
-            # TODO: possibly allow this in PolyChampions
-            # (rickdaheals likes to do this)
-            return await ctx.send(
-                'You can\'t create a game that you are not a participant in.'
+        try:
+            discord_groups = await resolve_newgame_roster(
+                ctx,
+                args,
+                ranked_flag=ranked_flag,
             )
+        except NewGameRosterError as exc:
+            return await ctx.send(str(exc))
 
         logger.info(
             'All input checks passed. Creating new game records with args: '
@@ -1656,42 +2058,25 @@ class polygames(commands.Cog):
         newgame = Game.load_full_game(game_id=result.game_id)
         await post_newgame_messaging(ctx, game=newgame)
 
-    @discord.app_commands.command(
-        name='newgame',
-        description='Track an existing two-sided Polytopia game.',
+    @game_group.command(
+        name='record',
+        description='Record an existing Polytopia game.',
     )
-    @discord.app_commands.guild_only()
     @discord.app_commands.describe(
         game_name='The exact game name shown in Polytopia.',
-        side_one_player_one='First player on side one.',
-        side_two_player_one='First player on side two.',
+        roster='Players separated into sides with “vs”. Mentions are safest.',
         ranked='Whether the game affects ELO.',
-        platform='Polytopia platform used for this game.',
-        side_one_player_two='Optional second player on side one.',
-        side_two_player_two='Optional second player on side two.',
-        side_one_player_three='Optional third player on side one.',
-        side_two_player_three='Optional third player on side two.',
-        side_one_player_four='Optional fourth player on side one.',
-        side_two_player_four='Optional fourth player on side two.',
     )
     async def newgame_slash(
         self,
         interaction: discord.Interaction,
         game_name: str,
-        side_one_player_one: discord.Member,
-        side_two_player_one: discord.Member,
+        roster: str,
         ranked: bool = True,
-        platform: Literal['Mobile', 'Steam'] = 'Mobile',
-        side_one_player_two: discord.Member | None = None,
-        side_two_player_two: discord.Member | None = None,
-        side_one_player_three: discord.Member | None = None,
-        side_two_player_three: discord.Member | None = None,
-        side_one_player_four: discord.Member | None = None,
-        side_two_player_four: discord.Member | None = None,
     ):
-        """Typed slash entry point for common two-sided games through 4v4."""
+        """Flexible roster parser with an interaction review gate."""
 
-        await interaction.response.defer()
+        await interaction.response.defer(ephemeral=True)
         ctx = await commands.Context.from_interaction(interaction)
         ctx.prefix = settings.guild_setting(
             interaction.guild.id,
@@ -1703,36 +2088,68 @@ class polygames(commands.Cog):
         if not await self.newgame.can_run(ctx):
             return
 
-        side_one = (
-            side_one_player_one,
-            side_one_player_two,
-            side_one_player_three,
-            side_one_player_four,
-        )
-        side_two = (
-            side_two_player_one,
-            side_two_player_two,
-            side_two_player_three,
-            side_two_player_four,
-        )
-        args = [
-            *(str(member.id) for member in side_one if member is not None),
-            'vs',
-            *(str(member.id) for member in side_two if member is not None),
-        ]
-
-        if platform == 'Mobile':
-            ctx.invoked_with = 'newgame' if ranked else 'newgameunranked'
-        else:
-            ctx.invoked_with = (
-                'newsteamgame' if ranked else 'newsteamgameunranked'
+        async def build_preview(
+            roster_value: str,
+        ) -> game_record_views.GameRecordPreview:
+            parsed_sides = game_record_views.parse_roster_string(roster_value)
+            args = game_record_views.roster_arguments(parsed_sides)
+            resolved_sides = await resolve_newgame_roster(
+                ctx,
+                args,
+                ranked_flag=ranked,
+            )
+            return game_record_views.GameRecordPreview(
+                game_name=game_name,
+                roster=roster_value,
+                ranked=ranked,
+                sides=tuple(
+                    tuple(
+                        game_record_views.RosterMember(
+                            discord_id=member.id,
+                            display_name=discord.utils.escape_markdown(
+                                member.display_name
+                            ),
+                        )
+                        for member in side
+                    )
+                    for side in resolved_sides
+                ),
             )
 
-        await self.newgame.callback(self, ctx, game_name, *args)
+        try:
+            preview = await build_preview(roster)
+        except ValueError as exc:
+            return await interaction.edit_original_response(content=str(exc))
+
+        async def confirm_record(
+            confirmation: discord.Interaction,
+            roster_value: str,
+        ) -> None:
+            # Component interactions do not carry application-command data
+            # and therefore cannot create a new commands.Context. Retain the
+            # original slash context; its interaction webhook remains valid
+            # for this short-lived confirmation flow.
+            ctx.invoked_with = (
+                'newgame' if ranked else 'newgameunranked'
+            )
+            parsed_sides = game_record_views.parse_roster_string(roster_value)
+            await self.newgame.callback(
+                self,
+                ctx,
+                game_name,
+                *game_record_views.roster_arguments(parsed_sides),
+            )
+
+        view = game_record_views.GameRecordView(
+            requester_id=interaction.user.id,
+            preview=preview,
+            confirmer=confirm_record,
+        )
+        view.message = await interaction.edit_original_response(view=view)
 
     @settings.in_bot_channel_strict()
     @models.is_registered_member()
-    @commands.hybrid_command(
+    @commands.command(
         usage='game_id winner',
         aliases=['lose'],
     )
@@ -1902,9 +2319,33 @@ class polygames(commands.Cog):
                 f'claim with the command `{ctx.prefix}unwin {game_id}`'
             )
 
+    @game_group.command(
+        name='win',
+        description='Declare or confirm the winner of a game.',
+    )
+    @discord.app_commands.describe(
+        game_id='Game receiving the win claim.',
+        winner='Player or side that won.',
+    )
+    async def win_slash(
+        self,
+        interaction: discord.Interaction,
+        game_id: int,
+        winner: str,
+    ):
+        ctx = await commands.Context.from_interaction(interaction)
+        ctx.prefix = settings.guild_setting(
+            interaction.guild.id,
+            'command_prefix',
+        )
+        ctx.invoked_with = 'win'
+        if not await self.win.can_run(ctx):
+            return
+        await self.win.callback(self, ctx, game_id, winner=winner)
+
     @settings.in_bot_channel()
     @models.is_registered_member()
-    @commands.hybrid_command(usage='game_id')
+    @commands.command(usage='game_id')
     async def unwin(self, ctx, game_id: int):
         """Reset a completed game to incomplete
 
@@ -1997,9 +2438,29 @@ class polygames(commands.Cog):
             )
         await ctx.send(result.message)
 
+    @game_group.command(
+        name='unwin',
+        description='Reset a win claim or completed game.',
+    )
+    @discord.app_commands.describe(game_id='Game whose win should be reset.')
+    async def unwin_slash(
+        self,
+        interaction: discord.Interaction,
+        game_id: int,
+    ):
+        ctx = await commands.Context.from_interaction(interaction)
+        ctx.prefix = settings.guild_setting(
+            interaction.guild.id,
+            'command_prefix',
+        )
+        ctx.invoked_with = 'unwin'
+        if not await self.unwin.can_run(ctx):
+            return
+        await self.unwin.callback(self, ctx, game_id)
+
     @settings.in_bot_channel()
     @models.is_registered_member()
-    @commands.hybrid_command(
+    @commands.command(
         usage='game_id',
         aliases=['delete_game', 'delgame', 'delmatch', 'deletegame'],
     )
@@ -2178,6 +2639,131 @@ class polygames(commands.Cog):
                 target_guild,
                 channel_id=channel_id,
             )
+
+    @game_group.command(
+        name='delete',
+        description='Delete a game when your permissions allow it.',
+    )
+    @discord.app_commands.describe(game_id='Game to delete.')
+    async def delete_slash(
+        self,
+        interaction: discord.Interaction,
+        game_id: int,
+    ):
+        ctx = await commands.Context.from_interaction(interaction)
+        ctx.prefix = settings.guild_setting(
+            interaction.guild.id,
+            'command_prefix',
+        )
+        ctx.invoked_with = 'delete'
+        if not await self.delete.can_run(ctx):
+            return
+        await self.delete.callback(self, ctx, game_id)
+
+    async def _delegate_administration_slash(
+        self,
+        interaction: discord.Interaction,
+        method_name: str,
+        *args,
+    ):
+        administration_cog = self.bot.get_cog('administration')
+        if administration_cog is None:
+            message = 'The administration command handler is unavailable.'
+            if interaction.response.is_done():
+                return await interaction.followup.send(
+                    message,
+                    ephemeral=True,
+                )
+            return await interaction.response.send_message(
+                message,
+                ephemeral=True,
+            )
+        method = getattr(administration_cog, method_name)
+        return await method(interaction, *args)
+
+    @game_group.command(
+        name='confirm',
+        description='Confirm the claimed winner of a game.',
+    )
+    @discord.app_commands.describe(game_id='Game whose winner to confirm.')
+    async def confirm_slash(
+        self,
+        interaction: discord.Interaction,
+        game_id: int,
+    ):
+        await self._delegate_administration_slash(
+            interaction,
+            'confirm_slash',
+            game_id,
+        )
+
+    @game_group.command(
+        name='unconfirmed',
+        description='List games with claimed but unconfirmed winners.',
+    )
+    async def unconfirmed_slash(
+        self,
+        interaction: discord.Interaction,
+    ):
+        await self._delegate_administration_slash(
+            interaction,
+            'unconfirmed_slash',
+        )
+
+    @game_group.command(
+        name='set-ranked',
+        description='Set whether an incomplete game is ranked.',
+    )
+    @discord.app_commands.describe(
+        game_id='Incomplete game to correct.',
+        ranked='True for ranked; false for unranked.',
+    )
+    async def set_ranked_slash(
+        self,
+        interaction: discord.Interaction,
+        game_id: int,
+        ranked: bool,
+    ):
+        await self._delegate_administration_slash(
+            interaction,
+            'set_ranked_slash',
+            game_id,
+            ranked,
+        )
+
+    @game_group.command(
+        name='unstart',
+        description='Return an in-progress game to open matchmaking.',
+    )
+    @discord.app_commands.describe(
+        game_id='In-progress game to return to matchmaking.',
+    )
+    async def unstart_slash(
+        self,
+        interaction: discord.Interaction,
+        game_id: int,
+    ):
+        await self._delegate_administration_slash(
+            interaction,
+            'unstart_slash',
+            game_id,
+        )
+
+    @game_group.command(
+        name='extend',
+        description='Extend an open game deadline by 24 hours.',
+    )
+    @discord.app_commands.describe(game_id='Open game to extend.')
+    async def extend_slash(
+        self,
+        interaction: discord.Interaction,
+        game_id: int,
+    ):
+        await self._delegate_administration_slash(
+            interaction,
+            'extend_slash',
+            game_id,
+        )
 
     @commands.command(usage='game_id "New Name"')
     @models.is_registered_member()

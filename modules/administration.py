@@ -74,6 +74,12 @@ def format_elo_job_status(active_job, now=None):
 
 
 class administration(commands.Cog):
+    elo_group = discord.app_commands.Group(
+        name='elo',
+        description='Inspect and maintain ELO calculations.',
+        guild_only=True,
+    )
+
     def __init__(self, bot):
         self.bot = bot
         if settings.run_tasks:
@@ -209,6 +215,8 @@ class administration(commands.Cog):
         guild,
         prefix: str,
         requester,
+        invocation_channel_id: int | None,
+        invoked_with: str | None = None,
     ):
         utilities.lock_game(game_id)
         try:
@@ -216,7 +224,8 @@ class administration(commands.Cog):
                 game_id,
                 guild.id,
                 models.GameLog.member_string(requester),
-                f'{prefix}unstart',
+                invoked_with or f'{prefix}unstart',
+                invocation_channel_id,
             )
 
             warnings = []
@@ -501,11 +510,6 @@ class administration(commands.Cog):
             f'**{result.winner_name}**'
         )
 
-    @discord.app_commands.command(
-        name='confirm',
-        description='Confirm the claimed winner of a game.',
-    )
-    @discord.app_commands.guild_only()
     async def confirm_slash(
         self,
         interaction: discord.Interaction,
@@ -555,11 +559,6 @@ class administration(commands.Cog):
             f'**{result.winner_name}**'
         )
 
-    @discord.app_commands.command(
-        name='unconfirmed',
-        description='List games with claimed but unconfirmed winners.',
-    )
-    @discord.app_commands.guild_only()
     async def unconfirmed_slash(
         self,
         interaction: discord.Interaction,
@@ -899,15 +898,6 @@ class administration(commands.Cog):
             return await ctx.send(str(exc))
         return await ctx.send(message)
 
-    @discord.app_commands.command(
-        name='set-ranked',
-        description='Set whether an incomplete game is ranked.',
-    )
-    @discord.app_commands.guild_only()
-    @discord.app_commands.describe(
-        game_id='Incomplete game to correct.',
-        ranked='True for ranked; false for unranked.',
-    )
     async def set_ranked_slash(
         self,
         interaction: discord.Interaction,
@@ -961,10 +951,48 @@ class administration(commands.Cog):
                 guild=ctx.guild,
                 prefix=ctx.prefix,
                 requester=ctx.author,
+                invocation_channel_id=ctx.channel.id,
             )
         except game_workers.GameUnstartValidationError as exc:
             return await ctx.send(str(exc))
         await ctx.send(message)
+
+    async def unstart_slash(
+        self,
+        interaction: discord.Interaction,
+        game_id: int,
+    ):
+        if not settings.is_staff(interaction.user):
+            return await interaction.response.send_message(
+                'You do not have permission to use this command.',
+                ephemeral=True,
+            )
+        await interaction.response.defer()
+        prefix = settings.guild_setting(
+            interaction.guild.id,
+            'command_prefix',
+        )
+        try:
+            message = await self._unstart_game_and_post(
+                game_id=game_id,
+                guild=interaction.guild,
+                prefix=prefix,
+                requester=interaction.user,
+                invocation_channel_id=interaction.channel_id,
+                invoked_with='/game unstart',
+            )
+        except game_workers.GameUnstartValidationError as exc:
+            return await interaction.followup.send(str(exc), ephemeral=True)
+        except exceptions.RecordLocked as exc:
+            return await interaction.followup.send(str(exc), ephemeral=True)
+        except peewee.PeeweeException:
+            logger.exception('Failed to unstart game %s', game_id)
+            return await interaction.followup.send(
+                'Game restoration failed and rolled back. No Discord cleanup '
+                'was performed.',
+                ephemeral=True,
+            )
+        await interaction.followup.send(message)
 
     @commands.command(usage='game_id')
     async def extend(self, ctx, game: PolyGame = None):
@@ -991,12 +1019,6 @@ class administration(commands.Cog):
             f'**{result.old_expiration}**.'
         )
 
-    @discord.app_commands.command(
-        name='extend',
-        description='Extend an open game deadline by 24 hours.',
-    )
-    @discord.app_commands.guild_only()
-    @discord.app_commands.describe(game_id='Open game to extend.')
     async def extend_slash(
         self,
         interaction: discord.Interaction,
@@ -1540,11 +1562,10 @@ class administration(commands.Cog):
 
         await ctx.send(f'DB has been refreshed from {timestamp} onward')
 
-    @discord.app_commands.command(
-        name='recalc-games-from',
+    @elo_group.command(
+        name='recalculate',
         description='Recalculate ELO from a completed game onward.',
     )
-    @discord.app_commands.guild_only()
     @discord.app_commands.describe(
         game_id='Completed game that establishes the recalculation timestamp.',
         confirm='Must be true to start this destructive maintenance job.',
@@ -1610,11 +1631,10 @@ class administration(commands.Cog):
             ephemeral=True,
         )
 
-    @discord.app_commands.command(
-        name='elo-job-status',
+    @elo_group.command(
+        name='status',
         description='Show the currently running ELO mutation job.',
     )
-    @discord.app_commands.guild_only()
     async def elo_job_status_slash(
         self,
         interaction: discord.Interaction,

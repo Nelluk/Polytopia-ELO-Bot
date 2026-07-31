@@ -17,6 +17,10 @@ FIXTURE_VERSION = 1
 FIXTURE_NOTES_MARKER = f'polybot-dev-beta-fixture:v{FIXTURE_VERSION}'
 FIXTURE_NAME_PREFIX = 'Beta Fixture'
 SCENARIOS = ('ready', 'unconfirmed', 'completed')
+LEADERBOARD_FIXTURE_COUNT = 24
+LEADERBOARD_DISCORD_ID_BASE = 9_000_000_000_100_000_000
+LEADERBOARD_NAME_PREFIX = 'LB2 Showcase'
+LEADERBOARD_GAME_MARKER = 'polybot-dev-lb2-showcase:v1'
 
 
 class FixtureSafetyError(RuntimeError):
@@ -35,6 +39,8 @@ class FixtureGame:
     is_completed: bool
     is_confirmed: bool
     is_ranked: bool
+    is_pending: bool
+    expiration: str | None
 
 
 @dataclass(frozen=True)
@@ -42,6 +48,22 @@ class FixtureState:
     guild_id: int
     user_ids: tuple[int, ...]
     games: tuple[FixtureGame, ...]
+
+
+@dataclass(frozen=True)
+class LeaderboardFixturePlayer:
+    discord_id: int
+    player_id: int
+    name: str
+    elo: int
+    elo_max: int
+
+
+@dataclass(frozen=True)
+class LeaderboardFixtureState:
+    guild_id: int
+    players: tuple[LeaderboardFixturePlayer, ...]
+    game_ids: tuple[int, ...]
 
 
 def default_manifest_path(project_root: Path) -> Path:
@@ -109,6 +131,53 @@ def is_owned_game(game: Any, guild_id: int) -> bool:
     )
 
 
+def _leaderboard_name(index: int) -> str:
+    return f'{LEADERBOARD_NAME_PREFIX} {index:02d}'
+
+
+def _leaderboard_discord_id(index: int) -> int:
+    return LEADERBOARD_DISCORD_ID_BASE + index
+
+
+def _leaderboard_game_name(game_number: int) -> str:
+    # Game.save() normalizes names with str.title().
+    return f'{LEADERBOARD_NAME_PREFIX} Game {game_number:02d}'.title()
+
+
+def _leaderboard_index(discord_id: int) -> int | None:
+    index = int(discord_id) - LEADERBOARD_DISCORD_ID_BASE
+    if 1 <= index <= LEADERBOARD_FIXTURE_COUNT:
+        return index
+    return None
+
+
+def is_owned_leaderboard_player(player: Any, guild_id: int) -> bool:
+    """Require every synthetic-player ownership marker to agree."""
+
+    index = _leaderboard_index(player.discord_member.discord_id)
+    return (
+        index is not None
+        and int(player.guild_id) == int(guild_id)
+        and player.name == _leaderboard_name(index)
+        and player.discord_member.name == _leaderboard_name(index)
+    )
+
+
+def is_owned_leaderboard_game(game: Any, guild_id: int) -> bool:
+    return (
+        int(game.guild_id) == int(guild_id)
+        and game.notes == LEADERBOARD_GAME_MARKER
+        and bool(game.name)
+        and game.name in {
+            _leaderboard_game_name(game_number)
+            for game_number in range(
+                1,
+                (LEADERBOARD_FIXTURE_COUNT // 2) * 4 + 1,
+            )
+        }
+    )
+
+
 def _live_identity(models_module: Any) -> tuple[str, str]:
     row = models_module.db.execute_sql(
         'SELECT current_database(), current_user'
@@ -158,6 +227,147 @@ def _find_fixture_games(models_module: Any, guild_id: int) -> tuple[Any, ...]:
             & (models_module.Game.notes == FIXTURE_NOTES_MARKER)
         ).order_by(models_module.Game.id)
     )
+
+
+def _find_leaderboard_players(
+    models_module: Any,
+    guild_id: int,
+) -> tuple[Any, ...]:
+    first_id = _leaderboard_discord_id(1)
+    last_id = _leaderboard_discord_id(LEADERBOARD_FIXTURE_COUNT)
+    return tuple(
+        models_module.Player
+        .select(models_module.Player, models_module.DiscordMember)
+        .join(models_module.DiscordMember)
+        .where(
+            (models_module.Player.guild_id == guild_id)
+            & (
+                models_module.DiscordMember.discord_id.between(
+                    first_id,
+                    last_id,
+                )
+            )
+        )
+        .order_by(models_module.DiscordMember.discord_id)
+    )
+
+
+def _find_leaderboard_games(
+    models_module: Any,
+    guild_id: int,
+) -> tuple[Any, ...]:
+    return tuple(
+        models_module.Game.select().where(
+            (models_module.Game.guild_id == guild_id)
+            & (models_module.Game.notes == LEADERBOARD_GAME_MARKER)
+        ).order_by(models_module.Game.id)
+    )
+
+
+def _leaderboard_state_from_open_connection(
+    models_module: Any,
+    guild_id: int,
+) -> LeaderboardFixtureState:
+    players = _find_leaderboard_players(models_module, guild_id)
+    games = _find_leaderboard_games(models_module, guild_id)
+    return LeaderboardFixtureState(
+        guild_id=guild_id,
+        players=tuple(
+            LeaderboardFixturePlayer(
+                discord_id=int(player.discord_member.discord_id),
+                player_id=int(player.id),
+                name=str(player.name),
+                elo=int(player.elo_moonrise),
+                elo_max=int(player.elo_max_moonrise),
+            )
+            for player in players
+        ),
+        game_ids=tuple(int(game.id) for game in games),
+    )
+
+
+def _round_robin_pairs(
+    players: Sequence[Any],
+    rounds: int = 4,
+) -> tuple[tuple[Any, Any], ...]:
+    rotation = list(players)
+    pairs = []
+    for _ in range(rounds):
+        for index in range(len(rotation) // 2):
+            pairs.append((rotation[index], rotation[-index - 1]))
+        rotation = [rotation[0], rotation[-1], *rotation[1:-1]]
+    return tuple(pairs)
+
+
+def _create_leaderboard_game(
+    models_module: Any,
+    guild_id: int,
+    first_player: Any,
+    second_player: Any,
+    game_number: int,
+) -> Any:
+    game = models_module.Game.create(
+        guild_id=guild_id,
+        host=first_player,
+        name=_leaderboard_game_name(game_number),
+        notes=LEADERBOARD_GAME_MARKER,
+        is_pending=False,
+        is_ranked=True,
+        is_mobile=True,
+        size=[1, 1],
+    )
+    first_side = models_module.GameSide.create(
+        game=game,
+        size=1,
+        position=1,
+        sidename='Showcase Gold',
+    )
+    second_side = models_module.GameSide.create(
+        game=game,
+        size=1,
+        position=2,
+        sidename='Showcase Blue',
+    )
+    models_module.Lineup.create(
+        game=game,
+        gameside=first_side,
+        player=first_player,
+    )
+    models_module.Lineup.create(
+        game=game,
+        gameside=second_side,
+        player=second_player,
+    )
+    first_index = _leaderboard_index(
+        first_player.discord_member.discord_id
+    )
+    second_index = _leaderboard_index(
+        second_player.discord_member.discord_id
+    )
+    winner = first_side if first_index < second_index else second_side
+    game.declare_winner(winning_side=winner, confirm=True)
+    return game
+
+
+def _set_leaderboard_ratings(players: Sequence[Any]) -> None:
+    for index, player in enumerate(players, start=1):
+        current = 1610 - ((index - 1) * 22)
+        peak = current + 35 + ((index % 4) * 8)
+        all_time = current + (18 if index % 3 == 0 else -12)
+        all_time_peak = max(peak, all_time + 42)
+        values = {
+            'elo': current,
+            'elo_max': peak,
+            'elo_moonrise': current,
+            'elo_max_moonrise': peak,
+            'elo_alltime': all_time,
+            'elo_max_alltime': all_time_peak,
+        }
+        for field, value in values.items():
+            setattr(player, field, value)
+            setattr(player.discord_member, field, value)
+        player.save()
+        player.discord_member.save()
 
 
 def _scenario_from_name(name: str) -> str | None:
@@ -229,6 +439,12 @@ def _game_view(game: Any) -> FixtureGame:
         is_completed=bool(game.is_completed),
         is_confirmed=bool(game.is_confirmed),
         is_ranked=bool(game.is_ranked),
+        is_pending=bool(game.is_pending),
+        expiration=(
+            game.expiration.isoformat()
+            if game.expiration is not None
+            else None
+        ),
     )
 
 
@@ -400,3 +616,158 @@ def cleanup_fixtures(
     if not remaining.games:
         _remove_manifest(manifest_path)
     return remaining
+
+
+def leaderboard_fixture_status(
+    *,
+    profile: Any,
+    models_module: Any,
+    guild_id: int,
+) -> LeaderboardFixtureState:
+    """Inspect only the separately owned Components v2 showcase fixtures."""
+
+    validate_profile(profile)
+    guild_id = validate_guild_id(profile, guild_id)
+    with models_module.db.connection_context():
+        validate_live_identity(*_live_identity(models_module))
+        return _leaderboard_state_from_open_connection(
+            models_module,
+            guild_id,
+        )
+
+
+def seed_leaderboard_fixtures(
+    *,
+    profile: Any,
+    models_module: Any,
+    guild_id: int,
+) -> LeaderboardFixtureState:
+    """Idempotently seed a multi-page player leaderboard showcase."""
+
+    validate_profile(profile)
+    guild_id = validate_guild_id(profile, guild_id)
+    with models_module.db.connection_context():
+        validate_live_identity(*_live_identity(models_module))
+        with models_module.db.atomic():
+            existing_players = _find_leaderboard_players(
+                models_module,
+                guild_id,
+            )
+            existing_games = _find_leaderboard_games(
+                models_module,
+                guild_id,
+            )
+            if existing_players or existing_games:
+                if (
+                    len(existing_players) != LEADERBOARD_FIXTURE_COUNT
+                    or len(existing_games)
+                    != (LEADERBOARD_FIXTURE_COUNT // 2) * 4
+                    or any(
+                        not is_owned_leaderboard_player(player, guild_id)
+                        for player in existing_players
+                    )
+                    or any(
+                        not is_owned_leaderboard_game(game, guild_id)
+                        for game in existing_games
+                    )
+                ):
+                    raise FixtureValidationError(
+                        'Existing LB2 showcase fixtures are incomplete or '
+                        'fail ownership validation. Inspect status and clean '
+                        'them before reseeding.'
+                    )
+                return _leaderboard_state_from_open_connection(
+                    models_module,
+                    guild_id,
+                )
+
+            players = []
+            for index in range(1, LEADERBOARD_FIXTURE_COUNT + 1):
+                name = _leaderboard_name(index)
+                discord_member = models_module.DiscordMember.create(
+                    discord_id=_leaderboard_discord_id(index),
+                    name=name,
+                    polytopia_name=name,
+                )
+                players.append(models_module.Player.create(
+                    discord_member=discord_member,
+                    guild_id=guild_id,
+                    nick=name,
+                    name=name,
+                ))
+
+            for game_number, pair in enumerate(
+                _round_robin_pairs(players),
+                start=1,
+            ):
+                _create_leaderboard_game(
+                    models_module,
+                    guild_id,
+                    pair[0],
+                    pair[1],
+                    game_number,
+                )
+            _set_leaderboard_ratings(players)
+
+        return _leaderboard_state_from_open_connection(
+            models_module,
+            guild_id,
+        )
+
+
+def cleanup_leaderboard_fixtures(
+    *,
+    profile: Any,
+    models_module: Any,
+    guild_id: int,
+    confirmed: bool,
+) -> LeaderboardFixtureState:
+    """Delete only fully validated Components v2 showcase fixtures."""
+
+    validate_profile(profile)
+    guild_id = validate_guild_id(profile, guild_id)
+    if not confirmed:
+        raise FixtureValidationError(
+            'Leaderboard cleanup requires the explicit --confirm option.'
+        )
+
+    with models_module.db.connection_context():
+        validate_live_identity(*_live_identity(models_module))
+        with models_module.db.atomic():
+            players = _find_leaderboard_players(models_module, guild_id)
+            games = _find_leaderboard_games(models_module, guild_id)
+            if any(
+                not is_owned_leaderboard_player(player, guild_id)
+                for player in players
+            ):
+                raise FixtureSafetyError(
+                    'Leaderboard cleanup found a player that failed the '
+                    'ownership check.'
+                )
+            if any(
+                not is_owned_leaderboard_game(game, guild_id)
+                for game in games
+            ):
+                raise FixtureSafetyError(
+                    'Leaderboard cleanup found a game that failed the '
+                    'ownership check.'
+                )
+            for game in sorted(
+                games,
+                key=lambda item: (
+                    item.completed_ts or datetime.datetime.min,
+                    item.id,
+                ),
+                reverse=True,
+            ):
+                game.delete_game()
+            for player in players:
+                discord_member = player.discord_member
+                player.delete_instance()
+                if not discord_member.guildmembers.exists():
+                    discord_member.delete_instance()
+
+        return _leaderboard_state_from_open_connection(
+            models_module,
+            guild_id,
+        )

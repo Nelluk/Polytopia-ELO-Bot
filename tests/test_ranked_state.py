@@ -15,6 +15,7 @@ from tests.test_newgame_worker import FakeDatabase, import_offline_runtime
 
 game_workers = import_offline_runtime('modules.game_workers')
 administration = import_offline_runtime('modules.administration')
+games = import_offline_runtime('modules.games')
 
 
 class RankedStateWorkerTests(unittest.TestCase):
@@ -92,10 +93,11 @@ class RankedStateCommandTests(unittest.IsolatedAsyncioTestCase):
             isinstance(prefix[name], commands.Command)
             for name in ('rankset', 'rankunset')
         ))
-        slash = {
+        game_group = {
             command.name: command
-            for command in administration.administration.__cog_app_commands__
-        }['set-ranked']
+            for command in games.polygames.__cog_app_commands__
+        }['game']
+        slash = game_group.get_command('set-ranked')
         self.assertEqual(
             [(p.name, p.type) for p in slash.parameters],
             [
@@ -151,7 +153,7 @@ class RankedStateCommandTests(unittest.IsolatedAsyncioTestCase):
         ), mock.patch.object(
             cog, '_set_ranked_state_and_post', new=mock.AsyncMock()
         ) as run_correction:
-            await administration.administration.set_ranked_slash.callback(
+            await administration.administration.set_ranked_slash(
                 cog,
                 interaction,
                 42,
@@ -191,7 +193,7 @@ class RankedStateCommandTests(unittest.IsolatedAsyncioTestCase):
             '_set_ranked_state_and_post',
             new=mock.AsyncMock(side_effect=run_correction),
         ):
-            await administration.administration.set_ranked_slash.callback(
+            await administration.administration.set_ranked_slash(
                 cog,
                 interaction,
                 42,
