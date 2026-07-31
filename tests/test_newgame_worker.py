@@ -482,7 +482,7 @@ class NewGameCommandTests(unittest.IsolatedAsyncioTestCase):
 
         async def defer(**kwargs):
             events.append('defer')
-            self.assertEqual(kwargs, {'ephemeral': True})
+            self.assertEqual(kwargs, {})
 
         async def can_run(ctx):
             events.append('checks')
@@ -608,7 +608,7 @@ class NewGameCommandTests(unittest.IsolatedAsyncioTestCase):
                 '101 vs 201',
             )
 
-        interaction.response.defer.assert_awaited_once_with(ephemeral=True)
+        interaction.response.defer.assert_awaited_once_with()
         prefix_command.can_run.assert_awaited_once_with(context)
         prefix_command.callback.assert_not_awaited()
 

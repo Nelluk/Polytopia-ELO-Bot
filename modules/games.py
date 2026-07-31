@@ -2076,7 +2076,10 @@ class polygames(commands.Cog):
     ):
         """Flexible roster parser with an interaction review gate."""
 
-        await interaction.response.defer(ephemeral=True)
+        # The game roster and its eventual competitive-state mutation are
+        # public server activity. Keep the preview public while the view
+        # itself enforces requester-only controls.
+        await interaction.response.defer()
         ctx = await commands.Context.from_interaction(interaction)
         ctx.prefix = settings.guild_setting(
             interaction.guild.id,
