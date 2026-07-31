@@ -402,11 +402,11 @@ check:
 - retained P7.5 showcase: 24 owned players (`163`-`186`) and 48 owned games
   (`200`-`247`), with gated status/confirmed-cleanup tooling
 
-Current unit: **P7.8 game-search workspace implemented; validation in
-progress.** P7.6 and smoke-accepted P7.7 are integrated into
-`codex/database-slash-modernization`. Taxonomy v2.2 as a whole remains pending
-final approval; `/game search` is an already accepted, noncontroversial path
-that completes the player/game-history split.
+Current unit: **P7.8 accepted; integration in progress.** P7.6 and P7.7 are
+integrated into `codex/database-slash-modernization`; P7.8 passed functional
+beta smoke testing. Taxonomy v2.2 as a whole remains pending final approval;
+`/game search` is an accepted, noncontroversial path that completes the
+player/game-history split.
 
 Owned fixture games `149`-`151` are intentionally retained. At the latest
 gated status check, `149` is incomplete/unranked, `150` is
@@ -2423,7 +2423,7 @@ unit.
 
 ### P7.8 — Unified game-search workspace
 
-Status: **Implemented; beta acceptance pending**
+Status: **Accepted; integration in progress**
 
 Branch/base: `codex/p7-8-game-search-workspace` from the P7.7 accumulation
 merge.
@@ -2490,9 +2490,7 @@ Compatibility implications:
 - C-002 player-card analytics remain explicitly deferred and are not part of
   this unit.
 
-Next action: rerun focused/full/gated validation after the final refinements,
-checkpoint P7.8, then follow D-026 with a development-beta restart and smoke
-`/game search` plus representative complex prefix deep links.
+Next action: integrate P7.8 into `codex/database-slash-modernization`.
 
 Beta result: D-026 launch from `d6bebcd` authenticated as **PolyELO Bot
 Beta** (`479029527553638401`) and synchronized exactly the `game`,
@@ -2502,8 +2500,8 @@ started from P7.7. Live testing exposed duplicate prefix replies and
 `CommandNotFound` errors from that stale process. Host-wide process inspection
 identified both exact development `bot.py --skip_tasks` PIDs; the older
 process stopped cleanly with SIGINT and only the current P7.8 beta remains.
-Functional acceptance of `/game search` and its complex prefix deep links is
-pending.
+The user then accepted `/game search`, its filters/navigation, and the
+representative prefix deep links as working.
 
 ## P8 — League and remaining administration workflows
 
@@ -2679,6 +2677,13 @@ approval are one combined operational gate.
 Status: Accepted
 
 Slash commands are additive until a separate deprecation plan is approved.
+Message-content commands are thin transition adapters only: preserve their
+names, permissions, argument resolution, and initial workspace mapping, then
+delegate to the same bounded service and Components v2 presentation used by
+slash commands. Do not add prefix-only UI, pagination, database execution
+paths, or new features. Limit prefix work to narrow compatibility regressions
+while message-content intent remains available; removing these adapters later
+must not affect the slash services, DTOs, or renderers.
 
 ### D-002 — Use hybrid commands only for clean grammar parity
 
@@ -3104,6 +3109,16 @@ presentation primitives may come from P7.6, but player-detail and game-search
 database services remain distinct.
 
 ## Progress log
+
+### 2026-07-30 — P7.8 beta smoke accepted
+
+- Accepted `/game search`, its status/outcome/size/page controls, and
+  representative complex prefix deep links.
+- Confirmed that the observed duplicate prefix panels came from two beta
+  processes rather than command fall-through.
+- Approved P7.8 for accumulation-branch integration.
+- Reaffirmed prefix/message-content commands as low-investment migration
+  adapters rather than a continuing feature surface.
 
 ### 2026-07-30 — P7.8 game-search workspace implemented
 
