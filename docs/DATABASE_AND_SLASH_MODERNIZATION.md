@@ -1,10 +1,10 @@
 # Database Access and Slash Command Modernization
 
-Last updated: 2026-07-30
+Last updated: 2026-07-31
 
 Status: Active
 
-Current branch at last update: `codex/database-slash-modernization`
+Current branch at last update: `codex/p7-9-game-detail-workspace`
 
 Source task: `thread://019fae66-8e3a-7a50-9a0f-d3d7160d2287`
 
@@ -401,12 +401,16 @@ check:
   `polytopia_dev` with zero players and zero game sides
 - retained P7.5 showcase: 24 owned players (`163`-`186`) and 48 owned games
   (`200`-`247`), with gated status/confirmed-cleanup tooling
+- P7.9 implementation checkpoint: `24a435b` on
+  `codex/p7-9-game-detail-workspace`, based on `16fc6565`
 
-Current unit: **P7.8 Complete; next unit not started.** P7.6, P7.7, and P7.8
-are integrated into `codex/database-slash-modernization` after functional beta
-smoke testing. Taxonomy v2.2 as a whole remains pending final approval;
-`/game search` is an accepted, noncontroversial path that completes the
-player/game-history split.
+Current unit: **P7.9 Implemented; beta acceptance pending.** P7.6, P7.7, and
+P7.8 are integrated into `codex/database-slash-modernization` after functional
+beta smoke testing. P7.9 remains on its dedicated branch for Sol's complete
+Tier 2 review and D-026 beta gate; it is not integrated or marked Complete.
+Taxonomy v2.2 as a whole remains pending final approval; `/game show` is the
+D-025-approved detail path and `/game search` remains the accepted,
+noncontroversial discovery path.
 
 Owned fixture games `149`-`151` are intentionally retained. At the latest
 gated status check, `149` is incomplete/unranked, `150` is
@@ -2555,8 +2559,8 @@ Compatibility implications:
 - C-002 player-card analytics remain explicitly deferred and are not part of
   this unit.
 
-Next action: keep the accepted accumulation checkpoint stable while taxonomy
-review concludes, then select the smallest independently testable P8
+Next action: review and beta-validate the separately branched P7.9 unified
+game-detail workspace before selecting the smallest independently testable P8
 team/house or administration unit whose slash path is no longer ambiguous.
 
 Beta result: D-026 launch from `d6bebcd` authenticated as **PolyELO Bot
@@ -2569,6 +2573,100 @@ identified both exact development `bot.py --skip_tasks` PIDs; the older
 process stopped cleanly with SIGINT and only the current P7.8 beta remains.
 The user then accepted `/game search`, its filters/navigation, and the
 representative prefix deep links as working.
+
+### P7.9 — Unified game-detail workspace
+
+Status: **Implemented; beta acceptance pending; not integrated**
+
+Branch/base: `codex/p7-9-game-detail-workspace` from the exact clean
+`codex/database-slash-modernization` checkpoint `16fc6565dccddc4341c8925b1667beba041c7384`.
+
+Objective: implement the D-025-approved public `/game show game_id:[optional
+integer]` detail workspace and route numeric `$game GAME_ID` / `$match GAME_ID`
+through the same bounded read and presentation path without touching the
+unsettled team/house taxonomy.
+
+Interface and behavior:
+
+- `/game show` accepts exactly one optional integer `game_id`. With no ID, the
+  worker uses `Game.by_channel_id` only when the current channel has one
+  associated game; no match and multiple matches return an ephemeral request
+  for an explicit ID.
+- Numeric `$game` and its preserved `$match` alias open the same public
+  workspace. Nonnumeric `$game`/`$match` input still delegates to the existing
+  game-search workflow. Prefix failures remain public; slash failures are
+  ephemeral, including timeout and expired-control reruns.
+- The initial public Components v2 card covers game name, status/result,
+  ranked state, size/platform, dates/deadline, map, notes, season metadata,
+  series summary, host, sides, tribes, ELO labels, and relevant game/side
+  channel links. Secondary requester-controlled sections expose players/sides,
+  status/dates, attributes, and channels without another database read.
+- Cross-guild explicit reads remain visible to the same public audience with a
+  source-guild compatibility banner. The native `/game` group remains guild-
+  only, while `/game show` adds no new bot-channel or registration check beyond
+  the legacy numeric prefix behavior.
+- No mutation was added. Controls are requester-only, unauthorized and
+  expired interactions are ephemeral, and the result itself remains public.
+
+Implementation and boundary evidence:
+
+- `modules/game_detail_workers.py` adds a two-thread bounded executor, frozen
+  primitive request/snapshot/side/lineup DTOs, worker-local Peewee connection
+  ownership, channel inference, meaningful invalid/not-found errors, and an
+  optional frozen series summary.
+- `modules/game_detail_views.py` uses the P7.6 Components v2 toolkit. It
+  resolves Discord members, roles, channels, guild labels, and local/remote
+  winning-player/team imagery outside the worker. Local team files are
+  reattached when a section is edited so `attachment://` media remains valid.
+- `modules/games.py` provides the shared slash/prefix adapter and 20-second
+  bounded read timeout. `tests/test_game_detail_workspace.py` covers the
+  registration shape, routing, channel inference outcomes, visibility,
+  worker lifecycle, event-loop responsiveness, immutable navigation, media,
+  timeout, expiry, and Components v2 limits.
+- `tests/test_database_integration.py` adds one read-only real-schema worker
+  check under the existing strict development database gate.
+
+Validation evidence:
+
+- focused game-detail suite: 19 passed;
+- complete offline suite: 233 passed with 12 explicitly gated database tests
+  skipped;
+- compilation and `git diff --check`: passed;
+- gated `polytopia_dev` validation and D-026 beta smoke remain required before
+  Sol can mark the unit beta-validated.
+
+Commit:
+
+- `24a435b` — Add unified game detail workspace.
+
+Compatibility implications:
+
+- No new compatibility-ledger row is required: the bounded snapshot preserves
+  the material `Game.embed` card fields, optional two-side series summary, and
+  local/remote winning imagery while moving the public presentation to
+  Components v2. The old cross-guild summary-plus-message becomes one public
+  workspace with an explicit source-guild banner.
+- Audit logs and mutation/permitted-action controls remain separate from this
+  read-only unit; no database logic is duplicated for them. Pending-game join
+  and lifecycle mutations continue through their existing permission-checked
+  prefix/native commands.
+
+Beta result: **pending at this checkpoint.** D-026 requires a host-wide
+  inspection of all development `bot.py --skip_tasks` processes and exactly one
+  intended beta before any restart/synchronization. No production process or
+  database was accessed.
+
+Known limitations and next action:
+
+- The workspace does not add a game-log section or new mutation buttons; those
+  remain later bounded units/paths. If optional historical series data cannot
+  be read, the primary immutable card still renders without that optional
+  line.
+- Run the gated development suite through its unchanged identity checks,
+  launch/restart only the intended development beta under D-026, perform the
+  explicit-ID/channel-inference/numeric-prefix/search and desktop/mobile
+  smoke, then return the exact handoff packet to Sol for Tier 2 review. Do not
+  integrate this branch.
 
 ## P8 — League and remaining administration workflows
 
@@ -3246,6 +3344,24 @@ collisions but do not isolate host processes, database state, Discord, or Git
 refs and do not grant operational authority.
 
 ## Progress log
+
+### 2026-07-31 — P7.9 game-detail workspace implemented
+
+- Added the D-025-approved `/game show game_id:[optional integer]` public
+  Components v2 workspace with unambiguous current-channel inference and
+  explicit-ID fallback errors.
+- Routed numeric `$game`/`$match` through the same immutable worker snapshot;
+  preserved nonnumeric prefix delegation to game search and public-prefix /
+  ephemeral-slash failure visibility.
+- Added a bounded worker-local read service and event-loop-only Discord display
+  resolution, including series metadata and safe local/remote game imagery.
+- Added 19 focused tests, a strict gated real-schema test, and updated the
+  taxonomy implementation-state notes. The complete offline suite passed 233
+  tests with 12 gated skips.
+- Recorded the app-managed Codex task worktree as the preferred Luna execution
+  path; the manually prepared `.worktrees/luna` checkout is fallback only.
+- Beta acceptance and accumulation-branch integration remain pending Sol's
+  Tier 2 review and D-026 smoke gate.
 
 ### 2026-07-31 — Compatibility canary and Sol/Luna workflow accepted
 

@@ -46,16 +46,24 @@ The primary planning/integration checkout remains:
 /home/nelluk/PolyBot39-dev
 ```
 
-The reusable Luna execution checkout is:
+When Sol spawns Luna through Codex, the app-managed isolated task worktree
+supplied by Codex is the preferred execution checkout. Its path is supplied
+in the task prompt and is authoritative for that task; do not substitute the
+primary checkout or another worktree.
+
+The manually prepared Luna checkout is only the fallback when no app-managed
+task worktree is available:
 
 ```text
 /home/nelluk/PolyBot39-dev/.worktrees/luna
 ```
 
-It is created detached at a clean accumulation checkpoint. At the start of a
-unit, Luna creates a dedicated `codex/<unit-name>` branch in that worktree.
-After integration, the worktree returns to a clean detached accumulation
-checkpoint before being assigned another unit.
+Whether app-managed or fallback, the execution checkout starts detached at a
+clean accumulation checkpoint. At the start of a unit, Luna creates a
+dedicated `codex/<unit-name>` branch in that checkout. After integration, the
+manually prepared fallback returns to a clean detached accumulation checkpoint
+before being assigned another unit; an app-managed checkout is disposed of by
+Codex according to its task lifecycle.
 
 The worktree reuses only development-local resources:
 

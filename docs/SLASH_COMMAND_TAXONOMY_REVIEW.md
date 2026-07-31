@@ -6,6 +6,7 @@ Status: Taxonomy v2.2 proposed for user/staff review; attribute-command,
 component-first interaction, show/ping/logs naming, and legacy-module
 exclusions accepted; single-writer compatibility/canary policy accepted;
 approved `/leaderboard`, `/player show`, and `/game search` workspaces
+implemented locally; the D-025-approved `/game show` workspace is now also
 implemented locally
 
 This review covers the bot's complete repository-backed command surface, not
@@ -30,13 +31,15 @@ launch, command synchronization, or a code rename. The current locally
 implemented registration remains the source of truth until this revision is
 approved and implemented.
 
-Implementation is intentionally paused while staff continue reviewing command
-names, command-registration scope, and whether some rare administration
-workflows belong in Discord or a later web interface. The pause does not
-invalidate checkpoint `63af179`; it prevents an unsettled public surface from
-being treated as production-ready. The checkpoint's `/game` root has since
-been synchronized and exercised only in the development guild; Taxonomy v2.2
-has not been registered, and neither surface has reached production.
+Taxonomy-wide implementation remains paused while staff continue reviewing
+command names, command-registration scope, and whether some rare
+administration workflows belong in Discord or a later web interface. That
+pause does not block the explicitly accepted, bounded `/game show` unit: P7.9
+implements its local registration and shared read workspace while it remains
+outside production until the unit's beta and integration gates pass. The
+checkpoint's `/game` root has since been synchronized and exercised only in
+the development guild; Taxonomy v2.2 has not been registered wholesale, and
+neither surface has reached production.
 
 ## Inventory scope
 
@@ -44,7 +47,7 @@ Static inspection found:
 
 - 78 active-target explicit prefix command handlers;
 - one customized framework `help` command;
-- nine locally implemented `/game` subcommands and two `/elo` subcommands;
+- eleven locally implemented `/game` subcommands and two `/elo` subcommands;
 - three locally implemented `/leaderboard` subcommands plus temporary `/lb2`;
 - many additional prefix aliases;
 - five Bullet prefix handlers now classified as legacy/out of scope;
@@ -233,7 +236,7 @@ Taxonomy v2.2 applies this rule system-wide:
 |---|---|---|
 | `/leaderboard players` | none | Implemented Components v2 presets, all 16 advanced-filter combinations, cached paging, and requester rank |
 | `/game search` | optional initial query or player | Implemented Components v2 status/outcome/common-size filters and paging; arbitrary side shapes remain accepted in the query grammar |
-| `/game show` | optional game ID when it cannot be inferred from the channel | players, logs, attributes, and permitted actions |
+| `/game show` | optional game ID when it cannot be inferred from the channel | Implemented P7.9 Components v2 workspace: players/sides, status/dates, attributes, channel links, series summary, and preserved game imagery; logs and mutations remain separate |
 | `/game ping` | optional game ID when it cannot be inferred | audience/scope, long message, multiple uploads, preview, confirmation |
 | `/game record` | game name, one roster string, and optional ranked state | parsed arbitrary sides, native side/member editing, preview, confirmation |
 | `/player show` | optional member; requester by default | Accepted Components v2 overview, ratings, recent/incomplete/completed/season games, results, teams, and permitted profile edits; legacy analytics remain deferred under C-002 |
@@ -437,6 +440,19 @@ for rating maintenance and job status. A slash `section` option should be
 added only if real direct-link demand is demonstrated; routine navigation
 belongs in the components.
 
+#### Current `/game show` implementation state
+
+P7.9 implements the D-025-approved `/game show game_id:[optional integer]`
+shape. An omitted ID is resolved only through one unambiguous current
+game-channel association; ambiguity or absence requests an explicit ID
+ephemerally. The initial public Components v2 card and requester-only section
+selector share one immutable, worker-loaded snapshot for overview,
+players/sides, status/result and dates, map/tribes, notes/season metadata,
+series summary, channel links, and winning-player/team imagery. Numeric
+`$game` and `$match` use the same workspace; nonnumeric prefix input retains
+the existing game-search delegation. The implementation deliberately adds no
+mutation controls or game-log query to this bounded read unit.
+
 The intended team option shape is attribute-focused:
 
 - `/team emoji team:[optional] emoji:[optional] clear:[optional]`;
@@ -626,7 +642,7 @@ dozens of capabilities harder to scan and organize.
 
 The current modernization stack registers:
 
-- `/game record|win|unwin|delete|confirm|unconfirmed|set-ranked|extend|unstart`;
+- `/game record|show|win|unwin|delete|confirm|unconfirmed|set-ranked|extend|unstart`;
 - `/elo recalculate|status`;
 - `/leaderboard players|activity|squads` with temporary `/lb2` removed;
 - `/player show`.
@@ -637,6 +653,7 @@ the slash registration/adapters:
 | Current local path | Taxonomy v2.2 path |
 |---|---|
 | `/game record` | unchanged |
+| `/game show` | unchanged |
 | `/game win` | unchanged |
 | `/game unwin` | `/game result undo` |
 | `/game delete` | `/game manage delete` |
