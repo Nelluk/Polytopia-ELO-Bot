@@ -135,7 +135,7 @@ class ApplicationCommandManagementTests(unittest.TestCase):
         self.assertEqual(synced, {})
         tree.clear_commands.assert_not_called()
 
-    def test_apply_uses_existing_tree_and_preserves_other_scopes(self):
+    def test_apply_uses_existing_tree_prunes_and_preserves_other_scopes(self):
         async def callback(_interaction):
             return None
 
@@ -146,11 +146,21 @@ class ApplicationCommandManagementTests(unittest.TestCase):
         other_guild_command = app_commands.Command(
             name='other-only', description='other', callback=callback,
         )
+        stale_target_command = app_commands.Command(
+            name='stale-target', description='stale', callback=callback,
+        )
+        stale_empty_command = app_commands.Command(
+            name='stale-empty', description='stale', callback=callback,
+        )
         desired_command = app_commands.Command(
             name='game', description='game', callback=callback,
         )
-        other_guild = discord.Object(id=20)
+        target_guild = discord.Object(id=10)
+        empty_guild = discord.Object(id=20)
+        other_guild = discord.Object(id=30)
         client.tree.add_command(global_command)
+        client.tree.add_command(stale_target_command, guild=target_guild)
+        client.tree.add_command(stale_empty_command, guild=empty_guild)
         client.tree.add_command(other_guild_command, guild=other_guild)
         policy = build_capability_policy(
             {10: ('test',)},
@@ -161,25 +171,66 @@ class ApplicationCommandManagementTests(unittest.TestCase):
             available_roots=('game',),
         )
         plans = plan_application_commands(
-            policy, (desired_command,), guild_ids=(10,), tree=client.tree,
+            policy,
+            (desired_command,),
+            {
+                10: client.tree.get_commands(guild=target_guild),
+                20: client.tree.get_commands(guild=empty_guild),
+            },
+            guild_ids=(10, 20),
+            tree=client.tree,
         )
 
         async def run_apply():
+            sync_guild_ids = []
+
+            async def network_sync(*, guild=None):
+                if guild is None:
+                    raise AssertionError('global command synchronization is forbidden')
+                sync_guild_ids.append(guild.id)
+                return list(client.tree.get_commands(guild=guild))
+
             with mock.patch.object(
-                    client.tree, 'sync', new=mock.AsyncMock(return_value=[])) as sync:
-                await manager.apply_guild_plans(client, plans)
-                sync.assert_awaited_once()
-            await client.close()
+                    client.tree,
+                    'sync',
+                    new=mock.AsyncMock(side_effect=network_sync),
+            ) as sync:
+                try:
+                    synced = await manager.apply_guild_plans(client, plans)
+                finally:
+                    await client.close()
+            return synced, sync, sync_guild_ids
 
-        asyncio.run(run_apply())
+        synced, sync, sync_guild_ids = asyncio.run(run_apply())
 
+        # A real commands.Bot already owns this CommandTree. Applying plans
+        # sequentially must replace only each selected guild's local state.
+        self.assertEqual(sync_guild_ids, [10, 20])
+        self.assertEqual(
+            [call.kwargs['guild'].id for call in sync.await_args_list],
+            [10, 20],
+        )
+        self.assertEqual(
+            [command.name for command in synced[10]],
+            ['game'],
+        )
+        self.assertEqual(synced[20], [])
         self.assertEqual(
             [command.name for command in client.tree.get_commands()],
             ['global-only'],
         )
         self.assertEqual(
+            [command.name for command in client.tree.get_commands(guild=target_guild)],
+            ['game'],
+        )
+        self.assertEqual(client.tree.get_commands(guild=empty_guild), [])
+        self.assertEqual(
             [command.name for command in client.tree.get_commands(guild=other_guild)],
             ['other-only'],
+        )
+        self.assertIsNot(
+            client.tree.get_commands(guild=target_guild)[0],
+            desired_command,
         )
 
     def test_manager_source_is_explicitly_not_the_bot_module(self):
