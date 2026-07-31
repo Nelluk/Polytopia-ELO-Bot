@@ -402,11 +402,11 @@ check:
 - retained P7.5 showcase: 24 owned players (`163`-`186`) and 48 owned games
   (`200`-`247`), with gated status/confirmed-cleanup tooling
 
-Current unit: **P7.7 accepted; integration in progress.** P7.6 is integrated
-into `codex/database-slash-modernization`; P7.7 passed its combined beta smoke
-and is ready to merge from its sequential unit branch. Taxonomy v2.2 as a
-whole remains pending final approval; these accepted `/leaderboard` and
-`/player show` paths do not depend on the unsettled game/team spellings.
+Current unit: **P7.8 game-search workspace implemented; validation in
+progress.** P7.6 and smoke-accepted P7.7 are integrated into
+`codex/database-slash-modernization`. Taxonomy v2.2 as a whole remains pending
+final approval; `/game search` is an already accepted, noncontroversial path
+that completes the player/game-history split.
 
 Owned fixture games `149`-`151` are intentionally retained. At the latest
 gated status check, `149` is incomplete/unranked, `150` is
@@ -2295,7 +2295,7 @@ combined P7.6/P7.7 beta session.
 
 ### P7.7 — Unified player profile and game-history workspace
 
-Status: **Accepted; integration in progress**
+Status: **Complete; integrated into the accumulation branch**
 
 Branch/base: `codex/p7-7-player-workspace` from P7.6 accumulation merge.
 
@@ -2407,6 +2407,8 @@ Compatibility implications:
 Commit(s):
 
 - `58c8224` — Add unified player profile workspace.
+- `c00f3ca` — Merge P7.7 into
+  `codex/database-slash-modernization`.
 
 Beta result: D-026 restart from `58c8224` stopped the prior P7.6 beta cleanly,
 authenticated as **PolyELO Bot Beta** (`479029527553638401`), and completed
@@ -2414,10 +2416,83 @@ development startup/synchronization without a reported error. The beta
 remains the intended default runtime. The user accepted the combined P7.6/P7.7
 smoke as a sufficient proof of concept on 2026-07-30.
 
-Next action: integrate P7.7 into `codex/database-slash-modernization`, then
-start the bounded `/game search` workspace as the next unit. C-002 analytics
-restoration is explicitly deferred until usage demonstrates which legacy
-details justify a separate bounded unit.
+Next action: P7.7 is integrated. Implement and beta-smoke the bounded
+`/game search` workspace. C-002 analytics restoration is explicitly deferred
+until usage demonstrates which legacy details justify a separate bounded
+unit.
+
+### P7.8 — Unified game-search workspace
+
+Status: **Implemented; beta acceptance pending**
+
+Branch/base: `codex/p7-8-game-search-workspace` from the P7.7 accumulation
+merge.
+
+Objective: add the accepted `/game search query:[optional]` Components v2
+workspace and move complex prefix game searches to a separate bounded,
+worker-local read service without changing their grammar.
+
+Interface and behavior:
+
+- the optional query accepts the legacy mix of Discord mentions, players,
+  teams, uppercase title/notes terms, and arbitrary side shapes such as
+  `1v1v1`;
+- the public result provides requester-only status, outcome, common-size,
+  pagination, and page-jump controls;
+- `status:unconfirmed` is omitted for ordinary users and independently
+  staff-checked in the worker;
+- outcome uses the first resolved player, or first team when no player
+  resolves, matching the legacy `$wins`/`$losses` rule;
+- cached pages and previously loaded filter combinations perform no database
+  read; new filter combinations use the separate bounded search executor;
+- `$allgames`, complex `$incomplete`/`$complete`, and complex
+  `$wins`/`$losses` retain their argument grammar and deep-link the matching
+  initial workspace filter;
+- bare prefix forms still default to the requester, while the explicit `all`
+  token remains unscoped;
+- one-player incomplete results retain their game-side channel link.
+
+Implementation evidence:
+
+- added frozen request/key/result/game-row DTOs in
+  `modules/game_search_workers.py`;
+- added a two-thread bounded executor with a worker-local Peewee connection
+  and a 500-row result cap;
+- added `modules/game_search_views.py` using only the database-independent
+  P7.6 Components toolkit;
+- added `/game search` as one optional string option and kept `/player show`
+  and game search on independent read services;
+- removed the complex prefix path's unbounded default-executor closure and
+  unmanaged connection.
+
+Validation evidence:
+
+- focused game-search/taxonomy suite: 21 passed;
+- complete offline suite: 213 passed with 11 explicitly gated database tests
+  skipped;
+- gated development-database suite: 10 passed and one
+  operator-fixture-preserving skip after confirming `development`,
+  `polytopia_dev`, and `polybot_dev`; the real-schema game-search read passed;
+- compilation and `git diff --check`: passed.
+
+Commit(s):
+
+- `d6bebcd` — Add unified game search workspace.
+
+Compatibility implications:
+
+- prefix parsing and result scope are preserved, but presentation changes from
+  reaction pagination to public Components v2 controls;
+- slash exposes common size choices while arbitrary and unequal side shapes
+  remain available through the query grammar;
+- results are capped at 500 rows per immutable snapshot and disclose
+  truncation; broader exports remain separate;
+- C-002 player-card analytics remain explicitly deferred and are not part of
+  this unit.
+
+Next action: rerun focused/full/gated validation after the final refinements,
+checkpoint P7.8, then follow D-026 with a development-beta restart and smoke
+`/game search` plus representative complex prefix deep links.
 
 ## P8 — League and remaining administration workflows
 
@@ -3015,6 +3090,16 @@ presentation primitives may come from P7.6, but player-detail and game-search
 database services remain distinct.
 
 ## Progress log
+
+### 2026-07-30 — P7.8 game-search workspace implemented
+
+- Added option-light `/game search` with interactive status, outcome, size,
+  and page controls.
+- Preserved complex legacy player/team/title/notes/size parsing and prefix
+  initial-state mappings in a separate bounded worker-local query service.
+- Kept public results, requester-only controls, ephemeral failures, immutable
+  cached navigation, and the 500-row disclosure policy.
+- Added focused and real-schema gated coverage; beta acceptance remains.
 
 ### 2026-07-30 — P7.7 beta smoke accepted
 
