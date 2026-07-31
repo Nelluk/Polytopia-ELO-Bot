@@ -417,11 +417,14 @@ check:
 - P7.9 beta-correction checkpoint: `7c4eb21` restored the classic numeric
   prefix card and compacted the native `/game show` Overview; that native
   Components experiment was subsequently removed in `07cdb94`.
+- P7.9 final classic-card acceptance: `/game show`, numeric `$game`, and
+  numeric `$match` accepted with the shared production-style presentation;
+  accumulation merge `fdacd88`.
 
-Current unit: **P7.9 Implemented; beta acceptance pending.** P7.6, P7.7, and
-P7.8 are integrated into `codex/database-slash-modernization` after functional
-beta smoke testing. P7.9 remains on its dedicated branch for Sol's complete
-Tier 2 review and D-026 beta gate; it is not integrated or marked Complete.
+Current unit: **P7.9 Complete; beta accepted and integrated.** P7.6 through
+P7.9 are integrated into `codex/database-slash-modernization` after functional
+beta smoke testing. The next code unit should be selected from P8, constrained
+to a settled taxonomy and the opt-in Components usability standard.
 Taxonomy v2.2 as a whole remains pending final approval; `/game show` is the
 D-025-approved detail path and `/game search` remains the accepted,
 noncontroversial discovery path.
@@ -2590,10 +2593,11 @@ representative prefix deep links as working.
 
 ### P7.9 — Unified game-detail workspace
 
-Status: **Implemented; beta acceptance pending; not integrated**
+Status: **Complete; beta accepted and integrated**
 
 Branch/base: `codex/p7-9-game-detail-workspace` from the exact clean
-`codex/database-slash-modernization` checkpoint `16fc6565dccddc4341c8925b1667beba041c7384`.
+`codex/database-slash-modernization` checkpoint `16fc6565dccddc4341c8925b1667beba041c7384`;
+integrated into the accumulation branch as merge `fdacd88`.
 
 Objective: implement the D-025-approved public `/game show game_id:[optional
 integer]` detail card and route numeric `$game GAME_ID` / `$match GAME_ID`
@@ -2695,17 +2699,17 @@ Compatibility implications:
   and lifecycle mutations continue through their existing permission-checked
   prefix/native commands.
 
-Beta result: **prior D-026 launch/sync succeeded; this correction's beta is
-stopped; interactive smoke pending.** The user reported that behavior worked,
-but rejected the Components game card visually because it was much less dense
-than the production embed and its full-width player/team image dominated the
-card. The task-owned beta was stopped cleanly before this correction. Current
-host-wide verification finds only production PID `1534787`, which was not
-touched; no beta launch or synchronization was performed for this correction.
-The corrected code checkpoint is `07cdb94`, which removes the Components card
-and uses the classic presentation for both interfaces. Interactive
-Discord/mobile/desktop smoke of the final classic slash and prefix card
-remains pending for Sol's final visual check. Production checkouts, services,
+Beta result: **accepted and integrated.** The user first confirmed that the
+bounded read and command behavior worked, then rejected the Components game
+card because it reduced information density and added interaction without a
+current usability benefit. After checkpoint `07cdb94` removed that surface,
+the persistent D-026 beta authenticated as **PolyELO Bot Beta**
+(`479029527553638401`) and synchronized exactly `game`, `leaderboard`,
+`player`, and `elo` to development guild `478571892832206869`. The user
+accepted the final shared production-style result for `/game show`, numeric
+`$game`, and numeric `$match`. Host-wide verification showed exactly one
+development beta, PID `1813241`, alongside untouched production PID
+`1534787`. P7.9 was integrated as `fdacd88`. Production checkouts, services,
 and databases were not operated on.
 
 Known limitations and next action:
@@ -2717,11 +2721,10 @@ Known limitations and next action:
   error, matching the legacy privacy boundary. Components are intentionally
   absent from this simple read path until a concrete current interaction need
   is demonstrated.
-- Sol should perform the final visual check from the corrected checkpoint,
-  including explicit-ID, channel-inference, numeric-prefix/search, pending,
-  and desktop/mobile smoke as practical. No Luna beta relaunch is required for
-  this correction. Return the exact handoff packet to Sol for Tier 2 review;
-  do not integrate this branch from Luna.
+- P7.9 needs no further integration work. Preserve the classic game card and
+  bounded read service unless a later concrete interaction feature justifies
+  progressive enhancement. Select the smallest independently testable P8
+  team/house or administration unit whose slash taxonomy is settled.
 
 ## P8 — League and remaining administration workflows
 
@@ -3417,6 +3420,21 @@ collisions but do not isolate host processes, database state, Discord, or Git
 refs and do not grant operational authority.
 
 ## Progress log
+
+### 2026-07-31 — P7.9 final classic card accepted and integrated
+
+- Relaunched the corrected development beta persistently after the focused
+  22-test suite passed; startup synchronized exactly `game`, `leaderboard`,
+  `player`, and `elo` to the development guild.
+- The user accepted the final result in which `/game show`, numeric `$game`,
+  and numeric `$match` share the dense production-style card over one bounded
+  immutable read service.
+- Confirmed host-wide that development PID `1813241` was the sole beta and
+  production PID `1534787` remained untouched.
+- Integrated `codex/p7-9-game-detail-workspace` into
+  `codex/database-slash-modernization` as merge `fdacd88`.
+- P7.9 is Complete. The next phase is P8; Components remain opt-in under the
+  concrete-benefit and initial-output-quality rules established by this beta.
 
 ### 2026-07-31 — P7.9 Components experiment removed
 
