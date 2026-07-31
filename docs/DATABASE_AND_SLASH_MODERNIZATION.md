@@ -1904,8 +1904,10 @@ Validation evidence:
   skipped. The safety gates confirmed `POLYBOT_ENV=development`, database
   `polytopia_dev`, role `polybot_dev`, and disabled background tasks/API.
   This evidence applies to the prior implementation, not to `698e775`.
-- The gated suite was not rerun after the native parity correction; Sol will
-  rerun it during the next Tier 3 validation. No live Discord work was done.
+- Oversight validated the corrected HEAD with the gated command against
+  `development` / `polytopia_dev` / `polybot_dev`: 13 tests ran, 12 passed,
+  and one operator-managed fixture round trip was skipped. The corrected
+  open-game worker integration test passed, and no cleanup was required.
 - No beta process was launched, no Discord command inspection/synchronization
   occurred, and no production or service operation occurred.
 
@@ -1921,11 +1923,10 @@ Remaining limitations:
 - There is no durable reconciliation queue for a Discord failure. The shared
   presenter logs the committed game ID and attempts an operator-visible
   warning; a failed warning send still requires operator log review.
-- Tier 3 beta acceptance and post-correction gated validation remain
-  outstanding; live Discord work remains a separate approval.
+- Tier 3 beta acceptance remains outstanding; live Discord work remains a
+  separate approval.
 
-Next action: have Sol rerun the gated suite against the corrected branch and
-confirm cleanup, then obtain separate approval for development-guild command
+Next action: obtain separate approval for development-guild command
 inspection/sync and beta smoke. Do not merge this branch into the accumulation
 branch until that review and approval are complete.
 
@@ -3776,10 +3777,11 @@ production deployment.
   neither-name failure, and legacy prefix validation. Focused coverage passed
   27 tests and the complete offline suite passed 280 tests with 13 gated
   skips.
-- Oversight's unchanged pre-correction gated run passed 12 tests with one
-  operator-managed fixture skip under the strict development/
-  `polytopia_dev`/`polybot_dev` gates. The corrected branch was not gated
-  rerun; Sol will perform that validation next.
+- Oversight validated the corrected HEAD: focused coverage passed 27 tests;
+  the gated command against `development` / `polytopia_dev` / `polybot_dev`
+  ran 13 tests, passed 12, and skipped one operator-managed fixture round
+  trip. The corrected open-game worker integration test passed, and no
+  cleanup was required.
 - No live Discord work, beta launch, production operation, dependency change,
   merge, or push occurred.
 
