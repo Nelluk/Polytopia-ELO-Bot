@@ -474,6 +474,7 @@ class matchmaking(commands.Cog):
             is_mobile=is_mobile,
             notes=game_notes,
             notes_display=notes_str,
+            log_notes_display=discord.utils.escape_markdown(notes_str),
             requester_description=models.GameLog.member_string(ctx.author),
             invoked_with=ctx.invoked_with,
             role_lock_message=required_role_message,

@@ -60,6 +60,7 @@ class OpenGameRequest:
     invoked_with: str
     role_lock_message: str = ''
     size_display: str | None = None
+    log_notes_display: str | None = None
 
     @property
     def size_string(self) -> str:
@@ -365,7 +366,7 @@ def create_open_game(request: OpenGameRequest) -> OpenGameResult:
                 message=(
                     f'{request.requester_description} opened new '
                     f'{request.size_string} game. Notes: '
-                    f'*{request.notes_display}*'
+                    f'*{request.log_notes_display or request.notes_display}*'
                 ),
             )
 

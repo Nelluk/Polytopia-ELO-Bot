@@ -1929,6 +1929,9 @@ class polygames(commands.Cog):
                 is_mobile=True,
                 notes=notes,
                 notes_display=notes or '\u200b',
+                log_notes_display=discord.utils.escape_markdown(
+                    notes or '\u200b'
+                ),
                 requester_description=requester_snapshot[
                     'requester_description'
                 ],

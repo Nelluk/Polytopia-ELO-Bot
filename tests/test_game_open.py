@@ -1,7 +1,7 @@
 """Focused offline coverage for P5.1 atomic open-game creation."""
 
 import asyncio
-from dataclasses import FrozenInstanceError
+from dataclasses import FrozenInstanceError, replace
 import threading
 from types import SimpleNamespace
 import unittest
@@ -316,6 +316,17 @@ class OpenGameWorkerTests(unittest.TestCase):
         self.assertEqual(len(harness.state['logs']), 1)
         self.assertEqual(harness.database.commits, 1)
         self.assertEqual(harness.database.rollbacks, 0)
+
+    def test_worker_preserves_escaped_audit_note_snapshot(self):
+        request = replace(
+            open_request(),
+            notes_display='A *note*',
+            log_notes_display=r'A \*note\*',
+        )
+        harness, result = self.run_worker(request=request)
+        self.assertIsNotNone(result)
+        self.assertIn(r'A \*note\*', harness.state['logs'][0]['message'])
+        self.assertNotIn('A *note*', harness.state['logs'][0]['message'])
 
     def test_side_lineup_and_log_failures_roll_back_everything(self):
         for failure in ('side', 'lineup', 'log'):
