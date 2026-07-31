@@ -4,7 +4,7 @@ Last updated: 2026-07-31
 
 Status: Active
 
-Current branch at last update: `codex/p7-9-game-detail-workspace`
+Current branch at last update: `codex/p8-0-command-capabilities`
 
 Source task: `thread://019fae66-8e3a-7a50-9a0f-d3d7160d2287`
 
@@ -31,12 +31,12 @@ configuration, and `AGENTS.md` remain authoritative.
 - Do not connect to or modify the production database `polytopia2`.
 - Production services, production command synchronization, and production
   deployment require separate explicit approval.
-- Standing authorization granted on 2026-07-30 keeps the development beta bot
-  running by default. After a significant completed and validated work unit,
-  restart only that development process from the intended checkpoint so it
-  picks up code changes and performs its normal development-guild-only
-  synchronization. Stop it temporarily when a gated fixture operation or
-  other documented safety procedure requires the bot to be offline.
+- The development beta is not a command-registration mechanism. Keep it
+  stopped while preparing a command-tree change; run the explicit,
+  guild-scoped management tool's offline plan, and only after separately
+  approved apply/smoke gates launch the beta with no startup synchronization.
+  Stop it temporarily when a gated fixture operation or other documented
+  safety procedure requires the bot to be offline.
 - The standing beta authorization does not cover production, a global command
   synchronization, a different guild/profile, enabling background tasks or
   the API, dependency installation, or materially broader live testing.
@@ -538,7 +538,7 @@ this decision does not authorize production deployment or synchronization.
 | P5 | Planned | Matchmaking lifecycle | Atomic open/join/leave/kick/start flows and native interactions |
 | P6 | Planned | Registration and player preferences | Worker-safe profile writes and slash UX |
 | P7 | In progress | Read-heavy game, player, and leaderboard commands | Bounded read path and responsive slash queries |
-| P8 | Planned | League and remaining administration workflows | Audited domain workers and selected native interfaces |
+| P8 | In progress | Guild application-command capability policy, explicit deployment tooling, then league and remaining administration workflows | Audited guild-scoped command policy and subsequent domain workers/native interfaces |
 | P9 | Planned | Production rollout and later prefix deprecation decision | Approved deployment, monitoring, and separate deprecation plan |
 
 ## P0 — Serialized ELO and slash-command pilot
@@ -611,9 +611,10 @@ Review evidence:
 - Prefix/slash permission paths preserve participant, staff, moderator, and
   guild checks. Registration/defer/denial tests remain green, and all five
   commands passed live beta acceptance.
-- Development command synchronization copies global definitions only into
-  guild `478571892832206869`; no global or production synchronization was
-  performed.
+- Historical beta evidence may mention development-guild synchronization, but
+  the current startup path performs no automatic registration. Future beta
+  work must use the explicit guild-scoped command-management plan/apply
+  workflow and must never perform a global synchronization.
 - `git diff --check` is clean after removing the roadmap's extra EOF blank
   line.
 
@@ -2687,7 +2688,7 @@ Compatibility implications:
 - The Components game-detail experiment was beta-rejected and removed rather
   than preserved as dormant UI or a split presentation. Both slash and numeric
   prefix paths now use the same dense classic renderer over the immutable
-  P7.9 display DTO, so no C-003 compatibility-ledger row is needed. The shared
+  P7.9 display DTO, so no compatibility-ledger row is needed. The shared
   snapshot preserves the material `Game.embed` fields, optional two-side series
   summary, pending join/start/codes/draft guidance, and local/remote winning
   imagery; there is no second database or mutation implementation. The old
@@ -2725,6 +2726,70 @@ Known limitations and next action:
   bounded read service unless a later concrete interaction feature justifies
   progressive enhancement. Select the smallest independently testable P8
   team/house or administration unit whose slash taxonomy is settled.
+
+## P8.0 — Guild application-command capability policy and explicit deployment tooling
+
+Status: **In progress; implementation branch open for Tier 2 review**
+
+Branch/base: `codex/p8-0-command-capabilities` from exact accumulation
+checkpoint `3990c65c375542d2a1b5b6e16bae1d30eacf38d2`.
+
+Objective: replace the historical one-guild `on_ready` synchronization with a
+repository-backed, default-deny capability policy and an explicit,
+dry-run-first guild deployment workflow. The policy is guild-scoped and
+operates at Discord's top-level command-root granularity.
+
+Implemented shape:
+
+- `core_user` owns `game`, `leaderboard`, and `player`; `elo_maintenance` owns
+  `elo`; `team`, `league`, `house`, `squad`, and `tools_support` are reserved
+  policy families for future roots; `operator_only` has no application-command
+  roots and cannot be assigned.
+- `application_command_capabilities` in each server-settings profile is an
+  explicit mapping from allowed guild IDs to capability names. Missing or
+  empty configuration is valid default-deny. Unknown capabilities, roots,
+  duplicate assignments, conflicting root definitions, operator-only use,
+  and guild IDs outside the selected runtime profile are rejected before a
+  remote operation.
+- `scripts/manage_application_commands.py` defaults to offline planning,
+  reports deterministic create/update/unchanged/remove differences for every
+  selected guild, and includes unassigned guilds so obsolete roots can be
+  pruned. Remote inspection and apply require explicit modes; apply requires
+  exact environment, guild-set, guild-scope, and no-global-sync confirmation.
+  There is no global deployment path.
+- Normal bot startup no longer mutates Discord command registration. The beta
+  procedure is stopped beta -> offline plan -> separately approved explicit
+  guild inspect/apply -> launch beta without synchronization.
+- The manager reads the real loaded command metadata through an isolated
+  model-free source loader. It never imports `bot.py` or the database-backed
+  model module for planning/sync, and each applied guild receives a fresh
+  guild-local `CommandTree` assembled from copied local templates without
+  changing global or other-guild state.
+
+Discord limitation: capability filtering cannot hide an individual staff or
+operator subcommand inside a public top-level root. Commands with different
+visibility requirements must use runtime permission checks or a separate
+top-level root in a later taxonomy decision. This unit adds no command,
+permission redesign, taxonomy rename, database query, or production rollout.
+
+Validation/evidence so far:
+
+- focused policy/manager tests: 17 passed;
+- dependency/on-startup compatibility tests: 13 passed under the required
+  development environment; existing taxonomy and accepted P7 workspace
+  tests remain green;
+- complete offline suite: 253 passed with 12 explicitly gated database tests
+  skipped; compilation and `git diff --check` passed;
+- offline plan was exercised for development guild
+  `478571892832206869`; it produced an empty default-deny desired tree without
+  connecting to Discord or a database;
+- no live Discord inspection or apply occurred, and no beta was launched.
+
+Next action: Sol reviews the complete Tier 2 branch, especially the isolated
+command-source loading boundary, exact confirmation behavior, top-level-root
+limitation, and full offline suite before integration. A later approved
+operator session may plan/apply only the intended development guild and then
+launch a beta without startup sync.
 
 ## P8 — League and remaining administration workflows
 
@@ -2765,8 +2830,9 @@ Required gates:
 - monitoring and log checks defined;
 - explicit approval for production deployment/restart/sync.
 
-Before deployment, implement and test the single-process guild capability
-policy described in D-031. The initial production observation stage should:
+Before deployment, reverify the P8.0 policy/tool and test the single-process
+guild capability canary described in D-031. The initial production observation
+stage should:
 
 - keep legacy prefix commands enabled;
 - expose new native/component commands only in the explicitly approved
@@ -2905,8 +2971,10 @@ An approved beta session should record:
 - shutdown result;
 - any disposable rows or channels requiring cleanup.
 
-If startup synchronizes commands automatically, launch approval and sync
-approval are one combined operational gate.
+Command registration is never an automatic startup side effect. A beta
+workflow must stop the bot, review the offline plan, obtain separate explicit
+guild-scoped inspection/apply approval, and only then launch the bot without
+syncing on startup.
 
 ## Decision log
 
@@ -2962,10 +3030,12 @@ not use it.
 
 ### D-007 — Development guild sync copies global definitions first
 
-Status: Accepted
+Status: Superseded by P8.0
 
-In development, `copy_global_to` precedes guild synchronization so application
-commands appear immediately without a global sync.
+This was the historical beta startup behavior. P8.0 removes registration
+mutation from `on_ready`; command definitions are now filtered by the
+default-deny policy and applied only through the explicit guild-scoped
+management tool. No global synchronization is available.
 
 ### D-008 — Defer general worker-framework extraction
 
@@ -3260,15 +3330,16 @@ changing the proposed Components v2 interaction design.
 This is a naming decision inside the proposal, not final approval of Taxonomy
 v2.2. No registration change is authorized by this decision.
 
-### D-026 — Keep the development beta running between work units
+### D-026 — Keep the development beta procedure explicit and guild-scoped
 
 Status: Accepted
 
-The development beta is now expected to be running by default. After a
-significant code unit is completed, validated, and checkpointed, restart only
-the beta process from that intended checkpoint so runtime code and the
-development-guild command tree are current. A routine beta restart includes
-the existing development-guild-only synchronization performed at startup.
+The development beta may be launched only after the command tree has been
+handled explicitly. Stop the beta, run and review the offline desired-state
+plan, obtain a separately approved guild-scoped inspection/apply operation if
+the tree must change, and launch the beta from the reviewed checkpoint with
+automatic startup synchronization disabled. A launch alone must not mutate
+Discord command registration.
 
 Before launching or restarting, verify the development environment, beta
 application identity, `polytopia_dev` profile, disabled background tasks/API,
@@ -3388,11 +3459,14 @@ DTO/service, record user impact and an explicit removal condition in the
 compatibility ledger, and never duplicate mutation or database logic. Separate
 classic and modern mutation implementations are prohibited.
 
-After P9 approval, production observation uses one production bot process:
+P8.0 supplies the default-deny guild capability policy and explicit
+guild-scoped deployment tooling. Applying it to production remains outside
+this unit and requires P9 approval. After P9 approval, production observation
+uses one production bot process:
 legacy prefixes remain enabled while new native/component capabilities are
 initially enabled only for the approved PolyChampions guild. Expansion and
-prefix deprecation are later evidence-based decisions. The capability-policy
-implementation and rollback are a separate pre-P9 unit.
+prefix deprecation are later evidence-based decisions. Production rollback and
+canary expansion remain separate P9 operational gates.
 
 ### D-032 — Split Sol oversight and Luna execution with worktree isolation
 
@@ -3420,6 +3494,30 @@ collisions but do not isolate host processes, database state, Discord, or Git
 refs and do not grant operational authority.
 
 ## Progress log
+
+### 2026-07-31 — P8.0 capability policy and explicit deployment tooling
+
+- Started `codex/p8-0-command-capabilities` from the exact clean accumulation
+  checkpoint `3990c65c375542d2a1b5b6e16bae1d30eacf38d2`; the unit remains
+  **In progress** and has not been integrated.
+- Added immutable default-deny capability families and validated guild
+  assignments, including allowed-guild, unknown capability/root, duplicate,
+  conflicting, and operator-only rejection. Top-level-root filtering and its
+  Discord visibility limitation are recorded in the taxonomy review.
+- Removed the historical one-guild `on_ready` registration mutation. Added a
+  dry-run-first `scripts/manage_application_commands.py` that plans every
+  selected guild deterministically, supports explicit remote inspect/apply,
+  prunes obsolete roots, and has no global synchronization path.
+- Added the model-free command-source loading boundary so planning/sync does
+  not import `bot.py` or open Peewee; each guild apply uses a fresh local tree
+  from copied command templates. Added the operator runbook and separated
+  beta command sync from beta launch.
+- Focused policy/manager tests pass (17), the complete offline suite passes
+  (253 with 12 gated skips), and compilation/diff checks are green.
+- The unchanged worker/database behavior means the gated PostgreSQL suite was
+  not rerun; the existing 12-pass gated evidence remains applicable. No live
+  Discord inspection/apply, beta launch, database access, or production
+  operation occurred for P8.0.
 
 ### 2026-07-31 — P7.9 final classic card accepted and integrated
 
@@ -3469,9 +3567,10 @@ refs and do not grant operational authority.
   compact `Section` thumbnail accessory, and placed dense sides, players,
   ratings, result/status, and core metadata on Overview. Notes, dates, season,
   and channels remain navigable in the snapshot.
-- Added C-003 to the compatibility ledger with the explicit removal condition
-  for the temporary classic prefix renderer. Implementation/test checkpoint:
-  `7c4eb21`. Interactive desktop/mobile smoke remains pending.
+- The temporary classic prefix-renderer proposal was superseded before
+  acceptance: both interfaces now use the same classic renderer over the
+  shared DTO/service. Implementation/test checkpoint: `7c4eb21`.
+  Interactive desktop/mobile smoke remains pending.
 
 ### 2026-07-31 — P7.9 Tier 2 parity corrections
 

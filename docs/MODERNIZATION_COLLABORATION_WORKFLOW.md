@@ -91,7 +91,10 @@ Rules:
   `bot.py --skip_tasks` processes, compare command paths, working directories,
   start times, and ancestry, identify production processes separately, and
   leave exactly one intended development beta. Never stop a production
-  process while cleaning up a development duplicate.
+  process while cleaning up a development duplicate. Command registration is
+  separate: stop beta, run the offline desired-state plan, obtain explicit
+  guild-scoped apply approval, then launch with startup synchronization
+  disabled.
 - A worktree is isolation for files/index/HEAD, not authorization for
   production, database, Discord, dependency, push, merge, or service actions.
 
