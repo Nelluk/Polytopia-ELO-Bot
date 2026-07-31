@@ -2494,11 +2494,16 @@ Next action: rerun focused/full/gated validation after the final refinements,
 checkpoint P7.8, then follow D-026 with a development-beta restart and smoke
 `/game search` plus representative complex prefix deep links.
 
-Beta result: D-026 launch from `d6bebcd` found no existing development beta
-process, authenticated as **PolyELO Bot Beta** (`479029527553638401`), and
-synchronized exactly the `game`, `leaderboard`, `player`, and `elo` roots to
-development guild `478571892832206869`. The beta remains running. Functional
-acceptance of `/game search` and its complex prefix deep links is pending.
+Beta result: D-026 launch from `d6bebcd` authenticated as **PolyELO Bot
+Beta** (`479029527553638401`) and synchronized exactly the `game`,
+`leaderboard`, `player`, and `elo` roots to development guild
+`478571892832206869`. A narrow preflight process match missed an older beta
+started from P7.7. Live testing exposed duplicate prefix replies and
+`CommandNotFound` errors from that stale process. Host-wide process inspection
+identified both exact development `bot.py --skip_tasks` PIDs; the older
+process stopped cleanly with SIGINT and only the current P7.8 beta remains.
+Functional acceptance of `/game search` and its complex prefix deep links is
+pending.
 
 ## P8 — League and remaining administration workflows
 
@@ -3021,8 +3026,11 @@ the existing development-guild-only synchronization performed at startup.
 Before launching or restarting, verify the development environment, beta
 application identity, `polytopia_dev` profile, disabled background tasks/API,
 configured development guild, current branch/worktree, and absence or exact
-identity of an existing beta process. Keep the bot stopped while fixture
-seed/cleanup tooling requires exclusive access.
+identity of every existing development `bot.py --skip_tasks` process. Match
+the process command independently of whether its Python path is absolute,
+compare start times, and confirm exactly one beta remains after restart.
+Do not rely only on the current task's attached terminal session. Keep the bot
+stopped while fixture seed/cleanup tooling requires exclusive access.
 
 This standing authorization does not apply to production operations, global
 command synchronization, other guilds or runtime profiles, dependency
@@ -3108,6 +3116,9 @@ database services remain distinct.
 - Added focused and real-schema gated coverage; beta acceptance remains.
 - Launched the D-026 development beta from the implementation checkpoint and
   confirmed synchronization only to the configured development guild.
+- Diagnosed duplicated prefix panels as two simultaneous beta processes,
+  stopped only the stale P7.7 process, and strengthened D-026's host-wide
+  duplicate-process verification.
 
 ### 2026-07-30 — P7.7 beta smoke accepted
 
