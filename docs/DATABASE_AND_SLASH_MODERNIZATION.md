@@ -344,7 +344,7 @@ longer be retained.
 |---|---|---|---|---|
 | C-001 `/newgame` | `/game record` accepts one roster string using the established `vs` grammar, infers arbitrary/unequal side sizes, preserves the one-opponent requester shortcut, and requires an interaction preview before creation. Edit sides provides native member selection plus add/remove-side controls. | The former two-sided 1v1–4v4 and raw-text-edit limits are resolved without message-content intent. Initial text tokens can still be ambiguous when users do not supply mentions, but the parsed draft can be corrected with native selectors. Per-game Mobile/Steam input was deliberately removed because full cross-play makes it obsolete. | If initial parsing remains troublesome, allow `/game record` to open an empty guided draft without requiring a seed roster. | Shape and edit gaps resolved by P2.3; initial parser usability remains for beta evaluation |
 | C-002 `/player show` and player-card prefixes | The shared workspace preserves identity, canonical name, current/peak/all-time local/global ratings, records, ranks, timezone, team/squad context, and paged game sections/filters. | The legacy generated rating-history image, requester head-to-head follow-up, trophies, favorite-tribe summary, and pre-Moonrise miscellaneous statistics are not yet displayed after the prefix commands deep-link the workspace. These become unavailable from those commands even while message intent remains enabled. | Add a bounded analytics/details section and media attachment renderer after observing which legacy details staff/users still value; keep graph generation outside the event loop. | Open for beta/user review in P7.7 |
-| C-003 `/game open` | P5.1 implements arbitrary common size shapes plus a requester-controlled ranked/expiration/notes preview, confirmation/cancel, and public post-commit completion. Native creation is canonical cross-play and has no platform choice. | Advanced role-locked sides and mention-restricted recruitment remain prefix-only in this bounded unit. If message content intent were later removed before a native role/member editor exists, those uncommon restrictions would be unavailable; prefix support remains unchanged. | Add side-by-side native role selectors and an allowed-member editor to the open-game draft after the shared join-eligibility service exists. | Implemented for P5.1; beta review pending |
+| C-003 `/game open` | P5.1 implements arbitrary common size shapes plus a requester-controlled ranked/expiration/notes preview, confirmation/cancel, and public post-commit completion. Native creation is canonical cross-play and has no platform choice; it follows the configured unranked-channel default and accepts either existing legacy account-name field. | Advanced role-locked sides and mention-restricted recruitment remain prefix-only in this bounded unit. If message content intent were later removed before a native role/member editor exists, those uncommon restrictions would be unavailable; prefix support remains unchanged. | Add side-by-side native role selectors and an allowed-member editor to the open-game draft after the shared join-eligibility service exists. | Implemented for P5.1; beta review pending |
 
 Every later slash conversion must add a row when parity is intentionally
 reduced. If there is no compromise, its unit evidence should explicitly say
@@ -420,7 +420,8 @@ check:
 - P7.9 final classic-card acceptance: `/game show`, numeric `$game`, and
   numeric `$match` accepted with the shared production-style presentation;
   accumulation merge `fdacd88`.
-- P5.1 implementation checkpoints: `b8c7d46`, `fb0ca2b`, `188ba79` on
+- P5.1 implementation checkpoints: `b8c7d46`, `fb0ca2b`, `188ba79`,
+  `698e775` on
   `codex/p5-1-game-open`, based on exact clean base
   `d24aa6b5e64fba159a872eb565703465c79d712d`.
 
@@ -1832,6 +1833,8 @@ Commit(s):
   open-game audit notes.
 - `188ba79` — Preserve legacy prefix warning ordering in committed effect
   snapshots.
+- `698e775` — Correct native channel defaults and cross-play account-name
+  validation.
 
 Interface and compatibility:
 
@@ -1848,6 +1851,12 @@ Interface and compatibility:
   advanced prefix grammar unless they fit cleanly within the bounded preview.
   Record any native parity gap in the compatibility ledger rather than
   expanding this unit into the entire join-eligibility redesign.
+- initialize native ranked state from the configured unranked-game channel,
+  while retaining the requester toggle;
+- use an explicit primitive cross-play platform-validation mode for native
+  requests. Native creation stores the canonical `is_mobile=True` value but
+  accepts either existing mobile or Steam account name; legacy prefix requests
+  retain their exact platform-specific validation.
 
 Database and concurrency boundary:
 
@@ -1880,18 +1889,23 @@ Required validation:
 
 Validation evidence:
 
-- Focused P5.1 plus taxonomy coverage: 23 passed, including parser/mixed
+- Focused P5.1 plus taxonomy coverage: 27 passed, including parser/mixed
   `v`/`vs`/FFA shapes, alias and native registration, immutable boundaries,
   worker connection closure, side/lineup/log rollback, host-limit
   serialization, slow-worker responsiveness, exception/cancellation cleanup,
   requester-only controls, cancel/timeout, immediate defer, public
-  post-commit delivery, and Discord-failure reconciliation logging.
-- Complete offline suite: 276 passed with 13 explicitly gated database tests
+  post-commit delivery, Discord-failure reconciliation logging, native
+  unranked-channel defaults, native Steam-only acceptance, native missing-name
+  guidance, and unchanged prefix Mobile/Steam validation.
+- Complete offline suite: 280 passed with 13 explicitly gated database tests
   skipped; syntax compilation and `git diff --check` passed.
-- The gated suite was attempted with `POLYBOT_ENV=development`. The runtime
-  profile resolved to `polytopia_dev` and role `polybot_dev`, with background
-  tasks/API disabled, but `localhost:5432` returned no response during the
-  PostgreSQL preflight, so no gated test ran and no database rows were written.
+- Oversight subsequently reran the unchanged pre-correction gated suite: 13
+  tests ran, 12 passed, and the operator-managed fixture round trip was
+  skipped. The safety gates confirmed `POLYBOT_ENV=development`, database
+  `polytopia_dev`, role `polybot_dev`, and disabled background tasks/API.
+  This evidence applies to the prior implementation, not to `698e775`.
+- The gated suite was not rerun after the native parity correction; Sol will
+  rerun it during the next Tier 3 validation. No live Discord work was done.
 - No beta process was launched, no Discord command inspection/synchronization
   occurred, and no production or service operation occurred.
 
@@ -1907,14 +1921,13 @@ Remaining limitations:
 - There is no durable reconciliation queue for a Discord failure. The shared
   presenter logs the committed game ID and attempts an operator-visible
   warning; a failed warning send still requires operator log review.
-- Tier 3 beta acceptance remains outstanding because the required development
-  PostgreSQL service was unavailable and live Discord work was out of scope.
+- Tier 3 beta acceptance and post-correction gated validation remain
+  outstanding; live Discord work remains a separate approval.
 
-Next action: review the complete Tier 3 branch, restore the development
-PostgreSQL service independently, rerun the gated suite and confirm cleanup,
-then obtain separate approval for a development-guild command inspection/sync
-and beta smoke. Do not merge this branch into the accumulation branch until
-that review and approval are complete.
+Next action: have Sol rerun the gated suite against the corrected branch and
+confirm cleanup, then obtain separate approval for development-guild command
+inspection/sync and beta smoke. Do not merge this branch into the accumulation
+branch until that review and approval are complete.
 
 Out of scope: join/leave/kick/start mutation refactors, reaction-listener
 rewrites, background purge jobs, platform-field schema cleanup, production
@@ -3745,12 +3758,30 @@ production deployment.
   the native restriction gap in C-003.
 - Added offline fault, ordering, concurrency, responsiveness, registration,
   and interaction coverage plus a gated real-schema test that creates and
-  rolls back the complete pending-game graph. The offline suite passed 274
-  tests with 13 gated skips. The gated run was attempted under the strict
-  development profile but PostgreSQL was unavailable at `localhost:5432`, so
-  no database test or row mutation occurred.
+  rolls back the complete pending-game graph. The initial offline suite
+  passed 274 tests with 13 gated skips; the initial gated attempt was blocked
+  by unavailable PostgreSQL at `localhost:5432`.
 - No beta launch, Discord inspection/synchronization, production operation,
   dependency change, merge, or push occurred.
+
+### 2026-07-31 — P5.1 native parity correction
+
+- Corrected `/game open` to inherit the configured unranked-channel default
+  while preserving the requester ranked/unranked toggle.
+- Added an explicit primitive cross-play platform-validation mode. Native
+  requests retain canonical `is_mobile=True` storage and accept either mobile
+  or Steam account names; neither-name requests receive canonical account
+  registration guidance. Prefix requests retain exact Mobile/Steam checks.
+- Added focused regressions for native channel defaults, Steam-only success,
+  neither-name failure, and legacy prefix validation. Focused coverage passed
+  27 tests and the complete offline suite passed 280 tests with 13 gated
+  skips.
+- Oversight's unchanged pre-correction gated run passed 12 tests with one
+  operator-managed fixture skip under the strict development/
+  `polytopia_dev`/`polybot_dev` gates. The corrected branch was not gated
+  rerun; Sol will perform that validation next.
+- No live Discord work, beta launch, production operation, dependency change,
+  merge, or push occurred.
 
 ### 2026-07-31 — P7.9 final classic card accepted and integrated
 
