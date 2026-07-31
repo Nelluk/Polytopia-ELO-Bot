@@ -1,4 +1,4 @@
-"""Offline coverage for the experimental Components v2 leaderboard."""
+"""Offline coverage for the promoted Components v2 leaderboard."""
 
 import datetime
 from types import SimpleNamespace
@@ -14,6 +14,7 @@ leaderboard_workers = import_offline_runtime(
     'modules.leaderboard_workers'
 )
 leaderboard_v2 = import_offline_runtime('modules.leaderboard_v2')
+components_v2 = import_offline_runtime('modules.components_v2')
 games = import_offline_runtime('modules.games')
 
 
@@ -60,10 +61,14 @@ class LeaderboardV2LayoutTests(unittest.IsolatedAsyncioTestCase):
             item for item in children
             if isinstance(item, discord.ui.Select)
         ]
-        self.assertEqual(len(selects), 1)
+        self.assertEqual(len(selects), 2)
         self.assertEqual(
             [option.value for option in selects[0].options],
             [preset.key for preset in leaderboard_v2.PRESETS],
+        )
+        self.assertEqual(
+            {option.value for option in selects[1].options},
+            set(leaderboard_v2.FILTER_KEYS),
         )
         self.assertIn('Showcase 01', view.children[0].children[2].content)
         self.assertLessEqual(view.total_children_count, 40)
@@ -84,7 +89,7 @@ class LeaderboardV2LayoutTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertFalse(await view.interaction_check(denied))
         denied_response.send_message.assert_awaited_once_with(
-            'Only the requester can control this leaderboard.',
+            'Only the requester can control this result.',
             ephemeral=True,
         )
         self.assertTrue(await view.interaction_check(allowed))
@@ -127,16 +132,50 @@ class LeaderboardV2LayoutTests(unittest.IsolatedAsyncioTestCase):
         loader.assert_not_awaited()
         self.assertEqual(response.edit_message.await_count, 2)
 
+    async def test_timeout_recursively_disables_serializable_controls(self):
+        view = self.make_view()
+        view.message = SimpleNamespace(edit=mock.AsyncMock())
+        await view.on_timeout()
+        controls = [
+            item for item in view.walk_children()
+            if isinstance(item, (discord.ui.Button, discord.ui.Select))
+        ]
+        self.assertTrue(controls)
+        self.assertTrue(all(item.disabled for item in controls))
+        self.assertLessEqual(view.total_children_count, 40)
+        self.assertEqual(view.to_components()[0]['type'], 17)
+        view.message.edit.assert_awaited_once_with(view=view)
+
+    async def test_expired_page_modal_has_rerun_guidance(self):
+        view = self.make_view()
+        view.stop()
+        modal = components_v2.PageJumpModal(view)
+        response = SimpleNamespace(send_message=mock.AsyncMock())
+        interaction = SimpleNamespace(
+            user=SimpleNamespace(id=777),
+            response=response,
+        )
+        await modal.on_submit(interaction)
+        response.send_message.assert_awaited_once()
+        self.assertIn(
+            'Run the command again',
+            response.send_message.await_args.args[0],
+        )
+
 
 class LeaderboardV2CommandTests(unittest.IsolatedAsyncioTestCase):
-    def test_lb2_is_a_no_option_experimental_command(self):
-        command = next(
-            command
-            for command in games.polygames.__cog_app_commands__
-            if command.name == 'lb2'
+    def test_players_is_no_option_and_lb2_is_removed(self):
+        group = next(
+            command for command in games.polygames.__cog_app_commands__
+            if command.name == 'leaderboard'
         )
+        command = next(command for command in group.commands
+                       if command.name == 'players')
         self.assertEqual(command.parameters, [])
-        self.assertIn('experimental', command.description.lower())
+        self.assertNotIn(
+            'lb2',
+            {command.name for command in games.polygames.__cog_app_commands__},
+        )
 
     async def test_command_defers_and_sends_only_layout_view(self):
         events = []
@@ -173,11 +212,12 @@ class LeaderboardV2CommandTests(unittest.IsolatedAsyncioTestCase):
         cog.bot = SimpleNamespace()
         cog.lb = SimpleNamespace(can_run=can_run)
         cog._load_player_leaderboard = load
-        command = next(
-            command
-            for command in games.polygames.__cog_app_commands__
-            if command.name == 'lb2'
+        group = next(
+            command for command in games.polygames.__cog_app_commands__
+            if command.name == 'leaderboard'
         )
+        command = next(command for command in group.commands
+                       if command.name == 'players')
         with (
             mock.patch.object(
                 games.commands.Context,

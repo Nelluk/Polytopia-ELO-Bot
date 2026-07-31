@@ -556,13 +556,7 @@ class polygames(commands.Cog):
 
     @leaderboard_group.command(
         name='players',
-        description='View local or global individual player rankings.',
-    )
-    @discord.app_commands.describe(
-        scope='Use this server or cross-server global ratings.',
-        rating='Rank by current ELO or maximum ELO achieved.',
-        era='Use the current rating era or permanent all-time ratings.',
-        population='Include recently active players or all players.',
+        description='Explore individual player rankings.',
     )
     @discord.app_commands.checks.cooldown(
         2,
@@ -572,64 +566,8 @@ class polygames(commands.Cog):
     async def player_leaderboard_slash(
         self,
         interaction: discord.Interaction,
-        scope: Literal['local', 'global'] = 'local',
-        rating: Literal['current', 'peak'] = 'current',
-        era: Literal['current', 'all-time'] = 'current',
-        population: Literal['active', 'all'] = 'active',
     ):
-        """Typed native player leaderboard with component pagination."""
-
-        await interaction.response.defer()
-        ctx = await commands.Context.from_interaction(interaction)
-        ctx.prefix = settings.guild_setting(
-            interaction.guild.id,
-            'command_prefix',
-        )
-        ctx.invoked_with = 'lb'
-        if not await self.lb.can_run(ctx):
-            return
-
-        request = leaderboard_workers.PlayerLeaderboardRequest(
-            guild_id=interaction.guild.id,
-            scope=scope,
-            rating=rating,
-            era=era,
-            population=population,
-            active_cutoff=settings.date_cutoff,
-        )
-        try:
-            result = await self._load_player_leaderboard(request)
-        except (peewee.PeeweeException, ValueError) as exc:
-            logger.exception('Could not load slash player leaderboard')
-            return await interaction.followup.send(
-                f'Could not load the player leaderboard: {exc}',
-                ephemeral=True,
-            )
-
-        view = leaderboard_views.PlayerLeaderboardView(
-            result,
-            requester_id=interaction.user.id,
-        )
-        view.message = await interaction.edit_original_response(
-            embed=leaderboard_views.player_leaderboard_embed(result, 0),
-            view=view,
-        )
-
-    @discord.app_commands.command(
-        name='lb2',
-        description='Try an experimental interactive player leaderboard.',
-    )
-    @discord.app_commands.guild_only()
-    @discord.app_commands.checks.cooldown(
-        2,
-        30.0,
-        key=lambda interaction: interaction.channel_id,
-    )
-    async def player_leaderboard_v2_slash(
-        self,
-        interaction: discord.Interaction,
-    ):
-        """Components v2 experiment with in-message leaderboard controls."""
+        """Interactive player leaderboard with cached filters."""
 
         await interaction.response.defer()
         ctx = await commands.Context.from_interaction(interaction)
@@ -652,13 +590,13 @@ class polygames(commands.Cog):
         try:
             result = await self._load_player_leaderboard(request)
         except (peewee.PeeweeException, ValueError) as exc:
-            logger.exception('Could not load experimental leaderboard')
+            logger.exception('Could not load slash player leaderboard')
             return await interaction.followup.send(
                 f'Could not load the player leaderboard: {exc}',
                 ephemeral=True,
             )
 
-        view = leaderboard_v2.ExperimentalLeaderboardView(
+        view = leaderboard_v2.PlayerLeaderboardWorkspace(
             guild_id=interaction.guild.id,
             requester_id=interaction.user.id,
             result=result,
@@ -763,15 +701,11 @@ class polygames(commands.Cog):
                 ephemeral=True,
             )
 
-        view_control = leaderboard_views.ActivityLeaderboardView(
-            result,
+        view_control = leaderboard_v2.ActivityLeaderboardWorkspace(
             requester_id=interaction.user.id,
+            result=result,
         )
         view_control.message = await interaction.edit_original_response(
-            embed=leaderboard_views.activity_leaderboard_embed(
-                result,
-                0,
-            ),
             view=view_control,
         )
 

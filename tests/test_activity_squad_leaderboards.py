@@ -16,6 +16,7 @@ leaderboard_workers = import_offline_runtime(
     'modules.leaderboard_workers'
 )
 leaderboard_views = import_offline_runtime('modules.leaderboard_views')
+leaderboard_v2 = import_offline_runtime('modules.leaderboard_v2')
 games = import_offline_runtime('modules.games')
 
 
@@ -308,7 +309,7 @@ class ActivitySquadCommandTests(unittest.IsolatedAsyncioTestCase):
             events.append('edit')
             self.assertIsInstance(
                 kwargs['view'],
-                leaderboard_views.ActivityLeaderboardView,
+                leaderboard_v2.ActivityLeaderboardWorkspace,
             )
             return SimpleNamespace(edit=mock.AsyncMock())
 

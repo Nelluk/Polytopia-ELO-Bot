@@ -30,7 +30,7 @@ class SlashTaxonomyRegistrationTests(unittest.TestCase):
 
         self.assertEqual(
             [command.name for command in games.polygames.__cog_app_commands__],
-            ['game', 'leaderboard', 'lb2'],
+            ['game', 'leaderboard'],
         )
         self.assertEqual(
             [
