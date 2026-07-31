@@ -1981,12 +1981,17 @@ class polygames(commands.Cog):
                 return await confirmation.followup.send(
                     message,
                     ephemeral=False,
+                    wait=True,
                 )
+
+            async def add_join_reaction(message: object) -> None:
+                await message.add_reaction(settings.emoji_join_game)
 
             await game_open.publish_open_game_result(
                 result,
                 prefix=ctx.prefix,
                 send=send_public,
+                add_completion_reaction=add_join_reaction,
             )
 
         view = game_open_views.OpenGameView(

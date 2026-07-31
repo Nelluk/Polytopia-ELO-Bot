@@ -785,6 +785,41 @@ class OpenGameCommandTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(view.draft.size, (2, 2, 1))
         self.assertTrue(view.draft.ranked)
 
+        public_message = SimpleNamespace(add_reaction=mock.AsyncMock())
+        confirmation = SimpleNamespace(
+            followup=SimpleNamespace(
+                send=mock.AsyncMock(return_value=public_message),
+            ),
+        )
+        result = game_open_workers.OpenGameResult(
+            game_id=42,
+            guild_id=300,
+            requester_id=100,
+            host_name='Host',
+            size=(2, 2, 1),
+            expiration_hours=24,
+            is_ranked=True,
+            is_mobile=True,
+            notes_display='\u200b',
+            warnings=(),
+            role_locks=(),
+        )
+        with mock.patch.object(
+            games.game_open_workers,
+            'run_open_game_creation',
+            new=mock.AsyncMock(return_value=result),
+        ):
+            await view.confirmer(confirmation, view.draft)
+
+        confirmation.followup.send.assert_awaited_once_with(
+            mock.ANY,
+            ephemeral=False,
+            wait=True,
+        )
+        public_message.add_reaction.assert_awaited_once_with(
+            games.settings.emoji_join_game,
+        )
+
     async def test_native_open_defaults_unranked_in_configured_channel(self):
         context = SimpleNamespace(invoked_with='opengame')
         user = SimpleNamespace(

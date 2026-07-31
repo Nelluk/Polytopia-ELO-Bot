@@ -18,6 +18,7 @@ async def publish_open_game_result(
     prefix: str,
     send: Callable[[str], Awaitable[object]],
     broadcast: Callable[[], Awaitable[None]] | None = None,
+    add_completion_reaction: Callable[[object], Awaitable[None]] | None = None,
 ) -> None:
     """Publish warnings/result only after the worker transaction commits."""
 
@@ -37,12 +38,21 @@ async def publish_open_game_result(
         f'Other players can join this game with `{prefix}join '
         f'{result.game_id}` or join game {result.game_id} by reacting with '
         f'{settings.emoji_join_game}.')
-    await _send_with_reconciliation(
+    sent_completion = await _send_with_reconciliation(
         send,
         completion,
         result.game_id,
         'open-game completion',
     )
+    if sent_completion is not None and add_completion_reaction is not None:
+        try:
+            await add_completion_reaction(sent_completion)
+        except Exception:
+            logger.exception(
+                'Discord join reaction failed for committed open game %s; '
+                'operator reconciliation is required',
+                result.game_id,
+            )
 
     if broadcast is not None and any(
         side.required_role_id for side in result.role_locks
@@ -70,11 +80,11 @@ async def _send_with_reconciliation(
     message: str,
     game_id: int,
     effect_name: str,
-) -> None:
+) -> object | None:
     """Keep committed state visible when a Discord send fails."""
 
     try:
-        await send(message)
+        return await send(message)
     except Exception:
         logger.exception(
             'Discord %s failed for committed open game %s; operator '
@@ -82,3 +92,4 @@ async def _send_with_reconciliation(
             effect_name,
             game_id,
         )
+        return None
