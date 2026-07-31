@@ -15,6 +15,14 @@ server_shortcut_ids = {
     'test': TEST_GUILD_ID,
 }
 
+# Default-deny: explicit development-guild registration is performed by
+# scripts/manage_application_commands.py, separately from launching the bot.
+# Example (after replacing TEST_GUILD_ID):
+# application_command_capabilities = {
+#     TEST_GUILD_ID: ('core_user',),
+# }
+application_command_capabilities = {}
+
 server_list = {
     'default': {
         'helper_roles': ['Helper'],

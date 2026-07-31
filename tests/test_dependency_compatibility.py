@@ -2,6 +2,7 @@ import asyncio
 import importlib
 from importlib.metadata import version
 from io import BytesIO
+import inspect
 import json
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
@@ -279,29 +280,12 @@ class RuntimeDependencyCompatibilityTests(unittest.TestCase):
                     self.assertIn('modules.games', loaded_extensions)
                     self.assertIn('modules.antiscam', loaded_extensions)
 
-                    synced = [SimpleNamespace(name='unwin')]
-                    with mock.patch.object(
-                            instance.tree, 'copy_global_to') as copy_global:
-                        with mock.patch.object(
-                                instance.tree,
-                                'sync',
-                                new=mock.AsyncMock(
-                                    return_value=synced)) as sync:
-                            result = asyncio.run(
-                                bot_module.sync_application_commands(instance)
-                            )
-
-                    self.assertIs(result, synced)
-                    development_guild = copy_global.call_args.kwargs['guild']
-                    self.assertEqual(
-                        development_guild.id,
-                        settings_stub.server_ids['polychampions'],
+                    self.assertFalse(
+                        hasattr(bot_module, 'sync_application_commands')
                     )
-                    sync.assert_awaited_once()
-                    self.assertEqual(
-                        sync.await_args.kwargs['guild'].id,
-                        development_guild.id,
-                    )
+                    startup_source = inspect.getsource(bot_module.init_bot)
+                    self.assertNotIn('tree.sync', startup_source)
+                    self.assertNotIn('copy_global_to', startup_source)
                 finally:
                     asyncio.run(instance.close())
         finally:
