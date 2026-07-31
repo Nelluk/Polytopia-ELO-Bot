@@ -451,7 +451,12 @@ players/sides, status/result and dates, map/tribes, notes/season metadata,
 series summary, channel links, and winning-player/team imagery. Numeric
 `$game` and `$match` use the same workspace; nonnumeric prefix input retains
 the existing game-search delegation. The implementation deliberately adds no
-mutation controls or game-log query to this bounded read unit.
+mutation controls or game-log query to this bounded read unit. Pending
+cross-guild lookups retain only the legacy server-association error; nonpending
+cross-guild cards use plain names and suppress source member/role/channel
+identifiers. Pending open/full cards retain join, start, friend-name, and
+balanced-draft guidance with the configured prefix supplied by the display
+adapter.
 
 The intended team option shape is attribute-focused:
 

@@ -401,8 +401,8 @@ check:
   `polytopia_dev` with zero players and zero game sides
 - retained P7.5 showcase: 24 owned players (`163`-`186`) and 48 owned games
   (`200`-`247`), with gated status/confirmed-cleanup tooling
-- P7.9 implementation checkpoint: `24a435b` on
-  `codex/p7-9-game-detail-workspace`, based on `16fc6565`
+- P7.9 implementation checkpoint: `24a435b` with Tier 2 parity correction
+  `22023f4` on `codex/p7-9-game-detail-workspace`, based on `16fc6565`
 
 Current unit: **P7.9 Implemented; beta acceptance pending.** P7.6, P7.7, and
 P7.8 are integrated into `codex/database-slash-modernization` after functional
@@ -2602,22 +2602,32 @@ Interface and behavior:
   channel links. Secondary requester-controlled sections expose players/sides,
   status/dates, attributes, and channels without another database read.
 - Cross-guild explicit reads remain visible to the same public audience with a
-  source-guild compatibility banner. The native `/game` group remains guild-
-  only, while `/game show` adds no new bot-channel or registration check beyond
-  the legacy numeric prefix behavior.
+  source-guild compatibility banner. Pending cross-guild reads are withheld
+  before a snapshot is returned, matching legacy `$game` behavior. Nonpending
+  cross-guild cards use plain database names only: source member mentions,
+  role mentions, and game/side channel links are not resolved. The native
+  `/game` group remains guild-only, while `/game show` adds no new bot-channel
+  or registration check beyond the legacy numeric prefix behavior.
+- Pending snapshots preserve the legacy open-game join guidance, configured
+  per-guild prefix, platform/friend-name values, full-game creator start/codes
+  guidance, and balanced draft order as immutable primitives. Prefix
+  configuration is supplied by the event-loop/display adapter, never the DB
+  worker.
 - No mutation was added. Controls are requester-only, unauthorized and
   expired interactions are ephemeral, and the result itself remains public.
 
 Implementation and boundary evidence:
 
 - `modules/game_detail_workers.py` adds a two-thread bounded executor, frozen
-  primitive request/snapshot/side/lineup DTOs, worker-local Peewee connection
-  ownership, channel inference, meaningful invalid/not-found errors, and an
-  optional frozen series summary.
+  primitive request/snapshot/side/lineup/draft DTOs, worker-local Peewee
+  connection ownership, channel inference, meaningful invalid/not-found
+  errors, pending operational metadata, and an optional frozen series summary.
 - `modules/game_detail_views.py` uses the P7.6 Components v2 toolkit. It
   resolves Discord members, roles, channels, guild labels, and local/remote
-  winning-player/team imagery outside the worker. Local team files are
-  reattached when a section is edited so `attachment://` media remains valid.
+  winning-player/team imagery outside the worker. It applies the legacy
+  cross-guild privacy boundary and renders pending join/start/codes/draft
+  guidance. Local team files are reattached when a section is edited so
+  `attachment://` media remains valid.
 - `modules/games.py` provides the shared slash/prefix adapter and 20-second
   bounded read timeout. `tests/test_game_detail_workspace.py` covers the
   registration shape, routing, channel inference outcomes, visibility,
@@ -2628,8 +2638,8 @@ Implementation and boundary evidence:
 
 Validation evidence:
 
-- focused game-detail suite: 19 passed;
-- complete offline suite: 233 passed with 12 explicitly gated database tests
+- focused game-detail suite: 24 passed;
+- complete offline suite: 238 passed with 12 explicitly gated database tests
   skipped;
 - compilation and `git diff --check`: passed;
 - runtime preflight selected `POLYBOT_ENV=development`, `polytopia_dev`,
@@ -2641,38 +2651,40 @@ Validation evidence:
 Commit:
 
 - `24a435b` — Add unified game detail workspace.
+- `22023f4` — Restore game detail parity boundaries.
 
 Compatibility implications:
 
 - No new compatibility-ledger row is required: the bounded snapshot preserves
-  the material `Game.embed` card fields, optional two-side series summary, and
-  local/remote winning imagery while moving the public presentation to
-  Components v2. The old cross-guild summary-plus-message becomes one public
-  workspace with an explicit source-guild banner.
+  the material `Game.embed` card fields, optional two-side series summary,
+  pending join/start/codes/draft guidance, and local/remote winning imagery
+  while moving the public presentation to Components v2. The old cross-guild
+  summary-plus-message remains a public compatibility notice, pending cards
+  are withheld cross-guild, and nonpending cards do not resolve source-only
+  member/role/channel identifiers.
 - Audit logs and mutation/permitted-action controls remain separate from this
   read-only unit; no database logic is duplicated for them. Pending-game join
   and lifecycle mutations continue through their existing permission-checked
   prefix/native commands.
 
-Beta result: **D-026 launch/preflight passed; interactive smoke pending.** No
-development beta was running at preflight. On 2026-07-31 the managed worktree
-launched exactly one intended beta (PID `1784646`), authenticated as **PolyELO
-Bot Beta** (`479029527553638401`), and connected successfully. A host-wide
-process check found no duplicate; `/proc/1784646/cwd` is the managed worktree.
-The headless execution task has no Discord client surface for the requested
-explicit-ID, channel-inference, numeric-prefix, nonnumeric-search, or
-desktop/mobile interaction smoke, so beta acceptance remains pending rather
-than being inferred from startup. The development log does confirm that the
-ready hook synced exactly four application-command roots (`game`,
-`leaderboard`, `player`, `elo`) to guild `478571892832206869`. No production
-process or database was accessed.
+Beta result: **D-026 launch/sync succeeded; beta currently stopped/exited;
+interactive smoke pending.** The managed worktree previously launched exactly
+one intended beta (PID `1784646`), authenticated as **PolyELO Bot Beta**
+(`479029527553638401`), connected successfully, and synced exactly four
+application-command roots (`game`, `leaderboard`, `player`, `elo`) to guild
+`478571892832206869`. Fresh host-wide review after the Tier 2 correction found
+no `bot.py --skip_tasks` process; PID `1784646` is no longer running. The
+headless execution task has no Discord client surface for explicit-ID,
+channel-inference, prefix, or desktop/mobile interaction smoke, so beta
+acceptance remains pending. No production process or database was accessed.
 
 Known limitations and next action:
 
 - The workspace does not add a game-log section or new mutation buttons; those
   remain later bounded units/paths. If optional historical series data cannot
   be read, the primary immutable card still renders without that optional
-  line.
+  line. Cross-guild pending games intentionally expose only the association
+  error, matching the legacy privacy boundary.
 - Have Sol or an available Discord client perform the explicit-ID,
   channel-inference, numeric-prefix/search, and desktop/mobile smoke against
   the single beta, then return the exact handoff packet to Sol for Tier 2
@@ -3355,6 +3367,20 @@ collisions but do not isolate host processes, database state, Discord, or Git
 refs and do not grant operational authority.
 
 ## Progress log
+
+### 2026-07-31 — P7.9 Tier 2 parity corrections
+
+- Withheld pending cross-guild game-detail cards before returning a snapshot;
+  retained nonpending cross-guild public detail while suppressing source
+  member/role/channel Discord identifiers.
+- Preserved pending open-game join guidance and full-game start, codes, and
+  balanced-draft guidance in immutable worker DTOs, with the configured prefix
+  resolved only on the event-loop/display side.
+- Added focused privacy and pending-parity coverage. The corrected branch now
+  passes 24 focused tests, 238 offline tests with 12 gated skips, and 12 gated
+  development tests with one retained-fixture skip.
+- Fresh host-wide process review found the prior D-026 beta exited; no beta is
+  currently running. Interactive Discord smoke remains pending.
 
 ### 2026-07-31 — P7.9 game-detail workspace implemented
 
