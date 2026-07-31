@@ -2632,8 +2632,11 @@ Validation evidence:
 - complete offline suite: 233 passed with 12 explicitly gated database tests
   skipped;
 - compilation and `git diff --check`: passed;
-- gated `polytopia_dev` validation and D-026 beta smoke remain required before
-  Sol can mark the unit beta-validated.
+- runtime preflight selected `POLYBOT_ENV=development`, `polytopia_dev`,
+  `polybot_dev`, development guild `478571892832206869`, and disabled
+  background tasks/API;
+- gated development suite: 12 passed and one retained operator-fixture skip;
+  the new real-schema game-detail worker read passed under the unchanged gate.
 
 Commit:
 
@@ -2651,10 +2654,16 @@ Compatibility implications:
   and lifecycle mutations continue through their existing permission-checked
   prefix/native commands.
 
-Beta result: **pending at this checkpoint.** D-026 requires a host-wide
-  inspection of all development `bot.py --skip_tasks` processes and exactly one
-  intended beta before any restart/synchronization. No production process or
-  database was accessed.
+Beta result: **D-026 launch/preflight passed; interactive smoke pending.** No
+development beta was running at preflight. On 2026-07-31 the managed worktree
+launched exactly one intended beta (PID `1784646`), authenticated as **PolyELO
+Bot Beta** (`479029527553638401`), and connected successfully. A host-wide
+process check found no duplicate; `/proc/1784646/cwd` is the managed worktree.
+The headless execution task has no Discord client surface for the requested
+explicit-ID, channel-inference, numeric-prefix, nonnumeric-search, or
+desktop/mobile interaction smoke, so beta acceptance remains pending rather
+than being inferred from startup. No production process or database was
+accessed.
 
 Known limitations and next action:
 
@@ -2662,11 +2671,11 @@ Known limitations and next action:
   remain later bounded units/paths. If optional historical series data cannot
   be read, the primary immutable card still renders without that optional
   line.
-- Run the gated development suite through its unchanged identity checks,
-  launch/restart only the intended development beta under D-026, perform the
-  explicit-ID/channel-inference/numeric-prefix/search and desktop/mobile
-  smoke, then return the exact handoff packet to Sol for Tier 2 review. Do not
-  integrate this branch.
+- Have Sol or an available Discord client perform the explicit-ID,
+  channel-inference, numeric-prefix/search, and desktop/mobile smoke against
+  the single beta, then return the exact handoff packet to Sol for Tier 2
+  review. Keep the beta/fixtures/process state within D-026 and do not
+  integrate this branch from Luna.
 
 ## P8 — League and remaining administration workflows
 
@@ -3360,8 +3369,15 @@ refs and do not grant operational authority.
   tests with 12 gated skips.
 - Recorded the app-managed Codex task worktree as the preferred Luna execution
   path; the manually prepared `.worktrees/luna` checkout is fallback only.
+- Passed the unchanged gated `polytopia_dev` suite: 12 tests passed and one
+  retained operator-fixture set was skipped; the real-schema game-detail read
+  passed.
+- Launched one D-026 development beta from the managed worktree as
+  **PolyELO Bot Beta** and verified host-wide exactly-one process state. Live
+  Discord client/mobile/desktop smoke remains pending because this headless
+  execution task has no client surface.
 - Beta acceptance and accumulation-branch integration remain pending Sol's
-  Tier 2 review and D-026 smoke gate.
+  Tier 2 review and interactive D-026 smoke gate.
 
 ### 2026-07-31 — Compatibility canary and Sol/Luna workflow accepted
 
