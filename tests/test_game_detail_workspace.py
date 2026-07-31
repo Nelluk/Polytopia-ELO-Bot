@@ -519,6 +519,78 @@ class GameDetailViewTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn('Game 7', text)
         self.assertIn('Dryland', text)
 
+    def test_compact_overview_uses_thumbnail_accessory_and_dense_roster(self):
+        view = self.make_view()
+        root = view.children[0]
+        sections = [
+            child for child in root.children
+            if isinstance(child, discord.ui.Section)
+        ]
+        self.assertEqual(len(sections), 1)
+        self.assertIsInstance(sections[0].accessory, discord.ui.Thumbnail)
+        self.assertFalse(any(
+            isinstance(child, discord.ui.MediaGallery)
+            for child in root.children
+        ))
+        text = '\n'.join(
+            item.content
+            for item in view.walk_children()
+            if isinstance(item, discord.ui.TextDisplay)
+        )
+        self.assertIn('Sides & players', text)
+        self.assertIn('Alpha', text)
+        self.assertIn('Beta', text)
+        self.assertIn('ELO', text)
+        self.assertIn('Side 1', text)
+
+    def test_classic_completed_renderer_preserves_embed_density_and_media(self):
+        guild = SimpleNamespace(
+            id=10,
+            name='Test Guild',
+            get_member=lambda member_id: None,
+            get_role=lambda role_id: None,
+        )
+        display = views.resolve_display(snapshot(), guild=guild)
+        rendered = views.render_classic_game_detail(display)
+        self.assertIsInstance(rendered.embed, discord.Embed)
+        self.assertIn('Game 7', rendered.embed.title)
+        self.assertIn('WINNER: Alpha', rendered.embed.title)
+        self.assertGreaterEqual(len(rendered.embed.fields), 3)
+        self.assertIn('Alpha', rendered.embed.fields[0].name)
+        self.assertIn('ELO: 1120 +20', rendered.embed.fields[0].value)
+        self.assertIn('Dryland', rendered.embed.footer.text)
+        self.assertIn('Season notes', rendered.content)
+        self.assertIsNotNone(rendered.embed.thumbnail.url)
+
+    def test_classic_pending_renderer_preserves_open_and_full_guidance(self):
+        guild = SimpleNamespace(
+            id=10,
+            name='Test Guild',
+            get_member=lambda member_id: None,
+            get_role=lambda role_id: None,
+        )
+        open_display = views.resolve_display(
+            snapshot(pending=True, completed=False, pending_full=False),
+            guild=guild,
+            prefix='!',
+            join_emoji='✅',
+        )
+        open_rendered = views.render_classic_game_detail(open_display)
+        self.assertIn('Open - `!join 7`', open_rendered.embed.fields[0].value)
+        self.assertIn('reacting with ✅', open_rendered.content)
+
+        full_display = views.resolve_display(
+            snapshot(pending=True, completed=False, draft=True),
+            guild=guild,
+            prefix='$',
+        )
+        full_rendered = views.render_classic_game_detail(full_display)
+        self.assertIn('Full - Waiting to start', full_rendered.embed.fields[0].value)
+        self.assertIn('`$start 7 Name of Game`', full_rendered.content)
+        self.assertIn('__`$codes 7`__', full_rendered.content)
+        self.assertIn('Balanced Draft Order', full_rendered.content)
+        self.assertIn('Side Home', full_rendered.content)
+
     def test_pending_open_view_preserves_join_guidance_and_platform_name(self):
         guild = SimpleNamespace(
             id=10,
@@ -631,6 +703,19 @@ class GameDetailViewTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn('<@&501>', text)
         self.assertNotIn('<#701>', text)
         self.assertNotIn('<#702>', text)
+        classic = views.render_classic_game_detail(display)
+        classic_text = '\n'.join(
+            [
+                classic.embed.title,
+                *(field.name + field.value for field in classic.embed.fields),
+                classic.embed.footer.text,
+                classic.content or '',
+            ]
+        )
+        self.assertNotIn('<@101>', classic_text)
+        self.assertNotIn('<@&501>', classic_text)
+        self.assertNotIn('<#701>', classic_text)
+        self.assertNotIn('<#702>', classic_text)
 
     def test_team_image_preserves_local_attachment_fallback(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -698,6 +783,82 @@ class GameDetailAdapterTests(unittest.IsolatedAsyncioTestCase):
             channel_id=702,
             game_id=7,
         )
+
+    async def test_prefix_detail_uses_classic_embed_for_numeric_or_inferred_read(self):
+        cog = games.polygames.__new__(games.polygames)
+        cog._load_game_detail = mock.AsyncMock(return_value=snapshot())
+        cog._game_detail_prefix = mock.Mock(return_value='$')
+        cog.bot = SimpleNamespace(
+            guilds=[],
+            get_guild=lambda guild_id: None,
+            get_user=lambda discord_id: None,
+            get_channel=lambda channel_id: None,
+        )
+        ctx = SimpleNamespace(
+            guild=SimpleNamespace(
+                id=10,
+                get_member=lambda member_id: None,
+                get_role=lambda role_id: None,
+            ),
+            author=SimpleNamespace(id=900),
+            send=mock.AsyncMock(),
+        )
+        render = views.render_classic_game_detail(
+            views.resolve_display(snapshot(), prefix='$')
+        )
+        with mock.patch.object(
+            games.game_detail_views,
+            'render_classic_game_detail',
+            return_value=render,
+        ) as classic_renderer:
+            result = await cog._send_game_detail_workspace(
+                ctx,
+                guild=ctx.guild,
+                requester_id=900,
+                channel_id=702,
+                game_id=None,
+                slash=False,
+            )
+        self.assertTrue(result)
+        classic_renderer.assert_called_once()
+        kwargs = ctx.send.await_args.kwargs
+        self.assertIs(kwargs['embed'], render.embed)
+        if render.content is None:
+            self.assertIsNone(kwargs['content'])
+        else:
+            self.assertEqual(kwargs['content'], render.content)
+        self.assertNotIn('view', kwargs)
+
+    async def test_slash_success_uses_components_workspace(self):
+        cog = games.polygames.__new__(games.polygames)
+        cog._load_game_detail = mock.AsyncMock(return_value=snapshot())
+        cog._game_detail_prefix = mock.Mock(return_value='$')
+        cog.bot = SimpleNamespace(
+            guilds=[],
+            get_guild=lambda guild_id: None,
+            get_user=lambda discord_id: None,
+            get_channel=lambda channel_id: None,
+        )
+        interaction = SimpleNamespace(
+            guild=SimpleNamespace(
+                id=10,
+                get_member=lambda member_id: None,
+                get_role=lambda role_id: None,
+            ),
+            edit_original_response=mock.AsyncMock(),
+        )
+        result = await cog._send_game_detail_workspace(
+            interaction,
+            guild=interaction.guild,
+            requester_id=900,
+            channel_id=702,
+            game_id=7,
+            slash=True,
+        )
+        self.assertTrue(result)
+        kwargs = interaction.edit_original_response.await_args.kwargs
+        self.assertIsInstance(kwargs['view'], views.GameDetailWorkspace)
+        self.assertNotIn('embed', kwargs)
 
     async def test_nonnumeric_prefix_keeps_game_search_delegation(self):
         cog = games.polygames.__new__(games.polygames)

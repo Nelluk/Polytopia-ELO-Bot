@@ -1187,22 +1187,26 @@ class polygames(commands.Cog):
             prefix=self._game_detail_prefix(target, guild, slash=slash),
             join_emoji=getattr(settings, 'emoji_join_game', ''),
         )
-        view = game_detail_views.GameDetailWorkspace(
-            requester_id=requester_id,
-            display=display,
-        )
         if slash:
+            view = game_detail_views.GameDetailWorkspace(
+                requester_id=requester_id,
+                display=display,
+            )
             kwargs = {'view': view}
             file = view.new_file()
             if file is not None:
                 kwargs['attachments'] = [file]
             view.message = await target.edit_original_response(**kwargs)
         else:
-            kwargs = {'view': view}
-            file = view.new_file()
+            classic = game_detail_views.render_classic_game_detail(display)
+            kwargs = {
+                'embed': classic.embed,
+                'content': classic.content,
+            }
+            file = classic.new_file()
             if file is not None:
                 kwargs['file'] = file
-            view.message = await target.send(**kwargs)
+            await target.send(**kwargs)
         return True
 
     async def _send_game_search_workspace(

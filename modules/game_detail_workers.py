@@ -81,6 +81,7 @@ class GameDetailSide:
     external_guild_id: int | None
     win_confirmed: bool
     lineups: tuple[GameDetailLineup, ...]
+    sidename: str = ''
 
 
 @dataclass(frozen=True)
@@ -287,6 +288,7 @@ def _side_snapshot(side, game) -> GameDetailSide:
         ),
         win_confirmed=bool(getattr(side, 'win_confirmed', False)),
         lineups=lineups,
+        sidename=str(getattr(side, 'sidename', '') or ''),
     )
 
 
