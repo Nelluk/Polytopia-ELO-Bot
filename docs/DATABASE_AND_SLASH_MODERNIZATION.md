@@ -1835,6 +1835,7 @@ Commit(s):
   snapshots.
 - `698e775` — Correct native channel defaults and cross-play account-name
   validation.
+- `622a444` — Add the native public-completion join reaction.
 
 Interface and compatibility:
 
@@ -1857,6 +1858,9 @@ Interface and compatibility:
   requests. Native creation stores the canonical `is_mobile=True` value but
   accepts either existing mobile or Steam account name; legacy prefix requests
   retain their exact platform-specific validation.
+- add the ⚔️ reaction explicitly to the native public completion after the
+  interaction webhook returns its message; prefix completion retains the
+  existing message-listener reaction path.
 
 Database and concurrency boundary:
 
@@ -1896,7 +1900,8 @@ Validation evidence:
   requester-only controls, cancel/timeout, immediate defer, public
   post-commit delivery, Discord-failure reconciliation logging, native
   unranked-channel defaults, native Steam-only acceptance, native missing-name
-  guidance, and unchanged prefix Mobile/Steam validation.
+  guidance, unchanged prefix Mobile/Steam validation, and native completion
+  reaction delivery.
 - Complete offline suite: 280 passed with 13 explicitly gated database tests
   skipped; syntax compilation and `git diff --check` passed.
 - Oversight subsequently reran the unchanged pre-correction gated suite: 13
@@ -1904,10 +1909,12 @@ Validation evidence:
   skipped. The safety gates confirmed `POLYBOT_ENV=development`, database
   `polytopia_dev`, role `polybot_dev`, and disabled background tasks/API.
   This evidence applies to the prior implementation, not to `698e775`.
-- Oversight validated the corrected HEAD with the gated command against
+- Oversight validated the pre-reaction corrected HEAD with the gated command against
   `development` / `polytopia_dev` / `polybot_dev`: 13 tests ran, 12 passed,
   and one operator-managed fixture round trip was skipped. The corrected
   open-game worker integration test passed, and no cleanup was required.
+- The reaction-only correction in `622a444` was not gated-rerun; its focused
+  and complete offline suites passed, and no live Discord work was done.
 - No beta process was launched, no Discord command inspection/synchronization
   occurred, and no production or service operation occurred.
 
@@ -3777,13 +3784,26 @@ production deployment.
   neither-name failure, and legacy prefix validation. Focused coverage passed
   27 tests and the complete offline suite passed 280 tests with 13 gated
   skips.
-- Oversight validated the corrected HEAD: focused coverage passed 27 tests;
+- Oversight validated the pre-reaction corrected HEAD: focused coverage passed 27 tests;
   the gated command against `development` / `polytopia_dev` / `polybot_dev`
   ran 13 tests, passed 12, and skipped one operator-managed fixture round
   trip. The corrected open-game worker integration test passed, and no
   cleanup was required.
 - No live Discord work, beta launch, production operation, dependency change,
   merge, or push occurred.
+
+### 2026-07-31 — P5.1 native reaction parity correction
+
+- Updated the shared post-commit presenter to accept the public completion
+  message and add the ⚔️ join reaction when the native interaction path opts
+  in. The native follow-up now requests the returned webhook message; the
+  existing prefix listener path remains unchanged.
+- Added focused coverage proving native `/game open` completion sends publicly
+  and adds ⚔️ to the returned message. Focused coverage passed 27 tests and
+  the complete offline suite passed 280 tests with 13 gated skips.
+- The prior gated evidence applies to the pre-reaction corrected HEAD; the
+  reaction-only commit was not gated-rerun. No live Discord work, beta launch,
+  production operation, dependency change, merge, or push occurred.
 
 ### 2026-07-31 — P7.9 final classic card accepted and integrated
 
