@@ -4,7 +4,7 @@ Last updated: 2026-07-30
 
 Status: Active
 
-Current branch at last update: `codex/p2-3-game-record-roster`
+Current branch at last update: `codex/database-slash-modernization`
 
 Source task: `thread://019fae66-8e3a-7a50-9a0f-d3d7160d2287`
 
@@ -394,12 +394,12 @@ check:
 - retained P7.5 showcase: 24 owned players (`163`-`186`) and 48 owned games
   (`200`-`247`), with gated status/confirmed-cleanup tooling
 
-Current unit: **P2.3 — Flexible `/game record` roster and cross-play
-cleanup**, In progress on `codex/p2-3-game-record-roster` from checkpoint
-`dd20e9b`. The accepted unit replaces the fixed `/game create` member matrix
-with one parsed roster string and a Components v2 review gate, removes
-platform from the native interface, and retains the existing transactional
-worker. Taxonomy v2.2 as a whole remains pending final approval.
+Current unit: **None active.** P2.3 is Complete on
+`codex/database-slash-modernization` through merge `688b9d6`. It replaces the
+fixed `/game create` member matrix with one parsed roster string and a native
+Components v2 side editor, removes platform from the native interface, and
+retains the existing transactional worker. Taxonomy v2.2 as a whole remains
+pending final approval.
 
 Owned fixture games `149`-`151` are intentionally retained. At the latest
 gated status check, `149` is incomplete/unranked, `150` is
@@ -806,7 +806,7 @@ Exit criteria:
 
 ### P2.3 — Flexible `/game record` roster and cross-play cleanup
 
-Status: **Beta-validated**
+Status: **Complete**
 
 Branch/base: `codex/p2-3-game-record-roster` from P7.5 Components v2
 checkpoint `dd20e9b`.
@@ -888,6 +888,8 @@ Implementation checkpoints:
 
 - `6af7c92` — flexible roster parser and first preview implementation;
 - `b54618e` — component-confirmation fix and native side/member editor.
+- `2513028` — beta acceptance evidence.
+- `688b9d6` — integration into `codex/database-slash-modernization`.
 
 Runtime evidence: the task-owned beta was stopped cleanly after checkpointing,
 then restarted from `da21786` with `POLYBOT_ENV=development` and
@@ -899,8 +901,8 @@ record, confirmation, and native side-editing flow worked well and accepted
 the unit. No further live exception appeared in the task-owned beta output.
 The beta remains running.
 
-Next action: integrate P2.3 in the intended modernization-branch sequence.
-Keep the broader Taxonomy v2.2 status pending final approval.
+Next action: keep the broader Taxonomy v2.2 status pending final approval,
+then select the next bounded unit from the integrated accumulation branch.
 
 ## P3 — Owner ELO maintenance and observability
 
@@ -1400,7 +1402,7 @@ ordinary-game worker.
 
 #### P4.1b — Pending-game extension
 
-Status: **Implemented**
+Status: **Implemented; integrated, beta acceptance pending**
 
 Branch/base: `codex/p4-1b-pending-game-extension` from
 `codex/database-slash-modernization` at `62ea671`.
@@ -1484,7 +1486,7 @@ blocking all ELO work.
 
 #### P4.1c — Unstart transaction separation
 
-Status: **Implemented**
+Status: **Implemented; integrated, beta acceptance pending**
 
 Branch/base: `codex/p4-1c-unstart-separation`, stacked from P4.1b evidence
 checkpoint `af4ef51`.
@@ -1580,7 +1582,7 @@ Use one separately approved beta session after that unit.
 
 #### P4.1d — Unified native registration
 
-Status: **Implemented**
+Status: **Implemented; integrated, beta acceptance pending**
 
 Branch/base: `codex/p4-1d-match-slash-group` from accumulation checkpoint
 `31c84d7`, which integrates the P4.1b/P4.1c worker units.
@@ -1813,7 +1815,7 @@ image/graph generation should not share the ELO mutation worker.
 
 ### P7.1 — Player leaderboard read and pagination foundation
 
-Status: **Implemented; pending beta acceptance and integration**
+Status: **Implemented; integrated, beta acceptance pending**
 
 Branch/base: `codex/p7-1-player-leaderboard`, stacked from published P4.1d
 review checkpoint `b45e3ea`. The leaderboard taxonomy is not disputed, but
@@ -1910,7 +1912,7 @@ branches are stacked.
 
 ### P7.2 — Player activity leaderboard
 
-Status: **Implemented; pending beta acceptance and integration**
+Status: **Implemented; integrated, beta acceptance pending**
 
 Branch/base: `codex/p7-2-3-activity-squad-leaderboards`, stacked from P7.1
 checkpoint `cd65d24`.
@@ -1937,7 +1939,7 @@ In scope:
 
 ### P7.3 — Squad leaderboard
 
-Status: **Implemented; pending beta acceptance and integration**
+Status: **Implemented; integrated, beta acceptance pending**
 
 Branch/base: shared P7.2/P7.3 branch above.
 
@@ -2019,7 +2021,7 @@ separate approval for one development-guild sync and combined beta test of
 
 ### P7.4 — Shared leaderboard page-jump modal
 
-Status: **Implemented; pending beta acceptance and integration**
+Status: **Implemented; integrated, beta acceptance pending**
 
 Branch/base: `codex/p7-4-leaderboard-jump-modal`, stacked from P7.2/P7.3
 checkpoint `bb15fa8`.
@@ -2081,7 +2083,7 @@ jumps in the separately approved combined leaderboard beta smoke test.
 
 ### P7.5 — Experimental Components v2 player leaderboard
 
-Status: **Beta-validated; pending integration**
+Status: **Complete**
 
 Branch/base: `codex/p7-5-lb2-components-v2`, stacked from P7.4 checkpoint
 `ba717de`.
@@ -2778,6 +2780,21 @@ remain the safest initial input; the native side editor corrects the parsed
 draft without exposing raw mention strings.
 
 ## Progress log
+
+### 2026-07-30 — P2.3 and stacked component work integrated
+
+- Verified `codex/p2-3-game-record-roster` was a clean linear descendant of
+  the accumulation branch and contained the reviewed P4.1d-through-P7.5
+  dependency stack.
+- Merged it into `codex/database-slash-modernization` with explicit merge
+  checkpoint `688b9d6`.
+- Verified the merged tree is identical to the beta-validated P2.3 branch and
+  `git diff --check` passes.
+- Marked P2.3 and beta-validated P7.5 Complete. Earlier stacked units that
+  still lack explicit beta acceptance are recorded as integrated but remain
+  Implemented.
+- Left Taxonomy v2.2 pending final approval and kept the development beta
+  running.
 
 ### 2026-07-30 — `/game record` beta accepted
 
