@@ -46,6 +46,7 @@ class SlashTaxonomyRegistrationTests(unittest.TestCase):
             {
                 'record',
                 'search',
+                'show',
                 'win',
                 'unwin',
                 'delete',

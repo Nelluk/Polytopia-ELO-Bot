@@ -265,6 +265,38 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
             self.assertIsInstance(row, game_search_workers.GameSearchRow)
             self.assertGreater(row.game_id, 0)
 
+    def test_game_detail_worker_reads_real_schema(self):
+        from modules import game_detail_workers
+
+        guild_id = self.profile.allowed_guild_ids[0]
+        game = (
+            self.models.Game.select()
+            .where(self.models.Game.guild_id == guild_id)
+            .order_by(self.models.Game.id.desc())
+            .first()
+        )
+        if game is None:
+            self.skipTest('development guild has no game to inspect')
+
+        result = asyncio.run(game_detail_workers.run_game_detail(
+            game_detail_workers.GameDetailRequest(
+                guild_id=guild_id,
+                channel_id=int(game.game_chan or 0),
+                requester_discord_id=self.settings.owner_id,
+                game_id=game.id,
+            )
+        ))
+        self.assertIsInstance(
+            result,
+            game_detail_workers.GameDetailSnapshot,
+        )
+        self.assertEqual(result.game_id, game.id)
+        self.assertEqual(result.guild_id, game.guild_id)
+        self.assertIsInstance(result.sides, tuple)
+        for side in result.sides:
+            self.assertIsInstance(side, game_detail_workers.GameDetailSide)
+            self.assertIsInstance(side.lineups, tuple)
+
     def test_development_fixture_seed_status_cleanup_round_trip(self):
         from modules import dev_fixtures
 
