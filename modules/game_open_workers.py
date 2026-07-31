@@ -293,6 +293,7 @@ def create_open_game(request: OpenGameRequest) -> OpenGameResult:
                         f'{server_size_max}. Maximum team size for an '
                         f'unranked game is {server_size_max + 1}.'
                     )
+            role_warning_position = len(warnings)
 
             host.team = host_team
             host.save()
@@ -371,7 +372,10 @@ def create_open_game(request: OpenGameRequest) -> OpenGameResult:
             )
 
             if request.role_lock_message:
-                warnings.insert(0, request.role_lock_message)
+                warnings.insert(
+                    role_warning_position,
+                    request.role_lock_message,
+                )
 
             return OpenGameResult(
                 game_id=game.id,

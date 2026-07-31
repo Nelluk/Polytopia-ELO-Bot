@@ -328,6 +328,23 @@ class OpenGameWorkerTests(unittest.TestCase):
         self.assertIn(r'A \*note\*', harness.state['logs'][0]['message'])
         self.assertNotIn('A *note*', harness.state['logs'][0]['message'])
 
+    def test_worker_preserves_prefix_warning_order(self):
+        request = replace(
+            open_request(size=(5, 1)),
+            role_lock_message=(
+                '**Side 2** will be locked to players with role *Jets*\n'
+            ),
+        )
+        harness, result = self.run_worker(request=request)
+        self.assertIsNotNone(result)
+        self.assertEqual(
+            result.warnings,
+            (
+                ':warning: Team sizes are uneven.',
+                '**Side 2** will be locked to players with role *Jets*\n',
+            ),
+        )
+
     def test_side_lineup_and_log_failures_roll_back_everything(self):
         for failure in ('side', 'lineup', 'log'):
             with self.subTest(failure=failure):
