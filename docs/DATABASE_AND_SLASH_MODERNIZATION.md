@@ -402,11 +402,11 @@ check:
 - retained P7.5 showcase: 24 owned players (`163`-`186`) and 48 owned games
   (`200`-`247`), with gated status/confirmed-cleanup tooling
 
-Current unit: **P7.7 Implemented; beta acceptance pending.** P7.6 is
-integrated into `codex/database-slash-modernization` and P7.7 is checkpointed
-on its sequential unit branch. Taxonomy v2.2 as a whole remains pending final
-approval; these accepted `/leaderboard` and `/player show` paths do not depend
-on the unsettled game/team spellings.
+Current unit: **P7.7 accepted; integration in progress.** P7.6 is integrated
+into `codex/database-slash-modernization`; P7.7 passed its combined beta smoke
+and is ready to merge from its sequential unit branch. Taxonomy v2.2 as a
+whole remains pending final approval; these accepted `/leaderboard` and
+`/player show` paths do not depend on the unsettled game/team spellings.
 
 Owned fixture games `149`-`151` are intentionally retained. At the latest
 gated status check, `149` is incomplete/unranked, `150` is
@@ -2173,7 +2173,7 @@ Beta launch and acceptance evidence:
 
 ### P7.6 — Reusable Components v2 toolkit and leaderboard promotion
 
-Status: **Implemented; beta acceptance pending**
+Status: **Complete; integrated into the accumulation branch**
 
 Branch/base: `codex/p7-6-components-toolkit` from accumulation checkpoint
 `39d09f6`.
@@ -2295,7 +2295,7 @@ combined P7.6/P7.7 beta session.
 
 ### P7.7 — Unified player profile and game-history workspace
 
-Status: **Implemented; beta acceptance pending**
+Status: **Accepted; integration in progress**
 
 Branch/base: `codex/p7-7-player-workspace` from P7.6 accumulation merge.
 
@@ -2411,13 +2411,13 @@ Commit(s):
 Beta result: D-026 restart from `58c8224` stopped the prior P7.6 beta cleanly,
 authenticated as **PolyELO Bot Beta** (`479029527553638401`), and completed
 development startup/synchronization without a reported error. The beta
-remains running. Functional desktop/mobile smoke acceptance of `/player show`
-and the prefix deep links remains pending.
+remains the intended default runtime. The user accepted the combined P7.6/P7.7
+smoke as a sufficient proof of concept on 2026-07-30.
 
-Next action: smoke `/player show` with requester/default and explicit member,
-all sections/filters/pages, `/leaderboard players`, `/leaderboard activity`,
-and representative `$player`/`$incomplete`/`$wins`/single-player `$allgames`
-deep links. Review C-002 before integrating P7.7.
+Next action: integrate P7.7 into `codex/database-slash-modernization`, then
+start the bounded `/game search` workspace as the next unit. C-002 analytics
+restoration is explicitly deferred until usage demonstrates which legacy
+details justify a separate bounded unit.
 
 ## P8 — League and remaining administration workflows
 
@@ -2997,7 +2997,7 @@ expansion require a new explicit decision.
 
 ### D-030 — Unify player detail and simple game lists in one workspace
 
-Status: Accepted and implemented in P7.7; beta acceptance pending
+Status: Accepted, implemented, and beta-smoke accepted in P7.7
 
 Use `/player show member:[optional]` as the one native entry to an interactive
 player workspace. It defaults to the requester and opens Overview. Components
@@ -3015,6 +3015,15 @@ presentation primitives may come from P7.6, but player-detail and game-search
 database services remain distinct.
 
 ## Progress log
+
+### 2026-07-30 — P7.7 beta smoke accepted
+
+- Accepted the unified `/player show` workspace and promoted leaderboard as a
+  sufficient Components v2 proof of concept.
+- Approved P7.7 for integration into the accumulation branch.
+- Kept C-002 visible in the compatibility ledger while deferring its analytics
+  and media restoration to a later evidence-driven unit.
+- Selected the bounded `/game search` workspace as the next code unit.
 
 ### 2026-07-30 — P7.7 unified player workspace implemented
 

@@ -222,7 +222,7 @@ Taxonomy v2.2 applies this rule system-wide:
 | `/game show` | optional game ID when it cannot be inferred from the channel | players, logs, attributes, and permitted actions |
 | `/game ping` | optional game ID when it cannot be inferred | audience/scope, long message, multiple uploads, preview, confirmation |
 | `/game record` | game name, one roster string, and optional ranked state | parsed arbitrary sides, native side/member editing, preview, confirmation |
-| `/player show` | optional member; requester by default | overview, ratings, recent/incomplete/completed/season games, results, teams, and permitted profile edits |
+| `/player show` | optional member; requester by default | Accepted Components v2 overview, ratings, recent/incomplete/completed/season games, results, teams, and permitted profile edits; legacy analytics remain deferred under C-002 |
 | `/player register` | optional staff-selected member | one canonical Polytopia name and review |
 | `/team show` | optional team when requester context is unambiguous | roster, history, attributes, and permitted edits |
 | `/staffhelp` | none | game reference, long description, multiple uploads, review, submit |
