@@ -2662,8 +2662,10 @@ process check found no duplicate; `/proc/1784646/cwd` is the managed worktree.
 The headless execution task has no Discord client surface for the requested
 explicit-ID, channel-inference, numeric-prefix, nonnumeric-search, or
 desktop/mobile interaction smoke, so beta acceptance remains pending rather
-than being inferred from startup. No production process or database was
-accessed.
+than being inferred from startup. The development log does confirm that the
+ready hook synced exactly four application-command roots (`game`,
+`leaderboard`, `player`, `elo`) to guild `478571892832206869`. No production
+process or database was accessed.
 
 Known limitations and next action:
 
