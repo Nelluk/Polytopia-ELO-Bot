@@ -2494,6 +2494,12 @@ Next action: rerun focused/full/gated validation after the final refinements,
 checkpoint P7.8, then follow D-026 with a development-beta restart and smoke
 `/game search` plus representative complex prefix deep links.
 
+Beta result: D-026 launch from `d6bebcd` found no existing development beta
+process, authenticated as **PolyELO Bot Beta** (`479029527553638401`), and
+synchronized exactly the `game`, `leaderboard`, `player`, and `elo` roots to
+development guild `478571892832206869`. The beta remains running. Functional
+acceptance of `/game search` and its complex prefix deep links is pending.
+
 ## P8 — League and remaining administration workflows
 
 Status: **Planned**
@@ -3100,6 +3106,8 @@ database services remain distinct.
 - Kept public results, requester-only controls, ephemeral failures, immutable
   cached navigation, and the 500-row disclosure policy.
 - Added focused and real-schema gated coverage; beta acceptance remains.
+- Launched the D-026 development beta from the implementation checkpoint and
+  confirmed synchronization only to the configured development guild.
 
 ### 2026-07-30 — P7.7 beta smoke accepted
 
