@@ -420,7 +420,7 @@ check:
 - P7.9 final classic-card acceptance: `/game show`, numeric `$game`, and
   numeric `$match` accepted with the shared production-style presentation;
   accumulation merge `fdacd88`.
-- P5.1 implementation checkpoints: `b8c7d46`, `fb0ca2b` on
+- P5.1 implementation checkpoints: `b8c7d46`, `fb0ca2b`, `188ba79` on
   `codex/p5-1-game-open`, based on exact clean base
   `d24aa6b5e64fba159a872eb565703465c79d712d`.
 
@@ -1830,6 +1830,8 @@ Commit(s):
 - `b8c7d46` — Implement atomic open game creation and slash draft.
 - `fb0ca2b` — Preserve legacy escaped Markdown formatting in committed
   open-game audit notes.
+- `188ba79` — Preserve legacy prefix warning ordering in committed effect
+  snapshots.
 
 Interface and compatibility:
 
@@ -1878,13 +1880,13 @@ Required validation:
 
 Validation evidence:
 
-- Focused P5.1 plus taxonomy coverage: 22 passed, including parser/mixed
+- Focused P5.1 plus taxonomy coverage: 23 passed, including parser/mixed
   `v`/`vs`/FFA shapes, alias and native registration, immutable boundaries,
   worker connection closure, side/lineup/log rollback, host-limit
   serialization, slow-worker responsiveness, exception/cancellation cleanup,
   requester-only controls, cancel/timeout, immediate defer, public
   post-commit delivery, and Discord-failure reconciliation logging.
-- Complete offline suite: 275 passed with 13 explicitly gated database tests
+- Complete offline suite: 276 passed with 13 explicitly gated database tests
   skipped; syntax compilation and `git diff --check` passed.
 - The gated suite was attempted with `POLYBOT_ENV=development`. The runtime
   profile resolved to `polytopia_dev` and role `polybot_dev`, with background
@@ -3728,7 +3730,8 @@ production deployment.
 ### 2026-07-31 — P5.1 implementation checkpoint
 
 - Implemented and committed P5.1 on `codex/p5-1-game-open` as `b8c7d46`, with
-  the audit-note parity correction in `fb0ca2b`,
+  audit-note and warning-order parity corrections in `fb0ca2b` and
+  `188ba79`,
   based on exact clean base `d24aa6b5e64fba159a872eb565703465c79d712d`.
 - Extracted one atomic open-game worker for prefix and native callers with
   worker-owned connection closure, host/team reload, limit enforcement,
