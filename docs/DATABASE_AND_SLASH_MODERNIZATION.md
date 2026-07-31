@@ -2729,10 +2729,11 @@ Known limitations and next action:
 
 ## P8.0 — Guild application-command capability policy and explicit deployment tooling
 
-Status: **Accepted; pending integration into the accumulation branch**
+Status: **Complete**
 
 Branch/base: `codex/p8-0-command-capabilities` from exact accumulation
 checkpoint `3990c65c375542d2a1b5b6e16bae1d30eacf38d2`.
+Integrated into `codex/database-slash-modernization` as merge `d6ee47c`.
 
 Objective: replace the historical one-guild `on_ready` synchronization with a
 repository-backed, default-deny capability policy and an explicit,
@@ -2796,8 +2797,9 @@ Validation/evidence so far:
   `479029527553638401`; host-wide verification showed beta PID `1832908`
   alongside untouched production PID `1534787`.
 
-Next action: integrate the accepted unit into
-`codex/database-slash-modernization`, then mark P8.0 Complete.
+Next action: select the next bounded P8 team/house or administration unit whose
+slash taxonomy and visibility policy are sufficiently settled. Continue using
+the explicit deployment tool for later native-command beta sessions.
 
 ## P8 — League and remaining administration workflows
 
@@ -3553,7 +3555,11 @@ refs and do not grant operational authority.
 - User testing accepted all four roots with no visible regression, which is the
   intended result for this deployment-infrastructure unit. Stopped beta PID
   `1832908` cleanly afterward; host-wide verification showed only untouched
-  production PID `1534787`. P8.0 is accepted pending accumulation integration.
+  production PID `1534787` before accumulation integration.
+- Integrated the accepted branch into `codex/database-slash-modernization` as
+  merge `d6ee47c`; P8.0 is Complete. The ignored development capability
+  assignment remains scoped to the approved development guild for later beta
+  sessions.
 
 ### 2026-07-31 — P7.9 final classic card accepted and integrated
 
