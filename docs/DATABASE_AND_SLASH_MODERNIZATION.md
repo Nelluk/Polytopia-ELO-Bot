@@ -2729,7 +2729,7 @@ Known limitations and next action:
 
 ## P8.0 — Guild application-command capability policy and explicit deployment tooling
 
-Status: **Implemented; development-guild deployment verified, pending beta acceptance**
+Status: **Implemented; beta running, pending user acceptance**
 
 Branch/base: `codex/p8-0-command-capabilities` from exact accumulation
 checkpoint `3990c65c375542d2a1b5b6e16bae1d30eacf38d2`.
@@ -2790,12 +2790,16 @@ Validation/evidence so far:
 - explicit development-guild inspect/apply synchronized exactly `elo`, `game`,
   `leaderboard`, and `player`; immediate re-inspection reported all four
   unchanged after normalizing Discord's response-only default fields;
-- no global synchronization, database access, or beta launch occurred during
-  deployment.
+- no global synchronization or database access occurred during deployment;
+- launched one development beta afterward from the reviewed checkpoint with
+  startup synchronization disabled. It authenticated as beta application
+  `479029527553638401`; host-wide verification showed beta PID `1832908`
+  alongside untouched production PID `1534787`.
 
-Next action: launch one beta without startup synchronization and verify the
-four deployed roots in development guild `478571892832206869`. After beta
-acceptance is green, integrate P8.0 into the accumulation branch.
+Next action: user verifies the four deployed roots in development guild
+`478571892832206869`, including one representative subcommand from each root.
+After beta acceptance is green, stop the beta cleanly and integrate P8.0 into
+the accumulation branch.
 
 ## P8 — League and remaining administration workflows
 
@@ -3544,6 +3548,10 @@ refs and do not grant operational authority.
   defaults that discord.py omits locally. Canonical comparison now removes only
   those response defaults; focused coverage includes the real payload shape,
   and repeat live inspection reports all four roots unchanged.
+- Launched the beta only after the repeat inspection was unchanged. Startup did
+  not synchronize commands and authenticated as application
+  `479029527553638401`. Host-wide inspection showed development PID `1832908`
+  and untouched production PID `1534787`; beta acceptance remains pending.
 
 ### 2026-07-31 — P7.9 final classic card accepted and integrated
 
