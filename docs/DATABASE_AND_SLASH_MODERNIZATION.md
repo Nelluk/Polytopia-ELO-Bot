@@ -2278,12 +2278,20 @@ Remaining limitations:
 - Squad leaderboard retains the earlier component paginator; migrating every
   existing view was explicitly outside this bounded extraction.
 
-Commit(s): pending checkpoint.
+Commit(s):
 
-Beta result: pending D-026 restart/synchronization and smoke acceptance.
+- `981fa0f` — Promote Components v2 leaderboard toolkit.
+- `e77e69b` — Merge P7.6 into
+  `codex/database-slash-modernization`.
 
-Next action: checkpoint and integrate P7.6 into the accumulation branch, then
-branch P7.7 from that merge.
+Beta result: D-026 restart from `981fa0f` stopped the prior task-owned beta
+cleanly, authenticated as **PolyELO Bot Beta** (`479029527553638401`), and
+completed development startup/synchronization without a reported error.
+Functional desktop/mobile smoke acceptance of the promoted command remains
+pending.
+
+Next action: smoke the promoted player and activity leaderboards during the
+combined P7.6/P7.7 beta session.
 
 ### P7.7 — Unified player profile and game-history workspace
 
