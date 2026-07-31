@@ -719,6 +719,24 @@ class OpenGameCommandTests(unittest.IsolatedAsyncioTestCase):
             [('size', discord.AppCommandOptionType.string)],
         )
 
+    def test_join_reaction_parser_accepts_three_digit_game_ids(self):
+        cog = matchmaking.matchmaking.__new__(matchmaking.matchmaking)
+        game = object()
+        message = (
+            'Other players can join game 322 by reacting with '
+            f'{matchmaking.settings.emoji_join_game}.'
+        )
+
+        with mock.patch.object(
+            matchmaking.models.Game,
+            'get_or_none',
+            return_value=game,
+        ) as get_game:
+            parsed = cog.is_joingame_message(message)
+
+        self.assertEqual(parsed, (322, game))
+        get_game.assert_called_once_with(id=322)
+
     async def test_native_open_acknowledges_before_showing_requester_draft(self):
         context = SimpleNamespace(invoked_with='opengame')
         user = SimpleNamespace(
