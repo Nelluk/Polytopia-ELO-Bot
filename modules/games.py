@@ -1900,6 +1900,14 @@ class polygames(commands.Cog):
         default_expiration = game_open_workers.default_expiration_hours(
             sum(sizes)
         )
+        unranked_channel = settings.guild_setting(
+            interaction.guild.id,
+            'unranked_game_channel',
+        )
+        default_ranked = not (
+            unranked_channel
+            and getattr(interaction, 'channel_id', None) == unranked_channel
+        )
 
         def build_request(
             draft: game_open_views.OpenGameDraft,
@@ -1931,6 +1939,9 @@ class polygames(commands.Cog):
                 notes_display=notes or '\u200b',
                 log_notes_display=discord.utils.escape_markdown(
                     notes or '\u200b'
+                ),
+                platform_validation_mode=(
+                    game_open_workers.CROSSPLAY_PLATFORM_VALIDATION_MODE
                 ),
                 requester_description=requester_snapshot[
                     'requester_description'
@@ -1982,6 +1993,7 @@ class polygames(commands.Cog):
             requester_id=interaction.user.id,
             draft=game_open_views.OpenGameDraft(
                 size=tuple(sizes),
+                ranked=default_ranked,
                 expiration_hours=default_expiration,
             ),
             confirmer=confirm_open_game,

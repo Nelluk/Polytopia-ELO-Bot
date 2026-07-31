@@ -21,7 +21,15 @@ games = import_offline_runtime('modules.games')
 matchmaking = import_offline_runtime('modules.matchmaking')
 
 
-def open_request(*, level=3, size=(1, 1), is_mobile=True):
+def open_request(
+    *,
+    level=3,
+    size=(1, 1),
+    is_mobile=True,
+    platform_validation_mode=(
+        game_open_workers.LEGACY_PLATFORM_VALIDATION_MODE
+    ),
+):
     return game_open_workers.OpenGameRequest(
         guild_id=300,
         requester_id=100,
@@ -44,6 +52,7 @@ def open_request(*, level=3, size=(1, 1), is_mobile=True):
         notes_display='A note',
         requester_description='**Host** (`100`)',
         invoked_with='opengame',
+        platform_validation_mode=platform_validation_mode,
     )
 
 
@@ -257,8 +266,10 @@ def make_harness():
 
 
 class OpenGameWorkerTests(unittest.TestCase):
-    def run_worker(self, *, failure=None, request=None):
+    def run_worker(self, *, failure=None, request=None, host_update=None):
         harness = make_harness()
+        if host_update is not None:
+            host_update(harness.host)
         patched, patches = harness_context(harness, failure=failure)
         request = request or open_request()
         with patched:
@@ -316,6 +327,62 @@ class OpenGameWorkerTests(unittest.TestCase):
         self.assertEqual(len(harness.state['logs']), 1)
         self.assertEqual(harness.database.commits, 1)
         self.assertEqual(harness.database.rollbacks, 0)
+
+    def test_native_crossplay_accepts_steam_only_host(self):
+        request = open_request(
+            platform_validation_mode=(
+                game_open_workers.CROSSPLAY_PLATFORM_VALIDATION_MODE
+            ),
+        )
+        harness, result = self.run_worker(
+            request=request,
+            host_update=lambda host: setattr(
+                host.discord_member,
+                'polytopia_name',
+                None,
+            ),
+        )
+        self.assertEqual(result.game_id, 1)
+        self.assertTrue(result.is_mobile)
+        self.assertTrue(harness.state['games'][0][1]['is_mobile'])
+
+    def test_native_crossplay_requires_an_account_name(self):
+        request = open_request(
+            platform_validation_mode=(
+                game_open_workers.CROSSPLAY_PLATFORM_VALIDATION_MODE
+            ),
+        )
+        with self.assertRaisesRegex(
+            game_open_workers.OpenGameValidationError,
+            'canonical account name',
+        ):
+            self.run_worker(
+                request=request,
+                host_update=lambda host: (
+                    setattr(host.discord_member, 'polytopia_name', None),
+                    setattr(host.discord_member, 'name_steam', None),
+                ),
+            )
+
+    def test_legacy_platform_validation_remains_mobile_and_steam_specific(self):
+        for is_mobile, missing_field, expected in (
+            (True, 'polytopia_name', 'mobile name on file'),
+            (False, 'name_steam', 'Steam username on file'),
+        ):
+            with self.subTest(is_mobile=is_mobile):
+                request = open_request(is_mobile=is_mobile)
+                with self.assertRaisesRegex(
+                    game_open_workers.OpenGameValidationError,
+                    expected,
+                ):
+                    self.run_worker(
+                        request=request,
+                        host_update=lambda host, field=missing_field: setattr(
+                            host.discord_member,
+                            field,
+                            None,
+                        ),
+                    )
 
     def test_worker_preserves_escaped_audit_note_snapshot(self):
         request = replace(
@@ -664,6 +731,7 @@ class OpenGameCommandTests(unittest.IsolatedAsyncioTestCase):
         interaction = SimpleNamespace(
             guild=SimpleNamespace(id=300),
             user=user,
+            channel_id=301,
             response=SimpleNamespace(defer=mock.AsyncMock()),
             edit_original_response=mock.AsyncMock(
                 return_value=SimpleNamespace()
@@ -715,6 +783,75 @@ class OpenGameCommandTests(unittest.IsolatedAsyncioTestCase):
         view = interaction.edit_original_response.await_args.kwargs['view']
         self.assertIsInstance(view, game_open_views.OpenGameView)
         self.assertEqual(view.draft.size, (2, 2, 1))
+        self.assertTrue(view.draft.ranked)
+
+    async def test_native_open_defaults_unranked_in_configured_channel(self):
+        context = SimpleNamespace(invoked_with='opengame')
+        user = SimpleNamespace(
+            id=100,
+            name='host',
+            nick=None,
+            display_name='Host',
+            roles=(),
+        )
+        interaction = SimpleNamespace(
+            guild=SimpleNamespace(id=300),
+            user=user,
+            channel_id=301,
+            response=SimpleNamespace(defer=mock.AsyncMock()),
+            edit_original_response=mock.AsyncMock(
+                return_value=SimpleNamespace()
+            ),
+        )
+        open_command = SimpleNamespace(can_run=mock.AsyncMock(return_value=True))
+        cog = games.polygames.__new__(games.polygames)
+        cog.bot = SimpleNamespace(
+            get_cog=lambda name: (
+                SimpleNamespace(opengame=open_command)
+                if name == 'matchmaking'
+                else None
+            )
+        )
+
+        def guild_setting(guild_id, name):
+            return {
+                'command_prefix': '$',
+                'unranked_game_channel': 301,
+            }.get(name)
+
+        with mock.patch.object(
+            games.commands.Context,
+            'from_interaction',
+            new=mock.AsyncMock(return_value=context),
+        ), mock.patch.object(
+            games.settings,
+            'guild_setting',
+            side_effect=guild_setting,
+        ), mock.patch.object(
+            games.settings,
+            'get_user_level',
+            return_value=3,
+        ), mock.patch.object(
+            games.settings,
+            'is_mod',
+            return_value=False,
+        ), mock.patch.object(
+            games.settings,
+            'is_staff',
+            return_value=False,
+        ), mock.patch.object(
+            games.models.GameLog,
+            'member_string',
+            return_value='**Host** (`100`)',
+        ), mock.patch.object(
+            games.game_open_workers,
+            'run_open_game_creation',
+            new=mock.AsyncMock(),
+        ):
+            await self.slash.callback(cog, interaction, '1v1')
+
+        view = interaction.edit_original_response.await_args.kwargs['view']
+        self.assertFalse(view.draft.ranked)
 
     async def test_prefix_database_failure_has_no_post_commit_discord_effects(self):
         author = SimpleNamespace(

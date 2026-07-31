@@ -479,6 +479,9 @@ class matchmaking(commands.Cog):
             invoked_with=ctx.invoked_with,
             role_lock_message=required_role_message,
             size_display=team_size_str,
+            platform_validation_mode=(
+                game_open_workers.LEGACY_PLATFORM_VALIDATION_MODE
+            ),
         )
         try:
             result = await game_open_workers.run_open_game_creation(request)

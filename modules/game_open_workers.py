@@ -18,6 +18,9 @@ from modules import exceptions, models
 
 logger = logging.getLogger('polybot.' + __name__)
 
+LEGACY_PLATFORM_VALIDATION_MODE = 'legacy'
+CROSSPLAY_PLATFORM_VALIDATION_MODE = 'crossplay'
+
 
 class OpenGameSizeError(ValueError):
     """The supplied open-game size is not a supported shape."""
@@ -61,6 +64,7 @@ class OpenGameRequest:
     role_lock_message: str = ''
     size_display: str | None = None
     log_notes_display: str | None = None
+    platform_validation_mode: str = LEGACY_PLATFORM_VALIDATION_MODE
 
     @property
     def size_string(self) -> str:
@@ -235,18 +239,38 @@ def create_open_game(request: OpenGameRequest) -> OpenGameResult:
                     'existing one.'
                 )
 
-            if request.is_mobile and not host.discord_member.polytopia_name:
+            if request.platform_validation_mode == (
+                CROSSPLAY_PLATFORM_VALIDATION_MODE
+            ):
+                if not (
+                    host.discord_member.polytopia_name
+                    or host.discord_member.name_steam
+                ):
+                    raise OpenGameValidationError(
+                        f'**{host.name}** does not have a mobile or Steam '
+                        'name on file. Register a canonical account name '
+                        f'with `{request.prefix}setname` or '
+                        f'`{request.prefix}steamname` before opening a game.'
+                    )
+            elif request.platform_validation_mode == (
+                LEGACY_PLATFORM_VALIDATION_MODE
+            ):
+                if request.is_mobile and not host.discord_member.polytopia_name:
+                    raise OpenGameValidationError(
+                        f'**{host.name}** does not have a mobile name on file. '
+                        f'Use `{request.prefix}setname` to set one, or try '
+                        f'`{request.prefix}opensteam` for a Steam game.'
+                    )
+                if not request.is_mobile and not host.discord_member.name_steam:
+                    raise OpenGameValidationError(
+                        f'**{host.name}** does not have a Steam username on file '
+                        f'and this is a Steam game 🖥. Use `{request.prefix}'
+                        f'steamname` to set one, or try `{request.prefix}opengame` '
+                        'for a Mobile game.'
+                    )
+            else:
                 raise OpenGameValidationError(
-                    f'**{host.name}** does not have a mobile name on file. '
-                    f'Use `{request.prefix}setname` to set one, or try '
-                    f'`{request.prefix}opensteam` for a Steam game.'
-                )
-            if not request.is_mobile and not host.discord_member.name_steam:
-                raise OpenGameValidationError(
-                    f'**{host.name}** does not have a Steam username on file '
-                    f'and this is a Steam game 🖥. Use `{request.prefix}'
-                    f'steamname` to set one, or try `{request.prefix}opengame` '
-                    'for a Mobile game.'
+                    'Unsupported open-game platform validation mode.'
                 )
 
             total_players = sum(side.size for side in request.sides)
