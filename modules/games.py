@@ -1098,6 +1098,46 @@ class polygames(commands.Cog):
             timeout=20.0,
         )
 
+    def _game_detail_prefix(self, target, guild, *, slash: bool) -> str:
+        """Resolve prefix configuration on the event-loop/display side."""
+
+        if not slash:
+            target_prefix = getattr(target, 'prefix', None)
+            if isinstance(target_prefix, str) and target_prefix:
+                return target_prefix
+        try:
+            return settings.guild_setting(
+                guild_id=guild.id,
+                setting_name='command_prefix',
+            )
+        except exceptions.CheckFailedError:
+            return settings.guild_setting(
+                guild_id=None,
+                setting_name='command_prefix',
+            )
+
+    def _game_detail_error_message(self, error) -> str:
+        if getattr(error, 'code', None) != 'cross_guild_pending':
+            return str(error) or 'Could not load that game.'
+
+        source_guild_id = getattr(error, 'source_guild_id', None)
+        if source_guild_id is None:
+            return str(error) or 'Could not load that game.'
+        try:
+            server_name = settings.guild_setting(
+                guild_id=source_guild_id,
+                setting_name='display_name',
+            )
+        except exceptions.CheckFailedError:
+            try:
+                server_name = settings.guild_setting(
+                    guild_id=None,
+                    setting_name='display_name',
+                )
+            except exceptions.CheckFailedError:
+                server_name = f'guild {source_guild_id}'
+        return f'{error} __{server_name}__.'
+
     async def _send_game_detail_workspace(
         self,
         target,
@@ -1125,7 +1165,7 @@ class polygames(commands.Cog):
             if isinstance(exc, asyncio.TimeoutError):
                 message = 'Game detail lookup timed out. Please try again.'
             else:
-                message = str(exc) or 'Could not load that game.'
+                message = self._game_detail_error_message(exc)
             if slash:
                 await target.followup.send(message, ephemeral=True)
             else:
@@ -1144,6 +1184,8 @@ class polygames(commands.Cog):
             snapshot,
             guild=guild,
             bot=self.bot,
+            prefix=self._game_detail_prefix(target, guild, slash=slash),
+            join_emoji=getattr(settings, 'emoji_join_game', ''),
         )
         view = game_detail_views.GameDetailWorkspace(
             requester_id=requester_id,

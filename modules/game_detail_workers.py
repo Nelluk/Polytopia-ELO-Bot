@@ -21,9 +21,18 @@ _game_detail_executor = ThreadPoolExecutor(
 class GameDetailError(ValueError):
     """A user-facing game-detail lookup failure."""
 
-    def __init__(self, message: str, *, code: str):
+    def __init__(
+        self,
+        message: str,
+        *,
+        code: str,
+        game_id: int | None = None,
+        source_guild_id: int | None = None,
+    ):
         super().__init__(message)
         self.code = code
+        self.game_id = game_id
+        self.source_guild_id = source_guild_id
 
 
 @dataclass(frozen=True)
@@ -44,6 +53,14 @@ class GameDetailLineup:
     tribe_name: str
     tribe_emoji: str
     elo_label: str
+    platform_name: str = ''
+
+
+@dataclass(frozen=True)
+class GameDetailDraftPick:
+    position: int
+    side_name: str
+    player_name: str
 
 
 @dataclass(frozen=True)
@@ -98,6 +115,11 @@ class GameDetailSnapshot:
     cross_guild: bool
     sides: tuple[GameDetailSide, ...]
     series_record_label: str = ''
+    pending_join_available: bool = False
+    pending_full: bool = False
+    pending_creator_name: str = ''
+    pending_creator_discord_id: int | None = None
+    pending_draft_order: tuple[GameDetailDraftPick, ...] = ()
 
     @property
     def channel_ids(self) -> tuple[int, ...]:
@@ -198,6 +220,16 @@ def _lineup_snapshot(lineup, game) -> GameDetailLineup:
         tribe_name=str(getattr(tribe, 'name', '') or ''),
         tribe_emoji=str(getattr(tribe, 'emoji', '') or ''),
         elo_label=_elo_label(player, lineup, game),
+        platform_name=(
+            str(
+                getattr(
+                    discord_member,
+                    'polytopia_name' if bool(getattr(game, 'is_mobile', True)) else 'name_steam',
+                    '',
+                )
+                or ''
+            )
+        ),
     )
 
 
@@ -325,6 +357,65 @@ def _series_record_label(game, sides) -> str:
     )
 
 
+def _pending_expired(game) -> bool:
+    expiration = getattr(game, 'expiration', None)
+    if isinstance(expiration, str):
+        try:
+            expiration = datetime.datetime.fromisoformat(expiration)
+        except ValueError:
+            expiration = None
+    return bool(
+        expiration is not None
+        and expiration < datetime.datetime.now()
+    )
+
+
+def _pending_metadata(game, sides):
+    if not bool(getattr(game, 'is_pending', False)):
+        return False, False, '', None, ()
+
+    players = sum(len(side.lineups) for side in sides)
+    capacity = sum(side.capacity for side in sides)
+    pending_full = players >= capacity
+    pending_join_available = not pending_full and not _pending_expired(game)
+
+    creator = sides[0].lineups[0] if sides and sides[0].lineups else None
+    creator_name = creator.player_name if creator else ''
+    creator_discord_id = creator.discord_id if creator else None
+
+    draft_order = ()
+    if pending_full and max(
+        (side.capacity for side in sides),
+        default=0,
+    ) > 1:
+        draft_order_method = getattr(game, 'draft_order', None)
+        if callable(draft_order_method):
+            try:
+                draft_order = tuple(
+                    GameDetailDraftPick(
+                        position=int(pick.get('position', 0)),
+                        side_name=str(
+                            pick.get('sidename')
+                            or f'Side {pick.get("position", 0)}'
+                        ),
+                        player_name=str(
+                            getattr(pick.get('player'), 'name', '') or 'Player'
+                        ),
+                    )
+                    for pick in draft_order_method()
+                )
+            except Exception:
+                draft_order = ()
+
+    return (
+        pending_join_available,
+        pending_full,
+        creator_name,
+        creator_discord_id,
+        draft_order,
+    )
+
+
 def _snapshot_from_game(
     game,
     *,
@@ -339,6 +430,13 @@ def _snapshot_from_game(
         )
     )
     status_label, result_label = _status_and_result(game, sides)
+    (
+        pending_join_available,
+        pending_full,
+        pending_creator_name,
+        pending_creator_discord_id,
+        pending_draft_order,
+    ) = _pending_metadata(game, sides)
     host = getattr(game, 'host', None)
     host_member = getattr(host, 'discord_member', None) if host else None
     winner = getattr(game, 'winner', None)
@@ -387,6 +485,11 @@ def _snapshot_from_game(
         cross_guild=int(game.guild_id) != request.guild_id,
         sides=sides,
         series_record_label=_series_record_label(game, sides),
+        pending_join_available=pending_join_available,
+        pending_full=pending_full,
+        pending_creator_name=pending_creator_name,
+        pending_creator_discord_id=pending_creator_discord_id,
+        pending_draft_order=pending_draft_order,
     )
 
 
@@ -414,7 +517,7 @@ def _load_game(request: GameDetailRequest):
         game_id = request.game_id
 
     try:
-        return models.Game.load_full_game(game_id=int(game_id)), inferred_from_channel
+        game = models.Game.load_full_game(game_id=int(game_id))
     except (ValueError, TypeError) as exc:
         raise GameDetailError(
             f'Invalid game ID "{game_id}".',
@@ -425,6 +528,19 @@ def _load_game(request: GameDetailRequest):
             f'Game with ID {game_id} cannot be found.',
             code='not_found',
         ) from exc
+
+    if (
+        int(game.guild_id) != request.guild_id
+        and bool(getattr(game, 'is_pending', False))
+    ):
+        raise GameDetailError(
+            f'Game with ID {game.id} is associated with a different Discord '
+            'server.',
+            code='cross_guild_pending',
+            game_id=int(game.id),
+            source_guild_id=int(game.guild_id),
+        )
+    return game, inferred_from_channel
 
 
 def load_game_detail(request: GameDetailRequest) -> GameDetailSnapshot:

@@ -20,14 +20,26 @@ views = import_offline_runtime('modules.game_detail_views')
 games = import_offline_runtime('modules.games')
 
 
-def fake_game(*, game_id=7, guild_id=10, pending=False, completed=True):
+def fake_game(
+    *,
+    game_id=7,
+    guild_id=10,
+    pending=False,
+    completed=True,
+    pending_full=True,
+    draft=False,
+):
     member_one = SimpleNamespace(
         discord_id=101,
         name='Alpha Discord',
+        polytopia_name='Alpha Poly',
+        name_steam='Alpha Steam',
     )
     member_two = SimpleNamespace(
         discord_id=202,
         name='Beta Discord',
+        polytopia_name='Beta Poly',
+        name_steam='Beta Steam',
     )
     player_one = SimpleNamespace(
         id=11,
@@ -109,6 +121,31 @@ def fake_game(*, game_id=7, guild_id=10, pending=False, completed=True):
         name='Alpha',
         discord_member=member_one,
     )
+    game_size = [1, 1]
+    if pending and not pending_full:
+        side_two.lineup = []
+    if pending and draft:
+        game_size = [2, 2]
+        side_one.size = 2
+        side_two.size = 2
+        side_one.lineup.append(SimpleNamespace(
+            id=53,
+            player=player_two,
+            tribe=tribe_two,
+            elo_after_game_moonrise=1080,
+            elo_change_player_moonrise=-20,
+            elo_after_game=1090,
+            elo_change_player=-10,
+        ))
+        side_two.lineup.append(SimpleNamespace(
+            id=54,
+            player=player_one,
+            tribe=tribe_one,
+            elo_after_game_moonrise=1120,
+            elo_change_player_moonrise=20,
+            elo_after_game=1110,
+            elo_change_player=10,
+        ))
     game = SimpleNamespace(
         id=game_id,
         guild_id=guild_id,
@@ -127,7 +164,7 @@ def fake_game(*, game_id=7, guild_id=10, pending=False, completed=True):
         league_season=8,
         league_tier=2,
         league_playoff=True,
-        size=[1, 1],
+        size=game_size,
         game_chan=702,
         host=host,
         winner=side_one if completed else None,
@@ -142,11 +179,30 @@ def fake_game(*, game_id=7, guild_id=10, pending=False, completed=True):
 
     game.uses_channel_id = uses_channel_id
     game.series_record = series_record
+    if pending and draft:
+        game.draft_order = lambda: [
+            {'position': 1, 'sidename': 'Home', 'player': player_one},
+            {'position': 2, 'sidename': 'Away', 'player': player_two},
+            {'position': 2, 'sidename': 'Away', 'player': player_one},
+            {'position': 1, 'sidename': 'Home', 'player': player_two},
+        ]
     return game
 
 
-def snapshot(*, cross_guild=False, pending=False, completed=True):
-    game = fake_game(pending=pending, completed=completed)
+def snapshot(
+    *,
+    cross_guild=False,
+    pending=False,
+    completed=True,
+    pending_full=True,
+    draft=False,
+):
+    game = fake_game(
+        pending=pending,
+        completed=completed,
+        pending_full=pending_full,
+        draft=draft,
+    )
     request = workers.GameDetailRequest(
         guild_id=999 if cross_guild else 10,
         channel_id=702,
@@ -302,6 +358,49 @@ class GameDetailWorkerTests(unittest.TestCase):
         self.assertTrue(result.cross_guild)
         self.assertEqual(result.game_channel_id, 702)
 
+    def test_cross_guild_pending_lookup_withholds_the_card(self):
+        database = SimpleNamespace(
+            connection_context=lambda: mock.MagicMock(),
+        )
+        with (
+            mock.patch.object(workers.models, 'db', database),
+            mock.patch.object(
+                workers.models.Game,
+                'load_full_game',
+                return_value=fake_game(pending=True, completed=False),
+            ),
+        ):
+            with self.assertRaisesRegex(
+                workers.GameDetailError,
+                'different Discord server',
+            ) as raised:
+                workers.load_game_detail(
+                    workers.GameDetailRequest(999, 702, 900, 7)
+                )
+        self.assertEqual(raised.exception.code, 'cross_guild_pending')
+        self.assertEqual(raised.exception.source_guild_id, 10)
+
+    def test_pending_snapshot_preserves_open_and_full_operations(self):
+        open_game = snapshot(
+            pending=True,
+            completed=False,
+            pending_full=False,
+        )
+        full_game = snapshot(
+            pending=True,
+            completed=False,
+            draft=True,
+        )
+        self.assertTrue(open_game.pending_join_available)
+        self.assertFalse(open_game.pending_full)
+        self.assertEqual(open_game.pending_creator_name, 'Alpha')
+        self.assertFalse(open_game.pending_draft_order)
+        self.assertTrue(full_game.pending_full)
+        self.assertFalse(full_game.pending_join_available)
+        self.assertEqual(full_game.pending_creator_name, 'Alpha')
+        self.assertEqual(len(full_game.pending_draft_order), 4)
+        self.assertEqual(full_game.pending_draft_order[0].side_name, 'Home')
+
     def test_snapshot_covers_pending_incomplete_and_completed_states(self):
         pending = snapshot(pending=True, completed=False)
         incomplete = snapshot(pending=False, completed=False)
@@ -419,6 +518,119 @@ class GameDetailViewTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertIn('Game 7', text)
         self.assertIn('Dryland', text)
+
+    def test_pending_open_view_preserves_join_guidance_and_platform_name(self):
+        guild = SimpleNamespace(
+            id=10,
+            name='Test Guild',
+            get_member=lambda member_id: None,
+            get_role=lambda role_id: None,
+        )
+        display = views.resolve_display(
+            snapshot(
+                pending=True,
+                completed=False,
+                pending_full=False,
+            ),
+            guild=guild,
+            prefix='!',
+            join_emoji='✅',
+        )
+        view = views.GameDetailWorkspace(requester_id=900, display=display)
+        text = '\n'.join(
+            item.content
+            for item in view.walk_children()
+            if isinstance(item, discord.ui.TextDisplay)
+        )
+        self.assertIn('`!join 7`', text)
+        self.assertIn('✅', text)
+        view.section = 'players'
+        view.rebuild()
+        text = '\n'.join(
+            item.content
+            for item in view.walk_children()
+            if isinstance(item, discord.ui.TextDisplay)
+        )
+        self.assertIn('Alpha Poly', text)
+
+    def test_pending_full_view_preserves_start_codes_and_draft_order(self):
+        guild = SimpleNamespace(
+            id=10,
+            name='Test Guild',
+            get_member=lambda member_id: None,
+            get_role=lambda role_id: None,
+        )
+        display = views.resolve_display(
+            snapshot(
+                pending=True,
+                completed=False,
+                draft=True,
+            ),
+            guild=guild,
+            prefix='$',
+        )
+        view = views.GameDetailWorkspace(requester_id=900, display=display)
+        text = '\n'.join(
+            item.content
+            for item in view.walk_children()
+            if isinstance(item, discord.ui.TextDisplay)
+        )
+        self.assertIn('`$start 7 Name of Game`', text)
+        self.assertIn('`$codes 7`', text)
+        self.assertIn('Balanced draft order', text)
+        self.assertIn('Side Home: Alpha', text)
+
+    def test_cross_guild_display_hides_source_discord_identifiers(self):
+        source_member = SimpleNamespace(
+            id=101,
+            display_name='Source Alpha',
+            name='Source Alpha',
+        )
+        source_role = SimpleNamespace(mention='<@&501>')
+        current_guild = SimpleNamespace(
+            id=999,
+            name='Current Guild',
+            get_member=lambda member_id: source_member,
+            get_role=lambda role_id: source_role,
+        )
+        source_guild = SimpleNamespace(
+            id=10,
+            name='Source Guild',
+            get_member=lambda member_id: source_member,
+            get_role=lambda role_id: source_role,
+        )
+        bot = SimpleNamespace(
+            guilds=[current_guild, source_guild],
+            get_guild=lambda guild_id: (
+                source_guild if guild_id == 10 else current_guild
+            ),
+            get_user=lambda member_id: source_member,
+            get_channel=lambda channel_id: SimpleNamespace(
+                mention=f'<#{channel_id}>'
+            ),
+        )
+        display = views.resolve_display(
+            snapshot(cross_guild=True),
+            guild=current_guild,
+            bot=bot,
+        )
+        view = views.GameDetailWorkspace(requester_id=900, display=display)
+        text = '\n'.join(
+            item.content
+            for item in view.walk_children()
+            if isinstance(item, discord.ui.TextDisplay)
+        )
+        self.assertEqual(display.channels, ())
+        self.assertEqual(display.player_label(101, 'Alpha'), 'Alpha')
+        self.assertEqual(
+            display.role_label(501),
+            'source-server role restriction',
+        )
+        self.assertIn('Source Guild', text)
+        self.assertNotIn('<@101>', text)
+        self.assertNotIn('<@&501>', text)
+        self.assertNotIn('<#701>', text)
+        self.assertNotIn('<#702>', text)
 
     def test_team_image_preserves_local_attachment_fallback(self):
         with tempfile.TemporaryDirectory() as directory:

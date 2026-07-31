@@ -50,6 +50,8 @@ class GameDetailDisplay:
     role_labels: tuple[tuple[int, str], ...]
     source_guild_name: str
     asset: GameDetailAsset | None
+    prefix: str = '$'
+    join_emoji: str = ''
 
     def player_label(self, discord_id: int, fallback: str) -> str:
         return dict(self.player_labels).get(discord_id, fallback)
@@ -57,18 +59,28 @@ class GameDetailDisplay:
     def role_label(self, role_id: int | None) -> str:
         if role_id is None:
             return ''
+        if self.snapshot.cross_guild:
+            return 'source-server role restriction'
         return dict(self.role_labels).get(role_id, f'<@&{role_id}>')
 
 
-def _guilds_for_lookup(guild, bot, source_guild_id: int):
+def _guilds_for_lookup(
+    guild,
+    bot,
+    source_guild_id: int,
+    *,
+    include_other_guilds: bool = True,
+):
     seen = set()
     candidates = []
     get_guild = getattr(bot, 'get_guild', None) if bot is not None else None
-    for candidate in (
-        guild,
-        get_guild(source_guild_id) if get_guild is not None else None,
-        *(getattr(bot, 'guilds', ()) if bot is not None else ()),
-    ):
+    candidate_guilds = [guild]
+    if include_other_guilds:
+        candidate_guilds.extend([
+            get_guild(source_guild_id) if get_guild is not None else None,
+            *(getattr(bot, 'guilds', ()) if bot is not None else ()),
+        ])
+    for candidate in candidate_guilds:
         if candidate is not None and candidate.id not in seen:
             seen.add(candidate.id)
             candidates.append(candidate)
@@ -95,11 +107,17 @@ def _member_label(member, fallback: str, discord_id: int) -> str:
     return f'{discord.utils.escape_markdown(display_name)} (<@{discord_id}>)'
 
 
-def _resolve_asset(snapshot, winner_side, guilds) -> GameDetailAsset | None:
+def _resolve_asset(
+    snapshot,
+    winner_side,
+    guilds,
+    *,
+    allow_player_avatar: bool = True,
+) -> GameDetailAsset | None:
     if winner_side is None:
         return None
 
-    if len(winner_side.lineups) == 1:
+    if allow_player_avatar and len(winner_side.lineups) == 1:
         member = _member_for_id(
             winner_side.lineups[0].discord_id,
             guilds,
@@ -140,47 +158,77 @@ def _resolve_asset(snapshot, winner_side, guilds) -> GameDetailAsset | None:
     return None
 
 
-def resolve_display(snapshot, *, guild=None, bot=None) -> GameDetailDisplay:
+def resolve_display(
+    snapshot,
+    *,
+    guild=None,
+    bot=None,
+    prefix: str = '$',
+    join_emoji: str = '',
+) -> GameDetailDisplay:
     """Resolve Discord-only labels and media without touching Peewee."""
 
-    guilds = _guilds_for_lookup(guild, bot, snapshot.guild_id)
-    player_labels = []
-    for side in snapshot.sides:
-        for lineup in side.lineups:
-            member = _member_for_id(lineup.discord_id, guilds, bot)
-            player_labels.append((
-                lineup.discord_id,
-                _member_label(member, lineup.player_name, lineup.discord_id),
-            ))
+    cross_guild = snapshot.cross_guild
+    guilds = _guilds_for_lookup(
+        guild,
+        bot,
+        snapshot.guild_id,
+        include_other_guilds=not cross_guild,
+    )
+    member_lookup_bot = None if cross_guild else bot
+    if cross_guild:
+        player_labels = [
+            (lineup.discord_id, lineup.player_name)
+            for side in snapshot.sides
+            for lineup in side.lineups
+        ]
+    else:
+        player_labels = []
+        for side in snapshot.sides:
+            for lineup in side.lineups:
+                member = _member_for_id(
+                    lineup.discord_id,
+                    guilds,
+                    member_lookup_bot,
+                )
+                player_labels.append((
+                    lineup.discord_id,
+                    _member_label(member, lineup.player_name, lineup.discord_id),
+                ))
 
     host_label = snapshot.host_name
-    if snapshot.host_discord_id is not None:
-        host = _member_for_id(snapshot.host_discord_id, guilds, bot)
+    if snapshot.host_discord_id is not None and not cross_guild:
+        host = _member_for_id(
+            snapshot.host_discord_id,
+            guilds,
+            member_lookup_bot,
+        )
         host_label = _member_label(
             host,
             snapshot.host_name or f'<@{snapshot.host_discord_id}>',
             snapshot.host_discord_id,
         )
 
-    role_ids = {
-        side.required_role_id
-        for side in snapshot.sides
-        if side.required_role_id is not None
-    }
     role_labels = []
-    for role_id in sorted(role_ids):
-        role = None
-        for candidate_guild in guilds:
-            role = candidate_guild.get_role(role_id)
-            if role is not None:
-                break
-        role_labels.append((
-            role_id,
-            getattr(role, 'mention', None) or f'<@&{role_id}>',
-        ))
+    if not cross_guild:
+        role_ids = {
+            side.required_role_id
+            for side in snapshot.sides
+            if side.required_role_id is not None
+        }
+        for role_id in sorted(role_ids):
+            role = None
+            for candidate_guild in guilds:
+                role = candidate_guild.get_role(role_id)
+                if role is not None:
+                    break
+            role_labels.append((
+                role_id,
+                getattr(role, 'mention', None) or f'<@&{role_id}>',
+            ))
 
     channels = []
-    if snapshot.game_channel_id is not None:
+    if not cross_guild and snapshot.game_channel_id is not None:
         get_channel = getattr(bot, 'get_channel', None) if bot else None
         channel = get_channel(snapshot.game_channel_id) if get_channel else None
         channels.append(GameDetailChannel(
@@ -189,17 +237,18 @@ def resolve_display(snapshot, *, guild=None, bot=None) -> GameDetailDisplay:
             external_guild_id=None,
             central=True,
         ))
-    for side in snapshot.sides:
-        if side.channel_id is None:
-            continue
-        get_channel = getattr(bot, 'get_channel', None) if bot else None
-        channel = get_channel(side.channel_id) if get_channel else None
-        channels.append(GameDetailChannel(
-            channel_id=side.channel_id,
-            mention=getattr(channel, 'mention', None) or f'<#{side.channel_id}>',
-            external_guild_id=side.external_guild_id,
-            central=False,
-        ))
+    if not cross_guild:
+        for side in snapshot.sides:
+            if side.channel_id is None:
+                continue
+            get_channel = getattr(bot, 'get_channel', None) if bot else None
+            channel = get_channel(side.channel_id) if get_channel else None
+            channels.append(GameDetailChannel(
+                channel_id=side.channel_id,
+                mention=getattr(channel, 'mention', None) or f'<#{side.channel_id}>',
+                external_guild_id=side.external_guild_id,
+                central=False,
+            ))
 
     get_guild = getattr(bot, 'get_guild', None) if bot else None
     source_guild = get_guild(snapshot.guild_id) if get_guild else None
@@ -218,7 +267,14 @@ def resolve_display(snapshot, *, guild=None, bot=None) -> GameDetailDisplay:
         channels=tuple(channels),
         role_labels=tuple(role_labels),
         source_guild_name=source_guild_name,
-        asset=_resolve_asset(snapshot, winner_side, guilds),
+        asset=_resolve_asset(
+            snapshot,
+            winner_side,
+            guilds,
+            allow_player_avatar=not cross_guild,
+        ),
+        prefix=prefix or '$',
+        join_emoji=join_emoji,
     )
 
 
@@ -250,11 +306,11 @@ class GameDetailWorkspace(components_v2.RequesterLayoutView):
             f'game_id:{self.display.snapshot.game_id}` again for a fresh card.'
         )
 
-    def _lookup_channel(self, channel_id: int) -> str:
+    def _lookup_channel(self, channel_id: int) -> str | None:
         for channel in self.display.channels:
             if channel.channel_id == channel_id:
                 return channel.mention
-        return f'<#{channel_id}>'
+        return None
 
     def _side_heading(self, side: game_detail_workers.GameDetailSide) -> str:
         team = ' '.join(
@@ -280,7 +336,38 @@ class GameDetailWorkspace(components_v2.RequesterLayoutView):
             if value
         )
         tribe_text = f' · {tribe}' if tribe else ''
-        return f'• {label} · ELO {lineup.elo_label}{tribe_text}'
+        platform_text = ''
+        if self.display.snapshot.is_pending and lineup.platform_name:
+            platform_text = f' · `{lineup.platform_name}`'
+        return f'• {label} · ELO {lineup.elo_label}{tribe_text}{platform_text}'
+
+    def _pending_guidance(self) -> str:
+        snapshot = self.display.snapshot
+        if not snapshot.is_pending:
+            return ''
+
+        lines = []
+        if snapshot.pending_join_available:
+            join = f'**Join:** Use `{self.display.prefix}join {snapshot.game_id}`'
+            if self.display.join_emoji:
+                join += f' or react with {self.display.join_emoji}'
+            lines.append(join + '.')
+        if snapshot.pending_full:
+            creator = snapshot.pending_creator_name or 'the creating player'
+            lines.extend([
+                f'**Next step:** **{creator}** should create the game in '
+                f'Polytopia and mark it started with '
+                f'`{self.display.prefix}start {snapshot.game_id} Name of Game`.',
+                f'**Friend names:** copy them with '
+                f'`{self.display.prefix}codes {snapshot.game_id}`.',
+            ])
+            if snapshot.pending_draft_order:
+                lines.append('**Balanced draft order:**')
+                lines.extend(
+                    f'- Side {pick.side_name}: {pick.player_name}'
+                    for pick in snapshot.pending_draft_order
+                )
+        return '\n'.join(lines)
 
     def _overview(self) -> str:
         snapshot = self.display.snapshot
@@ -308,6 +395,9 @@ class GameDetailWorkspace(components_v2.RequesterLayoutView):
             lines.append(f'**Notes:** {_trim(snapshot.notes, 700)}')
         if snapshot.series_record_label:
             lines.append(f'**Series:** {snapshot.series_record_label}')
+        pending_guidance = self._pending_guidance()
+        if pending_guidance:
+            lines.append(pending_guidance)
         if snapshot.cross_guild:
             lines.insert(
                 1,
@@ -329,7 +419,9 @@ class GameDetailWorkspace(components_v2.RequesterLayoutView):
             if side.required_role_id is not None:
                 lines.append(f'• Locked role: {self.display.role_label(side.required_role_id)}')
             if side.channel_id is not None:
-                lines.append(f'• Side channel: {self._lookup_channel(side.channel_id)}')
+                channel = self._lookup_channel(side.channel_id)
+                if channel is not None:
+                    lines.append(f'• Side channel: {channel}')
             blocks.append('\n'.join(lines))
         return '\n\n'.join(blocks)
 
