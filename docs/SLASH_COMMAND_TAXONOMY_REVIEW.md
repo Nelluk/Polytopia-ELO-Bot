@@ -3,8 +3,9 @@
 Last updated: 2026-07-30
 
 Status: Taxonomy v2.2 proposed for user/staff review; attribute-command,
-component-first interaction, and show/ping/logs naming rules accepted;
-approved `/leaderboard` paths implemented locally
+component-first interaction, show/ping/logs naming, and legacy-module
+exclusions accepted; unified player workspace proposed; approved
+`/leaderboard` paths implemented locally
 
 This review covers the bot's complete repository-backed command surface, not
 only commands already converted to Discord application commands. Taxonomy v2.2
@@ -40,20 +41,25 @@ has not been registered, and neither surface has reached production.
 
 Static inspection found:
 
-- 83 in-scope explicit prefix command handlers;
+- 78 active-target explicit prefix command handlers;
 - one customized framework `help` command;
 - nine locally implemented `/game` subcommands and two `/elo` subcommands;
 - three locally implemented `/leaderboard` subcommands plus temporary `/lb2`;
 - many additional prefix aliases;
-- a conditional command family for the Bullet cog.
+- five Bullet prefix handlers now classified as legacy/out of scope;
+- the command-free anti-scam listener, also classified as legacy/out of
+  scope.
 
 The count describes handlers, not distinct user tasks. Alias-selected
 behaviors and overlapping list commands should become typed choices rather
 than duplicate slash commands.
 
-The seven hidden commands in `modules/api_cog.py` are legacy and explicitly
-excluded from the inventory, slash-capacity planning, and P4-P8 conversion
-backlog. Retaining or deleting that cog is a separate cleanup decision.
+The seven hidden commands in `modules/api_cog.py`, five commands in
+`modules/bullet.py`, and the listener-only `modules/antiscam.py` are legacy
+and explicitly excluded from slash-capacity planning and the P4-P8 conversion
+backlog. They may remain loaded and receive narrowly necessary operational,
+security, privacy, or dependency-compatibility fixes. Retaining, disabling,
+or deleting them is a separate decision and is not implied by this taxonomy.
 
 ### Disposition key
 
@@ -217,10 +223,9 @@ Taxonomy v2.2 applies this rule system-wide:
 | `/game show` | optional game ID when it cannot be inferred from the channel | players, logs, attributes, and permitted actions |
 | `/game ping` | optional game ID when it cannot be inferred | audience/scope, long message, multiple uploads, preview, confirmation |
 | `/game record` | game name, one roster string, and optional ranked state | parsed arbitrary sides, native side/member editing, preview, confirmation |
-| `/player show` | optional member; requester by default | history, teams, leaderboard position, permitted profile edits |
+| `/player show` | optional member; requester by default | overview, ratings, recent/incomplete/completed/season games, results, teams, and permitted profile edits |
 | `/player register` | optional staff-selected member | one canonical Polytopia name and review |
 | `/team show` | optional team when requester context is unambiguous | roster, history, attributes, and permitted edits |
-| `/bullet log` | none when the active matchup is unambiguous | match/result selection, replay, review, confirmation |
 | `/staffhelp` | none | game reference, long description, multiple uploads, review, submit |
 
 This table is an interaction contract rather than permission to combine
@@ -380,6 +385,45 @@ which account-name type is being set. A separate data-cleanup unit must decide
 which existing value becomes canonical when records disagree; taxonomy work
 must not silently discard stored values.
 
+#### Unified player workspace
+
+`/player show member:[optional]` should open one Components v2 workspace
+rather than making users learn separate slash commands for the same player's
+rating and game lists. It defaults to the requester and initially displays
+**Overview**. A section selector and contextual controls expose:
+
+- Overview/profile and canonical Polytopia name;
+- current, peak, local/global, and all-time rating information;
+- recent games;
+- incomplete games;
+- completed games, with all/win/loss refinement;
+- season games, with current/recent season selection where applicable;
+- team/squad context and permitted profile actions.
+
+This does not eliminate the existing prefix entry points during transition.
+They become deep links into the same renderer and bounded read service:
+
+| Prefix entry | Initial workspace section |
+|---|---|
+| `$player`, `$elo`, `$rank` | Overview/ratings |
+| `$incomplete` | Incomplete games |
+| `$complete`, `$completed` | Completed games |
+| `$wins` | Completed games filtered to wins |
+| `$loss`, `$losses` | Completed games filtered to losses |
+| `$allgames PLAYER` | All/recent games when exactly one player resolves |
+
+Complex searches remain `/game search`: multiple players, teams, title/notes,
+game size, `all`, or any query that does not resolve to exactly one player.
+The player and game-search workspaces may share immutable game-row DTOs,
+pagination, and rendering primitives, but they remain separate application
+services with their own query semantics.
+
+There is no slash `/elo PLAYER` alias. `$elo` is historical prefix vocabulary;
+the native player-detail home is `/player show`, while `/elo` remains reserved
+for rating maintenance and job status. A slash `section` option should be
+added only if real direct-link demand is demonstrated; routine navigation
+belongs in the components.
+
 The intended team option shape is attribute-focused:
 
 - `/team emoji team:[optional] emoji:[optional] clear:[optional]`;
@@ -475,19 +519,20 @@ surface for ordinary league participants. They also make destructive batch
 operations harder to invoke accidentally without pretending that nesting is
 a permission control.
 
-### Bullet tournament
+### Legacy modules outside the modernization target
 
-The Bullet cog is conditional and relies on an external spreadsheet. These
-paths apply only if the feature remains active.
-
-| Current prefix handler(s) | Taxonomy v2.2 native home | Disposition / note |
+| Module / current behavior | Native home | Disposition / note |
 |---|---|---|
-| `bullet` | `/bullet join` | Conditional |
-| `nobullet` | `/bullet leave` | Conditional |
-| message-based result listener | `/bullet log` | Conditional participant result workflow; infer active matchup when possible, collect winner/loser and replay interactively, preview, then confirm |
-| `bulletstart` | `/bullet manage start` | Conditional, director-only |
-| `bulletsub` | `/bullet manage substitute` | Conditional with two members |
-| `bullettoggle` | `/bullet manage automation` | Conditional operator control; retain/review |
+| Bullet tournament: `bullet`, `nobullet`, `bulletstart`, `bulletsub`, `bullettoggle`, and results listener | none | Legacy. Keep current behavior if still operated, but do not add `/bullet`, `/bullet log`, or other native conversions |
+| Anti-scam cross-channel message/image listener | none | Legacy listener with no command taxonomy. Do not redesign it as a slash/component workflow |
+| Legacy API cog | none | Existing exclusion remains |
+
+Legacy means “not an active migration or modernization target,” not
+“immediately disabled.” These modules may be removed in the near future by a
+separately approved retirement unit. Until then, narrowly necessary
+operational, security, privacy/retention, and dependency-compatibility fixes
+remain allowed and their current runtime/cutover documentation remains
+authoritative.
 
 ### General utilities and support
 
@@ -506,7 +551,8 @@ paths apply only if the feature remains active.
 | Capability | Recommended interaction | Why |
 |---|---|---|
 | Player leaderboards | `/leaderboard players` opens the accepted Components v2 workspace with presets, population toggle, paging, page modal, and requester-rank jump | Replaces four presentation-oriented slash options with a discoverable mobile/desktop UI |
-| Game/player detail | Show the primary record immediately, then offer contextual history, players, attributes, and permitted actions | Keeps common lookup short while making secondary information discoverable |
+| Unified player workspace | `/player show` opens Overview and lets the requester move among ratings, recent/incomplete/completed/season games, results, teams, and permitted edits; legacy prefix commands deep-link the matching section | Replaces several overlapping outputs without multiplying slash commands |
+| Game detail | `/game show` displays the primary record, then offers players, logs, attributes, and permitted actions | Keeps common lookup short while making secondary information discoverable |
 | Search and history | Essential target/query at invocation; Components v2 filters and pages refine the immutable result | Avoids large option lists and repeated commands while keeping reads bounded |
 | Arbitrary game recording | `/game record` parses one roster string using the established `vs` grammar, then opens a short-lived preview with native side/member editing plus Confirm/Cancel | Restores uneven, larger, and multi-side coverage without message-content intent while keeping the initial fast text path |
 | Game notes | `/game notes` reads directly; an Edit button opens a paragraph modal | Long text is awkward as a slash option and benefits from prefilled review |
@@ -515,7 +561,6 @@ paths apply only if the feature remains active.
 | Team/house image | Focused attribute command; Edit opens a modal file upload with explicit replace/clear choice | Native file upload avoids URL-only workflows |
 | Staff help | `/staffhelp` modal with summary/details, game reference, and up to 10 uploads per upload component | Preserves the familiar name and supports structured reports and screenshots |
 | Game notification | `/game ping` composer with audience controls, repeatable text sections, multiple uploads, and public-effect preview/confirm | Separates authoring from potentially broad notification and supports bounded multi-message delivery |
-| Bullet result logging | `/bullet log` resolves or selects the active matchup, collects result/replay, and previews before confirmation | Replaces message-content parsing with a discoverable native participant flow |
 | League bulk maintenance | Buttons/selects for preview and confirmation; modal only for a reason/note | Bulk target selection and result review are iterative, not a one-shot form |
 
 Search filters, leaderboards, and audit-history pagination should use minimal
@@ -554,7 +599,6 @@ Taxonomy v2.2 uses these domain roots:
 - `/league`
 - `/house`
 - `/elo`
-- `/bullet` when enabled
 - `/tools`
 - `/about`
 - `/staffhelp`
@@ -567,23 +611,19 @@ dozens of capabilities harder to scan and organize.
 
 ## Effect on the current implementation if approved
 
-Checkpoint `63af179` currently registers:
+The current `codex/database-slash-modernization` accumulation branch
+registers:
 
-- `/game create|win|unwin|delete|confirm|unconfirmed|set-ranked|extend|unstart`;
-- `/elo recalculate|status`.
-
-The current stacked P7 branch also registers
-`/leaderboard players|activity|squads` and temporary `/lb2`. Taxonomy v2.2
-keeps the three `/leaderboard` homes, promotes the accepted option-free
-Components v2 player workspace to `/leaderboard players`, and removes `/lb2`
-before production.
+- `/game record|win|unwin|delete|confirm|unconfirmed|set-ranked|extend|unstart`;
+- `/elo recalculate|status`;
+- `/leaderboard players|activity|squads` and temporary `/lb2`.
 
 For the already implemented game/ELO surface, Taxonomy v2.2 would change only
 the slash registration/adapters:
 
 | Current local path | Taxonomy v2.2 path |
 |---|---|
-| `/game create` | `/game record` |
+| `/game record` | unchanged |
 | `/game win` | unchanged |
 | `/game unwin` | `/game result undo` |
 | `/game delete` | `/game manage delete` |
@@ -595,7 +635,8 @@ the slash registration/adapters:
 | `/elo recalculate` | unchanged |
 | `/elo status` | unchanged |
 
-The checkpoint tree has been synchronized only to the development guild, and
+The accumulation-branch tree has been synchronized only to the development
+guild, and
 none of these slash paths has reached production. Approval therefore still
 allows a clean development rename without production compatibility aliases,
 although the beta runbook must explicitly verify that obsolete guild commands
@@ -607,10 +648,10 @@ omitted rather than shipping a name already marked for replacement.
 
 ## Implementation and migration plan
 
-1. Review and approve or revise taxonomy v2.2 before changing registration
-   code.
-2. If approved, create a narrow P4.1d follow-up that changes only slash groups,
-   paths, audit attribution, registration tests, and the beta runbook.
+1. Continue reviewing and approving or revising unsettled Taxonomy v2.2
+   paths before their corresponding registration units.
+2. Keep already integrated paths and accepted interaction experiments
+   accurately distinguished from proposed renames in this document.
 3. Preserve prefix commands, aliases, permissions, workers, transactions, and
    Discord-effect ordering.
 4. Do not implement placeholder read commands merely to fill the proposed
@@ -621,7 +662,10 @@ omitted rather than shipping a name already marked for replacement.
    option, component, text, and attachment limits before each registration.
    Each unit must justify every slash option that remains instead of moving it
    into an interaction workspace.
-7. Before P9, audit the actual tree, descriptions, permissions,
+7. Keep the API, Bullet, and anti-scam modules outside the modernization
+   backlog unless the user separately authorizes retirement or reactivation
+   as a target.
+8. Before P9, audit the actual tree, descriptions, permissions,
    autocomplete cost, compatibility ledger, and naming consistency.
 
 Changing slash placement remains technically manageable because adapters stay

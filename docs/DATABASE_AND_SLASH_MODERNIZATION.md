@@ -81,6 +81,9 @@ instructions supplied with the task. In particular, inspect
   work unit explicitly calls for it.
 - Globally synchronizing experimental application commands.
 - Removing prefix commands before a separately approved deprecation plan.
+- Modernizing or converting the legacy API, Bullet tournament, or anti-scam
+  modules. They may remain operational and receive narrowly necessary
+  maintenance until a separately approved retirement decision.
 
 ## Working architecture
 
@@ -226,27 +229,30 @@ page changes and other snapshot-only navigation must not query the database.
 
 ### Slash taxonomy review
 
-Status: **Taxonomy v2.2 proposed; attribute-command, component-first, and
-show/ping/logs naming rules accepted; registration changes pending review**
+Status: **Taxonomy v2.2 proposed; attribute-command, component-first,
+show/ping/logs naming, and legacy-module exclusion rules accepted; unified
+player workspace proposed; registration changes pending review**
 
 The accepted architecture remains T-A domain roots with one user-facing
 `/game` domain across open, pending, started, and completed states. On
 2026-07-30 the user reopened the spelling and internal-grouping review before
 the first synchronization of checkpoint `63af179`.
 
-The repository-wide v2.2 proposal and conversion dispositions are maintained in
-`docs/SLASH_COMMAND_TAXONOMY_REVIEW.md`. It covers all 83 in-scope explicit
-prefix handlers, the customized help command, optional command families,
-commands needing interaction redesign, and commands that should remain
-operator-only. The legacy API cog and its seven hidden commands remain
-excluded.
+The repository-wide v2.2 proposal and conversion dispositions are maintained
+in `docs/SLASH_COMMAND_TAXONOMY_REVIEW.md`. It covers 78 active-target
+explicit prefix handlers, the customized help command, commands needing
+interaction redesign, and commands that should remain operator-only. The
+legacy API cog, five-command Bullet family/results listener, and command-free
+anti-scam listener remain excluded.
 
 The current locally implemented native surface is:
 
 - `/game record`, `/game win`, `/game unwin`, `/game delete`;
 - `/game confirm`, `/game unconfirmed`, `/game set-ranked`;
 - `/game extend`, `/game unstart`;
-- `/elo recalculate`, `/elo status`.
+- `/elo recalculate`, `/elo status`;
+- `/leaderboard players`, `/leaderboard activity`,
+  `/leaderboard squads`, and temporary `/lb2`.
 
 The prior top-level names were synchronized only to the development guild.
 None reached production. The approved migration therefore removes them
@@ -297,16 +303,17 @@ Additional staff/user feedback incorporated in v2.2:
 - `/player register` collects one canonical Polytopia name. The slash surface
   no longer distinguishes mobile name, Steam name, and legacy friend code;
   existing stored values require a separate migration decision.
-- optional `/bullet` includes a participant-facing `/bullet log` result
-  workflow with matchup/result selection, replay evidence, preview, and
-  confirmation.
 - the established top-level `/staffhelp` name remains. It opens a structured
   modal/workspace rather than becoming `/support request`.
+- `/player show` is proposed as one shared Components v2 workspace for
+  profile, rating, recent/incomplete/completed/season-game, and result views.
+  Existing `$player`/`$elo`/`$rank` and simple single-player game-list
+  commands can deep-link its initial section without creating slash aliases.
 
 The proposed `/game` root has nineteen immediate children, including its two
 subcommand groups, leaving six slots below Discord's 25-child limit. The same
 system-wide rules apply to `/player`, `/team`, `/squad`, `/leaderboard`,
-`/league`, `/house`, `/elo`, optional `/bullet`, `/tools`, `/about`, and
+`/league`, `/house`, `/elo`, `/tools`, `/about`, and
 top-level `/staffhelp`.
 
 The current registrations have not reached production, so an approved revision
@@ -399,7 +406,10 @@ Current unit: **None active.** P2.3 is Complete on
 fixed `/game create` member matrix with one parsed roster string and a native
 Components v2 side editor, removes platform from the native interface, and
 retains the existing transactional worker. Taxonomy v2.2 as a whole remains
-pending final approval.
+pending final approval. The next taxonomy-independent implementation unit is
+P7.6, the reusable Components v2 toolkit and player-leaderboard promotion;
+P7.7 then applies that foundation to the unified player profile/game-history
+workspace proposed in D-030.
 
 Owned fixture games `149`-`151` are intentionally retained. At the latest
 gated status check, `149` is incomplete/unranked, `150` is
@@ -862,6 +872,9 @@ Implementation evidence:
 - Preview member resolution and existing registration/channel/participation
   checks happen before confirmation. The prefix callback and bounded P2.1
   worker are not invoked until Confirm.
+- The record invocation and parsed preview are public for competitive
+  transparency. Only the requester can use its Edit/Confirm/Cancel controls;
+  unauthorized control attempts remain ephemeral.
 - The shared prefix/slash resolver preserves permissions and the one-opponent
   shortcut. Prefix aliases remain registered.
 - All new recorded games use the legacy `is_mobile=True` compatibility value,
@@ -2214,9 +2227,59 @@ Exit criteria:
 - complete offline and gated database suites pass;
 - a separately approved development-guild beta confirms the promoted path.
 
-Next action: integrate the accepted P7.5 checkpoint into the modernization
-accumulation sequence when appropriate, then implement P7.6 as a separate
-bounded unit.
+Next action: P7.5 is integrated. Implement P7.6 as a separate bounded unit,
+then use its proven primitives in P7.7.
+
+### P7.7 — Unified player profile and game-history workspace
+
+Status: **Planned**
+
+Objective: replace overlapping player-card and single-player game-list
+presentations with one Components v2 workspace while preserving prefix
+commands as direct links to the relevant initial section.
+
+Canonical native entry:
+
+- `/player show member:[optional]`, defaulting to the requester;
+- no slash `/elo PLAYER` alias;
+- no required slash `section` option unless later usage demonstrates a real
+  direct-link need.
+
+The workspace opens on **Overview** and provides component navigation among
+profile, current/peak/local/global/all-time ratings, recent games, incomplete
+games, completed games with all/win/loss filters, season games, team/squad
+context, and permitted profile actions.
+
+Transition behavior:
+
+- `$player`, `$elo`, and `$rank` open Overview/ratings;
+- `$incomplete` opens incomplete games;
+- `$complete` and `$completed` open completed games;
+- `$wins` opens completed games filtered to wins;
+- `$loss` and `$losses` open completed games filtered to losses;
+- `$allgames PLAYER` opens all/recent games only when exactly one player
+  resolves.
+
+Complex multi-player, team, title/notes, game-size, or `all` searches remain
+the `/game search` workflow. The workspaces may share immutable game-row DTOs,
+paging, and rendering primitives from P7.6, but retain separate bounded query
+services and semantics.
+
+Implementation requirements:
+
+- use worker-local connections and immutable snapshots for database-backed
+  reads;
+- keep snapshot-only tab changes and pagination off the database;
+- preserve public competitive-result transparency with requester-only
+  controls and ephemeral authorization failures;
+- retain existing permission boundaries for profile edits;
+- test initial-section routing for every prefix entry, pagination,
+  season/result filters, cache/load failures, timeouts, restart expiration,
+  responsiveness, and requester-default behavior;
+- obtain desktop/mobile beta acceptance before integration.
+
+This unit follows P7.6 and does not depend on final approval of unrelated
+game/team taxonomy spellings.
 
 ## P8 — League and remaining administration workflows
 
@@ -2229,7 +2292,8 @@ Candidate domains:
 - migrations and player deletion;
 - purge/background maintenance;
 - exports and backup-command review;
-- API cog writes if the development API is later brought into scope.
+- no API, Bullet, or anti-scam work unless a separate decision reactivates or
+  retires those legacy modules.
 
 Before implementation, create a command/data-flow inventory for the selected
 domain. Many of these operations span Discord roles, messages, and several
@@ -2693,18 +2757,16 @@ Four user/staff decisions refine the system-wide proposal:
    does not distinguish mobile name, Steam name, or legacy friend code.
    Existing prefix aliases and stored fields remain until a separately tested
    migration resolves records that contain conflicting values.
-3. The optional Bullet surface gains `/bullet log`. It should infer an active
-   matchup when unambiguous, otherwise offer selection, then collect the
-   result and replay evidence, preview the effect, and confirm. This provides
-   a message-content-independent replacement for the current results-channel
-   listener.
+3. The optional Bullet surface originally proposed `/bullet log`. D-029
+   supersedes this item: Bullet is now legacy and receives no active slash or
+   component conversion.
 4. The familiar top-level `/staffhelp` name is preserved. It opens a
    structured modal/workspace for game reference, long description, and
    multiple uploads; `/support request` is removed from the proposal.
 
 These decisions simplify invocation without changing permission boundaries.
-Notification delivery, player-field migration, Bullet spreadsheet mutation,
-and staff-help routing each remain separate bounded implementation units.
+Notification delivery, player-field migration, and staff-help routing each
+remain separate bounded implementation units.
 
 ### D-025 — Keep explicit show commands and established ping/logs vocabulary
 
@@ -2765,7 +2827,7 @@ but must not imply a meaningful platform difference in newly recorded games.
 
 ### D-028 — Use a roster string plus component review for `/game record`
 
-Status: Accepted for implementation; beta acceptance pending
+Status: Accepted, implemented, integrated, and beta-validated
 
 `/game record` takes the exact game name, one roster string using the familiar
 `vs` grammar, and an optional ranked flag. It parses arbitrary and unequal
@@ -2779,7 +2841,58 @@ message-content intent and avoids a large fixed slash option matrix. Mentions
 remain the safest initial input; the native side editor corrects the parsed
 draft without exposing raw mention strings.
 
+### D-029 — Keep Bullet and anti-scam as legacy maintenance-only modules
+
+Status: Accepted
+
+The Bullet tournament cog and anti-scam listener are not active migration,
+slash-conversion, Components v2, or modernization targets. This decision also
+supersedes D-024's proposed `/bullet log` workflow. The legacy API cog remains
+excluded under the same planning policy.
+
+Legacy classification does not disable or decommission current behavior.
+These modules may remain loaded until a separately approved retirement unit
+decides whether and how to remove them. While retained, narrowly necessary
+operational, security, privacy/retention, and dependency-compatibility fixes
+remain in scope. Broader redesign, new native registrations, or feature
+expansion require a new explicit decision.
+
+### D-030 — Unify player detail and simple game lists in one workspace
+
+Status: Proposed for implementation after P7.6
+
+Use `/player show member:[optional]` as the one native entry to an interactive
+player workspace. It defaults to the requester and opens Overview. Components
+then navigate ratings, recent/incomplete/completed/season games, result
+filters, teams/squads, and permitted profile actions.
+
+Preserve `$player`/`$elo`/`$rank`, `$incomplete`,
+`$complete`/`$completed`, `$wins`, `$loss`/`$losses`, and the single-player
+form of `$allgames` as deep links to matching initial sections. Do not create
+slash aliases for this historical vocabulary. Keep complex search semantics
+under `/game search`.
+
+P7.7 records the bounded implementation and evidence requirements. Shared
+presentation primitives may come from P7.6, but player-detail and game-search
+database services remain distinct.
+
 ## Progress log
+
+### 2026-07-30 — Legacy exclusions and unified player workspace proposed
+
+- Marked the five-command Bullet tournament cog/results listener and the
+  command-free anti-scam listener as legacy maintenance-only modules.
+- Superseded the earlier `/bullet log` proposal without disabling either
+  legacy runtime feature; the API cog remains excluded.
+- Reconciled the proposal with the current v2.2 accumulation-branch taxonomy
+  rather than an older side-branch draft.
+- Proposed one `/player show` Components v2 workspace for profile, ratings,
+  recent/incomplete/completed/season games, and result filters.
+- Recorded existing single-player prefix commands as initial-section deep
+  links while keeping complex queries in `/game search`.
+- Added P7.7 after the reusable P7.6 toolkit unit.
+- Made documentation-only changes; command registrations, runtime,
+  synchronization, databases, fixtures, and production remained untouched.
 
 ### 2026-07-30 — P2.3 and stacked component work integrated
 
@@ -2836,8 +2949,8 @@ draft without exposing raw mention strings.
   aliases as cross-play compatibility names rather than a distinct game type.
 - Passed 16 focused tests, the 181-test offline suite with nine gated skips,
   and eight gated `polytopia_dev` tests with one safe fixture skip.
-- Recorded implementation checkpoint `6af7c92`; beta acceptance remains
-  pending.
+- Recorded implementation checkpoint `6af7c92`; later beta acceptance is
+  recorded above and P2.3 is Complete.
 
 ### 2026-07-30 — `/game record` beta restarted and synchronized
 
@@ -2846,8 +2959,9 @@ draft without exposing raw mention strings.
   background tasks disabled.
 - Confirmed authentication as `PolyELO Bot Beta`
   (`479029527553638401`) and startup/synchronization without a reported error.
-- Left the beta running under D-026; functional preview/edit/cancel/confirm
-  acceptance remains pending.
+- Left the beta running under D-026 for functional
+  preview/edit/cancel/confirm acceptance, which was subsequently reported and
+  integrated.
 
 ### 2026-07-30 — Standing development-beta runtime policy accepted
 
@@ -2888,7 +3002,8 @@ draft without exposing raw mention strings.
 - Collapsed mobile name, Steam name, and legacy friend code into one canonical
   native Polytopia-name concept while requiring a separate stored-data
   migration decision.
-- Added participant-facing `/bullet log`.
+- Proposed participant-facing `/bullet log`; D-029 later superseded this
+  proposal when Bullet was classified as legacy.
 - Preserved the established top-level `/staffhelp` name and removed
   `/support request` from the proposal.
 - Made documentation-only changes; command registrations, beta runtime,
@@ -3028,16 +3143,18 @@ draft without exposing raw mention strings.
 
 ### 2026-07-30 — Journey-first system taxonomy v2 proposed
 
-- Revisited the complete 83-handler taxonomy in response to user and staff
-  feedback; no command code was changed.
+- Revisited the then-complete 83-handler taxonomy in response to user and
+  staff feedback; D-029 later removed the five Bullet handlers from the active
+  modernization target, leaving 78.
 - Proposed `/game record`, `/game players`, and
   `/game search status:unconfirmed`.
 - Kept common actions directly discoverable while grouping result corrections
   under `/game result` and uncommon lifecycle administration under
   `/game manage`. D-021 later refined metadata into focused read/edit commands.
-- Applied the same direct-action/property/maintenance conventions across player,
-  team, squad, leaderboard, league, house, ELO, optional Bullet, tools, about,
-  and support domains.
+- Applied the same direct-action/property/maintenance conventions across
+  player, team, squad, leaderboard, league, house, ELO, the then-optional
+  Bullet proposal, tools, about, and support domains. D-029 later excluded
+  Bullet.
 - Recorded that a generic `get` subgroup is less usable than explicit
   `/game show|search|players|logs` paths.
 - Left checkpoint `63af179`, the beta runtime, Discord synchronization, and
@@ -3090,10 +3207,12 @@ draft without exposing raw mention strings.
 
 ### 2026-07-29 — Slash taxonomy review prepared
 
-- Inventoried the complete in-scope repository-backed surface: 83 explicit prefix
-  handlers, customized framework help, 10 current native registrations,
-  aliases, and the optional Bullet family. Excluded the seven-command legacy
-  API cog from the modernization taxonomy and backlog.
+- Inventoried the then-complete in-scope repository-backed surface: 83
+  explicit prefix handlers, customized framework help, 10 current native
+  registrations, aliases, and the optional Bullet family. D-029 later
+  excluded the five Bullet handlers, leaving 78 active targets, and also
+  excluded the listener-only anti-scam module. The seven-command legacy API
+  cog was already excluded.
 - Added `docs/SLASH_COMMAND_TAXONOMY_REVIEW.md` with a disposition and
   recommended native home for every existing command handler, including
   explicit operator-only and retain/retire classifications.
