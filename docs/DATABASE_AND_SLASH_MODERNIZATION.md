@@ -2211,8 +2211,9 @@ lineup and changes the game's expiration.
 Branch/base: `codex/p5-3-game-kick` from exact clean planning checkpoint
 `a87ae84595dfe0383ff83f08db961c90fe10f2fc`.
 
-Implementation checkpoint: `d9b9ff0` (implementation and tests); the separate
-roadmap/taxonomy evidence checkpoint follows.
+Implementation checkpoint: `d9b9ff0` (implementation and tests); roadmap and
+taxonomy evidence are recorded in the separate documentation checkpoint on
+this branch.
 
 Objective: preserve the established `$kick GAME_ID PLAYER` workflow while
 moving its complete mutable database path into the shared serialized
@@ -2293,10 +2294,11 @@ Validation evidence for the current checkpoint:
 - the strict development PostgreSQL kick/rollback test passed with
   `POLYBOT_ENV=development`, database `polytopia_dev`, role `polybot_dev`,
   and UUID-owned temporary rows cleaned after the run;
-- the broader legacy gated suite was not invoked because it includes the
-  operator-fixture seed/cleanup round trip, which is outside this unit's
-  operational boundary; the P5.3-specific gate used the unchanged safety
-  identity and exercised only UUID-owned temporary rows.
+- the remaining 14 tests in the unchanged development-gated integration
+  suite passed under the same safety identity; the one operator-fixture
+  seed/cleanup test was intentionally excluded because it is outside this
+  unit's operational boundary. All P5.3 temporary rows were UUID-owned and
+  cleaned by the test.
 
 Out of scope: game start, delete/unstart changes, reaction-listener redesign,
 interactive game-card buttons, platform/schema cleanup, dependency changes,
