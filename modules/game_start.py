@@ -291,7 +291,6 @@ async def publish_start_result(
         try:
             embed, content = game.embed(guild=guild, prefix=prefix)
             ranked_str = 'unranked ' if not game.is_ranked else ''
-            platform_str = '' if game.is_mobile else 'Steam '
             season_str = ''
             if season:
                 try:
@@ -300,7 +299,7 @@ async def publish_start_result(
                     tier_name = 'Unknown'
                 season_str = f'**{tier_name} Season {season[0]}** '
             announce_str = (
-                f'New {season_str}{ranked_str}{platform_str}game ID '
+                f'New {season_str}{ranked_str}game ID '
                 f'**{game.id}** started! Roster: {" ".join(game.mentions())}'
             )
             announce_channel = settings.guild_setting(

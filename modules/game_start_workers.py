@@ -219,10 +219,9 @@ def _check_authorized(game, request: StartPreflightRequest | StartRequest) -> No
     )
     if registered is None:
         raise GameStartValidationError(
-            'This command requires bot registration first. Type '
-            f'__`{request.prefix}setname Your Mobile Name`__ or '
-            f'__`{request.prefix}steamname Your Steam Username`__ to get '
-            'started.'
+            'This command requires bot registration first. Set your '
+            'Polytopia account name with '
+            f'__`{request.prefix}setname Your Polytopia Name`__ to get started.'
         )
 
     hosted_by_requester, host = game.is_hosted_by(requester.discord_id)
@@ -279,8 +278,8 @@ def _validate_name(
             'That name looks made up. :thinking: You need to manually '
             'create the game __in Polytopia__, come back and input the name '
             'of the new game you made.\n'
-            f'You can use `{prefix}codes {game_id}` to get the code of each '
-            'player in this game in an easy-to-copy format.'
+            f'You can use `{prefix}names {game_id}` to get each player\'s '
+            'Polytopia account name in an easy-to-copy format.'
         )
     return (
         '*Warning:* That game name looks made up - you are allowed to '

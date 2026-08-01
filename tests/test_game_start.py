@@ -453,16 +453,31 @@ class StartWorkerTests(unittest.TestCase):
                 if expected_exception:
                     with self.assertRaisesRegex(
                         workers.GameStartValidationError,
-                        "looks made up",
-                    ):
+                        "names 322",
+                    ) as raised:
                         workers.preflight_start_game(
                             harness.preflight_request(requester=requester)
                         )
+                    self.assertNotIn("codes", str(raised.exception))
                 else:
                     result = workers.preflight_start_game(
                         harness.preflight_request(requester=requester)
                     )
                     self.assertIn("override", result.name_warning)
+
+    def test_registration_guidance_uses_one_polytopia_account_name(self):
+        harness = StartHarness()
+        harness.registered.remove(100)
+        with harness.patch(), self.assertRaises(
+            workers.GameStartValidationError
+        ) as raised:
+            workers.preflight_start_game(harness.preflight_request())
+
+        message = str(raised.exception)
+        self.assertIn("setname Your Polytopia Name", message)
+        self.assertNotIn("Mobile", message)
+        self.assertNotIn("Steam", message)
+        self.assertNotIn("steamname", message)
 
     def test_mutation_and_audit_failures_roll_back(self):
         for failure in ("player", "squad", "side", "game", "league", "log"):
@@ -865,3 +880,7 @@ class StartPostCommitTests(unittest.IsolatedAsyncioTestCase):
                 message_id=701,
             )
         )
+
+        announcement_text = channel.send.await_args_list[0].args[0]
+        self.assertNotIn("Steam", announcement_text)
+        self.assertNotIn("Mobile", announcement_text)
