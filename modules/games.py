@@ -1192,6 +1192,8 @@ class polygames(commands.Cog):
     ) -> bool:
         """Delegate a card join to the established join worker/presenter."""
 
+        if not await self._native_pending_game_channel_allowed(interaction):
+            return False
         matchmaking_cog = self.bot.get_cog('matchmaking')
         if matchmaking_cog is None:
             await interaction.followup.send(
@@ -1272,6 +1274,8 @@ class polygames(commands.Cog):
     ) -> bool:
         """Delegate a card leave to the established leave worker/presenter."""
 
+        if not await self._native_pending_game_channel_allowed(interaction):
+            return False
         matchmaking_cog = self.bot.get_cog('matchmaking')
         if matchmaking_cog is None:
             await interaction.followup.send(
@@ -1320,6 +1324,8 @@ class polygames(commands.Cog):
     ) -> bool:
         """Delegate a card start to the established start worker/presenter."""
 
+        if not await self._native_pending_game_channel_allowed(interaction):
+            return False
         matchmaking_cog = self.bot.get_cog('matchmaking')
         if matchmaking_cog is None:
             await interaction.followup.send(

@@ -2615,8 +2615,8 @@ Implementation evidence:
 
 Validation evidence:
 
-- Focused game-detail/component plus taxonomy/workspace suite: **43 passed**.
-- Complete offline discovery: **374 passed, 16 explicitly skipped**.
+- Focused game-detail/component plus taxonomy/workspace suite: **45 passed**.
+- Complete offline discovery: **376 passed, 16 explicitly skipped**.
 - Gated development-database suite: **16 passed, 1 fixture-preservation test
   skipped**. The strict gate confirmed `POLYBOT_ENV=development`, runtime
   database `polytopia_dev`, role `polybot_dev`, and disabled background/API
@@ -4383,10 +4383,24 @@ unit and does not reopen accepted P5.2 behavior.
 - Kept all mutation, permissions, coordinator serialization, transaction,
   reaction, and post-commit service behavior in the existing application
   boundaries. No compatibility-ledger or taxonomy update is required.
-- Evidence is the focused 43-test run, complete 374-test offline discovery,
+- Evidence is the focused 45-test run, complete 376-test offline discovery,
   gated development run (16 passed, 1 preserved skip), compilation, and diff
   checks recorded above. The roadmap evidence is intentionally separate from
   the implementation/test commit.
+
+### 2026-08-01 — P5.5 Tier-2 review corrections
+
+- Applied the existing `_native_pending_game_channel_allowed` helper to card
+  Join, Leave, and Start adapters after interaction acknowledgement and before
+  their shared services. Refresh remains read-only; denied mutations are
+  ephemeral and do not call a service.
+- Guarded post-timeout card refreshes so a committed content/embed refresh can
+  still land without rebuilding or reattaching actionable controls to a
+  finished view.
+- Added deterministic regressions for all three channel-policy denials,
+  allowed service routing, and timeout during an in-flight action. Focused
+  validation now passes 45 tests and complete offline discovery passes 376
+  tests with 16 explicit skips.
 
 ### 2026-08-01 — P5.4 beta accepted
 

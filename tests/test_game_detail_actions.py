@@ -460,6 +460,35 @@ class PendingGameCardInteractionTests(unittest.IsolatedAsyncioTestCase):
         release.set()
         await first_task
 
+    async def test_timeout_during_action_keeps_final_card_free_of_controls(self):
+        entered = asyncio.Event()
+        release = asyncio.Event()
+
+        async def join(_interaction, _side):
+            entered.set()
+            await release.wait()
+            return True
+
+        view = make_view(card_snapshot(), on_join=join)
+        message = FakeMessage()
+        view.message = message
+        click = interaction(message=message)
+        action_task = asyncio.create_task(view.join_button.callback(click))
+        await entered.wait()
+
+        await view.on_timeout()
+        self.assertTrue(view.is_finished())
+        release.set()
+        await action_task
+
+        self.assertTrue(view.is_finished())
+        self.assertEqual(view.children, [])
+        self.assertIsNone(message.edits[-1]['view'])
+        self.assertEqual(
+            message.edits[-1]['content'],
+            rendered(card_snapshot()).content,
+        )
+
     async def test_timeout_disables_controls_and_points_to_rerun(self):
         view = make_view(card_snapshot(), timeout=1)
         message = FakeMessage()
@@ -572,6 +601,9 @@ class PendingGameCardAdapterTests(unittest.IsolatedAsyncioTestCase):
             ),
         )
         cog.bot = SimpleNamespace(get_cog=lambda _name: matchmaking)
+        cog._native_pending_game_channel_allowed = mock.AsyncMock(
+            return_value=True,
+        )
         result = await cog._pending_card_join(
             interaction_value,
             game_id=77,
@@ -582,6 +614,57 @@ class PendingGameCardAdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(interaction_value.followup.calls[-1][0], 'not allowed')
         self.assertTrue(interaction_value.followup.calls[-1][1]['ephemeral'])
 
+    async def test_card_mutations_apply_channel_policy_before_services(self):
+        cog = games.polygames.__new__(games.polygames)
+        matchmaking = SimpleNamespace(
+            execute_join=mock.AsyncMock(),
+            execute_leave=mock.AsyncMock(),
+            execute_start=mock.AsyncMock(),
+        )
+        cog.bot = SimpleNamespace(get_cog=lambda _name: matchmaking)
+
+        async def deny(interaction_value):
+            interaction_value.guild = SimpleNamespace(id=10)
+            interaction_value.channel_id = 999
+            return interaction_value
+
+        interactions = [await deny(interaction()) for _ in range(3)]
+        with mock.patch.object(
+            games.settings,
+            'guild_setting',
+            side_effect=lambda _guild_id, name: (
+                [100] if name == 'bot_channels' else []
+            ),
+        ), mock.patch.object(games.settings, 'is_mod', return_value=False):
+            self.assertFalse(await cog._pending_card_join(
+                interactions[0],
+                game_id=77,
+                prefix='!',
+                side_arg=None,
+            ))
+            self.assertFalse(await cog._pending_card_leave(
+                interactions[1],
+                game_id=77,
+                prefix='!',
+            ))
+            self.assertFalse(await cog._pending_card_start(
+                interactions[2],
+                guild=SimpleNamespace(id=10),
+                game_id=77,
+                prefix='!',
+                name='Exact Name',
+            ))
+
+        for interaction_value in interactions:
+            self.assertTrue(interaction_value.followup.calls[-1][1]['ephemeral'])
+            self.assertIn(
+                'designated ELO bot channel',
+                interaction_value.followup.calls[-1][0],
+            )
+        matchmaking.execute_join.assert_not_awaited()
+        matchmaking.execute_leave.assert_not_awaited()
+        matchmaking.execute_start.assert_not_awaited()
+
     async def test_card_mutation_adapters_call_existing_services_and_skip_second_card(self):
         cog = games.polygames.__new__(games.polygames)
         interaction_value = interaction()
@@ -591,6 +674,9 @@ class PendingGameCardAdapterTests(unittest.IsolatedAsyncioTestCase):
             execute_start=mock.AsyncMock(return_value=SimpleNamespace()),
         )
         cog.bot = SimpleNamespace(get_cog=lambda name: matchmaking)
+        cog._native_pending_game_channel_allowed = mock.AsyncMock(
+            return_value=True,
+        )
         cog._publish_native_join_result = mock.AsyncMock()
         cog._publish_native_leave_result = mock.AsyncMock()
         with (
@@ -627,6 +713,7 @@ class PendingGameCardAdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(matchmaking.execute_join.await_args.kwargs['side_arg'], '2')
         matchmaking.execute_leave.assert_awaited_once()
         matchmaking.execute_start.assert_awaited_once()
+        self.assertEqual(cog._native_pending_game_channel_allowed.await_count, 3)
         cog._publish_native_join_result.assert_awaited_once_with(
             interaction_value,
             mock.ANY,

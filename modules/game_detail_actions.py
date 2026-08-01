@@ -337,7 +337,7 @@ class PendingGameCardView(discord.ui.View):
         payload: PendingGameCardPayload,
     ) -> bool:
         self.snapshot = payload.snapshot
-        if self.snapshot.is_pending:
+        if self.snapshot.is_pending and not self.is_finished():
             self.rebuild()
             view = self
         else:
