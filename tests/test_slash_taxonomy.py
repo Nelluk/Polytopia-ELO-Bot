@@ -58,7 +58,12 @@ class SlashTaxonomyRegistrationTests(unittest.TestCase):
                 'set-ranked',
                 'extend',
                 'unstart',
+                'manage',
             },
+        )
+        self.assertEqual(
+            {command.name for command in game_group.get_command('manage').commands},
+            {'kick'},
         )
         self.assertEqual(
             {command.name for command in elo_group.commands},
@@ -108,6 +113,17 @@ class SlashTaxonomyRegistrationTests(unittest.TestCase):
             ],
             [
                 ('game_id', discord.AppCommandOptionType.integer, True),
+            ],
+        )
+        self.assertEqual(
+            [
+                (parameter.name, parameter.type, parameter.required)
+                for parameter
+                in game_group.get_command('manage').get_command('kick').parameters
+            ],
+            [
+                ('game_id', discord.AppCommandOptionType.integer, True),
+                ('member', discord.AppCommandOptionType.user, True),
             ],
         )
         self.assertEqual(

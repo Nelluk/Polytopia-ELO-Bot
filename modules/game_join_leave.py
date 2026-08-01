@@ -7,7 +7,7 @@ import logging
 import discord
 
 import settings
-from modules import game_join_workers
+from modules import game_join_workers, game_kick_workers, image_storage, models
 
 
 logger = logging.getLogger('polybot.' + __name__)
@@ -106,6 +106,39 @@ def build_leave_request(
     )
 
 
+def build_kick_request(
+    *,
+    game_id: int,
+    author_member,
+    target_member=None,
+    target_query: str | None = None,
+    prefix: str | None = None,
+    invoked_with: str = 'kick',
+) -> game_kick_workers.KickRequest:
+    """Build a frozen kick request from event-loop-owned Discord values."""
+
+    return game_kick_workers.KickRequest(
+        game_id=int(game_id),
+        guild_id=author_member.guild.id,
+        prefix=(
+            prefix
+            if prefix is not None
+            else settings.guild_setting(
+                author_member.guild.id,
+                'command_prefix',
+            )
+        ),
+        author=snapshot_member(author_member),
+        target=(
+            snapshot_member(target_member)
+            if target_member is not None
+            else None
+        ),
+        target_query=(str(target_query) if target_query is not None else None),
+        invoked_with=invoked_with,
+    )
+
+
 async def join(request: game_join_workers.JoinRequest):
     """Shared join application service used by every invocation adapter."""
 
@@ -116,6 +149,77 @@ async def leave(request: game_join_workers.LeaveRequest):
     """Shared leave application service used by every invocation adapter."""
 
     return await game_join_workers.run_leave(request)
+
+
+async def kick(request: game_kick_workers.KickRequest):
+    """Run a kick through the shared pending-game coordinator."""
+
+    return await game_kick_workers.run_kick(request)
+
+
+async def publish_kick_result(
+    result: game_kick_workers.KickResult,
+    *,
+    send,
+    card_destination,
+    guild,
+    prefix: str,
+) -> None:
+    """Publish committed kick effects while retaining later effects on error."""
+
+    card_warning = None
+    try:
+        committed_game = models.Game.load_full_game(result.game_id)
+        embed, content = committed_game.embed(guild=guild, prefix=prefix)
+        try:
+            await image_storage.send_game_embed(
+                card_destination,
+                committed_game,
+                embed=embed,
+                content=content,
+            )
+        except Exception:
+            logger.exception(
+                'Committed kick %s game card update failed',
+                result.game_id,
+            )
+            card_warning = (
+                f':warning: Game {result.game_id} was changed successfully, '
+                'but its game card could not be updated. An operator must '
+                'reconcile the announcement.'
+            )
+    except Exception:
+        logger.exception(
+            'Committed kick %s could not reload its game card',
+            result.game_id,
+        )
+        card_warning = (
+            f':warning: Game {result.game_id} was changed successfully, but '
+            'its game card could not be updated. An operator must reconcile '
+            'the announcement.'
+        )
+
+    if card_warning:
+        await send_post_commit_message(
+            send,
+            card_warning,
+            game_id=result.game_id,
+            effect='game card update',
+        )
+
+    await send_post_commit_message(
+        send,
+        result.removal_message,
+        game_id=result.game_id,
+        effect='kick output',
+    )
+    if result.expiration_message:
+        await send_post_commit_message(
+            send,
+            result.expiration_message,
+            game_id=result.game_id,
+            effect='expiration-reset output',
+        )
 
 
 async def send_post_commit_message(
