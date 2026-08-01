@@ -38,6 +38,32 @@ is one bounded branch at its integration gate.
 - provide the handoff packet below without merging into the accumulation
   branch unless explicitly authorized.
 
+### Visible model and effort gate
+
+“Luna worker” means a separate user-visible Codex thread whose model and
+reasoning effort are visibly configured as the approved Luna/Max combination.
+An internal subagent is not a substitute: its model/effort may be opaque and
+the user cannot monitor the task as an independent thread.
+
+Do not fork the Sol planning thread to create a Luna worker. A fork inherits
+the planning thread's visible/default model and effort; a later per-turn model
+override is not sufficient evidence that the worker thread itself is Luna-Max.
+Instead, either:
+
+- create a new visible thread with Luna and Max selected at creation; or
+- reuse an existing visible thread whose Luna/Max settings the user has
+  already verified.
+
+Before source edits, verify the visible thread header/settings show the
+requested model and effort. Prompt text that calls a task “Luna-Max” is not
+evidence of its runtime configuration. If the app cannot create or verify the
+requested combination, stop and ask the user to create/confirm the thread;
+never silently substitute a subagent, inherited Sol thread, or lower effort.
+
+If this gate fails after work begins, interrupt the task and inspect its Git
+state. Uncommitted interrupted work is non-authoritative and should normally
+be discarded rather than incorporated without a fresh compliant review.
+
 ## Worktree layout and ownership
 
 The primary planning/integration checkout remains:

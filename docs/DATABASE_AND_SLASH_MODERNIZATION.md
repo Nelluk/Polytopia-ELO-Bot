@@ -425,7 +425,8 @@ check:
   `codex/p5-1-game-open`, based on exact clean base
   `d24aa6b5e64fba159a872eb565703465c79d712d`.
 
-Current unit: **P5.5 interactive pending-game card actions — In progress.**
+Current unit: **P5.5 interactive pending-game card actions — Planned; awaiting
+a visibly verified Luna-Max worker.**
 P8.0 is complete and integrated as `d6ee47c`, with explicit guild-only command
 deployment accepted in beta. Taxonomy v2.2 is provisionally accepted as the
 working implementation contract; minor wording refinements remain possible
@@ -1415,7 +1416,7 @@ separately from harness-owned fixtures.
 
 ## P4 — Game correction and metadata mutations
 
-Status: **In progress**
+Status: **Planned; awaiting a visibly verified Luna-Max worker**
 
 Split this phase into small vertical units. Do not implement all candidates in
 one commit.
@@ -4313,6 +4314,12 @@ unit and does not reopen accepted P5.2 behavior.
 - Classified the unit Tier 2 over existing Tier-3 services. Winner/result,
   host management, persistence across restarts, database/schema changes,
   Discord deployment, beta runtime, and production remain out of scope.
+- An initial worker dispatch was stopped because a Sol-thread fork visibly
+  retained Medium effort despite a later per-turn Luna/Max override. Its
+  uncommitted edits, managed worktree, and branch were discarded, and the
+  thread was archived. P5.5 remains Planned with no authoritative
+  implementation work until a visible Luna-Max thread passes the new
+  collaboration-workflow gate.
 
 ### 2026-08-01 — P5.4 beta accepted
 
