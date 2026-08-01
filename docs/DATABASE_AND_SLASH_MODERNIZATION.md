@@ -425,12 +425,13 @@ check:
   `codex/p5-1-game-open`, based on exact clean base
   `d24aa6b5e64fba159a872eb565703465c79d712d`.
 
-Current unit: **P5.1 `/game open` Implemented; beta acceptance pending.** P8.0 is complete and
-integrated as `d6ee47c`, with explicit guild-only command deployment accepted
-in beta. Taxonomy v2.2 is provisionally accepted as the working implementation
-contract; minor wording refinements remain possible before P9 but no longer
-block flow-first units. P5.1 is not integrated into the accumulation branch and
-has not been synchronized or beta-smoked.
+Current unit: **P5.2 atomic join/leave lifecycle and native commands — Implemented locally; Sol review pending.**
+P8.0 is complete and integrated as `d6ee47c`, with explicit guild-only command
+deployment accepted in beta. Taxonomy v2.2 is provisionally accepted as the
+working implementation contract; minor wording refinements remain possible
+before P9 but no longer block flow-first units. P5.1 is integrated in the
+exact base used for this unit and remains beta-accepted with no new beta
+session authorized here.
 
 Owned fixture games `149`-`151` are intentionally retained. At the latest
 gated status check, `149` is incomplete/unranked, `150` is
@@ -1963,13 +1964,13 @@ for prefix, slash, and reaction entry points.
 
 ### P5.2 — Atomic join/leave lifecycle and native commands
 
-Status: **Planned; approved for Luna implementation**
+Status: **Implemented locally; beta/registration acceptance pending separate approval**
 
 Risk tier: **Tier 3**. This unit mutates pending-game lineups and must preserve
 role, capacity, host, ELO-range, restriction, and reaction semantics.
 
-Branch/base: create `codex/p5-2-game-join-leave` from the exact accumulation
-checkpoint containing P5.1 integration and this planning record.
+Branch/base: `codex/p5-2-game-join-leave` from exact clean base
+`f429525c06dd123795e34177c2fe4d5f8f3831fd`.
 
 Objective: make join and leave one coherent pending-game application service
 used by prefix commands, native commands, and raw reaction handlers. Remove
@@ -2074,29 +2075,89 @@ Required design:
 
 Implementation evidence:
 
-- `modules/game_open_workers.py` is the single synchronous creation service
-  used by both `$opengame` and `/game open`. It accepts frozen primitive
-  snapshots, reloads the host/team and mutable guild state in the worker,
-  enforces the per-host pending-game limit, creates the game/sides/host
-  lineup, writes `GameLog`, and returns a frozen post-commit effect snapshot
-  from one worker-owned connection and transaction.
-- `PendingGameCoordinator` uses a dedicated single-worker executor. Its
-  reservation is released by the completed concurrent-future callback, so
-  cancellation or worker failure cannot advertise a free slot while a thread
-  is still executing. The event loop polls only the future state at a bounded
-  interval and does not block on database work.
-- `$opengame`, `openmatch`, `open`, and `opensteam` retain the existing
-  free-text parser, role-lock grammar, platform aliases, checks, warnings,
-  notes, and public completion format. Prefix size display retains the
-  caller's `v`/`vs` spelling where applicable.
-- `/game open size` is registered under the existing `/game` group and opens
-  an ephemeral Components v2 requester draft with ranked, expiration, notes,
-  confirmation, cancel, timeout, and rerun behavior. Native requests use the
-  canonical cross-play compatibility value and expose no platform option.
-- `modules/game_open.py` publishes warnings, completion, and role-team
-  broadcast work only after commit. Discord failures leave committed rows in
-  place and log the game ID for operator reconciliation; no creation effects
-  are attempted after a database failure.
+- `modules/game_join_workers.py` is the shared synchronous join/leave service.
+  It reloads the pending game, player, sides, lineups, host/team state, notes,
+  bans, roles, backlog, and ELO requirements through a worker-owned Peewee
+  connection, then keeps Lineup mutation, Player team refresh, and `GameLog`
+  in one transaction. It returns frozen primitive result data only.
+- `modules/game_join_leave.py` captures immutable Discord/member snapshots and
+  owns the common adapters and post-commit inactive-role reconciliation. The
+  compatibility `Game.join` method delegates to this service rather than
+  retaining a second mutation implementation.
+- `PendingGameCoordinator` now runs open, join, and leave workers through one
+  bounded executor. Its reservation is released by the completed concurrent
+  future callback, so cancellation or worker failure cannot advertise a free
+  slot while synchronous work is still running; conflicting joins/leaves are
+  serialized without blocking the event loop.
+- `$join`, `joingame`, and `joinmatch` preserve self-join, numeric/named side,
+  and level-4 third-party grammar. `$leave` and raw reaction add/remove keep
+  their beta/production message isolation, three-digit IDs, related-server
+  routing, host warnings, and public committed-state effects.
+- `/game join game_id side member` and `/game leave game_id` are registered
+  under the existing `/game` group. Both defer immediately; validation and
+  permission failures are ephemeral, while committed competitive-state
+  output, full-game notices, and reconciliation warnings are public.
+- Inactive-role removal, embeds, full-game/host notices, reaction cleanup,
+  and messages occur after commit. Database failures make no Discord mutation;
+  post-commit Discord failures include the committed game ID and an operator
+  reconciliation warning.
+- Join eligibility is cross-play: historical `Game.is_mobile` values do not
+  select a mode, and either retained `polytopia_name` or `name_steam` is
+  accepted. New guidance uses one canonical “Polytopia account name”; no new
+  platform option or display distinction was added.
+
+Files changed:
+
+- `modules/game_join_workers.py`, `modules/game_join_leave.py`,
+  `modules/game_open_workers.py`;
+- `modules/matchmaking.py`, `modules/games.py`, `modules/models.py`;
+- `tests/test_game_join_leave.py`, `tests/test_game_open.py`,
+  `tests/test_slash_taxonomy.py`;
+- `docs/SLASH_COMMAND_TAXONOMY_REVIEW.md` and this roadmap.
+
+Validation:
+
+- Focused P5.2 service/adapter suite: 23 passed.
+- Focused compatibility and taxonomy suites: `tests.test_game_open` 37
+  passed; `tests.test_slash_taxonomy` 5 passed.
+- Complete offline discovery: 318 passed, with 13 unchanged gated database
+  tests skipped.
+- Gated development-database suite: 13 tests ran, 12 passed, and one
+  operator-managed fixture round trip skipped. The unchanged safety gate
+  confirmed `POLYBOT_ENV=development`, database `polytopia_dev`, role
+  `polybot_dev`, and disabled background/API/Bullet operations.
+- Explicit-venv syntax compilation and `git diff --check` passed.
+
+Beta/registration result: not run by explicit instruction. No Discord
+inspection, command synchronization, guild apply, beta launch/restart, or
+smoke test occurred.
+
+Limitations:
+
+- Post-commit card rendering still performs the existing bounded
+  `Game.load_full_game`/embed reload on the event-loop side after the worker
+  commits; reload and send failures are surfaced with the committed game ID
+  for reconciliation. A future DTO/card-render worker can remove this last
+  synchronous post-commit read.
+- The legacy raw-message parser and the prefix named-side disambiguation use
+  small synchronous preflight reads before worker submission. The worker
+  remains authoritative and revalidates the game and selected side inside its
+  transaction.
+- Native command registration is code-only here; a separately approved
+  guild plan/apply and beta smoke are still required. Kick/start/refined
+  reaction-listener work, profile/schema cleanup, production operations, and
+  dependency changes remain out of scope.
+
+Compatibility ledger: no new slash compromise row was required. Native join
+covers the optional side and member selectors, prefix aliases and grammar
+remain available, and the canonical cross-play account-name rule is shared by
+all three entry-point families. The named-side preflight is an implementation
+disambiguator, not a reduced behavior path.
+
+Next action: Sol reviews this clean unit branch. After review, obtain the
+separate explicit guild registration/beta approval, then integrate the
+committed unit into `codex/database-slash-modernization`; no integration is
+performed in this task.
 
 Likely slash interfaces:
 
@@ -3797,6 +3858,28 @@ production deployment.
 - Reaffirmed D-027: Mobile/Steam are legacy storage/alias compatibility, not
   platform modes or native options. P5.2 accepts either retained account-name
   field while presenting one canonical Polytopia identity.
+
+### 2026-08-01 — P5.2 implementation completed locally
+
+- Created and switched to `codex/p5-2-game-join-leave` from exact clean base
+  `f429525c06dd123795e34177c2fe4d5f8f3831fd`; no primary or production
+  checkout was accessed.
+- Implemented one bounded, cancellation-safe join/leave worker path for
+  prefix, native, and raw-reaction entry points, including worker-local
+  connection ownership, primitive snapshots, serialized capacity/membership
+  checks, atomic lineup/team-refresh/audit-log changes, and post-commit
+  reconciliation.
+- Preserved prefix aliases/grammar, raw beta and related-server routing,
+  native public-success/ephemeral-failure visibility, host/full-game notices,
+  and cross-play acceptance of either retained account-name field.
+- Passed the 23-test P5.2 suite, 37-test open-game compatibility suite,
+  5-test taxonomy suite, complete offline discovery (318 passes, 13 gated
+  skips), and the gated development suite (12 passes, one fixture-preserving
+  skip out of 13 tests).
+- No beta launch, Discord inspection/synchronization, production operation,
+  dependency change, schema change, push, merge, or PR occurred.
+- Next: Sol review of the clean committed unit branch, followed by separately
+  approved guild registration/beta work and later accumulation integration.
 
 ### 2026-07-31 — Taxonomy v2.2 accepted and P5.1 designed
 

@@ -1,6 +1,6 @@
 # Slash Command Taxonomy Review
 
-Last updated: 2026-07-31
+Last updated: 2026-08-01
 
 Status: Taxonomy v2.2 provisionally accepted as the working implementation
 taxonomy; minor pre-deployment wording refinements remain allowed
@@ -35,7 +35,7 @@ Static inspection found:
 
 - 78 active-target explicit prefix command handlers;
 - one customized framework `help` command;
-- eleven locally implemented `/game` subcommands and two `/elo` subcommands;
+- fourteen locally implemented `/game` subcommands and two `/elo` subcommands;
 - three locally implemented `/leaderboard` subcommands plus temporary `/lb2`;
 - many additional prefix aliases;
 - five Bullet prefix handlers now classified as legacy/out of scope;
@@ -640,7 +640,7 @@ dozens of capabilities harder to scan and organize.
 
 The current modernization stack registers:
 
-- `/game record|show|win|unwin|delete|confirm|unconfirmed|set-ranked|extend|unstart`;
+- `/game record|open|join|leave|search|show|win|unwin|delete|confirm|unconfirmed|set-ranked|extend|unstart`;
 - `/elo recalculate|status`;
 - `/leaderboard players|activity|squads` with temporary `/lb2` removed;
 - `/player show`.

@@ -21,6 +21,8 @@ from modules import game_search_views
 from modules import game_search_workers
 from modules import game_detail_views
 from modules import game_detail_workers
+from modules import game_join_leave
+from modules import game_join_workers
 from modules.elo_jobs import EloJobConflict
 import peewee
 import modules.models as models
@@ -2001,6 +2003,252 @@ class polygames(commands.Cog):
             confirmer=confirm_open_game,
         )
         view.message = await interaction.edit_original_response(view=view)
+
+    async def _native_pending_game_channel_allowed(
+        self,
+        interaction: discord.Interaction,
+    ) -> bool:
+        """Keep the prefix bot-channel restriction with native errors private."""
+
+        bot_channels = settings.guild_setting(
+            interaction.guild.id,
+            'bot_channels',
+        )
+        private_channels = settings.guild_setting(
+            interaction.guild.id,
+            'bot_channels_private',
+        ) or []
+        if (
+            bot_channels is None
+            or settings.is_mod(interaction.user)
+            or interaction.channel_id in (bot_channels or []) + private_channels
+        ):
+            return True
+        channel_tags = ' '.join(
+            f'<#{channel_id}>' for channel_id in (bot_channels or [])
+        )
+        await interaction.followup.send(
+            'This command can only be used in a designated ELO bot channel. '
+            f'Try: {channel_tags}' if channel_tags else
+            'This command can only be used in a designated ELO bot channel.',
+            ephemeral=True,
+        )
+        return False
+
+    async def _publish_native_join_result(
+        self,
+        interaction: discord.Interaction,
+        result: game_join_workers.JoinResult,
+        *,
+        member,
+        prefix: str,
+    ) -> None:
+        """Publish a committed join and surface post-commit reconciliation."""
+
+        reconciliation = await game_join_leave.remove_inactive_role_after_commit(
+            result,
+            member,
+        )
+        messages = list(result.messages)
+        if reconciliation:
+            messages.append(reconciliation)
+
+        committed_game = None
+        embed = content = None
+        try:
+            committed_game = models.Game.load_full_game(result.game_id)
+            embed, content = committed_game.embed(
+                guild=interaction.guild,
+                prefix=prefix,
+            )
+        except Exception:
+            logger.exception(
+                'Committed native join %s could not reload its game card',
+                result.game_id,
+            )
+            messages.append(
+                f':warning: Game {result.game_id} was joined successfully, '
+                'but its game card could not be updated. An operator must '
+                'reconcile the announcement.'
+            )
+
+        if result.is_full:
+            await interaction.followup.send(
+                f'Game {result.game_id} is now full and '
+                f'<@{result.creator_id}> should create the game in Polytopia.',
+                ephemeral=False,
+            )
+            if result.host_id and result.host_id != result.creator_id:
+                await interaction.followup.send(
+                    f'Matchmaking host <@{result.host_id}> is not the game '
+                    'creator.',
+                    ephemeral=False,
+                )
+
+        if committed_game is not None:
+            try:
+                await image_storage.send_game_embed(
+                    interaction.followup,
+                    committed_game,
+                    embed=embed,
+                    content=content if result.is_full else None,
+                )
+            except Exception:
+                logger.exception(
+                    'Committed native join %s game card update failed',
+                    result.game_id,
+                )
+                messages.append(
+                    f':warning: Game {result.game_id} was joined successfully, '
+                    'but its game card could not be sent. An operator must '
+                    'reconcile the announcement.'
+                )
+
+        await interaction.followup.send(
+            '\n'.join(messages),
+            ephemeral=False,
+        )
+
+    @game_group.command(
+        name='join',
+        description='Join an open game.',
+    )
+    @discord.app_commands.describe(
+        game_id='Open game to join.',
+        side='Optional side number or side name.',
+        member='Optional player to place; level 4 or higher is required.',
+    )
+    async def game_join_slash(
+        self,
+        interaction: discord.Interaction,
+        game_id: int,
+        side: str | None = None,
+        member: discord.Member | None = None,
+    ):
+        """Join through the same worker used by prefix and reactions."""
+
+        await interaction.response.defer()
+        prefix = settings.guild_setting(
+            interaction.guild.id,
+            'command_prefix',
+        )
+        if not await self._native_pending_game_channel_allowed(
+            interaction,
+        ):
+            return
+
+        requester = interaction.user
+        target = member or requester
+        if (
+            member is not None
+            and member.id != requester.id
+            and settings.get_user_level(requester) < 4
+        ):
+            return await interaction.followup.send(
+                'You do not have permissions to add another person to a game. '
+                'Tell them to use the join command themselves.',
+                ephemeral=True,
+            )
+
+        matchmaking_cog = self.bot.get_cog('matchmaking')
+        if matchmaking_cog is None:
+            return await interaction.followup.send(
+                'The join-game command handler is unavailable.',
+                ephemeral=True,
+            )
+        try:
+            result = await matchmaking_cog.execute_join(
+                game_id=game_id,
+                member=target,
+                author_member=requester,
+                side_arg=side,
+                invoked_with='/game join',
+                notification_member_id=requester.id,
+                prefix=prefix,
+            )
+        except game_join_workers.PendingGameJoinValidationError as exc:
+            return await interaction.followup.send(str(exc), ephemeral=True)
+        except peewee.PeeweeException:
+            logger.exception('Database failure in native join %s', game_id)
+            return await interaction.followup.send(
+                'The game could not be changed because the database operation '
+                'failed. No public Discord effects were made.',
+                ephemeral=True,
+            )
+        except Exception:
+            logger.exception('Unexpected failure in native join %s', game_id)
+            return await interaction.followup.send(
+                'The game could not be changed. No public Discord effects were '
+                'made.',
+                ephemeral=True,
+            )
+
+        await self._publish_native_join_result(
+            interaction,
+            result,
+            member=target,
+            prefix=prefix,
+        )
+
+    @game_group.command(
+        name='leave',
+        description='Leave an open game.',
+    )
+    @discord.app_commands.describe(game_id='Open game to leave.')
+    async def game_leave_slash(
+        self,
+        interaction: discord.Interaction,
+        game_id: int,
+    ):
+        """Leave through the same worker used by prefix and reactions."""
+
+        await interaction.response.defer()
+        prefix = settings.guild_setting(
+            interaction.guild.id,
+            'command_prefix',
+        )
+        if not await self._native_pending_game_channel_allowed(
+            interaction,
+        ):
+            return
+
+        matchmaking_cog = self.bot.get_cog('matchmaking')
+        if matchmaking_cog is None:
+            return await interaction.followup.send(
+                'The leave-game command handler is unavailable.',
+                ephemeral=True,
+            )
+        try:
+            result = await matchmaking_cog.execute_leave(
+                game_id=game_id,
+                member=interaction.user,
+                author_member=interaction.user,
+                invoked_with='/game leave',
+                prefix=prefix,
+            )
+        except game_join_workers.PendingGameLeaveValidationError as exc:
+            return await interaction.followup.send(str(exc), ephemeral=True)
+        except peewee.PeeweeException:
+            logger.exception('Database failure in native leave %s', game_id)
+            return await interaction.followup.send(
+                'The game could not be changed because the database operation '
+                'failed. No public Discord effects were made.',
+                ephemeral=True,
+            )
+        except Exception:
+            logger.exception('Unexpected failure in native leave %s', game_id)
+            return await interaction.followup.send(
+                'The game could not be changed. No public Discord effects were '
+                'made.',
+                ephemeral=True,
+            )
+
+        if result.host_warning:
+            await interaction.followup.send(
+                result.host_warning,
+                ephemeral=False,
+            )
+        await interaction.followup.send(result.message, ephemeral=False)
 
     @game_group.command(
         name='search',

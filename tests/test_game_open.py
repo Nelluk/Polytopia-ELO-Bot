@@ -1343,6 +1343,7 @@ class CrossPlayJoinTests(unittest.IsolatedAsyncioTestCase):
 
         class FakeGame:
             id = 322
+            guild_id = 300
             is_pending = True
             is_ranked = True
             is_mobile = game_is_mobile
@@ -1367,6 +1368,7 @@ class CrossPlayJoinTests(unittest.IsolatedAsyncioTestCase):
 
         FakeGame.notes = notes
         fake_game = FakeGame()
+        fake_game.host = host
         lineup = SimpleNamespace()
 
         class PlayerModel:
@@ -1400,6 +1402,9 @@ class CrossPlayJoinTests(unittest.IsolatedAsyncioTestCase):
                 return False
 
         class Database:
+            def connection_context(self):
+                return Atomic()
+
             def atomic(self):
                 return Atomic()
 
@@ -1408,6 +1413,8 @@ class CrossPlayJoinTests(unittest.IsolatedAsyncioTestCase):
                 'command_prefix': '$',
                 'inactive_role': None,
                 'require_teams': False,
+                'helper_roles': [],
+                'mod_roles': [],
             }.get(name)
 
         with mock.patch.object(
@@ -1448,8 +1455,16 @@ class CrossPlayJoinTests(unittest.IsolatedAsyncioTestCase):
             return_value=False,
         ), mock.patch.object(
             matchmaking.settings,
+            'is_staff',
+            return_value=False,
+        ), mock.patch.object(
+            matchmaking.settings,
             'can_user_join_game',
             return_value=(True, None),
+        ), mock.patch.object(
+            matchmaking.game_join_workers.models.Game,
+            'get_by_id',
+            return_value=fake_game,
         ):
             result = await matchmaking.models.Game.join(
                 fake_game,
@@ -1563,26 +1578,37 @@ class MatchmakingReactionTests(unittest.IsolatedAsyncioTestCase):
         cog.ignorable_join_reactions = set()
         return cog, payload, message, channel, member, game
 
-    async def test_three_digit_raw_reaction_add_calls_game_join_and_cleans_up_failure(self):
+    async def test_three_digit_raw_reaction_add_calls_shared_join_and_cleans_up_failure(self):
         game = SimpleNamespace(
             guild_id=300,
-            join=mock.AsyncMock(
-                return_value=(None, ['Game is limited to specific players.'])
-            ),
+            id=322,
         )
         cog, payload, message, channel, member, _ = self.make_reaction_case(game)
+        cog.execute_join = mock.AsyncMock(
+            side_effect=matchmaking.game_join_workers.PendingGameJoinValidationError(
+                'Game is limited to specific players.'
+            )
+        )
         with mock.patch.object(
             matchmaking.models.Game,
             'get_or_none',
             return_value=game,
+        ), mock.patch.object(
+            matchmaking.settings,
+            'guild_setting',
+            return_value='$',
         ):
             await cog.on_raw_reaction_add(payload)
 
-        game.join.assert_awaited_once_with(
+        cog.execute_join.assert_awaited_once_with(
+            game_id=322,
             member=member,
-            side_arg=None,
             author_member=member,
+            side_arg=None,
             log_note='(via reaction)',
+            invoked_with='reaction',
+            notification_member_id=member.id,
+            prefix='$',
         )
         message.remove_reaction.assert_awaited_once_with(
             payload.emoji.name,
@@ -1594,11 +1620,23 @@ class MatchmakingReactionTests(unittest.IsolatedAsyncioTestCase):
     async def test_raw_reaction_success_reaches_same_join_path_and_clears_marker(self):
         game = SimpleNamespace(
             guild_id=300,
-            join=mock.AsyncMock(return_value=(object(), ['Joined'])),
+            id=322,
             embed=mock.Mock(return_value=(object(), '')),
-            capacity=mock.Mock(return_value=(1, 3)),
         )
         cog, payload, message, channel, member, _ = self.make_reaction_case(game)
+        cog.execute_join = mock.AsyncMock(return_value=matchmaking.game_join_workers.JoinResult(
+            game_id=322,
+            guild_id=300,
+            member_id=member.id,
+            side_position=1,
+            messages=('Joined',),
+            players=1,
+            capacity=3,
+            creator_id=100,
+            host_id=100,
+            remove_inactive_role=False,
+            inactive_role_name=None,
+        ))
         with mock.patch.object(
             matchmaking.models.Game,
             'get_or_none',
@@ -1612,6 +1650,10 @@ class MatchmakingReactionTests(unittest.IsolatedAsyncioTestCase):
             'waiting_for_creator',
             return_value=[],
         ), mock.patch.object(
+            matchmaking.models.Game,
+            'load_full_game',
+            return_value=game,
+        ), mock.patch.object(
             matchmaking.settings,
             'guild_setting',
             return_value='$',
@@ -1622,43 +1664,50 @@ class MatchmakingReactionTests(unittest.IsolatedAsyncioTestCase):
         ):
             await cog.on_raw_reaction_add(payload)
 
-        game.join.assert_awaited_once()
+        cog.execute_join.assert_awaited_once()
         self.assertNotIn((payload.message_id, payload.user_id), cog.ignorable_join_reactions)
         message.remove_reaction.assert_not_awaited()
 
     async def test_raw_reaction_remove_preserves_leave_behavior_for_three_digit_game(self):
-        lineup = SimpleNamespace(delete_instance=mock.Mock())
         game = SimpleNamespace(
             id=322,
             guild_id=300,
-            player=mock.Mock(return_value=lineup),
-            is_hosted_by=mock.Mock(return_value=(False, None)),
-            is_pending=True,
+            embed=mock.Mock(return_value=(None, None)),
         )
         cog, payload, message, channel, member, _ = self.make_reaction_case(game)
+        cog.execute_leave = mock.AsyncMock(return_value=matchmaking.game_join_workers.LeaveResult(
+            game_id=322,
+            guild_id=300,
+            member_id=member.id,
+            host_warning=None,
+            message='Removing you from the game.',
+        ))
         with mock.patch.object(
             matchmaking.models.Game,
             'get_or_none',
             return_value=game,
         ), mock.patch.object(
-            matchmaking.models.GameLog,
-            'write',
-        ), mock.patch.object(
             matchmaking.settings,
-            'get_user_level',
-            return_value=3,
+            'guild_setting',
+            return_value='$',
         ):
             await cog.on_raw_reaction_remove(payload)
 
-        game.player.assert_called_once_with(discord_id=member.id)
-        lineup.delete_instance.assert_called_once_with()
+        cog.execute_leave.assert_awaited_once_with(
+            game_id=322,
+            member=member,
+            author_member=member,
+            log_note='(via reaction)',
+            invoked_with='reaction',
+            prefix='$',
+        )
         self.assertIn('Removing you from game 322.', channel.send.await_args.args[0])
 
     async def test_typed_and_raw_handlers_both_delegate_to_game_join(self):
         game = SimpleNamespace(
             id=322,
             guild_id=300,
-            join=mock.AsyncMock(return_value=(None, ['limited to specific players'])),
+            embed=mock.Mock(return_value=(None, None)),
         )
         member = SimpleNamespace(
             id=200,
@@ -1674,10 +1723,25 @@ class MatchmakingReactionTests(unittest.IsolatedAsyncioTestCase):
             author=member,
             guild=guild,
             prefix='$',
+            invoked_with='join',
             message=SimpleNamespace(mentions=[], role_mentions=[]),
             send=mock.AsyncMock(),
         )
         cog = matchmaking.matchmaking.__new__(matchmaking.matchmaking)
+        result = matchmaking.game_join_workers.JoinResult(
+            game_id=322,
+            guild_id=300,
+            member_id=member.id,
+            side_position=1,
+            messages=('Joined',),
+            players=1,
+            capacity=3,
+            creator_id=100,
+            host_id=100,
+            remove_inactive_role=False,
+            inactive_role_name=None,
+        )
+        cog.execute_join = mock.AsyncMock(return_value=result)
         join_command = next(
             command
             for command in matchmaking.matchmaking.__cog_commands__
@@ -1691,25 +1755,49 @@ class MatchmakingReactionTests(unittest.IsolatedAsyncioTestCase):
             matchmaking.utilities,
             'get_guild_member',
             new=mock.AsyncMock(return_value=[member]),
+        ), mock.patch.object(
+            matchmaking.models.Game,
+            'load_full_game',
+            return_value=SimpleNamespace(
+                embed=mock.Mock(return_value=(None, None)),
+            ),
+        ), mock.patch.object(
+            matchmaking.image_storage,
+            'send_game_embed',
+            new=mock.AsyncMock(),
         ):
-            await join_command.callback(cog, context, game)
+            await join_command.callback(cog, context, '322')
 
         reaction_cog, payload, message, channel, reaction_member, _ = (
             self.make_reaction_case(game)
         )
+        reaction_cog.execute_join = mock.AsyncMock(return_value=result)
         with mock.patch.object(
             matchmaking.models.Game,
             'get_or_none',
             return_value=game,
+        ), mock.patch.object(
+            matchmaking.settings,
+            'guild_setting',
+            return_value='$',
+        ), mock.patch.object(
+            matchmaking.models.Game,
+            'load_full_game',
+            return_value=game,
+        ), mock.patch.object(
+            matchmaking.image_storage,
+            'send_game_embed',
+            new=mock.AsyncMock(),
         ):
             await reaction_cog.on_raw_reaction_add(payload)
 
-        self.assertEqual(game.join.await_count, 2)
+        self.assertEqual(cog.execute_join.await_count, 1)
+        self.assertEqual(reaction_cog.execute_join.await_count, 1)
         self.assertEqual(
-            game.join.await_args_list[0].kwargs['author_member'],
+            cog.execute_join.await_args.kwargs['author_member'],
             member,
         )
         self.assertEqual(
-            game.join.await_args_list[1].kwargs['log_note'],
+            reaction_cog.execute_join.await_args.kwargs['log_note'],
             '(via reaction)',
         )

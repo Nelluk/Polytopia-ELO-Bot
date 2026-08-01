@@ -421,9 +421,14 @@ class PendingGameCoordinator:
             self._active -= 1
 
     async def run(self, request: OpenGameRequest) -> OpenGameResult:
+        return await self.run_worker(create_open_game, request)
+
+    async def run_worker(self, worker, *worker_args):
+        """Run any bounded pending-game worker and retain ownership to finish."""
+
         self._reserve()
         try:
-            future = self.executor.submit(create_open_game, request)
+            future = self.executor.submit(worker, *worker_args)
         except BaseException:
             self._release(None)
             raise
