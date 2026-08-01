@@ -46,6 +46,8 @@ class SlashTaxonomyRegistrationTests(unittest.TestCase):
             {
                 'record',
                 'open',
+                'join',
+                'leave',
                 'search',
                 'show',
                 'win',
@@ -84,6 +86,28 @@ class SlashTaxonomyRegistrationTests(unittest.TestCase):
             [
                 ('game_id', discord.AppCommandOptionType.integer),
                 ('winner', discord.AppCommandOptionType.string),
+            ],
+        )
+        self.assertEqual(
+            [
+                (parameter.name, parameter.type, parameter.required)
+                for parameter
+                in game_group.get_command('join').parameters
+            ],
+            [
+                ('game_id', discord.AppCommandOptionType.integer, True),
+                ('side', discord.AppCommandOptionType.string, False),
+                ('member', discord.AppCommandOptionType.user, False),
+            ],
+        )
+        self.assertEqual(
+            [
+                (parameter.name, parameter.type, parameter.required)
+                for parameter
+                in game_group.get_command('leave').parameters
+            ],
+            [
+                ('game_id', discord.AppCommandOptionType.integer, True),
             ],
         )
         self.assertEqual(

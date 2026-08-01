@@ -8,6 +8,7 @@ import modules.exceptions as exceptions
 from modules.games import post_newgame_messaging
 from modules.league import broadcast_team_game_to_server
 from modules import game_open, game_open_workers
+from modules import game_join_leave, game_join_workers
 import peewee
 import re
 import datetime
@@ -77,6 +78,66 @@ class matchmaking(commands.Cog):
 
         return (game_id, game)
 
+    async def execute_join(
+        self,
+        *,
+        game_id: int,
+        member,
+        author_member=None,
+        side_arg=None,
+        log_note: str = '',
+        invoked_with: str = 'join',
+        notification_member_id: int | None = None,
+        prefix: str | None = None,
+    ):
+        """Run the shared join application service for any adapter."""
+
+        request = game_join_leave.build_join_request(
+            game_id=game_id,
+            member=member,
+            author_member=author_member,
+            side_arg=side_arg,
+            log_note=log_note,
+            invoked_with=invoked_with,
+            notification_member_id=notification_member_id,
+            prefix=prefix,
+        )
+        return await game_join_leave.join(request)
+
+    async def execute_leave(
+        self,
+        *,
+        game_id: int,
+        member,
+        author_member=None,
+        log_note: str = '',
+        invoked_with: str = 'leave',
+        prefix: str | None = None,
+    ):
+        """Run the shared leave application service for any adapter."""
+
+        request = game_join_leave.build_leave_request(
+            game_id=game_id,
+            member=member,
+            author_member=author_member,
+            log_note=log_note,
+            invoked_with=invoked_with,
+            prefix=prefix,
+        )
+        return await game_join_leave.leave(request)
+
+    def prefix_side_exists(self, *, game_id: int, guild_id: int, token: str) -> bool:
+        """Disambiguate a legacy name token before the worker revalidates it."""
+
+        try:
+            game = models.Game.get_or_none(id=game_id)
+            if not game or game.guild_id != guild_id:
+                return False
+            side, _ = game.get_side(lookup=token)
+            return side is not None
+        except (AttributeError, TypeError, ValueError, peewee.PeeweeException):
+            return False
+
     @commands.Cog.listener()
     async def on_message(self, message):
         # Add ⚔️ join emoji to valid messages
@@ -127,25 +188,72 @@ class matchmaking(commands.Cog):
         else:
             feedback_destination = channel
 
-        lineup = game.player(discord_id=member.id)
-        if not lineup:
-            return await feedback_destination.send(f'You are not a member of game {game.id}')
+        if not game:
+            return await feedback_destination.send(
+                f'Game {game_id} cannot be found or has been deleted.'
+            )
 
-        if game.is_hosted_by(member.id)[0]:
+        joining_member = member
+        if member.guild.id != game.guild_id:
+            valid_external_servers = models.Team.related_external_severs(
+                game.guild_id
+            )
+            game_guild = self.bot.get_guild(game.guild_id)
+            if member.guild.id not in valid_external_servers or not game_guild:
+                return await feedback_destination.send(
+                    f'Game {game.id} is associated with another server.'
+                )
+            joining_member = game_guild.get_member(member.id)
+            if not joining_member:
+                return await feedback_destination.send(
+                    f'You are not a member of game {game.id}'
+                )
 
-            if settings.get_user_level(member) < 4:
-                return await feedback_destination.send('You do not have permissions to leave your own match.\n'
-                    'If you want to delete use the `delete` command in a bot channel.')
+        try:
+            result = await self.execute_leave(
+                game_id=game.id,
+                member=joining_member,
+                author_member=joining_member,
+                log_note='(via reaction)',
+                invoked_with='reaction',
+                prefix=settings.guild_setting(
+                    game.guild_id,
+                    'command_prefix',
+                ),
+            )
+        except game_join_workers.PendingGameLeaveValidationError as exc:
+            return await feedback_destination.send(str(exc))
+        except peewee.PeeweeException:
+            logger.exception(
+                'Database failure leaving game %s via reaction',
+                game.id,
+            )
+            return await feedback_destination.send(
+                f'Game {game.id} could not be changed because the database '
+                'operation failed.'
+            )
+        except Exception:
+            logger.exception(
+                'Unexpected failure leaving game %s via reaction',
+                game.id,
+            )
+            return await feedback_destination.send(
+                f'Game {game.id} could not be changed.'
+            )
 
-            await feedback_destination.send('**Warning:** You are leaving your own game. You will still be the host. '
-                'If you want to delete use the `delete` command in a bot channel.')
-
-        if not game.is_pending:
-            return await feedback_destination.send(f'Game {game.id} has already started and cannot be left.')
-
-        models.GameLog.write(game_id=game, guild_id=member.guild.id, message=f'{models.GameLog.member_string(member)} left the game (via reaction).')
-        lineup.delete_instance()
-        await feedback_destination.send(f'Removing you from game {game.id}.')
+        if result.host_warning:
+            await game_join_leave.send_post_commit_message(
+                feedback_destination.send,
+                result.host_warning,
+                game_id=result.game_id,
+                effect='host-leave warning',
+            )
+        await game_join_leave.send_post_commit_message(
+            feedback_destination.send,
+            f'Removing you from game {result.game_id}.',
+            game_id=result.game_id,
+            effect='leave output',
+        )
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload):
@@ -217,45 +325,115 @@ class matchmaking(commands.Cog):
                 await feedback_destination.send(f'{payload.member.mention}, it looks like you tried to join game {game_id}, but it is associated with another server: __{guild.name}__ ')
                 return await message.remove_reaction(payload.emoji.name, payload.member)
 
-        lineup, message_list = await game.join(member=joining_member, side_arg=None, author_member=joining_member, log_note='(via reaction)')
-        message_str = '\n'.join(message_list)
-
-        if not lineup:
+        prefix = settings.guild_setting(guild.id, 'command_prefix')
+        try:
+            result = await self.execute_join(
+                game_id=game_id,
+                member=joining_member,
+                author_member=joining_member,
+                side_arg=None,
+                log_note='(via reaction)',
+                invoked_with='reaction',
+                notification_member_id=joining_member.id,
+                prefix=prefix,
+            )
+        except game_join_workers.PendingGameJoinValidationError as exc:
+            message_str = str(exc)
             logger.debug(f'Join by reaction failed: {message_str}')
             if 'already in game' in message_str:
-                self.ignorable_join_reactions.discard((payload.message_id, payload.user_id))
-                return await feedback_destination.send(f':warning: {joining_member.mention}:\n{message_str}')
-            else:
-                await message.remove_reaction(payload.emoji.name, payload.member)
-                return await feedback_destination.send(f':no_entry_sign: {joining_member.mention} could not join game:\n{message_str}')
-
-        prefix = settings.guild_setting(guild.id, 'command_prefix')
-        embed, content = game.embed(guild=guild, prefix=prefix)
-        content = f'{content}\n' if content else ''
-
-        players, capacity = game.capacity()
-        if players >= capacity:
-            creating_player = game.creating_player()
-            announce_message = f'Game {game.id} is now full and {creating_player.discord_member.mention()} should create the game in Polytopia.'
-
-            if game.host and game.host != creating_player:
-                announce_message += f'\nMatchmaking host {game.host.discord_member.mention()} is not the game creator.'
-
-            await image_storage.send_game_embed(
-                announce_channel,
-                game,
-                embed=embed,
-                content=f'{content}{announce_message}',
+                self.ignorable_join_reactions.discard(
+                    (payload.message_id, payload.user_id)
+                )
+                return await feedback_destination.send(
+                    f':warning: {joining_member.mention}:\n{message_str}'
+                )
+            await message.remove_reaction(payload.emoji.name, payload.member)
+            return await feedback_destination.send(
+                f':no_entry_sign: {joining_member.mention} could not join '
+                f'game:\n{message_str}'
+            )
+        except peewee.PeeweeException:
+            logger.exception(
+                'Database failure joining game %s via reaction',
+                game_id,
+            )
+            self.ignorable_join_reactions.discard(
+                (payload.message_id, payload.user_id)
+            )
+            return await feedback_destination.send(
+                f':no_entry_sign: {joining_member.mention} could not join '
+                f'game {game_id}: the database operation failed.'
+            )
+        except Exception:
+            logger.exception(
+                'Unexpected failure joining game %s via reaction',
+                game_id,
+            )
+            self.ignorable_join_reactions.discard(
+                (payload.message_id, payload.user_id)
+            )
+            return await feedback_destination.send(
+                f':no_entry_sign: {joining_member.mention} could not join '
+                f'game {game_id}.'
             )
 
-        # Alert user if they have >1 games ready to start
-        waitlist_hosting = [f'{g.id}' for g in models.Game.search_pending(status_filter=1, guild_id=guild.id, host_discord_id=joining_member.id)]
-        waitlist_creating = [f'{g.game}' for g in models.Game.waiting_for_creator(creator_discord_id=joining_member.id)]
-        waitlist = set(waitlist_hosting + waitlist_creating)
+        reconciliation = await game_join_leave.remove_inactive_role_after_commit(
+            result,
+            joining_member,
+        )
+        message_list = list(result.messages)
+        if reconciliation:
+            message_list.append(reconciliation)
 
-        if len(waitlist) > 1:
-            start_str = f'Type __`{prefix}game IDNUM`__ for more details, ie `{prefix}game {(waitlist_hosting + waitlist_creating)[0]}`'
-            message_list.append(f':warning: You have full games waiting to start: **{", ".join(waitlist)}**\n{start_str}')
+        try:
+            committed_game = models.Game.load_full_game(
+                game_id=result.game_id
+            )
+            embed, content = committed_game.embed(
+                guild=guild,
+                prefix=prefix,
+            )
+            content = f'{content}\n' if content else ''
+        except Exception:
+            logger.exception(
+                'Committed join %s could not reload its game card',
+                result.game_id,
+            )
+            committed_game = None
+            embed, content = None, ''
+            message_list.append(
+                f':warning: Game {result.game_id} was joined successfully, '
+                'but its game card could not be reloaded. An operator must '
+                'reconcile the announcement.'
+            )
+
+        if result.is_full and committed_game is not None:
+            announce_message = (
+                f'Game {result.game_id} is now full and '
+                f'<@{result.creator_id}> should create the game in Polytopia.'
+            )
+            if result.host_id and result.host_id != result.creator_id:
+                announce_message += (
+                    f'\nMatchmaking host <@{result.host_id}> is not the game '
+                    'creator.'
+                )
+            try:
+                await image_storage.send_game_embed(
+                    announce_channel,
+                    committed_game,
+                    embed=embed,
+                    content=f'{content}{announce_message}',
+                )
+            except Exception:
+                logger.exception(
+                    'Committed join %s full-game announcement failed',
+                    result.game_id,
+                )
+                message_list.append(
+                    f':warning: Game {result.game_id} was joined successfully, '
+                    'but its full-game announcement could not be updated. An '
+                    'operator must reconcile the announcement.'
+                )
 
         if feedback_destination == payload.member:
             message_list.append(':bulb: I do not respond to PM commands. You will need to use a bot command channel in the appropriate server.')
@@ -263,8 +441,30 @@ class matchmaking(commands.Cog):
 
         logger.debug(f'Join by reaction success: {message_str}')
         self.ignorable_join_reactions.discard((payload.message_id, payload.user_id))
-        return await image_storage.send_game_embed(
-            feedback_destination, game, embed=embed, content=f'{message_str}'
+        if committed_game is not None:
+            try:
+                return await image_storage.send_game_embed(
+                    feedback_destination,
+                    committed_game,
+                    embed=embed,
+                    content=f'{message_str}',
+                )
+            except Exception:
+                logger.exception(
+                    'Committed join %s game card update failed',
+                    result.game_id,
+                )
+                message_list.append(
+                    f':warning: Game {result.game_id} was joined successfully, '
+                    'but its game card could not be sent. An operator must '
+                    'reconcile the announcement.'
+                )
+                message_str = '\n'.join(message_list)
+        return await game_join_leave.send_post_commit_message(
+            feedback_destination.send,
+            message_str,
+            game_id=result.game_id,
+            effect='reaction fallback output',
         )
 
     @settings.in_bot_channel()
@@ -550,128 +750,299 @@ class matchmaking(commands.Cog):
         return await ctx.send(msg)
 
     @settings.in_bot_channel()
-    @models.is_registered_member()
     @commands.command(usage='game_id', aliases=['joingame', 'joinmatch'])
-    async def join(self, ctx, game: PolyMatch = None, *args):
-        """
-        Join an open game
-        **Example:**
-        `[p]join 1025` - Join open game 1025 to the first side with room
-        `[p]join 1025 2` - Join open game 1025 to side number 2
-        `[p]join 1025 rickdaheals` - Add another person to a game's first available side
-        `[p]join 1025 bakalol 2` - Add another person to a game with side specifed
-        """
-        syntax = f'**Example usage**:\n__`{ctx.prefix}join 1025`__ - Join game 1025\n__`{ctx.prefix}join 1025 2`__ - Join game 1025, side 2'
+    async def join(self, ctx, game_id: str = None, *args):
+        """Join an open game through the shared pending-game service."""
 
+        syntax = (
+            f'**Example usage**:\n__`{ctx.prefix}join 1025`__ - Join game '
+            f'1025\n__`{ctx.prefix}join 1025 2`__ - Join game 1025, side 2'
+        )
         if settings.get_user_level(ctx.author) >= 4:
-            syntax += f'\n__`{ctx.prefix}join 1025 Nelluk 2`__ - Add a third party to side 2 of your open game.'
+            syntax += (
+                f'\n__`{ctx.prefix}join 1025 Nelluk 2`__ - Add a third '
+                'party to side 2 of your open game.'
+            )
 
-        if not game:
-            return await ctx.send(f'No game ID provided. Use `{ctx.prefix}opengames` to list open games you can join.\n{syntax}')
+        if not game_id:
+            return await ctx.send(
+                f'No game ID provided. Use `{ctx.prefix}opengames` to list '
+                f'open games you can join.\n{syntax}'
+            )
 
+        try:
+            parsed_game_id = int(str(game_id).strip('#'))
+        except (TypeError, ValueError):
+            return await ctx.send(
+                f'Invalid Game ID **{game_id}**.\n{syntax}'
+            )
+
+        named_side_candidate = False
+        third_party_candidate = False
         if len(args) == 0:
-            # ctx.author is joining a game, no side given
             target = f'<@{ctx.author.id}>'
             side_arg = None
         elif len(args) == 1:
-            # either ctx.author is joining a match with side integer specified or author is joining a third party with no side specified
+            token = args[0]
             try:
-                side_arg = int(args[0]) if int(args[0]) <= settings.max_game_size else None
+                numeric_token = int(token)
+            except (TypeError, ValueError):
+                numeric_token = None
+
+            if numeric_token is not None:
                 target = f'<@{ctx.author.id}>'
-            except ValueError:
-                # non-integer value - assuming author is joining a third party with no side specified
+                # Keep the legacy numeric grammar: positive in-range values
+                # select a side; zero and values above the configured maximum
+                # mean the author's first open side, but still required the
+                # old level-4 path because ``side_arg`` was falsey.
+                side_arg = (
+                    str(numeric_token)
+                    if numeric_token <= settings.max_game_size
+                    and numeric_token != 0
+                    else None
+                )
+                if (
+                    not side_arg
+                    and settings.get_user_level(ctx.author) < 4
+                ):
+                    return await ctx.send(
+                        'You do not have permissions to add another person to '
+                        'a game. Tell them to use the command:\n'
+                        f'`{ctx.prefix}join {parsed_game_id}` to join '
+                        'themselves.'
+                    )
+            else:
+                target = token
                 side_arg = None
-                target = args[0]
-
-            if not side_arg and settings.get_user_level(ctx.author) < 4:
-                return await ctx.send('You do not have permissions to add another person to a game. Tell them to use the command:\n'
-                    f'`{ctx.prefix}join {game.id}` to join themselves.')
-
+                third_party_candidate = True
+                named_side_candidate = numeric_token is None
         elif len(args) == 2:
-            # author is putting a third party into this match
             if settings.get_user_level(ctx.author) < 4:
-                return await ctx.send('You do not have permissions to add another person to a game. Tell them to use the command:\n'
-                    f'`{ctx.prefix}join {game.id} {args[1]}` to join themselves.')
-            target = args[0]
-            side_arg = args[1]
+                return await ctx.send(
+                    'You do not have permissions to add another person to a '
+                    'game. Tell them to use the command:\n'
+                    f'`{ctx.prefix}join {parsed_game_id} {args[1]}` to join '
+                    'themselves.'
+                )
+            target, side_arg = args
         else:
             return await ctx.send(f'Invalid usage.\n{syntax}')
 
+        if third_party_candidate and settings.get_user_level(ctx.author) < 4:
+            if named_side_candidate and self.prefix_side_exists(
+                game_id=parsed_game_id,
+                guild_id=ctx.guild.id,
+                token=args[0],
+            ):
+                # A low-level requester may select a named side when the
+                # token is not also being used as a third-party member name.
+                target = f'<@{ctx.author.id}>'
+                side_arg = args[0]
+                third_party_candidate = False
+            else:
+                return await ctx.send(
+                    'You do not have permissions to add another person to a '
+                    'game. Tell them to use the command:\n'
+                    f'`{ctx.prefix}join {parsed_game_id}` to join themselves.'
+                )
+
         guild_matches = await utilities.get_guild_member(ctx, target)
         if len(guild_matches) > 1:
-            return await ctx.send(f'There is more than one player found with name "{target}". Specify user with @Mention.\n{syntax}')
-        elif len(guild_matches) == 0:
-            return await ctx.send(f'Could not find \"{target}\" on this server.\n{syntax}')
+            return await ctx.send(
+                f'There is more than one player found with name "{target}". '
+                f'Specify user with @Mention.\n{syntax}'
+            )
+        if len(guild_matches) == 0:
+            named_side = (
+                named_side_candidate
+                and self.prefix_side_exists(
+                    game_id=parsed_game_id,
+                    guild_id=ctx.guild.id,
+                    token=args[0],
+                )
+            )
+            if named_side:
+                side_arg = args[0]
+                target = f'<@{ctx.author.id}>'
+            elif third_party_candidate and settings.get_user_level(ctx.author) < 4:
+                return await ctx.send(
+                    'You do not have permissions to add another person to a '
+                    'game. Tell them to use the command:\n'
+                    f'`{ctx.prefix}join {parsed_game_id}` to join themselves.'
+                )
+            else:
+                return await ctx.send(
+                    f'Could not find "{target}" on this server.\n{syntax}'
+                )
         else:
+            if third_party_candidate and settings.get_user_level(ctx.author) < 4:
+                return await ctx.send(
+                    'You do not have permissions to add another person to a '
+                    'game. Tell them to use the command:\n'
+                    f'`{ctx.prefix}join {parsed_game_id}` to join themselves.'
+                )
             joining_member = guild_matches[0]
 
-        lineup, message_list = await game.join(member=joining_member, side_arg=side_arg, author_member=ctx.author)
-        message_str = '\n'.join(message_list)
-
-        if not lineup:
-            logger.debug('join via command failed')
-            if 'already in game' in message_str:
-                return await ctx.send(f':warning: {message_str}')
-            else:
-                return await ctx.send(f':no_entry_sign: Could not join game:\n{message_str}')
-
-        embed, content = game.embed(guild=ctx.guild, prefix=ctx.prefix)
-        players, capacity = game.capacity()
-        if players >= capacity:
-            creating_player = game.creating_player()
-            await ctx.send(f'Game {game.id} is now full and {creating_player.mention()} should create the game in Polytopia.')
-
-            if game.host and game.host != creating_player:
-                await ctx.send(f'Matchmaking host {game.host.discord_member.mention()} is not the game creator.')
-            await image_storage.send_game_embed(
-                ctx, game, embed=embed, content=content
+        if len(guild_matches) == 0:
+            guild_matches = await utilities.get_guild_member(
+                ctx,
+                f'<@{ctx.author.id}>',
             )
-        else:
-            await image_storage.send_game_embed(ctx, game, embed=embed)
-        await ctx.send(message_str)
+            if len(guild_matches) != 1:
+                return await ctx.send(
+                    f'Could not find <@{ctx.author.id}> on this server.\n'
+                    f'{syntax}'
+            )
+            joining_member = guild_matches[0]
 
-        # Alert user if they have >1 games ready to start
-        waitlist_hosting = [f'{g.id}' for g in models.Game.search_pending(status_filter=1, guild_id=ctx.guild.id, host_discord_id=ctx.author.id)]
-        waitlist_creating = [f'{g.game}' for g in models.Game.waiting_for_creator(creator_discord_id=ctx.author.id)]
-        waitlist = set(waitlist_hosting + waitlist_creating)
+        try:
+            result = await self.execute_join(
+                game_id=parsed_game_id,
+                member=joining_member,
+                author_member=ctx.author,
+                side_arg=side_arg,
+                invoked_with=ctx.invoked_with or 'join',
+                notification_member_id=ctx.author.id,
+                prefix=ctx.prefix,
+            )
+        except game_join_workers.PendingGameJoinValidationError as exc:
+            message = str(exc)
+            logger.debug('join via command failed: %s', message)
+            if 'already in game' in message:
+                return await ctx.send(f':warning: {message}')
+            return await ctx.send(
+                f':no_entry_sign: Could not join game:\n{message}'
+            )
+        except peewee.PeeweeException:
+            logger.exception('Database failure joining game %s', parsed_game_id)
+            return await ctx.send(
+                ':no_entry_sign: Could not join game because the database '
+                'operation failed.'
+            )
+        except Exception:
+            logger.exception('Unexpected failure joining game %s', parsed_game_id)
+            return await ctx.send(
+                ':no_entry_sign: Could not join game.'
+            )
 
-        if len(waitlist) > 1:
-            await asyncio.sleep(1)
-            start_str = f'Type __`{ctx.prefix}game IDNUM`__ for more details, ie `{ctx.prefix}game {(waitlist_hosting + waitlist_creating)[0]}`'
-            await ctx.send(f'{ctx.author.mention}, you have full games waiting to start: **{", ".join(waitlist)}**\n{start_str}')
+        reconciliation = await game_join_leave.remove_inactive_role_after_commit(
+            result,
+            joining_member,
+        )
+        message_list = list(result.messages)
+        if reconciliation:
+            message_list.append(reconciliation)
+
+        committed_game = None
+        embed = content = None
+        try:
+            committed_game = models.Game.load_full_game(result.game_id)
+            embed, content = committed_game.embed(
+                guild=ctx.guild,
+                prefix=ctx.prefix,
+            )
+        except Exception:
+            logger.exception(
+                'Committed join %s could not reload its game card',
+                result.game_id,
+            )
+            message_list.append(
+                f':warning: Game {result.game_id} was joined successfully, '
+                'but its game card could not be updated. An operator must '
+                'reconcile the announcement.'
+            )
+
+        if result.is_full:
+            await game_join_leave.send_post_commit_message(
+                ctx.send,
+                f'Game {result.game_id} is now full and '
+                f'<@{result.creator_id}> should create the game in Polytopia.',
+                game_id=result.game_id,
+                effect='full-game notice',
+            )
+            if result.host_id and result.host_id != result.creator_id:
+                await game_join_leave.send_post_commit_message(
+                    ctx.send,
+                    f'Matchmaking host <@{result.host_id}> is not the game '
+                    'creator.',
+                    game_id=result.game_id,
+                    effect='host-mismatch notice',
+                )
+
+        if committed_game is not None:
+            try:
+                await image_storage.send_game_embed(
+                    ctx,
+                    committed_game,
+                    embed=embed,
+                    content=content if result.is_full else None,
+                )
+            except Exception:
+                logger.exception(
+                    'Committed join %s game card update failed',
+                    result.game_id,
+                )
+                message_list.append(
+                    f':warning: Game {result.game_id} was joined successfully, '
+                    'but its game card could not be sent. An operator must '
+                    'reconcile the announcement.'
+                )
+
+        return await game_join_leave.send_post_commit_message(
+            ctx.send,
+            '\n'.join(message_list),
+            game_id=result.game_id,
+            effect='join output',
+        )
 
     @settings.in_bot_channel()
-    @models.is_registered_member()
     @commands.command(usage='game_id')
-    async def leave(self, ctx, game: PolyMatch = None):
-        """
-        Leave a game that you have joined
+    async def leave(self, ctx, game_id: str = None):
+        """Leave a pending game through the shared lifecycle service."""
 
-        **Example:**
-        `[p]leave 25`
-        """
-        if not game:
-            return await ctx.send(f'No game ID provided. Use `{ctx.prefix}leave ID` to leave a specific game.')
+        if not game_id:
+            return await ctx.send(
+                f'No game ID provided. Use `{ctx.prefix}leave ID` to leave a '
+                'specific game.'
+            )
+        try:
+            parsed_game_id = int(str(game_id).strip('#'))
+        except (TypeError, ValueError):
+            return await ctx.send(f'Invalid Game ID **{game_id}**.')
 
-        if game.is_hosted_by(ctx.author.id)[0]:
+        try:
+            result = await self.execute_leave(
+                game_id=parsed_game_id,
+                member=ctx.author,
+                author_member=ctx.author,
+                invoked_with=ctx.invoked_with or 'leave',
+                prefix=ctx.prefix,
+            )
+        except game_join_workers.PendingGameLeaveValidationError as exc:
+            return await ctx.send(str(exc))
+        except peewee.PeeweeException:
+            logger.exception('Database failure leaving game %s', parsed_game_id)
+            return await ctx.send(
+                f'Game {parsed_game_id} could not be changed because the '
+                'database operation failed.'
+            )
+        except Exception:
+            logger.exception('Unexpected failure leaving game %s', parsed_game_id)
+            return await ctx.send(f'Game {parsed_game_id} could not be changed.')
 
-            if settings.get_user_level(ctx.author) < 4:
-                return await ctx.send('You do not have permissions to leave your own match.\n'
-                    f'If you want to delete use `{ctx.prefix}delete {game.id}`')
-
-            await ctx.send('**Warning:** You are leaving your own game. You will still be the host. '
-                f'If you want to delete use `{ctx.prefix}delete {game.id}`')
-
-        if not game.is_pending:
-            return await ctx.send(f'Game {game.id} has already started and cannot be left.')
-
-        lineup = game.player(discord_id=ctx.author.id)
-        if not lineup:
-            return await ctx.send(f'You are not a member of game {game.id}')
-
-        models.GameLog.write(game_id=game, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} left the game.')
-        lineup.delete_instance()
-        await ctx.send('Removing you from the game.')
+        if result.host_warning:
+            await game_join_leave.send_post_commit_message(
+                ctx.send,
+                result.host_warning,
+                game_id=result.game_id,
+                effect='host-leave warning',
+            )
+        return await game_join_leave.send_post_commit_message(
+            ctx.send,
+            result.message,
+            game_id=result.game_id,
+            effect='leave output',
+        )
 
     @settings.in_bot_channel()
     @models.is_registered_member()
