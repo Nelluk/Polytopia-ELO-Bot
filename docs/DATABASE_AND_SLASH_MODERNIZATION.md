@@ -425,8 +425,8 @@ check:
   `codex/p5-1-game-open`, based on exact clean base
   `d24aa6b5e64fba159a872eb565703465c79d712d`.
 
-Current unit: **P5.4 atomic pending-to-started game transition — Implemented
-locally; pending Tier-3 Sol review.**
+Current unit: **P5.4 atomic pending-to-started game transition — Tier-3 review
+passed; pending beta acceptance.**
 P8.0 is complete and integrated as `d6ee47c`, with explicit guild-only command
 deployment accepted in beta. Taxonomy v2.2 is provisionally accepted as the
 working implementation contract; minor wording refinements remain possible
@@ -2326,7 +2326,7 @@ unit.
 
 ### P5.4 — Atomic pending-to-started game transition
 
-Status: **Implemented locally; pending Tier-3 Sol review**
+Status: **Tier-3 review passed; pending beta acceptance**
 
 Risk tier: **Tier 3**. Starting a game changes its lifecycle state and mutates
 player teams, squads, sides, league metadata, and audit history before several
@@ -2443,6 +2443,12 @@ Implementation and validation evidence:
   `POLYBOT_ENV=development`, database `polytopia_dev`, role `polybot_dev`,
   and the existing disabled tasks/API profile; the operator-fixture
   seed/cleanup test was not run.
+- Independent Tier-3 review added checkpoint `8227cd0`, removing retained
+  Mobile/Steam language from the start announcement and registration guidance
+  and replacing legacy friend-code guidance with the canonical player-name
+  path. The focused start suite passed 15 tests; complete offline discovery
+  passed 358 tests with 16 gated skips; the complete gated development class
+  passed 15 tests with the operator-managed fixture round trip skipped.
 
 Compatibility ledger and retained seams:
 
@@ -2460,6 +2466,12 @@ Compatibility ledger and retained seams:
   isolated with committed-game reconciliation; no such read/write is inside
   the lifecycle transaction. Discord announcement IDs use the bounded
   `run_announcement_persistence` worker instead of a new event-loop write.
+- `Game.update_external_broadcasts` catches some Discord exceptions inside the
+  legacy helper and deletes the corresponding stale `Broadcast` row. The P5.4
+  wrapper can reconcile exceptions that escape that helper, but it cannot
+  surface failures the helper consumes and there is no durable retry queue.
+  Extracting that helper is a future bounded post-commit reliability unit, not
+  part of the authoritative start transaction.
 - The existing prefix registration decorator remains an inherited
   event-loop command check for compatibility. It is not used to construct
   the native request; native preflight and final authorization run in the
@@ -2471,18 +2483,19 @@ background reminder/purge loops, platform/schema cleanup, dependency changes,
 Discord apply/beta launch, production, push, PR, merge, or sudo without
 separate approval.
 
-Runtime/acceptance state: **Implemented locally; pending Tier-3 Sol review.**
-No beta was launched, no Discord command apply/synchronization occurred, no
-production checkout/service/database was touched, and no operator fixture was
-seeded or cleaned by this unit.
+Runtime/acceptance state: **Tier-3 review passed; pending beta acceptance.**
+The reviewed command tree has not yet been applied and no beta has yet been
+launched from the reviewed checkpoint. No production checkout/service/database
+was touched, and no operator fixture was seeded or cleaned by this unit.
 
 Known limitations: the retained post-commit seams above still deserve future
 bounded extraction; no live Discord/mobile/desktop smoke was performed. D-034
 interactive card actions remain intentionally unimplemented.
 
-Next action: Sol should review the full P5.4 diff and evidence as a Tier-3
-unit, then separately approve any beta smoke and accumulation integration.
-Do not mark P5.4 Complete or integrate from Luna.
+Next action: apply the reviewed tree only to the explicitly configured
+development guild, launch the beta profile, and smoke-test `/game start` plus
+the retained `$start`/`$startgame` path. Do not mark P5.4 Complete or integrate
+until the user accepts the beta result.
 
 Exit: clean implementation/test and roadmap-evidence checkpoints plus the
 complete Luna Tier-3 handoff.
@@ -4196,6 +4209,24 @@ post-commit reconciliation behavior. This direction is a separate bounded
 unit and does not reopen accepted P5.2 behavior.
 
 ## Progress log
+
+### 2026-08-01 — P5.4 Tier-3 review passed
+
+- Reviewed the two-stage preflight/final-worker boundary, worker-local
+  connection ownership, exact participant-set revalidation, shared pending
+  coordinator, atomic Player/Squad/GameSide/Game/GameLog mutation, permission
+  parity, and post-commit-only Discord effects.
+- Corrected copied start text to follow D-027: one Polytopia account name,
+  canonical `$names` guidance, and no Mobile/Steam label in announcements.
+- Recorded the precise retained broadcast-helper limitation: internally
+  consumed Discord failures cannot be surfaced or durably retried by P5.4.
+- Passed 15 focused start tests and 358 complete offline tests with 16 gated
+  skips. The unchanged gated development class passed 15 tests under
+  `development`/`polytopia_dev`/`polybot_dev`; its operator-fixture round trip
+  skipped to preserve the existing fixture set.
+- Status advanced to Tier-3 review passed, pending the separately approved
+  development-guild apply and beta smoke. No integration or production action
+  occurred.
 
 ### 2026-08-01 — P5.4 pending-to-started transition planned
 
