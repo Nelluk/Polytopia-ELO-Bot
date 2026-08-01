@@ -3,6 +3,7 @@
 import asyncio
 from contextlib import contextmanager
 from dataclasses import FrozenInstanceError
+import datetime
 from pathlib import Path
 from types import SimpleNamespace
 import tempfile
@@ -146,6 +147,9 @@ def fake_game(
             elo_after_game=1110,
             elo_change_player=10,
         ))
+    future_expiration = (
+        datetime.datetime.now() + datetime.timedelta(days=1)
+    ).strftime('%Y-%m-%d %H:%M:%S')
     game = SimpleNamespace(
         id=game_id,
         guild_id=guild_id,
@@ -153,7 +157,7 @@ def fake_game(
         date='2026-07-30',
         completed_ts='2026-07-31 01:02:03' if completed else None,
         win_claimed_ts='2026-07-30 23:00:00' if completed else None,
-        expiration='2026-08-01 00:00:00',
+        expiration=future_expiration,
         is_pending=pending,
         is_completed=completed,
         is_confirmed=completed,
