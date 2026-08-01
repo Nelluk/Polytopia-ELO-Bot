@@ -1,10 +1,10 @@
 # Database Access and Slash Command Modernization
 
-Last updated: 2026-07-31
+Last updated: 2026-08-01
 
 Status: Active
 
-Current branch at last update: `codex/p8-0-command-capabilities`
+Current branch at last update: `codex/database-slash-modernization`
 
 Source task: `thread://019fae66-8e3a-7a50-9a0f-d3d7160d2287`
 
@@ -1818,7 +1818,7 @@ Status: **In progress**
 
 ### P5.1 — Atomic open-game creation and `/game open`
 
-Status: **Implemented; parity hardening complete; beta acceptance pending**
+Status: **Complete; beta accepted and integrated**
 
 Risk tier: **Tier 3**. This unit creates a pending game graph and sends public
 Discord effects.
@@ -1838,6 +1838,10 @@ Commit(s):
 - `622a444` — Add the native public-completion join reaction.
 - `a48fff4` — Accept short game IDs for reaction joins.
 - `04cb846` — Harden cross-play parity across open-game creation and joins.
+- `bd17d17` — Make pending-game detail fixtures future-relative.
+- `2102c25` — Record cross-play parity-hardening evidence.
+- `a501e03` — Record final P5.1 validation evidence.
+- `892371c` — Merge P5.1 into `codex/database-slash-modernization`.
 
 Interface and compatibility:
 
@@ -1949,27 +1953,109 @@ Remaining limitations:
   until a separately gated schema/data cleanup. New open-game creation and
   `Game.join` eligibility no longer infer platform requirements from that
   Boolean.
-- Tier 3 beta acceptance remains outstanding; live Discord work remains a
-  separate approval.
+- The user accepted the final P5.1 behavior on 2026-08-01 after the parity
+  review. The final cross-play hardening was accepted from focused, complete
+  offline, and gated PostgreSQL evidence without requiring another live beta
+  rerun. The beta remained stopped.
 
-Next action: keep beta acceptance pending and obtain separate approval for
-development-guild command inspection/sync and beta smoke. Do not merge this
-branch into the accumulation branch until that review and approval are
-complete.
+Next action: P5.2 atomic join/leave lifecycle, using one shared worker path
+for prefix, slash, and reaction entry points.
 
-Out of scope: join/leave/kick/start mutation refactors, reaction-listener
-rewrites, background purge jobs, platform-field schema cleanup, production
-deployment, and live Discord synchronization. Beta sync/launch remains a
-separate approval after Tier 3 review.
+### P5.2 — Atomic join/leave lifecycle and native commands
+
+Status: **Planned; approved for Luna implementation**
+
+Risk tier: **Tier 3**. This unit mutates pending-game lineups and must preserve
+role, capacity, host, ELO-range, restriction, and reaction semantics.
+
+Branch/base: create `codex/p5-2-game-join-leave` from the exact accumulation
+checkpoint containing P5.1 integration and this planning record.
+
+Objective: make join and leave one coherent pending-game application service
+used by prefix commands, native commands, and raw reaction handlers. Remove
+their synchronous Peewee mutation work from Discord's event-loop thread and
+make lineup plus audit-log changes atomic.
+
+Interface and compatibility:
+
+- preserve `$join` with aliases `joingame` and `joinmatch`, including
+  self-join, optional side, and level-4 third-party placement;
+- preserve `$leave` and reaction add/remove behavior;
+- add `/game join game_id side:[optional] member:[optional]` and
+  `/game leave game_id`; omitted member means the requester;
+- preserve public competitive-state success output and ephemeral native
+  validation/permission failures;
+- retain numeric and named side selection, role-locked side behavior, member
+  restrictions in notes, ELO limits, bans/mod overrides, inactive-role
+  semantics, team requirements, pending-game backlog rules, and full-game
+  creator/host notices;
+- treat all games and profiles as cross-play. Do not add platform options or
+  infer eligibility from `Game.is_mobile`. Accept either retained account-name
+  field only as legacy storage compatibility. New guidance should say
+  “Polytopia account name” without presenting Mobile and Steam as distinct
+  user modes; broader field/schema consolidation remains a separate P6/data
+  unit.
+
+Database and concurrency boundary:
+
+- resolve Discord-only guild/member/message/reaction context into immutable
+  primitive snapshots before worker submission;
+- reload the game, player, sides, lineups, host/team state, and mutable
+  restrictions inside a worker-local Peewee connection;
+- revalidate pending state, membership, capacity, selected-side availability,
+  role/member restrictions, permission-derived overrides, bans, team rules,
+  backlog limits, and local/global ELO ranges inside the worker;
+- atomically create/delete the lineup, refresh the player's detected team
+  where applicable, and write `GameLog` in the same synchronous transaction;
+- serialize conflicting pending-game mutations so concurrent command and
+  reaction joins cannot overfill a side or duplicate a player. Prefer
+  extending the bounded pending-game lifecycle coordinator rather than adding
+  scattered `asyncio.to_thread` calls;
+- return frozen primitive result/effect data. Inactive-role removal, reaction
+  cleanup, embeds, warnings, full-game notices, and all other Discord effects
+  occur only after commit;
+- cancellation or worker failure must not advertise a free coordinator slot
+  while synchronous work is still running.
+
+Required tests:
+
+- prefix names/aliases and legacy argument grammar;
+- slash registration, option shape, permission parity, and immediate defer;
+- raw reaction add/remove use the shared service and preserve beta/production
+  message isolation plus cross-guild related-server handling;
+- self join/leave, level-4 third-party placement, host-leave restrictions and
+  warning, staff/mod overrides, inactive-role behavior, role-locked sides,
+  mention-restricted recruitment, team requirements, backlog limits, bans,
+  ELO ranges, named/numeric sides, already-member/not-member, started/full
+  games, and cross-play name-field matrices;
+- concurrent joins cannot overfill or duplicate; a join racing a leave has a
+  deterministic serialized result;
+- worker-local connection ownership, primitive inputs, event-loop heartbeat,
+  cancellation cleanup, and complete rollback when lineup, player refresh,
+  or audit logging fails;
+- no Discord effect after database failure; committed database state remains
+  intact with public/operator-visible reconciliation when a post-commit
+  reaction or message effect fails;
+- complete offline suite and the unchanged gated `development` /
+  `polytopia_dev` / `polybot_dev` integration suite.
+
+Out of scope: kick/start mutation refactors, background purge jobs, platform
+field/schema cleanup, production operations, dependency changes, and live
+Discord inspection/synchronization or beta launch without separate approval.
+
+Later P5 scope: kick/start mutation refactors, remaining reaction-listener
+cleanup, background purge jobs, and eventual platform-field schema cleanup.
+Production deployment and live Discord synchronization remain separately
+gated.
 
 Candidate order:
 
-1. `join` and `leave`
+1. P5.2 `join` and `leave`
 2. `kick`
 3. `start`
-4. reaction listeners and background purge jobs
+4. remaining reaction listeners and background purge jobs
 
-Why it is later:
+Why these paths require staged units:
 
 These paths combine role checks, capacity/ELO restrictions, game/side/lineup
 records, reactions, messages, channels, and background tasks. They need a
@@ -3697,6 +3783,20 @@ decision does not authorize wholesale registration, beta synchronization, or
 production deployment.
 
 ## Progress log
+
+### 2026-08-01 — P5.1 accepted and integrated; P5.2 planned
+
+- Accepted the final P5.1 cross-play/parity result without another live beta
+  rerun; the beta remained stopped.
+- Merged `codex/p5-1-game-open` into the accumulation branch as `892371c`.
+- Marked P5.1 Complete and selected Tier-3 P5.2 join/leave lifecycle work as
+  the next bounded Luna unit.
+- Required prefix, slash, and raw-reaction entry points to share one atomic,
+  worker-local service with serialized capacity checks and post-commit
+  Discord effects.
+- Reaffirmed D-027: Mobile/Steam are legacy storage/alias compatibility, not
+  platform modes or native options. P5.2 accepts either retained account-name
+  field while presenting one canonical Polytopia identity.
 
 ### 2026-07-31 — Taxonomy v2.2 accepted and P5.1 designed
 
