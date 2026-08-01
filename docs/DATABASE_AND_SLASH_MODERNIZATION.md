@@ -2323,6 +2323,111 @@ Exit: clean implementation and roadmap-evidence commits plus the complete
 Luna handoff packet. No beta or Discord synchronization is authorized by this
 unit.
 
+### P5.4 — Atomic pending-to-started game transition
+
+Status: **Planned for Luna implementation**
+
+Risk tier: **Tier 3**. Starting a game changes its lifecycle state and mutates
+player teams, squads, sides, league metadata, and audit history before several
+public Discord effects.
+
+Branch/code base: `codex/p5-4-game-start` from accepted accumulation
+checkpoint `af6a758` plus the subsequent plan-only checkpoint. The exact Luna
+worktree SHA is supplied in the execution prompt after this plan is committed.
+
+Objective: preserve `$start`/`$startgame GAME_ID NAME` while moving the
+complete authoritative pending-to-started database transition into the shared
+serialized pending-game worker boundary and adding typed
+`/game start game_id name`.
+
+Required behavior and compatibility:
+
+- preserve no-ID/name syntax guidance, `startgame` alias, bot-channel and
+  registration checks, host/creating-player/staff permission, game-name
+  validation and high-level override warning, pending/full checks, missing
+  guild-member warnings, team/squad detection, league-field inference,
+  external broadcast updates, start announcements/cards, game-channel
+  creation, season warnings, and downstream league/Nova hooks;
+- add direct `/game start` with required integer game ID and required string
+  name. Two essential inputs do not justify a modal or Components workspace;
+- defer native interactions before database work. Validation failures remain
+  ephemeral; committed lifecycle output and warnings remain public;
+- retain one canonical cross-play account model. Do not expose or use a
+  Mobile/Steam choice when starting a game.
+
+Preflight and transaction design:
+
+- use a bounded worker preflight to return the current primitive participant
+  IDs/names needed for Discord cache/role snapshots; do not query Peewee on
+  the event loop merely to build the request;
+- resolve Discord member/role presence outside the worker, then submit frozen
+  primitive snapshots. The mutation worker reloads the game, host, creating
+  player, sides, current lineups, teams, and mutable state locally;
+- revalidate guild, requester authorization, pending state, full capacity,
+  game-name rules/override, and exact participant-set agreement inside the
+  final worker. If membership changed after preflight, fail safely with retry
+  guidance rather than using stale role data;
+- reuse the shared pending-game coordinator so start serializes with open,
+  join, leave, kick, and another start. Cancellation retains ownership until
+  synchronous work finishes;
+- in one wholly synchronous worker transaction: refresh detected Player team
+  values, upsert squads, update GameSide squad/team fields, set game name/date
+  and `is_pending=False`, infer/update league fields, and write `GameLog`;
+- worker owns/closes its Peewee connection and returns frozen primitive
+  transition/effect data. No Discord/Peewee objects cross the thread boundary
+  and no Discord await occurs in `db.atomic()`.
+
+Post-commit boundary:
+
+- perform external-broadcast edits, announcements/cards, channel creation,
+  season warnings, and league/Nova hooks only after the transition commits;
+- database failure performs none of those effects;
+- isolate each effect sufficiently that one Discord failure is logged with the
+  committed game ID, produces public/operator reconciliation where possible,
+  and does not suppress independent later effects;
+- preserve the established dense classic game card. D-034 interactive buttons
+  remain a separate future unit;
+- post-commit announcement/channel metadata writes that depend on Discord IDs
+  must be explicit reconciliation steps. Prefer small bounded synchronous
+  persistence workers; do not place Discord awaits inside transactions or
+  scatter new event-loop Peewee writes;
+- a full rewrite of legacy channel/broadcast helpers is not required if it
+  would materially broaden this unit. Any retained synchronous post-commit
+  read/write must be identified precisely, covered against partial failure,
+  and recorded as a limitation/next extraction rather than hidden.
+
+Required tests:
+
+- prefix registration, `startgame` alias, grammar/guidance, and typed slash
+  registration/defer/visibility;
+- host, creating player, and staff success; unauthorized requester; invalid
+  name below and above override level; missing name; wrong guild; non-pending;
+  incomplete capacity; missing guild member; team-required failure;
+- primitive preflight/snapshot boundary and safe rejection when the lineup
+  changes between preflight and transition;
+- atomic Player/Side/Squad/Game/league-field/GameLog commit plus fault
+  injection at each mutation family with complete rollback;
+- deterministic start versus join/leave/kick and duplicate-start
+  serialization, event-loop heartbeat, and cancellation/exception cleanup;
+- database failure causes no Discord effects; representative broadcast,
+  announcement/card, channel, and reconciliation persistence failures retain
+  committed state and do not suppress unrelated later effects;
+- public prefix/native success parity and ephemeral native failures;
+- real-schema UUID-owned PostgreSQL transition and rollback through the
+  unchanged `development`/`polytopia_dev`/`polybot_dev` gate, without touching
+  operator-managed beta fixtures;
+- focused lifecycle/taxonomy suites, complete offline discovery, explicit
+  compilation/diff checks, and self-review.
+
+Out of scope: D-034 interactive card actions, join/leave/kick behavior changes,
+background reminder/purge loops, platform/schema cleanup, dependency changes,
+Discord apply/beta launch, production, push, PR, merge, or sudo without
+separate approval.
+
+Exit: clean implementation/test and roadmap-evidence checkpoints plus the
+complete Luna Tier-3 handoff. Sol reviews the whole branch before any
+separately approved guild apply, beta smoke, or integration.
+
 ## P6 — Registration and player preferences
 
 Status: **Planned**
@@ -4032,6 +4137,21 @@ post-commit reconciliation behavior. This direction is a separate bounded
 unit and does not reopen accepted P5.2 behavior.
 
 ## Progress log
+
+### 2026-08-01 — P5.4 pending-to-started transition planned
+
+- Inspected the legacy `$start`/`$startgame` path and classified it Tier 3:
+  it updates Player, Squad, GameSide, Game, league fields, and GameLog before
+  broadcasts, announcements, cards, channels, and league/Nova hooks.
+- Defined a two-stage primitive preflight/role-snapshot boundary with final
+  worker-side participant-set revalidation so no live Discord/Peewee object
+  crosses threads and lineup races fail safely.
+- Required one serialized transaction for the authoritative lifecycle change
+  and post-commit-only Discord effects with committed-game reconciliation.
+- Selected direct `/game start game_id name`; the two essential inputs do not
+  benefit from a modal or option-heavy Components workspace.
+- Kept D-034 card actions, background loops, platform cleanup, live Discord,
+  integration, and production outside P5.4.
 
 ### 2026-08-01 — P5.3 accepted and integrated without a separate beta gate
 
