@@ -985,6 +985,241 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
                 0,
             )
 
+    def test_kick_worker_real_graph_and_audit_rollback(self):
+        from modules import game_join_workers, game_kick_workers
+
+        guild_id = self.profile.allowed_guild_ids[0]
+        suffix = uuid.uuid4().hex
+        id_base = 8_900_000_000_000_000 + uuid.uuid4().int % 1_000_000
+        host_discord_id = id_base
+        target_discord_id = id_base + 1
+        game_id = None
+
+        try:
+            host_member = self.models.DiscordMember.create(
+                discord_id=host_discord_id,
+                name=f'P53 Host {suffix}',
+                polytopia_name=f'P53Host{suffix}',
+            )
+            target_member = self.models.DiscordMember.create(
+                discord_id=target_discord_id,
+                name=f'P53 Target {suffix}',
+                polytopia_name=f'P53Target{suffix}',
+            )
+            host_player = self.models.Player.create(
+                discord_member=host_member,
+                guild_id=guild_id,
+                name=host_member.name,
+            )
+            target_player = self.models.Player.create(
+                discord_member=target_member,
+                guild_id=guild_id,
+                name=target_member.name,
+            )
+            original_expiration = (
+                datetime.datetime.now() + datetime.timedelta(hours=1)
+            )
+            game = self.models.Game.create(
+                guild_id=guild_id,
+                host=host_player,
+                expiration=original_expiration,
+                notes=f'P5.3 integration {suffix}',
+                is_pending=True,
+                is_ranked=True,
+                is_mobile=True,
+                size=[1, 1],
+            )
+            game_id = game.id
+            first_side = self.models.GameSide.create(
+                game=game,
+                position=1,
+                sidename='Alpha',
+                size=1,
+            )
+            second_side = self.models.GameSide.create(
+                game=game,
+                position=2,
+                sidename='Bravo',
+                size=1,
+            )
+            self.models.Lineup.create(
+                game=game,
+                gameside=first_side,
+                player=host_player,
+            )
+            self.models.Lineup.create(
+                game=game,
+                gameside=second_side,
+                player=target_player,
+            )
+
+            host_snapshot = game_join_workers.MemberSnapshot(
+                guild_id=guild_id,
+                discord_id=host_discord_id,
+                discord_name=host_member.name,
+                discord_nick=None,
+                display_name=host_member.name,
+                role_ids=(),
+                role_names=(),
+                level=3,
+                is_mod=False,
+                is_staff=False,
+                description=f'**{host_member.name}** (`{host_discord_id}`)',
+            )
+            target_snapshot = game_join_workers.MemberSnapshot(
+                guild_id=guild_id,
+                discord_id=target_discord_id,
+                discord_name=target_member.name,
+                discord_nick=None,
+                display_name=target_member.name,
+                role_ids=(),
+                role_names=(),
+                level=3,
+                is_mod=False,
+                is_staff=False,
+                description=(
+                    f'**{target_member.name}** (`{target_discord_id}`)'
+                ),
+            )
+            request = game_kick_workers.KickRequest(
+                game_id=game_id,
+                guild_id=guild_id,
+                prefix='$',
+                author=host_snapshot,
+                target=target_snapshot,
+                invoked_with='kick',
+            )
+
+            # The caller's connection is deliberately closed.  The kick must
+            # open and close its own connection in the pending-game worker.
+            self.models.db.close()
+            result = asyncio.run(game_kick_workers.run_kick(request))
+            self.models.db.connect(reuse_if_open=True)
+            self.assertEqual(result.game_id, game_id)
+            self.assertEqual(
+                self.models.Lineup.select().where(
+                    self.models.Lineup.game == game_id
+                ).count(),
+                1,
+            )
+            self.assertEqual(
+                self.models.Lineup.select().where(
+                    (self.models.Lineup.game == game_id)
+                    & (self.models.Lineup.player == target_player.id)
+                ).count(),
+                0,
+            )
+            self.assertEqual(
+                self.models.GameLog.select().where(
+                    self.models.GameLog.message.contains(suffix)
+                ).count(),
+                1,
+            )
+            committed_expiration = self.models.Game.get_by_id(
+                game_id
+            ).expiration
+            self.assertGreater(
+                committed_expiration,
+                datetime.datetime.now() + datetime.timedelta(hours=23),
+            )
+            self.assertLess(
+                committed_expiration,
+                datetime.datetime.now() + datetime.timedelta(hours=25),
+            )
+
+            # Re-add the target and inject the audit failure.  The lineup,
+            # log count, and already-committed expiration must all survive the
+            # worker transaction rollback.
+            self.models.Lineup.create(
+                game=game_id,
+                gameside=second_side.id,
+                player=target_player.id,
+            )
+            expiration_before_failure = self.models.Game.get_by_id(
+                game_id
+            ).expiration
+            log_count_before_failure = self.models.GameLog.select().where(
+                self.models.GameLog.message.contains(suffix)
+            ).count()
+            failing_log = mock.patch.object(
+                self.models.GameLog,
+                'write',
+                side_effect=RuntimeError('P5.3 audit failure'),
+            )
+            self.models.db.close()
+            with failing_log, self.assertRaisesRegex(
+                RuntimeError,
+                'P5.3 audit failure',
+            ):
+                asyncio.run(game_kick_workers.run_kick(request))
+            self.models.db.connect(reuse_if_open=True)
+            self.assertEqual(
+                self.models.Lineup.select().where(
+                    self.models.Lineup.game == game_id
+                ).count(),
+                2,
+            )
+            self.assertEqual(
+                self.models.GameLog.select().where(
+                    self.models.GameLog.message.contains(suffix)
+                ).count(),
+                log_count_before_failure,
+            )
+            self.assertEqual(
+                self.models.Game.get_by_id(game_id).expiration,
+                expiration_before_failure,
+            )
+        finally:
+            self.models.db.connect(reuse_if_open=True)
+            if game_id is not None:
+                self.models.Lineup.delete().where(
+                    self.models.Lineup.game == game_id
+                ).execute()
+                self.models.GameSide.delete().where(
+                    self.models.GameSide.game == game_id
+                ).execute()
+                self.models.Game.delete().where(
+                    self.models.Game.id == game_id
+                ).execute()
+            temporary_member_ids = self.models.DiscordMember.select(
+                self.models.DiscordMember.id
+            ).where(
+                self.models.DiscordMember.discord_id.in_(
+                    (host_discord_id, target_discord_id)
+                )
+            )
+            self.models.Player.delete().where(
+                self.models.Player.discord_member.in_(temporary_member_ids)
+            ).execute()
+            self.models.DiscordMember.delete().where(
+                self.models.DiscordMember.discord_id.in_(
+                    (host_discord_id, target_discord_id)
+                )
+            ).execute()
+            self.models.GameLog.delete().where(
+                self.models.GameLog.message.contains(suffix)
+            ).execute()
+            self.assertEqual(
+                self.models.Game.select().where(
+                    self.models.Game.id == game_id
+                ).count() if game_id is not None else 0,
+                0,
+            )
+            self.assertEqual(
+                self.models.DiscordMember.select().where(
+                    self.models.DiscordMember.discord_id.in_(
+                        (host_discord_id, target_discord_id)
+                    )
+                ).count(),
+                0,
+            )
+            self.assertEqual(
+                self.models.GameLog.select().where(
+                    self.models.GameLog.message.contains(suffix)
+                ).count(),
+                0,
+            )
+
     def test_bot_extensions_load_with_background_tasks_disabled(self):
         import bot as bot_module
 

@@ -8,7 +8,7 @@ import modules.exceptions as exceptions
 from modules.games import post_newgame_messaging
 from modules.league import broadcast_team_game_to_server
 from modules import game_open, game_open_workers
-from modules import game_join_leave, game_join_workers
+from modules import game_join_leave, game_join_workers, game_kick_workers
 import peewee
 import re
 import datetime
@@ -125,6 +125,28 @@ class matchmaking(commands.Cog):
             prefix=prefix,
         )
         return await game_join_leave.leave(request)
+
+    async def execute_kick(
+        self,
+        *,
+        game_id: int,
+        author_member,
+        target_member=None,
+        target_query: str | None = None,
+        invoked_with: str = 'kick',
+        prefix: str | None = None,
+    ):
+        """Run the shared pending-game kick application service."""
+
+        request = game_join_leave.build_kick_request(
+            game_id=game_id,
+            author_member=author_member,
+            target_member=target_member,
+            target_query=target_query,
+            invoked_with=invoked_with,
+            prefix=prefix,
+        )
+        return await game_join_leave.kick(request)
 
     def prefix_side_exists(self, *, game_id: int, guild_id: int, token: str) -> bool:
         """Disambiguate a legacy name token before the worker revalidates it."""
@@ -1086,39 +1108,47 @@ class matchmaking(commands.Cog):
     @settings.in_bot_channel()
     @models.is_registered_member()
     @commands.command(usage='game_id player')
-    async def kick(self, ctx, game: PolyMatch, player: str):
+    async def kick(self, ctx, game_id: str, player: str):
         """
         Kick a player from an open game
         **Example:**
         `[p]kick 25 koric`
         """
-        is_hosted_by, host = game.is_hosted_by(ctx.author.id)
-        if not is_hosted_by and not settings.is_staff(ctx.author):
-            host_name = f' **{host.name}**' if host else ''
-            helper_role = settings.guild_setting(ctx.guild.id, 'helper_roles')[0]
+        try:
+            parsed_game_id = int(str(game_id).strip('#'))
+        except (TypeError, ValueError):
+            return await ctx.send(f'Invalid Game ID "{game_id}".')
 
-            return await ctx.send(f'Only the game host{host_name} or a **@{helper_role}** can do this.')
+        try:
+            result = await self.execute_kick(
+                game_id=parsed_game_id,
+                author_member=ctx.author,
+                target_query=player,
+                invoked_with=ctx.invoked_with or 'kick',
+                prefix=ctx.prefix,
+            )
+        except game_kick_workers.PendingGameKickValidationError as exc:
+            return await ctx.send(str(exc))
+        except peewee.PeeweeException:
+            logger.exception('Database failure kicking game %s', parsed_game_id)
+            return await ctx.send(
+                f'Game {parsed_game_id} could not be changed because the '
+                'database operation failed. No public game effects were made.'
+            )
+        except Exception:
+            logger.exception('Unexpected failure kicking game %s', parsed_game_id)
+            return await ctx.send(
+                f'Game {parsed_game_id} could not be changed. No public game '
+                'effects were made.'
+            )
 
-        if not game.is_pending:
-            return await ctx.send(f'Game {game.id} has already started.')
-
-        lineup = game.player(name=player)
-
-        if not lineup:
-            return await ctx.send(f'Could not find a match for **{player}** in game {game.id}.')
-
-        if lineup.player.discord_member.discord_id == ctx.author.id:
-            return await ctx.send('Stop kicking yourself!')
-
-        await ctx.send(f'Removing **{lineup.player.name}** from the game.')
-        models.GameLog.write(game_id=game, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} kicked {models.GameLog.member_string(lineup.player.discord_member)}')
-        lineup.delete_instance()
-
-        if game.expiration < (datetime.datetime.now() + datetime.timedelta(hours=2)):
-            # This catches the case of kicking someone from a full game, so that the game wont immediately get purged due to not being full
-            game.expiration = (datetime.datetime.now() + datetime.timedelta(hours=24))
-            game.save()
-            await ctx.send(f'Game {game.id} expiration has been reset to 24 hours from now')
+        await game_join_leave.publish_kick_result(
+            result,
+            send=ctx.send,
+            card_destination=ctx,
+            guild=ctx.guild,
+            prefix=ctx.prefix,
+        )
 
     @settings.in_bot_channel()
     @commands.command(aliases=['opengames', 'novagames', 'nova'])

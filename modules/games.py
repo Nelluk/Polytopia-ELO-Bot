@@ -23,6 +23,7 @@ from modules import game_detail_views
 from modules import game_detail_workers
 from modules import game_join_leave
 from modules import game_join_workers
+from modules import game_kick_workers
 from modules.elo_jobs import EloJobConflict
 import peewee
 import modules.models as models
@@ -146,6 +147,12 @@ class polygames(commands.Cog):
     game_group = discord.app_commands.Group(
         name='game',
         description='Create, manage, and correct games.',
+        guild_only=True,
+    )
+    game_manage_group = discord.app_commands.Group(
+        name='manage',
+        description='Manage pending-game membership and lifecycle.',
+        parent=game_group,
         guild_only=True,
     )
     leaderboard_group = discord.app_commands.Group(
@@ -2274,6 +2281,75 @@ class polygames(commands.Cog):
             result.message,
             game_id=result.game_id,
             effect='leave output',
+        )
+
+    @game_manage_group.command(
+        name='kick',
+        description='Remove a player from an open game.',
+    )
+    @discord.app_commands.describe(
+        game_id='Open game from which to remove the player.',
+        member='Player to remove from the open game.',
+    )
+    async def game_manage_kick_slash(
+        self,
+        interaction: discord.Interaction,
+        game_id: int,
+        member: discord.Member,
+    ):
+        """Remove a pending-game member through the shared kick worker."""
+
+        await interaction.response.defer()
+        prefix = settings.guild_setting(
+            interaction.guild.id,
+            'command_prefix',
+        )
+        if not await self._native_pending_game_channel_allowed(interaction):
+            return
+
+        matchmaking_cog = self.bot.get_cog('matchmaking')
+        if matchmaking_cog is None:
+            return await interaction.followup.send(
+                'The kick-game command handler is unavailable.',
+                ephemeral=True,
+            )
+        try:
+            result = await matchmaking_cog.execute_kick(
+                game_id=game_id,
+                author_member=interaction.user,
+                target_member=member,
+                invoked_with='/game manage kick',
+                prefix=prefix,
+            )
+        except game_kick_workers.PendingGameKickValidationError as exc:
+            return await interaction.followup.send(
+                str(exc),
+                ephemeral=True,
+            )
+        except peewee.PeeweeException:
+            logger.exception('Database failure in native kick %s', game_id)
+            return await interaction.followup.send(
+                'The game could not be changed because the database operation '
+                'failed. No public game effects were made.',
+                ephemeral=True,
+            )
+        except Exception:
+            logger.exception('Unexpected failure in native kick %s', game_id)
+            return await interaction.followup.send(
+                'The game could not be changed. No public game effects were '
+                'made.',
+                ephemeral=True,
+            )
+
+        await game_join_leave.publish_kick_result(
+            result,
+            send=lambda content: interaction.followup.send(
+                content,
+                ephemeral=False,
+            ),
+            card_destination=interaction.followup,
+            guild=interaction.guild,
+            prefix=prefix,
         )
 
     @game_group.command(
