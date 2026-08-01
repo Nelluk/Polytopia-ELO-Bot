@@ -356,6 +356,14 @@ bot-channel/registration checks remain unchanged. This is a direct typed
 mutation, not a Components workspace; the interaction rules above do not make
 Components a default presentation for simple lifecycle actions.
 
+P5.4 implementation state: `/game start game_id name` is implemented locally
+pending Tier-3 review. It is a direct required integer/string action that
+defers before the shared bounded preflight/transition workers and uses the
+classic dense production-style game card and post-commit lifecycle effects;
+it has no modal, platform selector, or Components workspace. `$start` and
+`$startgame` remain the canonical prefix entry points and share the same
+bounded transition service.
+
 ## Complete system-wide capability map
 
 The same conventions apply outside `/game`: common reads/actions stay direct,

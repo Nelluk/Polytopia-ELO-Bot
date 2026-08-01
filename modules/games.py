@@ -24,6 +24,7 @@ from modules import game_detail_workers
 from modules import game_join_leave
 from modules import game_join_workers
 from modules import game_kick_workers
+from modules import game_start, game_start_workers
 from modules.elo_jobs import EloJobConflict
 import peewee
 import modules.models as models
@@ -1849,6 +1850,79 @@ class polygames(commands.Cog):
             channel_id=interaction.channel_id or 0,
             game_id=game_id,
             slash=True,
+        )
+
+    @game_group.command(
+        name='start',
+        description='Start a full game after creating it in Polytopia.',
+    )
+    @discord.app_commands.describe(
+        game_id='Full open game to start.',
+        name='Exact game name shown in Polytopia.',
+    )
+    async def game_start_slash(
+        self,
+        interaction: discord.Interaction,
+        game_id: int,
+        name: str,
+    ):
+        """Start through the same bounded transition used by the prefix."""
+
+        await interaction.response.defer()
+        prefix = settings.guild_setting(
+            interaction.guild.id,
+            'command_prefix',
+        )
+        if not await self._native_pending_game_channel_allowed(interaction):
+            return
+
+        matchmaking_cog = self.bot.get_cog('matchmaking')
+        if matchmaking_cog is None:
+            return await interaction.followup.send(
+                'The start-game command handler is unavailable.',
+                ephemeral=True,
+            )
+        try:
+            result = await matchmaking_cog.execute_start(
+                game_id=game_id,
+                guild=interaction.guild,
+                requester=interaction.user,
+                name=name,
+                prefix=prefix,
+                invoked_with='/game start',
+            )
+        except game_start_workers.GameStartValidationError as exc:
+            return await interaction.followup.send(
+                str(exc),
+                ephemeral=True,
+            )
+        except peewee.PeeweeException:
+            logger.exception('Database failure in native start %s', game_id)
+            return await interaction.followup.send(
+                'The game could not be started because the database operation '
+                'failed. No public Discord effects were made.',
+                ephemeral=True,
+            )
+        except exceptions.CheckFailedError as exc:
+            logger.exception('Start validation failure in native %s', game_id)
+            return await interaction.followup.send(str(exc), ephemeral=True)
+        except Exception:
+            logger.exception('Unexpected failure in native start %s', game_id)
+            return await interaction.followup.send(
+                'The game could not be started. No public Discord effects were '
+                'made.',
+                ephemeral=True,
+            )
+
+        await game_start.publish_start_result(
+            result,
+            output_context=game_start.native_output_context(
+                interaction,
+                prefix=prefix,
+            ),
+            guild=interaction.guild,
+            prefix=prefix,
+            bot_guilds=settings.bot.guilds,
         )
 
     @game_group.command(

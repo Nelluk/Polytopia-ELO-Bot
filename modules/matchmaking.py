@@ -9,6 +9,7 @@ from modules.games import post_newgame_messaging
 from modules.league import broadcast_team_game_to_server
 from modules import game_open, game_open_workers
 from modules import game_join_leave, game_join_workers, game_kick_workers
+from modules import game_start, game_start_workers
 import peewee
 import re
 import datetime
@@ -147,6 +148,27 @@ class matchmaking(commands.Cog):
             prefix=prefix,
         )
         return await game_join_leave.kick(request)
+
+    async def execute_start(
+        self,
+        *,
+        game_id: int,
+        guild,
+        requester,
+        name: str | None,
+        prefix: str | None = None,
+        invoked_with: str = 'start',
+    ):
+        """Run the shared bounded pending-to-started transition."""
+
+        return await game_start.execute_start(
+            game_id=game_id,
+            guild=guild,
+            requester=requester,
+            name=name,
+            prefix=prefix,
+            invoked_with=invoked_with,
+        )
 
     def prefix_side_exists(self, *, game_id: int, guild_id: int, token: str) -> bool:
         """Disambiguate a legacy name token before the worker revalidates it."""
@@ -1308,7 +1330,7 @@ class matchmaking(commands.Cog):
     @settings.in_bot_channel()
     @models.is_registered_member()
     @commands.command(aliases=['startgame'], usage='game_id Name of Poly Game')
-    async def start(self, ctx, game: PolyMatch = None, *, name: str = None):
+    async def start(self, ctx, game_id: str = None, *, name: str = None):
         """
         Start a full game and track it for ELO
         Use this command after you have created the game in Polytopia.
@@ -1316,100 +1338,55 @@ class matchmaking(commands.Cog):
         `[p]startgame 100 Fields of Fire`
         """
 
-        syntax = (f'**Example usage**:\n__`{ctx.prefix}start 1025 Name of Game`__')
+        syntax = (
+            f'**Example usage**:\n__`{ctx.prefix}start 1025 Name of Game`__'
+        )
 
-        if not game:
-            return await ctx.send(f'No game ID provided. Use `{ctx.prefix}opengames me` to list open games you have waiting to start.\n{syntax}')
+        if not game_id:
+            return await ctx.send(
+                f'No game ID provided. Use `{ctx.prefix}opengames me` to list '
+                f'open games you have waiting to start.\n{syntax}'
+            )
 
-        is_hosted_by, host = game.is_hosted_by(ctx.author.id)
-        if not is_hosted_by and not settings.is_staff(ctx.author) and not game.is_created_by(ctx.author.id):
-            creating_player = game.creating_player()
-            helper_role = settings.guild_setting(ctx.guild.id, 'helper_roles')[0]
-
-            if creating_player and host:
-                if host != creating_player:
-                    return await ctx.send(f'Only the game host **{host.name}**, creating player **{creating_player.name}**, or a **@{helper_role}** can do this.')
-                else:
-                    return await ctx.send(f'Only the game host **{host.name}** or a **@{helper_role}** can do this.')
-            elif creating_player:
-                return await ctx.send(f'Only the creating player **{creating_player.name}**, or a **@{helper_role}** can do this.')
-            elif host:
-                return await ctx.send(f'Only the game host **{host.name}** or a **@{helper_role}** can do this.')
-            else:
-                return await ctx.send(f'Only the game host or a **@{helper_role}** can do this.')
-
-        if not name:
-            return await ctx.send(f'Game name is required. The game must be created **in Polytopia** first to get the correct name.\n{syntax}')
-
-        if not utilities.is_valid_poly_gamename(input=name):
-            if settings.get_user_level(ctx.author) <= 3:
-                return await ctx.send('That name looks made up. :thinking: You need to manually create the game __in Polytopia__, come back and input the name of the new game you made.\n'
-                    f'You can use `{ctx.prefix}codes {game.id}` to get the code of each player in this game in an easy-to-copy format.')
-            await ctx.send('*Warning:* That game name looks made up - you are allowed to override due to your user level.')
-
-        if not game.is_pending:
-            return await ctx.send(f'Game {game.id} has already started with name **{game.name}**')
-
-        players, capacity = game.capacity()
-        if players != capacity:
-            return await ctx.send(f'Game {game.id} is not full.\nCapacity {players}/{capacity}.')
-
-        sides, mentions = [], []
-
-        for side in game.ordered_side_list():
-            current_side = []
-            for gameplayer in side.ordered_player_list():
-                guild_member = ctx.guild.get_member(gameplayer.player.discord_member.discord_id)
-                if not guild_member:
-                    await ctx.send(f'Player *{gameplayer.player.name}* not found on this server. (Maybe they left?) Game will still be created.')
-                    current_side.append(None)
-                else:
-                    current_side.append(guild_member)
-                    mentions.append(guild_member.mention)
-            sides.append(current_side)
+        raw_game_id = str(game_id).strip('#')
+        try:
+            parsed_game_id = int(raw_game_id)
+        except (TypeError, ValueError):
+            if raw_game_id.upper() == 'ID':
+                return await ctx.send(
+                    f'Invalid Game ID "**{raw_game_id}**". Use the numeric '
+                    'game ID *only*.'
+                )
+            return await ctx.send(f'Invalid Game ID "**{raw_game_id}**".')
 
         try:
-            teams_for_each_discord_member, list_of_final_teams = models.Game.pregame_check(discord_groups=sides,
-                                                                guild_id=ctx.guild.id,
-                                                                require_teams=settings.guild_setting(ctx.guild.id, 'require_teams'))
-        except (peewee.PeeweeException, exceptions.CheckFailedError) as e:
-            logger.warning(f'Error creating new game: {e}')
-            return await ctx.send(f'Error creating new game: {e}')
+            result = await self.execute_start(
+                game_id=parsed_game_id,
+                guild=ctx.guild,
+                requester=ctx.author,
+                name=name,
+                prefix=ctx.prefix,
+                invoked_with=ctx.invoked_with,
+            )
+        except game_start_workers.GameStartValidationError as exc:
+            return await ctx.send(str(exc))
+        except (peewee.PeeweeException, exceptions.CheckFailedError) as exc:
+            logger.exception('Error starting game %s', parsed_game_id)
+            return await ctx.send(f'Error starting game: {exc}')
+        except Exception:
+            logger.exception('Unexpected error starting game %s', parsed_game_id)
+            return await ctx.send(
+                'Error starting game. No Discord announcements, channels, or '
+                'other post-commit effects were attempted.'
+            )
 
-        with models.db.atomic():
-            # Convert game from pending matchmaking session to in-progress game
-            for team_group, allied_team, side in zip(teams_for_each_discord_member, list_of_final_teams, game.ordered_side_list()):
-                side_players = []
-                for team, lineup in zip(team_group, side.ordered_player_list()):
-                    logger.debug(f'setting player {lineup.player.id} {lineup.player.name} to team {team}')
-                    lineup.player.team = team
-                    lineup.player.save()
-                    side_players.append(lineup.player)
-
-                if len(side_players) > 1:
-                    squad = models.Squad.upsert(player_list=side_players, guild_id=ctx.guild.id)
-                    side.squad = squad
-
-                if not side.team:
-                    # skips setting team if side.team is already set, via $opengames preset_teams list
-                    side.team = allied_team
-                side.save()
-
-            game.name = name
-            game.date = datetime.datetime.today()
-            game.is_pending = False
-            game.save()
-
-            game.update_league_fields()
-            if game.league_season:
-                league_warning = f'\n:warning: Detected season game information. Status is:\nGame season: `{game.league_season}`, Team tier: `{game.league_tier}`,  Playoff game? `{game.league_playoff}`'
-            else:
-                league_warning = ''
-
-        logger.info(f'Game {game.id} closed and being tracked for ELO{league_warning}')
-        models.GameLog.write(game_id=game, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} started game with name *{discord.utils.escape_markdown(game.name)}*')
-        await game.update_external_broadcasts(deleted=False)
-        await post_newgame_messaging(ctx, game=game)
+        await game_start.publish_start_result(
+            result,
+            output_context=ctx,
+            guild=ctx.guild,
+            prefix=ctx.prefix,
+            bot_guilds=settings.bot.guilds,
+        )
 
     async def task_dm_game_creators(self):
         await self.bot.wait_until_ready()
