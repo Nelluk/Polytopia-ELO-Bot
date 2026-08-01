@@ -344,7 +344,7 @@ longer be retained.
 |---|---|---|---|---|
 | C-001 `/newgame` | `/game record` accepts one roster string using the established `vs` grammar, infers arbitrary/unequal side sizes, preserves the one-opponent requester shortcut, and requires an interaction preview before creation. Edit sides provides native member selection plus add/remove-side controls. | The former two-sided 1v1–4v4 and raw-text-edit limits are resolved without message-content intent. Initial text tokens can still be ambiguous when users do not supply mentions, but the parsed draft can be corrected with native selectors. Per-game Mobile/Steam input was deliberately removed because full cross-play makes it obsolete. | If initial parsing remains troublesome, allow `/game record` to open an empty guided draft without requiring a seed roster. | Shape and edit gaps resolved by P2.3; initial parser usability remains for beta evaluation |
 | C-002 `/player show` and player-card prefixes | The shared workspace preserves identity, canonical name, current/peak/all-time local/global ratings, records, ranks, timezone, team/squad context, and paged game sections/filters. | The legacy generated rating-history image, requester head-to-head follow-up, trophies, favorite-tribe summary, and pre-Moonrise miscellaneous statistics are not yet displayed after the prefix commands deep-link the workspace. These become unavailable from those commands even while message intent remains enabled. | Add a bounded analytics/details section and media attachment renderer after observing which legacy details staff/users still value; keep graph generation outside the event loop. | Open for beta/user review in P7.7 |
-| C-003 `/game open` | P5.1 implements arbitrary common size shapes plus a requester-controlled ranked/expiration/notes preview, confirmation/cancel, and public post-commit completion. Native creation is canonical cross-play and has no platform choice; it follows the configured unranked-channel default and accepts either existing legacy account-name field. | Advanced role-locked sides and mention-restricted recruitment remain prefix-only in this bounded unit. If message content intent were later removed before a native role/member editor exists, those uncommon restrictions would be unavailable; prefix support remains unchanged. | Add side-by-side native role selectors and an allowed-member editor to the open-game draft after the shared join-eligibility service exists. | Implemented for P5.1; beta review pending |
+| C-003 `/game open` | P5.1 implements arbitrary common size shapes plus a requester-controlled ranked/expiration/notes preview, confirmation/cancel, and public post-commit completion. Native and retained prefix aliases use one canonical cross-play creation path, follow the configured unranked-channel default, and accept either existing account-name field; only the legacy `is_mobile=True` storage value remains for compatibility. | Advanced role-locked sides and mention-restricted recruitment remain prefix-only in this bounded unit. Shared typed/raw join eligibility now accepts either account-name field and ignores historical `is_mobile` platform meaning. If message content intent were later removed before a native role/member editor exists, those uncommon restrictions would be unavailable; prefix support remains unchanged. | Add side-by-side native role selectors and an allowed-member editor to the open-game draft after the shared join-eligibility service exists. | Implemented for P5.1; beta review pending |
 
 Every later slash conversion must add a row when parity is intentionally
 reduced. If there is no compromise, its unit evidence should explicitly say
@@ -1818,7 +1818,7 @@ Status: **In progress**
 
 ### P5.1 — Atomic open-game creation and `/game open`
 
-Status: **Implemented; beta acceptance pending**
+Status: **Implemented; parity hardening complete; beta acceptance pending**
 
 Risk tier: **Tier 3**. This unit creates a pending game graph and sends public
 Discord effects.
@@ -1836,6 +1836,8 @@ Commit(s):
 - `698e775` — Correct native channel defaults and cross-play account-name
   validation.
 - `622a444` — Add the native public-completion join reaction.
+- `a48fff4` — Accept short game IDs for reaction joins.
+- `04cb846` — Harden cross-play parity across open-game creation and joins.
 
 Interface and compatibility:
 
@@ -1854,13 +1856,17 @@ Interface and compatibility:
   expanding this unit into the entire join-eligibility redesign.
 - initialize native ranked state from the configured unranked-game channel,
   while retaining the requester toggle;
-- use an explicit primitive cross-play platform-validation mode for native
-  requests. Native creation stores the canonical `is_mobile=True` value but
-  accepts either existing mobile or Steam account name; legacy prefix requests
-  retain their exact platform-specific validation.
+- treat `/game open` and all retained prefix aliases as the same canonical
+  cross-play creation path. The stored `is_mobile=True` value is temporary
+  schema compatibility only; `opensteam` and `steam_game_channel` do not
+  select a different platform for newly opened games. Host validation accepts
+  either existing account-name field and rejects only when both are absent,
+  with canonical registration guidance.
 - add the ⚔️ reaction explicitly to the native public completion after the
   interaction webhook returns its message; prefix completion retains the
-  existing message-listener reaction path.
+  existing message-listener reaction path. If the native reaction mutation
+  fails, the committed game ID is also surfaced in an operator-visible public
+  reconciliation warning.
 
 Database and concurrency boundary:
 
@@ -1884,6 +1890,11 @@ Required validation:
 - simulated slow creation leaves the event loop responsive;
 - concurrent open attempts cannot bypass host limits;
 - no public Discord creation/broadcast effect after database failure;
+- explicit role-lock and mention-restricted prefix parity, including shared
+  typed/raw join eligibility and raw-reaction add/remove behavior for short
+  game IDs;
+- cross-play host/joiner matrices for mobile-only, Steam-only, both-name, and
+  neither-name accounts, including historical `is_mobile` values;
 - requester-only preview controls, cancel-without-mutation, timeout/rerun
   guidance, and public post-commit completion;
 - slash registration under the existing `/game` root and unchanged prefix
@@ -1893,26 +1904,31 @@ Required validation:
 
 Validation evidence:
 
-- Focused P5.1 plus taxonomy coverage: 27 passed, including parser/mixed
-  `v`/`vs`/FFA shapes, alias and native registration, immutable boundaries,
-  worker connection closure, side/lineup/log rollback, host-limit
-  serialization, slow-worker responsiveness, exception/cancellation cleanup,
-  requester-only controls, cancel/timeout, immediate defer, public
-  post-commit delivery, Discord-failure reconciliation logging, native
-  unranked-channel defaults, native Steam-only acceptance, native missing-name
-  guidance, unchanged prefix Mobile/Steam validation, and native completion
-  reaction delivery.
-- Complete offline suite: 280 passed with 13 explicitly gated database tests
-  skipped; syntax compilation and `git diff --check` passed.
-- Oversight subsequently reran the unchanged pre-correction gated suite: 13
-  tests ran, 12 passed, and the operator-managed fixture round trip was
-  skipped. The safety gates confirmed `POLYBOT_ENV=development`, database
-  `polytopia_dev`, role `polybot_dev`, and disabled background tasks/API.
-  This evidence applies to the prior implementation, not to `698e775`.
-- Oversight validated the pre-reaction corrected HEAD with the gated command against
-  `development` / `polytopia_dev` / `polybot_dev`: 13 tests ran, 12 passed,
-  and one operator-managed fixture round trip was skipped. The corrected
-  open-game worker integration test passed, and no cleanup was required.
+- The earlier P5.1 focused checkpoint passed 27 tests; its intermediate
+  explicit platform-validation/native-versus-prefix wording is superseded by
+  the cross-play correction in `04cb846`.
+- Follow-up focused command (`tests.test_game_open` plus
+  `tests.test_slash_taxonomy`): 42 passed. Coverage includes all four prefix
+  aliases and channel/option preservation, native defaulting and public
+  reaction delivery, explicit/mentioned role locks with team preassignment
+  and requester placement, safe member-mention restrictions, typed/raw join
+  delegation, three-digit reaction add/remove cleanup, cross-play name
+  matrices, worker rollback/concurrency/cancellation, and public reaction
+  reconciliation with the committed game ID.
+- Complete offline discovery: 295 tests ran, 280 passed, 2 unrelated
+  date-bound game-detail fixture tests failed because their hard-coded
+  `2026-08-01 00:00:00` expiration is now in the past, and 13 explicitly
+  gated database tests were skipped. The P5.1 focused suite, compilation, and
+  `git diff --check` passed; no game-detail files were changed.
+- Oversight previously validated the pre-follow-up corrected HEAD with the
+  gated command against `development` / `polytopia_dev` / `polybot_dev`: 13
+  tests ran, 12 passed, and one operator-managed fixture round trip was
+  skipped. The corrected open-game worker integration test passed, and no
+  cleanup was required. This evidence does not claim validation of
+  `04cb846`.
+- After `04cb846`, the same gated command was attempted through the existing
+  safety gate but PostgreSQL was unavailable at `localhost:5432`; no gated
+  result or cleanup claim is made for this follow-up.
 - The reaction-only correction in `622a444` was not gated-rerun; its focused
   and complete offline suites passed, and no live Discord work was done.
 - No beta process was launched, no Discord command inspection/synchronization
@@ -1929,13 +1945,19 @@ Remaining limitations:
   if it becomes a demonstrated responsiveness concern.
 - There is no durable reconciliation queue for a Discord failure. The shared
   presenter logs the committed game ID and attempts an operator-visible
-  warning; a failed warning send still requires operator log review.
+  warning for completion, reaction, and team-broadcast failures; a failed
+  warning send still requires operator log review.
+- The legacy Boolean and historical platform-filter/display readers remain
+  until a separately gated schema/data cleanup. New open-game creation and
+  `Game.join` eligibility no longer infer platform requirements from that
+  Boolean.
 - Tier 3 beta acceptance remains outstanding; live Discord work remains a
   separate approval.
 
-Next action: obtain separate approval for development-guild command
-inspection/sync and beta smoke. Do not merge this branch into the accumulation
-branch until that review and approval are complete.
+Next action: keep beta acceptance pending and obtain separate approval for
+development-guild command inspection/sync and beta smoke. Do not merge this
+branch into the accumulation branch until that review and approval are
+complete.
 
 Out of scope: join/leave/kick/start mutation refactors, reaction-listener
 rewrites, background purge jobs, platform-field schema cleanup, production
@@ -3539,6 +3561,9 @@ database Boolean at its canonical compatibility value. The Boolean and
 historical rows remain until a separately gated schema/data cleanup can
 retire all readers safely. Prefix aliases remain registered during transition
 but must not imply a meaningful platform difference in newly recorded games.
+P5.1 applies this rule to open-game creation and eligibility: the retained
+`is_mobile` value is canonical compatibility storage only, and both hosting
+and joining accept either stored account-name field.
 
 ### D-028 — Use a roster string plus component review for `/game record`
 
@@ -3804,6 +3829,46 @@ production deployment.
 - The prior gated evidence applies to the pre-reaction corrected HEAD; the
   reaction-only commit was not gated-rerun. No live Discord work, beta launch,
   production operation, dependency change, merge, or push occurred.
+
+### 2026-08-01 — P5.1 cross-play parity hardening follow-up
+
+- Recorded `a48fff4`, which accepts short three-digit game IDs in the raw
+  reaction-join parser. During the parity review, a Steam-only joiner exposed
+  the related bug that `Game.join` still interpreted historical `is_mobile`
+  values as a platform requirement and rejected players without
+  `polytopia_name`.
+- Superseded the intermediate P5.1 platform-validation distinction in
+  `04cb846`: `/game open` and `opengame`/`openmatch`/`open`/`opensteam` now
+  create one canonical cross-play game, store only the compatibility
+  `is_mobile=True` value, and accept either `polytopia_name` or `name_steam`
+  for hosts and joiners. `opensteam` and `steam_game_channel` no longer
+  select platform behavior for new open games. Missing-both-name guidance is
+  canonical and friend-name messaging never renders `None`.
+- The parity matrix is covered offline: all four aliases preserve arbitrary
+  size, ranked/unranked channel defaults, explicit unranked, expiration, and
+  notes; explicit and mentioned role locks preserve side IDs/names, team
+  preassignment, requester placement, warnings, mixed-form rejection, and
+  invalid positions; safe member mentions share the typed/raw `Game.join`
+  restriction; three-digit raw reaction add/remove paths reach shared join or
+  leave handling; role-locked results trigger team broadcast while ordinary
+  and native results do not; native reaction failure emits public committed-ID
+  reconciliation; and mobile-only, Steam-only, both-name, neither-name, and
+  historical Boolean matrices are exercised.
+- Code/test checkpoint: `04cb846`. The focused command ran 42 tests and all
+  42 passed. Complete offline discovery ran 295 tests: 280 passed, two
+  unrelated date-bound game-detail fixture tests failed on the current
+  `2026-08-01` date, and 13 gated tests were skipped. Compilation and
+  `git diff --check` passed.
+- The unchanged gated command was attempted after this correction through the
+  existing development / `polytopia_dev` / `polybot_dev` safety gate, but
+  PostgreSQL was unavailable at `localhost:5432`; no post-correction gated
+  result is claimed. Oversight's prior gated evidence (13 ran, 12 passed, one
+  operator-managed fixture round trip skipped, corrected open-game worker
+  integration passed, no cleanup required) remains recorded for the prior
+  corrected HEAD only.
+- No beta launch, Discord inspection/synchronization, production operation,
+  dependency change, merge, or push occurred. The accepted synchronous
+  post-commit team-broadcast reload remains a bounded limitation.
 
 ### 2026-07-31 — P7.9 final classic card accepted and integrated
 
