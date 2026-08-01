@@ -1964,7 +1964,7 @@ for prefix, slash, and reaction entry points.
 
 ### P5.2 — Atomic join/leave lifecycle and native commands
 
-Status: **Implemented locally; review findings addressed; beta/registration acceptance pending separate approval**
+Status: **Complete; beta accepted and integrated into the accumulation branch**
 
 Risk tier: **Tier 3**. This unit mutates pending-game lineups and must preserve
 role, capacity, host, ELO-range, restriction, and reaction semantics.
@@ -1973,8 +1973,8 @@ Branch/base: `codex/p5-2-game-join-leave` from exact clean base
 `f429525c06dd123795e34177c2fe4d5f8f3831fd`.
 
 Commit(s): implementation checkpoint `1ad1e89`; review-fix checkpoint
-`59a8950`; the roadmap close-out evidence is carried in the final follow-up
-commit on this branch.
+`59a8950`; roadmap evidence checkpoint `2a30eeb`; accumulation merge
+`8354353`.
 
 Objective: make join and leave one coherent pending-game application service
 used by prefix commands, native commands, and raw reaction handlers. Remove
@@ -2148,9 +2148,13 @@ Validation:
   temporary rows were removed, with no operator fixtures changed.
 - Explicit-venv syntax compilation and `git diff --check` passed.
 
-Beta/registration result: not run by explicit instruction. No Discord
-inspection, command synchronization, guild apply, beta launch/restart, or
-smoke test occurred.
+Beta/registration result: accepted on 2026-08-01. The explicit deployment
+tool updated only the `/game` root in development guild
+`478571892832206869`; `/elo`, `/leaderboard`, and `/player` were unchanged,
+and no global or other-guild scope was touched. The beta authenticated as
+**PolyELO Bot Beta** (`479029527553638401`). The user exercised the new
+join/leave behavior and reported it good. The task-owned beta then stopped
+cleanly before integration.
 
 Limitations:
 
@@ -2180,10 +2184,9 @@ remain available, and the canonical cross-play account-name rule is shared by
 all three entry-point families. The named-side preflight is an implementation
 disambiguator, not a reduced behavior path.
 
-Next action: Sol reviews the clean unit branch and the follow-up evidence.
-After review, obtain the separate explicit guild registration/beta approval,
-then integrate the committed unit into `codex/database-slash-modernization`;
-no integration is performed in this task.
+Next action: select the next bounded game-lifecycle unit. Keep the proposed
+interactive game-card enhancement as a separately scoped presentation/action
+unit; do not mix it into an unrelated database mutation refactor.
 
 Likely slash interfaces:
 
@@ -3869,7 +3872,58 @@ work. Prefix names and aliases remain unchanged during transition. This
 decision does not authorize wholesale registration, beta synchronization, or
 production deployment.
 
+### D-034 — Progressively enhance dense game cards with state-aware actions
+
+Status: Accepted as future game-card direction
+
+A future `/game show` presentation may add Components v2 controls when they
+make the current game-state workflow materially easier, but it must preserve
+the information density and readability of the established production game
+card. Controls supplement the proven card; they do not justify replacing it
+with a sparse layout or oversized decorative media.
+
+Candidate state-aware actions include:
+
+- pending/open games: Join, Leave, Edit/Manage for an authorized host, Start,
+  and refresh;
+- in-progress games: Declare Winner, show players, refresh, and staff/host
+  management where appropriate;
+- reported or completed games: Confirm Result or Undo Result for authorized
+  staff, history/log inspection, and refresh;
+- all states: link or navigate to the relevant player/game workspace without
+  requiring a large slash option matrix.
+
+A public Discord message has one shared component layout. It cannot normally
+show a different set of buttons to each viewer. Therefore controls should be
+selected from public game state, while every click independently reloads or
+revalidates mutable state and performs authoritative requester-specific
+permission checks. Unauthorized, stale, or no-longer-valid actions receive an
+ephemeral explanation. Visibility is a usability hint, never an authorization
+boundary.
+
+Prefer a reusable action-routing toolkit over game-card-specific database or
+permission logic. Buttons must call the same bounded services used by prefix
+and slash commands, preserve public competitive-state success output, avoid
+Discord awaits inside database transactions, and define timeout/refresh and
+post-commit reconciliation behavior. This direction is a separate bounded
+unit and does not reopen accepted P5.2 behavior.
+
 ## Progress log
+
+### 2026-08-01 — P5.2 beta accepted and integrated
+
+- Used the explicit guild-scoped deployment tool to update only `/game` in
+  development guild `478571892832206869`; `/elo`, `/leaderboard`, and
+  `/player` were unchanged and no global sync was possible.
+- Launched the reviewed checkpoint as **PolyELO Bot Beta**
+  (`479029527553638401`); the user accepted the join/leave smoke result.
+- Stopped the task-owned beta cleanly and merged
+  `codex/p5-2-game-join-leave` into the accumulation branch as `8354353`.
+- Accepted D-034 as future direction: retain the dense classic game card and
+  progressively add state-aware Components v2 actions with authoritative
+  per-click checks and ephemeral denials.
+- Left interactive game-card work as its own later presentation/action unit;
+  it does not alter P5.2 transaction or compatibility behavior.
 
 ### 2026-08-01 — P5.1 accepted and integrated; P5.2 planned
 
