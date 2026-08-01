@@ -425,7 +425,7 @@ check:
   `codex/p5-1-game-open`, based on exact clean base
   `d24aa6b5e64fba159a872eb565703465c79d712d`.
 
-Current unit: **P5.2 atomic join/leave lifecycle and native commands — Implemented locally; Sol review pending.**
+Current unit: **P5.2 atomic join/leave lifecycle and native commands — Implemented locally; review findings addressed; Sol follow-up review pending.**
 P8.0 is complete and integrated as `d6ee47c`, with explicit guild-only command
 deployment accepted in beta. Taxonomy v2.2 is provisionally accepted as the
 working implementation contract; minor wording refinements remain possible
@@ -1964,7 +1964,7 @@ for prefix, slash, and reaction entry points.
 
 ### P5.2 — Atomic join/leave lifecycle and native commands
 
-Status: **Implemented locally; beta/registration acceptance pending separate approval**
+Status: **Implemented locally; review findings addressed; beta/registration acceptance pending separate approval**
 
 Risk tier: **Tier 3**. This unit mutates pending-game lineups and must preserve
 role, capacity, host, ELO-range, restriction, and reaction semantics.
@@ -1972,8 +1972,9 @@ role, capacity, host, ELO-range, restriction, and reaction semantics.
 Branch/base: `codex/p5-2-game-join-leave` from exact clean base
 `f429525c06dd123795e34177c2fe4d5f8f3831fd`.
 
-Commit(s): implementation checkpoint `1ad1e89`; the roadmap close-out evidence
-is carried in the final follow-up commit on this branch.
+Commit(s): implementation checkpoint `1ad1e89`; review-fix checkpoint
+`59a8950`; the roadmap close-out evidence is carried in the final follow-up
+commit on this branch.
 
 Objective: make join and leave one coherent pending-game application service
 used by prefix commands, native commands, and raw reaction handlers. Remove
@@ -2006,6 +2007,9 @@ Database and concurrency boundary:
   primitive snapshots before worker submission;
 - reload the game, player, sides, lineups, host/team state, and mutable
   restrictions inside a worker-local Peewee connection;
+- reject third-party placement below author level 4 inside the worker before
+  any game/player lookup or mutation; adapters retain matching early feedback
+  but are not authoritative for this rule;
 - revalidate pending state, membership, capacity, selected-side availability,
   role/member restrictions, permission-derived overrides, bans, team rules,
   backlog limits, and local/global ELO ranges inside the worker;
@@ -2102,8 +2106,12 @@ Implementation evidence:
   output, full-game notices, and reconciliation warnings are public.
 - Inactive-role removal, embeds, full-game/host notices, reaction cleanup,
   and messages occur after commit. Database failures make no Discord mutation;
-  post-commit Discord failures include the committed game ID and an operator
-  reconciliation warning.
+  post-commit Discord failures include the committed game ID, an operator
+  reconciliation warning, and do not suppress later public reconciliation
+  attempts.
+- Prefix/native host-leave guidance preserves configured-prefix `$delete ID`
+  output; reaction leave retains its legacy generic `delete` guidance and
+  reaction-specific output.
 - Join eligibility is cross-play: historical `Game.is_mobile` values do not
   select a mode, and either retained `polytopia_name` or `name_steam` is
   accepted. New guidance uses one canonical “Polytopia account name”; no new
@@ -2120,15 +2128,24 @@ Files changed:
 
 Validation:
 
-- Focused P5.2 service/adapter suite: 23 passed.
+- Focused P5.2 service/adapter suite after review fixes: 29 passed, including
+  direct worker tests for below-level-4 third-party denial and level-4
+  allowance, host-leave parity, and representative prefix/native send
+  failures.
 - Focused compatibility and taxonomy suites: `tests.test_game_open` 37
   passed; `tests.test_slash_taxonomy` 5 passed.
-- Complete offline discovery: 318 passed, with 13 unchanged gated database
-  tests skipped.
-- Gated development-database suite: 13 tests ran, 12 passed, and one
+- Combined focused run: 71 passed.
+- Complete offline discovery: 325 passed, with 14 gated database tests
+  skipped.
+- Gated development-database suite: 14 tests ran, 13 passed, and one
   operator-managed fixture round trip skipped. The unchanged safety gate
   confirmed `POLYBOT_ENV=development`, database `polytopia_dev`, role
   `polybot_dev`, and disabled background/API/Bullet operations.
+- The gated `test_join_leave_worker_real_graph_and_audit_rollback` exercised
+  the real worker executor connection against Game, GameSide, Lineup, Player,
+  and GameLog rows for join then leave; an injected GameLog failure rolled the
+  attempted join back to the committed lineup/log state. Its UUID-marked
+  temporary rows were removed, with no operator fixtures changed.
 - Explicit-venv syntax compilation and `git diff --check` passed.
 
 Beta/registration result: not run by explicit instruction. No Discord
@@ -2142,6 +2159,12 @@ Limitations:
   commits; reload and send failures are surfaced with the committed game ID
   for reconciliation. A future DTO/card-render worker can remove this last
   synchronous post-commit read.
+- Public text publishing now catches prefix/native/reaction full-game,
+  host-mismatch, join, leave-warning, leave-output, and reaction-fallback
+  failures, logs the committed game ID, attempts a public reconciliation
+  warning, and continues with later effects. There is still no durable
+  reconciliation queue; if both the original send and warning fail, operator
+  log review is required.
 - The legacy raw-message parser and the prefix named-side disambiguation use
   small synchronous preflight reads before worker submission. The worker
   remains authoritative and revalidates the game and selected side inside its
@@ -2157,10 +2180,10 @@ remain available, and the canonical cross-play account-name rule is shared by
 all three entry-point families. The named-side preflight is an implementation
 disambiguator, not a reduced behavior path.
 
-Next action: Sol reviews this clean unit branch. After review, obtain the
-separate explicit guild registration/beta approval, then integrate the
-committed unit into `codex/database-slash-modernization`; no integration is
-performed in this task.
+Next action: Sol reviews the clean unit branch and the follow-up evidence.
+After review, obtain the separate explicit guild registration/beta approval,
+then integrate the committed unit into `codex/database-slash-modernization`;
+no integration is performed in this task.
 
 Likely slash interfaces:
 
@@ -3885,6 +3908,34 @@ production deployment.
   dependency change, schema change, push, merge, or PR occurred.
 - Next: Sol review of the clean committed unit branch, followed by separately
   approved guild registration/beta work and later accumulation integration.
+
+### 2026-08-01 — P5.2 Tier-3 review findings addressed
+
+- Addressed the follow-up review in `59a8950` on
+  `codex/p5-2-game-join-leave`: third-party placement authorization is now
+  enforced by the worker before database access, with direct below-level-4
+  denial and level-4 allowance tests.
+- Added a shared post-commit public-message presenter. Prefix, native, and
+  reaction full-game/host-mismatch, join, leave-warning, leave-output, and
+  reaction-fallback sends log the committed game ID, attempt a public
+  reconciliation warning, and continue later effects after a send failure.
+- Restored invocation-specific host-leave parity: configured-prefix
+  `$delete GAME_ID` guidance remains for prefix/native calls while reaction
+  output retains its legacy generic `delete` wording and game-ID message.
+- Added the real gated PostgreSQL round trip and rollback proof. The existing
+  unchanged gate ran 14 tests: 13 passed and one operator-managed fixture
+  round trip skipped, with `POLYBOT_ENV=development`, `polytopia_dev`,
+  `polybot_dev`, and background/API/Bullet-disabled checks confirmed. The
+  P5.2 test used the real worker executor and Game/GameSide/Lineup/Player/
+  GameLog graph, then injected GameLog failure and verified rollback and
+  cleanup without changing operator fixtures.
+- Final evidence: focused P5.2 29 passed; combined focused join/open/taxonomy
+  run 71 passed; complete offline discovery 325 passed with 14 gated skips;
+  explicit-venv compilation and `git diff --check` passed.
+- Beta launch, Discord inspection, command plan/apply/synchronization, guild
+  registration, production access, dependency changes, schema work, push,
+  merge, and PR actions remain not run. Next: Sol follow-up review and the
+  separately approved integration/registration decision.
 
 ### 2026-07-31 — Taxonomy v2.2 accepted and P5.1 designed
 
