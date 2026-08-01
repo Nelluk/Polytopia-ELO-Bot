@@ -2483,10 +2483,13 @@ background reminder/purge loops, platform/schema cleanup, dependency changes,
 Discord apply/beta launch, production, push, PR, merge, or sudo without
 separate approval.
 
-Runtime/acceptance state: **Tier-3 review passed; pending beta acceptance.**
-The reviewed command tree has not yet been applied and no beta has yet been
-launched from the reviewed checkpoint. No production checkout/service/database
-was touched, and no operator fixture was seeded or cleaned by this unit.
+Runtime/acceptance state: **Beta running; pending user acceptance.** The
+explicit deployment tool updated only the `game` root in development guild
+`478571892832206869`; `elo`, `leaderboard`, and `player` were unchanged and no
+global scope was touched. The beta authenticated as application
+`479029527553638401` from the reviewed checkpoint with background tasks
+disabled. No production checkout/service/database was touched, and no operator
+fixture was seeded or cleaned by this unit.
 
 Known limitations: the retained post-commit seams above still deserve future
 bounded extraction; no live Discord/mobile/desktop smoke was performed. D-034
@@ -4225,7 +4228,11 @@ unit and does not reopen accepted P5.2 behavior.
   `development`/`polytopia_dev`/`polybot_dev`; its operator-fixture round trip
   skipped to preserve the existing fixture set.
 - Status advanced to Tier-3 review passed, pending the separately approved
-  development-guild apply and beta smoke. No integration or production action
+  development-guild apply and beta smoke. The approved apply subsequently
+  updated only the `game` root in guild `478571892832206869`, preserving the
+  other three roots and prohibiting global sync. The beta then authenticated
+  as the expected development application with background tasks disabled and
+  remains running for user acceptance. No integration or production action
   occurred.
 
 ### 2026-08-01 — P5.4 pending-to-started transition planned
