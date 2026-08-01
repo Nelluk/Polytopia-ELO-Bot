@@ -425,8 +425,7 @@ check:
   `codex/p5-1-game-open`, based on exact clean base
   `d24aa6b5e64fba159a872eb565703465c79d712d`.
 
-Current unit: **P5.4 atomic pending-to-started game transition — Beta accepted;
-pending accumulation integration.**
+Current unit: **P5.4 atomic pending-to-started game transition — Complete.**
 P8.0 is complete and integrated as `d6ee47c`, with explicit guild-only command
 deployment accepted in beta. Taxonomy v2.2 is provisionally accepted as the
 working implementation contract; minor wording refinements remain possible
@@ -2326,7 +2325,7 @@ unit.
 
 ### P5.4 — Atomic pending-to-started game transition
 
-Status: **Beta accepted; pending accumulation integration**
+Status: **Complete**
 
 Risk tier: **Tier 3**. Starting a game changes its lifecycle state and mutates
 player teams, squads, sides, league metadata, and audit history before several
@@ -2497,9 +2496,10 @@ Known limitations: the retained post-commit seams above still deserve future
 bounded extraction; no live Discord/mobile/desktop smoke was performed. D-034
 interactive card actions remain intentionally unimplemented.
 
-Next action: integrate the reviewed and beta-accepted branch into
-`codex/database-slash-modernization`, mark P5.4 Complete there, and select the
-next bounded unit. Retain development game `321` unless separately cleaned up.
+Integration: merged into `codex/database-slash-modernization` as `e6a04fc`.
+
+Next action: select the next bounded modernization unit from the remaining
+flow-first backlog. Retain development game `321` unless separately cleaned up.
 
 Exit: clean implementation/test and roadmap-evidence checkpoints plus the
 complete Luna Tier-3 handoff.
@@ -4225,6 +4225,9 @@ unit and does not reopen accepted P5.2 behavior.
   result without reporting a regression.
 - Stopped the foreground beta cleanly. Game `321` remains intentionally
   available in `polytopia_dev`; no fixture cleanup or production action ran.
+- Integrated the reviewed and accepted unit into
+  `codex/database-slash-modernization` as merge commit `e6a04fc`, completing
+  P5.4 on its intended base.
 
 ### 2026-08-01 — P5.4 Tier-3 review passed
 
