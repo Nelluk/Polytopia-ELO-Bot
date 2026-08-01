@@ -77,6 +77,38 @@ class ClassicGameDetailRender:
         return self.asset.to_file() if self.asset else None
 
 
+def classic_edit_kwargs(
+    message,
+    rendered: ClassicGameDetailRender,
+    *,
+    view=None,
+) -> dict:
+    """Build a classic-card edit without loading a Peewee model.
+
+    The detail worker freezes the winning-team asset in ``rendered``.  Keep
+    unrelated message attachments while replacing only the bot-managed
+    attachment, matching ``image_storage.edit_game_embed`` without making a
+    post-commit event-loop database read.
+    """
+
+    retained = [
+        attachment
+        for attachment in getattr(message, 'attachments', ())
+        if not getattr(attachment, 'filename', '').startswith(
+            image_storage.MANAGED_ATTACHMENT_PREFIX
+        )
+    ]
+    new_file = rendered.new_file()
+    if new_file is not None:
+        retained.append(new_file)
+    return {
+        'embed': rendered.embed,
+        'content': rendered.content,
+        'attachments': retained,
+        'view': view,
+    }
+
+
 def _guilds_for_lookup(
     guild,
     bot,
