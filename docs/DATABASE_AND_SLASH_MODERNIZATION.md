@@ -425,8 +425,8 @@ check:
   `codex/p5-1-game-open`, based on exact clean base
   `d24aa6b5e64fba159a872eb565703465c79d712d`.
 
-Current unit: **P5.5 interactive pending-game card actions — Planned; awaiting
-a visibly verified Luna-Max worker.**
+Current unit: **P5.5 interactive pending-game card actions — Implemented
+locally; pending Sol Tier-2 review.**
 P8.0 is complete and integrated as `d6ee47c`, with explicit guild-only command
 deployment accepted in beta. Taxonomy v2.2 is provisionally accepted as the
 working implementation contract; minor wording refinements remain possible
@@ -2507,14 +2507,16 @@ complete Luna Tier-3 handoff.
 
 ### P5.5 — Interactive pending-game card actions
 
-Status: **In progress**
+Status: **Implemented locally; pending Sol Tier-2 review and separate beta
+acceptance**
 
 Risk tier: **Tier 2**. This unit adds a public Discord interaction layer over
 the already reviewed Tier-3 join, leave, and start services; it adds no new
 authoritative database mutation.
 
-Branch/base: `codex/p5-5-pending-game-card-actions` from the exact clean
-accumulation planning checkpoint created for this unit.
+Branch/base: `codex/p5-5-pending-game-card-actions` from exact clean base
+`f236f8710e0ea9f604d18a4367269e17c94f9632` on
+`codex/database-slash-modernization`.
 
 Objective: progressively enhance the dense classic `/game show` card for a
 pending game with useful state-aware actions while preserving the complete
@@ -2587,6 +2589,56 @@ production, push, PR, or merge without their separate gates.
 
 Exit: a clean Tier-2 implementation/evidence handoff for Sol review. Beta
 application-command apply and smoke acceptance remain separate after review.
+
+Implementation evidence:
+
+- `modules/game_detail_actions.py` adds ordinary `discord.ui.View` controls
+  only for native `/game show` pending cards. Open, full, expired, and
+  non-pending snapshots produce the required Join/Leave/Start/Refresh states;
+  expired cards expose Refresh only and completed/nonpending cards receive no
+  view. The controls are public/shared, while the ephemeral side selector is
+  limited to the member who opened it.
+- Join, Leave, and Start adapters call the existing matchmaking services and
+  their workers/coordinator. Existing permission, registration, role, ELO,
+  host, and stale-state validation remains authoritative in those services;
+  the view does not copy database or mutation logic. Existing public
+  post-commit output is sent before a fresh immutable card reload/edit.
+- The classic renderer remains the source of embed/content/media. The new
+  pure `classic_edit_kwargs` helper retains unrelated attachments and replaces
+  only the existing managed asset without a Peewee access on the event loop.
+  Numeric `$game`/`$match` continue through the unchanged classic prefix path
+  without a view; no taxonomy or compatibility-ledger row is needed.
+- View state is bounded in memory with a timeout, busy-click protection,
+  authoritative reload before every mutation/refresh, ephemeral failures, and
+  best-effort disabled controls plus a `/game show` rerun path after timeout.
+  No persistent-view or restart restoration behavior was added.
+
+Validation evidence:
+
+- Focused game-detail/component plus taxonomy/workspace suite: **43 passed**.
+- Complete offline discovery: **374 passed, 16 explicitly skipped**.
+- Gated development-database suite: **16 passed, 1 fixture-preservation test
+  skipped**. The strict gate confirmed `POLYBOT_ENV=development`, runtime
+  database `polytopia_dev`, role `polybot_dev`, and disabled background/API
+  services; test fixtures use the repository rollback/safety boundaries.
+- Changed modules and tests compiled successfully, and `git diff --check`
+  passed. No beta process, command synchronization, production checkout,
+  production database, dependency update, push, merge, or PR was performed.
+
+Compatibility and limitations:
+
+- This is a presentation/action-layer enhancement over accepted P5.2/P5.4
+  mutation services. It does not change join/leave/start transaction semantics,
+  reaction emoji behavior, native command taxonomy, schema, or data.
+- The existing start post-commit publisher retains its established
+  announcement/card/channel compatibility seams; the originating pending
+  card is refreshed afterward. Live Discord/mobile smoke, beta apply, and
+  persistence across process restarts remain intentionally unvalidated and
+  out of scope until review and separate acceptance.
+
+Recommended next action: Sol performs the Tier-2 whole-branch review of
+implementation checkpoint `ccf4f83`. After review approval, use the separate
+guild-scoped beta apply/smoke gate; do not integrate or launch from this task.
 
 ## P6 — Registration and player preferences
 
@@ -4317,9 +4369,24 @@ unit and does not reopen accepted P5.2 behavior.
 - An initial worker dispatch was stopped because a Sol-thread fork visibly
   retained Medium effort despite a later per-turn Luna/Max override. Its
   uncommitted edits, managed worktree, and branch were discarded, and the
-  thread was archived. P5.5 remains Planned with no authoritative
-  implementation work until a visible Luna-Max thread passes the new
-  collaboration-workflow gate.
+  thread was archived. The replacement task visibly passed the Luna-Max gate
+  before source edits.
+
+### 2026-08-01 — P5.5 interactive pending-game card actions implemented locally
+
+- Implemented checkpoint `ccf4f83` on the dedicated branch from exact base
+  `f236f8710e0ea9f604d18a4367269e17c94f9632`.
+- Preserved the dense classic `/game show` card and added ordinary public
+  pending-card actions with state-aware controls, side selection, start-name
+  modal, per-click worker reload/revalidation, post-commit card refresh, and
+  timeout/rerun behavior. Numeric `$game`/`$match` remain view-free.
+- Kept all mutation, permissions, coordinator serialization, transaction,
+  reaction, and post-commit service behavior in the existing application
+  boundaries. No compatibility-ledger or taxonomy update is required.
+- Evidence is the focused 43-test run, complete 374-test offline discovery,
+  gated development run (16 passed, 1 preserved skip), compilation, and diff
+  checks recorded above. The roadmap evidence is intentionally separate from
+  the implementation/test commit.
 
 ### 2026-08-01 — P5.4 beta accepted
 
