@@ -4,7 +4,7 @@ Last updated: 2026-08-01
 
 Status: Active
 
-Current branch at last update: `codex/database-slash-modernization`
+Current branch at last update: `codex/p5-4-game-start`
 
 Source task: `thread://019fae66-8e3a-7a50-9a0f-d3d7160d2287`
 
@@ -425,7 +425,8 @@ check:
   `codex/p5-1-game-open`, based on exact clean base
   `d24aa6b5e64fba159a872eb565703465c79d712d`.
 
-Current unit: **P5.3 atomic pending-game kick — Complete; accepted and integrated.**
+Current unit: **P5.4 atomic pending-to-started game transition — Implemented
+locally; pending Tier-3 Sol review.**
 P8.0 is complete and integrated as `d6ee47c`, with explicit guild-only command
 deployment accepted in beta. Taxonomy v2.2 is provisionally accepted as the
 working implementation contract; minor wording refinements remain possible
@@ -2325,15 +2326,14 @@ unit.
 
 ### P5.4 — Atomic pending-to-started game transition
 
-Status: **Planned for Luna implementation**
+Status: **Implemented locally; pending Tier-3 Sol review**
 
 Risk tier: **Tier 3**. Starting a game changes its lifecycle state and mutates
 player teams, squads, sides, league metadata, and audit history before several
 public Discord effects.
 
-Branch/code base: `codex/p5-4-game-start` from accepted accumulation
-checkpoint `af6a758` plus the subsequent plan-only checkpoint. The exact Luna
-worktree SHA is supplied in the execution prompt after this plan is committed.
+Branch/base: `codex/p5-4-game-start` from exact clean checkpoint
+`4fcdb829139383b800ec3212a1061f8bf54ccb86`.
 
 Objective: preserve `$start`/`$startgame GAME_ID NAME` while moving the
 complete authoritative pending-to-started database transition into the shared
@@ -2419,14 +2419,73 @@ Required tests:
 - focused lifecycle/taxonomy suites, complete offline discovery, explicit
   compilation/diff checks, and self-review.
 
+Implementation and validation evidence:
+
+- `258ea13` adds `modules/game_start_workers.py` for the frozen preflight and
+  authoritative transition DTOs/workers, `modules/game_start.py` for cached
+  Discord-member adaptation and post-commit publication, the direct
+  `/game start` registration in `modules/games.py`, and the shared prefix
+  service entry point in `modules/matchmaking.py`.
+- `tests/test_game_start.py` covers worker-local connections, immutable
+  primitive boundaries, authorization/name/pending/full/team/member cases,
+  stale-lineup rejection, mutation-family rollback, event-loop heartbeat,
+  native defer/visibility, prefix alias/grammar compatibility, and isolated
+  post-commit/reconciliation effects. The real-schema transition/rollback is
+  covered in `tests/test_database_integration.py`; taxonomy registration is
+  covered in `tests/test_slash_taxonomy.py`.
+- Focused P5.4 plus taxonomy tests: 19 passed. Existing pending-game and
+  slash compatibility suite: 122 passed. Complete offline discovery: 357
+  passed, with 16 gated tests skipped. Explicit-venv compilation and
+  `git diff --check` passed.
+- The selected unchanged safety-gated development integration suite ran 15
+  tests successfully, including the UUID-owned real-schema start transition
+  and injected GameLog rollback. The gate verified
+  `POLYBOT_ENV=development`, database `polytopia_dev`, role `polybot_dev`,
+  and the existing disabled tasks/API profile; the operator-fixture
+  seed/cleanup test was not run.
+
+Compatibility ledger and retained seams:
+
+- Prefix `$start`/`$startgame` keeps the existing registration and
+  bot-channel decorators, exact alias/usage, public failure output, and
+  classic `Game.embed`/announcement flow. Native `/game start` defers first,
+  performs the same bounded transition, and makes validation/database
+  failures ephemeral while committed output remains public.
+- After commit, the classic presenter still calls
+  `models.Game.load_full_game`; the established
+  `Game.update_external_broadcasts`, `Game.create_game_channels`, and
+  `league.auto_grad_novas` hooks still use their legacy model-backed
+  implementations, and `league.populate_league_team_channels` retains its
+  synchronous compatibility refresh. These are explicitly post-commit and
+  isolated with committed-game reconciliation; no such read/write is inside
+  the lifecycle transaction. Discord announcement IDs use the bounded
+  `run_announcement_persistence` worker instead of a new event-loop write.
+- The existing prefix registration decorator remains an inherited
+  event-loop command check for compatibility. It is not used to construct
+  the native request; native preflight and final authorization run in the
+  worker boundary. A future extraction can move that decorator check without
+  changing this unit's transition semantics.
+
 Out of scope: D-034 interactive card actions, join/leave/kick behavior changes,
 background reminder/purge loops, platform/schema cleanup, dependency changes,
 Discord apply/beta launch, production, push, PR, merge, or sudo without
 separate approval.
 
+Runtime/acceptance state: **Implemented locally; pending Tier-3 Sol review.**
+No beta was launched, no Discord command apply/synchronization occurred, no
+production checkout/service/database was touched, and no operator fixture was
+seeded or cleaned by this unit.
+
+Known limitations: the retained post-commit seams above still deserve future
+bounded extraction; no live Discord/mobile/desktop smoke was performed. D-034
+interactive card actions remain intentionally unimplemented.
+
+Next action: Sol should review the full P5.4 diff and evidence as a Tier-3
+unit, then separately approve any beta smoke and accumulation integration.
+Do not mark P5.4 Complete or integrate from Luna.
+
 Exit: clean implementation/test and roadmap-evidence checkpoints plus the
-complete Luna Tier-3 handoff. Sol reviews the whole branch before any
-separately approved guild apply, beta smoke, or integration.
+complete Luna Tier-3 handoff.
 
 ## P6 — Registration and player preferences
 
@@ -4152,6 +4211,27 @@ unit and does not reopen accepted P5.2 behavior.
   benefit from a modal or option-heavy Components workspace.
 - Kept D-034 card actions, background loops, platform cleanup, live Discord,
   integration, and production outside P5.4.
+
+### 2026-08-01 — P5.4 implemented locally
+
+- Implemented the two-stage primitive preflight/member-snapshot/final-worker
+  boundary and committed the complete code/test checkpoint as `258ea13` on
+  `codex/p5-4-game-start`, based on exact `4fcdb829139383b800ec3212a1061f8bf54ccb86`.
+- Preserved `$start`/`$startgame` grammar, aliases, registration/channel
+  checks, public prefix behavior, and classic card density while adding the
+  deferred typed `/game start game_id name` with ephemeral native failures.
+- Verified atomic team/squad/side/game/league/audit mutation, stale-lineup
+  protection, shared pending-game worker ownership, and post-commit
+  announcement/card/channel/league/Nova effect isolation.
+- Passed 19 focused P5.4/taxonomy tests, 122 pending-game compatibility tests,
+  357 complete offline tests with 16 gated skips, compilation, and diff
+  checks. The selected safety-gated development suite passed 15 tests under
+  `development`/`polytopia_dev`/`polybot_dev`, including UUID-owned start
+  transition and rollback coverage; no operator fixture was touched.
+- No beta launch, Discord inspection/apply/sync, production operation, or
+  live smoke occurred. Status remains Implemented locally pending Tier-3 Sol
+  review; the next action is separate Sol review followed by any approved
+  beta/integration gate.
 
 ### 2026-08-01 — P5.3 accepted and integrated without a separate beta gate
 
