@@ -35,7 +35,9 @@ Static inspection found:
 
 - 78 active-target explicit prefix command handlers;
 - one customized framework `help` command;
-- fourteen locally implemented `/game` subcommands and two `/elo` subcommands;
+- sixteen locally implemented `/game` commands (fifteen immediate children,
+  including the `manage` group, plus its nested `kick`) and two `/elo`
+  subcommands;
 - three locally implemented `/leaderboard` subcommands plus temporary `/lb2`;
 - many additional prefix aliases;
 - five Bullet prefix handlers now classified as legacy/out of scope;
@@ -337,7 +339,7 @@ describe the database implementation rather than the user's action.
 
 | Proposed native path | Current prefix handler | Purpose / notes |
 |---|---|---|
-| `/game manage kick` | `kick` | Host/staff removal from an open game |
+| `/game manage kick` | `kick` | Native now in P5.3: typed host/staff removal from an open game; uses the shared atomic pending-game worker |
 | `/game manage extend` | `extend` | Staff extension of an open-game deadline; Native now as `/game extend` |
 | `/game manage unstart` | `unstart` | Staff return of a started game to open/pending; Native now as `/game unstart` |
 | `/game manage delete` | `delete` | Permission-sensitive game deletion; Native now as `/game delete` |
@@ -345,6 +347,14 @@ describe the database implementation rather than the user's action.
 `manage` is intentionally not named `staff`: some operations may also be
 available to a host or participant, and permissions belong to each command
 rather than its spelling.
+
+P5.3 implementation state: `/game manage kick game_id member` is implemented
+locally and remains pending Tier-3 review. It defers before the shared worker,
+keeps validation/permission failures ephemeral, and publishes committed
+competitive-state output publicly. `$kick GAME_ID PLAYER` and its existing
+bot-channel/registration checks remain unchanged. This is a direct typed
+mutation, not a Components workspace; the interaction rules above do not make
+Components a default presentation for simple lifecycle actions.
 
 ## Complete system-wide capability map
 

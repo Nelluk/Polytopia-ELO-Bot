@@ -425,7 +425,7 @@ check:
   `codex/p5-1-game-open`, based on exact clean base
   `d24aa6b5e64fba159a872eb565703465c79d712d`.
 
-Current unit: **P5.2 atomic join/leave lifecycle and native commands — Implemented locally; review findings addressed; Sol follow-up review pending.**
+Current unit: **P5.3 atomic pending-game kick — Implemented locally; pending Tier-3 Sol review.**
 P8.0 is complete and integrated as `d6ee47c`, with explicit guild-only command
 deployment accepted in beta. Taxonomy v2.2 is provisionally accepted as the
 working implementation contract; minor wording refinements remain possible
@@ -2184,9 +2184,10 @@ remain available, and the canonical cross-play account-name rule is shared by
 all three entry-point families. The named-side preflight is an implementation
 disambiguator, not a reduced behavior path.
 
-Next action: select the next bounded game-lifecycle unit. Keep the proposed
-interactive game-card enhancement as a separately scoped presentation/action
-unit; do not mix it into an unrelated database mutation refactor.
+Next action: review the P5.3 implementation and evidence as a Tier-3 unit.
+Keep the proposed interactive game-card enhancement as a separately scoped
+presentation/action unit; do not mix it into an unrelated database mutation
+refactor.
 
 Likely slash interfaces:
 
@@ -2202,13 +2203,16 @@ each new registration.
 
 ### P5.3 — Atomic pending-game kick
 
-Status: **Planned for Luna implementation**
+Status: **Implemented locally; pending Tier-3 Sol review**
 
 Risk tier: **Tier 3**. This operation removes another player's pending-game
 lineup and changes the game's expiration.
 
-Branch/base: `codex/p5-3-game-kick` from exact accumulation checkpoint
-`df444c83184d8b5374116a181941a1642c4abd9c`.
+Branch/base: `codex/p5-3-game-kick` from exact clean planning checkpoint
+`a87ae84595dfe0383ff83f08db961c90fe10f2fc`.
+
+Implementation checkpoint: `d9b9ff0` (implementation and tests); the separate
+roadmap/taxonomy evidence checkpoint follows.
 
 Objective: preserve the established `$kick GAME_ID PLAYER` workflow while
 moving its complete mutable database path into the shared serialized
@@ -2225,6 +2229,8 @@ Required behavior and compatibility:
   validation failures ephemeral and committed competitive-state success
   public;
 - do not add platform options or distinguish Mobile/Steam eligibility.
+- `$kick` keeps its existing `kick` registration and `game_id player`
+  grammar; `/game manage kick` is an additive typed native entry point.
 
 Database and concurrency boundary:
 
@@ -2241,6 +2247,24 @@ Database and concurrency boundary:
 - return frozen primitive result/effect data. Messages, card/announcement
   refresh, reactions, or other Discord effects occur only after commit and
   identify the committed game on reconciliation failure.
+
+Implementation evidence:
+
+- `modules/game_kick_workers.py` owns the frozen request/result types, worker-
+  local connection/transaction, authoritative revalidation, atomic lineup
+  deletion/audit/expiration update, and shared pending-game coordinator
+  submission;
+- `modules/game_join_leave.py` is the common prefix/native adapter and
+  post-commit presenter, while `modules/matchmaking.py` retains `$kick` and
+  `modules/games.py` registers `/game manage kick`;
+- the native command defers before channel/worker work, sends validation and
+  database failures ephemerally, and publishes committed removal/card output
+  publicly; prefix failures remain public and prefix registration/channel
+  checks remain in place;
+- no new compatibility-ledger row is required: the prefix grammar, aliases,
+  permissions, lookup behavior, pending guidance, public output, audit
+  attribution, and near-expiration reset remain materially compatible. The
+  native member option is a typed equivalent rather than a reduced fallback.
 
 Required tests:
 
@@ -2259,14 +2283,42 @@ Required tests:
   `development`/`polytopia_dev`/`polybot_dev` gated integration suite,
   including a real-schema kick/rollback case with UUID-marked cleanup.
 
+Validation evidence for the current checkpoint:
+
+- focused P5.3 worker/adapter and taxonomy run: 21 passed;
+- complete offline discovery: 342 passed, with 15 gated database tests
+  skipped; no integration flag was enabled for this run;
+- explicit-venv read-only compilation of the seven changed Python files and
+  `git diff --check` passed;
+- the strict development PostgreSQL kick/rollback test passed with
+  `POLYBOT_ENV=development`, database `polytopia_dev`, role `polybot_dev`,
+  and UUID-owned temporary rows cleaned after the run;
+- the broader legacy gated suite was not invoked because it includes the
+  operator-fixture seed/cleanup round trip, which is outside this unit's
+  operational boundary; the P5.3-specific gate used the unchanged safety
+  identity and exercised only UUID-owned temporary rows.
+
 Out of scope: game start, delete/unstart changes, reaction-listener redesign,
 interactive game-card buttons, platform/schema cleanup, dependency changes,
 Discord synchronization/beta launch, production operations, push, merge, or
 PR work without separate approval.
 
+Runtime state: no beta launch, Discord synchronization, production operation,
+or live smoke was performed for P5.3. Separate beta acceptance remains
+pending.
+
+Known limitation: the post-commit card refresh still uses the established
+classic `Game.embed`/`image_storage.send_game_embed` presenter after the
+worker commits; it is outside the mutation transaction and failures are
+reconciled publicly/operator-visibly without suppressing later kick output.
+
+Next action: Sol performs full Tier-3 review of `d9b9ff0` and the roadmap
+evidence checkpoint before any separately approved guild apply, beta smoke,
+or integration.
+
 Exit: clean implementation and roadmap-evidence commits plus the complete
-Luna handoff packet. Sol performs full Tier-3 review before any separately
-approved guild apply/beta smoke and integration.
+Luna handoff packet. No beta or Discord synchronization is authorized by this
+unit.
 
 ## P6 — Registration and player preferences
 
