@@ -1915,20 +1915,18 @@ Validation evidence:
   delegation, three-digit reaction add/remove cleanup, cross-play name
   matrices, worker rollback/concurrency/cancellation, and public reaction
   reconciliation with the committed game ID.
-- Complete offline discovery: 295 tests ran, 280 passed, 2 unrelated
-  date-bound game-detail fixture tests failed because their hard-coded
-  `2026-08-01 00:00:00` expiration is now in the past, and 13 explicitly
-  gated database tests were skipped. The P5.1 focused suite, compilation, and
-  `git diff --check` passed; no game-detail files were changed.
-- Oversight previously validated the pre-follow-up corrected HEAD with the
-  gated command against `development` / `polytopia_dev` / `polybot_dev`: 13
-  tests ran, 12 passed, and one operator-managed fixture round trip was
-  skipped. The corrected open-game worker integration test passed, and no
-  cleanup was required. This evidence does not claim validation of
-  `04cb846`.
-- After `04cb846`, the same gated command was attempted through the existing
-  safety gate but PostgreSQL was unavailable at `localhost:5432`; no gated
-  result or cleanup claim is made for this follow-up.
+- Complete offline discovery after the test-only fixture correction in
+  `bd17d17`: 295 passed with 13 explicitly gated database tests skipped. The
+  two pending-game expiration tests now use future-relative data, so they
+  cannot expire by wall date. Compilation and `git diff --check` passed.
+- Oversight's final gated validation of corrected code checkpoint `04cb846`
+  confirmed `POLYBOT_ENV=development`, database `polytopia_dev`, role
+  `polybot_dev`, and disabled background tasks/API: 13 tests ran, 12 passed,
+  and one operator-managed fixture round trip was skipped. The corrected
+  open-game worker integration test passed, and no cleanup was required.
+- Independent full-discovery review observed one transient player-workspace
+  heartbeat timeout; its immediate isolated rerun passed, so that unrelated
+  test was not changed.
 - The reaction-only correction in `622a444` was not gated-rerun; its focused
   and complete offline suites passed, and no live Discord work was done.
 - No beta process was launched, no Discord command inspection/synchronization
@@ -3854,18 +3852,11 @@ production deployment.
   and native results do not; native reaction failure emits public committed-ID
   reconciliation; and mobile-only, Steam-only, both-name, neither-name, and
   historical Boolean matrices are exercised.
-- Code/test checkpoint: `04cb846`. The focused command ran 42 tests and all
-  42 passed. Complete offline discovery ran 295 tests: 280 passed, two
-  unrelated date-bound game-detail fixture tests failed on the current
-  `2026-08-01` date, and 13 gated tests were skipped. Compilation and
-  `git diff --check` passed.
-- The unchanged gated command was attempted after this correction through the
-  existing development / `polytopia_dev` / `polybot_dev` safety gate, but
-  PostgreSQL was unavailable at `localhost:5432`; no post-correction gated
-  result is claimed. Oversight's prior gated evidence (13 ran, 12 passed, one
-  operator-managed fixture round trip skipped, corrected open-game worker
-  integration passed, no cleanup required) remains recorded for the prior
-  corrected HEAD only.
+- Code/test checkpoint: `04cb846`; test-only fixture correction:
+  `bd17d17`. The focused command ran 42 tests and all 42 passed. Complete
+  offline discovery now runs 295 tests with all 295 passing and 13 gated
+  skips. Final gated evidence is recorded above; no live Discord or production
+  work occurred.
 - No beta launch, Discord inspection/synchronization, production operation,
   dependency change, merge, or push occurred. The accepted synchronous
   post-commit team-broadcast reload remains a bounded limitation.
