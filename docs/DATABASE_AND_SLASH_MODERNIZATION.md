@@ -425,8 +425,8 @@ check:
   `codex/p5-1-game-open`, based on exact clean base
   `d24aa6b5e64fba159a872eb565703465c79d712d`.
 
-Current unit: **P5.4 atomic pending-to-started game transition — Tier-3 review
-passed; pending beta acceptance.**
+Current unit: **P5.4 atomic pending-to-started game transition — Beta accepted;
+pending accumulation integration.**
 P8.0 is complete and integrated as `d6ee47c`, with explicit guild-only command
 deployment accepted in beta. Taxonomy v2.2 is provisionally accepted as the
 working implementation contract; minor wording refinements remain possible
@@ -2326,7 +2326,7 @@ unit.
 
 ### P5.4 — Atomic pending-to-started game transition
 
-Status: **Tier-3 review passed; pending beta acceptance**
+Status: **Beta accepted; pending accumulation integration**
 
 Risk tier: **Tier 3**. Starting a game changes its lifecycle state and mutates
 player teams, squads, sides, league metadata, and audit history before several
@@ -2483,22 +2483,23 @@ background reminder/purge loops, platform/schema cleanup, dependency changes,
 Discord apply/beta launch, production, push, PR, merge, or sudo without
 separate approval.
 
-Runtime/acceptance state: **Beta running; pending user acceptance.** The
+Runtime/acceptance state: **Beta accepted and stopped cleanly.** The
 explicit deployment tool updated only the `game` root in development guild
 `478571892832206869`; `elo`, `leaderboard`, and `player` were unchanged and no
 global scope was touched. The beta authenticated as application
 `479029527553638401` from the reviewed checkpoint with background tasks
-disabled. No production checkout/service/database was touched, and no operator
-fixture was seeded or cleaned by this unit.
+disabled. The user successfully started development game `321` and accepted
+the result. The foreground beta was then stopped cleanly. No production
+checkout/service/database was touched, and no operator fixture was seeded or
+cleaned by this unit.
 
 Known limitations: the retained post-commit seams above still deserve future
 bounded extraction; no live Discord/mobile/desktop smoke was performed. D-034
 interactive card actions remain intentionally unimplemented.
 
-Next action: apply the reviewed tree only to the explicitly configured
-development guild, launch the beta profile, and smoke-test `/game start` plus
-the retained `$start`/`$startgame` path. Do not mark P5.4 Complete or integrate
-until the user accepts the beta result.
+Next action: integrate the reviewed and beta-accepted branch into
+`codex/database-slash-modernization`, mark P5.4 Complete there, and select the
+next bounded unit. Retain development game `321` unless separately cleaned up.
 
 Exit: clean implementation/test and roadmap-evidence checkpoints plus the
 complete Luna Tier-3 handoff.
@@ -4212,6 +4213,18 @@ post-commit reconciliation behavior. This direction is a separate bounded
 unit and does not reopen accepted P5.2 behavior.
 
 ## Progress log
+
+### 2026-08-01 — P5.4 beta accepted
+
+- Applied only the changed `game` root to development guild
+  `478571892832206869`; `elo`, `leaderboard`, and `player` were unchanged and
+  no global scope was touched.
+- Launched the reviewed development profile as beta application
+  `479029527553638401` with background tasks disabled.
+- The user successfully started development game `321` and accepted the
+  result without reporting a regression.
+- Stopped the foreground beta cleanly. Game `321` remains intentionally
+  available in `polytopia_dev`; no fixture cleanup or production action ran.
 
 ### 2026-08-01 — P5.4 Tier-3 review passed
 
