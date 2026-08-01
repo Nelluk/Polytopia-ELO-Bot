@@ -1220,6 +1220,283 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
                 0,
             )
 
+    def test_start_worker_real_graph_and_audit_rollback(self):
+        from modules import game_start_workers
+
+        guild_id = self.profile.allowed_guild_ids[0]
+        suffix = uuid.uuid4().hex
+        id_base = 8_950_000_000_000_000 + uuid.uuid4().int % 1_000_000
+        host_discord_id = id_base
+        target_discord_id = id_base + 1
+        game_ids = set()
+        team_ids = set()
+
+        try:
+            host_member = self.models.DiscordMember.create(
+                discord_id=host_discord_id,
+                name=f'P54 Host {suffix}',
+                polytopia_name=f'P54Host{suffix}',
+            )
+            target_member = self.models.DiscordMember.create(
+                discord_id=target_discord_id,
+                name=f'P54 Target {suffix}',
+                polytopia_name=f'P54Target{suffix}',
+            )
+            host_player = self.models.Player.create(
+                discord_member=host_member,
+                guild_id=guild_id,
+                name=host_member.name,
+            )
+            target_player = self.models.Player.create(
+                discord_member=target_member,
+                guild_id=guild_id,
+                name=target_member.name,
+            )
+            team_one = self.models.Team.create(
+                name=f'P54 Team One {suffix}',
+                guild_id=guild_id,
+            )
+            team_two = self.models.Team.create(
+                name=f'P54 Team Two {suffix}',
+                guild_id=guild_id,
+            )
+            team_ids.update((team_one.id, team_two.id))
+
+            def make_pending_game(note):
+                game = self.models.Game.create(
+                    guild_id=guild_id,
+                    host=host_player,
+                    expiration=(
+                        datetime.datetime.now() + datetime.timedelta(days=1)
+                    ),
+                    notes=note,
+                    is_pending=True,
+                    is_ranked=True,
+                    is_mobile=True,
+                    size=[1, 1],
+                )
+                first_side = self.models.GameSide.create(
+                    game=game,
+                    position=1,
+                    sidename='Alpha',
+                    size=1,
+                )
+                second_side = self.models.GameSide.create(
+                    game=game,
+                    position=2,
+                    sidename='Bravo',
+                    size=1,
+                )
+                self.models.Lineup.create(
+                    game=game,
+                    gameside=first_side,
+                    player=host_player,
+                )
+                self.models.Lineup.create(
+                    game=game,
+                    gameside=second_side,
+                    player=target_player,
+                )
+                game_ids.add(game.id)
+                return game
+
+            host_snapshot = game_start_workers.StartMemberSnapshot(
+                guild_id=guild_id,
+                discord_id=host_discord_id,
+                discord_name=host_member.name,
+                discord_nick=None,
+                display_name=host_member.name,
+                role_ids=(),
+                role_names=(team_one.name,),
+                level=3,
+                is_mod=False,
+                is_staff=False,
+                description=(
+                    f'**{host_member.name}** ({host_discord_id})'
+                ),
+                side_position=0,
+                lineup_id=None,
+                player_id=None,
+                player_name=host_member.name,
+            )
+            target_snapshot = game_start_workers.StartMemberSnapshot(
+                guild_id=guild_id,
+                discord_id=target_discord_id,
+                discord_name=target_member.name,
+                discord_nick=None,
+                display_name=target_member.name,
+                role_ids=(),
+                role_names=(team_two.name,),
+                level=3,
+                is_mod=False,
+                is_staff=False,
+                description=(
+                    f'**{target_member.name}** ({target_discord_id})'
+                ),
+                side_position=2,
+                lineup_id=None,
+                player_id=None,
+                player_name=target_player.name,
+            )
+
+            first_game = make_pending_game(f'P54 first {suffix}')
+            first_preflight = game_start_workers.preflight_start_game(
+                game_start_workers.StartPreflightRequest(
+                    game_id=first_game.id,
+                    guild_id=guild_id,
+                    name=f'Fields of Fire {suffix}',
+                    prefix='$',
+                    requester=host_snapshot,
+                    require_teams=False,
+                    invoked_with='start',
+                )
+            )
+            first_request = game_start_workers.StartRequest(
+                game_id=first_game.id,
+                guild_id=guild_id,
+                name=f'Fields of Fire {suffix}',
+                prefix='$',
+                requester=host_snapshot,
+                participants=(
+                    game_start_workers.StartMemberSnapshot(
+                        **{
+                            **host_snapshot.__dict__,
+                            'side_position': first_preflight.participants[0].side_position,
+                            'lineup_id': first_preflight.participants[0].lineup_id,
+                            'player_id': first_preflight.participants[0].player_id,
+                            'player_name': first_preflight.participants[0].player_name,
+                        }
+                    ),
+                    game_start_workers.StartMemberSnapshot(
+                        **{
+                            **target_snapshot.__dict__,
+                            'side_position': first_preflight.participants[1].side_position,
+                            'lineup_id': first_preflight.participants[1].lineup_id,
+                            'player_id': first_preflight.participants[1].player_id,
+                            'player_name': first_preflight.participants[1].player_name,
+                        }
+                    ),
+                ),
+                preflight=first_preflight,
+                require_teams=False,
+                invoked_with='start',
+            )
+
+            self.models.db.close()
+            first_result = asyncio.run(
+                game_start_workers.run_start(first_request)
+            )
+            self.models.db.connect(reuse_if_open=True)
+            self.assertEqual(first_result.game_id, first_game.id)
+            started_game = self.models.Game.get_by_id(first_game.id)
+            self.assertFalse(started_game.is_pending)
+            self.assertEqual(started_game.name, f'Fields Of Fire {suffix}'.title()[:35])
+            self.assertEqual(
+                self.models.GameLog.select().where(
+                    self.models.GameLog.message.contains(suffix)
+                ).count(),
+                1,
+            )
+            self.assertEqual(
+                self.models.GameSide.select().where(
+                    (self.models.GameSide.game == first_game.id)
+                    & self.models.GameSide.team.is_null(False)
+                ).count(),
+                2,
+            )
+
+            rollback_game = make_pending_game(f'P54 rollback {suffix}')
+            rollback_preflight = game_start_workers.preflight_start_game(
+                game_start_workers.StartPreflightRequest(
+                    game_id=rollback_game.id,
+                    guild_id=guild_id,
+                    name=f'Fields of Fire {suffix}',
+                    prefix='$',
+                    requester=host_snapshot,
+                    require_teams=False,
+                    invoked_with='start',
+                )
+            )
+            rollback_participants = tuple(
+                game_start_workers.StartMemberSnapshot(
+                    **{
+                        **(
+                            host_snapshot
+                            if participant.discord_id == host_discord_id
+                            else target_snapshot
+                        ).__dict__,
+                        'side_position': participant.side_position,
+                        'lineup_id': participant.lineup_id,
+                        'player_id': participant.player_id,
+                        'player_name': participant.player_name,
+                    }
+                )
+                for participant in rollback_preflight.participants
+            )
+            rollback_request = game_start_workers.StartRequest(
+                game_id=rollback_game.id,
+                guild_id=guild_id,
+                name=f'Fields of Fire {suffix}',
+                prefix='$',
+                requester=host_snapshot,
+                participants=rollback_participants,
+                preflight=rollback_preflight,
+                require_teams=False,
+                invoked_with='start',
+            )
+            with mock.patch.object(
+                self.models.GameLog,
+                'write',
+                side_effect=RuntimeError('P5.4 audit failure'),
+            ):
+                self.models.db.close()
+                with self.assertRaisesRegex(RuntimeError, 'P5.4 audit failure'):
+                    asyncio.run(game_start_workers.run_start(rollback_request))
+            self.models.db.connect(reuse_if_open=True)
+            self.assertTrue(
+                self.models.Game.get_by_id(rollback_game.id).is_pending
+            )
+            self.assertEqual(
+                self.models.Lineup.select().where(
+                    self.models.Lineup.game == rollback_game.id
+                ).count(),
+                2,
+            )
+        finally:
+            self.models.db.connect(reuse_if_open=True)
+            for game_id in sorted(game_ids):
+                self.models.Lineup.delete().where(
+                    self.models.Lineup.game == game_id
+                ).execute()
+                self.models.GameSide.delete().where(
+                    self.models.GameSide.game == game_id
+                ).execute()
+                self.models.Game.delete().where(
+                    self.models.Game.id == game_id
+                ).execute()
+            temporary_members = self.models.DiscordMember.select(
+                self.models.DiscordMember.id
+            ).where(
+                self.models.DiscordMember.discord_id.in_(
+                    (host_discord_id, target_discord_id)
+                )
+            )
+            self.models.Player.delete().where(
+                self.models.Player.discord_member.in_(temporary_members)
+            ).execute()
+            self.models.DiscordMember.delete().where(
+                self.models.DiscordMember.discord_id.in_(
+                    (host_discord_id, target_discord_id)
+                )
+            ).execute()
+            self.models.GameLog.delete().where(
+                self.models.GameLog.message.contains(suffix)
+            ).execute()
+            if team_ids:
+                self.models.Team.delete().where(
+                    self.models.Team.id.in_(team_ids)
+                ).execute()
+
     def test_bot_extensions_load_with_background_tasks_disabled(self):
         import bot as bot_module
 
