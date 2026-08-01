@@ -26,33 +26,39 @@ def open_request(
     level=3,
     size=(1, 1),
     is_mobile=True,
-    platform_validation_mode=(
-        game_open_workers.LEGACY_PLATFORM_VALIDATION_MODE
-    ),
+    sides=None,
+    requester_role_ids=(),
+    requester_role_names=(),
+    notes='A note',
+    notes_display='A note',
+    role_lock_message='',
+    size_display=None,
 ):
+    sides = sides or tuple(
+        game_open_workers.OpenGameSide(side_size)
+        for side_size in size
+    )
     return game_open_workers.OpenGameRequest(
         guild_id=300,
         requester_id=100,
         requester_name='host',
         requester_nick='Host Nick',
         prefix='$',
-        requester_role_ids=(),
-        requester_role_names=(),
+        requester_role_ids=tuple(requester_role_ids),
+        requester_role_names=tuple(requester_role_names),
         requester_level=level,
         requester_is_mod=False,
         requester_is_staff=False,
-        sides=tuple(
-            game_open_workers.OpenGameSide(side_size)
-            for side_size in size
-        ),
+        sides=tuple(sides),
         expiration_hours=24,
         is_ranked=True,
         is_mobile=is_mobile,
-        notes='A note',
-        notes_display='A note',
+        notes=notes,
+        notes_display=notes_display,
         requester_description='**Host** (`100`)',
         invoked_with='opengame',
-        platform_validation_mode=platform_validation_mode,
+        role_lock_message=role_lock_message,
+        size_display=size_display,
     )
 
 
@@ -182,6 +188,8 @@ def make_harness():
         'open_count': 0,
         'host_saves': 0,
         'host_team': 'existing-team',
+        'role_team': SimpleNamespace(name='Jets', id=501),
+        'first_side_position': 1,
     }
     harness.state = state
     harness.database = FakeDatabase(state)
@@ -217,7 +225,7 @@ def make_harness():
             self.guild_id = 300
 
         def first_open_side(self, roles):
-            return SimpleNamespace(position=1), False
+            return SimpleNamespace(position=state['first_side_position']), False
 
     class GameModel:
         host = Field()
@@ -258,7 +266,28 @@ def make_harness():
 
     harness.game = GameModel
     harness.player = PlayerModel
-    harness.team = SimpleNamespace()
+    class TeamQuery:
+        def where(self, *args):
+            return self
+
+        def __iter__(self):
+            return iter((state['role_team'],))
+
+    class TeamModel:
+        guild_id = Field()
+        name = Field()
+
+        @staticmethod
+        def select(*args):
+            return TeamQuery()
+
+        @staticmethod
+        def get_or_except(*, team_name, guild_id, require_exact):
+            if team_name == state['role_team'].name:
+                return state['role_team']
+            raise game_open_workers.exceptions.NoSingleMatch()
+
+    harness.team = TeamModel
     harness.side = GameSideModel
     harness.lineup = LineupModel
     harness.log = GameLogModel
@@ -328,33 +357,30 @@ class OpenGameWorkerTests(unittest.TestCase):
         self.assertEqual(harness.database.commits, 1)
         self.assertEqual(harness.database.rollbacks, 0)
 
-    def test_native_crossplay_accepts_steam_only_host(self):
-        request = open_request(
-            platform_validation_mode=(
-                game_open_workers.CROSSPLAY_PLATFORM_VALIDATION_MODE
-            ),
-        )
-        harness, result = self.run_worker(
-            request=request,
-            host_update=lambda host: setattr(
-                host.discord_member,
-                'polytopia_name',
-                None,
-            ),
-        )
-        self.assertEqual(result.game_id, 1)
-        self.assertTrue(result.is_mobile)
-        self.assertTrue(harness.state['games'][0][1]['is_mobile'])
+    def test_crossplay_accepts_mobile_only_steam_only_or_both_host_names(self):
+        for names in (
+            ('Host Poly', None),
+            (None, 'Host Steam'),
+            ('Host Poly', 'Host Steam'),
+        ):
+            with self.subTest(names=names):
+                request = open_request(is_mobile=False)
+                harness, result = self.run_worker(
+                    request=request,
+                    host_update=lambda host, names=names: (
+                        setattr(host.discord_member, 'polytopia_name', names[0]),
+                        setattr(host.discord_member, 'name_steam', names[1]),
+                    ),
+                )
+                self.assertEqual(result.game_id, 1)
+                self.assertTrue(result.is_mobile)
+                self.assertTrue(harness.state['games'][0][1]['is_mobile'])
 
-    def test_native_crossplay_requires_an_account_name(self):
-        request = open_request(
-            platform_validation_mode=(
-                game_open_workers.CROSSPLAY_PLATFORM_VALIDATION_MODE
-            ),
-        )
+    def test_crossplay_requires_one_canonical_host_name(self):
+        request = open_request()
         with self.assertRaisesRegex(
             game_open_workers.OpenGameValidationError,
-            'canonical account name',
+            'canonical Polytopia account name',
         ):
             self.run_worker(
                 request=request,
@@ -364,25 +390,14 @@ class OpenGameWorkerTests(unittest.TestCase):
                 ),
             )
 
-    def test_legacy_platform_validation_remains_mobile_and_steam_specific(self):
-        for is_mobile, missing_field, expected in (
-            (True, 'polytopia_name', 'mobile name on file'),
-            (False, 'name_steam', 'Steam username on file'),
-        ):
-            with self.subTest(is_mobile=is_mobile):
-                request = open_request(is_mobile=is_mobile)
-                with self.assertRaisesRegex(
-                    game_open_workers.OpenGameValidationError,
-                    expected,
-                ):
-                    self.run_worker(
-                        request=request,
-                        host_update=lambda host, field=missing_field: setattr(
-                            host.discord_member,
-                            field,
-                            None,
-                        ),
-                    )
+    def test_crossplay_storage_does_not_follow_primitive_compatibility_flag(self):
+        request = open_request(is_mobile=False)
+        harness, result = self.run_worker(
+            request=request,
+        )
+        self.assertEqual(result.game_id, 1)
+        self.assertTrue(result.is_mobile)
+        self.assertTrue(harness.state['games'][0][1]['is_mobile'])
 
     def test_worker_preserves_escaped_audit_note_snapshot(self):
         request = replace(
@@ -411,6 +426,55 @@ class OpenGameWorkerTests(unittest.TestCase):
                 '**Side 2** will be locked to players with role *Jets*\n',
             ),
         )
+
+    def test_role_locks_persist_team_preassignment_and_requester_placement(self):
+        sides = (
+            game_open_workers.OpenGameSide(1),
+            game_open_workers.OpenGameSide(
+                1,
+                required_role_id=501,
+                required_role_name='Jets',
+            ),
+        )
+        request = open_request(
+            sides=sides,
+            requester_role_ids=(501,),
+            requester_role_names=('Jets',),
+            role_lock_message=(
+                '**Side 2** will be locked to players with role *Jets*\n'
+            ),
+        )
+        harness = make_harness()
+        harness.state['first_side_position'] = 2
+        patched, patches = harness_context(harness)
+        with patched:
+            for patcher in patches:
+                patcher.start()
+            try:
+                result = game_open_workers.create_open_game(request)
+            finally:
+                for patcher in reversed(patches):
+                    patcher.stop()
+
+        self.assertEqual(
+            [side['required_role_id'] for side in harness.state['sides']],
+            [None, 501],
+        )
+        self.assertEqual(
+            [side['sidename'] for side in harness.state['sides']],
+            [None, 'Jets'],
+        )
+        self.assertIs(
+            harness.state['sides'][1]['team'],
+            harness.state['role_team'],
+        )
+        self.assertIs(harness.state['host_team'], harness.state['role_team'])
+        self.assertEqual(
+            harness.state['lineups'][0]['gameside'].position,
+            2,
+        )
+        self.assertIn('not be the game host', '\n'.join(result.warnings))
+        self.assertIn('Side 2', '\n'.join(result.warnings))
 
     def test_side_lineup_and_log_failures_roll_back_everything(self):
         for failure in ('side', 'lineup', 'log'):
@@ -693,6 +757,80 @@ class OpenGameViewTests(unittest.IsolatedAsyncioTestCase):
             )
         self.assertIn('77', '\n'.join(logs.output))
 
+    async def test_join_reaction_failure_gets_public_reconciliation_with_game_id(self):
+        result = game_open_workers.OpenGameResult(
+            game_id=78,
+            guild_id=300,
+            requester_id=100,
+            host_name='Host',
+            size=(1, 1),
+            expiration_hours=24,
+            is_ranked=True,
+            is_mobile=True,
+            notes_display='\u200b',
+            warnings=(),
+            role_locks=(),
+        )
+        public_message = SimpleNamespace(
+            add_reaction=mock.AsyncMock(
+                side_effect=RuntimeError('reaction unavailable')
+            )
+        )
+        send = mock.AsyncMock(side_effect=[public_message, None])
+
+        with self.assertLogs(game_open.logger.name, level='ERROR') as logs:
+            await game_open.publish_open_game_result(
+                result,
+                prefix='$',
+                send=send,
+                add_completion_reaction=public_message.add_reaction,
+            )
+
+        self.assertEqual(send.await_count, 2)
+        self.assertIn('78', send.await_args_list[1].args[0])
+        self.assertIn('78', '\n'.join(logs.output))
+
+    async def test_team_broadcast_only_runs_for_role_locked_prefix_result(self):
+        send = mock.AsyncMock(return_value=SimpleNamespace())
+        broadcast = mock.AsyncMock()
+        role_locked = game_open_workers.OpenGameResult(
+            game_id=79,
+            guild_id=300,
+            requester_id=100,
+            host_name='Host',
+            size=(1, 1),
+            expiration_hours=24,
+            is_ranked=True,
+            is_mobile=True,
+            notes_display='\u200b',
+            warnings=(),
+            role_locks=(
+                game_open_workers.OpenGameSide(1, required_role_id=501),
+                game_open_workers.OpenGameSide(1),
+            ),
+        )
+        ordinary = replace(role_locked, game_id=80, role_locks=(
+            game_open_workers.OpenGameSide(1),
+            game_open_workers.OpenGameSide(1),
+        ))
+
+        await game_open.publish_open_game_result(
+            role_locked,
+            prefix='$',
+            send=send,
+            broadcast=broadcast,
+        )
+        broadcast.assert_awaited_once()
+
+        broadcast.reset_mock()
+        await game_open.publish_open_game_result(
+            ordinary,
+            prefix='$',
+            send=send,
+            broadcast=broadcast,
+        )
+        broadcast.assert_not_awaited()
+
 
 class OpenGameCommandTests(unittest.IsolatedAsyncioTestCase):
     @classmethod
@@ -708,6 +846,101 @@ class OpenGameCommandTests(unittest.IsolatedAsyncioTestCase):
             if command.name == 'game'
         ).get_command('open')
 
+    async def invoke_prefix_open(
+        self,
+        alias,
+        args,
+        *,
+        channel_id=900,
+        author_roles=(),
+        role_by_id=None,
+        named_role=None,
+    ):
+        role_by_id = role_by_id or {}
+        author = SimpleNamespace(
+            id=100,
+            name='host',
+            nick=None,
+            display_name='Host',
+            roles=tuple(author_roles),
+        )
+        guild = SimpleNamespace(
+            id=300,
+            get_role=lambda role_id: role_by_id.get(role_id),
+        )
+        context = SimpleNamespace(
+            guild=guild,
+            author=author,
+            channel=SimpleNamespace(id=channel_id),
+            prefix='$',
+            invoked_with=alias,
+            send=mock.AsyncMock(),
+        )
+        captured = []
+
+        async def run_creation(request):
+            captured.append(request)
+            return game_open_workers.OpenGameResult(
+                game_id=42,
+                guild_id=300,
+                requester_id=100,
+                host_name='Host',
+                size=tuple(side.size for side in request.sides),
+                expiration_hours=request.expiration_hours,
+                is_ranked=request.is_ranked,
+                is_mobile=True,
+                notes_display=request.notes_display,
+                warnings=(),
+                role_locks=request.sides,
+                size_display=request.size_display,
+            )
+
+        def guild_setting(guild_id, name):
+            return {
+                'unranked_game_channel': 901,
+                'steam_game_channel': 902,
+            }.get(name)
+
+        with mock.patch.object(
+            matchmaking.settings,
+            'guild_setting',
+            side_effect=guild_setting,
+        ), mock.patch.object(
+            matchmaking.settings,
+            'get_user_level',
+            return_value=3,
+        ), mock.patch.object(
+            matchmaking.settings,
+            'is_mod',
+            return_value=False,
+        ), mock.patch.object(
+            matchmaking.settings,
+            'is_staff',
+            return_value=False,
+        ), mock.patch.object(
+            matchmaking.models.GameLog,
+            'member_string',
+            return_value='**Host** (`100`)',
+        ), mock.patch.object(
+            matchmaking.game_open_workers,
+            'run_open_game_creation',
+            new=mock.AsyncMock(side_effect=run_creation),
+        ), mock.patch.object(
+            matchmaking.game_open,
+            'publish_open_game_result',
+            new=mock.AsyncMock(),
+        ), mock.patch.object(
+            matchmaking.utilities,
+            'guild_role_by_name',
+            return_value=named_role,
+        ):
+            await self.command.callback(
+                SimpleNamespace(),
+                context,
+                args=args,
+            )
+        return captured, context
+
     def test_prefix_aliases_and_native_shape(self):
         self.assertIsInstance(self.command, commands.Command)
         self.assertEqual(
@@ -718,6 +951,98 @@ class OpenGameCommandTests(unittest.IsolatedAsyncioTestCase):
             [(parameter.name, parameter.type) for parameter in self.slash.parameters],
             [('size', discord.AppCommandOptionType.string)],
         )
+
+    async def test_prefix_aliases_share_crossplay_storage_and_parser_options(self):
+        for alias in ('opengame', 'openmatch', 'open', 'opensteam'):
+            with self.subTest(alias=alias):
+                captured, context = await self.invoke_prefix_open(
+                    alias,
+                    '2vs2 12h unranked for <@!200>',
+                    channel_id=902 if alias == 'opensteam' else 900,
+                )
+                self.assertEqual(context.send.await_count, 0)
+                request = captured[0]
+                self.assertEqual(
+                    tuple(side.size for side in request.sides),
+                    (2, 2),
+                )
+                self.assertEqual(request.size_display, '2vs2')
+                self.assertEqual(request.expiration_hours, 12)
+                self.assertFalse(request.is_ranked)
+                self.assertTrue(request.is_mobile)
+                self.assertEqual(request.notes, 'for <@!200>')
+
+        ranked, _ = await self.invoke_prefix_open(
+            'openmatch',
+            '1v1 6h ranked note',
+            channel_id=900,
+        )
+        unranked, _ = await self.invoke_prefix_open(
+            'open',
+            '1v1 6h note',
+            channel_id=901,
+        )
+        self.assertTrue(ranked[0].is_ranked)
+        self.assertFalse(unranked[0].is_ranked)
+
+    async def test_prefix_role_mentions_and_explicit_role_positions_preserve_locks(self):
+        role = SimpleNamespace(id=501, name='The Jets')
+        mentioned, _ = await self.invoke_prefix_open(
+            'opengame',
+            '1v1 <@&501> for <@!200>',
+            role_by_id={501: role},
+            author_roles=(role,),
+        )
+        self.assertEqual(
+            [
+                (side.required_role_id, side.required_role_name)
+                for side in mentioned[0].sides
+            ],
+            [(501, 'The Jets'), (None, None)],
+        )
+        self.assertEqual(mentioned[0].notes, '**@The Jets** for <@!200>')
+
+        offset, _ = await self.invoke_prefix_open(
+            'opengame',
+            '2v2 <@&501>',
+            role_by_id={501: role},
+        )
+        self.assertEqual(
+            [side.required_role_id for side in offset[0].sides],
+            [None, 501],
+        )
+
+        explicit, _ = await self.invoke_prefix_open(
+            'opengame',
+            '1v1 role2="The Jets"',
+            named_role=role,
+        )
+        self.assertEqual(
+            (explicit[0].sides[1].required_role_id,
+             explicit[0].sides[1].required_role_name),
+            (501, 'The Jets'),
+        )
+        self.assertIn('Side 2', explicit[0].role_lock_message)
+
+    async def test_prefix_rejects_mixed_and_invalid_role_positions(self):
+        role = SimpleNamespace(id=501, name='The Jets')
+        for args, expected in (
+            (
+                '1v1 <@&501> role1="The Jets"',
+                'both mention and explicit',
+            ),
+            ('1v1 role0="The Jets"', 'position of 0 is invalid'),
+            ('1v1 role3="The Jets"', 'does not have that many sides'),
+        ):
+            with self.subTest(args=args):
+                captured, context = await self.invoke_prefix_open(
+                    'opengame',
+                    args,
+                    role_by_id={501: role},
+                    named_role=role,
+                )
+                self.assertEqual(captured, [])
+                self.assertIn(expected, context.send.await_args.args[0])
 
     def test_join_reaction_parser_accepts_three_digit_game_ids(self):
         cog = matchmaking.matchmaking.__new__(matchmaking.matchmaking)
@@ -961,3 +1286,430 @@ class OpenGameCommandTests(unittest.IsolatedAsyncioTestCase):
         load_game.assert_not_called()
         broadcast.assert_not_awaited()
         self.assertTrue(context.send.await_count >= 1)
+
+
+class CrossPlayJoinTests(unittest.IsolatedAsyncioTestCase):
+    async def run_join_case(
+        self,
+        *,
+        game_is_mobile,
+        polytopia_name,
+        name_steam,
+        member_id=200,
+        notes=None,
+        host_polytopia_name='Host Poly',
+        host_name_steam=None,
+    ):
+        guild = SimpleNamespace(id=300, roles=[])
+        member = SimpleNamespace(
+            id=member_id,
+            name='joiner',
+            nick=None,
+            display_name='Joiner',
+            mention=f'<@{member_id}>',
+            guild=guild,
+            roles=(),
+            remove_roles=mock.AsyncMock(),
+        )
+        host_member = SimpleNamespace(
+            discord_id=100,
+            polytopia_name=host_polytopia_name,
+            name_steam=host_name_steam,
+        )
+        host = SimpleNamespace(
+            name='Host',
+            discord_member=host_member,
+        )
+        discord_member = SimpleNamespace(
+            discord_id=member_id,
+            polytopia_name=polytopia_name,
+            name_steam=name_steam,
+            is_banned=False,
+            elo_moonrise=1000,
+        )
+        player = SimpleNamespace(
+            name='Joiner',
+            discord_member=discord_member,
+            is_banned=False,
+            elo_moonrise=1000,
+            team=None,
+            save=mock.Mock(),
+        )
+        side = SimpleNamespace(
+            position=1,
+            required_role_id=None,
+            sidename=None,
+        )
+
+        class FakeGame:
+            id = 322
+            is_pending = True
+            is_ranked = True
+            is_mobile = game_is_mobile
+
+            def capacity(self):
+                return 1, 3
+
+            def has_player(self, player):
+                return False, None
+
+            def first_open_side(self, roles):
+                return side, False
+
+            def is_hosted_by(self, discord_id):
+                return False, host
+
+            def elo_requirements(self):
+                return 0, 9999, 0, 9999
+
+            def creating_player(self):
+                return host
+
+        FakeGame.notes = notes
+        fake_game = FakeGame()
+        lineup = SimpleNamespace()
+
+        class PlayerModel:
+            @staticmethod
+            def get_by_discord_id(**kwargs):
+                return player, False
+
+            @staticmethod
+            def is_in_team(**kwargs):
+                return False, None
+
+        class LineupModel:
+            @staticmethod
+            def create(**kwargs):
+                return lineup
+
+        class GameLogModel:
+            @staticmethod
+            def member_string(member):
+                return 'Joiner'
+
+            @staticmethod
+            def write(**kwargs):
+                return None
+
+        class Atomic:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc_value, traceback):
+                return False
+
+        class Database:
+            def atomic(self):
+                return Atomic()
+
+        def guild_setting(guild_id, name):
+            return {
+                'command_prefix': '$',
+                'inactive_role': None,
+                'require_teams': False,
+            }.get(name)
+
+        with mock.patch.object(
+            matchmaking.models,
+            'Player',
+            PlayerModel,
+        ), mock.patch.object(
+            matchmaking.models,
+            'Lineup',
+            LineupModel,
+        ), mock.patch.object(
+            matchmaking.models,
+            'GameLog',
+            GameLogModel,
+        ), mock.patch.object(
+            matchmaking.models,
+            'db',
+            Database(),
+        ), mock.patch.object(
+            matchmaking.models.Game,
+            'search_pending',
+            return_value=[],
+        ), mock.patch.object(
+            matchmaking.models.Game,
+            'waiting_for_creator',
+            return_value=[],
+        ), mock.patch.object(
+            matchmaking.settings,
+            'guild_setting',
+            side_effect=guild_setting,
+        ), mock.patch.object(
+            matchmaking.settings,
+            'get_user_level',
+            return_value=3,
+        ), mock.patch.object(
+            matchmaking.settings,
+            'is_mod',
+            return_value=False,
+        ), mock.patch.object(
+            matchmaking.settings,
+            'can_user_join_game',
+            return_value=(True, None),
+        ):
+            result = await matchmaking.models.Game.join(
+                fake_game,
+                member=member,
+                author_member=member,
+            )
+        return result, fake_game, member, player
+
+    async def test_historical_platform_values_do_not_gate_crossplay_joiners(self):
+        for game_is_mobile in (True, False):
+            for names in (
+                ('Mobile Joiner', None),
+                (None, 'Steam Joiner'),
+                ('Mobile Joiner', 'Steam Joiner'),
+            ):
+                with self.subTest(game_is_mobile=game_is_mobile, names=names):
+                    (lineup, messages), _, _, _ = await self.run_join_case(
+                        game_is_mobile=game_is_mobile,
+                        polytopia_name=names[0],
+                        name_steam=names[1],
+                    )
+                    self.assertIsNotNone(lineup)
+                    self.assertIn('Host Poly', '\n'.join(messages))
+
+    async def test_crossplay_join_rejects_only_when_both_names_are_missing(self):
+        for game_is_mobile in (True, False):
+            with self.subTest(game_is_mobile=game_is_mobile):
+                (lineup, messages), _, _, _ = await self.run_join_case(
+                    game_is_mobile=game_is_mobile,
+                    polytopia_name=None,
+                    name_steam=None,
+                )
+                self.assertIsNone(lineup)
+                self.assertIn('canonical Polytopia account name', messages[0])
+                self.assertNotIn('Steam game', messages[0])
+
+    async def test_friend_guidance_uses_steam_name_when_mobile_name_is_missing(self):
+        (lineup, messages), _, _, _ = await self.run_join_case(
+            game_is_mobile=True,
+            polytopia_name='Joiner Poly',
+            name_steam=None,
+            host_polytopia_name=None,
+            host_name_steam='Host Steam',
+        )
+        self.assertIsNotNone(lineup)
+        self.assertIn('Host Steam', '\n'.join(messages))
+        self.assertNotIn('None', '\n'.join(messages))
+
+    async def test_mention_restriction_is_shared_by_canonical_join_checks(self):
+        allowed, _, _, _ = await self.run_join_case(
+            game_is_mobile=False,
+            polytopia_name=None,
+            name_steam='Allowed Steam',
+            member_id=200,
+            notes='<@!200> <@201>',
+        )
+        rejected, _, _, _ = await self.run_join_case(
+            game_is_mobile=True,
+            polytopia_name='Other Poly',
+            name_steam=None,
+            member_id=202,
+            notes='<@!200> <@201>',
+        )
+        self.assertIsNotNone(allowed[0])
+        self.assertIsNone(rejected[0])
+        self.assertIn('limited to specific players', rejected[1][0])
+
+
+class MatchmakingReactionTests(unittest.IsolatedAsyncioTestCase):
+    def make_reaction_case(self, game):
+        guild = SimpleNamespace(id=300, name='Guild')
+        channel = SimpleNamespace(
+            id=20,
+            name='bot',
+            send=mock.AsyncMock(),
+        )
+        guild.get_channel = lambda channel_id: channel
+        member = SimpleNamespace(
+            id=200,
+            name='joiner',
+            nick=None,
+            display_name='Joiner',
+            mention='<@200>',
+            guild=guild,
+            roles=(),
+        )
+        guild.get_member = lambda member_id: member
+        message = SimpleNamespace(
+            author=SimpleNamespace(id=123),
+            content=(
+                'Other players can join game 322 by reacting with '
+                f'{matchmaking.settings.emoji_join_game}.'
+            ),
+            remove_reaction=mock.AsyncMock(),
+        )
+        channel.fetch_message = mock.AsyncMock(return_value=message)
+        payload = SimpleNamespace(
+            emoji=SimpleNamespace(name=matchmaking.settings.emoji_join_game),
+            user_id=200,
+            message_id=10,
+            channel_id=20,
+            guild_id=300,
+            member=member,
+        )
+        bot = SimpleNamespace(
+            user=SimpleNamespace(id=999),
+            get_guild=lambda guild_id: guild,
+        )
+        cog = matchmaking.matchmaking.__new__(matchmaking.matchmaking)
+        cog.bot = bot
+        cog.ignorable_join_reactions = set()
+        return cog, payload, message, channel, member, game
+
+    async def test_three_digit_raw_reaction_add_calls_game_join_and_cleans_up_failure(self):
+        game = SimpleNamespace(
+            guild_id=300,
+            join=mock.AsyncMock(
+                return_value=(None, ['Game is limited to specific players.'])
+            ),
+        )
+        cog, payload, message, channel, member, _ = self.make_reaction_case(game)
+        with mock.patch.object(
+            matchmaking.models.Game,
+            'get_or_none',
+            return_value=game,
+        ):
+            await cog.on_raw_reaction_add(payload)
+
+        game.join.assert_awaited_once_with(
+            member=member,
+            side_arg=None,
+            author_member=member,
+            log_note='(via reaction)',
+        )
+        message.remove_reaction.assert_awaited_once_with(
+            payload.emoji.name,
+            member,
+        )
+        self.assertTrue(channel.send.await_count >= 1)
+        self.assertIn('no_entry_sign', channel.send.await_args.args[0])
+
+    async def test_raw_reaction_success_reaches_same_join_path_and_clears_marker(self):
+        game = SimpleNamespace(
+            guild_id=300,
+            join=mock.AsyncMock(return_value=(object(), ['Joined'])),
+            embed=mock.Mock(return_value=(object(), '')),
+            capacity=mock.Mock(return_value=(1, 3)),
+        )
+        cog, payload, message, channel, member, _ = self.make_reaction_case(game)
+        with mock.patch.object(
+            matchmaking.models.Game,
+            'get_or_none',
+            return_value=game,
+        ), mock.patch.object(
+            matchmaking.models.Game,
+            'search_pending',
+            return_value=[],
+        ), mock.patch.object(
+            matchmaking.models.Game,
+            'waiting_for_creator',
+            return_value=[],
+        ), mock.patch.object(
+            matchmaking.settings,
+            'guild_setting',
+            return_value='$',
+        ), mock.patch.object(
+            matchmaking.image_storage,
+            'send_game_embed',
+            new=mock.AsyncMock(),
+        ):
+            await cog.on_raw_reaction_add(payload)
+
+        game.join.assert_awaited_once()
+        self.assertNotIn((payload.message_id, payload.user_id), cog.ignorable_join_reactions)
+        message.remove_reaction.assert_not_awaited()
+
+    async def test_raw_reaction_remove_preserves_leave_behavior_for_three_digit_game(self):
+        lineup = SimpleNamespace(delete_instance=mock.Mock())
+        game = SimpleNamespace(
+            id=322,
+            guild_id=300,
+            player=mock.Mock(return_value=lineup),
+            is_hosted_by=mock.Mock(return_value=(False, None)),
+            is_pending=True,
+        )
+        cog, payload, message, channel, member, _ = self.make_reaction_case(game)
+        with mock.patch.object(
+            matchmaking.models.Game,
+            'get_or_none',
+            return_value=game,
+        ), mock.patch.object(
+            matchmaking.models.GameLog,
+            'write',
+        ), mock.patch.object(
+            matchmaking.settings,
+            'get_user_level',
+            return_value=3,
+        ):
+            await cog.on_raw_reaction_remove(payload)
+
+        game.player.assert_called_once_with(discord_id=member.id)
+        lineup.delete_instance.assert_called_once_with()
+        self.assertIn('Removing you from game 322.', channel.send.await_args.args[0])
+
+    async def test_typed_and_raw_handlers_both_delegate_to_game_join(self):
+        game = SimpleNamespace(
+            id=322,
+            guild_id=300,
+            join=mock.AsyncMock(return_value=(None, ['limited to specific players'])),
+        )
+        member = SimpleNamespace(
+            id=200,
+            name='joiner',
+            nick=None,
+            display_name='Joiner',
+            mention='<@200>',
+            roles=(),
+        )
+        guild = SimpleNamespace(id=300, roles=[])
+        member.guild = guild
+        context = SimpleNamespace(
+            author=member,
+            guild=guild,
+            prefix='$',
+            message=SimpleNamespace(mentions=[], role_mentions=[]),
+            send=mock.AsyncMock(),
+        )
+        cog = matchmaking.matchmaking.__new__(matchmaking.matchmaking)
+        join_command = next(
+            command
+            for command in matchmaking.matchmaking.__cog_commands__
+            if command.name == 'join'
+        )
+        with mock.patch.object(
+            matchmaking.settings,
+            'get_user_level',
+            return_value=3,
+        ), mock.patch.object(
+            matchmaking.utilities,
+            'get_guild_member',
+            new=mock.AsyncMock(return_value=[member]),
+        ):
+            await join_command.callback(cog, context, game)
+
+        reaction_cog, payload, message, channel, reaction_member, _ = (
+            self.make_reaction_case(game)
+        )
+        with mock.patch.object(
+            matchmaking.models.Game,
+            'get_or_none',
+            return_value=game,
+        ):
+            await reaction_cog.on_raw_reaction_add(payload)
+
+        self.assertEqual(game.join.await_count, 2)
+        self.assertEqual(
+            game.join.await_args_list[0].kwargs['author_member'],
+            member,
+        )
+        self.assertEqual(
+            game.join.await_args_list[1].kwargs['log_note'],
+            '(via reaction)',
+        )

@@ -18,8 +18,7 @@ from modules import exceptions, models
 
 logger = logging.getLogger('polybot.' + __name__)
 
-LEGACY_PLATFORM_VALIDATION_MODE = 'legacy'
-CROSSPLAY_PLATFORM_VALIDATION_MODE = 'crossplay'
+CANONICAL_OPEN_GAME_IS_MOBILE = True
 
 
 class OpenGameSizeError(ValueError):
@@ -56,6 +55,8 @@ class OpenGameRequest:
     sides: tuple[OpenGameSide, ...]
     expiration_hours: int
     is_ranked: bool
+    # Temporary schema-compatibility value. New open games are all cross-play
+    # and the worker always stores the canonical ``True`` value.
     is_mobile: bool
     notes: str
     notes_display: str
@@ -64,7 +65,6 @@ class OpenGameRequest:
     role_lock_message: str = ''
     size_display: str | None = None
     log_notes_display: str | None = None
-    platform_validation_mode: str = LEGACY_PLATFORM_VALIDATION_MODE
 
     @property
     def size_string(self) -> str:
@@ -208,7 +208,9 @@ def create_open_game(request: OpenGameRequest) -> OpenGameResult:
             if host is None:
                 raise OpenGameValidationError(
                     'You must be a registered player before hosting a match. '
-                    f'Try `{request.prefix}setname Your Mobile Name`'
+                    f'Try `{request.prefix}setname` or '
+                    f'`{request.prefix}steamname` to register a canonical '
+                    'Polytopia account name.'
                 )
 
             host_team = _team_for_roles(
@@ -239,38 +241,15 @@ def create_open_game(request: OpenGameRequest) -> OpenGameResult:
                     'existing one.'
                 )
 
-            if request.platform_validation_mode == (
-                CROSSPLAY_PLATFORM_VALIDATION_MODE
+            if not (
+                host.discord_member.polytopia_name
+                or host.discord_member.name_steam
             ):
-                if not (
-                    host.discord_member.polytopia_name
-                    or host.discord_member.name_steam
-                ):
-                    raise OpenGameValidationError(
-                        f'**{host.name}** does not have a mobile or Steam '
-                        'name on file. Register a canonical account name '
-                        f'with `{request.prefix}setname` or '
-                        f'`{request.prefix}steamname` before opening a game.'
-                    )
-            elif request.platform_validation_mode == (
-                LEGACY_PLATFORM_VALIDATION_MODE
-            ):
-                if request.is_mobile and not host.discord_member.polytopia_name:
-                    raise OpenGameValidationError(
-                        f'**{host.name}** does not have a mobile name on file. '
-                        f'Use `{request.prefix}setname` to set one, or try '
-                        f'`{request.prefix}opensteam` for a Steam game.'
-                    )
-                if not request.is_mobile and not host.discord_member.name_steam:
-                    raise OpenGameValidationError(
-                        f'**{host.name}** does not have a Steam username on file '
-                        f'and this is a Steam game 🖥. Use `{request.prefix}'
-                        f'steamname` to set one, or try `{request.prefix}opengame` '
-                        'for a Mobile game.'
-                    )
-            else:
                 raise OpenGameValidationError(
-                    'Unsupported open-game platform validation mode.'
+                    f'**{host.name}** does not have a canonical Polytopia '
+                    'account name on file. Register one with '
+                    f'`{request.prefix}setname` or '
+                    f'`{request.prefix}steamname` before opening a game.'
                 )
 
             total_players = sum(side.size for side in request.sides)
@@ -333,7 +312,7 @@ def create_open_game(request: OpenGameRequest) -> OpenGameResult:
                 is_pending=True,
                 is_ranked=request.is_ranked,
                 size=list(team_sizes),
-                is_mobile=request.is_mobile,
+                is_mobile=CANONICAL_OPEN_GAME_IS_MOBILE,
             )
 
             for position, side in enumerate(request.sides, start=1):
@@ -409,7 +388,7 @@ def create_open_game(request: OpenGameRequest) -> OpenGameResult:
                 size=team_sizes,
                 expiration_hours=request.expiration_hours,
                 is_ranked=request.is_ranked,
-                is_mobile=request.is_mobile,
+                is_mobile=CANONICAL_OPEN_GAME_IS_MOBILE,
                 notes_display=request.notes_display,
                 warnings=tuple(warnings),
                 role_locks=request.sides,

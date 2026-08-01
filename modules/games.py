@@ -1940,9 +1940,6 @@ class polygames(commands.Cog):
                 log_notes_display=discord.utils.escape_markdown(
                     notes or '\u200b'
                 ),
-                platform_validation_mode=(
-                    game_open_workers.CROSSPLAY_PLATFORM_VALIDATION_MODE
-                ),
                 requester_description=requester_snapshot[
                     'requester_description'
                 ],

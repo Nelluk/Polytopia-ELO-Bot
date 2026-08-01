@@ -277,7 +277,8 @@ class matchmaking(commands.Cog):
         Expiration can be between 1H - 168H
         Size examples: 1v1, 2v2, 1v1v1v1v1, 3v3v3, 1v3
 
-        Use `opensteam` to specify that a new game is for Steam - otherwise the game will be assumed for mobile platform.
+        `opensteam` remains a compatibility alias; all newly opened games
+        use the canonical cross-play behavior.
 
         **Examples:**
         `[p]opengame 1v1`
@@ -306,7 +307,10 @@ class matchmaking(commands.Cog):
         This allows you to specify a role without a mention, as well as specify exactly which sides get which role.)
         """
 
-        team_size, is_ranked, is_mobile = False, True, True
+        team_size, is_ranked = False, True
+        # ``is_mobile`` is retained only as the legacy schema compatibility
+        # value. It is not a platform selector for new open games.
+        is_mobile = True
         roles_specified_implicity, roles_specified_explicitly = False, False
         required_role_args = []
         required_roles = []
@@ -327,9 +331,6 @@ class matchmaking(commands.Cog):
 
         if settings.guild_setting(ctx.guild.id, 'unranked_game_channel') and ctx.channel.id == settings.guild_setting(ctx.guild.id, 'unranked_game_channel'):
             is_ranked = False
-
-        if (settings.guild_setting(ctx.guild.id, 'steam_game_channel') and ctx.channel.id == settings.guild_setting(ctx.guild.id, 'steam_game_channel')) or ctx.invoked_with == 'opensteam':
-            is_mobile = False
 
         args = args.replace("'", "\\'").replace("“", "\"").replace("”", "\"")  # Escape single quotation marks for shlex.split() parsing
         if args.count('"') % 2 != 0:
@@ -479,9 +480,6 @@ class matchmaking(commands.Cog):
             invoked_with=ctx.invoked_with,
             role_lock_message=required_role_message,
             size_display=team_size_str,
-            platform_validation_mode=(
-                game_open_workers.LEGACY_PLATFORM_VALIDATION_MODE
-            ),
         )
         try:
             result = await game_open_workers.run_open_game_creation(request)
@@ -857,14 +855,15 @@ class matchmaking(commands.Cog):
                         if player.elo_moonrise < min_elo or player.elo_moonrise > max_elo or player.discord_member.elo_moonrise < min_elo_g or player.discord_member.elo_moonrise > max_elo_g:
                             unjoinable_count += 1
                             continue
-                        if game.is_mobile:
-                            if not player.discord_member.polytopia_name:
-                                unjoinable_count += 1
-                                continue
-                        else:
-                            if not player.discord_member.name_steam:
-                                unjoinable_count += 1
-                                continue
+                        if not (
+                            player.discord_member.polytopia_name
+                            or player.discord_member.name_steam
+                        ):
+                            # Historical ``is_mobile`` values do not select a
+                            # platform for cross-play games. A player only
+                            # needs one canonical account-name field.
+                            unjoinable_count += 1
+                            continue
 
                 if (novas_only and not game.notes) or (novas_only and game.notes and 'NOVA' not in game.notes.upper()):
                     # skip all non-nova league template games, (will also include anything with "nova" in the game notes)

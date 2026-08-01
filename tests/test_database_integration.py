@@ -679,8 +679,10 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
                 game_open_workers.run_open_game_creation(request)
             )
             created_game_ids.add(result.game_id)
+            self.assertTrue(result.is_mobile)
             game = self.models.Game.get_by_id(result.game_id)
             self.assertEqual(game.host.id, host.id)
+            self.assertTrue(game.is_mobile)
             self.assertEqual(
                 self.models.GameSide.select().where(
                     self.models.GameSide.game == game

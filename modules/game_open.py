@@ -53,6 +53,15 @@ async def publish_open_game_result(
                 'operator reconciliation is required',
                 result.game_id,
             )
+            await _send_with_reconciliation(
+                send,
+                f':warning: Game {result.game_id} was created, but the '
+                f'{settings.emoji_join_game} join reaction could not be '
+                'added. An operator must reconcile the announcement for '
+                f'game {result.game_id}.',
+                result.game_id,
+                'open-game join-reaction reconciliation',
+            )
 
     if broadcast is not None and any(
         side.required_role_id for side in result.role_locks
