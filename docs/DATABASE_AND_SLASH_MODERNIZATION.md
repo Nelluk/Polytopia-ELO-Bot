@@ -425,7 +425,7 @@ check:
   `codex/p5-1-game-open`, based on exact clean base
   `d24aa6b5e64fba159a872eb565703465c79d712d`.
 
-Current unit: **P5.3 atomic pending-game kick — Implemented locally; pending Tier-3 Sol review.**
+Current unit: **P5.3 atomic pending-game kick — Complete; accepted and integrated.**
 P8.0 is complete and integrated as `d6ee47c`, with explicit guild-only command
 deployment accepted in beta. Taxonomy v2.2 is provisionally accepted as the
 working implementation contract; minor wording refinements remain possible
@@ -2203,7 +2203,7 @@ each new registration.
 
 ### P5.3 — Atomic pending-game kick
 
-Status: **Implemented locally; pending Tier-3 Sol review**
+Status: **Complete; accepted and integrated into the accumulation branch**
 
 Risk tier: **Tier 3**. This operation removes another player's pending-game
 lineup and changes the game's expiration.
@@ -2212,8 +2212,8 @@ Branch/base: `codex/p5-3-game-kick` from exact clean planning checkpoint
 `a87ae84595dfe0383ff83f08db961c90fe10f2fc`.
 
 Implementation checkpoint: `d9b9ff0` (implementation and tests); roadmap and
-taxonomy evidence are recorded in the separate documentation checkpoint on
-this branch.
+taxonomy evidence `157ea5b`; gated evidence `188bfa6`; accumulation merge
+`76e62c4`.
 
 Objective: preserve the established `$kick GAME_ID PLAYER` workflow while
 moving its complete mutable database path into the shared serialized
@@ -2305,18 +2305,19 @@ interactive game-card buttons, platform/schema cleanup, dependency changes,
 Discord synchronization/beta launch, production operations, push, merge, or
 PR work without separate approval.
 
-Runtime state: no beta launch, Discord synchronization, production operation,
-or live smoke was performed for P5.3. Separate beta acceptance remains
-pending.
+Acceptance/runtime state: the user accepted the reviewed implementation on
+2026-08-01 without a separate beta smoke because the bounded kick workflow was
+considered simple enough to discover any residual presentation bug later. No
+beta launch, Discord synchronization, production operation, or live smoke was
+performed for P5.3 before integration.
 
 Known limitation: the post-commit card refresh still uses the established
 classic `Game.embed`/`image_storage.send_game_embed` presenter after the
 worker commits; it is outside the mutation transaction and failures are
 reconciled publicly/operator-visibly without suppressing later kick output.
 
-Next action: Sol performs full Tier-3 review of `d9b9ff0` and the roadmap
-evidence checkpoint before any separately approved guild apply, beta smoke,
-or integration.
+Next action: plan P5.4 start as a separate Tier-3 lifecycle transition. Do not
+fold D-034 interactive game-card controls into its database mutation scope.
 
 Exit: clean implementation and roadmap-evidence commits plus the complete
 Luna handoff packet. No beta or Discord synchronization is authorized by this
@@ -4031,6 +4032,21 @@ post-commit reconciliation behavior. This direction is a separate bounded
 unit and does not reopen accepted P5.2 behavior.
 
 ## Progress log
+
+### 2026-08-01 — P5.3 accepted and integrated without a separate beta gate
+
+- Completed Tier-3 review with 87 focused lifecycle/taxonomy tests, 342
+  complete offline tests with 15 gated skips, and the full gated development
+  class at 14 passes plus one operator-fixture preservation skip.
+- Confirmed atomic lineup/audit/expiration rollback, shared pending-game
+  serialization, prefix/native permission parity, and post-commit
+  reconciliation under `development`/`polytopia_dev`/`polybot_dev`.
+- The user accepted the bounded result without a separate live smoke and
+  explicitly allowed residual presentation bugs to be found later.
+- Merged `codex/p5-3-game-kick` into the accumulation branch as `76e62c4`;
+  no beta, Discord apply, production, push, or PR operation occurred.
+- Selected the broader pending-to-started lifecycle transition for separate
+  P5.4 planning rather than mixing it into kick or D-034 card work.
 
 ### 2026-08-01 — P5.3 atomic kick planned for Luna
 
