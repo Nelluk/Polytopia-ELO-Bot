@@ -1972,6 +1972,9 @@ role, capacity, host, ELO-range, restriction, and reaction semantics.
 Branch/base: `codex/p5-2-game-join-leave` from exact clean base
 `f429525c06dd123795e34177c2fe4d5f8f3831fd`.
 
+Commit(s): implementation checkpoint `1ad1e89`; the roadmap close-out evidence
+is carried in the final follow-up commit on this branch.
+
 Objective: make join and leave one coherent pending-game application service
 used by prefix commands, native commands, and raw reaction handlers. Remove
 their synchronous Peewee mutation work from Discord's event-loop thread and
@@ -3869,6 +3872,8 @@ production deployment.
   connection ownership, primitive snapshots, serialized capacity/membership
   checks, atomic lineup/team-refresh/audit-log changes, and post-commit
   reconciliation.
+- Recorded implementation checkpoint `1ad1e89`; the branch remains isolated
+  and unintegrated pending Sol's Tier-3 review.
 - Preserved prefix aliases/grammar, raw beta and related-server routing,
   native public-success/ephemeral-failure visibility, host/full-game notices,
   and cross-play acceptance of either retained account-name field.
