@@ -40,7 +40,7 @@ moonrise_reset_date = datetime.date(2020, 12, 1)
 elo_calc_v2_date = datetime.date(2020, 8, 2)  # tweaked elo calc Aug 2, 2020
 
 emoji_join_game = '⚔️'
-re_join_game = re.compile(fr'join game (\d{{4,6}}) by reacting with {emoji_join_game}')
+re_join_game = re.compile(fr'join game (\d+) by reacting with {emoji_join_game}')
 # Have to do weird double {{braces}} to mix f-strings and raw strings, https://stackoverflow.com/a/45527907/1281743
 
 # bot invite URL https://discordapp.com/oauth2/authorize?client_id=484067640302764042&scope=bot

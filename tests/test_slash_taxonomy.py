@@ -45,6 +45,7 @@ class SlashTaxonomyRegistrationTests(unittest.TestCase):
             {command.name for command in game_group.commands},
             {
                 'record',
+                'open',
                 'search',
                 'show',
                 'win',

@@ -7,6 +7,7 @@ import settings
 import modules.exceptions as exceptions
 from modules.games import post_newgame_messaging
 from modules.league import broadcast_team_game_to_server
+from modules import game_open, game_open_workers
 import peewee
 import re
 import datetime
@@ -276,7 +277,8 @@ class matchmaking(commands.Cog):
         Expiration can be between 1H - 168H
         Size examples: 1v1, 2v2, 1v1v1v1v1, 3v3v3, 1v3
 
-        Use `opensteam` to specify that a new game is for Steam - otherwise the game will be assumed for mobile platform.
+        `opensteam` remains a compatibility alias; all newly opened games
+        use the canonical cross-play behavior.
 
         **Examples:**
         `[p]opengame 1v1`
@@ -305,11 +307,13 @@ class matchmaking(commands.Cog):
         This allows you to specify a role without a mention, as well as specify exactly which sides get which role.)
         """
 
-        team_size, is_ranked, is_mobile = False, True, True
+        team_size, is_ranked = False, True
+        # ``is_mobile`` is retained only as the legacy schema compatibility
+        # value. It is not a platform selector for new open games.
+        is_mobile = True
         roles_specified_implicity, roles_specified_explicitly = False, False
         required_role_args = []
         required_roles = []
-        preset_teams = []
         required_role_message = ''
         expiration_hours_override = None
         note_args = []
@@ -325,62 +329,36 @@ class matchmaking(commands.Cog):
                 f'\nExample: `{ctx.prefix}opengame 1v1 large map`'
                 f'\nUse `{ctx.prefix}opengames` to list available open games.')
 
-        host, _ = models.Player.get_by_discord_id(discord_id=ctx.author.id, discord_name=ctx.author.name, discord_nick=ctx.author.nick, guild_id=ctx.guild.id)
-        if not host:
-            # Matching guild member but no Player or DiscordMember
-            return await ctx.send(f'You must be a registered player before hosting a match. Try `{ctx.prefix}setname Your Mobile Name`')
-
-        on_team, player_team = models.Player.is_in_team(guild_id=ctx.guild.id, discord_member=ctx.author)
-        if settings.guild_setting(ctx.guild.id, 'require_teams') and not on_team:
-            return await ctx.send('You must join a Team in order to participate in games on this server.')
-
-        max_open = max(1, settings.get_user_level(ctx.author) * 3)
-        if settings.get_user_level(ctx.author) > 5:
-            max_open = 75
-
-        if models.Game.select().where((models.Game.host == host) & (models.Game.is_pending == 1)).count() > max_open:
-            return await ctx.send(f'You have too many open games already (max of {max_open}). Try using `{ctx.prefix}delete` on an existing one.')
-
         if settings.guild_setting(ctx.guild.id, 'unranked_game_channel') and ctx.channel.id == settings.guild_setting(ctx.guild.id, 'unranked_game_channel'):
             is_ranked = False
-
-        if (settings.guild_setting(ctx.guild.id, 'steam_game_channel') and ctx.channel.id == settings.guild_setting(ctx.guild.id, 'steam_game_channel')) or ctx.invoked_with == 'opensteam':
-            is_mobile = False
 
         args = args.replace("'", "\\'").replace("“", "\"").replace("”", "\"")  # Escape single quotation marks for shlex.split() parsing
         if args.count('"') % 2 != 0:
             return await ctx.send(':no_entry_sign: Unbalanced "quotation marks" found. Cannot parse command.')
         # for arg in args.split(' '):
-        for arg in shlex.split(args):
+        try:
+            parsed_args = shlex.split(args)
+        except ValueError:
+            return await ctx.send(':no_entry_sign: Unbalanced "quotation marks" found. Cannot parse command.')
+
+        for arg in parsed_args:
             # Keep quoted phrases together, ie 'foo foo bar "baz bat" whatever' becomes ['foo', 'foo', 'bar', 'baz bat', 'whatever']
-            m = re.fullmatch(r"\d+(?:(v|vs)\d+)+", arg.lower())
-            if m:
-                # arg looks like '3v3' or '1v1v1'
-                team_size_str = m[0]
-                team_sizes = [int(x) for x in arg.lower().split(m[1])]  # split on 'vs' or 'v'; whichever the regexp detects
-                if min(team_sizes) < 1:
-                    return await ctx.send(f'Invalid game size **{team_size_str}**: Each side must have at least 1 player.')
-                if sum(team_sizes) > settings.max_game_size:
-                    return await ctx.send(f'Invalid game size **{team_size_str}**: Games can have a maximum of {settings.max_game_size} players.')
+            v_shape = re.fullmatch(r"\d+(?:(v|vs)\d+)+", arg.lower())
+            ffa_shape = re.fullmatch(r"\d+ffa", arg.lower())
+            if v_shape or ffa_shape:
+                try:
+                    team_sizes, normalized_size = (
+                        game_open_workers.parse_game_size_token(arg)
+                    )
+                except game_open_workers.OpenGameSizeError as exc:
+                    return await ctx.send(str(exc))
+                team_size_str = (
+                    arg.lower() if v_shape else normalized_size
+                )
+                team_sizes = list(team_sizes)
                 team_size = True
                 required_roles = [None] * len(team_sizes)  # [None, None, None] for a 3-sided game
                 required_role_names = [None] * len(team_sizes)
-                preset_teams = [None] * len(team_sizes)
-                continue
-            m = re.match(r"(\d+)ffa", arg.lower())
-            if m:
-                # arg looks like '6FFA'
-                players = int(m[1])
-                if players < 2:
-                    return await ctx.send(f'Invalid game size **{arg}**: There must be at least 2 sides.')
-                if players > settings.max_game_size:
-                    return await ctx.send(f'Invalid game size **{arg}**: Games can have a maximum of {settings.max_game_size} players.')
-                team_sizes = [1] * players
-                team_size_str = 'v'.join([str(x) for x in team_sizes])
-                team_size = True
-                required_roles = [None] * len(team_sizes)  # [None, None, None] for a 3-sided game
-                required_role_names = [None] * len(team_sizes)
-                preset_teams = [None] * len(team_sizes)
                 continue
             m = re.match(r"(\d+)h", arg.lower())
             if m:
@@ -448,32 +426,6 @@ class matchmaking(commands.Cog):
         if not team_size:
             return await ctx.send('Game size is required. Include argument like *1v1* to specify size')
 
-        if not host.discord_member.polytopia_name and is_mobile:
-            return await ctx.send(f'**{host.name}** does not have a mobile name on file. Use `{ctx.prefix}setname` to set one, or try `{ctx.prefix}opensteam` for a Steam game.')
-
-        if not is_mobile and not host.discord_member.name_steam:
-            return await ctx.send(f'**{host.name}** does not have a Steam username on file and this is a Steam game 🖥. Use `{ctx.prefix}steamname` to set one, or try `{ctx.prefix}opengame` for a Mobile game.')
-
-        game_allowed, join_error_message = settings.can_user_join_game(user_level=settings.get_user_level(ctx.author), game_size=sum(team_sizes), is_ranked=is_ranked, is_host=True)
-        if not game_allowed:
-            return await ctx.send(join_error_message)
-
-        if not settings.guild_setting(ctx.guild.id, 'allow_uneven_teams') and not all(x == team_sizes[0] for x in team_sizes):
-            return await ctx.send('Uneven team games are not allowed on this server.')
-
-        server_size_max = settings.guild_setting(ctx.guild.id, 'max_team_size')
-
-        if max(team_sizes) > server_size_max:
-            if settings.guild_setting(ctx.guild.id, 'allow_uneven_teams') and min(team_sizes) <= server_size_max:
-                await ctx.send(':warning: Team sizes are uneven.')
-            elif settings.is_mod(ctx.author):
-                await ctx.send('Moderator over-riding server size limits')
-            elif not is_ranked and max(team_sizes) <= server_size_max + 1:
-                # Arbitrary rule, unranked games can go +1 from server_size_max
-                logger.info('Opening unranked game that exceeds server_size_max')
-            else:
-                return await ctx.send(f'Maximum ranked team size on this server is {server_size_max}. Maximum team size for an unranked game is {server_size_max + 1}.')
-
         if required_role_args and len(required_role_args) < len(team_sizes) and required_role_args[0] not in ctx.author.roles:
             # used for a case like: $opengame 1v1 me vs @The Novas   -- puts that role on side 2 if you dont have it
             logger.debug('Offsetting required_role_args')
@@ -488,19 +440,6 @@ class matchmaking(commands.Cog):
             required_role_names[count] = role.name
             required_role_message += f'**Side {count + 1}** will be locked to players with role *{role.name}*\n'
 
-        for count, role_name in enumerate(required_role_names):
-            # if a role locked side is a team role, pre-assign that side to the team, so that the player roles when joined are ignored
-            try:
-                team = models.Team.get_or_except(team_name=role_name, guild_id=ctx.guild.id, require_exact=True)
-                logger.debug(f'Pre-assigning a gameside to team {team.name} {team.id}')
-            except exceptions.NoSingleMatch:
-                team = None
-
-            preset_teams[count] = team
-
-        if required_role_message:
-            await ctx.send(required_role_message)
-
         game_notes = utilities.escape_everyone_here_roles(' '.join(note_args)[:150].strip())
         notes_str = game_notes if game_notes else "\u200b"
         if expiration_hours_override:
@@ -512,42 +451,63 @@ class matchmaking(commands.Cog):
                 expiration_hours = 48
             else:
                 expiration_hours = 96
-        expiration_timestamp = (datetime.datetime.now() + datetime.timedelta(hours=expiration_hours)).strftime("%Y-%m-%d %H:%M:%S")
+        request = game_open_workers.OpenGameRequest(
+            guild_id=ctx.guild.id,
+            requester_id=ctx.author.id,
+            requester_name=ctx.author.name,
+            requester_nick=getattr(ctx.author, 'nick', None),
+            prefix=ctx.prefix,
+            requester_role_ids=tuple(role.id for role in ctx.author.roles),
+            requester_role_names=tuple(role.name for role in ctx.author.roles),
+            requester_level=settings.get_user_level(ctx.author),
+            requester_is_mod=settings.is_mod(ctx.author),
+            requester_is_staff=settings.is_staff(ctx.author),
+            sides=tuple(
+                game_open_workers.OpenGameSide(
+                    size=size,
+                    required_role_id=required_roles[index],
+                    required_role_name=required_role_names[index],
+                )
+                for index, size in enumerate(team_sizes)
+            ),
+            expiration_hours=expiration_hours,
+            is_ranked=is_ranked,
+            is_mobile=is_mobile,
+            notes=game_notes,
+            notes_display=notes_str,
+            log_notes_display=discord.utils.escape_markdown(notes_str),
+            requester_description=models.GameLog.member_string(ctx.author),
+            invoked_with=ctx.invoked_with,
+            role_lock_message=required_role_message,
+            size_display=team_size_str,
+        )
+        try:
+            result = await game_open_workers.run_open_game_creation(request)
+        except game_open_workers.OpenGameValidationError as exc:
+            return await ctx.send(str(exc))
+        except (peewee.PeeweeException, exceptions.MyBaseException) as exc:
+            logger.exception('Error creating open game')
+            return await ctx.send(
+                f'Error opening game: {exc}. No Discord announcements or '
+                'reactions were created.'
+            )
+        except Exception:
+            logger.exception('Unexpected error creating open game')
+            return await ctx.send(
+                'Error opening game. No Discord announcements or reactions '
+                'were created.'
+            )
 
-        with models.db.atomic() as transaction:
-            warning_message, fatal_warning = '', False
-            host.team = player_team
-            host.save()
+        async def broadcast():
+            opengame = models.Game.load_full_game(game_id=result.game_id)
+            await broadcast_team_game_to_server(ctx, opengame)
 
-            opengame = models.Game.create(host=host, expiration=expiration_timestamp, notes=game_notes, guild_id=ctx.guild.id, is_pending=True, is_ranked=is_ranked, size=team_sizes, is_mobile=is_mobile)
-            for count, size in enumerate(team_sizes):
-                models.GameSide.create(game=opengame, size=size, position=count + 1, required_role_id=required_roles[count], sidename=required_role_names[count], team=preset_teams[count])
-
-            first_side, _ = opengame.first_open_side(roles=[role.id for role in ctx.author.roles])
-            if not first_side:
-                if settings.get_user_level(ctx.author) >= 4:
-                    warning_message = ':warning: All sides in this game are locked to a specific @Role - and you don\'t have any of those roles. You are not a player in this game.'
-                    fatal_warning = False
-                else:
-                    transaction.rollback()
-                    warning_message = ':warning All sides in this game are locked to a specific @Role - and you don\'t have any of those roles. Game not created.'
-                    fatal_warning = True
-            else:
-                models.Lineup.create(player=host, game=opengame, gameside=first_side)
-                if first_side.position > 1:
-                    warning_message = ':warning: You are not joined to side 1, due to the ordering of the role restrictions. Therefore you will not be the game host.'
-
-        if warning_message and fatal_warning:
-            # putting warning_message here because if they are await+sent inside the transaction block errors can occasionally occur - happens when async code is inside the transaction block
-            return await ctx.send(warning_message)
-        if warning_message:
-            await ctx.send(warning_message)
-
-        models.GameLog.write(game_id=opengame, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} opened new {team_size_str} game. Notes: *{discord.utils.escape_markdown(notes_str)}*')
-        await ctx.send(f'Starting new {"__Steam__ " if not is_mobile else ""}{"unranked " if not is_ranked else ""}open game ID {opengame.id}. Size: {team_size_str}. Expiration: {expiration_hours} hours.\nNotes: *{notes_str}*\n'
-            f'Other players can join this game with `{ctx.prefix}join {opengame.id}` or {opengame.reaction_join_string().lower()}.')
-
-        await broadcast_team_game_to_server(ctx, opengame)
+        await game_open.publish_open_game_result(
+            result,
+            prefix=ctx.prefix,
+            send=ctx.send,
+            broadcast=broadcast,
+        )
 
     @settings.in_bot_channel()
     @commands.command(aliases=['matchside', 'sidename'], usage='match_id side_number Side Name', hidden=True)
@@ -895,14 +855,15 @@ class matchmaking(commands.Cog):
                         if player.elo_moonrise < min_elo or player.elo_moonrise > max_elo or player.discord_member.elo_moonrise < min_elo_g or player.discord_member.elo_moonrise > max_elo_g:
                             unjoinable_count += 1
                             continue
-                        if game.is_mobile:
-                            if not player.discord_member.polytopia_name:
-                                unjoinable_count += 1
-                                continue
-                        else:
-                            if not player.discord_member.name_steam:
-                                unjoinable_count += 1
-                                continue
+                        if not (
+                            player.discord_member.polytopia_name
+                            or player.discord_member.name_steam
+                        ):
+                            # Historical ``is_mobile`` values do not select a
+                            # platform for cross-play games. A player only
+                            # needs one canonical account-name field.
+                            unjoinable_count += 1
+                            continue
 
                 if (novas_only and not game.notes) or (novas_only and game.notes and 'NOVA' not in game.notes.upper()):
                     # skip all non-nova league template games, (will also include anything with "nova" in the game notes)

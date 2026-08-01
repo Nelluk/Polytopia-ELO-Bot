@@ -13,6 +13,9 @@ from modules import player_views
 from modules import player_workers
 from modules import elo_workers
 from modules import game_workers
+from modules import game_open
+from modules import game_open_workers
+from modules import game_open_views
 from modules import game_record_views
 from modules import game_search_views
 from modules import game_search_workers
@@ -1838,6 +1841,166 @@ class polygames(commands.Cog):
             game_id=game_id,
             slash=True,
         )
+
+    @game_group.command(
+        name='open',
+        description='Open a game for other players to join.',
+    )
+    @discord.app_commands.describe(
+        size='Game shape, such as 1v1, 1v3, 1v1v1, or 6FFA.',
+    )
+    async def open_slash(
+        self,
+        interaction: discord.Interaction,
+        size: str,
+    ):
+        """Open a game through a short native draft and shared worker."""
+
+        await interaction.response.defer(ephemeral=True)
+        ctx = await commands.Context.from_interaction(interaction)
+        ctx.prefix = settings.guild_setting(
+            interaction.guild.id,
+            'command_prefix',
+        )
+        ctx.invoked_with = 'opengame'
+
+        matchmaking_cog = self.bot.get_cog('matchmaking')
+        open_command = (
+            getattr(matchmaking_cog, 'opengame', None)
+            if matchmaking_cog is not None
+            else None
+        )
+        if open_command is None:
+            return await interaction.edit_original_response(
+                content='The open-game command handler is unavailable.',
+            )
+        if not await open_command.can_run(ctx):
+            return
+
+        try:
+            sizes, _ = game_open_workers.parse_game_size_token(size)
+        except game_open_workers.OpenGameSizeError as exc:
+            return await interaction.edit_original_response(content=str(exc))
+
+        requester = interaction.user
+        requester_roles = tuple(getattr(requester, 'roles', ()))
+        requester_snapshot = {
+            'requester_id': requester.id,
+            'requester_name': requester.name,
+            'requester_nick': getattr(requester, 'nick', None),
+            'requester_role_ids': tuple(role.id for role in requester_roles),
+            'requester_role_names': tuple(
+                role.name for role in requester_roles
+            ),
+            'requester_level': settings.get_user_level(requester),
+            'requester_is_mod': settings.is_mod(requester),
+            'requester_is_staff': settings.is_staff(requester),
+            'requester_description': models.GameLog.member_string(requester),
+        }
+        default_expiration = game_open_workers.default_expiration_hours(
+            sum(sizes)
+        )
+        unranked_channel = settings.guild_setting(
+            interaction.guild.id,
+            'unranked_game_channel',
+        )
+        default_ranked = not (
+            unranked_channel
+            and getattr(interaction, 'channel_id', None) == unranked_channel
+        )
+
+        def build_request(
+            draft: game_open_views.OpenGameDraft,
+        ) -> game_open_workers.OpenGameRequest:
+            notes = utilities.escape_everyone_here_roles(
+                draft.notes[:150].strip()
+            )
+            return game_open_workers.OpenGameRequest(
+                guild_id=interaction.guild.id,
+                requester_id=requester_snapshot['requester_id'],
+                requester_name=requester_snapshot['requester_name'],
+                requester_nick=requester_snapshot['requester_nick'],
+                prefix=ctx.prefix,
+                requester_role_ids=requester_snapshot['requester_role_ids'],
+                requester_role_names=requester_snapshot[
+                    'requester_role_names'
+                ],
+                requester_level=requester_snapshot['requester_level'],
+                requester_is_mod=requester_snapshot['requester_is_mod'],
+                requester_is_staff=requester_snapshot['requester_is_staff'],
+                sides=tuple(
+                    game_open_workers.OpenGameSide(side_size)
+                    for side_size in draft.size
+                ),
+                expiration_hours=draft.expiration_hours,
+                is_ranked=draft.ranked,
+                is_mobile=True,
+                notes=notes,
+                notes_display=notes or '\u200b',
+                log_notes_display=discord.utils.escape_markdown(
+                    notes or '\u200b'
+                ),
+                requester_description=requester_snapshot[
+                    'requester_description'
+                ],
+                invoked_with='/game open',
+            )
+
+        async def confirm_open_game(
+            confirmation: discord.Interaction,
+            draft: game_open_views.OpenGameDraft,
+        ) -> None:
+            request = build_request(draft)
+            try:
+                result = await game_open_workers.run_open_game_creation(
+                    request
+                )
+            except game_open_workers.OpenGameValidationError as exc:
+                await confirmation.followup.send(str(exc), ephemeral=True)
+                return
+            except (peewee.PeeweeException, exceptions.MyBaseException) as exc:
+                logger.exception('Error creating native open game')
+                await confirmation.followup.send(
+                    f'Error opening game: {exc}. No public Discord effects '
+                    'were made.',
+                    ephemeral=True,
+                )
+                return
+            except Exception:
+                logger.exception('Unexpected error creating native open game')
+                await confirmation.followup.send(
+                    'Error opening game. No public Discord effects were made.',
+                    ephemeral=True,
+                )
+                return
+
+            async def send_public(message: str):
+                return await confirmation.followup.send(
+                    message,
+                    ephemeral=False,
+                    wait=True,
+                )
+
+            async def add_join_reaction(message: object) -> None:
+                await message.add_reaction(settings.emoji_join_game)
+
+            await game_open.publish_open_game_result(
+                result,
+                prefix=ctx.prefix,
+                send=send_public,
+                add_completion_reaction=add_join_reaction,
+            )
+
+        view = game_open_views.OpenGameView(
+            requester_id=interaction.user.id,
+            draft=game_open_views.OpenGameDraft(
+                size=tuple(sizes),
+                ranked=default_ranked,
+                expiration_hours=default_expiration,
+            ),
+            confirmer=confirm_open_game,
+        )
+        view.message = await interaction.edit_original_response(view=view)
 
     @game_group.command(
         name='search',

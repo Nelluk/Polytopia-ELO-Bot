@@ -1660,10 +1660,15 @@ class Game(BaseModel):
                 players += 1
                 tribe_str = player_lineup.tribe.emoji if player_lineup.tribe else ''
                 team_str = player.team.emoji if player.team else ''
-                if self.is_mobile:
-                    poly_id_str = f'\n`{player.discord_member.polytopia_name}`' if len(ordered_player_list) < 10 else ''  # to avoid hitting 1024 char limit on very big sides
-                else:
-                    poly_id_str = f'\n`{player.discord_member.name_steam if player.discord_member.name_steam else ""}`' if len(ordered_player_list) < 10 else ''
+                canonical_account_name = (
+                    player.discord_member.polytopia_name
+                    or player.discord_member.name_steam
+                )
+                poly_id_str = (
+                    f'\n`{canonical_account_name}`'
+                    if canonical_account_name and len(ordered_player_list) < 10
+                    else ''
+                )
                 player_list.append(f'**{player.name}** ({player.elo_moonrise if self.is_post_moonrise() else player.elo}) {tribe_str} {team_str}{poly_id_str}')
             player_str = '\u200b' if not player_list else '\n'.join(player_list)
 
@@ -2728,7 +2733,8 @@ class Game(BaseModel):
         if not player:
             # No Player or DiscordMember
             return (None, [f'*{member.name}* was found in the server but is not registered with me. '
-                f'Players can register themselves with `{prefix}setname` for Mobile, or `{prefix}steamname` for Steam/Desktop.'])
+                f'Players can register a canonical Polytopia account name with '
+                f'`{prefix}setname` or `{prefix}steamname`.'])
 
         if self.has_player(player)[0]:
             leave_kick_str = f'`{prefix}leave {self.id}`' if author_member == member else f'`{prefix}kick {self.id} {member.name}`'
@@ -2740,11 +2746,15 @@ class Game(BaseModel):
             else:
                 return (None, [f'**{player.name}** has been **ELO Banned** and cannot join any new games. :cry:'])
 
-        if not player.discord_member.polytopia_name and self.is_mobile:
-            return (None, [f'**{player.name}** does not have a Polytopia in-game name on file. Use `{prefix}setname` to set one.'])
-
-        if not self.is_mobile and not player.discord_member.name_steam:
-            return (None, [f'**{player.name}** does not have a Steam username on file and this is a Steam game {self.platform_emoji()}. Use `{prefix}steamname` to set one.'])
+        if not (
+            player.discord_member.polytopia_name
+            or player.discord_member.name_steam
+        ):
+            return (None, [
+                f'**{player.name}** does not have a canonical Polytopia '
+                'account name on file. Use '
+                f'`{prefix}setname` or `{prefix}steamname` to set one.'
+            ])
 
         if inactive_role and inactive_role in member.roles:
             if author_member == member:
@@ -2842,10 +2852,22 @@ class Game(BaseModel):
             message_list.append(':bulb: Since you are joining **side 1**, you will be the host of this game and will be notified when it is full. It will be your responsibility to create the game in Polytopia. '
                 f'You can specify a non-host side to join; see `{prefix}help join` in a bot channel.')
         elif creating_player and creating_player != player and settings.get_user_level(member) <= 3:
-            message_list.append(f':bulb: To help get the game set up more quickly, send the game host a friend request within Polytopia. The in-game name of the host is `{creating_player.discord_member.polytopia_name}`.')
-
-        if self.is_mobile and not player.discord_member.polytopia_name:
-            message_list.append(f':warning: Use `{prefix}setname Your Mobile Name` to set your in-game name. This will replace your friend code in the near future.')
+            host_account_name = (
+                creating_player.discord_member.polytopia_name
+                or creating_player.discord_member.name_steam
+            )
+            if host_account_name:
+                message_list.append(
+                    ':bulb: To help get the game set up more quickly, send '
+                    'the game host a friend request within Polytopia. The '
+                    f'in-game name of the host is `{host_account_name}`.'
+                )
+            else:
+                message_list.append(
+                    ':bulb: The game host must register a canonical '
+                    f'Polytopia account name with `{prefix}setname` or '
+                    f'`{prefix}steamname` before sending a friend request.'
+                )
 
         return (lineup, message_list)
 
