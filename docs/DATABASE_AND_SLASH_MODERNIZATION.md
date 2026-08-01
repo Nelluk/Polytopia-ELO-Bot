@@ -425,8 +425,8 @@ check:
   `codex/p5-1-game-open`, based on exact clean base
   `d24aa6b5e64fba159a872eb565703465c79d712d`.
 
-Current unit: **P5.5 interactive pending-game card actions — Implemented
-locally; pending Sol Tier-2 review.**
+Current unit: **P5.5 interactive pending-game card actions — Tier-2 reviewed;
+pending separately approved guild-scoped beta apply/smoke acceptance.**
 P8.0 is complete and integrated as `d6ee47c`, with explicit guild-only command
 deployment accepted in beta. Taxonomy v2.2 is provisionally accepted as the
 working implementation contract; minor wording refinements remain possible
@@ -2507,7 +2507,7 @@ complete Luna Tier-3 handoff.
 
 ### P5.5 — Interactive pending-game card actions
 
-Status: **Implemented locally; pending Sol Tier-2 review and separate beta
+Status: **Implemented locally; Tier-2 review passed; pending separate beta
 acceptance**
 
 Risk tier: **Tier 2**. This unit adds a public Discord interaction layer over
@@ -2587,8 +2587,9 @@ component restoration across bot restarts, changes to mutation semantics,
 taxonomy changes, dependencies, schema/data migration, beta apply/launch,
 production, push, PR, or merge without their separate gates.
 
-Exit: a clean Tier-2 implementation/evidence handoff for Sol review. Beta
-application-command apply and smoke acceptance remain separate after review.
+Exit: a clean Tier-2 implementation/evidence handoff with review passed. Beta
+application-command apply and smoke acceptance remain separate and require
+their own approval.
 
 Implementation evidence:
 
@@ -2636,9 +2637,9 @@ Compatibility and limitations:
   persistence across process restarts remain intentionally unvalidated and
   out of scope until review and separate acceptance.
 
-Recommended next action: Sol performs the Tier-2 whole-branch review of
-implementation checkpoint `ccf4f83`. After review approval, use the separate
-guild-scoped beta apply/smoke gate; do not integrate or launch from this task.
+Recommended next action: obtain separate approval for the guild-scoped beta
+apply/smoke gate. The reviewed branch is not integrated and must not be
+launched or synchronized from this task.
 
 ## P6 — Registration and player preferences
 
@@ -4390,6 +4391,8 @@ unit and does not reopen accepted P5.2 behavior.
 
 ### 2026-08-01 — P5.5 Tier-2 review corrections
 
+- The complete branch review passed after the two findings were corrected in
+  `6c1eaaf`.
 - Applied the existing `_native_pending_game_channel_allowed` helper to card
   Join, Leave, and Start adapters after interaction acknowledgement and before
   their shared services. Refresh remains read-only; denied mutations are
@@ -4401,6 +4404,11 @@ unit and does not reopen accepted P5.2 behavior.
   allowed service routing, and timeout during an in-flight action. Focused
   validation now passes 45 tests and complete offline discovery passes 376
   tests with 16 explicit skips.
+- Independent `py_compile` and `git diff --check` both passed. No gated
+  database rerun was needed because this correction did not change DB/worker
+  paths; existing gated evidence remains 16 passed and 1 preserved skip.
+- The branch remains pending separately approved guild-scoped beta
+  apply/smoke acceptance and is not integrated.
 
 ### 2026-08-01 — P5.4 beta accepted
 
