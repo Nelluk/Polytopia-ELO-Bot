@@ -2200,6 +2200,74 @@ The lifecycle shares `/game` with tracked-game commands. Consolidate game
 lists/history under `/game search` and enforce the 25-child group limit before
 each new registration.
 
+### P5.3 — Atomic pending-game kick
+
+Status: **Planned for Luna implementation**
+
+Risk tier: **Tier 3**. This operation removes another player's pending-game
+lineup and changes the game's expiration.
+
+Branch/base: `codex/p5-3-game-kick` from exact accumulation checkpoint
+`df444c83184d8b5374116a181941a1642c4abd9c`.
+
+Objective: preserve the established `$kick GAME_ID PLAYER` workflow while
+moving its complete mutable database path into the shared serialized
+pending-game worker boundary and adding typed
+`/game manage kick game_id member`.
+
+Required behavior and compatibility:
+
+- preserve `$kick`, its bot-channel and registered-member checks, flexible
+  player-name lookup, host-or-staff permission, self-kick denial, pending-game
+  validation, public removal output, and near-expiration reset to 24 hours;
+- add typed native game/member inputs under the accepted taxonomy path;
+- defer native interactions before worker/database work; keep permission and
+  validation failures ephemeral and committed competitive-state success
+  public;
+- do not add platform options or distinguish Mobile/Steam eligibility.
+
+Database and concurrency boundary:
+
+- capture immutable primitive requester/target context before submission;
+- reload game, host, requester permission context, target player/lineup, and
+  expiration inside a worker-local Peewee connection;
+- revalidate pending state, host-or-staff authorization, target membership,
+  and self-kick denial inside the worker before mutation;
+- atomically delete the target lineup, write `GameLog`, and extend expiration
+  when it is less than two hours away;
+- serialize through the existing pending-game coordinator against open, join,
+  leave, and another kick; cancellation must retain ownership until the
+  synchronous worker finishes;
+- return frozen primitive result/effect data. Messages, card/announcement
+  refresh, reactions, or other Discord effects occur only after commit and
+  identify the committed game on reconciliation failure.
+
+Required tests:
+
+- exact prefix registration/grammar and typed slash registration/defer;
+- host and staff success, non-host denial, self-kick denial, unknown target,
+  non-pending game, ambiguous/flexible legacy name lookup, and guild scoping;
+- lineup deletion, audit logging, and expiration extension commit together;
+- injected lineup/log/game-save failures roll back the whole mutation;
+- kick racing join/leave and duplicate kicks serialize deterministically;
+- worker-local connection ownership, primitive snapshots, responsive event
+  loop, cancellation/exception cleanup, and no Discord effects after database
+  failure;
+- representative post-commit send/card failure produces reconciliation while
+  retaining committed state and does not suppress later effects;
+- complete offline suite plus the unchanged explicit
+  `development`/`polytopia_dev`/`polybot_dev` gated integration suite,
+  including a real-schema kick/rollback case with UUID-marked cleanup.
+
+Out of scope: game start, delete/unstart changes, reaction-listener redesign,
+interactive game-card buttons, platform/schema cleanup, dependency changes,
+Discord synchronization/beta launch, production operations, push, merge, or
+PR work without separate approval.
+
+Exit: clean implementation and roadmap-evidence commits plus the complete
+Luna handoff packet. Sol performs full Tier-3 review before any separately
+approved guild apply/beta smoke and integration.
+
 ## P6 — Registration and player preferences
 
 Status: **Planned**
@@ -3909,6 +3977,19 @@ post-commit reconciliation behavior. This direction is a separate bounded
 unit and does not reopen accepted P5.2 behavior.
 
 ## Progress log
+
+### 2026-08-01 — P5.3 atomic kick planned for Luna
+
+- Selected the smaller pending-game kick mutation before the broader start
+  transition, reusing P5.2's worker/coordinator foundation.
+- Defined Tier-3 worker authorization, atomic lineup/log/expiration mutation,
+  concurrency, rollback, post-commit reconciliation, prefix parity, and typed
+  `/game manage kick` acceptance criteria.
+- Kept D-034 interactive game-card controls out of this database unit; a
+  future button must call the same accepted service after it exists.
+- Set exact base `df444c83184d8b5374116a181941a1642c4abd9c` and branch
+  `codex/p5-3-game-kick`; beta, guild apply, integration, push, and production
+  work remain separately gated.
 
 ### 2026-08-01 — P5.2 beta accepted and integrated
 
