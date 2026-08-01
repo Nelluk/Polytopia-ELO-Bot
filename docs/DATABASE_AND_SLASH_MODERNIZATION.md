@@ -4,7 +4,7 @@ Last updated: 2026-08-01
 
 Status: Active
 
-Current branch at last update: `codex/p5-4-game-start`
+Current branch at last update: `codex/database-slash-modernization`
 
 Source task: `thread://019fae66-8e3a-7a50-9a0f-d3d7160d2287`
 
@@ -425,7 +425,7 @@ check:
   `codex/p5-1-game-open`, based on exact clean base
   `d24aa6b5e64fba159a872eb565703465c79d712d`.
 
-Current unit: **P5.4 atomic pending-to-started game transition — Complete.**
+Current unit: **P5.5 interactive pending-game card actions — In progress.**
 P8.0 is complete and integrated as `d6ee47c`, with explicit guild-only command
 deployment accepted in beta. Taxonomy v2.2 is provisionally accepted as the
 working implementation contract; minor wording refinements remain possible
@@ -2504,6 +2504,89 @@ flow-first backlog. Retain development game `321` unless separately cleaned up.
 Exit: clean implementation/test and roadmap-evidence checkpoints plus the
 complete Luna Tier-3 handoff.
 
+### P5.5 — Interactive pending-game card actions
+
+Status: **In progress**
+
+Risk tier: **Tier 2**. This unit adds a public Discord interaction layer over
+the already reviewed Tier-3 join, leave, and start services; it adds no new
+authoritative database mutation.
+
+Branch/base: `codex/p5-5-pending-game-card-actions` from the exact clean
+accumulation planning checkpoint created for this unit.
+
+Objective: progressively enhance the dense classic `/game show` card for a
+pending game with useful state-aware actions while preserving the complete
+accepted card and all legacy prefix presentation.
+
+Interface and presentation:
+
+- `/game show` keeps the existing classic embed, content, attachment, and
+  information density, adding only a compact action row for pending games;
+- numeric `$game` and `$match` retain the current classic output without a
+  view, so legacy intent behavior remains available unchanged;
+- use ordinary Discord message components attached to the classic embed, not
+  a full `LayoutView`/Components-v2 message, because Discord does not allow a
+  v2-layout message to mix with the established embed/content card;
+- show Join and Refresh while an open game has capacity; show Leave and
+  Refresh for a pending game; show Start when the game is full. Shared public
+  controls are state hints, not permission claims;
+- Join opens an ephemeral side-selection step when more than one side is a
+  useful choice. A single unambiguous side may proceed directly;
+- Start opens a small modal for the exact Polytopia game name;
+- successful mutations retain the existing public competitive-state output,
+  then refresh the originating card from a new immutable snapshot;
+- validation, stale-state, and permission failures are ephemeral to the
+  clicker. Every click acknowledges promptly before bounded work.
+
+Service and authorization boundaries:
+
+- route Join, Leave, and Start through the existing shared application
+  services and pending-game coordinator. Do not copy worker validation,
+  transaction, permission, or post-commit logic into the view;
+- capture Discord member values on the event loop only through the existing
+  snapshot builders. Pass primitive IDs/frozen DTOs to workers;
+- reload/revalidate mutable game state for every action. A card may be stale,
+  and an unauthorized user may see every public button;
+- do not make the view requester-only: eligible users other than the original
+  `/game show` requester must be able to join or leave from the shared card;
+- make component callbacks and modal submission idempotent against double
+  clicks and coordinator conflicts, with a prompt ephemeral explanation;
+- Refresh performs only the established bounded game-detail read and edits
+  the originating response/card. It must not query Peewee on the event loop;
+- use bounded in-memory view state with a deliberate timeout. On expiration,
+  disable controls when the message is still editable and tell users to rerun
+  `/game show`; no database draft or persistent-view registration is needed.
+
+Required compatibility and tests:
+
+- the classic renderer text, fields, media, and attachment behavior remain
+  unchanged apart from the native pending-game view argument;
+- completed/reported game cards and every prefix detail path remain free of
+  the new pending controls;
+- exact button visibility for open, full, expired, and non-pending snapshots;
+- a different eligible member can use a public card; unauthorized and stale
+  clicks fail ephemerally after authoritative service checks;
+- side selection maps to the existing join `side_arg`; modal submission maps
+  to the existing start name; leave maps to the existing member snapshot;
+- all callbacks defer/acknowledge before worker work, avoid duplicate
+  submissions, refresh after commit, and retain public post-commit output;
+- timeout disables controls best-effort and supplies a clear rerun path;
+- no new Peewee access on the event loop and no Discord await in a worker
+  transaction;
+- focused game-detail/component, join/leave, start, and taxonomy suites;
+  complete offline discovery; unchanged gated `polytopia_dev` tests only
+  through their explicit identity gate; compilation and diff checks.
+
+Out of scope: in-progress Declare Winner, completed-game staff corrections,
+host edit/kick/delete controls, redesign of the classic card, persistent
+component restoration across bot restarts, changes to mutation semantics,
+taxonomy changes, dependencies, schema/data migration, beta apply/launch,
+production, push, PR, or merge without their separate gates.
+
+Exit: a clean Tier-2 implementation/evidence handoff for Sol review. Beta
+application-command apply and smoke acceptance remain separate after review.
+
 ## P6 — Registration and player preferences
 
 Status: **Planned**
@@ -4213,6 +4296,23 @@ post-commit reconciliation behavior. This direction is a separate bounded
 unit and does not reopen accepted P5.2 behavior.
 
 ## Progress log
+
+### 2026-08-01 — P5.5 interactive pending-game card actions planned
+
+- Selected D-034's pending-game slice now that the shared atomic join, leave,
+  and start services are complete and beta accepted.
+- Required progressive enhancement of the dense classic `/game show` embed;
+  numeric `$game`/`$match` remain unchanged and no sparse card rewrite is
+  permitted.
+- Chose ordinary Discord components beside the embed rather than a full v2
+  layout, because Discord v2-layout messages cannot mix with the established
+  embed/content presentation.
+- Scoped public Join, Leave, Start, and Refresh controls with authoritative
+  per-click revalidation, ephemeral side selection/name modal, public
+  post-commit output, refreshed immutable snapshots, and bounded timeout.
+- Classified the unit Tier 2 over existing Tier-3 services. Winner/result,
+  host management, persistence across restarts, database/schema changes,
+  Discord deployment, beta runtime, and production remain out of scope.
 
 ### 2026-08-01 — P5.4 beta accepted
 
