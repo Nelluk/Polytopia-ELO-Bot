@@ -118,6 +118,46 @@ async def leave(request: game_join_workers.LeaveRequest):
     return await game_join_workers.run_leave(request)
 
 
+async def send_post_commit_message(
+    sender,
+    content: str,
+    *,
+    game_id: int,
+    effect: str,
+):
+    """Send public committed-state text without hiding later reconciliation.
+
+    A database worker has already committed before adapters call this helper.
+    A Discord failure therefore must be logged with the committed game ID and
+    followed by a best-effort public warning, while allowing the caller to
+    continue publishing other post-commit effects.
+    """
+
+    try:
+        return await sender(content)
+    except Exception:
+        logger.exception(
+            'Committed game %s public %s failed',
+            game_id,
+            effect,
+        )
+        warning = (
+            f':warning: Game {game_id} was changed successfully, but the '
+            f'{effect} could not be published. An operator must reconcile '
+            'the public Discord state.'
+        )
+        try:
+            await sender(warning)
+        except Exception:
+            logger.exception(
+                'Committed game %s reconciliation warning failed after %s '
+                'send failure',
+                game_id,
+                effect,
+            )
+        return None
+
+
 async def remove_inactive_role_after_commit(result, member):
     """Apply the inactive-role effect only after a committed join."""
 

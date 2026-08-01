@@ -242,9 +242,17 @@ class matchmaking(commands.Cog):
             )
 
         if result.host_warning:
-            await feedback_destination.send(result.host_warning)
-        await feedback_destination.send(
-            f'Removing you from game {result.game_id}.'
+            await game_join_leave.send_post_commit_message(
+                feedback_destination.send,
+                result.host_warning,
+                game_id=result.game_id,
+                effect='host-leave warning',
+            )
+        await game_join_leave.send_post_commit_message(
+            feedback_destination.send,
+            f'Removing you from game {result.game_id}.',
+            game_id=result.game_id,
+            effect='leave output',
         )
 
     @commands.Cog.listener()
@@ -452,7 +460,12 @@ class matchmaking(commands.Cog):
                     'reconcile the announcement.'
                 )
                 message_str = '\n'.join(message_list)
-        return await feedback_destination.send(message_str)
+        return await game_join_leave.send_post_commit_message(
+            feedback_destination.send,
+            message_str,
+            game_id=result.game_id,
+            effect='reaction fallback output',
+        )
 
     @settings.in_bot_channel()
     @models.is_registered_member()
@@ -940,14 +953,20 @@ class matchmaking(commands.Cog):
             )
 
         if result.is_full:
-            await ctx.send(
+            await game_join_leave.send_post_commit_message(
+                ctx.send,
                 f'Game {result.game_id} is now full and '
-                f'<@{result.creator_id}> should create the game in Polytopia.'
+                f'<@{result.creator_id}> should create the game in Polytopia.',
+                game_id=result.game_id,
+                effect='full-game notice',
             )
             if result.host_id and result.host_id != result.creator_id:
-                await ctx.send(
+                await game_join_leave.send_post_commit_message(
+                    ctx.send,
                     f'Matchmaking host <@{result.host_id}> is not the game '
-                    'creator.'
+                    'creator.',
+                    game_id=result.game_id,
+                    effect='host-mismatch notice',
                 )
 
         if committed_game is not None:
@@ -969,7 +988,12 @@ class matchmaking(commands.Cog):
                     'reconcile the announcement.'
                 )
 
-        return await ctx.send('\n'.join(message_list))
+        return await game_join_leave.send_post_commit_message(
+            ctx.send,
+            '\n'.join(message_list),
+            game_id=result.game_id,
+            effect='join output',
+        )
 
     @settings.in_bot_channel()
     @commands.command(usage='game_id')
@@ -1007,8 +1031,18 @@ class matchmaking(commands.Cog):
             return await ctx.send(f'Game {parsed_game_id} could not be changed.')
 
         if result.host_warning:
-            await ctx.send(result.host_warning)
-        return await ctx.send(result.message)
+            await game_join_leave.send_post_commit_message(
+                ctx.send,
+                result.host_warning,
+                game_id=result.game_id,
+                effect='host-leave warning',
+            )
+        return await game_join_leave.send_post_commit_message(
+            ctx.send,
+            result.message,
+            game_id=result.game_id,
+            effect='leave output',
+        )
 
     @settings.in_bot_channel()
     @models.is_registered_member()

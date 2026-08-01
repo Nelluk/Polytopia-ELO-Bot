@@ -222,6 +222,11 @@ def join_game(request: JoinRequest) -> JoinResult:
 
     member = request.member
     author = request.author
+    if author.discord_id != member.discord_id and author.level < 4:
+        raise PendingGameJoinValidationError(
+            'You do not have permissions to add another person to a game. '
+            'Tell them to use the join command themselves.'
+        )
     member_view = _member_view(member)
     players_before = 0
     capacity = 0
@@ -593,11 +598,18 @@ def leave_game(request: LeaveRequest) -> LeaveResult:
 
             host_warning = None
             if is_hosted_by_member:
-                host_warning = (
-                    '**Warning:** You are leaving your own game. You will '
-                    'still be the host. If you want to delete use the `delete` '
-                    'command in a bot channel.'
-                )
+                if request.invoked_with == 'reaction':
+                    host_warning = (
+                        '**Warning:** You are leaving your own game. You will '
+                        'still be the host. If you want to delete use the '
+                        '`delete` command in a bot channel.'
+                    )
+                else:
+                    host_warning = (
+                        '**Warning:** You are leaving your own game. You will '
+                        'still be the host. If you want to delete use '
+                        f'`{request.prefix}delete {game.id}`'
+                    )
 
             invocation_note = (
                 f' ({request.invoked_with})'
@@ -617,7 +629,11 @@ def leave_game(request: LeaveRequest) -> LeaveResult:
                 guild_id=request.guild_id,
                 member_id=member.discord_id,
                 host_warning=host_warning,
-                message=f'Removing you from the game.',
+                message=(
+                    f'Removing you from game {game.id}.'
+                    if request.invoked_with == 'reaction'
+                    else 'Removing you from the game.'
+                ),
             )
 
 

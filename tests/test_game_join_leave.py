@@ -384,6 +384,32 @@ class JoinWorkerTests(unittest.TestCase):
         self.assertEqual(harness.state['lineups'], [])
         self.assertEqual(harness.database.rollbacks, 1)
 
+    def test_worker_rejects_third_party_join_below_level_four_before_mutation(self):
+        harness = JoinHarness()
+        low_level_author = snapshot(discord_id=100, level=3, name='host')
+        with harness.patch(), self.assertRaises(
+            game_join_workers.PendingGameJoinValidationError
+        ) as raised:
+            game_join_workers.join_game(
+                join_request(author=low_level_author)
+            )
+        self.assertIn('permissions to add another person', str(raised.exception))
+        self.assertEqual(harness.state['lineups'], [])
+        self.assertEqual(harness.state['logs'], [])
+        self.assertEqual(harness.state['player_saves'], 0)
+        self.assertEqual(harness.database.connection_opened, 0)
+
+    def test_worker_allows_third_party_join_at_level_four(self):
+        harness = JoinHarness()
+        level_four_author = snapshot(discord_id=100, level=4, name='host')
+        with harness.patch():
+            result = game_join_workers.join_game(
+                join_request(author=level_four_author)
+            )
+        self.assertEqual(result.member_id, 200)
+        self.assertEqual(len(harness.state['lineups']), 1)
+        self.assertEqual(len(harness.state['logs']), 1)
+
     def test_named_and_numeric_sides_are_revalidated_in_worker(self):
         harness = JoinHarness()
         with harness.patch():
@@ -461,7 +487,7 @@ class JoinWorkerTests(unittest.TestCase):
 
         harness = JoinHarness()
         harness.elo_requirements = (1100, 1200, 0, 9999)
-        host_author = snapshot(discord_id=100, level=3, name='host')
+        host_author = snapshot(discord_id=100, level=4, name='host')
         with harness.patch():
             result = game_join_workers.join_game(
                 join_request(author=host_author)
@@ -575,6 +601,30 @@ class JoinWorkerTests(unittest.TestCase):
         with harness.patch():
             result = game_join_workers.leave_game(host_request)
         self.assertIn('You are leaving your own game', result.host_warning)
+        self.assertIn('$delete 322', result.host_warning)
+
+        harness = JoinHarness()
+        reaction_host_lineup = SimpleNamespace(
+            player=harness.host,
+            gameside=harness.side_one,
+        )
+        harness.state['lineups'].append(reaction_host_lineup)
+        reaction_host_lineup.delete_instance = lambda: harness.state['lineups'].remove(
+            reaction_host_lineup
+        )
+        reaction_host_request = game_join_workers.LeaveRequest(
+            game_id=322,
+            guild_id=300,
+            prefix='$',
+            member=snapshot(discord_id=100, name='host', level=4),
+            author=snapshot(discord_id=100, name='host', level=4),
+            invoked_with='reaction',
+        )
+        with harness.patch():
+            result = game_join_workers.leave_game(reaction_host_request)
+        self.assertIn('`delete` command', result.host_warning)
+        self.assertNotIn('$delete 322', result.host_warning)
+        self.assertEqual(result.message, 'Removing you from game 322.')
 
         harness = JoinHarness()
         with harness.patch(), self.assertRaises(
@@ -1014,6 +1064,208 @@ class PostCommitAndAdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(
             interaction.followup.send.await_args.kwargs['ephemeral']
         )
+
+    async def test_prefix_join_send_failure_warns_and_continues_reconciliation(self):
+        guild = SimpleNamespace(id=300, roles=[])
+        author = self.discord_member(guild=guild)
+        sent = []
+
+        async def send(content):
+            sent.append(content)
+            if len(sent) == 1:
+                raise RuntimeError('full notice failed')
+
+        context = SimpleNamespace(
+            author=author,
+            guild=guild,
+            prefix='$',
+            invoked_with='join',
+            message=SimpleNamespace(mentions=[], role_mentions=[]),
+            send=mock.AsyncMock(side_effect=send),
+        )
+        result = game_join_workers.JoinResult(
+            game_id=322,
+            guild_id=300,
+            member_id=author.id,
+            side_position=1,
+            messages=('Joined',),
+            players=1,
+            capacity=1,
+            creator_id=100,
+            host_id=101,
+            remove_inactive_role=False,
+            inactive_role_name=None,
+        )
+        cog = matchmaking.matchmaking.__new__(matchmaking.matchmaking)
+        cog.execute_join = mock.AsyncMock(return_value=result)
+        command = next(
+            command for command in matchmaking.matchmaking.__cog_commands__
+            if command.name == 'join'
+        )
+        with mock.patch.object(
+            matchmaking.settings,
+            'get_user_level',
+            return_value=4,
+        ), mock.patch.object(
+            matchmaking.utilities,
+            'get_guild_member',
+            new=mock.AsyncMock(return_value=[author]),
+        ), mock.patch.object(
+            matchmaking.models.Game,
+            'load_full_game',
+            return_value=SimpleNamespace(
+                embed=mock.Mock(return_value=(None, 'card')),
+            ),
+        ), mock.patch.object(
+            matchmaking.image_storage,
+            'send_game_embed',
+            new=mock.AsyncMock(),
+        ):
+            await command.callback(cog, context, '322')
+
+        self.assertIn('public Discord state', sent[1])
+        self.assertTrue(any('Matchmaking host' in message for message in sent))
+        self.assertTrue(any(message == 'Joined' for message in sent))
+
+    async def test_native_join_send_failure_warns_and_continues_reconciliation(self):
+        guild = SimpleNamespace(id=300, roles=[])
+        member = self.discord_member(guild=guild)
+        sent = []
+
+        async def send(content, **kwargs):
+            sent.append((content, kwargs))
+            if len(sent) == 1:
+                raise RuntimeError('full notice failed')
+
+        interaction = SimpleNamespace(
+            guild=guild,
+            followup=SimpleNamespace(send=mock.AsyncMock(side_effect=send)),
+        )
+        result = game_join_workers.JoinResult(
+            game_id=322,
+            guild_id=300,
+            member_id=member.id,
+            side_position=1,
+            messages=('Joined',),
+            players=1,
+            capacity=1,
+            creator_id=100,
+            host_id=101,
+            remove_inactive_role=False,
+            inactive_role_name=None,
+        )
+        cog = games.polygames.__new__(games.polygames)
+        with mock.patch.object(
+            games.game_join_leave,
+            'remove_inactive_role_after_commit',
+            new=mock.AsyncMock(return_value=None),
+        ), mock.patch.object(
+            games.models.Game,
+            'load_full_game',
+            return_value=SimpleNamespace(
+                embed=mock.Mock(return_value=(None, 'card')),
+            ),
+        ), mock.patch.object(
+            games.image_storage,
+            'send_game_embed',
+            new=mock.AsyncMock(),
+        ):
+            await cog._publish_native_join_result(
+                interaction,
+                result,
+                member=member,
+                prefix='$',
+            )
+
+        self.assertIn('public Discord state', sent[1][0])
+        self.assertTrue(any('Matchmaking host' in message for message, _ in sent))
+        self.assertTrue(any(message == 'Joined' for message, _ in sent))
+        self.assertTrue(all(kwargs['ephemeral'] is False for _, kwargs in sent))
+
+    async def test_prefix_leave_send_failure_warns_and_still_publishes_output(self):
+        guild = SimpleNamespace(id=300, roles=[])
+        author = self.discord_member(guild=guild)
+        sent = []
+
+        async def send(content):
+            sent.append(content)
+            if len(sent) == 1:
+                raise RuntimeError('host warning failed')
+
+        context = SimpleNamespace(
+            author=author,
+            guild=guild,
+            prefix='$',
+            invoked_with='leave',
+            send=mock.AsyncMock(side_effect=send),
+        )
+        result = game_join_workers.LeaveResult(
+            game_id=322,
+            guild_id=300,
+            member_id=author.id,
+            host_warning='**Warning** use `$delete 322`',
+            message='Removing you from the game.',
+        )
+        cog = matchmaking.matchmaking.__new__(matchmaking.matchmaking)
+        cog.execute_leave = mock.AsyncMock(return_value=result)
+        command = next(
+            command for command in matchmaking.matchmaking.__cog_commands__
+            if command.name == 'leave'
+        )
+        await command.callback(cog, context, '322')
+
+        self.assertIn('public Discord state', sent[1])
+        self.assertIn('Removing you from the game.', sent[2])
+
+    async def test_native_leave_send_failure_warns_and_still_publishes_output(self):
+        guild = SimpleNamespace(id=300, roles=[])
+        requester = self.discord_member(guild=guild)
+        sent = []
+
+        async def send(content, **kwargs):
+            sent.append((content, kwargs))
+            if len(sent) == 1:
+                raise RuntimeError('host warning failed')
+
+        interaction = SimpleNamespace(
+            guild=guild,
+            user=requester,
+            channel_id=301,
+            response=SimpleNamespace(defer=mock.AsyncMock()),
+            followup=SimpleNamespace(send=mock.AsyncMock(side_effect=send)),
+        )
+        result = game_join_workers.LeaveResult(
+            game_id=322,
+            guild_id=300,
+            member_id=requester.id,
+            host_warning='**Warning** use `$delete 322`',
+            message='Removing you from the game.',
+        )
+        execute_leave = mock.AsyncMock(return_value=result)
+        cog = games.polygames.__new__(games.polygames)
+        cog.bot = SimpleNamespace(
+            get_cog=lambda name: SimpleNamespace(execute_leave=execute_leave)
+        )
+        command = next(
+            command for command in games.polygames.__cog_app_commands__
+            if command.name == 'game'
+        ).get_command('leave')
+        with mock.patch.object(
+            games.settings,
+            'guild_setting',
+            side_effect=lambda guild_id, name: (
+                '$' if name == 'command_prefix' else None
+            ),
+        ), mock.patch.object(
+            games.settings,
+            'is_mod',
+            return_value=False,
+        ):
+            await command.callback(cog, interaction, 322)
+
+        self.assertIn('public Discord state', sent[1][0])
+        self.assertEqual(sent[2][0], 'Removing you from the game.')
+        self.assertTrue(all(kwargs['ephemeral'] is False for _, kwargs in sent))
 
     async def test_native_leave_defers_and_keeps_success_public(self):
         guild = SimpleNamespace(id=300, roles=[])

@@ -739,6 +739,252 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
                     self.models.Team.id == team.id
                 ).execute()
 
+    def test_join_leave_worker_real_graph_and_audit_rollback(self):
+        from modules import game_join_workers
+
+        guild_id = self.profile.allowed_guild_ids[0]
+        suffix = uuid.uuid4().hex
+        marker = f'P5.2 integration {suffix}'
+        id_base = 8_900_000_000_000_000 + uuid.uuid4().int % 1_000_000
+        host_discord_id = id_base
+        joiner_discord_id = id_base + 1
+        team = None
+        game_id = None
+        created_log_ids = set()
+
+        try:
+            if self.settings.guild_setting(guild_id, 'require_teams'):
+                team = self.models.Team.create(
+                    name=f'P52 Integration Team {suffix}',
+                    guild_id=guild_id,
+                )
+
+            host_member = self.models.DiscordMember.create(
+                discord_id=host_discord_id,
+                name=f'P52 Host {suffix}',
+                polytopia_name=f'P52Host{suffix}',
+            )
+            joiner_member = self.models.DiscordMember.create(
+                discord_id=joiner_discord_id,
+                name=f'P52 Joiner {suffix}',
+                polytopia_name=f'P52Joiner{suffix}',
+            )
+            host_player = self.models.Player.create(
+                discord_member=host_member,
+                guild_id=guild_id,
+                name=host_member.name,
+                team=team,
+            )
+            joiner_player = self.models.Player.create(
+                discord_member=joiner_member,
+                guild_id=guild_id,
+                name=joiner_member.name,
+                team=team,
+            )
+            game = self.models.Game.create(
+                guild_id=guild_id,
+                host=host_player,
+                expiration=datetime.datetime.now() + datetime.timedelta(hours=24),
+                notes=marker,
+                is_pending=True,
+                is_ranked=True,
+                is_mobile=True,
+                size=[1, 1],
+            )
+            game_id = game.id
+            first_side = self.models.GameSide.create(
+                game=game,
+                position=1,
+                sidename='Alpha',
+                size=1,
+            )
+            second_side = self.models.GameSide.create(
+                game=game,
+                position=2,
+                sidename='Bravo',
+                size=1,
+            )
+            self.models.Lineup.create(
+                game=game,
+                gameside=first_side,
+                player=host_player,
+            )
+
+            role_ids = (9_999,) if team else ()
+            role_names = (team.name,) if team else ()
+            joiner_snapshot = game_join_workers.MemberSnapshot(
+                guild_id=guild_id,
+                discord_id=joiner_discord_id,
+                discord_name=joiner_member.name,
+                discord_nick=None,
+                display_name=joiner_member.name,
+                role_ids=role_ids,
+                role_names=role_names,
+                level=3,
+                is_mod=False,
+                is_staff=False,
+                description=(
+                    f'**{joiner_member.name}** (`{joiner_discord_id}`)'
+                ),
+            )
+            join_request = game_join_workers.JoinRequest(
+                game_id=game_id,
+                guild_id=guild_id,
+                prefix='$',
+                member=joiner_snapshot,
+                author=joiner_snapshot,
+                side_arg='2',
+                invoked_with='join',
+                notification_member_id=joiner_discord_id,
+            )
+
+            # Close the main-thread connection so run_join must establish and
+            # close its own Peewee connection in the executor worker.
+            self.models.db.close()
+            join_result = asyncio.run(
+                game_join_workers.run_join(join_request)
+            )
+            self.models.db.connect(reuse_if_open=True)
+            self.assertEqual(join_result.game_id, game_id)
+            self.assertEqual(
+                self.models.Player.get_by_id(joiner_player.id).id,
+                joiner_player.id,
+            )
+            self.assertEqual(
+                self.models.Lineup.select().where(
+                    self.models.Lineup.game == game_id
+                ).count(),
+                2,
+            )
+            self.assertEqual(
+                self.models.Lineup.select().where(
+                    (self.models.Lineup.game == game_id)
+                    & (self.models.Lineup.gameside == second_side.id)
+                    & (self.models.Lineup.player == joiner_player.id)
+                ).count(),
+                1,
+            )
+            self.assertEqual(
+                self.models.GameSide.select().where(
+                    self.models.GameSide.game == game_id
+                ).count(),
+                2,
+            )
+            created_log_ids.update(
+                row.id for row in self.models.GameLog.select().where(
+                    self.models.GameLog.message.contains(suffix)
+                )
+            )
+            self.assertEqual(len(created_log_ids), 1)
+
+            leave_request = game_join_workers.LeaveRequest(
+                game_id=game_id,
+                guild_id=guild_id,
+                prefix='$',
+                member=joiner_snapshot,
+                author=joiner_snapshot,
+                invoked_with='leave',
+            )
+            self.models.db.close()
+            leave_result = asyncio.run(
+                game_join_workers.run_leave(leave_request)
+            )
+            self.models.db.connect(reuse_if_open=True)
+            self.assertEqual(leave_result.game_id, game_id)
+            self.assertEqual(
+                self.models.Lineup.select().where(
+                    self.models.Lineup.game == game_id
+                ).count(),
+                1,
+            )
+            created_log_ids.update(
+                row.id for row in self.models.GameLog.select().where(
+                    self.models.GameLog.message.contains(suffix)
+                )
+            )
+            self.assertEqual(len(created_log_ids), 2)
+
+            failing_log = mock.patch.object(
+                self.models.GameLog,
+                'write',
+                side_effect=RuntimeError('P5.2 audit failure'),
+            )
+            self.models.db.close()
+            with failing_log, self.assertRaisesRegex(
+                RuntimeError,
+                'P5.2 audit failure',
+            ):
+                asyncio.run(game_join_workers.run_join(join_request))
+            self.models.db.connect(reuse_if_open=True)
+            self.assertEqual(
+                self.models.Lineup.select().where(
+                    self.models.Lineup.game == game_id
+                ).count(),
+                1,
+            )
+            self.assertEqual(
+                self.models.GameLog.select().where(
+                    self.models.GameLog.message.contains(suffix)
+                ).count(),
+                2,
+            )
+        finally:
+            self.models.db.connect(reuse_if_open=True)
+            if game_id is not None:
+                self.models.Lineup.delete().where(
+                    self.models.Lineup.game == game_id
+                ).execute()
+                self.models.GameSide.delete().where(
+                    self.models.GameSide.game == game_id
+                ).execute()
+                self.models.Game.delete().where(
+                    self.models.Game.id == game_id
+                ).execute()
+            if created_log_ids:
+                self.models.GameLog.delete().where(
+                    self.models.GameLog.id.in_(created_log_ids)
+                ).execute()
+            temporary_member_ids = self.models.DiscordMember.select(
+                self.models.DiscordMember.id
+            ).where(
+                self.models.DiscordMember.discord_id.in_(
+                    (host_discord_id, joiner_discord_id)
+                )
+            )
+            self.models.Player.delete().where(
+                self.models.Player.discord_member.in_(temporary_member_ids)
+            ).execute()
+            self.models.DiscordMember.delete().where(
+                self.models.DiscordMember.discord_id.in_(
+                    (host_discord_id, joiner_discord_id)
+                )
+            ).execute()
+            if team is not None:
+                self.models.Team.delete().where(
+                    self.models.Team.id == team.id
+                ).execute()
+
+            self.assertEqual(
+                self.models.Game.select().where(
+                    self.models.Game.id == game_id
+                ).count() if game_id is not None else 0,
+                0,
+            )
+            self.assertEqual(
+                self.models.DiscordMember.select().where(
+                    self.models.DiscordMember.discord_id.in_(
+                        (host_discord_id, joiner_discord_id)
+                    )
+                ).count(),
+                0,
+            )
+            self.assertEqual(
+                self.models.GameLog.select().where(
+                    self.models.GameLog.message.contains(suffix)
+                ).count(),
+                0,
+            )
+
     def test_bot_extensions_load_with_background_tasks_disabled(self):
         import bot as bot_module
 

@@ -2073,16 +2073,24 @@ class polygames(commands.Cog):
             )
 
         if result.is_full:
-            await interaction.followup.send(
-                f'Game {result.game_id} is now full and '
-                f'<@{result.creator_id}> should create the game in Polytopia.',
+            public_send = lambda content: interaction.followup.send(
+                content,
                 ephemeral=False,
             )
+            await game_join_leave.send_post_commit_message(
+                public_send,
+                f'Game {result.game_id} is now full and '
+                f'<@{result.creator_id}> should create the game in Polytopia.',
+                game_id=result.game_id,
+                effect='full-game notice',
+            )
             if result.host_id and result.host_id != result.creator_id:
-                await interaction.followup.send(
+                await game_join_leave.send_post_commit_message(
+                    public_send,
                     f'Matchmaking host <@{result.host_id}> is not the game '
                     'creator.',
-                    ephemeral=False,
+                    game_id=result.game_id,
+                    effect='host-mismatch notice',
                 )
 
         if committed_game is not None:
@@ -2104,9 +2112,14 @@ class polygames(commands.Cog):
                     'reconcile the announcement.'
                 )
 
-        await interaction.followup.send(
+        await game_join_leave.send_post_commit_message(
+            lambda message: interaction.followup.send(
+                message,
+                ephemeral=False,
+            ),
             '\n'.join(messages),
-            ephemeral=False,
+            game_id=result.game_id,
+            effect='join output',
         )
 
     @game_group.command(
@@ -2244,11 +2257,24 @@ class polygames(commands.Cog):
             )
 
         if result.host_warning:
-            await interaction.followup.send(
+            await game_join_leave.send_post_commit_message(
+                lambda message: interaction.followup.send(
+                    message,
+                    ephemeral=False,
+                ),
                 result.host_warning,
-                ephemeral=False,
+                game_id=result.game_id,
+                effect='host-leave warning',
             )
-        await interaction.followup.send(result.message, ephemeral=False)
+        await game_join_leave.send_post_commit_message(
+            lambda message: interaction.followup.send(
+                message,
+                ephemeral=False,
+            ),
+            result.message,
+            game_id=result.game_id,
+            effect='leave output',
+        )
 
     @game_group.command(
         name='search',
