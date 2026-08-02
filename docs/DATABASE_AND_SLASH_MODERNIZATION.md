@@ -4,8 +4,7 @@ Last updated: 2026-08-02
 
 Status: Active
 
-Current branch at last update: `codex/p4-2b-notes-attribution`
-(beta-transparency correction; not integrated)
+Current branch at last update: `codex/database-slash-modernization`
 
 Source task: `thread://019fae66-8e3a-7a50-9a0f-d3d7160d2287`
 
@@ -439,10 +438,10 @@ check:
   `190e6bb515911cedb329b4de5af88d2bbd0a1e58`.
 - P4.2b accumulation merge: `1f1625b`.
 - P4.2b beta-transparency correction: `b43d31e` on
-  `codex/p4-2b-notes-attribution` (not integrated).
+  `codex/p4-2b-notes-attribution`; accumulation merge `57de2a2`.
 
 Current unit: **P4.2b focused game-notes workspace — beta acceptance pending;
-actor-attribution correction implemented locally and not integrated.**
+actor-attribution correction reviewed and integrated.**
 P4.2a is complete, beta-validated, and integrated as `5845e8b` with public
 visibility correction merge `4fa4b4f`.
 P5.8 is complete, beta-validated, and integrated as `4fc5973`; its final
@@ -2022,8 +2021,8 @@ stopped cleanly after acceptance.
 
 #### P4.2b — Focused game-notes workspace
 
-Status: **Tier-3 reviewed and accepted for integration approval; actor-
-attribution correction implemented locally; not Complete or integrated**
+Status: **Integrated; beta acceptance pending after actor-attribution
+correction**
 
 Risk tier: **Tier 3**. Notes mutation and its audit entry must commit
 atomically, while the public game-card refresh and mention warning occur only
@@ -2198,7 +2197,7 @@ Correction validation:
   connection/synchronization, production or `polytopia2` access, schema,
   dependency, push, PR, or integration action was performed.
 
-Correction status: **Implemented locally; not Complete, integrated, or
+Correction status: **Focused review passed and integrated as `57de2a2`; not
 beta-accepted.**
 
 Known limitations: the preserved dense game-card refresh still performs its
@@ -2207,13 +2206,13 @@ adjacent P4.2a limitation. No beta, command inspection/synchronization,
 Discord connection, production or `polytopia2` access, schema/dependency
 action, push, PR, merge, or integration action was performed.
 
-Integration result: merged into `codex/database-slash-modernization` as
-`1f1625b`. The separately approved development-guild synchronization and beta
-smoke are the remaining acceptance gate.
+Integration result: the original unit merged as `1f1625b`; the reviewed
+actor-attribution correction merged as `57de2a2`. A later beta smoke remains
+the acceptance gate.
 
-Next action: beta-smoke `/game notes` read, edit, clear/cancel, timeout, public
-visibility, and preserved `$gamenotes` behavior. If accepted, close P4.2b and
-select P4.2c focused game-name read/edit as the next bounded attribute unit.
+Next action: implement P4.2c focused game-name read/edit as the next bounded
+attribute unit. Batch the corrected `/game notes` beta confirmation with that
+unit's separately approved smoke session.
 
 ## P5 — Matchmaking lifecycle
 
