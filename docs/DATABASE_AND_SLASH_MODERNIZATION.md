@@ -428,12 +428,14 @@ check:
   `d24aa6b5e64fba159a872eb565703465c79d712d`.
 - P5.8 implementation checkpoint: `34f385c`, Tier-2 review correction
   `bc678d6`, and accumulation merge `4fc5973`.
-- P4.2a implementation checkpoints: `35f5f14`, `d0555b8`, `ec26661` on
+- P4.2a implementation checkpoints: `35f5f14`, `d0555b8`, `ec26661`,
+  `4762d4c` on
   `codex/p4-2a-game-map`, based on exact clean base
   `5a310c0bdf5d66646bb9b6f8b47ee322cbe1e15c`.
 
 Current unit: **P4.2a focused game-map attribute — Implemented with Tier-3 review
-corrections on the dedicated branch; integration and beta acceptance pending.**
+corrections and a reported beta visibility correction on the dedicated branch;
+integration and final beta acceptance pending.**
 P5.8 is complete, beta-validated, and integrated as `4fc5973`; its final
 acceptance evidence is recorded in `8125c1f`.
 P5.7 is complete, beta-accepted, and integrated as `b7cc2bc`; its
@@ -1851,6 +1853,7 @@ Commit(s):
 - `35f5f14` — Implement focused game map mutation.
 - `d0555b8` — Preserve setmap prefix error wording.
 - `ec26661` — Harden game map worker cancellation and slash visibility.
+- `4762d4c` — Publish game map successes publicly after private defer.
 
 Objective: establish the accepted focused read-or-edit attribute pattern with
 one small, stable game property while removing the existing synchronous
@@ -1899,9 +1902,15 @@ Implementation evidence:
 - `modules/games.py` preserves `$setmap`, `$setmaptype`, help text, usage
   wording, channel inference, abbreviations, `NONE` clearing, public success,
   and legacy permission behavior. `/game map` uses a typed stable choice,
-  explicit `clear`, an ephemeral initial defer, public read/success followups,
-  and private validation, permission, conflict, and database errors. Conflicting
-  slash options are rejected before mutation and before defer.
+  explicit `clear`, an ephemeral initial defer, a one-time deletion of the
+  private deferred original response, and genuinely public channel messages
+  for successful reads/mutations. Validation, permission, conflict, and
+  database errors remain private. Conflicting slash options are rejected
+  before mutation and before defer.
+- `public_interaction_sender()` provides the shared map-specific output path;
+  it logs a failed placeholder deletion, continues with the public channel
+  send, and cannot duplicate output when the mutation publisher emits a
+  reconciliation warning.
 - `modules/models.py` now reports announcement-refresh success/failure so the
   shared publisher can log and publicly warn about post-commit Discord
   failures without claiming that the database rolled back. Database failures
@@ -1935,7 +1944,8 @@ Required tests:
   post-commit Discord failure;
 - `$setmap`/`$setmaptype` behavior and channel inference;
 - `/game map` registration, typed choices, defer ordering, public successful
-  mutation output, and private denial/error output;
+  read/mutation channel output, inherited-visibility behavior, placeholder
+  cleanup/failure, no duplicate output, and private denial/error output;
 - focused, complete offline, unchanged gated-development database, and later
   separately approved beta smoke evidence.
 
@@ -1953,11 +1963,12 @@ Validation evidence:
 
 - `POLYBOT_ENV=development MPLCONFIGDIR=/tmp/polybot-matplotlib
   /home/nelluk/PolyBot39-dev/.venv/bin/python` with the focused isolated-runtime
-  harness: `tests.test_game_map` and `tests.test_slash_taxonomy` — 29 passed,
-  including the repeated-cancellation claim regression and explicit
-  `defer(ephemeral=True)` assertions.
+  harness: `tests.test_game_map` and `tests.test_slash_taxonomy` — 31 passed,
+  including Discord-style inherited-private followups, public channel output,
+  placeholder-clear failure, database-failure silence, the repeated-
+  cancellation claim regression, and `defer(ephemeral=True)` assertions.
 - Complete offline discovery under the same in-memory development profile:
-  469 passed and 17 explicitly gated database tests skipped. The ordinary
+  471 passed and 17 explicitly gated database tests skipped. The ordinary
   repository discovery command could not import the model-dependent offline
   modules because this app-assigned worktree intentionally has no ignored
   `config.development.ini`; no config was copied or synthesized.
@@ -1985,11 +1996,13 @@ Remaining limitations:
   `Game.load_full_game` reload on the event-loop thread, matching the known
   limitation of adjacent P4.1 units; the map write, audit, and read are
   bounded and worker-local.
-- Beta acceptance and native command synchronization are intentionally
+- A separately reported live beta smoke found that `followup.send(ephemeral=False)`
+  still inherited the ephemeral deferred response; this correction addresses
+  that finding. Final beta acceptance and native command synchronization remain
   pending separate approval. The branch is not integrated.
 
-Next action: Sol should review the complete base-to-`ec26661` diff and the
-transaction/permission/cancellation/visibility/post-commit evidence, then
+Next action: Sol should review the complete base-to-`4762d4c` diff and the
+transaction/permission/cancellation/inherited-visibility/post-commit evidence, then
 integrate the implementation commits from this handoff into
 `codex/database-slash-modernization` only after acceptance. After integration,
 obtain separate approval for the gated development-profile rerun and any beta
@@ -6524,6 +6537,28 @@ unit and does not reopen accepted P5.2 behavior.
   action was performed.
 - Next: review and integrate only after acceptance; separately run the real
   development-database gate and request any beta smoke approval.
+
+### 2026-08-02 — P4.2a beta visibility finding corrected
+
+- A separately reported live P4.2a beta smoke found that a successful
+  `/game map` read or mutation sent with `followup.send(ephemeral=False)` still
+  appeared under the ephemeral deferred response. This was a Discord
+  visibility finding, not a command-schema change.
+- Corrected the dedicated branch in `4762d4c`: successful map output now
+  deletes the private deferred original once and sends through the guild
+  channel, while private failures continue using ephemeral followups. A
+  failed placeholder deletion is logged and does not reinterpret the committed
+  database result; the existing mutation publisher still owns success wording,
+  refresh ordering, and reconciliation warnings.
+- The visibility fake deliberately applies deferred-response inheritance to
+  followups. Focused map/taxonomy validation passed 31 tests; complete offline
+  discovery passed 471 tests with 17 explicitly gated database skips.
+- No beta was launched or connected during this correction, and no command
+  plan/apply/sync, production, `polytopia2`, schema/dependency, push, PR, merge,
+  or integration action was performed.
+- Next: Sol should review the complete branch, independently run the unchanged
+  development database gate when the approved ignored profile is available,
+  and decide whether a separately approved beta smoke is required.
 
 ## Resume checklist
 
