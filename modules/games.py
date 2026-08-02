@@ -4025,6 +4025,7 @@ class polygames(commands.Cog):
             )
 
         await interaction.response.defer(ephemeral=True)
+        public_send = game_map.public_interaction_sender(interaction)
         channel_id = int(
             getattr(interaction, 'channel_id', None)
             or getattr(getattr(interaction, 'channel', None), 'id', 0)
@@ -4057,10 +4058,7 @@ class polygames(commands.Cog):
                     'The current map type could not be loaded.',
                     ephemeral=True,
                 )
-            return await interaction.followup.send(
-                game_map.read_message(result),
-                ephemeral=False,
-            )
+            return await public_send(game_map.read_message(result))
 
         request = game_map.build_mutation_request(
             member=interaction.user,
@@ -4075,10 +4073,7 @@ class polygames(commands.Cog):
         async def after_commit(result):
             await game_map.publish_mutation_result(
                 result,
-                send=lambda content: interaction.followup.send(
-                    content,
-                    ephemeral=False,
-                ),
+                send=public_send,
                 guild=interaction.guild,
                 prefix=settings.guild_setting(
                     interaction.guild.id,
