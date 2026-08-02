@@ -1300,7 +1300,11 @@ class HybridUnwinCommandTests(unittest.IsolatedAsyncioTestCase):
         )
 
         with mock.patch.object(
-            self.games.Game, 'get_by_id', return_value=winning_game
+            self.games.game_win.game_win_workers,
+            'run_prepare_win',
+            new=mock.AsyncMock(
+                return_value=SimpleNamespace(winning_side_id=9),
+            ),
         ), mock.patch.object(
             self.games.settings, 'elo_job_coordinator', Coordinator()
         ), mock.patch.object(

@@ -1,9 +1,9 @@
-"""Ordinary message components for pending-game detail cards.
+"""Ordinary message components for native game-detail cards.
 
 The detail card remains the established classic embed.  This module owns only
 the short-lived component state and delegates every mutation to callbacks
-provided by the games cog, which in turn uses the existing pending-game
-services and workers.
+provided by the games cog, which in turn uses the existing game services and
+workers.
 """
 
 from __future__ import annotations
@@ -34,6 +34,24 @@ LeaveAction = Callable[[discord.Interaction], Awaitable[bool]]
 StartAction = Callable[[discord.Interaction, str], Awaitable[bool]]
 DeletePrepareAction = Callable[[discord.Interaction], Awaitable[bool]]
 DeleteAction = Callable[[discord.Interaction], Awaitable[bool]]
+WinAction = Callable[[discord.Interaction, int, str], Awaitable[bool]]
+
+
+def winner_action_eligible(
+    snapshot: game_detail_workers.GameDetailSnapshot,
+) -> bool:
+    """Return whether the public card may advertise a first result claim."""
+
+    return bool(
+        snapshot.status_label == 'Incomplete'
+        and not snapshot.is_pending
+        and not snapshot.is_completed
+        and not snapshot.is_confirmed
+        and not snapshot.win_claimed_ts
+        and snapshot.winner_side_id is None
+        and not snapshot.cross_guild
+        and snapshot.sides
+    )
 
 
 def _response_done(interaction: discord.Interaction) -> bool:
@@ -75,6 +93,33 @@ def _side_options(
         options.append(discord.SelectOption(
             label=label[:100],
             value=str(side.position),
+            description=description[:100],
+        ))
+    return tuple(options)
+
+
+def _winner_side_options(
+    snapshot: game_detail_workers.GameDetailSnapshot,
+) -> tuple[discord.SelectOption, ...]:
+    """Build stable-ID winner choices from one immutable in-progress snapshot."""
+
+    options = []
+    for side in snapshot.sides:
+        side_name = str(side.sidename or side.name or '').strip()
+        label = f'Side {side.position}'
+        if side_name:
+            label += f' — {side_name}'
+        roster = ', '.join(
+            lineup.player_name
+            for lineup in side.lineups
+            if lineup.player_name
+        )
+        description = f'{len(side.lineups)}/{side.capacity} players'
+        if roster:
+            description += f': {roster}'
+        options.append(discord.SelectOption(
+            label=label[:100],
+            value=str(side.side_id),
             description=description[:100],
         ))
     return tuple(options)
@@ -272,8 +317,236 @@ class PendingGameDeleteConfirmationView(discord.ui.View):
         self.card_view._release_delete_claim()
 
 
+class InProgressWinnerSideSelectView(discord.ui.View):
+    """Requester-only ephemeral selector for an in-progress result claim."""
+
+    def __init__(
+        self,
+        card_view: 'PendingGameCardView',
+        *,
+        requester_id: int,
+        options: tuple[discord.SelectOption, ...],
+        timeout: float = 120.0,
+    ):
+        super().__init__(timeout=timeout)
+        self.card_view = card_view
+        self.requester_id = requester_id
+        self.message: discord.Message | None = None
+        self.side_select = discord.ui.Select(
+            placeholder='Choose the winning side',
+            options=list(options),
+            min_values=1,
+            max_values=1,
+        )
+        self.side_select.callback = self._select_side
+        self.add_item(self.side_select)
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if self.is_finished() or self.card_view.is_finished():
+            await _send_ephemeral(
+                interaction,
+                'This winner selector expired. Run `/game show` again for a '
+                'fresh card.',
+            )
+            return False
+        if interaction.user.id != self.requester_id:
+            await _send_ephemeral(
+                interaction,
+                'Only the member who requested winner selection can use it.',
+            )
+            return False
+        return True
+
+    async def _edit_disabled(self) -> None:
+        self.side_select.disabled = True
+        if self.message is not None:
+            try:
+                await self.message.edit(view=self)
+            except discord.DiscordException:
+                logger.debug(
+                    'Could not disable the completed in-progress winner selector',
+                    exc_info=True,
+                )
+
+    async def _select_side(self, interaction: discord.Interaction) -> None:
+        if self.is_finished() or self.card_view.is_finished():
+            await _send_ephemeral(
+                interaction,
+                'This winner selector expired. Run `/game show` again for a '
+                'fresh card.',
+            )
+            return
+        if interaction.user.id != self.requester_id:
+            await _send_ephemeral(
+                interaction,
+                'Only the member who requested winner selection can use it.',
+            )
+            return
+
+        try:
+            side_id = int(self.side_select.values[0])
+        except (IndexError, TypeError, ValueError):
+            await _send_ephemeral(
+                interaction,
+                'That winner selection is invalid. Run `/game show` again.',
+            )
+            return
+
+        selected_option = next(
+            (
+                option for option in self.side_select.options
+                if option.value == str(side_id)
+            ),
+            None,
+        )
+        if selected_option is None:
+            await _send_ephemeral(
+                interaction,
+                'That winner selection is invalid. Run `/game show` again.',
+            )
+            return
+
+        self.side_select.disabled = True
+        self.stop()
+        # Acknowledge before editing or creating the next ephemeral step.
+        await interaction.response.defer(ephemeral=True)
+        await self._edit_disabled()
+
+        confirmation = DeclareWinnerConfirmationView(
+            self.card_view,
+            requester_id=self.requester_id,
+            winning_side_id=side_id,
+            winner_label=selected_option.label,
+        )
+        self.card_view._winner_confirmations.append(confirmation)
+        confirmation.message = await interaction.followup.send(
+            f'Confirm declaring **{selected_option.label}** the winner of '
+            f'game `{self.card_view.game_id}`. The result may finalize ELO.',
+            ephemeral=True,
+            view=confirmation,
+            wait=True,
+        )
+
+    async def on_timeout(self) -> None:
+        self.stop()
+        await self._edit_disabled()
+
+
+class DeclareWinnerConfirmationView(discord.ui.View):
+    """Requester-only confirmation before a result mutation can be submitted."""
+
+    def __init__(
+        self,
+        card_view: 'PendingGameCardView',
+        *,
+        requester_id: int,
+        winning_side_id: int,
+        winner_label: str,
+        timeout: float = 120.0,
+    ):
+        super().__init__(timeout=timeout)
+        self.card_view = card_view
+        self.requester_id = requester_id
+        self.winning_side_id = int(winning_side_id)
+        self.winner_label = str(winner_label)
+        self.message: discord.Message | None = None
+        self.confirm_button = discord.ui.Button(
+            label='Confirm winner',
+            style=discord.ButtonStyle.success,
+            custom_id=f'in-progress-game:{card_view.game_id}:winner-confirm',
+        )
+        self.cancel_button = discord.ui.Button(
+            label='Cancel',
+            style=discord.ButtonStyle.secondary,
+            custom_id=f'in-progress-game:{card_view.game_id}:winner-cancel',
+        )
+        self.confirm_button.callback = self._confirm_clicked
+        self.cancel_button.callback = self._cancel_clicked
+        self.add_item(self.confirm_button)
+        self.add_item(self.cancel_button)
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if self.is_finished() or self.card_view.is_finished():
+            await _send_ephemeral(
+                interaction,
+                'This winner confirmation expired. Run `/game show` again for '
+                'a fresh card.',
+            )
+            return False
+        if interaction.user.id != self.requester_id:
+            await _send_ephemeral(
+                interaction,
+                'Only the member who requested winner confirmation can use it.',
+            )
+            return False
+        return True
+
+    async def _edit_disabled(self) -> None:
+        self.confirm_button.disabled = True
+        self.cancel_button.disabled = True
+        if self.message is not None:
+            try:
+                await self.message.edit(view=self)
+            except discord.DiscordException:
+                logger.debug(
+                    'Could not disable in-progress winner confirmation',
+                    exc_info=True,
+                )
+
+    async def _confirm_clicked(self, interaction: discord.Interaction) -> None:
+        if self.is_finished() or self.card_view.is_finished():
+            await _send_ephemeral(
+                interaction,
+                'This winner confirmation expired. Run `/game show` again for '
+                'a fresh card.',
+            )
+            return
+        if interaction.user.id != self.requester_id:
+            await _send_ephemeral(
+                interaction,
+                'Only the member who requested winner confirmation can use it.',
+            )
+            return
+        self.stop()
+        # Defer before the confirmation edit and before the mutation service.
+        await interaction.response.defer(ephemeral=True)
+        await self._edit_disabled()
+        await self.card_view.run_winner(
+            interaction,
+            winning_side_id=self.winning_side_id,
+            winner_label=self.winner_label,
+            acknowledged=True,
+        )
+
+    async def _cancel_clicked(self, interaction: discord.Interaction) -> None:
+        if self.is_finished() or self.card_view.is_finished():
+            await _send_ephemeral(
+                interaction,
+                'This winner confirmation expired. Run `/game show` again for '
+                'a fresh card.',
+            )
+            return
+        if interaction.user.id != self.requester_id:
+            await _send_ephemeral(
+                interaction,
+                'Only the member who requested winner confirmation can use it.',
+            )
+            return
+        self.stop()
+        await interaction.response.defer(ephemeral=True)
+        await self._edit_disabled()
+        await interaction.followup.send(
+            'Winner declaration cancelled.',
+            ephemeral=True,
+        )
+
+    async def on_timeout(self) -> None:
+        self.stop()
+        await self._edit_disabled()
+
+
 class PendingGameCardView(discord.ui.View):
-    """Shared public controls for one pending-game card.
+    """Shared public controls for one native game-detail card.
 
     The controls are deliberately chosen from the last immutable snapshot,
     but every mutation click loads a new snapshot before invoking its callback.
@@ -301,6 +574,7 @@ class PendingGameCardView(discord.ui.View):
         on_start: StartAction,
         on_delete_prepare: DeletePrepareAction | None = None,
         on_delete: DeleteAction | None = None,
+        on_winner: WinAction | None = None,
         timeout: float = 300.0,
     ):
         super().__init__(timeout=timeout)
@@ -311,10 +585,13 @@ class PendingGameCardView(discord.ui.View):
         self.on_start = on_start
         self.on_delete_prepare = on_delete_prepare or _reject_unwired_delete
         self.on_delete = on_delete or _reject_unwired_delete
+        self.on_winner = on_winner or self._reject_unwired_winner
         self.message: discord.Message | None = None
         self._busy = False
         self._side_selectors: list[PendingGameSideSelectView] = []
         self._delete_confirmations: list[PendingGameDeleteConfirmationView] = []
+        self._winner_selectors: list[InProgressWinnerSideSelectView] = []
+        self._winner_confirmations: list[DeclareWinnerConfirmationView] = []
         self.rebuild()
 
     @property
@@ -338,6 +615,12 @@ class PendingGameCardView(discord.ui.View):
         self.add_item(button)
         return button
 
+    @staticmethod
+    async def _reject_unwired_winner(*_args) -> bool:
+        """Fail closed if a caller constructs a winner card without a service."""
+
+        return False
+
     def rebuild(self) -> None:
         """Build controls from public state without making authorization claims."""
 
@@ -346,7 +629,23 @@ class PendingGameCardView(discord.ui.View):
         self.leave_button = None
         self.start_button = None
         self.delete_button = None
+        self.declare_winner_button = None
         self.refresh_button = None
+
+        if winner_action_eligible(self.snapshot):
+            self.declare_winner_button = self._add_button(
+                label='Declare Winner',
+                custom_id=f'in-progress-game:{self.game_id}:winner',
+                style=discord.ButtonStyle.success,
+                callback=self._winner_clicked,
+            )
+            self.refresh_button = self._add_button(
+                label='Refresh',
+                custom_id=f'in-progress-game:{self.game_id}:refresh',
+                style=discord.ButtonStyle.secondary,
+                callback=self._refresh_clicked,
+            )
+            return
 
         if not self.snapshot.is_pending:
             return
@@ -474,8 +773,26 @@ class PendingGameCardView(discord.ui.View):
                 'again and try once more.',
                 acknowledged=True,
             )
+            await self._retire_after_failed_reload(interaction)
             return None
         return payload
+
+    async def _retire_after_failed_reload(self, interaction) -> None:
+        """Fail closed when the source row is stale, deleted, or unreadable."""
+
+        self.clear_items()
+        self.stop()
+        message = self.message or getattr(interaction, 'message', None)
+        if message is None:
+            return
+        try:
+            await message.edit(view=None)
+        except discord.DiscordException:
+            logger.debug(
+                'Could not remove stale game %s card controls',
+                self.game_id,
+                exc_info=True,
+            )
 
     @staticmethod
     def _is_active_pending(snapshot) -> bool:
@@ -490,7 +807,10 @@ class PendingGameCardView(discord.ui.View):
         payload: PendingGameCardPayload,
     ) -> bool:
         self.snapshot = payload.snapshot
-        if self.snapshot.is_pending and not self.is_finished():
+        if (
+            (self.snapshot.is_pending or winner_action_eligible(self.snapshot))
+            and not self.is_finished()
+        ):
             self.rebuild()
             view = self
         else:
@@ -535,6 +855,136 @@ class PendingGameCardView(discord.ui.View):
         if payload is None:
             return False
         return await self._refresh_from_payload(interaction, payload)
+
+    async def _winner_clicked(self, interaction: discord.Interaction) -> None:
+        """Open a fresh, requester-only side selector for a public click."""
+
+        if not await self._claim(interaction):
+            return
+        try:
+            await interaction.response.defer(ephemeral=True)
+            payload = await self._load_fresh(
+                interaction,
+                action='winner selection',
+            )
+            if payload is None:
+                return
+            if not winner_action_eligible(payload.snapshot):
+                await _send_ephemeral(
+                    interaction,
+                    'This game is no longer eligible for a new winner claim. '
+                    'Refresh the card or run `/game show` again.',
+                    acknowledged=True,
+                )
+                await self._refresh_from_payload(interaction, payload)
+                return
+
+            options = _winner_side_options(payload.snapshot)
+            if not options:
+                await _send_ephemeral(
+                    interaction,
+                    'No valid sides were available for this winner claim. '
+                    'Run `/game show` again.',
+                    acknowledged=True,
+                )
+                await self._refresh_from_payload(interaction, payload)
+                return
+
+            selector = InProgressWinnerSideSelectView(
+                self,
+                requester_id=interaction.user.id,
+                options=options,
+            )
+            self._winner_selectors.append(selector)
+            selector.message = await interaction.followup.send(
+                'Choose the winning side. You will confirm the result before '
+                'anything is changed.',
+                ephemeral=True,
+                view=selector,
+                wait=True,
+            )
+        except Exception:
+            logger.exception(
+                'Unexpected in-progress game %s winner selector failure',
+                self.game_id,
+            )
+            await _send_ephemeral(
+                interaction,
+                'The winner selector could not be opened. No public game '
+                'change was made.',
+                acknowledged=True,
+            )
+        finally:
+            # A selector is requester-scoped and ephemeral.  The public card
+            # remains usable by another eligible member while this selector
+            # is waiting for its owner.
+            self._busy = False
+
+    async def run_winner(
+        self,
+        interaction: discord.Interaction,
+        *,
+        winning_side_id: int,
+        winner_label: str,
+        acknowledged: bool = False,
+    ) -> bool:
+        """Revalidate a selected side and invoke the shared win service."""
+
+        if not await self._claim(interaction):
+            return False
+        try:
+            if not acknowledged:
+                await interaction.response.defer(ephemeral=True)
+            payload = await self._load_fresh(
+                interaction,
+                action='winner claim',
+            )
+            if payload is None:
+                return False
+            snapshot = payload.snapshot
+            if not winner_action_eligible(snapshot):
+                await _send_ephemeral(
+                    interaction,
+                    'This game is no longer eligible for a new winner claim. '
+                    'Run `/game show` again for the current state.',
+                    acknowledged=True,
+                )
+                await self._refresh_from_payload(interaction, payload)
+                return False
+            if int(winning_side_id) not in {
+                int(side.side_id) for side in snapshot.sides
+            }:
+                await _send_ephemeral(
+                    interaction,
+                    'That winner side is no longer part of this game. Run '
+                    '`/game show` again and try once more.',
+                    acknowledged=True,
+                )
+                await self._refresh_from_payload(interaction, payload)
+                return False
+
+            if not await self.on_winner(
+                interaction,
+                int(winning_side_id),
+                str(winner_label),
+            ):
+                return False
+            await self._refresh_after_action(interaction)
+            return True
+        except Exception:
+            logger.exception(
+                'Unexpected in-progress game %s winner action failure',
+                self.game_id,
+            )
+            await _send_ephemeral(
+                interaction,
+                'The winner could not be recorded. No public game change was '
+                'made.',
+                acknowledged=True,
+            )
+            return False
+        finally:
+            self._busy = False
 
     async def _join_clicked(self, interaction: discord.Interaction) -> None:
         await self.run_join(interaction)
@@ -793,10 +1243,16 @@ class PendingGameCardView(discord.ui.View):
         for selector in self._side_selectors:
             selector.stop()
             selector.side_select.disabled = True
+        for selector in self._winner_selectors:
+            selector.stop()
+            await selector._edit_disabled()
         for confirmation in self._delete_confirmations:
             confirmation.stop()
             confirmation.confirm_button.disabled = True
             confirmation.cancel_button.disabled = True
+            await confirmation._edit_disabled()
+        for confirmation in self._winner_confirmations:
+            confirmation.stop()
             await confirmation._edit_disabled()
         for child in self.children:
             if isinstance(child, (discord.ui.Button, discord.ui.Select)):

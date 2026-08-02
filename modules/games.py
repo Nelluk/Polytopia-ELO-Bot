@@ -12,6 +12,7 @@ from modules import leaderboard_v2
 from modules import player_views
 from modules import player_workers
 from modules import elo_workers
+from modules import game_win
 from modules import game_workers
 from modules import game_open
 from modules import game_open_workers
@@ -1433,6 +1434,70 @@ class polygames(commands.Cog):
             return False
         return True
 
+    async def _pending_card_winner(
+        self,
+        interaction,
+        *,
+        game_id: int,
+        prefix: str,
+        winning_side_id: int,
+        winner_label: str,
+    ) -> bool:
+        """Route a card winner claim through the shared win application service."""
+
+        if not await self._native_pending_game_channel_allowed(interaction):
+            return False
+
+        try:
+            request = game_win.build_request(
+                game_id=game_id,
+                member=interaction.user,
+                guild_id=interaction.guild.id,
+                prefix=prefix,
+                winner_text=winner_label,
+                winning_side_id=winning_side_id,
+                invoked_with='/game show Declare Winner',
+            )
+
+            async def public_send(content):
+                await interaction.followup.send(content, ephemeral=False)
+
+            async def error_send(content):
+                await interaction.followup.send(content, ephemeral=True)
+
+            result = await game_win.run_win(
+                request,
+                guild=interaction.guild,
+                current_channel=getattr(interaction, 'channel', None),
+                send_public=public_send,
+                send_error=error_send,
+                post_win_publisher=post_win_messaging,
+                acknowledged=True,
+            )
+        except peewee.PeeweeException:
+            logger.exception(
+                'Database failure in in-progress card winner %s',
+                game_id,
+            )
+            await interaction.followup.send(
+                'The winner could not be recorded because the database '
+                'operation failed. No public Discord effects were made.',
+                ephemeral=True,
+            )
+            return False
+        except Exception:
+            logger.exception(
+                'Unexpected failure in in-progress card winner %s',
+                game_id,
+            )
+            await interaction.followup.send(
+                'The winner could not be recorded. No public Discord effects '
+                'were made.',
+                ephemeral=True,
+            )
+            return False
+        return result is not None
+
     async def _pending_card_start(
         self,
         interaction,
@@ -1505,7 +1570,10 @@ class polygames(commands.Cog):
         channel_id: int,
         prefix: str,
     ) -> game_detail_actions.PendingGameCardView | None:
-        if not snapshot.is_pending:
+        if not (
+            snapshot.is_pending
+            or game_detail_actions.winner_action_eligible(snapshot)
+        ):
             return None
 
         async def load_card(interaction):
@@ -1555,6 +1623,15 @@ class polygames(commands.Cog):
                 name=name,
             )
 
+        async def on_winner(interaction, winning_side_id, winner_label):
+            return await self._pending_card_winner(
+                interaction,
+                game_id=snapshot.game_id,
+                prefix=prefix,
+                winning_side_id=winning_side_id,
+                winner_label=winner_label,
+            )
+
         return game_detail_actions.PendingGameCardView(
             snapshot=snapshot,
             load_card=load_card,
@@ -1563,6 +1640,7 @@ class polygames(commands.Cog):
             on_start=on_start,
             on_delete_prepare=on_delete_prepare,
             on_delete=on_delete,
+            on_winner=on_winner,
         )
 
     async def _send_game_detail(
@@ -3271,7 +3349,6 @@ class polygames(commands.Cog):
         view.message = await interaction.edit_original_response(view=view)
 
     @settings.in_bot_channel_strict()
-    @models.is_registered_member()
     @commands.command(
         usage='game_id winner',
         aliases=['lose'],
@@ -3289,158 +3366,24 @@ class polygames(commands.Cog):
         `[p]win 2050 Home` - Declare *Home* team winner of game 2050
         `[p]win 2050 Nelluk` - Declare *Nelluk* winner of game 2050
         """
-        if ctx.interaction is not None:
-            await ctx.defer()
-
-        if settings.elo_job_coordinator.is_active:
-            logger.info('Skipping command due to active ELO job')
-            return await ctx.send(f':warning: {ctx.author.mention} - I am currently recalculating the results of prior games. No new game results can be logged. Please try again in a few minutes.')
-
-        usage = ('Include both game ID and the name of the winning side. Example usage:\n'
-                f'`{ctx.prefix}win 422 Nelluk`\n`{ctx.prefix}win 425 Home` *For a team game*\n')
-        if ctx.invoked_with.lower() == 'lose':
-            return await ctx.send(f'Games are always concluded using the `{ctx.prefix}win` command.\n{usage}')
-
-        try:
-            winning_game = Game.get_by_id(game_id)
-        except peewee.DoesNotExist:
-            return await ctx.send(
-                f'Game with ID {game_id} cannot be found.'
-            )
-        if winning_game.guild_id != ctx.guild.id:
-            return await ctx.send(
-                f'Game with ID {game_id} is associated with a different '
-                'Discord server.'
-            )
-        if winning_game.is_pending:
-            return await ctx.send(f'Game {winning_game.id} is still a pending open game. It must be started using the `{ctx.prefix}start` command before it can be concluded.')
-
-        try:
-            _, winning_side = winning_game.gameside_by_name(
-                name=winner
-            )
-            # winning_obj will be a Team or a Player depending on squad size
-            # winning_side will be their GameSide
-        except exceptions.MyBaseException as ex:
-            return await ctx.send(f'{ex}')
-
-        game_id = winning_game.id
-        requester_description = models.GameLog.member_string(ctx.author)
-        utilities.lock_game(game_id)
-        try:
-            async with ctx.typing():
-                result = await settings.elo_job_coordinator.run(
-                    operation='record_win',
-                    game_id=game_id,
-                    requester_id=ctx.author.id,
-                    requester_name=ctx.author.display_name,
-                    worker=elo_workers.record_win,
-                    worker_args=(
-                        game_id,
-                        ctx.guild.id,
-                        winning_side.id,
-                        ctx.author.id,
-                        requester_description,
-                        settings.is_staff(ctx.author),
-                    ),
-                )
-        except EloJobConflict as exc:
-            active_job = exc.active_job
-            return await ctx.send(
-                f':warning: {ctx.author.mention} - ELO operation '
-                f'`{active_job.operation}` for game '
-                f'`{active_job.game_id or "all"}` is already running. '
-                'Please try again in a few minutes.'
-            )
-        except elo_workers.WinValidationError as exc:
-            return await ctx.send(str(exc))
-        except exceptions.CheckFailedError as exc:
-            return await ctx.send(f'*Error*: {exc}')
-        except peewee.PeeweeException:
-            logger.exception('Database failure while processing win %s', game_id)
-            return await ctx.send(
-                f'Game {game_id} could not be updated because the database '
-                'operation failed. No Discord channel updates were made.'
-            )
-        except Exception:
-            logger.exception('Unexpected failure while processing win %s', game_id)
-            return await ctx.send(
-                f'Game {game_id} could not be updated. No Discord channel '
-                'updates were made.'
-            )
-        finally:
-            utilities.unlock_game(game_id)
-
-        winning_game = Game.load_full_game(game_id=result.game_id)
-        if result.previous_winner_name is not None:
-            await ctx.send(
-                f':warning: Unconfirmed game with ID {game_id} had '
-                f'previously been marked with winner '
-                f'**{result.previous_winner_name}**.\n'
-                f'{result.previous_confirmed_count} of '
-                f'{result.previous_side_count} sides had confirmed.'
-            )
-
-        await winning_game.update_squad_channels(
-            guild_list=settings.bot.guilds,
+        request = game_win.build_request(
+            game_id=game_id,
+            member=ctx.author,
             guild_id=ctx.guild.id,
-            message=(
-                f'A win claim has been placed by '
-                f'**{ctx.author.display_name}** for winner '
-                f'**{result.winner_name}**'
-            ),
+            prefix=ctx.prefix,
+            winner_text=winner,
+            invoked_with=getattr(ctx, 'invoked_with', 'win'),
         )
-
-        if result.confirmed:
-            if result.all_sides_confirmed:
-                await ctx.send(
-                    'All sides have confirmed this victory. Good game!'
-                )
-            await post_win_messaging(
-                ctx.guild,
-                ctx.prefix,
-                ctx.channel,
-                winning_game,
-            )
-            return
-
-        printed_side_name = (
-            result.winner_name
-            if '@' in winner
-            else winner
+        return await game_win.run_win(
+            request,
+            guild=ctx.guild,
+            current_channel=ctx.channel,
+            send_public=ctx.send,
+            send_error=ctx.send,
+            post_win_publisher=post_win_messaging,
+            defer=(ctx.defer if ctx.interaction is not None else None),
+            typing_context=ctx.typing,
         )
-        if result.first_claim:
-            await ctx.send(
-                f'**Game {game_id}** *{winning_game.name}* concluded '
-                f'pending confirmation of winner **{result.winner_name}**\n'
-                f'To confirm, have opponents use the command '
-                f'__`{ctx.prefix}win {game_id} {printed_side_name}`__\n'
-                'If opponents do not dispute the win then the game will be '
-                'confirmed automatically after a period of time.\n'
-                f'If this win was claimed falsely please use the '
-                f'`{ctx.prefix}staffhelp` command to contest, or you can '
-                f'cancel your claim with the command '
-                f'`{ctx.prefix}unwin {game_id}`.\n'
-                f'*Game lineup*: {" ".join(winning_game.mentions())}'
-            )
-        else:
-            conf_str = (
-                'Your confirmation has been logged. '
-                if result.new_confirmation
-                else ''
-            )
-            await ctx.send(
-                f'{conf_str}**Game {game_id}** *{winning_game.name}* is '
-                f'pending confirmation: {result.confirmed_count} of '
-                f'{result.side_count} sides have confirmed.\n'
-                f'Participants in the game should use the command '
-                f'__`{ctx.prefix}win {game_id} {printed_side_name}`__ to '
-                'confirm the victory.\n'
-                'Please post a screenshot of your victory in case there is '
-                f'a dispute. If this win was claimed in error please use the '
-                f'`{ctx.prefix}staffhelp` command, or you can cancel your '
-                f'claim with the command `{ctx.prefix}unwin {game_id}`'
-            )
 
     @game_group.command(
         name='win',
@@ -3456,6 +3399,10 @@ class polygames(commands.Cog):
         game_id: int,
         winner: str,
     ):
+        # Registration/channel checks perform bounded validation. A slash
+        # interaction is acknowledged before those checks and before the
+        # shared worker preflight.
+        await interaction.response.defer()
         ctx = await commands.Context.from_interaction(interaction)
         ctx.prefix = settings.guild_setting(
             interaction.guild.id,
@@ -3464,7 +3411,31 @@ class polygames(commands.Cog):
         ctx.invoked_with = 'win'
         if not await self.win.can_run(ctx):
             return
-        await self.win.callback(self, ctx, game_id, winner=winner)
+
+        request = game_win.build_request(
+            game_id=game_id,
+            member=interaction.user,
+            guild_id=interaction.guild.id,
+            prefix=ctx.prefix,
+            winner_text=winner,
+            invoked_with='win',
+        )
+
+        async def public_send(content):
+            await interaction.followup.send(content, ephemeral=False)
+
+        async def error_send(content):
+            await interaction.followup.send(content, ephemeral=True)
+
+        return await game_win.run_win(
+            request,
+            guild=interaction.guild,
+            current_channel=interaction.channel,
+            send_public=public_send,
+            send_error=error_send,
+            post_win_publisher=post_win_messaging,
+            acknowledged=True,
+        )
 
     @settings.in_bot_channel()
     @models.is_registered_member()
