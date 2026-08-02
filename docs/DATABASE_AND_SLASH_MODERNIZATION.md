@@ -432,7 +432,8 @@ P5.7 implementation/tests are committed as `0a969cc` on
 `f9fc4aaba7cd5ffa502e11571e6b0e063785d5a0` from
 `codex/database-slash-modernization`. No beta, command sync, production, push,
 PR, merge, or fixture-harness action was performed.
-The follow-up compatibility correction is `7eaf1cd`.
+The follow-up compatibility correction is `7eaf1cd`; the focused Tier-3 review
+correction is `a55270b`.
 P5.6 is complete, beta-accepted, and integrated as `fc50623`.
 P5.5 is complete and integrated as `e118396`; its live beta smoke covered
 Join, Leave, Refresh, and Start, and the user accepted the follow-up join
@@ -2801,6 +2802,9 @@ Boundaries and interface:
 - acknowledge promptly, reject stale/unauthorized/double submissions
   ephemerally, preserve the existing public competitive-state output, and
   refresh the originating card only after commit;
+- apply the same strict-channel semantics as the existing `$win` and
+  `/game win` checks to the native winner submit path, while leaving accepted
+  pending-card Join/Leave/Start/Delete channel behavior unchanged;
 - keep Discord objects and awaits outside worker transactions, do not create a
   second win implementation, and retain the existing coordinator's conflict
   and cancellation cleanup;
@@ -2821,7 +2825,10 @@ Implementation and boundary evidence:
   request, runs bounded preflight, claims the existing ELO coordinator and
   per-game lock, submits the unchanged `elo_workers.record_win` worker, and
   preserves the established first-claim, confirmation, finalization, audit,
-  rollback, and public post-commit output paths.
+  rollback, and public post-commit output paths. It now returns an explicit
+  frozen outcome distinguishing fully published success from committed-but-
+  reconciliation-required publication failure; prefix/slash messaging remains
+  unchanged.
 - `modules/game_win_workers.py` resolves prefix names and card stable side IDs
   on a bounded worker-owned Peewee connection. The mutation worker remains the
   final authority for guild, pending/completed state, participant/staff
@@ -2832,13 +2839,16 @@ Implementation and boundary evidence:
   with no prior claim. The public button opens a fresh requester-only selector;
   stable side IDs and roster-aware labels cover solo, team, uneven, and
   multi-side games. Confirmation defers before editing its ephemeral message
-  or submitting the service, and successful public output precedes a fresh
-  source-card reload that removes dead controls.
+  or submitting the service, and only a fully published outcome permits the
+  successful public output/card-refresh path; committed reconciliation leaves
+  the source card unrefreshed.
 - `modules/games.py` routes the native card, prefix, and slash paths through
   the shared service. Numeric `$game`/`$match` remain classic and component
   free; `$win`/`$lose` aliases and `/game win` registration/typed shape are
-  unchanged. No schema, dependency, taxonomy, or compatibility-ledger row
-  was added.
+  unchanged. The native winner adapter now mirrors `in_bot_channel_strict`,
+  including `bot_channels_strict` fallback and mod/private-channel bypass,
+  without changing accepted pending-card channel checks. No schema,
+  dependency, taxonomy, or compatibility-ledger row was added.
 
 Validation evidence:
 
@@ -2846,17 +2856,18 @@ Validation evidence:
   `POLYBOT_ENV=development MPLCONFIGDIR=/tmp/polybot-matplotlib
   /home/nelluk/PolyBot39-dev/.venv/bin/python -m unittest
   tests.test_game_detail_actions tests.test_game_win_service
-  tests.test_elo_jobs tests.test_slash_taxonomy` — **79 passed**.
+  tests.test_elo_jobs tests.test_slash_taxonomy` — **82 passed**.
 - Complete offline discovery —
   `POLYBOT_ENV=development MPLCONFIGDIR=/tmp/polybot-matplotlib
   /home/nelluk/PolyBot39-dev/.venv/bin/python -m unittest discover -v` —
-  **419 passed, 17 explicitly skipped**.
+  **422 passed, 17 explicitly skipped**.
 - Changed-file compilation and `git diff --check` passed. The focused tests
   cover exact visibility, stable side mapping, requester-only selection and
   confirmation, participant/staff worker arguments, defer ordering, stale and
   duplicate interactions, timeout/cancellation races, coordinator conflicts,
-  rollback/no-post-commit effects, public-output ordering, source-card
-  refresh, and prefix/slash compatibility.
+  rollback/no-post-commit effects, public-output ordering, source-card refresh,
+  strict-vs-general channel parity with mod bypass, committed-but-unpublished
+  outcome handling without false no-change text, and prefix/slash compatibility.
 - The unchanged gated PostgreSQL preflight was invoked for the read/rollback
   checks with `POLYBOT_RUN_DB_INTEGRATION=1`. It accepted
   `POLYBOT_ENV=development`, database `polytopia_dev`, role `polybot_dev`, and
@@ -2873,7 +2884,13 @@ Compatibility, retained seam, and limitations:
   confirmation/finalization, participant/staff behavior, ELO serialization,
   audit logging, rollback, public competitive messages, and numeric classic
   cards remain compatible. The card action is an additional native
-  presentation path only.
+  presentation path only. The native submit path now uses the strict channel
+  policy already enforced by the existing win commands; pending-card channel
+  behavior for other actions is unchanged.
+- A committed-but-reconciliation-required service outcome is deliberately not
+  treated as a card-action success, so the originating card is not refreshed
+  as though all public effects completed. Prefix/slash callers retain their
+  existing committed-state reconciliation message behavior.
 - The established post-commit win presenter still performs its model-backed
   `Game.load_full_game`, `update_squad_channels`, `GameLog.write`, and
   `post_win_messaging` work after the worker commits. This retained synchronous
@@ -2891,6 +2908,7 @@ Commit:
 
 - `0a969cc` — Implement P5.7 winner card action.
 - `7eaf1cd` — Narrow winner card stale reload retirement.
+- `a55270b` — Correct strict winner channel parity and publish outcome handling.
 
 Next action: perform the independent Tier-3 review of the shared win service,
 worker/transaction boundary, permission parity, and post-commit seam; then
@@ -4607,14 +4625,20 @@ unit and does not reopen accepted P5.2 behavior.
 
 ## Progress log
 
-### 2026-08-02 — P5.7 implemented locally; Tier-3 review pending
+### 2026-08-02 — P5.7 implementation and review corrections locally; Tier-3 review pending
 
 - Implemented `0a969cc` on `codex/p5-7-winner-card-action` from exact clean
   base `f9fc4aaba7cd5ffa502e11571e6b0e063785d5a0` on
   `codex/database-slash-modernization`.
 - Follow-up `7eaf1cd` limits fail-closed stale-read control retirement to the
   new winner flow, preserving accepted pending-card action behavior; the
-  focused suite still passed **79 tests** after the correction.
+  focused suite still passed after the correction.
+- Applied Tier-3 review correction `a55270b`: native winner submission now
+  mirrors the existing strict win-channel policy, including strict-channel
+  fallback and mod/private bypass, while accepted Join/Leave/Start/Delete
+  channel behavior remains unchanged. The shared service now returns an
+  explicit fully-published versus committed-reconciliation outcome, and the
+  card adapter does not refresh on the latter or emit false no-change text.
 - Added the shared frozen-request win application service and bounded
   worker-local side preflight. `$win`, `$lose`, `/game win`, and the new native
   in-progress card action all route to unchanged `elo_workers.record_win`
@@ -4623,8 +4647,8 @@ unit and does not reopen accepted P5.2 behavior.
   and confirmation, participant/staff parity, defer ordering, stale/duplicate
   rejection, timeout/cancellation, rollback, public-order, refresh, and
   prefix/slash compatibility coverage.
-- Focused validation passed **79 tests**; complete offline discovery passed
-  **419 tests with 17 explicit skips**; compilation and diff checks passed.
+- Focused validation passed **82 tests**; complete offline discovery passed
+  **422 tests with 17 explicit skips**; compilation and diff checks passed.
   The unchanged database gate confirmed the development profile but could not
   connect to PostgreSQL, so 0 gated tests ran and no fixtures were touched.
 - No beta, Discord connection, command synchronization, production checkout or
