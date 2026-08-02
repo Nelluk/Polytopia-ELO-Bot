@@ -437,9 +437,10 @@ check:
   corrections: `f26db71`, `7070285`, `5c38e98` on
   `codex/p4-2b-game-notes`, based on exact clean base
   `190e6bb515911cedb329b4de5af88d2bbd0a1e58`.
+- P4.2b accumulation merge: `1f1625b`.
 
-Current unit: **P4.2b focused game-notes workspace — Tier-3 reviewed and
-accepted for integration approval; not integrated.**
+Current unit: **P4.2b focused game-notes workspace — Integrated; beta
+acceptance pending.**
 P4.2a is complete, beta-validated, and integrated as `5845e8b` with public
 visibility correction merge `4fa4b4f`.
 P5.8 is complete, beta-validated, and integrated as `4fc5973`; its final
@@ -2162,9 +2163,13 @@ adjacent P4.2a limitation. No beta, command inspection/synchronization,
 Discord connection, production or `polytopia2` access, schema/dependency
 action, push, PR, merge, or integration action was performed.
 
-Next action: obtain integration approval for the reviewed branch. Decide
-separately whether a beta smoke is required; do not merge or integrate without
-that approval.
+Integration result: merged into `codex/database-slash-modernization` as
+`1f1625b`. The separately approved development-guild synchronization and beta
+smoke are the remaining acceptance gate.
+
+Next action: beta-smoke `/game notes` read, edit, clear/cancel, timeout, public
+visibility, and preserved `$gamenotes` behavior. If accepted, close P4.2b and
+select P4.2c focused game-name read/edit as the next bounded attribute unit.
 
 ## P5 — Matchmaking lifecycle
 
