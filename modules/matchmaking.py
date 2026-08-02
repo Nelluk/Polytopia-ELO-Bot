@@ -1116,8 +1116,12 @@ class matchmaking(commands.Cog):
         explicit_game_id = first_token.strip('#')
         inferred_from_channel = False
 
-        if explicit_game_id.isdigit():
+        try:
             game_id = int(explicit_game_id)
+        except ValueError:
+            game_id = None
+
+        if game_id is not None:
             notes = remainder.strip() if separator else None
         else:
             # Preserve the old PolyMatch invalid-ID surface while allowing the
