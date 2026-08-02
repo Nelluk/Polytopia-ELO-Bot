@@ -605,6 +605,82 @@ class GameMapSlashTests(unittest.IsolatedAsyncioTestCase):
 
 
 class GameMapPrefixTests(unittest.IsolatedAsyncioTestCase):
+    async def test_prefix_worker_registration_recheck_keeps_prefix_guidance(self):
+        command = next(
+            command
+            for command in games.polygames.__cog_commands__
+            if command.name == 'setmap'
+        )
+        author = SimpleNamespace(
+            id=100,
+            display_name='Player',
+            guild=SimpleNamespace(id=300),
+        )
+        ctx = SimpleNamespace(
+            author=author,
+            guild=SimpleNamespace(id=300),
+            channel=SimpleNamespace(id=901),
+            prefix='!',
+            invoked_with='setmap',
+            send=mock.AsyncMock(),
+        )
+
+        with mock.patch.object(
+            game_map,
+            'run_map_mutation',
+            new=mock.AsyncMock(
+                side_effect=game_workers.GameMapPermissionError(
+                    'This command requires bot registration first. Type '
+                    '__`setname Your Mobile Name`__ or  '
+                    '__`steamname Your Steam Username`__ to get started.'
+                )
+            ),
+        ):
+            await command.callback(SimpleNamespace(), ctx, args='42 dry')
+
+        ctx.send.assert_awaited_once_with(
+            'This command requires bot registration first. Type '
+            '__`!setname Your Mobile Name`__ or  '
+            '__`!steamname Your Steam Username`__ to get started.'
+        )
+
+    async def test_prefix_wrong_argument_usage_keeps_configured_prefix(self):
+        command = next(
+            command
+            for command in games.polygames.__cog_commands__
+            if command.name == 'setmap'
+        )
+        author = SimpleNamespace(
+            id=100,
+            display_name='Player',
+            guild=SimpleNamespace(id=300),
+        )
+        ctx = SimpleNamespace(
+            author=author,
+            guild=SimpleNamespace(id=300),
+            channel=SimpleNamespace(id=901),
+            prefix='!',
+            invoked_with='setmap',
+            send=mock.AsyncMock(),
+        )
+
+        with mock.patch.object(
+            game_map,
+            'run_map_mutation',
+            new=mock.AsyncMock(
+                side_effect=game_workers.GameMapValidationError(
+                    'Wrong number of arguments. See `help setmaptype` for '
+                    'usage examples.'
+                )
+            ),
+        ):
+            await command.callback(SimpleNamespace(), ctx, args='42 dry extra')
+
+        ctx.send.assert_awaited_once_with(
+            'Wrong number of arguments. See `!help setmaptype` for usage '
+            'examples.'
+        )
+
     async def test_prefix_lookup_failure_keeps_alias_usage_guidance(self):
         command = next(
             command

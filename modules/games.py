@@ -3961,12 +3961,27 @@ class polygames(commands.Cog):
             )
         except game_workers.GameMapValidationError as exc:
             message = str(exc)
-            if 'No matching map type found' in message:
+            if message.startswith(
+                'This command requires bot registration first.'
+            ):
+                message = message.replace(
+                    '__`setname ',
+                    f'__`{ctx.prefix}setname ',
+                ).replace(
+                    '__`steamname ',
+                    f'__`{ctx.prefix}steamname ',
+                )
+            elif 'No matching map type found' in message:
                 raw_map_type = request.legacy_tokens[-1] if request.legacy_tokens else ''
                 message = (
                     'No matching map type found for '
                     f'"{discord.utils.escape_mentions(raw_map_type)}". '
                     'Check spelling or try a different name.'
+                )
+            elif message.startswith('Wrong number of arguments.'):
+                message = message.replace(
+                    '`help setmaptype`',
+                    f'`{ctx.prefix}help setmaptype`',
                 )
             return await ctx.send(message)
         except exceptions.RecordLocked as exc:
