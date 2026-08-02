@@ -14,6 +14,8 @@ from modules import player_workers
 from modules import elo_workers
 from modules import game_win
 from modules import game_map
+from modules import game_notes
+from modules import game_notes_views
 from modules import game_workers
 from modules import game_open
 from modules import game_open_workers
@@ -4110,6 +4112,207 @@ class polygames(commands.Cog):
                 'update was made.',
                 ephemeral=True,
             )
+
+    @game_group.command(
+        name='notes',
+        description='View or update a game’s notes.',
+    )
+    @discord.app_commands.describe(
+        game_id='Game whose notes to view or edit.',
+    )
+    async def notes_slash(
+        self,
+        interaction: discord.Interaction,
+        game_id: int,
+    ):
+        """Publish a short-lived public current-notes workspace."""
+
+        await interaction.response.defer(ephemeral=True)
+        channel_id = int(
+            getattr(interaction, 'channel_id', None)
+            or getattr(getattr(interaction, 'channel', None), 'id', 0)
+            or 0
+        )
+        request = game_notes.build_read_request(
+            member=interaction.user,
+            guild_id=interaction.guild.id,
+            channel_id=channel_id,
+            game_id=game_id,
+        )
+
+        try:
+            result = await asyncio.wait_for(
+                game_notes.run_notes_read(request),
+                timeout=20,
+            )
+        except game_workers.GameNotesValidationError as exc:
+            return await interaction.followup.send(str(exc), ephemeral=True)
+        except asyncio.TimeoutError:
+            return await interaction.followup.send(
+                'The current notes could not be loaded in time. Run `/game '
+                'notes` again.',
+                ephemeral=True,
+            )
+        except peewee.PeeweeException:
+            logger.exception('Database failure reading game notes')
+            return await interaction.followup.send(
+                'The current notes could not be loaded.',
+                ephemeral=True,
+            )
+        except Exception:
+            logger.exception('Unexpected failure reading game notes')
+            return await interaction.followup.send(
+                'The current notes could not be loaded.',
+                ephemeral=True,
+            )
+
+        try:
+            prefix = settings.guild_setting(
+                interaction.guild.id,
+                'command_prefix',
+            )
+        except exceptions.CheckFailedError:
+            logger.warning(
+                'Could not load the guild prefix for game-notes output; '
+                'using the default prefix'
+            )
+            prefix = '$'
+
+        async def private_failure(native_interaction, message: str) -> None:
+            response = getattr(native_interaction, 'response', None)
+            is_done = getattr(response, 'is_done', None)
+            if callable(is_done) and is_done():
+                await native_interaction.followup.send(
+                    message,
+                    ephemeral=True,
+                )
+            else:
+                await native_interaction.response.send_message(
+                    message,
+                    ephemeral=True,
+                )
+
+        async def mutate(
+            native_interaction,
+            notes: str | None,
+            expected_snapshot: game_workers.GameNotesReadResult,
+            *,
+            clear: bool,
+        ):
+            mutation = game_notes.build_mutation_request(
+                member=native_interaction.user,
+                guild_id=native_interaction.guild.id,
+                channel_id=int(
+                    getattr(native_interaction, 'channel_id', None)
+                    or getattr(
+                        getattr(native_interaction, 'channel', None),
+                        'id',
+                        0,
+                    )
+                    or 0
+                ),
+                game_id=expected_snapshot.game_id,
+                notes=notes,
+                clear=clear,
+                expected_notes=expected_snapshot.notes,
+                check_expected_notes=True,
+                invoked_with='/game notes',
+                prefix=prefix,
+                mention_warning=(
+                    not clear and game_notes.contains_note_mentions(notes)
+                ),
+            )
+            public_send = game_notes.public_interaction_sender(
+                native_interaction,
+            )
+
+            async def after_commit(committed):
+                await game_notes.publish_mutation_result(
+                    committed,
+                    send=public_send,
+                    refresh_card=lambda value: game_notes.refresh_game_card(
+                        value,
+                        destination=native_interaction.channel,
+                        guild=native_interaction.guild,
+                        prefix=prefix,
+                    ),
+                )
+
+            try:
+                return await game_notes.run_notes_mutation(
+                    mutation,
+                    after_commit=after_commit,
+                )
+            except game_workers.GameNotesValidationError as exc:
+                await private_failure(native_interaction, str(exc))
+            except exceptions.RecordLocked as exc:
+                await private_failure(native_interaction, str(exc))
+            except peewee.PeeweeException:
+                logger.exception('Database failure changing game notes')
+                await private_failure(
+                    native_interaction,
+                    'The notes change failed and rolled back. No Discord '
+                    'announcement or card update was made.',
+                )
+            except asyncio.TimeoutError:
+                await private_failure(
+                    native_interaction,
+                    'The notes change did not finish in time. Run `/game notes` '
+                    'again to verify the current value.',
+                )
+            except Exception:
+                logger.exception('Unexpected failure changing game notes')
+                await private_failure(
+                    native_interaction,
+                    'The notes change failed. No Discord announcement or card '
+                    'update was made.',
+                )
+            return None
+
+        async def edit_callback(
+            native_interaction,
+            notes,
+            expected_snapshot,
+        ):
+            return await mutate(
+                native_interaction,
+                notes,
+                expected_snapshot,
+                clear=False,
+            )
+
+        async def clear_callback(
+            native_interaction,
+            expected_snapshot,
+        ):
+            return await mutate(
+                native_interaction,
+                None,
+                expected_snapshot,
+                clear=True,
+            )
+
+        workspace = game_notes_views.GameNotesWorkspaceView(
+            result,
+            requester_id=interaction.user.id,
+            on_edit=edit_callback,
+            on_clear=clear_callback,
+        )
+        public_send = game_notes.public_interaction_sender(interaction)
+        try:
+            workspace.message = await public_send(
+                game_notes.read_message(result),
+                view=workspace,
+                wait=True,
+            )
+        except Exception:
+            logger.exception('Could not publish the game-notes workspace')
+            await interaction.followup.send(
+                'The current notes were loaded but could not be published. '
+                'Run `/game notes` again.',
+                ephemeral=True,
+            )
+        return workspace
     
 
     @commands.command(aliases=['settribes'], usage='game_id player_name tribe_name [player2 tribe2 ... ]')
