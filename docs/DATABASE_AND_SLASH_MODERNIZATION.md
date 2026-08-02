@@ -2978,13 +2978,21 @@ Implementation evidence:
   default, `waiting`, `all`, `me`, Nova, ranked/unranked, channel-inferred,
   and legacy Steam/platform parsing. No read-only browsing path invokes a
   join/leave/start/delete mutation service.
+- Prefix commands that open the general workspace now capture the same frozen
+  requester level, role IDs, name/nickname, and staff snapshot used by slash
+  and open-game paths, so switching that public workspace to **Joinable for
+  me** remains requester-aware.
+- Selecting any `OPEN_GAME_STATUSES` view now normalizes the incompatible
+  outcome refinement to `any` before loading and rebuilds the outcome selector
+  to match the resulting key.
 
 Validation evidence:
 
 - A temporary in-memory development-profile harness (not a repository
-  configuration and not a database run) passed **42 tests** across
+  configuration and not a database run) passed **44 tests** across
   `tests.test_game_search_workspace`, `tests.test_game_open_discovery`, and
-  `tests.test_slash_taxonomy`.
+  `tests.test_slash_taxonomy`, including the requester-context and outcome-
+  normalization regressions.
 - The prescribed focused command with the real runtime loader failed before
   test collection because this app-managed worktree has no
   `config.development.ini`: **0 focused tests ran** under that command.
@@ -3015,6 +3023,7 @@ Limitations:
 Commit:
 
 - `34f385c` — Implement P5.8 open-game discovery parity and focused tests.
+- `bc678d6` — Correct requester context and open-view filter transitions.
 
 Next action: Sol performs the complete Tier-2 branch review, restores or
 provides the approved development runtime profile for the unchanged focused,
@@ -4763,6 +4772,26 @@ unit and does not reopen accepted P5.2 behavior.
 - Next: Sol completes the Tier-2 review and decides on any separately
   approved runtime-profile, beta, or integration gate. P5.8 is not complete,
   integrated, or beta-accepted.
+
+### 2026-08-02 — P5.8 review corrections committed; Tier-2 review pending
+
+- Applied `bc678d6` on `codex/p5-8-open-game-discovery`: prefix-opened search
+  workspaces now preserve requester context through view switching, and
+  open-game view selection resets an incompatible wins/losses refinement to
+  `any` before the bounded read. Added focused regressions for both paths.
+- The temporary in-memory development-profile harness passed **44 tests**
+  across the three focused P5.8/taxonomy modules. Explicit-venv
+  `py_compile` and `git diff --check` passed.
+- Re-running the unchanged prescribed focused command still collected zero
+  tests because `config.development.ini` is absent from this app-managed
+  worktree. Full discovery attempted 125 tests and ended with 23 profile
+  import/setup errors and 17 explicit database-gate skips. The unchanged
+  gated database command attempted zero tests and exited 5 before its
+  development / `polytopia_dev` / `polybot_dev` identity gate could run.
+- No beta, Discord connection, command synchronization, production access,
+  dependency/schema change, push, PR, merge, or fixture action occurred.
+- Next: complete the Tier-2 branch review with the approved runtime profile;
+  P5.8 remains in progress and is not beta-accepted or integrated.
 
 ### 2026-08-02 — P5.7 beta-accepted and integrated; P5.8 planned
 
