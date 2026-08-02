@@ -426,7 +426,7 @@ check:
   `d24aa6b5e64fba159a872eb565703465c79d712d`.
 
 Current unit: **P5.6 unified game deletion service and pending-card Delete
-action — implemented locally and pending Tier-3 review/integration.**
+action — implemented locally; Tier-3 review passed; pending integration.**
 P5.5 is complete and integrated as `e118396`; its live beta smoke covered
 Join, Leave, Refresh, and Start, and the user accepted the follow-up join
 reaction correction without requiring another live retest.
@@ -439,8 +439,9 @@ session authorized here.
 
 P5.6 implementation/tests are committed as `2855fb6` and correction commit
 `3883cde` on `codex/p5-6-unified-game-deletion`, based on exact clean base
-`2589647403b14364251a9eb5c45a3e952ac71381`. It remains unintegrated and has
-not received live Discord, beta, command-sync, or production acceptance.
+`2589647403b14364251a9eb5c45a3e952ac71381`; roadmap evidence is committed on
+that branch. Tier-3 review passed. It remains unintegrated and has not
+received live Discord, beta, command-sync, or production acceptance.
 
 Owned fixture games `149`-`151` are intentionally retained. At the latest
 gated status check, `149` is incomplete/unranked, `150` is
@@ -2668,7 +2669,7 @@ clean P5.5 integration checkpoint.
 
 ### P5.6 — Unified game deletion service and pending-card Delete action
 
-Status: **Implemented locally; pending Tier-3 review/integration**
+Status: **Implemented locally; Tier-3 review passed; pending integration**
 
 Risk tier: **Tier 3**. This unit centralizes destructive game deletion across
 legacy and native interfaces and adds a public pending-card action. It must
@@ -2735,26 +2736,27 @@ Compatibility and required validation:
   audit commit, injects a fault after a partial lineup mutation, proves graph
   and audit rollback, and removes only its own rows. It does not seed or clean
   the shared fixture harness;
-- the focused gated invocation was attempted only through the unchanged
-  `POLYBOT_RUN_DB_INTEGRATION=1` gate. The runtime profile selected
-  `POLYBOT_ENV=development`, `polytopia_dev`, role `polybot_dev`, and disabled
-  background/API services, but this worker's sandbox could not reach the
-  configured `localhost:5432` PostgreSQL endpoint, so session identity and
-  test execution were not reached. The full gated suite was not claimed from
-  this worker; the primary review task must run the new case and full suite
-  through its scoped local-socket gate.
+- independent Tier-3 gated evidence passed: the new pending-delete test passed
+  **1 test**, and the unchanged full gated suite ran **17 tests**, with **16
+  passed and 1 expected skip** preserving the operator-managed fixture set.
+  The gate/runtime identity was `POLYBOT_ENV=development`, database
+  `polytopia_dev`, role `polybot_dev`, with background tasks/API disabled;
+  temporary P5.6 graph/audit rows self-cleaned and fixtures `149`-`151` were
+  untouched;
+- independent focused review before this correction passed **80/80**; this
+  corrected branch passes 104 focused tests and 405 offline tests with 17
+  gated skips. Full base-to-HEAD code review found no remaining blocking issue.
 
 Limitations: live Discord/mobile behavior, beta synchronization, command
 application, production deployment, and persistence across process restarts
-remain intentionally unvalidated. Real-PostgreSQL evidence for this correction
-is pending the independently scoped gated run; no result is inferred from the
-offline or mocked tests.
+remain intentionally unvalidated. The beta and command-application gates are
+still unrun; no production operation has been performed.
 
-Next action: run the new pending-delete PostgreSQL case and the unchanged full
-gated development suite through the scoped local-socket safety gate, preserve
-fixtures `149`-`151` and manual fixtures, then perform the required Tier-3
-complete-diff review and integrate `3883cde` only after that acceptance gate is
-satisfied. Do not mark P5.6 Complete or Integrated from this branch.
+Next action: integrate the full branch HEAD of
+`codex/p5-6-unified-game-deletion` into `codex/database-slash-modernization`
+after the normal integration authorization. Keep beta/synchronization
+separate, and do not mark P5.6 Complete or Integrated from this branch before
+that integration.
 
 ## P6 — Registration and player preferences
 
@@ -4490,7 +4492,7 @@ unit and does not reopen accepted P5.2 behavior.
   integration action was performed. P5.6 remains implemented locally and
   pending Tier-3 review; do not mark it Complete or Integrated.
 
-### 2026-08-01 — P5.6 Tier-3 correction committed; real-DB gate pending
+### 2026-08-01 — P5.6 Tier-3 correction reviewed and accepted; integration pending
 
 - Committed correction `3883cde` on
   `codex/p5-6-unified-game-deletion`, based on exact
@@ -4505,16 +4507,22 @@ unit and does not reopen accepted P5.2 behavior.
 - Focused offline suites passed **104 tests**. Complete offline discovery
   passed **405 tests with 17 explicit gated skips**. Changed Python compilation
   and `git diff --check` passed.
-- The new focused gated invocation reached the unchanged development gate but
-  could not connect to this worker's configured `localhost:5432` endpoint
-  before session identity or test execution. The profile selected
-  `development` / `polytopia_dev` / `polybot_dev` with background/API services
-  disabled. No gated result is claimed here; the primary review task will run
-  the new case and unchanged full suite through its scoped local-socket gate.
+- Independent Tier-3 validation passed the new focused gated test (**1
+  passed**) and the unchanged full gated suite (**17 run, 16 passed, 1
+  expected operator-fixture-preserving skip**) under
+  `POLYBOT_ENV=development`, `polytopia_dev`, `polybot_dev`, with background
+  tasks/API disabled. Temporary graph/audit rows self-cleaned; fixtures
+  `149`-`151` were untouched.
+- The independent focused review before this correction passed **80/80**;
+  corrected focused coverage passed **104**, full offline discovery passed
+  **405 with 17 gated skips**, and full base-to-HEAD review found no blocking
+  issue. Interaction acknowledgement ordering, worker-local transaction and
+  rollback, ELO serialization, permissions/races, and post-commit effects were
+  accepted.
 - No fixture seed/cleanup, beta launch, command synchronization, production,
   dependency, push, PR, merge, or integration action was performed. P5.6
-  remains implemented locally and pending Tier-3 review; do not mark it
-  Complete or Integrated.
+  remains implemented locally with Tier-3 review passed and integration
+  pending; beta remains unrun. Do not mark it Complete or Integrated.
 
 ### 2026-08-01 — P5.5 accepted/integrated; P5.6 authorized
 
