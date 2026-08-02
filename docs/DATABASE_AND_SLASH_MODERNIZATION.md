@@ -432,6 +432,7 @@ P5.7 implementation/tests are committed as `0a969cc` on
 `f9fc4aaba7cd5ffa502e11571e6b0e063785d5a0` from
 `codex/database-slash-modernization`. No beta, command sync, production, push,
 PR, merge, or fixture-harness action was performed.
+The follow-up compatibility correction is `7eaf1cd`.
 P5.6 is complete, beta-accepted, and integrated as `fc50623`.
 P5.5 is complete and integrated as `e118396`; its live beta smoke covered
 Join, Leave, Refresh, and Start, and the user accepted the follow-up join
@@ -2889,6 +2890,7 @@ Complete, Integrated, or beta-accepted from this checkpoint.
 Commit:
 
 - `0a969cc` — Implement P5.7 winner card action.
+- `7eaf1cd` — Narrow winner card stale reload retirement.
 
 Next action: perform the independent Tier-3 review of the shared win service,
 worker/transaction boundary, permission parity, and post-commit seam; then
@@ -4610,6 +4612,9 @@ unit and does not reopen accepted P5.2 behavior.
 - Implemented `0a969cc` on `codex/p5-7-winner-card-action` from exact clean
   base `f9fc4aaba7cd5ffa502e11571e6b0e063785d5a0` on
   `codex/database-slash-modernization`.
+- Follow-up `7eaf1cd` limits fail-closed stale-read control retirement to the
+  new winner flow, preserving accepted pending-card action behavior; the
+  focused suite still passed **79 tests** after the correction.
 - Added the shared frozen-request win application service and bounded
   worker-local side preflight. `$win`, `$lose`, `/game win`, and the new native
   in-progress card action all route to unchanged `elo_workers.record_win`
