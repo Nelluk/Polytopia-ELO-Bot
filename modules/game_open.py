@@ -12,6 +12,12 @@ from modules import game_open_workers
 logger = logging.getLogger('polybot.' + __name__)
 
 
+async def add_join_reaction(message: object) -> None:
+    """Add the configured join reaction to a public game message."""
+
+    await message.add_reaction(settings.emoji_join_game)
+
+
 async def publish_open_game_result(
     result: game_open_workers.OpenGameResult,
     *,

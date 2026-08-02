@@ -21,6 +21,7 @@ from modules import game_search_views
 from modules import game_search_workers
 from modules import game_detail_views
 from modules import game_detail_workers
+from modules import game_detail_actions
 from modules import game_join_leave
 from modules import game_join_workers
 from modules import game_kick_workers
@@ -1151,6 +1152,283 @@ class polygames(commands.Cog):
                 server_name = f'guild {source_guild_id}'
         return f'{error} __{server_name}__.'
 
+    async def _load_pending_game_card(
+        self,
+        interaction,
+        *,
+        guild,
+        channel_id: int,
+        game_id: int,
+        prefix: str,
+    ) -> game_detail_actions.PendingGameCardPayload:
+        """Reload a card through the bounded immutable game-detail worker."""
+
+        request = game_detail_workers.GameDetailRequest(
+            guild_id=guild.id,
+            channel_id=channel_id,
+            requester_discord_id=interaction.user.id,
+            game_id=game_id,
+        )
+        snapshot = await self._load_game_detail(request)
+        display = game_detail_views.resolve_display(
+            snapshot,
+            guild=guild,
+            bot=self.bot,
+            prefix=prefix,
+            join_emoji=getattr(settings, 'emoji_join_game', ''),
+        )
+        return game_detail_actions.PendingGameCardPayload(
+            snapshot=snapshot,
+            rendered=game_detail_views.render_classic_game_detail(display),
+        )
+
+    async def _pending_card_join(
+        self,
+        interaction,
+        *,
+        game_id: int,
+        prefix: str,
+        side_arg: str | None,
+    ) -> bool:
+        """Delegate a card join to the established join worker/presenter."""
+
+        if not await self._native_pending_game_channel_allowed(interaction):
+            return False
+        matchmaking_cog = self.bot.get_cog('matchmaking')
+        if matchmaking_cog is None:
+            await interaction.followup.send(
+                'The join-game command handler is unavailable.',
+                ephemeral=True,
+            )
+            return False
+        try:
+            result = await matchmaking_cog.execute_join(
+                game_id=game_id,
+                member=interaction.user,
+                author_member=interaction.user,
+                side_arg=side_arg,
+                invoked_with='/game show Join',
+                notification_member_id=interaction.user.id,
+                prefix=prefix,
+            )
+        except game_join_workers.PendingGameJoinValidationError as exc:
+            await interaction.followup.send(str(exc), ephemeral=True)
+            return False
+        except peewee.PeeweeException:
+            logger.exception('Database failure in pending-card join %s', game_id)
+            await interaction.followup.send(
+                'The game could not be changed because the database operation '
+                'failed. No public Discord effects were made.',
+                ephemeral=True,
+            )
+            return False
+        except Exception:
+            logger.exception('Unexpected failure in pending-card join %s', game_id)
+            await interaction.followup.send(
+                'The game could not be changed. No public Discord effects were '
+                'made.',
+                ephemeral=True,
+            )
+            return False
+
+        await self._publish_native_join_result(
+            interaction,
+            result,
+            member=interaction.user,
+            prefix=prefix,
+            publish_card=False,
+        )
+        return True
+
+    async def _publish_native_leave_result(
+        self,
+        interaction: discord.Interaction,
+        result: game_join_workers.LeaveResult,
+    ) -> None:
+        """Publish an already-committed leave without creating a second card."""
+
+        public_send = lambda content: interaction.followup.send(
+            content,
+            ephemeral=False,
+        )
+        if result.host_warning:
+            await game_join_leave.send_post_commit_message(
+                public_send,
+                result.host_warning,
+                game_id=result.game_id,
+                effect='host-leave warning',
+            )
+        await game_join_leave.send_post_commit_message(
+            public_send,
+            result.message,
+            game_id=result.game_id,
+            effect='leave output',
+        )
+
+    async def _pending_card_leave(
+        self,
+        interaction,
+        *,
+        game_id: int,
+        prefix: str,
+    ) -> bool:
+        """Delegate a card leave to the established leave worker/presenter."""
+
+        if not await self._native_pending_game_channel_allowed(interaction):
+            return False
+        matchmaking_cog = self.bot.get_cog('matchmaking')
+        if matchmaking_cog is None:
+            await interaction.followup.send(
+                'The leave-game command handler is unavailable.',
+                ephemeral=True,
+            )
+            return False
+        try:
+            result = await matchmaking_cog.execute_leave(
+                game_id=game_id,
+                member=interaction.user,
+                author_member=interaction.user,
+                invoked_with='/game show Leave',
+                prefix=prefix,
+            )
+        except game_join_workers.PendingGameLeaveValidationError as exc:
+            await interaction.followup.send(str(exc), ephemeral=True)
+            return False
+        except peewee.PeeweeException:
+            logger.exception('Database failure in pending-card leave %s', game_id)
+            await interaction.followup.send(
+                'The game could not be changed because the database operation '
+                'failed. No public Discord effects were made.',
+                ephemeral=True,
+            )
+            return False
+        except Exception:
+            logger.exception('Unexpected failure in pending-card leave %s', game_id)
+            await interaction.followup.send(
+                'The game could not be changed because the game service failed.',
+                ephemeral=True,
+            )
+            return False
+
+        await self._publish_native_leave_result(interaction, result)
+        return True
+
+    async def _pending_card_start(
+        self,
+        interaction,
+        *,
+        guild,
+        game_id: int,
+        prefix: str,
+        name: str,
+    ) -> bool:
+        """Delegate a card start to the established start worker/presenter."""
+
+        if not await self._native_pending_game_channel_allowed(interaction):
+            return False
+        matchmaking_cog = self.bot.get_cog('matchmaking')
+        if matchmaking_cog is None:
+            await interaction.followup.send(
+                'The start-game command handler is unavailable.',
+                ephemeral=True,
+            )
+            return False
+        try:
+            result = await matchmaking_cog.execute_start(
+                game_id=game_id,
+                guild=guild,
+                requester=interaction.user,
+                name=name,
+                prefix=prefix,
+                invoked_with='/game show Start',
+            )
+        except game_start_workers.GameStartValidationError as exc:
+            await interaction.followup.send(str(exc), ephemeral=True)
+            return False
+        except peewee.PeeweeException:
+            logger.exception('Database failure in pending-card start %s', game_id)
+            await interaction.followup.send(
+                'The game could not be started because the database operation '
+                'failed. No public Discord effects were made.',
+                ephemeral=True,
+            )
+            return False
+        except exceptions.CheckFailedError as exc:
+            await interaction.followup.send(str(exc), ephemeral=True)
+            return False
+        except Exception:
+            logger.exception('Unexpected failure in pending-card start %s', game_id)
+            await interaction.followup.send(
+                'The game could not be started. No public Discord effects were '
+                'made.',
+                ephemeral=True,
+            )
+            return False
+
+        await game_start.publish_start_result(
+            result,
+            output_context=game_start.native_output_context(
+                interaction,
+                prefix=prefix,
+            ),
+            guild=guild,
+            prefix=prefix,
+            bot_guilds=getattr(settings.bot, 'guilds', ()),
+        )
+        return True
+
+    def _pending_game_card_view(
+        self,
+        *,
+        snapshot: game_detail_workers.GameDetailSnapshot,
+        guild,
+        channel_id: int,
+        prefix: str,
+    ) -> game_detail_actions.PendingGameCardView | None:
+        if not snapshot.is_pending:
+            return None
+
+        async def load_card(interaction):
+            return await self._load_pending_game_card(
+                interaction,
+                guild=guild,
+                channel_id=channel_id,
+                game_id=snapshot.game_id,
+                prefix=prefix,
+            )
+
+        async def on_join(interaction, side_arg):
+            return await self._pending_card_join(
+                interaction,
+                game_id=snapshot.game_id,
+                prefix=prefix,
+                side_arg=side_arg,
+            )
+
+        async def on_leave(interaction):
+            return await self._pending_card_leave(
+                interaction,
+                game_id=snapshot.game_id,
+                prefix=prefix,
+            )
+
+        async def on_start(interaction, name):
+            return await self._pending_card_start(
+                interaction,
+                guild=guild,
+                game_id=snapshot.game_id,
+                prefix=prefix,
+                name=name,
+            )
+
+        return game_detail_actions.PendingGameCardView(
+            snapshot=snapshot,
+            load_card=load_card,
+            on_join=on_join,
+            on_leave=on_leave,
+            on_start=on_start,
+        )
+
     async def _send_game_detail(
         self,
         target,
@@ -1193,11 +1471,12 @@ class polygames(commands.Cog):
                 await target.send(message)
             return False
 
+        prefix = self._game_detail_prefix(target, guild, slash=slash)
         display = game_detail_views.resolve_display(
             snapshot,
             guild=guild,
             bot=self.bot,
-            prefix=self._game_detail_prefix(target, guild, slash=slash),
+            prefix=prefix,
             join_emoji=getattr(settings, 'emoji_join_game', ''),
         )
         classic = game_detail_views.render_classic_game_detail(display)
@@ -1208,10 +1487,37 @@ class polygames(commands.Cog):
         file = classic.new_file()
         if file is not None:
             kwargs['file'] = file
+        view = (
+            self._pending_game_card_view(
+                snapshot=snapshot,
+                guild=guild,
+                channel_id=channel_id,
+                prefix=prefix,
+            )
+            if slash
+            else None
+        )
+        if view is not None:
+            kwargs['view'] = view
         if slash:
-            await target.edit_original_response(**kwargs)
+            message = await target.edit_original_response(**kwargs)
         else:
-            await target.send(**kwargs)
+            message = await target.send(**kwargs)
+        if view is not None:
+            view.message = message
+            if (
+                snapshot.is_pending
+                and snapshot.status_label != 'Expired open game'
+                and snapshot.pending_join_available
+            ):
+                try:
+                    await game_open.add_join_reaction(message)
+                except Exception:
+                    logger.exception(
+                        'Could not seed the join reaction on pending game %s '
+                        'card; retain button and prefix fallback',
+                        snapshot.game_id,
+                    )
         return True
 
     async def _send_game_search_workspace(
@@ -2064,14 +2370,11 @@ class polygames(commands.Cog):
                     wait=True,
                 )
 
-            async def add_join_reaction(message: object) -> None:
-                await message.add_reaction(settings.emoji_join_game)
-
             await game_open.publish_open_game_result(
                 result,
                 prefix=ctx.prefix,
                 send=send_public,
-                add_completion_reaction=add_join_reaction,
+                add_completion_reaction=game_open.add_join_reaction,
             )
 
         view = game_open_views.OpenGameView(
@@ -2123,6 +2426,7 @@ class polygames(commands.Cog):
         *,
         member,
         prefix: str,
+        publish_card: bool = True,
     ) -> None:
         """Publish a committed join and surface post-commit reconciliation."""
 
@@ -2136,22 +2440,23 @@ class polygames(commands.Cog):
 
         committed_game = None
         embed = content = None
-        try:
-            committed_game = models.Game.load_full_game(result.game_id)
-            embed, content = committed_game.embed(
-                guild=interaction.guild,
-                prefix=prefix,
-            )
-        except Exception:
-            logger.exception(
-                'Committed native join %s could not reload its game card',
-                result.game_id,
-            )
-            messages.append(
-                f':warning: Game {result.game_id} was joined successfully, '
-                'but its game card could not be updated. An operator must '
-                'reconcile the announcement.'
-            )
+        if publish_card:
+            try:
+                committed_game = models.Game.load_full_game(result.game_id)
+                embed, content = committed_game.embed(
+                    guild=interaction.guild,
+                    prefix=prefix,
+                )
+            except Exception:
+                logger.exception(
+                    'Committed native join %s could not reload its game card',
+                    result.game_id,
+                )
+                messages.append(
+                    f':warning: Game {result.game_id} was joined successfully, '
+                    'but its game card could not be updated. An operator must '
+                    'reconcile the announcement.'
+                )
 
         if result.is_full:
             public_send = lambda content: interaction.followup.send(
@@ -2337,25 +2642,7 @@ class polygames(commands.Cog):
                 ephemeral=True,
             )
 
-        if result.host_warning:
-            await game_join_leave.send_post_commit_message(
-                lambda message: interaction.followup.send(
-                    message,
-                    ephemeral=False,
-                ),
-                result.host_warning,
-                game_id=result.game_id,
-                effect='host-leave warning',
-            )
-        await game_join_leave.send_post_commit_message(
-            lambda message: interaction.followup.send(
-                message,
-                ephemeral=False,
-            ),
-            result.message,
-            game_id=result.game_id,
-            effect='leave output',
-        )
+        await self._publish_native_leave_result(interaction, result)
 
     @game_manage_group.command(
         name='kick',
