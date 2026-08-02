@@ -4303,7 +4303,6 @@ class polygames(commands.Cog):
             workspace.message = await public_send(
                 game_notes.read_message(result),
                 view=workspace,
-                wait=True,
             )
         except Exception:
             logger.exception('Could not publish the game-notes workspace')

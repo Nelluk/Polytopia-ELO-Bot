@@ -166,6 +166,16 @@ class Channel:
         return Message()
 
 
+class StrictChannel:
+    def __init__(self, events=None):
+        self.id = 900
+        self.events = events if events is not None else []
+
+    async def send(self, content, *, view):
+        self.events.append(('strict-channel', content, view))
+        return Message()
+
+
 class Message:
     def __init__(self):
         self.edits = []
@@ -678,6 +688,7 @@ class NativeGameNotesAdapterTests(unittest.IsolatedAsyncioTestCase):
     async def test_read_defers_private_then_publishes_current_value(self):
         events = []
         interaction = Interaction(events=events)
+        interaction.channel = StrictChannel(events)
         snapshot = make_snapshot(notes=None)
         cog = games.polygames.__new__(games.polygames)
 
@@ -694,9 +705,9 @@ class NativeGameNotesAdapterTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(events[0], ('defer', True))
         self.assertEqual(events[1], ('delete-original',))
-        self.assertEqual(events[2][0], 'channel')
+        self.assertEqual(events[2][0], 'strict-channel')
         self.assertEqual(events[2][1], 'Current notes for game 42: None')
-        self.assertIs(events[2][2]['view'], workspace)
+        self.assertIs(events[2][2], workspace)
         self.assertEqual(len(workspace.children), 2)
         self.assertFalse(any(event[0] == 'followup' for event in events))
 
