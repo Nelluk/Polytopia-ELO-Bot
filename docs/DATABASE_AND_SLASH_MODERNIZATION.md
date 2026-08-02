@@ -433,7 +433,7 @@ check:
   `codex/p4-2a-game-map`, based on exact clean base
   `5a310c0bdf5d66646bb9b6f8b47ee322cbe1e15c`.
 - P4.2a accumulation merge: `5845e8b`.
-- P4.2b implementation checkpoint: `18d250b` on
+- P4.2b implementation checkpoints: `18d250b`, `7bba999` on
   `codex/p4-2b-game-notes`, based on exact clean base
   `190e6bb515911cedb329b4de5af88d2bbd0a1e58`.
 
