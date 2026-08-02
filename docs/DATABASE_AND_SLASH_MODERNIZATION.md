@@ -2228,6 +2228,8 @@ Branch/base: `codex/p4-2c-game-name` from exact clean detached checkpoint
 Implementation commit:
 
 - `a235e23` — Implement focused game-name workspace.
+- `4ebe5ca` — Preserve legacy prefix rename output and native normalization
+  detail coverage.
 
 Objective and interface:
 
@@ -2240,8 +2242,10 @@ Objective and interface:
   responses, bounded timeouts, and rerun guidance; pending games disable the
   controls and still receive authoritative worker denial.
 - The edit input advertises and enforces the model's 35-character boundary.
-  Committed output explains title-case/quote normalization and prefix-only
-  truncation when the stored value differs from the submitted value.
+  Native committed output explains title-case/quote normalization and
+  truncation when the stored value differs from the submitted value; retained
+  prefix success output remains the established legacy line plus any league
+  warning and does not append a new informational line.
 - Committed native edits and clears are public and identify the actor. Reads,
   validation failures, permission denials, stale expected-name conflicts,
   component expiry, and database failures stay private. A private deferred
@@ -6980,6 +6984,20 @@ unit and does not reopen accepted P5.2 behavior.
 - Status: implementation committed locally; Tier-3 review, integration, and
   beta acceptance remain pending. Next: review this branch and obtain explicit
   integration/beta direction.
+
+### 2026-08-02 — P4.2c prefix-compatibility correction
+
+- Tier-3 review found that the shared `mutation_message()` formatter appended
+  the new native normalization/truncation explanation to `$rename` success
+  output. Correction commit `4ebe5ca` removes that detail from prefix output,
+  retaining only the established rename line plus any league warning.
+- Native `native_mutation_message()` continues to explain model title-case,
+  quote normalization, and 35-character truncation. The focused regression
+  uses a normalized/truncated result to assert exact prefix output and native
+  visibility separately.
+- The affected focused suites passed **89 tests**; compilation and
+  `git diff --check` passed. No compatibility-ledger entry was needed because
+  this correction restores, rather than reduces, retained prefix parity.
 
 ## Resume checklist
 
