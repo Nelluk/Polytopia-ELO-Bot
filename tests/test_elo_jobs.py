@@ -1533,6 +1533,19 @@ class HybridUnwinCommandTests(unittest.IsolatedAsyncioTestCase):
             'member_string',
             return_value='**Moderator** (`300`)',
         ), mock.patch.object(
+            self.games.game_deletion,
+            'authorize_delete',
+            new=mock.AsyncMock(
+                return_value=self.games.game_deletion.game_deletion_workers.DeletionClassification(
+                    game_id=126,
+                    guild_id=100,
+                    state=self.games.game_deletion.game_deletion_workers.IN_PROGRESS,
+                    host_id=None,
+                    host_name=None,
+                    registered=True,
+                )
+            ),
+        ), mock.patch.object(
             self.games.utilities, 'lock_game'
         ), mock.patch.object(
             self.games.utilities, 'unlock_game'

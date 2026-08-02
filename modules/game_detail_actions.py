@@ -32,6 +32,8 @@ CardLoader = Callable[[discord.Interaction], Awaitable[PendingGameCardPayload]]
 JoinAction = Callable[[discord.Interaction, str | None], Awaitable[bool]]
 LeaveAction = Callable[[discord.Interaction], Awaitable[bool]]
 StartAction = Callable[[discord.Interaction, str], Awaitable[bool]]
+DeletePrepareAction = Callable[[discord.Interaction], Awaitable[bool]]
+DeleteAction = Callable[[discord.Interaction], Awaitable[bool]]
 
 
 def _response_done(interaction: discord.Interaction) -> bool:
@@ -50,6 +52,12 @@ async def _send_ephemeral(
         await interaction.followup.send(content, ephemeral=True)
     else:
         await interaction.response.send_message(content, ephemeral=True)
+
+
+async def _reject_unwired_delete(*_args) -> bool:
+    """Fail closed if a caller constructs a card without the service hooks."""
+
+    return False
 
 
 def _side_options(
@@ -164,6 +172,106 @@ class PendingGameSideSelectView(discord.ui.View):
                 )
 
 
+class PendingGameDeleteConfirmationView(discord.ui.View):
+    """Requester-only ephemeral confirmation for a public Delete button."""
+
+    def __init__(
+        self,
+        card_view: 'PendingGameCardView',
+        *,
+        requester_id: int,
+        timeout: float = 120.0,
+    ):
+        super().__init__(timeout=timeout)
+        self.card_view = card_view
+        self.requester_id = requester_id
+        self.message: discord.Message | None = None
+        self.confirm_button = discord.ui.Button(
+            label='Confirm delete',
+            style=discord.ButtonStyle.danger,
+            custom_id=f'pending-game:{card_view.game_id}:delete-confirm',
+        )
+        self.cancel_button = discord.ui.Button(
+            label='Cancel',
+            style=discord.ButtonStyle.secondary,
+            custom_id=f'pending-game:{card_view.game_id}:delete-cancel',
+        )
+        self.confirm_button.callback = self._confirm_clicked
+        self.cancel_button.callback = self._cancel_clicked
+        self.add_item(self.confirm_button)
+        self.add_item(self.cancel_button)
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if self.is_finished():
+            await _send_ephemeral(
+                interaction,
+                'This deletion confirmation expired. Press Delete on the game '
+                'card again.',
+            )
+            return False
+        if interaction.user.id != self.requester_id:
+            await _send_ephemeral(
+                interaction,
+                'Only the member who requested deletion can confirm it.',
+            )
+            return False
+        return True
+
+    async def _edit_disabled(self) -> None:
+        self.confirm_button.disabled = True
+        self.cancel_button.disabled = True
+        if self.message is not None:
+            try:
+                await self.message.edit(view=self)
+            except discord.DiscordException:
+                logger.debug(
+                    'Could not disable pending-game deletion confirmation',
+                    exc_info=True,
+                )
+
+    async def _confirm_clicked(self, interaction: discord.Interaction) -> None:
+        if self.is_finished():
+            await _send_ephemeral(
+                interaction,
+                'This deletion confirmation expired. Press Delete on the game '
+                'card again.',
+            )
+            return
+        self.stop()
+        await self._edit_disabled()
+        await interaction.response.defer(ephemeral=True)
+        try:
+            await self.card_view.run_delete(
+                interaction,
+                acknowledged=True,
+            )
+        finally:
+            if self.card_view._busy and not self.card_view.is_finished():
+                self.card_view._release_delete_claim()
+
+    async def _cancel_clicked(self, interaction: discord.Interaction) -> None:
+        if self.is_finished():
+            await _send_ephemeral(
+                interaction,
+                'This deletion confirmation expired. Press Delete on the game '
+                'card again.',
+            )
+            return
+        self.stop()
+        await self._edit_disabled()
+        await interaction.response.defer(ephemeral=True)
+        await interaction.followup.send(
+            'Game deletion cancelled.',
+            ephemeral=True,
+        )
+        self.card_view._release_delete_claim()
+
+    async def on_timeout(self) -> None:
+        self.stop()
+        await self._edit_disabled()
+        self.card_view._release_delete_claim()
+
+
 class PendingGameCardView(discord.ui.View):
     """Shared public controls for one pending-game card.
 
@@ -191,6 +299,8 @@ class PendingGameCardView(discord.ui.View):
         on_join: JoinAction,
         on_leave: LeaveAction,
         on_start: StartAction,
+        on_delete_prepare: DeletePrepareAction | None = None,
+        on_delete: DeleteAction | None = None,
         timeout: float = 300.0,
     ):
         super().__init__(timeout=timeout)
@@ -199,9 +309,12 @@ class PendingGameCardView(discord.ui.View):
         self.on_join = on_join
         self.on_leave = on_leave
         self.on_start = on_start
+        self.on_delete_prepare = on_delete_prepare or _reject_unwired_delete
+        self.on_delete = on_delete or _reject_unwired_delete
         self.message: discord.Message | None = None
         self._busy = False
         self._side_selectors: list[PendingGameSideSelectView] = []
+        self._delete_confirmations: list[PendingGameDeleteConfirmationView] = []
         self.rebuild()
 
     @property
@@ -232,12 +345,19 @@ class PendingGameCardView(discord.ui.View):
         self.join_button = None
         self.leave_button = None
         self.start_button = None
+        self.delete_button = None
         self.refresh_button = None
 
         if not self.snapshot.is_pending:
             return
 
         if self.snapshot.status_label == 'Expired open game':
+            self.delete_button = self._add_button(
+                label='Delete',
+                custom_id=f'pending-game:{self.game_id}:delete',
+                style=discord.ButtonStyle.danger,
+                callback=self._delete_clicked,
+            )
             self.refresh_button = self._add_button(
                 label='Refresh',
                 custom_id=f'pending-game:{self.game_id}:refresh',
@@ -273,6 +393,13 @@ class PendingGameCardView(discord.ui.View):
                 callback=self._leave_clicked,
             )
 
+        self.delete_button = self._add_button(
+            label='Delete',
+            custom_id=f'pending-game:{self.game_id}:delete',
+            style=discord.ButtonStyle.danger,
+            callback=self._delete_clicked,
+        )
+
         self.refresh_button = self._add_button(
             label='Refresh',
             custom_id=f'pending-game:{self.game_id}:refresh',
@@ -300,6 +427,32 @@ class PendingGameCardView(discord.ui.View):
             return False
         self._busy = True
         return True
+
+    def _release_delete_claim(self) -> None:
+        """Release a pending confirmation's card claim after cancel/expiry."""
+
+        if not self.is_finished():
+            self._busy = False
+
+    def _remove_controls_after_delete(self) -> None:
+        """Make a committed deletion unable to be submitted again."""
+
+        self.clear_items()
+        self.stop()
+
+    async def _disable_card_after_delete(self, interaction) -> None:
+        self._remove_controls_after_delete()
+        message = self.message or getattr(interaction, 'message', None)
+        if message is None:
+            return
+        try:
+            await message.edit(view=None)
+        except discord.DiscordException:
+            logger.debug(
+                'Could not remove controls from deleted pending game %s card',
+                self.game_id,
+                exc_info=True,
+            )
 
     async def _load_fresh(
         self,
@@ -484,6 +637,95 @@ class PendingGameCardView(discord.ui.View):
             return
         await interaction.response.send_modal(PendingGameStartModal(self))
 
+    async def _delete_clicked(self, interaction: discord.Interaction) -> None:
+        if not await self._claim(interaction):
+            return
+        confirmation_sent = False
+        try:
+            await interaction.response.defer(ephemeral=True)
+            payload = await self._load_fresh(interaction, action='delete')
+            if payload is None:
+                return
+            if not payload.snapshot.is_pending:
+                await _send_ephemeral(
+                    interaction,
+                    'This game is no longer pending. Refresh the card or run '
+                    '`/game show` again.',
+                    acknowledged=True,
+                )
+                return
+            if not await self.on_delete_prepare(interaction):
+                return
+            if self.is_finished():
+                await _send_ephemeral(
+                    interaction,
+                    self.expired_message,
+                    acknowledged=True,
+                )
+                return
+
+            confirmation = PendingGameDeleteConfirmationView(
+                self,
+                requester_id=interaction.user.id,
+            )
+            self._delete_confirmations.append(confirmation)
+            confirmation.message = await interaction.followup.send(
+                f'Are you sure you want to permanently delete pending game '
+                f'`{self.game_id}`? This cannot be undone.',
+                ephemeral=True,
+                view=confirmation,
+                wait=True,
+            )
+            confirmation_sent = True
+        except Exception:
+            logger.exception(
+                'Unexpected pending game %s delete confirmation failure',
+                self.game_id,
+            )
+            await _send_ephemeral(
+                interaction,
+                'The deletion confirmation could not be opened. No public '
+                'game change was made.',
+                acknowledged=True,
+            )
+        finally:
+            if not confirmation_sent:
+                self._busy = False
+
+    async def run_delete(
+        self,
+        interaction: discord.Interaction,
+        *,
+        acknowledged: bool = False,
+    ) -> bool:
+        """Run the shared deletion service after confirmation."""
+
+        if self.is_finished():
+            await _send_ephemeral(interaction, self.expired_message, acknowledged=acknowledged)
+            self._release_delete_claim()
+            return False
+        try:
+            if not acknowledged:
+                await interaction.response.defer(ephemeral=True)
+            if not await self.on_delete(interaction):
+                return False
+            await self._disable_card_after_delete(interaction)
+            return True
+        except Exception:
+            logger.exception(
+                'Unexpected pending game %s delete action failure',
+                self.game_id,
+            )
+            await _send_ephemeral(
+                interaction,
+                'The game could not be deleted. No public game change was '
+                'made.',
+                acknowledged=True,
+            )
+            return False
+        finally:
+            self._busy = False
+
     async def run_start(
         self,
         interaction: discord.Interaction,
@@ -544,13 +786,21 @@ class PendingGameCardView(discord.ui.View):
             self._busy = False
 
     async def on_timeout(self) -> None:
+        # Mark the public view finished before awaiting any child-message
+        # edits.  A concurrent click cannot slip through while timeout
+        # reconciliation is yielding to Discord.
+        self.stop()
         for selector in self._side_selectors:
             selector.stop()
             selector.side_select.disabled = True
+        for confirmation in self._delete_confirmations:
+            confirmation.stop()
+            confirmation.confirm_button.disabled = True
+            confirmation.cancel_button.disabled = True
+            await confirmation._edit_disabled()
         for child in self.children:
             if isinstance(child, (discord.ui.Button, discord.ui.Select)):
                 child.disabled = True
-        self.stop()
         if self.message is not None:
             try:
                 await self.message.edit(view=self)

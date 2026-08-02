@@ -200,18 +200,24 @@ def make_view(
     on_join=None,
     on_leave=None,
     on_start=None,
+    on_delete_prepare=None,
+    on_delete=None,
     timeout=300,
 ):
     loader = loader or (lambda _interaction: _payload(snapshot))
     on_join = on_join or (lambda _interaction, _side: _success())
     on_leave = on_leave or (lambda _interaction: _success())
     on_start = on_start or (lambda _interaction, _name: _success())
+    on_delete_prepare = on_delete_prepare or (lambda _interaction: _success())
+    on_delete = on_delete or (lambda _interaction: _success())
     return actions.PendingGameCardView(
         snapshot=snapshot,
         load_card=loader,
         on_join=on_join,
         on_leave=on_leave,
         on_start=on_start,
+        on_delete_prepare=on_delete_prepare,
+        on_delete=on_delete,
         timeout=timeout,
     )
 
@@ -227,9 +233,9 @@ async def _payload(snapshot):
 class PendingGameCardStateTests(unittest.TestCase):
     def test_state_dependent_controls_are_exact_and_ordinary_views(self):
         cases = [
-            (card_snapshot(), ['Join', 'Leave', 'Refresh']),
-            (card_snapshot(full=True), ['Leave', 'Start', 'Refresh']),
-            (card_snapshot(expired=True), ['Refresh']),
+            (card_snapshot(), ['Join', 'Leave', 'Delete', 'Refresh']),
+            (card_snapshot(full=True), ['Leave', 'Start', 'Delete', 'Refresh']),
+            (card_snapshot(expired=True), ['Delete', 'Refresh']),
             (card_snapshot(pending=False), []),
         ]
         for snapshot_value, expected in cases:
@@ -293,7 +299,7 @@ class PendingGameCardInteractionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(message.edits), 1)
         self.assertEqual(
             [child.label for child in view.children],
-            ['Join', 'Leave', 'Refresh'],
+            ['Join', 'Leave', 'Delete', 'Refresh'],
         )
 
     async def test_every_mutation_click_reloads_before_service_and_refreshes_after_commit(self):
@@ -438,6 +444,162 @@ class PendingGameCardInteractionTests(unittest.IsolatedAsyncioTestCase):
         await view.join_button.callback(click)
         self.assertEqual(events, ['service'])
         self.assertEqual(message.edits, [])
+
+    async def test_delete_click_requires_confirmation_and_confirm_removes_card_controls(self):
+        events = []
+
+        async def prepare(_interaction):
+            events.append('prepare')
+            return True
+
+        async def delete(_interaction):
+            events.append('delete')
+            return True
+
+        view = make_view(
+            card_snapshot(),
+            on_delete_prepare=prepare,
+            on_delete=delete,
+        )
+        message = FakeMessage()
+        view.message = message
+        click = interaction(user_id=900, message=message)
+        await view.delete_button.callback(click)
+
+        self.assertEqual(events, ['prepare'])
+        self.assertTrue(view._busy)
+        self.assertEqual(click.response.calls[0][0], 'defer')
+        self.assertEqual(len(click.followup.calls), 1)
+        confirmation = click.followup.calls[0][1]['view']
+        self.assertIsInstance(confirmation, actions.PendingGameDeleteConfirmationView)
+
+        other = interaction(user_id=901, message=message)
+        self.assertFalse(await confirmation.interaction_check(other))
+        self.assertIn('Only the member', other.response.calls[0][1])
+        self.assertEqual(events, ['prepare'])
+
+        confirm = interaction(user_id=900, message=message)
+        await confirmation.confirm_button.callback(confirm)
+        self.assertEqual(events, ['prepare', 'delete'])
+        self.assertFalse(view._busy)
+        self.assertTrue(view.is_finished())
+        self.assertEqual(view.children, [])
+        self.assertIsNone(message.edits[-1]['view'])
+
+    async def test_delete_cancellation_releases_claim_without_public_card_change(self):
+        view = make_view(card_snapshot())
+        message = FakeMessage()
+        view.message = message
+        click = interaction(message=message)
+        await view.delete_button.callback(click)
+        confirmation = click.followup.calls[0][1]['view']
+
+        cancel = interaction(message=message)
+        await confirmation.cancel_button.callback(cancel)
+        self.assertFalse(view._busy)
+        self.assertFalse(view.is_finished())
+        self.assertEqual([child.label for child in view.children], [
+            'Join', 'Leave', 'Delete', 'Refresh',
+        ])
+        self.assertEqual(cancel.followup.calls[-1][0], 'Game deletion cancelled.')
+
+    async def test_delete_stale_card_rejects_before_authorization_or_mutation(self):
+        events = []
+
+        async def prepare(_interaction):
+            events.append('prepare')
+            return True
+
+        async def delete(_interaction):
+            events.append('delete')
+            return True
+
+        view = make_view(
+            card_snapshot(),
+            loader=lambda _interaction: _payload(card_snapshot(pending=False)),
+            on_delete_prepare=prepare,
+            on_delete=delete,
+        )
+        click = interaction()
+        await view.delete_button.callback(click)
+        self.assertEqual(events, [])
+        self.assertFalse(view._busy)
+        self.assertIn('no longer pending', click.followup.calls[-1][0])
+
+    async def test_delete_double_click_is_promptly_rejected_while_confirmation_loads(self):
+        entered = asyncio.Event()
+        release = asyncio.Event()
+
+        async def prepare(_interaction):
+            entered.set()
+            await release.wait()
+            return True
+
+        view = make_view(
+            card_snapshot(),
+            on_delete_prepare=prepare,
+        )
+        message = FakeMessage()
+        view.message = message
+        first = interaction(user_id=900, message=message)
+        second = interaction(user_id=901, message=message)
+        first_task = asyncio.create_task(view.delete_button.callback(first))
+        await entered.wait()
+        await view.delete_button.callback(second)
+        self.assertEqual(second.response.calls[0][0], 'send_message')
+        self.assertIn('already being processed', second.response.calls[0][1])
+        release.set()
+        await first_task
+        self.assertTrue(first.followup.calls)
+
+    async def test_delete_failure_keeps_card_and_has_no_success_effect(self):
+        calls = []
+
+        async def delete(_interaction):
+            calls.append('delete')
+            return False
+
+        view = make_view(card_snapshot(), on_delete=delete)
+        message = FakeMessage()
+        view.message = message
+        click = interaction(message=message)
+        await view.delete_button.callback(click)
+        confirmation = click.followup.calls[0][1]['view']
+        confirm = interaction(message=message)
+        await confirmation.confirm_button.callback(confirm)
+
+        self.assertEqual(calls, ['delete'])
+        self.assertFalse(view._busy)
+        self.assertFalse(view.is_finished())
+        self.assertEqual(message.edits, [])
+        self.assertTrue(view.children)
+
+    async def test_delete_confirmation_timeout_releases_claim_and_parent_timeout_wins_race(self):
+        entered = asyncio.Event()
+        release = asyncio.Event()
+
+        async def delete(_interaction):
+            entered.set()
+            await release.wait()
+            return True
+
+        view = make_view(card_snapshot(), on_delete=delete)
+        message = FakeMessage()
+        view.message = message
+        click = interaction(message=message)
+        await view.delete_button.callback(click)
+        confirmation = click.followup.calls[0][1]['view']
+        confirm = interaction(message=message)
+        task = asyncio.create_task(confirmation.confirm_button.callback(confirm))
+        await entered.wait()
+
+        await view.on_timeout()
+        self.assertTrue(view.is_finished())
+        release.set()
+        await task
+        self.assertTrue(view.is_finished())
+        self.assertEqual(view.children, [])
+        self.assertIsNone(message.edits[-1]['view'])
 
     async def test_double_click_conflict_is_ephemeral_without_second_service_call(self):
         entered = asyncio.Event()
