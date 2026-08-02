@@ -233,6 +233,47 @@ class GameSearchViewTests(unittest.IsolatedAsyncioTestCase):
             )
         )
 
+    async def test_open_view_switch_resets_incompatible_outcome(self):
+        initial_key = workers.GameSearchKey(
+            status='all',
+            outcome='loss',
+            size='2v2',
+        )
+        initial = snapshot(key=initial_key, count=1)
+        open_key = workers.GameSearchKey(
+            status='joinable',
+            outcome='any',
+            size='2v2',
+        )
+        loader = mock.AsyncMock(return_value=snapshot(key=open_key, count=1))
+        view = views.GameSearchWorkspace(
+            requester_id=10,
+            initial_result=initial,
+            loader=loader,
+        )
+        view.view_select._values = ['joinable']
+        response = SimpleNamespace(
+            defer=mock.AsyncMock(),
+            edit_message=mock.AsyncMock(),
+            is_done=lambda: True,
+        )
+        interaction = SimpleNamespace(
+            response=response,
+            edit_original_response=mock.AsyncMock(),
+            followup=SimpleNamespace(send=mock.AsyncMock()),
+        )
+
+        await view._select_view(interaction)
+
+        loader.assert_awaited_once_with(open_key)
+        self.assertEqual(view.result.key, open_key)
+        outcome_defaults = {
+            option.value: option.default
+            for option in view.outcome_select.options
+        }
+        self.assertTrue(outcome_defaults['any'])
+        self.assertFalse(outcome_defaults['loss'])
+
     async def test_filter_failure_is_ephemeral_and_keeps_snapshot(self):
         initial = snapshot(count=1)
         loader = mock.AsyncMock(side_effect=ValueError('bad filter'))
@@ -476,6 +517,54 @@ class GameSearchAdapterTests(unittest.IsolatedAsyncioTestCase):
             cog._send_game_search_workspace.await_args.kwargs['query'],
             '',
         )
+
+    async def test_prefix_workspace_preserves_requester_snapshot_on_view_switch(self):
+        cog = games.polygames.__new__(games.polygames)
+        requests = []
+
+        async def load(request):
+            requests.append(request)
+            return snapshot(key=request.key, query=request.query, count=0)
+
+        cog._load_game_search = load
+        author = SimpleNamespace(
+            id=222,
+            name='Nelluk',
+            nick='Nell',
+            roles=(SimpleNamespace(id=9), SimpleNamespace(id=10)),
+        )
+        ctx = SimpleNamespace(
+            guild=SimpleNamespace(id=1),
+            author=author,
+            send=mock.AsyncMock(),
+        )
+        with (
+            mock.patch.object(games.settings, 'get_user_level', return_value=3),
+            mock.patch.object(games.settings, 'is_staff', return_value=False),
+        ):
+            await cog.game_search(ctx, 'ALLGAMES', ['all'])
+
+        view = ctx.send.await_args.kwargs['view']
+        view.view_select._values = ['joinable']
+        response = SimpleNamespace(
+            defer=mock.AsyncMock(),
+            edit_message=mock.AsyncMock(),
+            is_done=lambda: True,
+        )
+        interaction = SimpleNamespace(
+            response=response,
+            edit_original_response=mock.AsyncMock(),
+            followup=SimpleNamespace(send=mock.AsyncMock()),
+        )
+        await view._select_view(interaction)
+
+        request = requests[-1]
+        self.assertEqual(request.key.status, 'joinable')
+        self.assertEqual(request.requester_level, 3)
+        self.assertEqual(request.requester_role_ids, (9, 10))
+        self.assertEqual(request.requester_name, 'Nelluk')
+        self.assertEqual(request.requester_nick, 'Nell')
+        self.assertFalse(request.staff)
 
     async def test_slash_defers_before_database_load_and_failure_is_private(self):
         command = next(

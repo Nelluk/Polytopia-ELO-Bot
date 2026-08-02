@@ -1789,7 +1789,7 @@ class polygames(commands.Cog):
             'guild_id': ctx.guild.id,
             'requester_discord_id': ctx.author.id,
             'query': query,
-            'staff': settings.is_staff(ctx.author),
+            **self._game_search_requester_values(ctx.author),
         }
 
         async def loader(filter_key):

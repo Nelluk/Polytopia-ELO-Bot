@@ -113,9 +113,16 @@ class GameSearchWorkspace(components_v2.CachedRequesterLayoutView):
         )
 
     async def _select_view(self, interaction: discord.Interaction) -> None:
+        selected_status = self.view_select.values[0]
+        outcome = (
+            'any'
+            if selected_status in game_search_workers.OPEN_GAME_STATUSES
+            else None
+        )
         await self._change_filter(
             interaction,
-            status=self.view_select.values[0],
+            status=selected_status,
+            outcome=outcome,
         )
 
     async def _select_outcome(self, interaction: discord.Interaction) -> None:
