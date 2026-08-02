@@ -241,11 +241,13 @@ class GameNotesWorkspaceView(discord.ui.View):
         requester_id: int,
         on_edit: EditCallback,
         on_clear: ClearCallback,
+        requester_actor: game_notes.GameNotesActor | None = None,
         timeout: float = 300.0,
     ):
         super().__init__(timeout=timeout)
         self.snapshot = snapshot
         self.requester_id = int(requester_id)
+        self.requester_actor = requester_actor
         self.on_edit = on_edit
         self.on_clear = on_clear
         self.message = None
@@ -379,6 +381,7 @@ class GameNotesWorkspaceView(discord.ui.View):
                 content=game_notes.workspace_message(
                     result.game_id,
                     result.notes,
+                    actor=self.requester_actor,
                 ),
                 view=self,
             )
@@ -391,10 +394,15 @@ class GameNotesWorkspaceView(discord.ui.View):
                 await confirmation._disable()
         self._set_state()
         self.stop()
+        expired_message = game_notes.workspace_message(
+            self.snapshot.game_id,
+            self.snapshot.notes,
+            actor=self.requester_actor,
+        )
         await _edit_message(
             self.message,
             content=(
-                f'{game_notes.workspace_message(self.snapshot.game_id, self.snapshot.notes)}\n\n'
+                f'{expired_message}\n\n'
                 f'Notes controls expired. Run `/game notes {self.snapshot.game_id}` '
                 'again for a fresh workspace.'
             ),

@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
-from dataclasses import replace
+from dataclasses import dataclass, replace
 import logging
 import re
+
+import discord
 
 import settings
 from modules import exceptions, game_workers, image_storage, models, utilities
@@ -17,6 +19,44 @@ MENTION_WARNING = (
     'impact who is allowed to join the game and will only change the content '
     'of the notes.'
 )
+
+
+@dataclass(frozen=True)
+class GameNotesActor:
+    """Safe, event-loop-captured identity for public native notes output."""
+
+    discord_id: int
+    mention: str
+    identity: str
+
+    @property
+    def label(self) -> str:
+        """Keep a mention and a readable fallback visible together."""
+
+        return f'{self.mention} / {self.identity}'
+
+
+def capture_actor(member) -> GameNotesActor:
+    """Capture only stable identity text before submitting notes work."""
+
+    discord_id = int(member.id)
+    raw_name = str(
+        getattr(member, 'display_name', None)
+        or getattr(member, 'name', None)
+        or f'user-{discord_id}'
+    )
+    safe_name = discord.utils.escape_mentions(
+        discord.utils.escape_markdown(raw_name),
+    )
+    mention = getattr(member, 'mention', None)
+    if callable(mention):
+        mention = mention()
+    mention = str(mention or f'<@{discord_id}>')
+    return GameNotesActor(
+        discord_id=discord_id,
+        mention=mention,
+        identity=f'**{safe_name}** (`{discord_id}`)',
+    )
 
 
 def _requester_level(member) -> int:
@@ -149,20 +189,50 @@ async def run_notes_read(
     return await game_workers.run_game_notes_read(request)
 
 
-def read_message(result: game_workers.GameNotesReadResult) -> str:
+def read_message(
+    result: game_workers.GameNotesReadResult,
+    *,
+    actor: GameNotesActor | None = None,
+) -> str:
     value = result.notes or 'None'
-    return f'Current notes for game {result.game_id}: {value}'
+    message = f'Current notes for game {result.game_id}: {value}'
+    if actor is not None:
+        message += f'\nRequested by {actor.label}.'
+    return message
 
 
-def workspace_message(game_id: int, notes: str | None) -> str:
+def workspace_message(
+    game_id: int,
+    notes: str | None,
+    *,
+    actor: GameNotesActor | None = None,
+) -> str:
     value = notes or 'None'
-    return f'Current notes for game {int(game_id)}: {value}'
+    message = f'Current notes for game {int(game_id)}: {value}'
+    if actor is not None:
+        message += f'\nRequested by {actor.label}.'
+    return message
 
 
 def mutation_message(result: game_workers.GameNotesMutationResult) -> str:
     """Preserve the established prefix success wording."""
 
     return f'Updated notes for game {result.game_id} to: {result.notes}'
+
+
+def native_mutation_message(
+    result: game_workers.GameNotesMutationResult,
+    *,
+    actor: GameNotesActor,
+) -> str:
+    """Describe a committed native edit or clear with its actor."""
+
+    if result.cleared or result.notes is None:
+        return f'{actor.label} cleared notes for game {result.game_id}.'
+    return (
+        f'{actor.label} edited notes for game {result.game_id} to: '
+        f'{result.notes}'
+    )
 
 
 async def refresh_game_card(
@@ -236,6 +306,7 @@ async def publish_mutation_result(
     *,
     send,
     refresh_card,
+    actor: GameNotesActor | None = None,
 ) -> None:
     """Publish committed notes output, card refresh, and mention warning.
 
@@ -244,7 +315,12 @@ async def publish_mutation_result(
     """
 
     try:
-        await send(mutation_message(result))
+        success_message = (
+            native_mutation_message(result, actor=actor)
+            if actor is not None
+            else mutation_message(result)
+        )
+        await send(success_message)
     except Exception:
         logger.exception(
             'Committed game-notes mutation %s could not publish success',

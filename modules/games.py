@@ -4128,6 +4128,7 @@ class polygames(commands.Cog):
         """Publish a short-lived public current-notes workspace."""
 
         await interaction.response.defer(ephemeral=True)
+        requester_actor = game_notes.capture_actor(interaction.user)
         channel_id = int(
             getattr(interaction, 'channel_id', None)
             or getattr(getattr(interaction, 'channel', None), 'id', 0)
@@ -4199,6 +4200,7 @@ class polygames(commands.Cog):
             *,
             clear: bool,
         ):
+            actor = game_notes.capture_actor(native_interaction.user)
             mutation = game_notes.build_mutation_request(
                 member=native_interaction.user,
                 guild_id=native_interaction.guild.id,
@@ -4230,6 +4232,7 @@ class polygames(commands.Cog):
                 await game_notes.publish_mutation_result(
                     committed,
                     send=public_send,
+                    actor=actor,
                     refresh_card=lambda value: game_notes.refresh_game_card(
                         value,
                         destination=native_interaction.channel,
@@ -4297,11 +4300,12 @@ class polygames(commands.Cog):
             requester_id=interaction.user.id,
             on_edit=edit_callback,
             on_clear=clear_callback,
+            requester_actor=requester_actor,
         )
         public_send = game_notes.public_interaction_sender(interaction)
         try:
             workspace.message = await public_send(
-                game_notes.read_message(result),
+                game_notes.read_message(result, actor=requester_actor),
                 view=workspace,
             )
         except Exception:

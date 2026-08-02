@@ -4,8 +4,8 @@ Last updated: 2026-08-02
 
 Status: Active
 
-Current branch at last update: `codex/p4-2b-game-notes` (delegated unit;
-not integrated)
+Current branch at last update: `codex/p4-2b-notes-attribution`
+(beta-transparency correction; not integrated)
 
 Source task: `thread://019fae66-8e3a-7a50-9a0f-d3d7160d2287`
 
@@ -438,9 +438,11 @@ check:
   `codex/p4-2b-game-notes`, based on exact clean base
   `190e6bb515911cedb329b4de5af88d2bbd0a1e58`.
 - P4.2b accumulation merge: `1f1625b`.
+- P4.2b beta-transparency correction: `b43d31e` on
+  `codex/p4-2b-notes-attribution` (not integrated).
 
-Current unit: **P4.2b focused game-notes workspace — Integrated; beta
-acceptance pending.**
+Current unit: **P4.2b focused game-notes workspace — beta acceptance pending;
+actor-attribution correction implemented locally and not integrated.**
 P4.2a is complete, beta-validated, and integrated as `5845e8b` with public
 visibility correction merge `4fa4b4f`.
 P5.8 is complete, beta-validated, and integrated as `4fc5973`; its final
@@ -2020,8 +2022,8 @@ stopped cleanly after acceptance.
 
 #### P4.2b — Focused game-notes workspace
 
-Status: **Tier-3 reviewed and accepted for integration approval; not
-integrated**
+Status: **Tier-3 reviewed and accepted for integration approval; actor-
+attribution correction implemented locally; not Complete or integrated**
 
 Risk tier: **Tier 3**. Notes mutation and its audit entry must commit
 atomically, while the public game-card refresh and mention warning occur only
@@ -2156,6 +2158,48 @@ Validation evidence:
   the gate confirmed `POLYBOT_ENV=development`, database `polytopia_dev`, and
   role `polybot_dev`.
 - Git diff checks were clean.
+
+### Beta-transparency correction — native actor attribution
+
+The integrated base exposed a transparency gap after the native interaction
+defer: successful public workspace/read and committed edit/clear output did
+not identify the requester or actor. Follow-up commit `b43d31e` on
+`codex/p4-2b-notes-attribution` corrects only that presentation gap:
+
+- The native read captures a frozen actor snapshot before the bounded read
+  worker submission and publishes both the Discord mention and an escaped
+  display-name/ID fallback in the public workspace. The same snapshot remains
+  on the short-lived workspace through refresh and timeout edits.
+- Native committed edits publish actor-attributed wording, while native
+  clears explicitly say that the actor cleared notes. The private deferred
+  interaction is deleted before each public success message, so attribution is
+  not lost to ephemeral followup inheritance.
+- The mutation result carries an explicit `cleared` flag. Prefix publishing
+  continues to use the unchanged `mutation_message` formatter, preserving the
+  exact `$gamenotes`/`$notes`/`$matchnotes` success wording.
+- The native mutation captures the submitter's frozen identity before worker
+  submission. Existing audit attribution, transaction/lock boundaries,
+  post-commit card refresh, mention warning, requester-only controls, and
+  private failures are unchanged.
+
+Correction validation:
+
+- Focused `tests.test_game_notes` plus `tests.test_slash_taxonomy`: **36
+  passed**, including read/edit/clear attribution, safe fallback capture,
+  private failure/no-public-effect, and exact prefix success regressions.
+- Complete offline discovery under the existing in-memory development-profile
+  harness: **502 passed, 17 gated skips**.
+- The unchanged gated database command was attempted with
+  `POLYBOT_ENV=development POLYBOT_RUN_DB_INTEGRATION=1`; the required
+  ignored `config.development.ini` is absent from this app-assigned worktree,
+  so **0 database tests ran** and no PostgreSQL connection or gate bypass was
+  performed.
+- Changed-file compilation and `git diff --check` passed. No beta, Discord
+  connection/synchronization, production or `polytopia2` access, schema,
+  dependency, push, PR, or integration action was performed.
+
+Correction status: **Implemented locally; not Complete, integrated, or
+beta-accepted.**
 
 Known limitations: the preserved dense game-card refresh still performs its
 short `Game.load_full_game` reload on the event-loop thread, matching the
@@ -5102,6 +5146,20 @@ post-commit reconciliation behavior. This direction is a separate bounded
 unit and does not reopen accepted P5.2 behavior.
 
 ## Progress log
+
+### 2026-08-02 — P4.2b beta-transparency correction implemented locally
+
+- Created `codex/p4-2b-notes-attribution` from clean checkpoint `90baa578`.
+- Committed `b43d31e` with frozen native actor snapshots, public requester/
+  actor attribution after the private defer, distinct native edit/clear
+  wording, and regressions proving prefix success wording remains unchanged.
+- Focused notes/taxonomy validation passed **36 tests**; complete offline
+  discovery passed **502 tests with 17 explicit skips**. The unchanged gated
+  database command ran **0 tests** because the required ignored
+  `config.development.ini` is absent; no gate was bypassed.
+- No beta, Discord, production, `polytopia2`, schema, dependency, push, PR,
+  or integration action occurred. This correction remains implemented locally
+  and is not Complete, integrated, or beta-accepted.
 
 ### 2026-08-02 — P4.2a accepted; P4.2b notes workspace selected
 
