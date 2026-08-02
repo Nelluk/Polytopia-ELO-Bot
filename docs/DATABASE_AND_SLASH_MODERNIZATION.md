@@ -426,7 +426,7 @@ check:
   `d24aa6b5e64fba159a872eb565703465c79d712d`.
 
 Current unit: **P5.6 unified game deletion service and pending-card Delete
-action — approved for Luna-Max implementation.**
+action — implemented locally and pending Tier-3 review/integration.**
 P5.5 is complete and integrated as `e118396`; its live beta smoke covered
 Join, Leave, Refresh, and Start, and the user accepted the follow-up join
 reaction correction without requiring another live retest.
@@ -436,6 +436,11 @@ working implementation contract; minor wording refinements remain possible
 before P9 but no longer block flow-first units. P5.1 is integrated in the
 exact base used for this unit and remains beta-accepted with no new beta
 session authorized here.
+
+P5.6 implementation/tests are committed as `2855fb6` on
+`codex/p5-6-unified-game-deletion`, based on exact clean base
+`2589647403b14364251a9eb5c45a3e952ac71381`. It remains unintegrated and has
+not received live Discord, beta, command-sync, or production acceptance.
 
 Owned fixture games `149`-`151` are intentionally retained. At the latest
 gated status check, `149` is incomplete/unranked, `150` is
@@ -2663,7 +2668,7 @@ clean P5.5 integration checkpoint.
 
 ### P5.6 — Unified game deletion service and pending-card Delete action
 
-Status: **In progress; approved for Luna-Max implementation**
+Status: **Implemented locally; pending Tier-3 review/integration**
 
 Risk tier: **Tier 3**. This unit centralizes destructive game deletion across
 legacy and native interfaces and adds a public pending-card action. It must
@@ -2671,49 +2676,70 @@ preserve current authorization, serialized mutation, and post-commit effect
 boundaries while making deletion behavior easier to audit.
 
 Objective: provide one shared application service for the `$delete` aliases,
-`/game delete`, and the pending-game card Delete button. The service is the
-single boundary for state classification, permission parity, primitive request
-and snapshot handling, immutable post-commit effect planning, audit logging,
-and dispatch.
+`/game delete`, and the pending-game card Delete button. **Implemented in
+`2855fb6`:** the service is the single boundary for state classification,
+permission parity, primitive request and snapshot handling, immutable
+post-commit effect planning, audit logging, and dispatch.
 
 Transaction and coordination boundaries:
 
-- reuse the existing serialized ELO coordinator/worker for started or
-  completed-game deletion;
-- add a worker-local transactional deletion path for pending/unstarted games;
-- keep Discord announcements, external broadcasts, notifications, channel
-  changes, and card effects out of worker transactions and perform them only
+- reuses the existing serialized ELO coordinator/worker for started or
+  completed-game deletion, including its conflict and cancellation semantics;
+- uses the existing pending-game coordinator for a worker-local, synchronous
+  one-transaction pending/unstarted deletion path, with primitive-ID reload,
+  validation, `GameLog`, graph deletion, and rollback together;
+- keeps Discord announcements, external broadcasts, notifications, channel
+  changes, and card effects out of worker transactions and performs them only
   from the immutable post-commit effect plan;
-- preserve authoritative stale-state checks and coordinator conflict handling
-  for every interface.
+- revalidates state and permission before the pending-card confirmation and
+  again in the committed worker, with an explicit pending-to-ELO race handoff.
 
 Pending-card interface:
 
-- the Delete action applies to every pending/unstarted state: open, full, and
-  expired;
+- the Delete action now applies to every pending/unstarted state: open, full,
+  and expired;
 - the shared card remains public, with authoritative host/staff checks on
   every click rather than requester-only visibility;
-- acknowledge promptly, provide ephemeral confirmation and ephemeral denials,
-  and route the approved mutation through the shared deletion service;
-- after commit, apply the planned card deletion effect and remove/disable its
-  controls without presenting an uncommitted success;
-- preserve safe behavior when the card is stale, the coordinator is busy, or
-  the pending state changes between display and click.
+- the action acknowledges promptly, provides requester-only ephemeral
+  confirmation and cancellation, rejects unauthorized/stale/busy/double
+  submissions ephemerally, and routes the approved mutation through the
+  shared deletion service;
+- after commit, the planned pending broadcast/output effects run and the
+  source card controls are removed; failure leaves no deletion success or
+  destructive card effect;
+- timeout and refresh races stop/reconcile child controls without rebuilding
+  actionable controls on a finished/deleted card.
 
 Compatibility and required validation:
 
-- preserve `$delete` aliases and current completed/in-progress moderator
-  behavior; no schema change or compatibility loss is intended;
-- verify shared-service routing, permission parity, pending/open/full/expired
-  classification, worker transaction rollback/commit, coordinator conflicts,
-  stale cards, audit records, post-commit-only effects, public-card use, and
+- preserves `$delete`, `$delete_game`, `$delgame`, `$delmatch`, and
+  `$deletegame`, the prefix-facing output, `/game delete` taxonomy, and
+  completed/in-progress moderator behavior; no compatibility-ledger row was
+  required;
+- focused evidence covers shared-service routing, host/staff/mod and
+  registration parity, pending/open/full/expired classification, worker
+  transaction rollback/commit including audit state, serialized coordinator
+  conflicts, stale cards, post-commit-only effects, public-card use, and
   ephemeral confirmation/denial behavior;
-- keep prefix output and native command taxonomy stable, with no beta or
-  production deployment included in the code unit's implementation gate.
+- focused suites pass 102 tests; complete offline discovery passes 401 tests
+  with 16 explicit gated skips; changed Python compiles and `git diff --check`
+  passes;
+- the selected gated development read/rollback cases were attempted only
+  through the unchanged gate. Profile checks confirmed
+  `POLYBOT_ENV=development`, `polytopia_dev`, and `polybot_dev`, but the local
+  PostgreSQL connection failed before session identity and test execution;
+  no fixture seed or cleanup was run.
 
-Next action: leave P5.6 planned until P5.5 receives its separately approved
-guild-scoped beta apply/smoke acceptance and is integrated. Do not start P5.6
-in the P5.5 branch as part of this roadmap update.
+Limitations: live Discord/mobile behavior, beta synchronization, command
+application, production deployment, and persistence across process restarts
+remain intentionally unvalidated. The gated database evidence is blocked by
+the unavailable local PostgreSQL connection, not by a test assertion.
+
+Next action: Sol should perform the required Tier-3 complete-diff review,
+including concurrency, rollback, permission, post-commit ordering, and
+operational rollback checks; then integrate `2855fb6` into
+`codex/database-slash-modernization` only after the separate acceptance gate
+is satisfied. Do not mark P5.6 Complete or Integrated from this branch.
 
 ## P6 — Registration and player preferences
 
@@ -4424,6 +4450,30 @@ post-commit reconciliation behavior. This direction is a separate bounded
 unit and does not reopen accepted P5.2 behavior.
 
 ## Progress log
+
+### 2026-08-01 — P5.6 implementation/tests handoff pending Tier-3 review
+
+- Implemented `2855fb6` on `codex/p5-6-unified-game-deletion` from exact base
+  `2589647403b14364251a9eb5c45a3e952ac71381`. Added the shared deletion
+  application service, worker-local pending transaction, immutable effect
+  plans, ELO/pending coordinator routing, and pending-card Delete
+  confirmation/control removal.
+- Preserved prefix `$delete` and aliases (`delete_game`, `delgame`, `delmatch`,
+  `deletegame`) plus `/game delete`; no taxonomy redesign, schema migration,
+  dependency change, or compatibility-ledger compromise was introduced.
+- Focused offline command (`test_game_deletion`, `test_game_detail_actions`,
+  `test_elo_jobs`, `test_game_detail_workspace`, and `test_slash_taxonomy`)
+  passed **102 tests**. Complete offline discovery passed **401 tests with 16
+  explicit skips**. Changed Python compilation and `git diff --check` passed.
+- The selected gated development read/rollback tests were invoked with the
+  unchanged `POLYBOT_RUN_DB_INTEGRATION=1` gate. The profile checks confirmed
+  `POLYBOT_ENV=development`, database `polytopia_dev`, and role
+  `polybot_dev`; the PostgreSQL connection at `localhost:5432` failed before
+  session identity and test execution. No fixture seed or cleanup was run.
+- No beta process, Discord connection, command synchronization, production
+  checkout/database, dependency synchronization, push, PR, merge, or
+  integration action was performed. P5.6 remains implemented locally and
+  pending Tier-3 review; do not mark it Complete or Integrated.
 
 ### 2026-08-01 — P5.5 accepted/integrated; P5.6 authorized
 
