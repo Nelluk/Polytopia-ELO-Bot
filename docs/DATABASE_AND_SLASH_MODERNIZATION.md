@@ -428,7 +428,7 @@ check:
   `d24aa6b5e64fba159a872eb565703465c79d712d`.
 - P5.8 implementation checkpoint: `34f385c`, Tier-2 review correction
   `bc678d6`, and accumulation merge `4fc5973`.
-- P4.2a implementation checkpoint: `35f5f14` on
+- P4.2a implementation checkpoints: `35f5f14`, `d0555b8` on
   `codex/p4-2a-game-map`, based on exact clean base
   `5a310c0bdf5d66646bb9b6f8b47ee322cbe1e15c`.
 
@@ -1849,6 +1849,7 @@ at exact clean base `5a310c0bdf5d66646bb9b6f8b47ee322cbe1e15c`.
 Commit(s):
 
 - `35f5f14` — Implement focused game map mutation.
+- `d0555b8` — Preserve setmap prefix error wording.
 
 Objective: establish the accepted focused read-or-edit attribute pattern with
 one small, stable game property while removing the existing synchronous
@@ -1947,12 +1948,12 @@ Validation evidence:
 
 - `POLYBOT_ENV=development MPLCONFIGDIR=/tmp/polybot-matplotlib
   /home/nelluk/PolyBot39-dev/.venv/bin/python -m unittest` with the focused
-  isolated-runtime harness: `tests.test_game_map` — 21 passed; combined
+  isolated-runtime harness: `tests.test_game_map` — 23 passed; combined
   affected suites (`test_game_map`, `test_slash_taxonomy`,
-  `test_ranked_state`, `test_game_extension`, and `test_game_unstart`) — 54
+  `test_ranked_state`, `test_game_extension`, and `test_game_unstart`) — 56
   passed.
 - Complete offline discovery under the same in-memory development profile:
-  466 passed and 17 explicitly gated database tests skipped. The ordinary
+  468 passed and 17 explicitly gated database tests skipped. The ordinary
   repository discovery command could not import the model-dependent offline
   modules because this app-assigned worktree intentionally has no ignored
   `config.development.ini`; no config was copied or synthesized.
@@ -1980,9 +1981,9 @@ Remaining limitations:
 - Beta acceptance and native command synchronization are intentionally
   pending separate approval. The branch is not integrated.
 
-Next action: Sol should review the complete base-to-`35f5f14` diff and the
-transaction/permission/post-commit evidence, then integrate the two commits
-from this handoff into `codex/database-slash-modernization` only after
+Next action: Sol should review the complete base-to-`d0555b8` diff and the
+transaction/permission/post-commit evidence, then integrate the implementation
+commits from this handoff into `codex/database-slash-modernization` only after
 acceptance. After integration, obtain separate approval for the gated
 development-profile rerun and any beta sync/smoke session.
 
@@ -6471,7 +6472,7 @@ unit and does not reopen accepted P5.2 behavior.
 
 - Created `codex/p4-2a-game-map` from the exact clean accumulation base
   `5a310c0bdf5d66646bb9b6f8b47ee322cbe1e15c` and recorded implementation
-  commit `35f5f14`.
+  commits `35f5f14` and `d0555b8`.
 - Added the worker-bounded read/edit service for `/game map`, preserving
   `$setmap`, `$setmaptype`, prefix channel inference, legacy normalization,
   `none` clearing, aliases, help text, public success output, and exact
@@ -6480,7 +6481,7 @@ unit and does not reopen accepted P5.2 behavior.
   per-game claim, returned immutable primitive DTOs, and made post-commit
   announcement/card failure observable without representing a committed write
   as rolled back. No compatibility-ledger entry was required.
-- Passed 21 focused map tests, 54 combined affected offline tests, and 466
+- Passed 23 focused map tests, 56 combined affected offline tests, and 468
   tests in complete offline discovery under an in-memory development profile
   with 17 gated skips. Compilation and `git diff --check` passed.
 - The unchanged development-database gate was attempted with its required
