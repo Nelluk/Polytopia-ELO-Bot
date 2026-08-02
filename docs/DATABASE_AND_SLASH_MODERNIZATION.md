@@ -425,8 +425,8 @@ check:
   `codex/p5-1-game-open`, based on exact clean base
   `d24aa6b5e64fba159a872eb565703465c79d712d`.
 
-Current unit: **P5.6 unified game deletion service and pending-card Delete
-action — implemented locally; Tier-3 review passed; pending integration.**
+Current unit: **P5.7 in-progress game-card Declare Winner action — planned.**
+P5.6 is complete, beta-accepted, and integrated as `fc50623`.
 P5.5 is complete and integrated as `e118396`; its live beta smoke covered
 Join, Leave, Refresh, and Start, and the user accepted the follow-up join
 reaction correction without requiring another live retest.
@@ -439,9 +439,9 @@ session authorized here.
 
 P5.6 implementation/tests are committed as `2855fb6` and correction commit
 `3883cde` on `codex/p5-6-unified-game-deletion`, based on exact clean base
-`2589647403b14364251a9eb5c45a3e952ac71381`; roadmap evidence is committed on
-that branch. Tier-3 review passed. It remains unintegrated and has not
-received live Discord, beta, command-sync, or production acceptance.
+`2589647403b14364251a9eb5c45a3e952ac71381`. Tier-3 review and live beta smoke
+passed, and the full branch was integrated as `fc50623`. No command sync or
+production action was required.
 
 Owned fixture games `149`-`151` are intentionally retained. At the latest
 gated status check, `149` is incomplete/unranked, `150` is
@@ -2669,7 +2669,7 @@ clean P5.5 integration checkpoint.
 
 ### P5.6 — Unified game deletion service and pending-card Delete action
 
-Status: **Implemented locally; Tier-3 review passed; pending integration**
+Status: **Complete; beta-accepted and integrated**
 
 Risk tier: **Tier 3**. This unit centralizes destructive game deletion across
 legacy and native interfaces and adds a public pending-card action. It must
@@ -2747,16 +2747,69 @@ Compatibility and required validation:
   corrected branch passes 104 focused tests and 405 offline tests with 17
   gated skips. Full base-to-HEAD code review found no remaining blocking issue.
 
-Limitations: live Discord/mobile behavior, beta synchronization, command
-application, production deployment, and persistence across process restarts
-remain intentionally unvalidated. The beta and command-application gates are
-still unrun; no production operation has been performed.
+Beta acceptance and integration:
 
-Next action: integrate the full branch HEAD of
-`codex/p5-6-unified-game-deletion` into `codex/database-slash-modernization`
-after the normal integration authorization. Keep beta/synchronization
-separate, and do not mark P5.6 Complete or Integrated from this branch before
-that integration.
+- launched the reviewed branch as beta application `479029527553638401`
+  against `polytopia_dev` / `polybot_dev`, with background tasks, API, Bullet,
+  and startup synchronization disabled;
+- the user smoke-tested the deletion flow and reported it working;
+- stopped the task-owned beta cleanly, leaving the production process
+  untouched;
+- merged the full reviewed branch into
+  `codex/database-slash-modernization` as `fc50623`.
+
+Limitations: production deployment and persistence of short-lived card
+controls across process restarts remain intentionally unvalidated. No command
+application was needed because P5.6 did not change registrations, and no
+production operation was performed.
+
+Next action: implement P5.7 as the separately bounded in-progress game-card
+Declare Winner action.
+
+### P5.7 — In-progress game-card Declare Winner action
+
+Status: **Planned**
+
+Risk tier: **Tier 3**. The component is a thin interaction layer, but the
+existing win service can finalize a result and mutate ELO, so result,
+permission, coordinator, and post-commit behavior require the mutation review
+gate.
+
+Objective: progressively enhance the accepted dense `/game show` card for an
+in-progress game with a Declare Winner action while preserving `$win`,
+`$lose`, `/game win`, the complete classic card, and all established result
+semantics.
+
+Boundaries and interface:
+
+- show the action only for an in-progress game state where a result may be
+  reported; do not add it to pending, already reported, or completed cards;
+- open a requester-only ephemeral side selector derived from a fresh immutable
+  game snapshot rather than adding more slash options or accepting ambiguous
+  free text;
+- treat the public button as discoverability only. Revalidate participation,
+  staff behavior, current state, selected side, confirmation rules, and ELO
+  conflicts through the same application service used by `/game win` and
+  `$win`;
+- acknowledge promptly, reject stale/unauthorized/double submissions
+  ephemerally, preserve the existing public competitive-state output, and
+  refresh the originating card only after commit;
+- keep Discord objects and awaits outside worker transactions, do not create a
+  second win implementation, and retain the existing coordinator's conflict
+  and cancellation cleanup;
+- preserve numeric `$game`/`$match` as classic view-only interfaces and add no
+  compatibility compromise.
+
+Required validation includes state-dependent visibility, side mapping,
+participant/staff permission parity, stale and concurrent result claims,
+defer order, worker/database failure with zero post-commit effects, successful
+public output followed by card refresh, timeout races, prefix/slash parity,
+complete offline discovery, and gated real-schema evidence only through the
+existing development identity checks.
+
+Next action: perform the Tier-3 design/code inventory against the existing win
+service, then hand P5.7 to a clean Luna-Max branch from the P5.6 integration
+checkpoint.
 
 ## P6 — Registration and player preferences
 
@@ -4467,6 +4520,23 @@ post-commit reconciliation behavior. This direction is a separate bounded
 unit and does not reopen accepted P5.2 behavior.
 
 ## Progress log
+
+### 2026-08-02 — P5.6 beta-accepted and integrated; P5.7 planned
+
+- Ran the reviewed P5.6 branch as the development beta with the expected beta
+  identity, `polytopia_dev` / `polybot_dev`, one allowed guild, disabled
+  background/API/Bullet features, and startup command synchronization off.
+- The user accepted the deletion smoke test, including the unified deletion
+  service and pending-card action.
+- Stopped only the task-owned beta cleanly and confirmed the production process
+  remained untouched.
+- Integrated `codex/p5-6-unified-game-deletion` into the accumulation branch as
+  `fc50623`.
+- Selected P5.7 as the next bounded Tier-3 unit: a side-selecting Declare
+  Winner action for in-progress `/game show` cards, routed through the existing
+  win service with legacy prefix and slash behavior preserved.
+- No command sync, production, dependency, push, PR, or fixture-cleanup action
+  occurred.
 
 ### 2026-08-01 — P5.6 implementation/tests handoff pending Tier-3 review
 
