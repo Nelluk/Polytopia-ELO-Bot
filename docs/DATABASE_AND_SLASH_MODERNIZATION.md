@@ -345,7 +345,7 @@ longer be retained.
 | C-001 `/newgame` | `/game record` accepts one roster string using the established `vs` grammar, infers arbitrary/unequal side sizes, preserves the one-opponent requester shortcut, and requires an interaction preview before creation. Edit sides provides native member selection plus add/remove-side controls. | The former two-sided 1v1–4v4 and raw-text-edit limits are resolved without message-content intent. Initial text tokens can still be ambiguous when users do not supply mentions, but the parsed draft can be corrected with native selectors. Per-game Mobile/Steam input was deliberately removed because full cross-play makes it obsolete. | If initial parsing remains troublesome, allow `/game record` to open an empty guided draft without requiring a seed roster. | Shape and edit gaps resolved by P2.3; initial parser usability remains for beta evaluation |
 | C-002 `/player show` and player-card prefixes | The shared workspace preserves identity, canonical name, current/peak/all-time local/global ratings, records, ranks, timezone, team/squad context, and paged game sections/filters. | The legacy generated rating-history image, requester head-to-head follow-up, trophies, favorite-tribe summary, and pre-Moonrise miscellaneous statistics are not yet displayed after the prefix commands deep-link the workspace. These become unavailable from those commands even while message intent remains enabled. | Add a bounded analytics/details section and media attachment renderer after observing which legacy details staff/users still value; keep graph generation outside the event loop. | Open for beta/user review in P7.7 |
 | C-003 `/game open` | P5.1 implements arbitrary common size shapes plus a requester-controlled ranked/expiration/notes preview, confirmation/cancel, and public post-commit completion. Native and retained prefix aliases use one canonical cross-play creation path, follow the configured unranked-channel default, and accept either existing account-name field; only the legacy `is_mobile=True` storage value remains for compatibility. | Advanced role-locked sides and mention-restricted recruitment remain prefix-only in this bounded unit. Shared typed/raw join eligibility now accepts either account-name field and ignores historical `is_mobile` platform meaning. If message content intent were later removed before a native role/member editor exists, those uncommon restrictions would be unavailable; prefix support remains unchanged. | Add side-by-side native role selectors and an allowed-member editor to the open-game draft after the shared join-eligibility service exists. | Implemented for P5.1; beta review pending |
-| C-004 `$games`/`$opengames` and native open views | The shared worker preserves the legacy open-game modes, requester-aware eligibility, aliases, and native view switching while bounding the result DTO. | Open discovery now publishes at most the first 500 rows and marks truncation; the former prefix query did not impose an explicit cap. This is a deliberate Tier-2 bounded-read tradeoff, with ordinary results still paginated and query-refinable. | Add a cursor/continuation control backed by the same bounded worker if a guild's open-game volume makes the cap user-visible. | P5.8 integrated; beta presentation pending |
+| C-004 `$games`/`$opengames` and native open views | The shared worker preserves the legacy open-game modes, requester-aware eligibility, aliases, and native view switching while bounding the result DTO. | Open discovery now publishes at most the first 500 rows and marks truncation; the former prefix query did not impose an explicit cap. This is a deliberate Tier-2 bounded-read tradeoff, with ordinary results still paginated and query-refinable. | Add a cursor/continuation control backed by the same bounded worker if a guild's open-game volume makes the cap user-visible. | Accepted in P5.8 beta smoke |
 
 Every later slash conversion must add a row when parity is intentionally
 reduced. If there is no compromise, its unit evidence should explicitly say
@@ -428,8 +428,8 @@ check:
 - P5.8 implementation checkpoint: `34f385c`, Tier-2 review correction
   `bc678d6`, and accumulation merge `4fc5973`.
 
-Current unit: **P5.8 open-game discovery parity — complete locally and
-integrated; development-beta acceptance pending.**
+Current unit: **P5.8 open-game discovery parity — Complete and
+beta-validated.**
 P5.7 is complete, beta-accepted, and integrated as `b7cc2bc`; its
 implementation is `0a969cc`, compatibility correction is `7eaf1cd`, and
 focused Tier-3 review correction is `a55270b`.
@@ -2918,8 +2918,7 @@ with `$games`/`$opengames`, without adding another slash-command name.
 
 ### P5.8 — Open-game discovery parity in `/game search`
 
-Status: **Complete locally — reviewed and integrated; development-beta
-acceptance pending**
+Status: **Complete — reviewed, integrated, and beta-validated**
 
 Risk tier: **Tier 2**. This is a bounded read and interactive presentation
 unit. Joining, leaving, starting, and deleting continue to use their existing
@@ -3006,17 +3005,16 @@ Validation evidence:
 
 Integration result: the reviewed branch was merged into
 `codex/database-slash-modernization` as `4fc5973`. Development-beta
-presentation and the updated `/game search view` option remain pending a
-separately approved guild apply and smoke session. No global synchronization,
-production operation, push, PR, schema, dependency, or fixture action
-occurred.
+presentation and the updated `/game search view` option were subsequently
+accepted in live smoke testing. No global synchronization, production
+operation, push, PR, schema, dependency, or fixture action occurred.
 
 The required offline application-command plan passed for development guild
 `478571892832206869`. Its desired guild-scoped roots are exactly `elo`,
-`game`, `leaderboard`, and `player`; the offline plan reports those four roots
-as creates against its empty local current-state input. Remote inspection and
-apply remain separately gated, so this is not evidence of Discord's current
-registered state.
+`game`, `leaderboard`, and `player`. The separately approved apply inspected
+the live guild state, updated only `game`, left `elo`, `leaderboard`, and
+`player` unchanged, and created or removed no roots. The tool used explicit
+guild scope with no global-sync fallback.
 
 Limitations:
 
@@ -3024,9 +3022,8 @@ Limitations:
   of 500 displayed rows (with one extra row used to mark truncation). The old
   prefix query had no explicit cap; this deliberate Tier-2 safety tradeoff is
   recorded as C-004 below. Query refinement and pagination remain available.
-- Live beta presentation and the updated development-guild command option
-  remain unvalidated. The worker, prefix, complete offline, and real gated
-  development-database paths are validated.
+- The 500-row bounded cap remains the only accepted compatibility limitation;
+  beta testing did not make it user-visible.
 
 Commit:
 
@@ -3052,11 +3049,8 @@ Prepared development-beta smoke matrix:
 - confirm that browsing does not join, leave, start, delete, or otherwise
   mutate a game.
 
-Next action: obtain separate approval to apply only the reviewed guild-scoped
-desired state to development guild `478571892832206869`, then launch exactly
-one beta with startup synchronization disabled and smoke the native and
-retained prefix discovery matrix above. Do not perform a global
-synchronization.
+Next action: select the next bounded modernization unit from the accumulation
+branch. Reverify runtime and fixture state before any later beta session.
 
 ## P6 — Registration and player preferences
 
@@ -4767,6 +4761,22 @@ post-commit reconciliation behavior. This direction is a separate bounded
 unit and does not reopen accepted P5.2 behavior.
 
 ## Progress log
+
+### 2026-08-02 — P5.8 development-beta smoke accepted
+
+- Applied the reviewed command tree only to development guild
+  `478571892832206869` using the explicit deployment tool and confirmation
+  gates. Discord updated `game`, left `elo`, `leaderboard`, and `player`
+  unchanged, and created or removed no roots; no global synchronization path
+  was available or used.
+- Launched one development beta from integrated checkpoint `6bbd147` with
+  startup synchronization disabled and confirmed beta application
+  `479029527553638401` authenticated successfully.
+- The user accepted `/game search` open-game discovery, view switching, and
+  retained prefix behavior without reporting defects. The task-owned beta was
+  then stopped cleanly.
+- P5.8 is Complete and beta-validated. No production operation, push, PR,
+  fixture, schema, dependency, or global command action occurred.
 
 ### 2026-08-02 — P5.8 Tier-2 review passed and integrated; beta prepared
 
