@@ -758,6 +758,7 @@ class PendingGameCardView(discord.ui.View):
         interaction: discord.Interaction,
         *,
         action: str,
+        retire_on_failure: bool = False,
     ) -> PendingGameCardPayload | None:
         try:
             payload = await self.load_card(interaction)
@@ -773,7 +774,8 @@ class PendingGameCardView(discord.ui.View):
                 'again and try once more.',
                 acknowledged=True,
             )
-            await self._retire_after_failed_reload(interaction)
+            if retire_on_failure:
+                await self._retire_after_failed_reload(interaction)
             return None
         return payload
 
@@ -850,8 +852,14 @@ class PendingGameCardView(discord.ui.View):
     async def _refresh_after_action(
         self,
         interaction: discord.Interaction,
+        *,
+        retire_on_failure: bool = False,
     ) -> bool:
-        payload = await self._load_fresh(interaction, action='post-commit refresh')
+        payload = await self._load_fresh(
+            interaction,
+            action='post-commit refresh',
+            retire_on_failure=retire_on_failure,
+        )
         if payload is None:
             return False
         return await self._refresh_from_payload(interaction, payload)
@@ -866,6 +874,7 @@ class PendingGameCardView(discord.ui.View):
             payload = await self._load_fresh(
                 interaction,
                 action='winner selection',
+                retire_on_failure=True,
             )
             if payload is None:
                 return
@@ -938,6 +947,7 @@ class PendingGameCardView(discord.ui.View):
             payload = await self._load_fresh(
                 interaction,
                 action='winner claim',
+                retire_on_failure=True,
             )
             if payload is None:
                 return False
@@ -969,7 +979,10 @@ class PendingGameCardView(discord.ui.View):
                 str(winner_label),
             ):
                 return False
-            await self._refresh_after_action(interaction)
+            await self._refresh_after_action(
+                interaction,
+                retire_on_failure=True,
+            )
             return True
         except Exception:
             logger.exception(

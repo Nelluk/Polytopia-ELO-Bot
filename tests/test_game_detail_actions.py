@@ -1013,6 +1013,8 @@ class PendingGameCardInteractionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(click.response.calls[0][0], 'defer')
         self.assertTrue(click.followup.calls)
         self.assertTrue(click.followup.calls[-1][1]['ephemeral'])
+        self.assertFalse(view.is_finished())
+        self.assertTrue(view.children)
 
 
 async def _record_success(events, value):
