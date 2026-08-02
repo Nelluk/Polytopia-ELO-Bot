@@ -425,7 +425,13 @@ check:
   `codex/p5-1-game-open`, based on exact clean base
   `d24aa6b5e64fba159a872eb565703465c79d712d`.
 
-Current unit: **P5.7 in-progress game-card Declare Winner action — planned.**
+Current unit: **P5.7 in-progress game-card Declare Winner action — implemented
+locally; Tier-3 review pending.**
+P5.7 implementation/tests are committed as `0a969cc` on
+`codex/p5-7-winner-card-action`, based on exact clean checkpoint
+`f9fc4aaba7cd5ffa502e11571e6b0e063785d5a0` from
+`codex/database-slash-modernization`. No beta, command sync, production, push,
+PR, merge, or fixture-harness action was performed.
 P5.6 is complete, beta-accepted, and integrated as `fc50623`.
 P5.5 is complete and integrated as `e118396`; its live beta smoke covered
 Join, Leave, Refresh, and Start, and the user accepted the follow-up join
@@ -2768,7 +2774,7 @@ Declare Winner action.
 
 ### P5.7 — In-progress game-card Declare Winner action
 
-Status: **Planned**
+Status: **Implemented locally; Tier-3 review pending**
 
 Risk tier: **Tier 3**. The component is a thin interaction layer, but the
 existing win service can finalize a result and mutate ELO, so result,
@@ -2807,9 +2813,87 @@ public output followed by card refresh, timeout races, prefix/slash parity,
 complete offline discovery, and gated real-schema evidence only through the
 existing development identity checks.
 
-Next action: perform the Tier-3 design/code inventory against the existing win
-service, then hand P5.7 to a clean Luna-Max branch from the P5.6 integration
-checkpoint.
+Implementation and boundary evidence:
+
+- `modules/game_win.py` is the shared application service for `$win`, `$lose`,
+  `/game win`, and the card action. It captures a frozen primitive requester
+  request, runs bounded preflight, claims the existing ELO coordinator and
+  per-game lock, submits the unchanged `elo_workers.record_win` worker, and
+  preserves the established first-claim, confirmation, finalization, audit,
+  rollback, and public post-commit output paths.
+- `modules/game_win_workers.py` resolves prefix names and card stable side IDs
+  on a bounded worker-owned Peewee connection. The mutation worker remains the
+  final authority for guild, pending/completed state, participant/staff
+  permission, side membership, confirmation count, and ELO behavior. No
+  Discord object or await crosses into the transaction boundary.
+- `modules/game_detail_actions.py` adds an ordinary classic-card
+  `Declare Winner` control only for same-guild, genuinely incomplete games
+  with no prior claim. The public button opens a fresh requester-only selector;
+  stable side IDs and roster-aware labels cover solo, team, uneven, and
+  multi-side games. Confirmation defers before editing its ephemeral message
+  or submitting the service, and successful public output precedes a fresh
+  source-card reload that removes dead controls.
+- `modules/games.py` routes the native card, prefix, and slash paths through
+  the shared service. Numeric `$game`/`$match` remain classic and component
+  free; `$win`/`$lose` aliases and `/game win` registration/typed shape are
+  unchanged. No schema, dependency, taxonomy, or compatibility-ledger row
+  was added.
+
+Validation evidence:
+
+- Focused command —
+  `POLYBOT_ENV=development MPLCONFIGDIR=/tmp/polybot-matplotlib
+  /home/nelluk/PolyBot39-dev/.venv/bin/python -m unittest
+  tests.test_game_detail_actions tests.test_game_win_service
+  tests.test_elo_jobs tests.test_slash_taxonomy` — **79 passed**.
+- Complete offline discovery —
+  `POLYBOT_ENV=development MPLCONFIGDIR=/tmp/polybot-matplotlib
+  /home/nelluk/PolyBot39-dev/.venv/bin/python -m unittest discover -v` —
+  **419 passed, 17 explicitly skipped**.
+- Changed-file compilation and `git diff --check` passed. The focused tests
+  cover exact visibility, stable side mapping, requester-only selection and
+  confirmation, participant/staff worker arguments, defer ordering, stale and
+  duplicate interactions, timeout/cancellation races, coordinator conflicts,
+  rollback/no-post-commit effects, public-output ordering, source-card
+  refresh, and prefix/slash compatibility.
+- The unchanged gated PostgreSQL preflight was invoked for the read/rollback
+  checks with `POLYBOT_RUN_DB_INTEGRATION=1`. It accepted
+  `POLYBOT_ENV=development`, database `polytopia_dev`, role `polybot_dev`, and
+  disabled background/API services, but the connection to `localhost:5432`
+  failed before session identity and test execution; **0 gated tests ran**.
+  No fixture seed or cleanup ran, and fixtures `149`-`151` plus manual/operator
+  fixtures were untouched. The authoritative `elo_workers.record_win` worker
+  and its existing commit/rollback evidence in `tests/test_elo_jobs.py` were
+  unchanged, so no new real-schema mutation fixture was introduced.
+
+Compatibility, retained seam, and limitations:
+
+- Prefix `$win`/`$lose`, slash `/game win`, first claim versus later
+  confirmation/finalization, participant/staff behavior, ELO serialization,
+  audit logging, rollback, public competitive messages, and numeric classic
+  cards remain compatible. The card action is an additional native
+  presentation path only.
+- The established post-commit win presenter still performs its model-backed
+  `Game.load_full_game`, `update_squad_channels`, `GameLog.write`, and
+  `post_win_messaging` work after the worker commits. This retained synchronous
+  compatibility seam is outside `db.atomic()` and is intentionally documented
+  for a future bounded post-commit extraction; it was not duplicated inside
+  the card view.
+- Short-lived card controls are not restored across process restarts. Live
+  Discord/mobile smoke, command apply/synchronization, beta acceptance,
+  production operation, and integration remain intentionally unvalidated.
+
+Beta acceptance and integration: **not performed**. P5.7 must not be marked
+Complete, Integrated, or beta-accepted from this checkpoint.
+
+Commit:
+
+- `0a969cc` — Implement P5.7 winner card action.
+
+Next action: perform the independent Tier-3 review of the shared win service,
+worker/transaction boundary, permission parity, and post-commit seam; then
+decide whether to integrate this branch. Any beta apply/smoke remains a
+separate explicitly approved step.
 
 ## P6 — Registration and player preferences
 
@@ -4520,6 +4604,27 @@ post-commit reconciliation behavior. This direction is a separate bounded
 unit and does not reopen accepted P5.2 behavior.
 
 ## Progress log
+
+### 2026-08-02 — P5.7 implemented locally; Tier-3 review pending
+
+- Implemented `0a969cc` on `codex/p5-7-winner-card-action` from exact clean
+  base `f9fc4aaba7cd5ffa502e11571e6b0e063785d5a0` on
+  `codex/database-slash-modernization`.
+- Added the shared frozen-request win application service and bounded
+  worker-local side preflight. `$win`, `$lose`, `/game win`, and the new native
+  in-progress card action all route to unchanged `elo_workers.record_win`
+  semantics, coordinator/lock cleanup, audit logging, and post-commit output.
+- Added exact card visibility, stable side-ID options, requester-only selector
+  and confirmation, participant/staff parity, defer ordering, stale/duplicate
+  rejection, timeout/cancellation, rollback, public-order, refresh, and
+  prefix/slash compatibility coverage.
+- Focused validation passed **79 tests**; complete offline discovery passed
+  **419 tests with 17 explicit skips**; compilation and diff checks passed.
+  The unchanged database gate confirmed the development profile but could not
+  connect to PostgreSQL, so 0 gated tests ran and no fixtures were touched.
+- No beta, Discord connection, command synchronization, production checkout or
+  database, dependency synchronization, push, PR, merge, or fixture cleanup
+  occurred. P5.7 remains implemented locally and pending Tier-3 review.
 
 ### 2026-08-02 — P5.6 beta-accepted and integrated; P5.7 planned
 
