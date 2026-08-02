@@ -4,7 +4,7 @@ Last updated: 2026-08-02
 
 Status: Active
 
-Current branch at last update: `codex/p4-2a-game-map` (delegated unit;
+Current branch at last update: `codex/p4-2b-game-notes` (delegated unit;
 not integrated)
 
 Source task: `thread://019fae66-8e3a-7a50-9a0f-d3d7160d2287`
@@ -433,9 +433,12 @@ check:
   `codex/p4-2a-game-map`, based on exact clean base
   `5a310c0bdf5d66646bb9b6f8b47ee322cbe1e15c`.
 - P4.2a accumulation merge: `5845e8b`.
+- P4.2b implementation checkpoint: `18d250b` on
+  `codex/p4-2b-game-notes`, based on exact clean base
+  `190e6bb515911cedb329b4de5af88d2bbd0a1e58`.
 
-Current unit: **P4.2b focused game-notes workspace — In progress;
-implementation pending on a dedicated Luna worktree.**
+Current unit: **P4.2b focused game-notes workspace — Implemented; Tier-3
+review pending on a dedicated Luna worktree.**
 P4.2a is complete, beta-validated, and integrated as `5845e8b` with public
 visibility correction merge `4fa4b4f`.
 P5.8 is complete, beta-validated, and integrated as `4fc5973`; its final
@@ -2015,14 +2018,21 @@ stopped cleanly after acceptance.
 
 #### P4.2b — Focused game-notes workspace
 
-Status: **In progress — implementation pending**
+Status: **Implemented — Tier-3 review pending; not integrated**
 
 Risk tier: **Tier 3**. Notes mutation and its audit entry must commit
 atomically, while the public game-card refresh and mention warning occur only
 after commit.
 
-Branch/base: create `codex/p4-2b-game-notes` from the exact clean accumulation
-checkpoint containing this plan.
+Branch/base: `codex/p4-2b-game-notes` from exact clean accumulation base
+`190e6bb515911cedb329b4de5af88d2bbd0a1e58`.
+
+Implementation commit: `18d250b` — Implement focused game notes workspace.
+
+Files changed: `modules/game_workers.py`, `modules/game_notes.py`,
+`modules/game_notes_views.py`, `modules/games.py`,
+`modules/matchmaking.py`, `tests/test_game_notes.py`, and
+`tests/test_slash_taxonomy.py`.
 
 Objective: establish a genuinely useful modal-backed read/edit attribute
 workflow for free-form game notes while moving the synchronous `$gamenotes`
@@ -2093,9 +2103,55 @@ Out of scope: game name, map, tribe, ranked state, join restrictions,
 attachments, notification composition, schema changes, generic persistent
 draft infrastructure, prefix deprecation, global sync, and production work.
 
-Next action: dispatch this exact Tier-3 unit to a clean Luna worktree. Sol must
-review the complete mutation, cancellation, permission, modal, and post-commit
-evidence before integration or beta authorization.
+Compatibility decision: no compatibility-ledger row was added. The prefix
+surface retains `$gamenotes`, `$notes`, and `$matchnotes`, including explicit
+`none`, channel inference, conversion/error wording, truncation, permissions,
+output, card refresh, and mention-warning behavior. The native command adds
+the approved public workspace without replacing the dense game card.
+
+Implementation evidence:
+
+- The shared notes service captures primitive/frozen requests, uses the
+  existing ordinary-game write executor and per-game claim, drains repeated
+  cancellation before release, reloads/revalidates in a worker-local
+  connection, and commits the notes plus `GameLog` entry atomically.
+- `/game notes game_id` reads through a separately bounded worker and publishes
+  successful current state through a genuinely public channel sender after its
+  private defer. Edit and clear failures remain ephemeral; clear requires an
+  explicit confirmation; the modal has one 150-character paragraph input and
+  the workspace has two requester-checked controls with a bounded timeout.
+- Prefix mutation now routes through the same service/worker and keeps the
+  dense `image_storage.send_game_embed` refresh and role/user mention warning
+  after commit.
+
+Validation evidence:
+
+- Focused P4.2b suite: 29 tests passed under the in-memory development
+  runtime fixture, including worker rollback/concurrency, native visibility,
+  modal lifecycle, prefix routing, and post-commit failure coverage.
+- Updated slash-taxonomy regression: 5 tests passed under the same fixture.
+- The ordinary direct complete-offline discovery command ran 127 tests but
+  could not import model-dependent modules because this app-assigned worktree
+  has no ignored `config.development.ini`; it ended with 25 import/setup
+  errors and 17 explicit database skips. No configuration was copied or
+  synthesized.
+- The unchanged gated command with
+  `POLYBOT_ENV=development POLYBOT_RUN_DB_INTEGRATION=1` stopped at the
+  existing runtime-profile check for the same missing file. It ran 0 database
+  tests and did not access PostgreSQL; the `polytopia_dev` / `polybot_dev`
+  identity gate was not bypassed.
+- Changed Python compilation and `git diff --check` passed.
+
+Known limitations: the preserved dense game-card refresh still performs its
+short `Game.load_full_game` reload on the event-loop thread, matching the
+adjacent P4.2a limitation. No beta, command inspection/synchronization,
+Discord connection, database access, schema/dependency action, push, PR,
+merge, or integration action was performed.
+
+Next action: Sol must review the complete Tier-3 branch, independently rerun
+the unchanged development identity gate when the approved ignored profile is
+available, and decide whether a separately approved beta smoke is required
+before integration.
 
 ## P5 — Matchmaking lifecycle
 
@@ -6683,6 +6739,27 @@ unit and does not reopen accepted P5.2 behavior.
 - Next: Sol should review the complete branch, independently run the unchanged
   development database gate when the approved ignored profile is available,
   and decide whether a separately approved beta smoke is required.
+
+### 2026-08-02 — P4.2b focused game-notes workspace implemented
+
+- Created `codex/p4-2b-game-notes` from exact clean base
+  `190e6bb515911cedb329b4de5af88d2bbd0a1e58` and recorded implementation
+  commit `18d250b`.
+- Added a worker-local, atomic notes/audit service on the ordinary-game
+  executor, cancellation-safe claim draining, bounded current-value reads,
+  the public `/game notes` workspace with prefilled modal and explicit clear,
+  and prefix routing through the same service while preserving the dense card.
+- Passed 29 focused P4.2b tests and five slash-taxonomy tests under the
+  in-memory development fixture. The ordinary direct discovery and unchanged
+  gated database command both stopped at the app-assigned worktree's missing
+  ignored `config.development.ini`; no database was accessed and no gate was
+  bypassed.
+- No compatibility-ledger row was needed. No beta, Discord connection,
+  command inspection/synchronization, production or `polytopia2` access,
+  schema/dependency action, push, PR, merge, or integration action occurred.
+- Next: complete Sol's Tier-3 review, rerun the real development identity gate
+  when its approved ignored profile is available, and decide separately on
+  beta smoke before integration.
 
 ## Resume checklist
 
