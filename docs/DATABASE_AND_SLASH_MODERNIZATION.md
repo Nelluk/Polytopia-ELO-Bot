@@ -440,8 +440,8 @@ check:
 - P4.2b beta-transparency correction: `b43d31e` on
   `codex/p4-2b-notes-attribution`; accumulation merge `57de2a2`.
 
-Current unit: **P4.2c focused game-name read/edit workspace — implementation
-committed locally; Tier-3 review, integration, and beta acceptance pending.**
+Current unit: **P4.2c focused game-name read/edit workspace — reviewed and
+accepted for integration approval; not integrated, Complete, or beta-accepted.**
 P4.2a is complete, beta-validated, and integrated as `5845e8b` with public
 visibility correction merge `4fa4b4f`.
 P5.8 is complete, beta-validated, and integrated as `4fc5973`; its final
@@ -2215,8 +2215,8 @@ beta smoke with the corrected `/game notes` confirmation if authorized.
 
 #### P4.2c — Focused game-name read/edit workspace
 
-Status: **Implemented locally; review, integration, and beta acceptance
-pending**
+Status: **Reviewed and accepted for integration approval; not integrated,
+Complete, or beta-accepted**
 
 Risk tier: **Tier 3**. Game-name mutation updates ordinary game metadata,
 derived league fields, an audit record, squad/game channels, the announcement,
@@ -2230,6 +2230,7 @@ Implementation commit:
 - `a235e23` — Implement focused game-name workspace.
 - `4ebe5ca` — Preserve legacy prefix rename output and native normalization
   detail coverage.
+- `94a83c8` — Record the prefix-compatibility correction in the roadmap.
 
 Objective and interface:
 
@@ -2305,18 +2306,16 @@ Implementation evidence:
 
 Validation evidence:
 
-- Combined focused affected suites (`tests.test_game_name`,
+- Authoritative clean-export affected suites (`tests.test_game_name`,
   `tests.test_game_map`, `tests.test_game_notes`, and
   `tests.test_slash_taxonomy`): **89 passed**.
 - Complete offline discovery under the development profile:
   **529 passed, 17 explicitly gated database tests skipped**.
 - Changed-file compilation and `git diff --check` passed.
-- The unchanged gated database command was run through
-  `POLYBOT_ENV=development POLYBOT_RUN_DB_INTEGRATION=1`. Its profile
-  preflight confirmed `development`, database `polytopia_dev`, role
-  `polybot_dev`, and disabled background/API services, but the PostgreSQL
-  connection was unavailable; **0 database tests ran** and no gate was
-  bypassed.
+- The unchanged gated database suite ran **17 tests: 16 passed and 1
+  intentionally skipped** to preserve the operator fixture, after confirming
+  the required `development` environment, `polytopia_dev` database,
+  `polybot_dev` role, and disabled background/API services.
 - No beta process, Discord connection, command inspection/synchronization,
   production or `polytopia2` access, schema/dependency change, push, PR,
   merge, or bot launch was performed.
@@ -2327,9 +2326,9 @@ matching the documented adjacent P4.2a/P4.2b limitation. Removing that reload
 is outside this focused unit; the read and mutation database work remains
 worker-bounded and worker-local.
 
-Next action: obtain focused Tier-3 review and explicit integration approval;
-separately authorize any development-beta smoke for P4.2b attribution and
-P4.2c public actor attribution.
+Next action: obtain explicit integration approval. Final review found no
+further Tier-3 blockers; beta acceptance remains pending and is not recorded
+by this unit.
 
 ## P5 — Matchmaking lifecycle
 
@@ -6972,18 +6971,17 @@ unit and does not reopen accepted P5.2 behavior.
   output. Routed `$rename` through the same bounded worker while retaining its
   prefix grammar, permissions, `None` clear, validation, audit, warnings, and
   dense presentation reconciliation.
-- Focused affected validation passed **89 tests**; complete offline discovery
-  passed **529 tests with 17 explicit gated skips**. Compilation and
+- Authoritative clean-export affected validation passed **89 tests**;
+  complete offline discovery passed **529 tests with 17 explicit gated
+  skips**. The unchanged gated database suite ran **17 tests: 16 passed and 1
+  intentional operator-fixture preservation skip** after confirming
+  `development` / `polytopia_dev` / `polybot_dev`. Compilation and
   `git diff --check` passed.
-- The unchanged gated development-database command confirmed the required
-  `development` / `polytopia_dev` / `polybot_dev` profile but could not connect
-  to PostgreSQL, so **0 database tests ran**. No connection gate was bypassed.
 - No compatibility-ledger entry was needed. No beta, Discord connection,
   command inspection/synchronization, production, `polytopia2`, schema,
   dependency, push, PR, merge, or launch action occurred.
-- Status: implementation committed locally; Tier-3 review, integration, and
-  beta acceptance remain pending. Next: review this branch and obtain explicit
-  integration/beta direction.
+- Status: reviewed and accepted for integration approval; not integrated,
+  Complete, or beta-accepted. Final review found no further blockers.
 
 ### 2026-08-02 — P4.2c prefix-compatibility correction
 
@@ -6998,6 +6996,17 @@ unit and does not reopen accepted P5.2 behavior.
 - The affected focused suites passed **89 tests**; compilation and
   `git diff --check` passed. No compatibility-ledger entry was needed because
   this correction restores, rather than reduces, retained prefix parity.
+
+### 2026-08-02 — P4.2c final Tier-3 review accepted for integration approval
+
+- Final review is green with no further blockers. The authoritative
+  clean-export affected suites passed **89 tests**.
+- The unchanged gated development database suite ran **17 tests: 16 passed
+  and 1 intentional operator-fixture preservation skip** after confirming
+  `development` / `polytopia_dev` / `polybot_dev`.
+- Recorded Tier-3 correction `4ebe5ca` and roadmap docs commit `94a83c8`.
+  Status is **reviewed/accepted for integration approval**; this unit is not
+  integrated, Complete, or beta-accepted.
 
 ## Resume checklist
 
