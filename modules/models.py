@@ -1372,15 +1372,17 @@ class Game(BaseModel):
         # Updates contents of new game announcement with updated game_embed card
 
         if self.announcement_channel is None or self.announcement_message is None:
-            return
+            return False
         channel = guild.get_channel(self.announcement_channel)
         if channel is None:
-            return logger.warning('Couldn\'t get channel in update_announacement')
+            logger.warning('Couldn\'t get channel in update_announacement')
+            return False
 
         try:
             message = await channel.fetch_message(self.announcement_message)
         except discord.DiscordException:
-            return logger.warning('Couldn\'t get message in update_announacement')
+            logger.warning('Couldn\'t get message in update_announacement')
+            return False
 
         try:
             embed, content = self.embed(guild=guild, prefix=prefix)
@@ -1388,7 +1390,9 @@ class Game(BaseModel):
                 message, self, embed=embed, content=content
             )
         except discord.DiscordException:
-            return logger.warning('Couldn\'t update message in update_announacement')
+            logger.warning('Couldn\'t update message in update_announacement')
+            return False
+        return True
 
     async def update_external_broadcasts(self, deleted=False):
         # update announcement messges sent to external team servers when game is deleted or starts
