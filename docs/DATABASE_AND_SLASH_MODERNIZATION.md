@@ -4,7 +4,8 @@ Last updated: 2026-08-02
 
 Status: Active
 
-Current branch at last update: `codex/database-slash-modernization`
+Current branch at last update: `codex/p4-2a-game-map` (delegated unit;
+not integrated)
 
 Source task: `thread://019fae66-8e3a-7a50-9a0f-d3d7160d2287`
 
@@ -427,9 +428,12 @@ check:
   `d24aa6b5e64fba159a872eb565703465c79d712d`.
 - P5.8 implementation checkpoint: `34f385c`, Tier-2 review correction
   `bc678d6`, and accumulation merge `4fc5973`.
+- P4.2a implementation checkpoint: `35f5f14` on
+  `codex/p4-2a-game-map`, based on exact clean base
+  `5a310c0bdf5d66646bb9b6f8b47ee322cbe1e15c`.
 
-Current unit: **P4.2a focused game-map attribute — In progress; implementation
-pending on a dedicated Luna worktree.**
+Current unit: **P4.2a focused game-map attribute — Implemented on the dedicated
+branch; integration and beta acceptance pending.**
 P5.8 is complete, beta-validated, and integrated as `4fc5973`; its final
 acceptance evidence is recorded in `8125c1f`.
 P5.7 is complete, beta-accepted, and integrated as `b7cc2bc`; its
@@ -1834,13 +1838,17 @@ Exit criteria for each unit:
 
 #### P4.2a — Focused game-map attribute
 
-Status: **In progress — implementation pending**
+Status: **Implemented; integration and beta acceptance pending**
 
 Risk tier: **Tier 3**. Updating map metadata is an ordinary game mutation with
 an audit record and public announcement/card refresh.
 
-Branch/base: create `codex/p4-2a-game-map` from the exact clean accumulation
-checkpoint containing this plan.
+Branch/base: `codex/p4-2a-game-map` from `codex/database-slash-modernization`
+at exact clean base `5a310c0bdf5d66646bb9b6f8b47ee322cbe1e15c`.
+
+Commit(s):
+
+- `35f5f14` — Implement focused game map mutation.
 
 Objective: establish the accepted focused read-or-edit attribute pattern with
 one small, stable game property while removing the existing synchronous
@@ -1866,7 +1874,43 @@ Database and permission boundary:
 - commit the map value and audit log in one wholly synchronous transaction;
 - return an immutable result DTO and perform announcement/card refresh only
   after commit;
-- keep the read path worker-bounded and independently permissioned from edit.
+- keep the read path worker-bounded and independently permissioned from edit;
+  reads require registration plus the authoritative guild/channel association,
+  while edits retain the participant/power-user rule.
+
+Implementation evidence:
+
+- `modules/game_workers.py` adds immutable primitive read/mutation requests and
+  results, a two-worker map-read executor, and map mutation on the existing
+  single ordinary game-write executor. Both workers own and close their
+  Peewee connection; the mutation worker reloads the game by ID, rechecks
+  registration, association, membership, and the exact legacy permission
+  rule, then commits `map_type` and `GameLog` atomically.
+- `modules/game_map.py` is the shared adapter/service boundary. Prefix channel
+  inference and legacy map normalization run in a bounded worker before the
+  existing per-game claim; the mutation claim remains held through the
+  optional post-commit publisher and is always released.
+- `modules/games.py` preserves `$setmap`, `$setmaptype`, help text, usage
+  wording, channel inference, abbreviations, `NONE` clearing, public success,
+  and legacy permission behavior. `/game map` uses a typed stable choice,
+  explicit `clear`, public read/success followups, and private validation,
+  permission, conflict, and database errors after defer. Conflicting slash
+  options are rejected before mutation and before defer.
+- `modules/models.py` now reports announcement-refresh success/failure so the
+  shared publisher can log and publicly warn about post-commit Discord
+  failures without claiming that the database rolled back. Database failures
+  invoke no Discord publisher or card refresh.
+- No Components-v2 workspace was added: the six stable map choices plus an
+  explicit Boolean clear flag are sufficient for this focused command.
+
+Files changed:
+
+- `modules/game_workers.py`
+- `modules/game_map.py`
+- `modules/games.py`
+- `modules/models.py`
+- `tests/test_game_map.py`
+- `tests/test_slash_taxonomy.py`
 
 Components decision: no Components-v2 workspace is warranted. One optional
 stable map choice and explicit clear flag are clearer as native options; the
@@ -1889,13 +1933,58 @@ Required tests:
 - focused, complete offline, unchanged gated-development database, and later
   separately approved beta smoke evidence.
 
+Compatibility decision: no compatibility-ledger entry was added. The native
+interface adds the approved typed choice/clear shape while the retained prefix
+surface keeps its established aliases, help behavior, channel inference,
+normalization, `none` clearing, output, and permission semantics. No existing
+message intent or prefix behavior was intentionally reduced.
+
 Out of scope: game name, tribe, notes, ranked state, platform semantics,
 schema changes, prefix deprecation, global command deployment, and production
 operations.
 
-Next action: dispatch this exact Tier-3 unit to a clean Luna worktree, review
-the complete branch at handoff, and do not integrate or beta-test before Sol
-accepts the transaction, permission, and post-commit evidence.
+Validation evidence:
+
+- `POLYBOT_ENV=development MPLCONFIGDIR=/tmp/polybot-matplotlib
+  /home/nelluk/PolyBot39-dev/.venv/bin/python -m unittest` with the focused
+  isolated-runtime harness: `tests.test_game_map` — 21 passed; combined
+  affected suites (`test_game_map`, `test_slash_taxonomy`,
+  `test_ranked_state`, `test_game_extension`, and `test_game_unstart`) — 54
+  passed.
+- Complete offline discovery under the same in-memory development profile:
+  466 passed and 17 explicitly gated database tests skipped. The ordinary
+  repository discovery command could not import the model-dependent offline
+  modules because this app-assigned worktree intentionally has no ignored
+  `config.development.ini`; no config was copied or synthesized.
+- The unchanged gated command was attempted with
+  `POLYBOT_ENV=development POLYBOT_RUN_DB_INTEGRATION=1`; it stopped at the
+  existing runtime-profile check because `config.development.ini` is absent,
+  so no PostgreSQL connection or database test ran. The `polytopia_dev` /
+  `polybot_dev` gate was not bypassed.
+- `/home/nelluk/PolyBot39-dev/.venv/bin/python -m py_compile` passed for all
+  changed Python modules/tests, and `git diff --check` passed before the
+  implementation commit.
+- No beta process, Discord connection, application-command inspection or
+  synchronization, production access, schema change, dependency action,
+  push, PR, or merge was performed.
+
+Remaining limitations:
+
+- Real development-database evidence remains pending until an operator
+  supplies the app worktree's approved ignored development profile and reruns
+  the unchanged gate. No production or `polytopia2` access was attempted.
+- The post-commit announcement path still performs its short
+  `Game.load_full_game` reload on the event-loop thread, matching the known
+  limitation of adjacent P4.1 units; the map write, audit, and read are
+  bounded and worker-local.
+- Beta acceptance and native command synchronization are intentionally
+  pending separate approval. The branch is not integrated.
+
+Next action: Sol should review the complete base-to-`35f5f14` diff and the
+transaction/permission/post-commit evidence, then integrate the two commits
+from this handoff into `codex/database-slash-modernization` only after
+acceptance. After integration, obtain separate approval for the gated
+development-profile rerun and any beta sync/smoke session.
 
 ## P5 — Matchmaking lifecycle
 
@@ -6377,6 +6466,31 @@ unit and does not reopen accepted P5.2 behavior.
   push, or PR was performed.
 - Next: commit the evidence and request separate approval for the documented
   development beta sync/smoke session.
+
+### 2026-08-02 — P4.2a focused game-map attribute implemented
+
+- Created `codex/p4-2a-game-map` from the exact clean accumulation base
+  `5a310c0bdf5d66646bb9b6f8b47ee322cbe1e15c` and recorded implementation
+  commit `35f5f14`.
+- Added the worker-bounded read/edit service for `/game map`, preserving
+  `$setmap`, `$setmaptype`, prefix channel inference, legacy normalization,
+  `none` clearing, aliases, help text, public success output, and exact
+  participant/power-user permission behavior.
+- Kept map/audit writes in one worker-local transaction and the existing
+  per-game claim, returned immutable primitive DTOs, and made post-commit
+  announcement/card failure observable without representing a committed write
+  as rolled back. No compatibility-ledger entry was required.
+- Passed 21 focused map tests, 54 combined affected offline tests, and 466
+  tests in complete offline discovery under an in-memory development profile
+  with 17 gated skips. Compilation and `git diff --check` passed.
+- The unchanged development-database gate was attempted with its required
+  environment flag but could not start because the app-assigned worktree has
+  no ignored `config.development.ini`; no database was accessed and no gate
+  was bypassed.
+- No beta, command synchronization, production, schema, dependency, push,
+  PR, merge, or integration action was performed.
+- Next: review the dedicated branch and integrate only after acceptance;
+  separately rerun the real development gate and request any beta smoke.
 
 ## Resume checklist
 
