@@ -437,8 +437,8 @@ before P9 but no longer block flow-first units. P5.1 is integrated in the
 exact base used for this unit and remains beta-accepted with no new beta
 session authorized here.
 
-P5.6 implementation/tests are committed as `2855fb6` on
-`codex/p5-6-unified-game-deletion`, based on exact clean base
+P5.6 implementation/tests are committed as `2855fb6` and correction commit
+`3883cde` on `codex/p5-6-unified-game-deletion`, based on exact clean base
 `2589647403b14364251a9eb5c45a3e952ac71381`. It remains unintegrated and has
 not received live Discord, beta, command-sync, or production acceptance.
 
@@ -2677,9 +2677,10 @@ boundaries while making deletion behavior easier to audit.
 
 Objective: provide one shared application service for the `$delete` aliases,
 `/game delete`, and the pending-game card Delete button. **Implemented in
-`2855fb6`:** the service is the single boundary for state classification,
-permission parity, primitive request and snapshot handling, immutable
-post-commit effect planning, audit logging, and dispatch.
+`2855fb6`, with the Tier-3 correction in `3883cde`:** the service is the
+single boundary for state classification, permission parity, primitive request
+and snapshot handling, immutable post-commit effect planning, audit logging,
+and dispatch.
 
 Transaction and coordination boundaries:
 
@@ -2704,6 +2705,10 @@ Pending-card interface:
   confirmation and cancellation, rejects unauthorized/stale/busy/double
   submissions ephemerally, and routes the approved mutation through the
   shared deletion service;
+- confirmation and cancellation now defer before editing the ephemeral
+  confirmation message; focused event-order tests prove the acknowledgement
+  precedes confirmation-message editing and the requested deletion/cancel
+  work;
 - after commit, the planned pending broadcast/output effects run and the
   source card controls are removed; failure leaves no deletion success or
   destructive card effect;
@@ -2721,25 +2726,35 @@ Compatibility and required validation:
   transaction rollback/commit including audit state, serialized coordinator
   conflicts, stale cards, post-commit-only effects, public-card use, and
   ephemeral confirmation/denial behavior;
-- focused suites pass 102 tests; complete offline discovery passes 402 tests
-  with 16 explicit gated skips; changed Python compiles and `git diff --check`
+- focused suites pass 104 tests; complete offline discovery passes 405 tests
+  with 17 explicit gated skips; changed Python compiles and `git diff --check`
   passes;
-- the selected gated development read/rollback cases were attempted only
-  through the unchanged gate. Profile checks confirmed
-  `POLYBOT_ENV=development`, `polytopia_dev`, and `polybot_dev`, but the local
-  PostgreSQL connection failed before session identity and test execution;
-  no fixture seed or cleanup was run.
+- `tests.test_database_integration.DevelopmentDatabaseIntegrationTests.test_pending_delete_worker_commits_and_rolls_back_real_graph_and_audit`
+  now provides gated real-PostgreSQL coverage: it creates uniquely marked,
+  test-owned game/side/lineup/member/player rows, proves successful graph and
+  audit commit, injects a fault after a partial lineup mutation, proves graph
+  and audit rollback, and removes only its own rows. It does not seed or clean
+  the shared fixture harness;
+- the focused gated invocation was attempted only through the unchanged
+  `POLYBOT_RUN_DB_INTEGRATION=1` gate. The runtime profile selected
+  `POLYBOT_ENV=development`, `polytopia_dev`, role `polybot_dev`, and disabled
+  background/API services, but this worker's sandbox could not reach the
+  configured `localhost:5432` PostgreSQL endpoint, so session identity and
+  test execution were not reached. The full gated suite was not claimed from
+  this worker; the primary review task must run the new case and full suite
+  through its scoped local-socket gate.
 
 Limitations: live Discord/mobile behavior, beta synchronization, command
 application, production deployment, and persistence across process restarts
-remain intentionally unvalidated. The gated database evidence is blocked by
-the unavailable local PostgreSQL connection, not by a test assertion.
+remain intentionally unvalidated. Real-PostgreSQL evidence for this correction
+is pending the independently scoped gated run; no result is inferred from the
+offline or mocked tests.
 
-Next action: Sol should perform the required Tier-3 complete-diff review,
-including concurrency, rollback, permission, post-commit ordering, and
-operational rollback checks; then integrate `2855fb6` into
-`codex/database-slash-modernization` only after the separate acceptance gate
-is satisfied. Do not mark P5.6 Complete or Integrated from this branch.
+Next action: run the new pending-delete PostgreSQL case and the unchanged full
+gated development suite through the scoped local-socket safety gate, preserve
+fixtures `149`-`151` and manual fixtures, then perform the required Tier-3
+complete-diff review and integrate `3883cde` only after that acceptance gate is
+satisfied. Do not mark P5.6 Complete or Integrated from this branch.
 
 ## P6 — Registration and player preferences
 
@@ -4474,6 +4489,32 @@ unit and does not reopen accepted P5.2 behavior.
   checkout/database, dependency synchronization, push, PR, merge, or
   integration action was performed. P5.6 remains implemented locally and
   pending Tier-3 review; do not mark it Complete or Integrated.
+
+### 2026-08-01 — P5.6 Tier-3 correction committed; real-DB gate pending
+
+- Committed correction `3883cde` on
+  `codex/p5-6-unified-game-deletion`, based on exact
+  `2589647403b14364251a9eb5c45a3e952ac71381`. Confirmation and cancellation
+  now defer before editing their ephemeral confirmation message, with explicit
+  event-order tests proving deletion and cancellation work after the defer.
+- Added gated real-PostgreSQL coverage for the pending worker's actual
+  game/side/lineup/member/player/audit graph. The test proves success commit,
+  fault-after-partial-lineup-mutation rollback, audit rollback, and cleanup of
+  only uniquely marked test-owned rows; it does not seed or clean the shared
+  fixture harness.
+- Focused offline suites passed **104 tests**. Complete offline discovery
+  passed **405 tests with 17 explicit gated skips**. Changed Python compilation
+  and `git diff --check` passed.
+- The new focused gated invocation reached the unchanged development gate but
+  could not connect to this worker's configured `localhost:5432` endpoint
+  before session identity or test execution. The profile selected
+  `development` / `polytopia_dev` / `polybot_dev` with background/API services
+  disabled. No gated result is claimed here; the primary review task will run
+  the new case and unchanged full suite through its scoped local-socket gate.
+- No fixture seed/cleanup, beta launch, command synchronization, production,
+  dependency, push, PR, merge, or integration action was performed. P5.6
+  remains implemented locally and pending Tier-3 review; do not mark it
+  Complete or Integrated.
 
 ### 2026-08-01 — P5.5 accepted/integrated; P5.6 authorized
 
