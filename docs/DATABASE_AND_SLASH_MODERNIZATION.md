@@ -427,6 +427,8 @@ check:
 
 Current unit: **P5.5 interactive pending-game card actions — Tier-2 reviewed;
 pending separately approved guild-scoped beta apply/smoke acceptance.**
+The next planned code unit after that acceptance and integration is P5.6,
+which remains planned and has not started.
 P8.0 is complete and integrated as `d6ee47c`, with explicit guild-only command
 deployment accepted in beta. Taxonomy v2.2 is provisionally accepted as the
 working implementation contract; minor wording refinements remain possible
@@ -2534,6 +2536,11 @@ Interface and presentation:
 - show Join and Refresh while an open game has capacity; show Leave and
   Refresh for a pending game; show Start when the game is full. Shared public
   controls are state hints, not permission claims;
+- eligible native `/game show` cards seed the configured join reaction once
+  after a fresh active, joinable pending snapshot is posted. Full, expired,
+  nonpending, and numeric prefix cards do not seed it; reaction failure is a
+  logged best-effort Discord effect that retains the card, buttons, and prefix
+  fallback;
 - Join opens an ephemeral side-selection step when more than one side is a
   useful choice. A single unambiguous side may proceed directly;
 - Start opens a small modal for the exact Polytopia game name;
@@ -2608,7 +2615,10 @@ Implementation evidence:
   pure `classic_edit_kwargs` helper retains unrelated attachments and replaces
   only the existing managed asset without a Peewee access on the event loop.
   Numeric `$game`/`$match` continue through the unchanged classic prefix path
-  without a view; no taxonomy or compatibility-ledger row is needed.
+  without a view; no taxonomy or compatibility-ledger row is needed. The
+  follow-up beta correction adds a shared configured join-reaction helper used
+  by native `/game open` and eligible native pending-card responses, without
+  changing classic text/reaction parsing or touching DB state.
 - View state is bounded in memory with a timeout, busy-click protection,
   authoritative reload before every mutation/refresh, ephemeral failures, and
   best-effort disabled controls plus a `/game show` rerun path after timeout.
@@ -2616,8 +2626,8 @@ Implementation evidence:
 
 Validation evidence:
 
-- Focused game-detail/component plus taxonomy/workspace suite: **45 passed**.
-- Complete offline discovery: **376 passed, 16 explicitly skipped**.
+- Focused pending-card/open-game suite: **58 passed**.
+- Complete offline discovery: **379 passed, 16 explicitly skipped**.
 - Gated development-database suite: **16 passed, 1 fixture-preservation test
   skipped**. The strict gate confirmed `POLYBOT_ENV=development`, runtime
   database `polytopia_dev`, role `polybot_dev`, and disabled background/API
@@ -2630,7 +2640,9 @@ Compatibility and limitations:
 
 - This is a presentation/action-layer enhancement over accepted P5.2/P5.4
   mutation services. It does not change join/leave/start transaction semantics,
-  reaction emoji behavior, native command taxonomy, schema, or data.
+  classic text/reaction parsing, native command taxonomy, schema, or data. The
+  native pending-card reaction seed is post-read and best-effort; the card and
+  button/prefix fallbacks remain successful if Discord rejects the reaction.
 - The existing start post-commit publisher retains its established
   announcement/card/channel compatibility seams; the originating pending
   card is refreshed afterward. Live Discord/mobile smoke, beta apply, and
@@ -2640,6 +2652,60 @@ Compatibility and limitations:
 Recommended next action: obtain separate approval for the guild-scoped beta
 apply/smoke gate. The reviewed branch is not integrated and must not be
 launched or synchronized from this task.
+
+### P5.6 — Unified game deletion service and pending-card Delete action
+
+Status: **Planned; next code unit after P5.5 beta acceptance/integration**
+
+Risk tier: **Tier 3**. This unit centralizes destructive game deletion across
+legacy and native interfaces and adds a public pending-card action. It must
+preserve current authorization, serialized mutation, and post-commit effect
+boundaries while making deletion behavior easier to audit.
+
+Objective: provide one shared application service for the `$delete` aliases,
+`/game delete`, and the pending-game card Delete button. The service is the
+single boundary for state classification, permission parity, primitive request
+and snapshot handling, immutable post-commit effect planning, audit logging,
+and dispatch.
+
+Transaction and coordination boundaries:
+
+- reuse the existing serialized ELO coordinator/worker for started or
+  completed-game deletion;
+- add a worker-local transactional deletion path for pending/unstarted games;
+- keep Discord announcements, external broadcasts, notifications, channel
+  changes, and card effects out of worker transactions and perform them only
+  from the immutable post-commit effect plan;
+- preserve authoritative stale-state checks and coordinator conflict handling
+  for every interface.
+
+Pending-card interface:
+
+- the Delete action applies to every pending/unstarted state: open, full, and
+  expired;
+- the shared card remains public, with authoritative host/staff checks on
+  every click rather than requester-only visibility;
+- acknowledge promptly, provide ephemeral confirmation and ephemeral denials,
+  and route the approved mutation through the shared deletion service;
+- after commit, apply the planned card deletion effect and remove/disable its
+  controls without presenting an uncommitted success;
+- preserve safe behavior when the card is stale, the coordinator is busy, or
+  the pending state changes between display and click.
+
+Compatibility and required validation:
+
+- preserve `$delete` aliases and current completed/in-progress moderator
+  behavior; no schema change or compatibility loss is intended;
+- verify shared-service routing, permission parity, pending/open/full/expired
+  classification, worker transaction rollback/commit, coordinator conflicts,
+  stale cards, audit records, post-commit-only effects, public-card use, and
+  ephemeral confirmation/denial behavior;
+- keep prefix output and native command taxonomy stable, with no beta or
+  production deployment included in the code unit's implementation gate.
+
+Next action: leave P5.6 planned until P5.5 receives its separately approved
+guild-scoped beta apply/smoke acceptance and is integrated. Do not start P5.6
+in the P5.5 branch as part of this roadmap update.
 
 ## P6 — Registration and player preferences
 
@@ -4409,6 +4475,30 @@ unit and does not reopen accepted P5.2 behavior.
   paths; existing gated evidence remains 16 passed and 1 preserved skip.
 - The branch remains pending separately approved guild-scoped beta
   apply/smoke acceptance and is not integrated.
+
+### 2026-08-01 — P5.5 beta correction and P5.6 planned
+
+- Implemented/tests checkpoint `ca5872e`: extracted the configured join
+  reaction helper into `modules.game_open`, reused it by native `/game open`,
+  and added it to the initial native `/game show` response only for a fresh,
+  active pending snapshot with join capacity. Full, expired, nonpending, and
+  numeric prefix paths do not seed reactions.
+- Reaction seeding is a best-effort post-read Discord effect. A failure is
+  logged after the card and controls succeed, preserving the button and
+  classic prefix fallback; no DB state or classic text/reaction parsing was
+  changed.
+- Focused offline validation passed **58 tests**; complete offline discovery
+  passed **379 tests with 16 expected skips**. Independent compilation and
+  `git diff --check` passed.
+- No gated database rerun was needed because this correction did not change
+  DB/worker paths; the existing gated evidence remains **16 passed and 1
+  preserved fixture skip**. No beta launch/synchronization, production, DB
+  access, dependency change, push, or merge was performed.
+- Added planned Tier-3 P5.6, **Unified game deletion service and pending-card
+  Delete action**, as the next code unit only after separate P5.5 beta
+  acceptance/integration. It remains unstarted and preserves the documented
+  shared-service, coordinator/transaction, permission, stale-state,
+  post-commit-effect, and prefix-compatibility boundaries.
 
 ### 2026-08-01 — P5.4 beta accepted
 
