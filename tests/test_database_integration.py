@@ -14,6 +14,8 @@ from unittest import mock
 import uuid
 import warnings
 
+import peewee
+
 
 INTEGRATION_FLAG = 'POLYBOT_RUN_DB_INTEGRATION'
 RUN_DATABASE_INTEGRATION = os.environ.get(INTEGRATION_FLAG) == '1'
@@ -1496,6 +1498,254 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
                 self.models.Team.delete().where(
                     self.models.Team.id.in_(team_ids)
                 ).execute()
+
+    def test_pending_delete_worker_commits_and_rolls_back_real_graph_and_audit(self):
+        from modules import game_deletion_workers
+
+        guild_id = self.profile.allowed_guild_ids[0]
+        suffix = uuid.uuid4().hex
+        marker = f'P56 pending-delete {suffix}'
+        id_base = 9_050_000_000_000_000 + uuid.uuid4().int % 1_000_000
+        host_discord_id = id_base
+        target_discord_id = id_base + 1
+        game_ids = set()
+
+        def make_pending_game(label):
+            game = self.models.Game.create(
+                guild_id=guild_id,
+                host=host_player,
+                expiration=(
+                    datetime.datetime.now() + datetime.timedelta(days=1)
+                ),
+                name=label,
+                notes=label,
+                is_pending=True,
+                is_ranked=True,
+                is_mobile=True,
+                size=[1, 1],
+            )
+            game_ids.add(game.id)
+            first_side = self.models.GameSide.create(
+                game=game,
+                position=1,
+                sidename='Alpha',
+                size=1,
+            )
+            second_side = self.models.GameSide.create(
+                game=game,
+                position=2,
+                sidename='Bravo',
+                size=1,
+            )
+            self.models.Lineup.create(
+                game=game,
+                gameside=first_side,
+                player=host_player,
+            )
+            self.models.Lineup.create(
+                game=game,
+                gameside=second_side,
+                player=target_player,
+            )
+            return game
+
+        def request_for(game):
+            return game_deletion_workers.DeletionRequest(
+                game_id=game.id,
+                guild_id=guild_id,
+                requester_id=host_discord_id,
+                requester_name=host_member.name,
+                requester_description=f'{marker} host',
+                requester_is_staff=False,
+                requester_is_mod=False,
+                prefix='$',
+                invoked_with='delete',
+            )
+
+        try:
+            host_member = self.models.DiscordMember.create(
+                discord_id=host_discord_id,
+                name=f'P56 Host {suffix}',
+                polytopia_name=f'P56Host{suffix}',
+            )
+            target_member = self.models.DiscordMember.create(
+                discord_id=target_discord_id,
+                name=f'P56 Target {suffix}',
+                polytopia_name=f'P56Target{suffix}',
+            )
+            host_player = self.models.Player.create(
+                discord_member=host_member,
+                guild_id=guild_id,
+                name=host_member.name,
+            )
+            target_player = self.models.Player.create(
+                discord_member=target_member,
+                guild_id=guild_id,
+                name=target_member.name,
+            )
+
+            commit_game = make_pending_game(f'{marker} commit')
+            self.models.db.close()
+            commit_result = asyncio.run(
+                game_deletion_workers.run_pending_game_deletion(
+                    request_for(commit_game)
+                )
+            )
+            self.models.db.connect(reuse_if_open=True)
+
+            self.assertEqual(commit_result.game_id, commit_game.id)
+            self.assertFalse(commit_result.recalculated)
+            self.assertIsNone(
+                self.models.Game.get_or_none(id=commit_game.id)
+            )
+            self.assertEqual(
+                self.models.GameSide.select().where(
+                    self.models.GameSide.game == commit_game.id
+                ).count(),
+                0,
+            )
+            self.assertEqual(
+                self.models.Lineup.select().where(
+                    self.models.Lineup.game == commit_game.id
+                ).count(),
+                0,
+            )
+            self.assertEqual(
+                self.models.GameLog.select().where(
+                    self.models.GameLog.message.contains(marker)
+                ).count(),
+                1,
+            )
+
+            rollback_game = make_pending_game(f'{marker} rollback')
+            rollback_lineup_ids = tuple(
+                lineup.id
+                for lineup in self.models.Lineup.select().where(
+                    self.models.Lineup.game == rollback_game.id
+                ).order_by(self.models.Lineup.id)
+            )
+            original_delete_instance = self.models.Lineup.delete_instance
+            deleted_lineups = []
+
+            def delete_one_then_fail(lineup, *args, **kwargs):
+                deleted_lineups.append(lineup.id)
+                result = original_delete_instance(lineup, *args, **kwargs)
+                if len(deleted_lineups) == 1:
+                    raise peewee.OperationalError(
+                        'P5.6 injected fault after partial graph mutation'
+                    )
+                return result
+
+            with mock.patch.object(
+                self.models.Lineup,
+                'delete_instance',
+                new=delete_one_then_fail,
+            ):
+                self.models.db.close()
+                with self.assertRaisesRegex(
+                    peewee.OperationalError,
+                    'partial graph mutation',
+                ):
+                    asyncio.run(
+                        game_deletion_workers.run_pending_game_deletion(
+                            request_for(rollback_game)
+                        )
+                    )
+            self.models.db.connect(reuse_if_open=True)
+
+            self.assertEqual(deleted_lineups, [rollback_lineup_ids[0]])
+            self.assertIsNotNone(
+                self.models.Game.get_or_none(id=rollback_game.id)
+            )
+            self.assertEqual(
+                self.models.GameSide.select().where(
+                    self.models.GameSide.game == rollback_game.id
+                ).count(),
+                2,
+            )
+            self.assertEqual(
+                self.models.Lineup.select().where(
+                    self.models.Lineup.game == rollback_game.id
+                ).count(),
+                2,
+            )
+            self.assertEqual(
+                self.models.GameLog.select().where(
+                    self.models.GameLog.message.contains(marker)
+                ).count(),
+                1,
+            )
+        finally:
+            self.models.db.connect(reuse_if_open=True)
+            for game_id in sorted(game_ids):
+                self.models.Lineup.delete().where(
+                    self.models.Lineup.game == game_id
+                ).execute()
+                self.models.GameSide.delete().where(
+                    self.models.GameSide.game == game_id
+                ).execute()
+                self.models.Game.delete().where(
+                    self.models.Game.id == game_id
+                ).execute()
+            temporary_member_ids = tuple(
+                member_id
+                for (member_id,) in self.models.DiscordMember.select(
+                    self.models.DiscordMember.id
+                ).where(
+                    self.models.DiscordMember.discord_id.in_(
+                        (host_discord_id, target_discord_id)
+                    )
+                ).tuples()
+            )
+            self.models.Player.delete().where(
+                self.models.Player.discord_member.in_(temporary_member_ids)
+            ).execute()
+            self.models.DiscordMember.delete().where(
+                self.models.DiscordMember.discord_id.in_(
+                    (host_discord_id, target_discord_id)
+                )
+            ).execute()
+            self.models.GameLog.delete().where(
+                self.models.GameLog.message.contains(marker)
+            ).execute()
+            self.assertEqual(
+                self.models.Game.select().where(
+                    self.models.Game.id.in_(game_ids)
+                ).count() if game_ids else 0,
+                0,
+            )
+            self.assertEqual(
+                self.models.GameSide.select().where(
+                    self.models.GameSide.game.in_(game_ids)
+                ).count() if game_ids else 0,
+                0,
+            )
+            self.assertEqual(
+                self.models.Lineup.select().where(
+                    self.models.Lineup.game.in_(game_ids)
+                ).count() if game_ids else 0,
+                0,
+            )
+            self.assertEqual(
+                self.models.DiscordMember.select().where(
+                    self.models.DiscordMember.discord_id.in_(
+                        (host_discord_id, target_discord_id)
+                    )
+                ).count(),
+                0,
+            )
+            self.assertEqual(
+                self.models.Player.select().where(
+                    self.models.Player.discord_member.in_(temporary_member_ids)
+                ).count(),
+                0,
+            )
+            self.assertEqual(
+                self.models.GameLog.select().where(
+                    self.models.GameLog.message.contains(marker)
+                ).count(),
+                0,
+            )
 
     def test_bot_extensions_load_with_background_tasks_disabled(self):
         import bot as bot_module

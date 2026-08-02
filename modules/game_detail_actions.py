@@ -238,8 +238,8 @@ class PendingGameDeleteConfirmationView(discord.ui.View):
             )
             return
         self.stop()
-        await self._edit_disabled()
         await interaction.response.defer(ephemeral=True)
+        await self._edit_disabled()
         try:
             await self.card_view.run_delete(
                 interaction,
@@ -258,8 +258,8 @@ class PendingGameDeleteConfirmationView(discord.ui.View):
             )
             return
         self.stop()
-        await self._edit_disabled()
         await interaction.response.defer(ephemeral=True)
+        await self._edit_disabled()
         await interaction.followup.send(
             'Game deletion cancelled.',
             ephemeral=True,

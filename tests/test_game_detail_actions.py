@@ -137,6 +137,16 @@ class FakeMessage:
         self.reactions.append(emoji)
 
 
+class OrderedMessage(FakeMessage):
+    def __init__(self, events):
+        super().__init__()
+        self.events = events
+
+    async def edit(self, **kwargs):
+        self.events.append('confirmation-edit')
+        return await super().edit(**kwargs)
+
+
 class FakeResponse:
     def __init__(self):
         self.done = False
@@ -486,6 +496,40 @@ class PendingGameCardInteractionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(view.children, [])
         self.assertIsNone(message.edits[-1]['view'])
 
+    async def test_delete_confirmation_defers_before_edit_and_deletion(self):
+        events = []
+
+        async def delete(_interaction):
+            events.append('delete')
+            return True
+
+        view = make_view(card_snapshot(), on_delete=delete)
+        message = FakeMessage()
+        view.message = message
+        click = interaction(user_id=900, message=message)
+        await view.delete_button.callback(click)
+        confirmation = click.followup.calls[0][1]['view']
+        confirmation.message = OrderedMessage(events)
+
+        confirm = interaction(user_id=900, message=message)
+        original_defer = confirm.response.defer
+
+        async def defer(**kwargs):
+            events.append('defer')
+            await original_defer(**kwargs)
+
+        confirm.response.defer = defer
+        await confirmation.confirm_button.callback(confirm)
+
+        self.assertEqual(events[:3], [
+            'defer',
+            'confirmation-edit',
+            'delete',
+        ])
+        self.assertFalse(view._busy)
+        self.assertTrue(view.is_finished())
+        self.assertEqual(view.children, [])
+
     async def test_delete_cancellation_releases_claim_without_public_card_change(self):
         view = make_view(card_snapshot())
         message = FakeMessage()
@@ -502,6 +546,38 @@ class PendingGameCardInteractionTests(unittest.IsolatedAsyncioTestCase):
             'Join', 'Leave', 'Delete', 'Refresh',
         ])
         self.assertEqual(cancel.followup.calls[-1][0], 'Game deletion cancelled.')
+
+    async def test_delete_cancellation_defers_before_edit_and_releases_claim(self):
+        events = []
+        view = make_view(card_snapshot())
+        message = FakeMessage()
+        view.message = message
+        click = interaction(user_id=900, message=message)
+        await view.delete_button.callback(click)
+        confirmation = click.followup.calls[0][1]['view']
+        confirmation.message = OrderedMessage(events)
+
+        cancel = interaction(user_id=900, message=message)
+        original_defer = cancel.response.defer
+
+        async def defer(**kwargs):
+            events.append('defer')
+            await original_defer(**kwargs)
+
+        cancel.response.defer = defer
+        original_send = cancel.followup.send
+
+        async def send(content=None, **kwargs):
+            events.append('cancel')
+            return await original_send(content, **kwargs)
+
+        cancel.followup.send = send
+        await confirmation.cancel_button.callback(cancel)
+
+        self.assertEqual(events, ['defer', 'confirmation-edit', 'cancel'])
+        self.assertEqual(cancel.followup.calls[-1][0], 'Game deletion cancelled.')
+        self.assertFalse(view._busy)
+        self.assertFalse(view.is_finished())
 
     async def test_delete_stale_card_rejects_before_authorization_or_mutation(self):
         events = []
