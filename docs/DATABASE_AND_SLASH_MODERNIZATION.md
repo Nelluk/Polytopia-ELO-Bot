@@ -1,10 +1,10 @@
 # Database Access and Slash Command Modernization
 
-Last updated: 2026-08-01
+Last updated: 2026-08-02
 
 Status: Active
 
-Current branch at last update: `codex/database-slash-modernization`
+Current branch at last update: `codex/p5-8-open-game-discovery`
 
 Source task: `thread://019fae66-8e3a-7a50-9a0f-d3d7160d2287`
 
@@ -345,6 +345,7 @@ longer be retained.
 | C-001 `/newgame` | `/game record` accepts one roster string using the established `vs` grammar, infers arbitrary/unequal side sizes, preserves the one-opponent requester shortcut, and requires an interaction preview before creation. Edit sides provides native member selection plus add/remove-side controls. | The former two-sided 1v1–4v4 and raw-text-edit limits are resolved without message-content intent. Initial text tokens can still be ambiguous when users do not supply mentions, but the parsed draft can be corrected with native selectors. Per-game Mobile/Steam input was deliberately removed because full cross-play makes it obsolete. | If initial parsing remains troublesome, allow `/game record` to open an empty guided draft without requiring a seed roster. | Shape and edit gaps resolved by P2.3; initial parser usability remains for beta evaluation |
 | C-002 `/player show` and player-card prefixes | The shared workspace preserves identity, canonical name, current/peak/all-time local/global ratings, records, ranks, timezone, team/squad context, and paged game sections/filters. | The legacy generated rating-history image, requester head-to-head follow-up, trophies, favorite-tribe summary, and pre-Moonrise miscellaneous statistics are not yet displayed after the prefix commands deep-link the workspace. These become unavailable from those commands even while message intent remains enabled. | Add a bounded analytics/details section and media attachment renderer after observing which legacy details staff/users still value; keep graph generation outside the event loop. | Open for beta/user review in P7.7 |
 | C-003 `/game open` | P5.1 implements arbitrary common size shapes plus a requester-controlled ranked/expiration/notes preview, confirmation/cancel, and public post-commit completion. Native and retained prefix aliases use one canonical cross-play creation path, follow the configured unranked-channel default, and accept either existing account-name field; only the legacy `is_mobile=True` storage value remains for compatibility. | Advanced role-locked sides and mention-restricted recruitment remain prefix-only in this bounded unit. Shared typed/raw join eligibility now accepts either account-name field and ignores historical `is_mobile` platform meaning. If message content intent were later removed before a native role/member editor exists, those uncommon restrictions would be unavailable; prefix support remains unchanged. | Add side-by-side native role selectors and an allowed-member editor to the open-game draft after the shared join-eligibility service exists. | Implemented for P5.1; beta review pending |
+| C-004 `$games`/`$opengames` and native open views | The shared worker preserves the legacy open-game modes, requester-aware eligibility, aliases, and native view switching while bounding the result DTO. | Open discovery now publishes at most the first 500 rows and marks truncation; the former prefix query did not impose an explicit cap. This is a deliberate Tier-2 bounded-read tradeoff, with ordinary results still paginated and query-refinable. | Add a cursor/continuation control backed by the same bounded worker if a guild's open-game volume makes the cap user-visible. | Local P5.8 implementation; Tier-2 review pending |
 
 Every later slash conversion must add a row when parity is intentionally
 reduced. If there is no compromise, its unit evidence should explicitly say
@@ -425,7 +426,8 @@ check:
   `codex/p5-1-game-open`, based on exact clean base
   `d24aa6b5e64fba159a872eb565703465c79d712d`.
 
-Current unit: **P5.8 open-game discovery parity — planned.**
+Current unit: **P5.8 open-game discovery parity — in progress; implementation
+committed locally and Tier-2 review/validation pending.**
 P5.7 is complete, beta-accepted, and integrated as `b7cc2bc`; its
 implementation is `0a969cc`, compatibility correction is `7eaf1cd`, and
 focused Tier-3 review correction is `a55270b`.
@@ -2914,11 +2916,16 @@ with `$games`/`$opengames`, without adding another slash-command name.
 
 ### P5.8 — Open-game discovery parity in `/game search`
 
-Status: **Planned**
+Status: **In progress — implementation committed locally; Tier-2 review and
+validation pending**
 
 Risk tier: **Tier 2**. This is a bounded read and interactive presentation
 unit. Joining, leaving, starting, and deleting continue to use their existing
 reviewed mutation services.
+
+Branch/base: `codex/p5-8-open-game-discovery` from exact clean base
+`777c697f1e4ca8bf664852065f90d328b60a5f40` on
+`codex/database-slash-modernization`.
 
 Objective: make the common “what games can I join?” flow native and obvious
 without registering `/opengames` or adding a long slash option matrix.
@@ -2946,8 +2953,74 @@ Tests must cover the complete legacy option/eligibility matrix, restricted and
 role-locked games, host/member views, pagination, immediate defer, bounded
 worker responsiveness, prefix compatibility, and unchanged mutation routing.
 
-Next action: hand P5.8 to a clean Luna-Max branch from integration checkpoint
-`b7cc2bc` after committing this roadmap checkpoint.
+Implementation evidence:
+
+- `/game search query:[optional] view:[optional]` keeps plain invocation on
+  **All games** and registers exactly the eight approved typed choices:
+  **All games**, **Joinable for me**, **All open**, **Waiting to start**, **My
+  open games**, **Active games**, **Completed games**, and **Unconfirmed
+  results**. The last choice is rejected by the worker for non-staff and is
+  omitted from non-staff Components-v2 controls.
+- The existing lifecycle select is replaced by one **Search view** select;
+  outcome, common-size, requester-only authorization, cached pagination, and
+  public result visibility remain in the same workspace. Native output does
+  not expose Mobile/Steam/platform distinctions or extra ranked/size/role/
+  member slash arguments.
+- `modules/game_search_workers.py` is the shared bounded read/eligibility
+  path for native open views and `$games`/aliases. It owns a worker-local
+  Peewee connection, accepts a frozen primitive `GameSearchRequest`, applies
+  guild/ranked/platform compatibility predicates and a `MAX_GAMES + 1`
+  bounded read, and returns frozen row/snapshot DTOs. Requester-aware reads
+  cover level, invitation mentions, role locks, capacity, existing
+  participant/host inclusion, registered ELO/account eligibility, guild
+  isolation, pending/full/expired state, and deterministic waitlist data.
+- `$games`, `$opengames`, `$novagames`, and `$nova` retain their existing
+  default, `waiting`, `all`, `me`, Nova, ranked/unranked, channel-inferred,
+  and legacy Steam/platform parsing. No read-only browsing path invokes a
+  join/leave/start/delete mutation service.
+
+Validation evidence:
+
+- A temporary in-memory development-profile harness (not a repository
+  configuration and not a database run) passed **42 tests** across
+  `tests.test_game_search_workspace`, `tests.test_game_open_discovery`, and
+  `tests.test_slash_taxonomy`.
+- The prescribed focused command with the real runtime loader failed before
+  test collection because this app-managed worktree has no
+  `config.development.ini`: **0 focused tests ran** under that command.
+- The prescribed `unittest discover -q` command attempted **125 tests** and
+  ended with **23 import/setup errors and 17 explicit database-gate skips**;
+  the same missing development profile caused the errors, so this is not
+  reported as a complete offline pass.
+- The unchanged gated development command attempted **0 tests** because the
+  runtime profile failed before its `development` / `polytopia_dev` /
+  `polybot_dev` identity checks could complete. No fixtures were seeded,
+  cleaned, or accessed. Explicit-venv `py_compile` and `git diff --check`
+  passed.
+
+Beta acceptance and integration: **not run and not authorized in this unit**.
+No Discord connection, command synchronization, production operation, push,
+PR, merge, schema, or dependency action occurred.
+
+Limitations:
+
+- Open discovery is intentionally capped at the existing bounded DTO limit
+  of 500 displayed rows (with one extra row used to mark truncation). The old
+  prefix query had no explicit cap; this deliberate Tier-2 safety tradeoff is
+  recorded as C-004 below. Query refinement and pagination remain available.
+- Live beta presentation, native command registration, and the real gated
+  development database remain unvalidated until a worktree with the approved
+  development runtime profile is available.
+
+Commit:
+
+- `34f385c` — Implement P5.8 open-game discovery parity and focused tests.
+
+Next action: Sol performs the complete Tier-2 branch review, restores or
+provides the approved development runtime profile for the unchanged focused,
+full, and gated suites, then decides whether any separately approved beta or
+integration gate is warranted. Do not merge or beta-accept from this branch
+without that review.
 
 ## P6 — Registration and player preferences
 
@@ -4658,6 +4731,38 @@ post-commit reconciliation behavior. This direction is a separate bounded
 unit and does not reopen accepted P5.2 behavior.
 
 ## Progress log
+
+### 2026-08-02 — P5.8 implementation committed locally; Tier-2 review pending
+
+- Created `codex/p5-8-open-game-discovery` from exact clean base
+  `777c697f1e4ca8bf664852065f90d328b60a5f40` and committed implementation/
+  tests as `34f385c`. The primary planning checkout and production checkout
+  were not accessed or edited.
+- Added the typed optional `/game search view` initial selection and one
+  coherent Components-v2 Search view control. Plain search remains All games;
+  Joinable for me, All open, Waiting to start, My open games, Active,
+  Completed, and staff-only Unconfirmed map through the shared immutable
+  worker snapshot. Outcome, size, pagination, public output, and
+  requester-only controls remain available.
+- Moved open-game query, requester eligibility, bounded waitlist reads, and
+  DTO presentation data into the existing two-worker game-search executor.
+  Prefix `$games`, `$opengames`, `$novagames`, and `$nova` now use that path
+  while retaining their legacy mode, alias, ranked/unranked, channel, and
+  Steam parsing behavior. No mutation service was called from browsing.
+- Added focused coverage for eligibility restrictions, invitations, role
+  locks, capacity, membership/host inclusion, expiration, guild isolation,
+  exact registration/mapping, staff denial, controls/defer/pagination,
+  prefix parity, worker connection ownership, bounded concurrency, and slow
+  reads. A temporary in-memory runtime-profile harness passed 42 tests.
+- The prescribed runtime-profile focused/full/gated commands remain
+  unavailable in this worktree because `config.development.ini` is absent;
+  they were not weakened and no database identity or fixture operation was
+  established. `py_compile` and `git diff --check` passed.
+- No beta, Discord connection, command synchronization, production access,
+  dependency/schema change, push, PR, merge, or fixture action occurred.
+- Next: Sol completes the Tier-2 review and decides on any separately
+  approved runtime-profile, beta, or integration gate. P5.8 is not complete,
+  integrated, or beta-accepted.
 
 ### 2026-08-02 — P5.7 beta-accepted and integrated; P5.8 planned
 
