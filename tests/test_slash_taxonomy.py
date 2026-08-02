@@ -192,27 +192,28 @@ class SlashTaxonomyAdapterTests(unittest.IsolatedAsyncioTestCase):
 
         handler.assert_awaited_once_with(interaction, 42)
 
-    async def test_game_win_adapter_reuses_prefix_checks_and_callback(self):
+    async def test_game_win_adapter_reuses_prefix_checks_and_shared_service(self):
         events = []
 
         async def can_run(ctx):
             events.append('checks')
+            self.assertEqual(events[0], 'defer')
             return True
-
-        async def callback(cog, ctx, game_id, *, winner):
-            events.append('callback')
-            self.assertEqual(game_id, 42)
-            self.assertEqual(winner, 'Alpha')
-            self.assertEqual(ctx.prefix, '$')
-            self.assertEqual(ctx.invoked_with, 'win')
 
         prefix_command = SimpleNamespace(
             can_run=can_run,
-            callback=callback,
         )
         cog = SimpleNamespace(win=prefix_command)
         context = SimpleNamespace()
-        interaction = SimpleNamespace(guild=SimpleNamespace(id=300))
+        interaction = SimpleNamespace(
+            guild=SimpleNamespace(id=300),
+            user=SimpleNamespace(id=901),
+            channel=SimpleNamespace(),
+            response=SimpleNamespace(
+                defer=mock.AsyncMock(side_effect=lambda: events.append('defer')),
+            ),
+            followup=SimpleNamespace(send=mock.AsyncMock()),
+        )
         command = app_group(games.polygames, 'game').get_command('win')
 
         with mock.patch.object(
@@ -223,10 +224,31 @@ class SlashTaxonomyAdapterTests(unittest.IsolatedAsyncioTestCase):
             games.settings,
             'guild_setting',
             return_value='$',
-        ):
+        ), mock.patch.object(
+            games.game_win,
+            'build_request',
+            side_effect=lambda **kwargs: (
+                events.append('build') or SimpleNamespace()
+            ),
+        ) as build_request, mock.patch.object(
+            games.game_win,
+            'run_win',
+            new=mock.AsyncMock(
+                side_effect=lambda *args, **kwargs: events.append('service'),
+            ),
+        ) as run_win:
             await command.callback(cog, interaction, 42, 'Alpha')
 
-        self.assertEqual(events, ['checks', 'callback'])
+        self.assertEqual(events, ['defer', 'checks', 'build', 'service'])
+        build_request.assert_called_once_with(
+            game_id=42,
+            member=interaction.user,
+            guild_id=300,
+            prefix='$',
+            winner_text='Alpha',
+            invoked_with='win',
+        )
+        run_win.assert_awaited_once()
 
     async def test_failed_prefix_check_stops_game_adapter(self):
         prefix_command = SimpleNamespace(

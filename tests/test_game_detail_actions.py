@@ -1,6 +1,7 @@
 """Focused offline coverage for interactive pending-game cards."""
 
 import asyncio
+from dataclasses import replace
 from types import SimpleNamespace
 import unittest
 from unittest import mock
@@ -63,7 +64,13 @@ def card_snapshot(
     full: bool = False,
     expired: bool = False,
     ambiguous: bool = False,
+    completed: bool | None = None,
+    reported: bool = False,
 ) -> workers.GameDetailSnapshot:
+    if completed is None:
+        # Keep the pre-P5.7 helper's non-pending default as a completed card;
+        # tests that need the new action opt into an incomplete snapshot.
+        completed = not pending
     if full:
         sides = (
             side(1, lineups=(lineup(101, 'Alpha'),), sidename='Red'),
@@ -80,25 +87,28 @@ def card_snapshot(
             side(2, lineups=(), sidename='Blue'),
         )
 
-    if not pending:
-        status = 'Incomplete'
-    elif expired:
-        status = 'Expired open game'
-    elif full:
-        status = 'Full — waiting to start'
+    if pending:
+        status = 'Expired open game' if expired else (
+            'Full — waiting to start' if full else 'Open'
+        )
+    elif completed or reported:
+        status = 'Unconfirmed winner report' if reported else 'Completed'
     else:
-        status = 'Open'
+        status = 'Incomplete'
+    is_completed = bool(completed or reported)
+    is_confirmed = bool(completed and not reported)
+    winner_side_id = 101 if is_completed else None
     return workers.GameDetailSnapshot(
         game_id=77,
         guild_id=10,
         name='Pending card test',
         date='2026-08-01',
-        completed_ts='',
-        win_claimed_ts='',
+        completed_ts='2026-08-01' if is_completed else '',
+        win_claimed_ts='2026-08-01' if is_completed else '',
         expiration='2099-01-01 00:00:00',
         is_pending=pending,
-        is_completed=False,
-        is_confirmed=False,
+        is_completed=is_completed,
+        is_confirmed=is_confirmed,
         is_ranked=True,
         is_mobile=True,
         map_type='',
@@ -110,7 +120,7 @@ def card_snapshot(
         game_channel_id=500,
         host_discord_id=101,
         host_name='Alpha',
-        winner_side_id=None,
+        winner_side_id=winner_side_id,
         status_label=status,
         result_label='',
         inferred_from_channel=False,
@@ -212,6 +222,7 @@ def make_view(
     on_start=None,
     on_delete_prepare=None,
     on_delete=None,
+    on_winner=None,
     timeout=300,
 ):
     loader = loader or (lambda _interaction: _payload(snapshot))
@@ -220,6 +231,9 @@ def make_view(
     on_start = on_start or (lambda _interaction, _name: _success())
     on_delete_prepare = on_delete_prepare or (lambda _interaction: _success())
     on_delete = on_delete or (lambda _interaction: _success())
+    on_winner = on_winner or (
+        lambda _interaction, _side_id, _winner_label: _success()
+    )
     return actions.PendingGameCardView(
         snapshot=snapshot,
         load_card=loader,
@@ -228,6 +242,7 @@ def make_view(
         on_start=on_start,
         on_delete_prepare=on_delete_prepare,
         on_delete=on_delete,
+        on_winner=on_winner,
         timeout=timeout,
     )
 
@@ -241,12 +256,54 @@ async def _payload(snapshot):
 
 
 class PendingGameCardStateTests(unittest.TestCase):
+    def test_winner_options_cover_solo_team_uneven_and_multi_side_rosters(self):
+        snapshot_value = card_snapshot(pending=False, completed=False)
+        team_side = side(
+            1,
+            capacity=3,
+            lineups=(lineup(101, 'Alpha'), lineup(102, 'Beta')),
+            sidename='Home Team',
+        )
+        uneven_side = side(
+            2,
+            capacity=1,
+            lineups=(lineup(202, 'Gamma'),),
+            sidename='Away Team',
+        )
+        multi_side = side(
+            3,
+            capacity=1,
+            lineups=(lineup(303, 'Delta'),),
+            sidename='Third Side',
+        )
+        snapshot_value = replace(
+            snapshot_value,
+            sides=(team_side, uneven_side, multi_side),
+        )
+        options = actions._winner_side_options(snapshot_value)
+        self.assertEqual([option.value for option in options], [
+            '101', '102', '103',
+        ])
+        self.assertIn('Home Team', options[0].label)
+        self.assertIn('Alpha', options[0].description)
+        self.assertIn('2/3', options[0].description)
+        self.assertIn('Away Team', options[1].label)
+        self.assertIn('Third Side', options[2].label)
+
     def test_state_dependent_controls_are_exact_and_ordinary_views(self):
         cases = [
             (card_snapshot(), ['Join', 'Leave', 'Delete', 'Refresh']),
             (card_snapshot(full=True), ['Leave', 'Start', 'Delete', 'Refresh']),
             (card_snapshot(expired=True), ['Delete', 'Refresh']),
+            (card_snapshot(pending=False, completed=False), [
+                'Declare Winner', 'Refresh',
+            ]),
+            (card_snapshot(pending=False, reported=True), []),
             (card_snapshot(pending=False), []),
+            (replace(
+                card_snapshot(pending=False, completed=False),
+                cross_guild=True,
+            ), []),
         ]
         for snapshot_value, expected in cases:
             with self.subTest(status=snapshot_value.status_label):
@@ -290,6 +347,209 @@ class PendingGameCardStateTests(unittest.TestCase):
 
 
 class PendingGameCardInteractionTests(unittest.IsolatedAsyncioTestCase):
+    async def test_winner_selection_uses_stable_side_ids_and_requester_only_confirmation(self):
+        events = []
+
+        async def winner(_interaction, side_id, winner_label):
+            events.append(('winner', side_id, winner_label))
+            return True
+
+        snapshot_value = card_snapshot(pending=False, completed=False)
+        view = make_view(
+            snapshot_value,
+            on_winner=winner,
+            loader=lambda _interaction: _payload(snapshot_value),
+        )
+        message = FakeMessage()
+        view.message = message
+
+        public_click = interaction(user_id=901, message=message)
+        await view.declare_winner_button.callback(public_click)
+        self.assertEqual(public_click.response.calls[0][0], 'defer')
+        selector = public_click.followup.calls[0][1]['view']
+        self.assertIsInstance(
+            selector,
+            actions.InProgressWinnerSideSelectView,
+        )
+        self.assertFalse(view._busy)
+        self.assertEqual(
+            [option.value for option in selector.side_select.options],
+            ['101', '102'],
+        )
+        self.assertTrue(all(
+            'Side ' in option.label
+            for option in selector.side_select.options
+        ))
+
+        other_public_click = interaction(user_id=902, message=message)
+        await view.declare_winner_button.callback(other_public_click)
+        self.assertEqual(other_public_click.response.calls[0][0], 'defer')
+        self.assertIsInstance(
+            other_public_click.followup.calls[0][1]['view'],
+            actions.InProgressWinnerSideSelectView,
+        )
+
+        other = interaction(user_id=902, message=message)
+        self.assertFalse(await selector.interaction_check(other))
+        self.assertIn('Only the member', other.response.calls[0][1])
+
+        selector.side_select._values = ['102']
+        selection = interaction(user_id=901, message=message)
+        await selector.side_select.callback(selection)
+        self.assertEqual(selection.response.calls[0][0], 'defer')
+        confirmation = selection.followup.calls[0][1]['view']
+        self.assertIsInstance(
+            confirmation,
+            actions.DeclareWinnerConfirmationView,
+        )
+        self.assertEqual(confirmation.winning_side_id, 102)
+
+        other_confirmation = interaction(user_id=902, message=message)
+        self.assertFalse(await confirmation.interaction_check(other_confirmation))
+        self.assertIn('Only the member', other_confirmation.response.calls[0][1])
+
+        submit = interaction(user_id=901, message=message)
+        await confirmation.confirm_button.callback(submit)
+        self.assertEqual(events[0][0], 'winner')
+        self.assertEqual(events[0][1], 102)
+        self.assertEqual(submit.response.calls[0][0], 'defer')
+        self.assertFalse(view._busy)
+
+    async def test_winner_confirmation_defers_before_edit_and_service(self):
+        events = []
+
+        async def winner(_interaction, _side_id, _winner_label):
+            events.append('service')
+            return True
+
+        snapshot_value = card_snapshot(pending=False, completed=False)
+        view = make_view(snapshot_value, on_winner=winner)
+        source_message = FakeMessage()
+        view.message = source_message
+        click = interaction(message=source_message)
+        await view.declare_winner_button.callback(click)
+        selector = click.followup.calls[0][1]['view']
+        selector.side_select._values = ['101']
+        selection = interaction(message=source_message)
+        await selector.side_select.callback(selection)
+        confirmation = selection.followup.calls[0][1]['view']
+        confirmation.message = OrderedMessage(events)
+
+        submit = interaction(message=source_message)
+        original_defer = submit.response.defer
+
+        async def defer(**kwargs):
+            events.append('defer')
+            await original_defer(**kwargs)
+
+        submit.response.defer = defer
+        await confirmation.confirm_button.callback(submit)
+        self.assertEqual(events[:3], [
+            'defer',
+            'confirmation-edit',
+            'service',
+        ])
+
+    async def test_successful_first_claim_refresh_removes_dead_winner_control(self):
+        events = []
+        eligible = card_snapshot(pending=False, completed=False)
+        reported = card_snapshot(pending=False, reported=True)
+        snapshots = [eligible, eligible, reported]
+
+        async def loader(_interaction):
+            return payload(snapshots.pop(0))
+
+        async def winner(_interaction, _side_id, _winner_label):
+            events.append('service')
+            return True
+
+        view = make_view(eligible, loader=loader, on_winner=winner)
+        source_message = FakeMessage()
+        view.message = source_message
+        click = interaction(message=source_message)
+        await view.declare_winner_button.callback(click)
+        selector = click.followup.calls[0][1]['view']
+        selector.side_select._values = ['101']
+        selection = interaction(message=source_message)
+        await selector.side_select.callback(selection)
+        confirmation = selection.followup.calls[0][1]['view']
+        submit = interaction(message=source_message)
+        await confirmation.confirm_button.callback(submit)
+
+        self.assertEqual(events, ['service'])
+        self.assertTrue(view.is_finished())
+        self.assertEqual(view.children, [])
+        self.assertIsNone(source_message.edits[-1]['view'])
+
+    async def test_stale_or_invalid_winner_claim_has_no_service_or_success_refresh(self):
+        events = []
+
+        async def winner(_interaction, _side_id, _winner_label):
+            events.append('service')
+            return True
+
+        view = make_view(
+            card_snapshot(pending=False, completed=False),
+            loader=lambda _interaction: _payload(
+                card_snapshot(pending=False, reported=True),
+            ),
+            on_winner=winner,
+        )
+        source_message = FakeMessage()
+        view.message = source_message
+        stale_click = interaction(message=source_message)
+        await view.declare_winner_button.callback(stale_click)
+        self.assertEqual(events, [])
+        self.assertTrue(view.is_finished())
+        self.assertIsNone(source_message.edits[-1]['view'])
+
+        invalid_view = make_view(
+            card_snapshot(pending=False, completed=False),
+            on_winner=winner,
+        )
+        invalid_view.message = FakeMessage()
+        invalid = interaction(message=invalid_view.message)
+        await invalid_view.run_winner(
+            invalid,
+            winning_side_id=999,
+            winner_label='not a side',
+        )
+        self.assertEqual(events, [])
+        self.assertTrue(invalid.followup.calls)
+        self.assertIn('no longer part', invalid.followup.calls[-1][0])
+
+    async def test_timeout_during_winner_service_cannot_restore_dead_controls(self):
+        entered = asyncio.Event()
+        release = asyncio.Event()
+
+        async def winner(_interaction, _side_id, _winner_label):
+            entered.set()
+            await release.wait()
+            return True
+
+        snapshot_value = card_snapshot(pending=False, completed=False)
+        view = make_view(snapshot_value, on_winner=winner)
+        source_message = FakeMessage()
+        view.message = source_message
+        click = interaction(message=source_message)
+        await view.declare_winner_button.callback(click)
+        selector = click.followup.calls[0][1]['view']
+        selector.side_select._values = ['101']
+        selection = interaction(message=source_message)
+        await selector.side_select.callback(selection)
+        confirmation = selection.followup.calls[0][1]['view']
+        submit = interaction(message=source_message)
+        task = asyncio.create_task(confirmation.confirm_button.callback(submit))
+        await entered.wait()
+
+        await view.on_timeout()
+        release.set()
+        await task
+
+        self.assertTrue(view.is_finished())
+        self.assertEqual(view.children, [])
+        self.assertIsNone(source_message.edits[-1]['view'])
+
     async def test_shared_card_can_be_used_by_a_different_member(self):
         snapshot_value = card_snapshot()
         events = []
@@ -753,6 +1013,8 @@ class PendingGameCardInteractionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(click.response.calls[0][0], 'defer')
         self.assertTrue(click.followup.calls)
         self.assertTrue(click.followup.calls[-1][1]['ephemeral'])
+        self.assertFalse(view.is_finished())
+        self.assertTrue(view.children)
 
 
 async def _record_success(events, value):
@@ -817,9 +1079,34 @@ class PendingGameCardAdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn('view', target.edit_original_response.await_args.kwargs)
         self.assertEqual(completed_message.reactions, [])
 
+        in_progress_message = FakeMessage()
+        target = SimpleNamespace(
+            send=mock.AsyncMock(return_value=FakeMessage()),
+            edit_original_response=mock.AsyncMock(
+                return_value=in_progress_message,
+            ),
+        )
+        cog._load_game_detail = mock.AsyncMock(
+            return_value=card_snapshot(pending=False, completed=False),
+        )
+        self.assertTrue(await cog._send_game_detail(
+            target,
+            guild=guild,
+            requester_id=900,
+            channel_id=500,
+            game_id=77,
+            slash=True,
+        ))
+        self.assertEqual(
+            [child.label for child in target.edit_original_response.await_args.kwargs['view'].children],
+            ['Declare Winner', 'Refresh'],
+        )
+
         prefix_message = FakeMessage()
         target = SimpleNamespace(send=mock.AsyncMock(return_value=prefix_message))
-        cog._load_game_detail = mock.AsyncMock(return_value=card_snapshot())
+        cog._load_game_detail = mock.AsyncMock(
+            return_value=card_snapshot(pending=False, completed=False),
+        )
         self.assertTrue(await cog._send_game_detail(
             target,
             guild=guild,
@@ -830,9 +1117,13 @@ class PendingGameCardAdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn('view', target.send.await_args.kwargs)
         self.assertEqual(prefix_message.reactions, [])
         prefix_kwargs = target.send.await_args.kwargs
+        in_progress_snapshot = card_snapshot(
+            pending=False,
+            completed=False,
+        )
         prefix_render = views.render_classic_game_detail(
             views.resolve_display(
-                card_snapshot(),
+                in_progress_snapshot,
                 guild=guild,
                 prefix='!',
                 join_emoji=getattr(games.settings, 'emoji_join_game', ''),
@@ -1047,6 +1338,140 @@ class PendingGameCardAdapterTests(unittest.IsolatedAsyncioTestCase):
             prefix='!',
             publish_card=False,
         )
+
+    async def test_winner_card_adapter_routes_to_shared_win_service(self):
+        cog = games.polygames.__new__(games.polygames)
+        interaction_value = interaction()
+        interaction_value.guild = SimpleNamespace(id=10)
+        interaction_value.channel = SimpleNamespace()
+        cog._native_winner_game_channel_allowed = mock.AsyncMock(
+            return_value=True,
+        )
+
+        request = object()
+        with mock.patch.object(
+            games.game_win,
+            'build_request',
+            return_value=request,
+        ) as build_request, mock.patch.object(
+            games.game_win,
+            'run_win',
+            new=mock.AsyncMock(
+                return_value=games.game_win.WinApplicationOutcome(
+                    result=object(),
+                    public_effects_published=True,
+                ),
+            ),
+        ) as run_win:
+            result = await cog._pending_card_winner(
+                interaction_value,
+                game_id=77,
+                prefix='!',
+                winning_side_id=102,
+                winner_label='Side 2 — Blue',
+            )
+
+        self.assertTrue(result)
+        build_request.assert_called_once_with(
+            game_id=77,
+            member=interaction_value.user,
+            guild_id=10,
+            prefix='!',
+            winner_text='Side 2 — Blue',
+            winning_side_id=102,
+            invoked_with='/game show Declare Winner',
+        )
+        run_win.assert_awaited_once()
+        self.assertIs(run_win.await_args.args[0], request)
+        self.assertTrue(run_win.await_args.kwargs['acknowledged'])
+
+    async def test_winner_card_adapter_does_not_refresh_after_publish_reconciliation(self):
+        cog = games.polygames.__new__(games.polygames)
+        interaction_value = interaction()
+        interaction_value.guild = SimpleNamespace(id=10)
+        interaction_value.channel = SimpleNamespace()
+        cog._native_winner_game_channel_allowed = mock.AsyncMock(
+            return_value=True,
+        )
+
+        with (
+            mock.patch.object(
+                games.game_win,
+                'build_request',
+                return_value=object(),
+            ),
+            mock.patch.object(
+                games.game_win,
+                'run_win',
+                new=mock.AsyncMock(
+                    return_value=games.game_win.WinApplicationOutcome(
+                        result=object(),
+                        public_effects_published=False,
+                    ),
+                ),
+            ) as run_win,
+        ):
+            result = await cog._pending_card_winner(
+                interaction_value,
+                game_id=77,
+                prefix='!',
+                winning_side_id=102,
+                winner_label='Side 2 — Blue',
+            )
+
+        self.assertFalse(result)
+        run_win.assert_awaited_once()
+        self.assertFalse(any(
+            'No public game change' in str(call[0])
+            for call in interaction_value.followup.calls
+        ))
+
+    async def test_winner_card_uses_strict_channels_and_mod_bypass(self):
+        cog = games.polygames.__new__(games.polygames)
+        denied = interaction()
+        denied.guild = SimpleNamespace(id=10)
+        # This channel is accepted by general bot_channels but rejected by
+        # the stricter policy used by the existing win commands.
+        denied.channel_id = 100
+
+        def guild_setting(_guild_id, name):
+            return {
+                'bot_channels': [100],
+                'bot_channels_strict': [300],
+                'bot_channels_private': [],
+            }[name]
+
+        with (
+            mock.patch.object(
+                games.settings,
+                'guild_setting',
+                side_effect=guild_setting,
+            ),
+            mock.patch.object(games.settings, 'is_mod', return_value=False),
+        ):
+            self.assertFalse(
+                await cog._native_winner_game_channel_allowed(denied),
+            )
+
+        self.assertIn('<#300>', denied.followup.calls[-1][0])
+        self.assertIn('bot spam channel', denied.followup.calls[-1][0])
+        self.assertTrue(denied.followup.calls[-1][1]['ephemeral'])
+
+        mod = interaction()
+        mod.guild = SimpleNamespace(id=10)
+        mod.channel_id = 100
+        with (
+            mock.patch.object(
+                games.settings,
+                'guild_setting',
+                side_effect=guild_setting,
+            ),
+            mock.patch.object(games.settings, 'is_mod', return_value=True),
+        ):
+            self.assertTrue(
+                await cog._native_winner_game_channel_allowed(mod),
+            )
+        self.assertEqual(mod.followup.calls, [])
 
 
 if __name__ == '__main__':
