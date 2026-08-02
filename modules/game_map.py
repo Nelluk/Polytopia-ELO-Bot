@@ -101,12 +101,12 @@ async def run_map_mutation(
         utilities.lock_game(game_id)
         locked = True
         result = await game_workers.run_game_map_mutation(request)
-        if after_commit is not None:
-            await after_commit(result)
-        return result
     finally:
         if locked:
             utilities.unlock_game(game_id)
+    if after_commit is not None:
+        await after_commit(result)
+    return result
 
 
 async def run_map_read(

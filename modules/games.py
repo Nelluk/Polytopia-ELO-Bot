@@ -4024,7 +4024,7 @@ class polygames(commands.Cog):
                 ephemeral=True,
             )
 
-        await interaction.response.defer()
+        await interaction.response.defer(ephemeral=True)
         channel_id = int(
             getattr(interaction, 'channel_id', None)
             or getattr(getattr(interaction, 'channel', None), 'id', 0)

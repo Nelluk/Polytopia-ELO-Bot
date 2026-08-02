@@ -403,8 +403,85 @@ class GameMapServiceTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(
             events,
-            [('lock', 42), 'worker', 'after', ('unlock', 42)],
+            [('lock', 42), 'worker', ('unlock', 42), 'after'],
         )
+
+    async def test_cancellation_keeps_claim_until_worker_finishes(self):
+        request = map_request()
+        started = threading.Event()
+        release = threading.Event()
+        active_games = set()
+        events = []
+        worker_calls = 0
+
+        def lock(game_id):
+            if game_id in active_games:
+                raise exceptions.RecordLocked('already locked')
+            active_games.add(game_id)
+            events.append(('lock', game_id))
+
+        def unlock(game_id):
+            self.assertIn(game_id, active_games)
+            active_games.remove(game_id)
+            events.append(('unlock', game_id))
+
+        def slow_worker(_request):
+            nonlocal worker_calls
+            worker_calls += 1
+            started.set()
+            if not release.wait(timeout=2):
+                raise AssertionError('test worker was not released')
+            events.append('worker-finished')
+            return self.result(announcement=False)
+
+        with mock.patch.object(
+            game_map.utilities,
+            'lock_game',
+            side_effect=lock,
+        ), mock.patch.object(
+            game_map.utilities,
+            'unlock_game',
+            side_effect=unlock,
+        ), mock.patch.object(
+            game_map.game_workers,
+            'set_game_map',
+            side_effect=slow_worker,
+        ):
+            task = asyncio.create_task(game_map.run_map_mutation(request))
+            try:
+                for _ in range(100):
+                    if started.is_set():
+                        break
+                    await asyncio.sleep(0.005)
+                self.assertTrue(started.is_set())
+
+                task.cancel()
+                await asyncio.sleep(0)
+                task.cancel()
+                await asyncio.sleep(0)
+
+                self.assertFalse(task.done())
+                self.assertNotIn(('unlock', 42), events)
+                with self.assertRaises(exceptions.RecordLocked):
+                    await game_map.run_map_mutation(request)
+                self.assertEqual(worker_calls, 1)
+
+                release.set()
+                await asyncio.sleep(0.05)
+                with self.assertRaises(asyncio.CancelledError):
+                    await task
+            finally:
+                release.set()
+                if not task.done():
+                    with self.assertRaises(asyncio.CancelledError):
+                        await task
+
+        self.assertEqual(worker_calls, 1)
+        self.assertEqual(
+            events,
+            [('lock', 42), 'worker-finished', ('unlock', 42)],
+        )
+        self.assertEqual(active_games, set())
 
     async def test_database_failure_has_no_post_commit_discord_callback(self):
         request = map_request()
@@ -485,8 +562,8 @@ class GameMapSlashTests(unittest.IsolatedAsyncioTestCase):
         interaction = self.interaction()
         events = []
 
-        async def defer():
-            events.append('defer')
+        async def defer(**kwargs):
+            events.append(('defer', kwargs))
 
         async def read(_request):
             events.append('read')
@@ -505,7 +582,15 @@ class GameMapSlashTests(unittest.IsolatedAsyncioTestCase):
                 False,
             )
 
-        self.assertEqual([event if isinstance(event, str) else event[0] for event in events], ['defer', 'read', 'send'])
+        self.assertEqual(
+            events,
+            [
+                ('defer', {'ephemeral': True}),
+                'read',
+                ('send', mock.ANY, mock.ANY),
+            ],
+        )
+        interaction.response.defer.assert_awaited_once_with(ephemeral=True)
         self.assertEqual(interaction.followup.send.call_args.args[0], 'Current map type for game 42: "Dryland".')
         self.assertFalse(interaction.followup.send.call_args.kwargs['ephemeral'])
 
@@ -525,7 +610,7 @@ class GameMapSlashTests(unittest.IsolatedAsyncioTestCase):
             events.append(('publish', result))
             await kwargs['send'](game_map.mutation_message(result))
 
-        interaction.response.defer.side_effect=lambda: events.append('defer')
+        interaction.response.defer.side_effect=lambda **kwargs: events.append(('defer', kwargs))
         with mock.patch.object(game_map, '_requester_level', return_value=3), \
                 mock.patch.object(games.game_map, 'run_map_mutation', side_effect=run), \
                 mock.patch.object(games.game_map, 'publish_mutation_result', side_effect=publish), \
@@ -538,7 +623,8 @@ class GameMapSlashTests(unittest.IsolatedAsyncioTestCase):
                 False,
             )
 
-        self.assertEqual(events[0], 'defer')
+        self.assertEqual(events[0], ('defer', {'ephemeral': True}))
+        interaction.response.defer.assert_awaited_once_with(ephemeral=True)
         self.assertEqual(events[1][0], 'worker')
         self.assertEqual(events[2][0], 'publish')
         interaction.followup.send.assert_awaited_once_with(
@@ -560,6 +646,7 @@ class GameMapSlashTests(unittest.IsolatedAsyncioTestCase):
             )
             run.assert_awaited_once()
             self.assertTrue(run.call_args.args[0].clear)
+            interaction.response.defer.assert_awaited_once_with(ephemeral=True)
 
         interaction = self.interaction()
         with mock.patch.object(games.game_map, 'run_map_mutation', new=run):
@@ -600,7 +687,7 @@ class GameMapSlashTests(unittest.IsolatedAsyncioTestCase):
                         'Lakes',
                         False,
                     )
-                interaction.response.defer.assert_awaited_once()
+                interaction.response.defer.assert_awaited_once_with(ephemeral=True)
                 self.assertTrue(interaction.followup.send.call_args.kwargs['ephemeral'])
 
 

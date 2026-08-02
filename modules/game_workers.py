@@ -416,13 +416,33 @@ async def run_game_map_read(
 async def run_game_map_mutation(
     request: GameMapMutationRequest,
 ) -> GameMapMutationResult:
-    """Submit a map mutation to the existing ordinary-game executor."""
+    """Submit a map mutation and drain a canceled caller safely."""
 
     loop = asyncio.get_running_loop()
-    return await loop.run_in_executor(
-        _game_write_executor,
-        functools.partial(set_game_map, request),
+    call = functools.partial(set_game_map, request)
+    concurrent_future = _game_write_executor.submit(call)
+    future = asyncio.wrap_future(concurrent_future, loop=loop)
+    completed = asyncio.Event()
+    concurrent_future.add_done_callback(
+        lambda _future: loop.call_soon_threadsafe(completed.set)
     )
+    try:
+        return await asyncio.shield(future)
+    except asyncio.CancelledError:
+        # A running thread cannot be cancelled. Keep the game claim held
+        # until its transaction actually finishes, including repeated
+        # cancellation requests from shutdown or another caller.
+        task = asyncio.current_task()
+        if task is not None:
+            task.uncancel()
+        while not completed.is_set():
+            try:
+                await completed.wait()
+            except asyncio.CancelledError:
+                if task is not None:
+                    task.uncancel()
+        concurrent_future.result()
+        raise asyncio.CancelledError
 
 
 @dataclass(frozen=True)
