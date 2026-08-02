@@ -49,6 +49,30 @@ logger = logging.getLogger('polybot.' + __name__)
 elo_logger = logging.getLogger('polybot.elo')
 
 
+GAME_SEARCH_VIEW_CHOICES = [
+    discord.app_commands.Choice(name='All games', value='all'),
+    discord.app_commands.Choice(
+        name='Joinable for me',
+        value='joinable',
+    ),
+    discord.app_commands.Choice(name='All open', value='all-open'),
+    discord.app_commands.Choice(
+        name='Waiting to start',
+        value='waiting',
+    ),
+    discord.app_commands.Choice(name='My open games', value='mine'),
+    discord.app_commands.Choice(name='Active games', value='active'),
+    discord.app_commands.Choice(
+        name='Completed games',
+        value='completed',
+    ),
+    discord.app_commands.Choice(
+        name='Unconfirmed results',
+        value='unconfirmed',
+    ),
+]
+
+
 class PolyGame(commands.Converter):
     async def convert(self, ctx, game_id, allow_cross_guild=False):
 
@@ -1096,6 +1120,23 @@ class polygames(commands.Cog):
     ) -> player_workers.PlayerWorkspaceSnapshot:
         return await player_workers.run_player_workspace(request)
 
+    @staticmethod
+    def _game_search_requester_values(member):
+        roles = tuple(getattr(member, 'roles', ()) or ())
+        try:
+            level = settings.get_user_level(member)
+        except AttributeError:
+            # Lightweight offline interaction doubles do not carry the full
+            # Discord.Member surface. Real invocations always do.
+            level = 0
+        return {
+            'requester_level': level,
+            'requester_role_ids': tuple(role.id for role in roles),
+            'requester_name': getattr(member, 'name', ''),
+            'requester_nick': getattr(member, 'nick', None),
+            'staff': settings.is_staff(member),
+        }
+
     async def _load_game_search(
         self,
         request: game_search_workers.GameSearchRequest,
@@ -1748,7 +1789,7 @@ class polygames(commands.Cog):
             'guild_id': ctx.guild.id,
             'requester_discord_id': ctx.author.id,
             'query': query,
-            'staff': settings.is_staff(ctx.author),
+            **self._game_search_requester_values(ctx.author),
         }
 
         async def loader(filter_key):
@@ -2975,11 +3016,16 @@ class polygames(commands.Cog):
         query=(
             'Optional player, team, title/notes terms, or size such as 2v2.'
         ),
+        view='Choose the initial search view.',
+    )
+    @discord.app_commands.choices(
+        view=GAME_SEARCH_VIEW_CHOICES,
     )
     async def game_search_slash(
         self,
         interaction: discord.Interaction,
         query: str | None = None,
+        view: str | None = None,
     ):
         await interaction.response.defer()
         ctx = await commands.Context.from_interaction(interaction)
@@ -2990,11 +3036,15 @@ class polygames(commands.Cog):
         ctx.invoked_with = 'allgames'
         if not await self.allgames.can_run(ctx):
             return
+        requester_values = self._game_search_requester_values(
+            interaction.user,
+        )
+        initial_view = view or 'all'
         request_kwargs = {
             'guild_id': interaction.guild.id,
             'requester_discord_id': interaction.user.id,
             'query': (query or '').strip(),
-            'staff': settings.is_staff(interaction.user),
+            **requester_values,
         }
 
         async def loader(filter_key):
@@ -3006,7 +3056,9 @@ class polygames(commands.Cog):
             )
 
         try:
-            snapshot = await loader(game_search_workers.GameSearchKey())
+            snapshot = await loader(
+                game_search_workers.GameSearchKey(status=initial_view)
+            )
         except (game_search_workers.GameSearchError,
                 peewee.PeeweeException,
                 asyncio.TimeoutError,

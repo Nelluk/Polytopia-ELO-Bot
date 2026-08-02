@@ -2262,7 +2262,10 @@ class Game(BaseModel):
 
         return (min_elo, max_elo, min_elo_g, max_elo_g)
 
-    def waiting_for_creator(creator_discord_id: int):
+    def waiting_for_creator(
+            creator_discord_id: int,
+            guild_id: int = None,
+            limit: int = None):
         # Games for which creator_discord_id is in the 'creating player' slot (first player in GameSide.position == 1) and Game is full/waiting to start
 
         # subq = List of all lineup IDs for creating player for full pending games
@@ -2273,10 +2276,14 @@ class Game(BaseModel):
         q = Lineup.select(Lineup.game).join(Player).join(DiscordMember).where(
             (Lineup.player.discord_member.discord_id == creator_discord_id) & (Lineup.id.in_(subq))
         )
+        if guild_id:
+            q = q.where(Lineup.game.in_(
+                Game.select(Game.id).where(Game.guild_id == guild_id)
+            ))
 
-        return q
+        return q.limit(limit) if limit else q
 
-    def search_pending(status_filter: int = 0, ranked_filter: int = 2, guild_id: int = None, player_discord_id: int = None, host_discord_id: int = None, platform_filter: int = 2):
+    def search_pending(status_filter: int = 0, ranked_filter: int = 2, guild_id: int = None, player_discord_id: int = None, host_discord_id: int = None, platform_filter: int = 2, limit: int = None):
         # status_filter
         # 0 = all open games
         # 1 = full games / waiting to start
@@ -2330,11 +2337,13 @@ class Game(BaseModel):
                 (Game.is_ranked.in_(ranked_filter)) &
                 (Game.is_mobile.in_(platform_filter))
             )
+            if limit:
+                q = q.limit(limit)
             return q.prefetch(GameSide, Lineup, Player)
 
         elif status_filter == 2:
             # games with open capacity
-            return Game.select().where(
+            q = Game.select().where(
                 (Game.id.in_(Game.subq_open_games_with_capacity())) &
                 (Game.is_pending == 1) &
                 (Game.id.in_(guild_filter)) &
@@ -2342,12 +2351,15 @@ class Game(BaseModel):
                 (Game.id.in_(host_filter)) &
                 (Game.is_ranked.in_(ranked_filter)) &
                 (Game.is_mobile.in_(platform_filter))
-            ).order_by(-Game.id).prefetch(GameSide, Lineup, Player)
+            ).order_by(-Game.id)
+            if limit:
+                q = q.limit(limit)
+            return q.prefetch(GameSide, Lineup, Player)
 
         else:
             # Any kind of open game
             # sorts by capacity-player_count, so full games are at bottom of list
-            return Game.select(
+            q = Game.select(
                 Game, fn.SUM(GameSide.size).alias('player_capacity'), fn.COUNT(Lineup.id).alias('player_count'),
             ).join(GameSide, on=(GameSide.game == Game.id)).join(Lineup, JOIN.LEFT_OUTER).where(
                 (Game.is_pending == 1) &
@@ -2358,7 +2370,10 @@ class Game(BaseModel):
                 (Game.is_mobile.in_(platform_filter))
             ).group_by(Game.id).order_by(
                 -(fn.SUM(GameSide.size) - fn.COUNT(Lineup.id))
-            ).prefetch(GameSide, Lineup, Player)
+            )
+            if limit:
+                q = q.limit(limit)
+            return q.prefetch(GameSide, Lineup, Player)
 
     def search(player_filter=None, team_filter=None, title_filter=None, status_filter: int = 0, guild_id: int = None, size_filter=None, platform_filter: int = 2, season_filter: int = -1):
         # Returns Games by almost any combination of player/team participation, and game status
