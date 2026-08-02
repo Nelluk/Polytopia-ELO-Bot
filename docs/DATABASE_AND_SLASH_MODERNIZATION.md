@@ -2721,7 +2721,7 @@ Compatibility and required validation:
   transaction rollback/commit including audit state, serialized coordinator
   conflicts, stale cards, post-commit-only effects, public-card use, and
   ephemeral confirmation/denial behavior;
-- focused suites pass 102 tests; complete offline discovery passes 401 tests
+- focused suites pass 102 tests; complete offline discovery passes 402 tests
   with 16 explicit gated skips; changed Python compiles and `git diff --check`
   passes;
 - the selected gated development read/rollback cases were attempted only
@@ -4463,7 +4463,7 @@ unit and does not reopen accepted P5.2 behavior.
   dependency change, or compatibility-ledger compromise was introduced.
 - Focused offline command (`test_game_deletion`, `test_game_detail_actions`,
   `test_elo_jobs`, `test_game_detail_workspace`, and `test_slash_taxonomy`)
-  passed **102 tests**. Complete offline discovery passed **401 tests with 16
+  passed **102 tests**. Complete offline discovery passed **402 tests with 16
   explicit skips**. Changed Python compilation and `git diff --check` passed.
 - The selected gated development read/rollback tests were invoked with the
   unchanged `POLYBOT_RUN_DB_INTEGRATION=1` gate. The profile checks confirmed
