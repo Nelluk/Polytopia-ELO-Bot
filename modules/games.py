@@ -22,6 +22,7 @@ from modules import game_search_workers
 from modules import game_detail_views
 from modules import game_detail_workers
 from modules import game_detail_actions
+from modules import game_deletion
 from modules import game_join_leave
 from modules import game_join_workers
 from modules import game_kick_workers
@@ -1313,6 +1314,125 @@ class polygames(commands.Cog):
         await self._publish_native_leave_result(interaction, result)
         return True
 
+    async def _pending_card_delete_prepare(
+        self,
+        interaction,
+        *,
+        game_id: int,
+        prefix: str,
+    ) -> bool:
+        """Revalidate card deletion authorization before confirmation."""
+
+        if not await self._native_pending_game_channel_allowed(interaction):
+            return False
+        try:
+            request = game_deletion.build_request(
+                game_id=game_id,
+                member=interaction.user,
+                guild_id=interaction.guild.id,
+                prefix=prefix,
+                invoked_with='/game show Delete',
+            )
+            classification = await game_deletion.authorize_delete(request)
+            if classification.state != game_deletion.game_deletion_workers.PENDING:
+                await interaction.followup.send(
+                    'This game is no longer pending. Refresh the card or run '
+                    '`/game show` again.',
+                    ephemeral=True,
+                )
+                return False
+        except game_deletion.GameDeletionValidationError as exc:
+            await interaction.followup.send(str(exc), ephemeral=True)
+            return False
+        except peewee.PeeweeException:
+            logger.exception(
+                'Database failure preparing pending-card deletion %s',
+                game_id,
+            )
+            await interaction.followup.send(
+                'The game could not be deleted because the database operation '
+                'failed. No public Discord effects were made.',
+                ephemeral=True,
+            )
+            return False
+        except Exception:
+            logger.exception(
+                'Unexpected failure preparing pending-card deletion %s',
+                game_id,
+            )
+            await interaction.followup.send(
+                'The game could not be deleted. No public Discord effects '
+                'were made.',
+                ephemeral=True,
+            )
+            return False
+        return True
+
+    async def _pending_card_delete(
+        self,
+        interaction,
+        *,
+        game_id: int,
+        prefix: str,
+    ) -> bool:
+        """Run the shared deletion service and publish committed effects."""
+
+        if not await self._native_pending_game_channel_allowed(interaction):
+            return False
+        try:
+            request = game_deletion.build_request(
+                game_id=game_id,
+                member=interaction.user,
+                guild_id=interaction.guild.id,
+                prefix=prefix,
+                invoked_with='/game show Delete',
+            )
+            result = await game_deletion.delete_game(request)
+            await game_deletion.publish_result(
+                result,
+                send=lambda content: interaction.followup.send(
+                    content,
+                    ephemeral=False,
+                ),
+                guild=interaction.guild,
+                bot=self.bot,
+                prefix=prefix,
+            )
+        except EloJobConflict as exc:
+            active_job = exc.active_job
+            await interaction.followup.send(
+                f':warning: ELO operation `{active_job.operation}` for game '
+                f'`{active_job.game_id or "all"}` is already running. '
+                'Please try again later.',
+                ephemeral=True,
+            )
+            return False
+        except game_deletion.GameDeletionValidationError as exc:
+            await interaction.followup.send(str(exc), ephemeral=True)
+            return False
+        except peewee.PeeweeException:
+            logger.exception(
+                'Database failure deleting pending-card game %s',
+                game_id,
+            )
+            await interaction.followup.send(
+                'Game deletion failed and rolled back. No Discord channel '
+                'updates were made.',
+                ephemeral=True,
+            )
+            return False
+        except Exception:
+            logger.exception(
+                'Unexpected failure deleting pending-card game %s',
+                game_id,
+            )
+            await interaction.followup.send(
+                'Game deletion failed. No Discord channel updates were made.',
+                ephemeral=True,
+            )
+            return False
+        return True
+
     async def _pending_card_start(
         self,
         interaction,
@@ -1412,6 +1532,20 @@ class polygames(commands.Cog):
                 prefix=prefix,
             )
 
+        async def on_delete_prepare(interaction):
+            return await self._pending_card_delete_prepare(
+                interaction,
+                game_id=snapshot.game_id,
+                prefix=prefix,
+            )
+
+        async def on_delete(interaction):
+            return await self._pending_card_delete(
+                interaction,
+                game_id=snapshot.game_id,
+                prefix=prefix,
+            )
+
         async def on_start(interaction, name):
             return await self._pending_card_start(
                 interaction,
@@ -1427,6 +1561,8 @@ class polygames(commands.Cog):
             on_join=on_join,
             on_leave=on_leave,
             on_start=on_start,
+            on_delete_prepare=on_delete_prepare,
+            on_delete=on_delete,
         )
 
     async def _send_game_detail(
@@ -3462,170 +3598,47 @@ class polygames(commands.Cog):
 
         if ctx.interaction is not None:
             await ctx.defer()
-
-        try:
-            game = Game.get_by_id(game_id)
-        except peewee.DoesNotExist:
-            return await ctx.send(
-                f'Game with ID {game_id} cannot be found.'
-            )
-        if game.guild_id != ctx.guild.id:
-            return await ctx.send(
-                f'Game with ID {game_id} is associated with a different '
-                'Discord server.'
-            )
-
-        mention_list = game.mentions()
-        if game.is_pending:
-            is_hosted_by, host = game.is_hosted_by(ctx.author.id)
-            if not is_hosted_by and not settings.is_staff(ctx.author):
-                host_name = f' **{host.name}**' if host else ''
-                return await ctx.send(f'Only the game host{host_name} or server staff can do this.')
-
-            players, capacity = game.capacity()
-            if players >= capacity:
-                filled_str = 'full'
-            else:
-                filled_str = 'unfilled'
-
-            await game.update_external_broadcasts(deleted=True)
-            models.GameLog.write(game_id=game, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} deleted the {filled_str} pending game.')
-            await ctx.send(f'Deleting {filled_str} open game {game.id}\nNotifying players: {" ".join(mention_list)}')
-            return game.delete_game()
-
-        if not settings.is_mod(ctx.author):
-            return await ctx.send('Only server mods can delete completed or in-progress games.')
-
-        active_job = settings.elo_job_coordinator.active_job
-        if active_job is not None:
-            return await ctx.send(
-                f':warning: ELO operation `{active_job.operation}` for game '
-                f'`{active_job.game_id or "all"}` is already running. '
-                'Please try again later.'
-            )
-
-        channel_targets = []
-        old_4d = datetime.datetime.now() + datetime.timedelta(days=-4)
-        skip_channel_deletion = game.is_season_game() or (
-            game.notes
-            and 'NOVA RED' in game.notes.upper()
-            and 'NOVA BLUE' in game.notes.upper()
-            and game.completed_ts
-            and game.completed_ts > old_4d
+        request = game_deletion.build_request(
+            game_id=game_id,
+            member=ctx.author,
+            guild_id=ctx.guild.id,
+            prefix=ctx.prefix,
+            invoked_with=getattr(ctx, 'invoked_with', 'delete'),
         )
-        if not skip_channel_deletion:
-            for gameside in game.gamesides:
-                if not gameside.team_chan:
-                    continue
-                target_guild_id = (
-                    gameside.team_chan_external_server or ctx.guild.id
-                )
-                target_guild = discord.utils.get(
-                    self.bot.guilds,
-                    id=target_guild_id,
-                )
-                if target_guild is not None:
-                    channel_targets.append(
-                        (target_guild, gameside.team_chan)
-                    )
-            if game.game_chan:
-                channel_targets.append((ctx.guild, game.game_chan))
-
-        announcement_plan = None
-        if game.announcement_message and game.announcement_channel:
-            game.name = f'~~{game.name}~~ GAME DELETED'
-            embed, content = game.embed(
-                guild=ctx.guild,
-                prefix=ctx.prefix,
-            )
-            announcement_plan = (
-                game.announcement_channel,
-                game.announcement_message,
-                embed,
-                content,
-            )
-
-        requester_description = models.GameLog.member_string(ctx.author)
-        utilities.lock_game(game_id)
-
         try:
-            async with ctx.typing():
-                result = await settings.elo_job_coordinator.run(
-                    operation='delete_game',
-                    game_id=game_id,
-                    requester_id=ctx.author.id,
-                    requester_name=ctx.author.display_name,
-                    worker=elo_workers.delete_game,
-                    worker_args=(
-                        game_id,
-                        ctx.guild.id,
-                        requester_description,
-                    ),
-                )
+            typing = getattr(ctx, 'typing', None)
+            if typing is None:
+                result = await game_deletion.delete_game(request)
+            else:
+                async with typing():
+                    result = await game_deletion.delete_game(request)
         except EloJobConflict as exc:
             active_job = exc.active_job
             return await ctx.send(
                 f'ELO operation `{active_job.operation}` for game '
                 f'`{active_job.game_id or "all"}` is already running.'
             )
-        except elo_workers.DeleteValidationError as exc:
+        except game_deletion.GameDeletionValidationError as exc:
             return await ctx.send(str(exc))
         except peewee.PeeweeException:
-            logger.exception(
-                'Database failure deleting game %s', game_id
-            )
+            logger.exception('Database failure deleting game %s', game_id)
             return await ctx.send(
                 'Game deletion failed and rolled back. No Discord channel '
                 'updates were made.'
             )
         except Exception:
-            logger.exception(
-                'Unexpected failure deleting game %s', game_id
-            )
+            logger.exception('Unexpected failure deleting game %s', game_id)
             return await ctx.send(
                 'Game deletion failed. No Discord channel updates were made.'
             )
-        finally:
-            utilities.unlock_game(game_id)
 
-        if announcement_plan is not None:
-            (
-                announcement_channel_id,
-                announcement_message_id,
-                embed,
-                content,
-            ) = announcement_plan
-            announcement_channel = ctx.guild.get_channel(
-                announcement_channel_id
-            )
-            if announcement_channel is not None:
-                try:
-                    announcement = await announcement_channel.fetch_message(
-                        announcement_message_id
-                    )
-                    await image_storage.edit_game_embed(
-                        announcement,
-                        game,
-                        embed=embed,
-                        content=content,
-                    )
-                except discord.DiscordException:
-                    logger.warning(
-                        'Could not update announcement for deleted game %s',
-                        game_id,
-                    )
-
-        await ctx.send(
-            f'Game with ID {result.game_id} has been deleted and team/player '
-            'ELO changes have been reverted, if applicable.\n'
-            f'Notifying players: {" ".join(mention_list)}'
+        await game_deletion.publish_result(
+            result,
+            send=ctx.send,
+            guild=ctx.guild,
+            bot=self.bot,
+            prefix=ctx.prefix,
         )
-
-        for target_guild, channel_id in channel_targets:
-            await channels.delete_game_channel(
-                target_guild,
-                channel_id=channel_id,
-            )
 
     @game_group.command(
         name='delete',

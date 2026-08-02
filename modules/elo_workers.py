@@ -7,7 +7,7 @@ from dataclasses import dataclass
 
 import peewee
 
-from modules import models
+from modules import game_deletion_workers, models
 
 
 class UnwinValidationError(RuntimeError):
@@ -22,7 +22,7 @@ class WinValidationError(RuntimeError):
     """The game changed or is not eligible for the requested win."""
 
 
-class DeleteValidationError(RuntimeError):
+class DeleteValidationError(game_deletion_workers.GameDeletionValidationError):
     """The game changed or is not eligible for completed-game deletion."""
 
 
@@ -59,6 +59,7 @@ class ConfirmedWinResult:
 class DeleteResult:
     game_id: int
     recalculated: bool
+    effect_plan: game_deletion_workers.DeletionEffectPlan | None = None
 
 
 def _load_game(
@@ -376,6 +377,10 @@ def delete_game(
             recalculated = bool(
                 game.winner and game.is_confirmed and game.is_ranked
             )
+            effect_plan = game_deletion_workers.build_effect_plan(
+                game,
+                guild_id=guild_id,
+            )
             models.GameLog.write(
                 game_id=game.id,
                 guild_id=guild_id,
@@ -385,6 +390,7 @@ def delete_game(
             return DeleteResult(
                 game_id=game_id,
                 recalculated=recalculated,
+                effect_plan=effect_plan,
             )
 
 
