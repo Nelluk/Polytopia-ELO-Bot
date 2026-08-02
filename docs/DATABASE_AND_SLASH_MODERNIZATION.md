@@ -440,8 +440,8 @@ check:
 - P4.2b beta-transparency correction: `b43d31e` on
   `codex/p4-2b-notes-attribution`; accumulation merge `57de2a2`.
 
-Current unit: **P4.2b focused game-notes workspace — beta acceptance pending;
-actor-attribution correction reviewed and integrated.**
+Current unit: **P4.2c focused game-name read/edit workspace — reviewed and
+accepted for integration approval; not integrated, Complete, or beta-accepted.**
 P4.2a is complete, beta-validated, and integrated as `5845e8b` with public
 visibility correction merge `4fa4b4f`.
 P5.8 is complete, beta-validated, and integrated as `4fc5973`; its final
@@ -2210,9 +2210,125 @@ Integration result: the original unit merged as `1f1625b`; the reviewed
 actor-attribution correction merged as `57de2a2`. A later beta smoke remains
 the acceptance gate.
 
-Next action: implement P4.2c focused game-name read/edit as the next bounded
-attribute unit. Batch the corrected `/game notes` beta confirmation with that
-unit's separately approved smoke session.
+Next action: review and integrate P4.2c, then batch its separately approved
+beta smoke with the corrected `/game notes` confirmation if authorized.
+
+#### P4.2c — Focused game-name read/edit workspace
+
+Status: **Reviewed and accepted for integration approval; not integrated,
+Complete, or beta-accepted**
+
+Risk tier: **Tier 3**. Game-name mutation updates ordinary game metadata,
+derived league fields, an audit record, squad/game channels, the announcement,
+and the dense game presentation.
+
+Branch/base: `codex/p4-2c-game-name` from exact clean detached checkpoint
+`49196bcbd8d597644e7b3f5cff0ef4986249779e`.
+
+Implementation commit:
+
+- `a235e23` — Implement focused game-name workspace.
+- `4ebe5ca` — Preserve legacy prefix rename output and native normalization
+  detail coverage.
+- `94a83c8` — Record the prefix-compatibility correction in the roadmap.
+
+Objective and interface:
+
+- `/game name game_id` defers privately, then publishes the current tracked
+  Polytopia game name in the guild channel with a frozen requester mention and
+  escaped display-name/ID attribution.
+- The public workspace has exactly two requester-authorized controls:
+  **Edit name** opens one prefilled modal and **Clear name** opens an explicit
+  confirmation view. Both have server-side requester checks, stale/expired
+  responses, bounded timeouts, and rerun guidance; pending games disable the
+  controls and still receive authoritative worker denial.
+- The edit input advertises and enforces the model's 35-character boundary.
+  Native committed output explains title-case/quote normalization and
+  truncation when the stored value differs from the submitted value; retained
+  prefix success output remains the established legacy line plus any league
+  warning and does not append a new informational line.
+- Committed native edits and clears are public and identify the actor. Reads,
+  validation failures, permission denials, stale expected-name conflicts,
+  component expiry, and database failures stay private. A private deferred
+  placeholder is deleted once before successful public channel output.
+- `$rename` remains a plain prefix command with the same registration,
+  no-alias surface, argument grammar, game-channel inference, explicit ID
+  handling, bot-channel restriction, pending denial, host/creator/staff rules,
+  elevated `None` clear rule, Polytopia-name validation/override warning,
+  league warning, audit attribution, public success wording, squad/announcement
+  effects, and dense-card reconciliation routed through the shared worker.
+
+Database, concurrency, and Discord boundary:
+
+- Event-loop adapters capture only primitive IDs, guild/channel values, name or
+  clear state, requester/staff/level facts, expected-name snapshots, prefix
+  values, legacy tokens, and audit attribution before worker submission.
+- Current reads and legacy target resolution use a separate bounded read
+  executor. Mutation uses the bounded ordinary-game write executor and the
+  existing keyed per-game claim; repeated caller cancellation drains the
+  non-cancellable worker before the claim releases.
+- The worker owns its Peewee connection, reloads the game by primitive ID,
+  revalidates registration, guild/channel association, pending state,
+  host/creator/staff permission, and the native expected-name snapshot, then
+  commits `Game.name`, `update_league_fields()`, and `GameLog` in one atomic
+  transaction. No Discord await occurs inside the transaction.
+- The claim releases immediately after the database worker completes and
+  before any post-commit Discord effect. Squad-channel update, announcement
+  refresh, dense-card output, actor-attributed success, validation override
+  warning, and league-status warning all run only after commit. Database
+  failure invokes no Discord publisher; a later Discord failure is logged and
+  produces an observable reconciliation warning without claiming rollback.
+
+Implementation evidence:
+
+- `modules/game_workers.py` adds frozen primitive game-name request/target/result
+  DTOs, bounded reads, legacy `$rename` target resolution, authoritative
+  permission/stale checks, model-bound normalization reporting, atomic derived
+  league-field/audit writes, and cancellation-safe ordinary-game execution.
+- `modules/game_name.py` is the focused service boundary for primitive request
+  capture, keyed-claim ownership, public/private output, model normalization
+  messaging, and post-commit squad/announcement/dense-card reconciliation.
+- `modules/game_name_views.py` contains only the dedicated two-button workspace,
+  one prefilled modal, and explicit clear confirmation; no generic form
+  framework or dense-card redesign was introduced.
+- `modules/games.py` adds the `/game name` taxonomy command and routes
+  `$rename` through the service without making the prefix command hybrid.
+- `tests/test_game_name.py` covers unset/current reads, actor attribution,
+  modal prefilling and 35-character boundary, normalization/truncation,
+  explicit clear/cancel/timeout/requester checks, stale conflicts, prefix
+  grammar/`None` output/bot-channel restriction, worker connection and
+  transaction boundaries, league/audit rollback, event-loop responsiveness,
+  same-game conflict, repeated cancellation, commit-before-Discord ordering,
+  private failures, and observable reconciliation failure.
+- `tests/test_slash_taxonomy.py` serializes the focused `/game name game_id`
+  command and preserves the existing game-group surface. No compatibility-ledger
+  row was added because no existing prefix behavior was intentionally retired.
+
+Validation evidence:
+
+- Authoritative clean-export affected suites (`tests.test_game_name`,
+  `tests.test_game_map`, `tests.test_game_notes`, and
+  `tests.test_slash_taxonomy`): **89 passed**.
+- Complete offline discovery under the development profile:
+  **529 passed, 17 explicitly gated database tests skipped**.
+- Changed-file compilation and `git diff --check` passed.
+- The unchanged gated database suite ran **17 tests: 16 passed and 1
+  intentionally skipped** to preserve the operator fixture, after confirming
+  the required `development` environment, `polytopia_dev` database,
+  `polybot_dev` role, and disabled background/API services.
+- No beta process, Discord connection, command inspection/synchronization,
+  production or `polytopia2` access, schema/dependency change, push, PR,
+  merge, or bot launch was performed.
+
+Known limitation: the established post-commit dense-card/announcement path
+still performs its short `Game.load_full_game` reload on the event-loop thread,
+matching the documented adjacent P4.2a/P4.2b limitation. Removing that reload
+is outside this focused unit; the read and mutation database work remains
+worker-bounded and worker-local.
+
+Next action: obtain explicit integration approval. Final review found no
+further Tier-3 blockers; beta acceptance remains pending and is not recorded
+by this unit.
 
 ## P5 — Matchmaking lifecycle
 
@@ -6842,6 +6958,55 @@ unit and does not reopen accepted P5.2 behavior.
 - Status: Tier-3 reviewed and accepted for integration approval; not Complete
   and not integrated. Next: obtain explicit integration approval and decide
   separately whether beta smoke is required.
+
+### 2026-08-02 — P4.2c game-name workspace implemented locally
+
+- Created `codex/p4-2c-game-name` from exact clean detached checkpoint
+  `49196bcbd8d597644e7b3f5cff0ef4986249779e` and committed implementation and
+  focused tests as `a235e23`.
+- Added `/game name game_id` as a public current-value workspace with frozen
+  requester attribution, requester-only prefilled edit and explicit clear
+  controls, visible model normalization/35-character behavior, stale-name
+  conflict handling, private failures, and public actor-attributed committed
+  output. Routed `$rename` through the same bounded worker while retaining its
+  prefix grammar, permissions, `None` clear, validation, audit, warnings, and
+  dense presentation reconciliation.
+- Authoritative clean-export affected validation passed **89 tests**;
+  complete offline discovery passed **529 tests with 17 explicit gated
+  skips**. The unchanged gated database suite ran **17 tests: 16 passed and 1
+  intentional operator-fixture preservation skip** after confirming
+  `development` / `polytopia_dev` / `polybot_dev`. Compilation and
+  `git diff --check` passed.
+- No compatibility-ledger entry was needed. No beta, Discord connection,
+  command inspection/synchronization, production, `polytopia2`, schema,
+  dependency, push, PR, merge, or launch action occurred.
+- Status: reviewed and accepted for integration approval; not integrated,
+  Complete, or beta-accepted. Final review found no further blockers.
+
+### 2026-08-02 — P4.2c prefix-compatibility correction
+
+- Tier-3 review found that the shared `mutation_message()` formatter appended
+  the new native normalization/truncation explanation to `$rename` success
+  output. Correction commit `4ebe5ca` removes that detail from prefix output,
+  retaining only the established rename line plus any league warning.
+- Native `native_mutation_message()` continues to explain model title-case,
+  quote normalization, and 35-character truncation. The focused regression
+  uses a normalized/truncated result to assert exact prefix output and native
+  visibility separately.
+- The affected focused suites passed **89 tests**; compilation and
+  `git diff --check` passed. No compatibility-ledger entry was needed because
+  this correction restores, rather than reduces, retained prefix parity.
+
+### 2026-08-02 — P4.2c final Tier-3 review accepted for integration approval
+
+- Final review is green with no further blockers. The authoritative
+  clean-export affected suites passed **89 tests**.
+- The unchanged gated development database suite ran **17 tests: 16 passed
+  and 1 intentional operator-fixture preservation skip** after confirming
+  `development` / `polytopia_dev` / `polybot_dev`.
+- Recorded Tier-3 correction `4ebe5ca` and roadmap docs commit `94a83c8`.
+  Status is **reviewed/accepted for integration approval**; this unit is not
+  integrated, Complete, or beta-accepted.
 
 ## Resume checklist
 

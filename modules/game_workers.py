@@ -8,6 +8,7 @@ import functools
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 
+import discord
 import peewee
 
 from modules import exceptions, models, utilities
@@ -222,6 +223,92 @@ class GameNotesMutationResult:
     announcement_message_id: int | None = None
 
 
+class GameNameValidationError(RuntimeError):
+    """The current request or game state cannot be used for a name change."""
+
+
+class GameNameLookupError(GameNameValidationError):
+    """A legacy prefix target could not be resolved."""
+
+
+class GameNamePermissionError(GameNameValidationError):
+    """The requester cannot inspect or edit the requested game name."""
+
+
+class GameNameConflictError(GameNameValidationError):
+    """The immutable name workspace was opened from stale state."""
+
+
+@dataclass(frozen=True)
+class GameNameReadRequest:
+    """Primitive input for a bounded current-name read."""
+
+    game_id: int
+    guild_id: int
+    channel_id: int
+    requester_id: int
+    allow_related_channel: bool = False
+
+
+@dataclass(frozen=True)
+class GameNameMutationRequest:
+    """Primitive input for one authoritative game-name mutation."""
+
+    game_id: int | None
+    guild_id: int
+    channel_id: int
+    requester_id: int
+    requester_level: int
+    requester_is_staff: bool
+    requester_description: str
+    name: str | None = None
+    clear: bool = False
+    expected_name: str | None = None
+    check_expected_name: bool = False
+    legacy_tokens: tuple[str, ...] = ()
+    allow_related_channel: bool = False
+    invoked_with: str = 'rename'
+    prefix: str = '$'
+
+
+@dataclass(frozen=True)
+class GameNameTarget:
+    """Resolved primitive target for a legacy name mutation."""
+
+    game_id: int
+    inferred_from_channel: bool
+    explicit_game_id: int | None = None
+
+
+@dataclass(frozen=True)
+class GameNameReadResult:
+    game_id: int
+    guild_id: int
+    name: str | None
+    is_pending: bool = False
+    is_completed: bool = False
+    announcement_channel_id: int | None = None
+    announcement_message_id: int | None = None
+
+
+@dataclass(frozen=True)
+class GameNameMutationResult:
+    game_id: int
+    guild_id: int
+    old_name: str | None
+    name: str | None
+    requested_name: str | None
+    cleared: bool = False
+    normalized: bool = False
+    truncated: bool = False
+    name_warning: str | None = None
+    league_warning: str = ''
+    is_pending: bool = False
+    is_completed: bool = False
+    announcement_channel_id: int | None = None
+    announcement_message_id: int | None = None
+
+
 _game_map_read_executor = ThreadPoolExecutor(
     max_workers=2,
     thread_name_prefix='polybot-game-map-read',
@@ -230,6 +317,11 @@ _game_map_read_executor = ThreadPoolExecutor(
 _game_notes_read_executor = ThreadPoolExecutor(
     max_workers=2,
     thread_name_prefix='polybot-game-notes-read',
+)
+
+_game_name_read_executor = ThreadPoolExecutor(
+    max_workers=2,
+    thread_name_prefix='polybot-game-name-read',
 )
 
 
@@ -871,6 +963,446 @@ async def run_game_notes_mutation(
         # A running synchronous transaction cannot be canceled. Preserve the
         # per-game claim until the transaction has actually finished, even if
         # shutdown delivers cancellation repeatedly.
+        task = asyncio.current_task()
+        if task is not None:
+            task.uncancel()
+        while not completed.is_set():
+            try:
+                await completed.wait()
+            except asyncio.CancelledError:
+                if task is not None:
+                    task.uncancel()
+        concurrent_future.result()
+        raise asyncio.CancelledError
+
+
+def _registered_game_name_requester(requester_id: int) -> bool:
+    """Recheck global registration inside the worker-owned connection."""
+
+    member_model = getattr(models, 'DiscordMember', None)
+    getter = getattr(member_model, 'get_or_none', None)
+    if getter is None:
+        # Focused model fakes may omit registration tables. Production has the
+        # model and therefore performs the authoritative lookup.
+        return True
+    return getter(discord_id=int(requester_id)) is not None
+
+
+def _game_name_registration_error() -> GameNamePermissionError:
+    return GameNamePermissionError(
+        'This command requires bot registration first. Type '
+        '__`setname Your Mobile Name`__ or  '
+        '__`steamname Your Steam Username`__ to get started.'
+    )
+
+
+def _load_game_for_name(game_id: int):
+    try:
+        numeric_game_id = int(game_id)
+    except (TypeError, ValueError) as exc:
+        raise GameNameValidationError(
+            f'Invalid game ID "{game_id}".'
+        ) from exc
+    if numeric_game_id <= 0:
+        raise GameNameValidationError(
+            f'Invalid game ID "{game_id}".'
+        )
+    try:
+        return models.Game.get_by_id(numeric_game_id)
+    except peewee.DoesNotExist as exc:
+        raise GameNameValidationError(
+            f'Game with ID {numeric_game_id} cannot be found.'
+        ) from exc
+
+
+def _uses_name_channel(game, channel_id: int) -> bool:
+    if not channel_id:
+        return False
+    uses_channel = getattr(game, 'uses_channel_id', None)
+    if callable(uses_channel):
+        return bool(uses_channel(int(channel_id)))
+    return False
+
+
+def _validate_name_association(
+    game,
+    request: GameNameReadRequest | GameNameMutationRequest,
+    *,
+    allow_related_channel: bool | None = None,
+) -> None:
+    if int(game.guild_id) == int(request.guild_id):
+        return
+    if allow_related_channel is None:
+        allow_related_channel = bool(request.allow_related_channel)
+    if allow_related_channel and _uses_name_channel(game, request.channel_id):
+        return
+    raise GameNameValidationError(
+        f'Game {game.id} is associated with a different discord server. '
+        'Use this command from that server or a game-specific channel.'
+    )
+
+
+def _parse_legacy_name_game_id(token: str | None) -> int | None:
+    if token is None:
+        return None
+    try:
+        return int(str(token).strip('#'))
+    except (TypeError, ValueError):
+        return None
+
+
+def _resolve_legacy_name_game(request: GameNameMutationRequest) -> GameNameTarget:
+    tokens = tuple(request.legacy_tokens or ())
+    first_token = tokens[0] if tokens else None
+    explicit_game_id = _parse_legacy_name_game_id(first_token)
+
+    if not tokens:
+        raise GameNameValidationError(
+            'No arguments provided. Please provide a game ID and new name.'
+        )
+
+    try:
+        game = models.Game.by_channel_id(chan_id=request.channel_id)
+    except exceptions.TooManyMatches as exc:
+        raise GameNameLookupError(
+            'Error looking up game based on current channel - please contact '
+            'the bot owner.'
+        ) from exc
+    except exceptions.NoMatches:
+        if explicit_game_id is None:
+            raise GameNameLookupError(
+                'No game was found for the current channel.'
+            )
+        game = _load_game_for_name(explicit_game_id)
+        _validate_name_association(
+            game,
+            request,
+            allow_related_channel=False,
+        )
+        return GameNameTarget(
+            game_id=int(game.id),
+            inferred_from_channel=False,
+            explicit_game_id=explicit_game_id,
+        )
+    except (ValueError, exceptions.MyBaseException) as exc:
+        raise GameNameLookupError(str(exc)) from exc
+
+    _validate_name_association(
+        game,
+        request,
+        allow_related_channel=True,
+    )
+    return GameNameTarget(
+        game_id=int(game.id),
+        inferred_from_channel=True,
+        explicit_game_id=explicit_game_id,
+    )
+
+
+def _resolve_name_game(
+    request: GameNameReadRequest | GameNameMutationRequest,
+):
+    if request.game_id is None:
+        target = _resolve_legacy_name_game(request)
+        game = _load_game_for_name(target.game_id)
+        _validate_name_association(
+            game,
+            request,
+            allow_related_channel=target.inferred_from_channel,
+        )
+        return game
+    else:
+        game = _load_game_for_name(request.game_id)
+    _validate_name_association(game, request)
+    return game
+
+
+def _name_is_host(game, requester_id: int) -> bool:
+    hosted_by = getattr(game, 'is_hosted_by', None)
+    if callable(hosted_by):
+        try:
+            return bool(hosted_by(int(requester_id))[0])
+        except (AttributeError, IndexError, TypeError, ValueError):
+            pass
+    host = getattr(game, 'host', None)
+    member = getattr(host, 'discord_member', None) if host else None
+    return getattr(member, 'discord_id', None) == int(requester_id)
+
+
+def _name_creator(game):
+    creator = getattr(game, 'creating_player', None)
+    if not callable(creator):
+        return None
+    try:
+        return creator()
+    except (
+        AttributeError,
+        IndexError,
+        TypeError,
+        ValueError,
+        peewee.PeeweeException,
+    ):
+        return None
+
+
+def _name_is_creator(game, requester_id: int) -> bool:
+    is_created_by = getattr(game, 'is_created_by', None)
+    if callable(is_created_by):
+        try:
+            return bool(is_created_by(discord_id=int(requester_id)))
+        except (
+            AttributeError,
+            IndexError,
+            TypeError,
+            ValueError,
+            peewee.PeeweeException,
+        ):
+            pass
+    creator = _name_creator(game)
+    member = getattr(creator, 'discord_member', None) if creator else None
+    return getattr(member, 'discord_id', None) == int(requester_id)
+
+
+def _name_creator_display(game) -> str:
+    creator = _name_creator(game)
+    if creator is None:
+        return 'the game creator'
+    return str(getattr(creator, 'name', None) or 'the game creator')
+
+
+def _validate_game_name_edit_permission(
+    game,
+    request: GameNameMutationRequest,
+) -> None:
+    if not _registered_game_name_requester(request.requester_id):
+        raise _game_name_registration_error()
+
+    if bool(getattr(game, 'is_pending', False)):
+        raise GameNameValidationError('This game has not started yet.')
+
+    if request.clear and request.requester_level <= 3:
+        raise GameNamePermissionError(
+            'You do not have permissions to delete a game name.'
+        )
+
+    requester_is_staff = bool(
+        request.requester_is_staff or request.requester_level >= 5
+    )
+    if not (
+        _name_is_host(game, request.requester_id)
+        or requester_is_staff
+        or _name_is_creator(game, request.requester_id)
+    ):
+        raise GameNamePermissionError(
+            f'Only the game creator **{_name_creator_display(game)}** or '
+            'server staff can do this.'
+        )
+
+
+def _check_expected_game_name(
+    game,
+    request: GameNameMutationRequest,
+) -> None:
+    if not request.check_expected_name:
+        return
+    current_name = str(getattr(game, 'name', None) or '')
+    expected_name = str(request.expected_name or '')
+    if current_name != expected_name:
+        raise GameNameConflictError(
+            'This game name changed after this workspace was opened. Run '
+            '`/game name` again and retry your edit.'
+        )
+
+
+def prepare_legacy_game_name(
+    request: GameNameMutationRequest,
+) -> GameNameTarget:
+    """Resolve legacy channel/ID grammar on a bounded read worker."""
+
+    with models.db.connection_context():
+        return _resolve_legacy_name_game(request)
+
+
+def read_game_name(request: GameNameReadRequest) -> GameNameReadResult:
+    """Read the current tracked name with a worker-owned connection."""
+
+    with models.db.connection_context():
+        if not _registered_game_name_requester(request.requester_id):
+            raise _game_name_registration_error()
+        game = _resolve_name_game(request)
+        return GameNameReadResult(
+            game_id=int(game.id),
+            guild_id=int(game.guild_id),
+            name=(
+                str(game.name)
+                if getattr(game, 'name', None) is not None
+                else None
+            ),
+            is_pending=bool(getattr(game, 'is_pending', False)),
+            is_completed=bool(getattr(game, 'is_completed', False)),
+            announcement_channel_id=_optional_int(
+                getattr(game, 'announcement_channel', None)
+            ),
+            announcement_message_id=_optional_int(
+                getattr(game, 'announcement_message', None)
+            ),
+        )
+
+
+def set_game_name(
+    request: GameNameMutationRequest,
+) -> GameNameMutationResult:
+    """Commit the name, derived league fields, and audit entry atomically."""
+
+    with models.db.connection_context():
+        with models.db.atomic():
+            game = _resolve_name_game(request)
+            _validate_game_name_edit_permission(game, request)
+            _check_expected_game_name(game, request)
+
+            if request.clear and request.name not in (None, ''):
+                raise GameNameValidationError(
+                    'Choose either a new game name or Clear name, not both.'
+                )
+            requested_name = None if request.clear else request.name
+            if not request.clear and requested_name in (None, ''):
+                raise GameNameValidationError(
+                    'A new game name is required. Use Clear name to remove it.'
+                )
+
+            name_warning = None
+            if requested_name is not None and not utilities.is_valid_poly_gamename(
+                input=str(requested_name),
+            ):
+                if request.requester_level <= 2:
+                    raise GameNameValidationError(
+                        'That name looks made up. :thinking: You need to '
+                        'manually create the game __in Polytopia__, come back '
+                        'and input the name of the new game you made.\n'
+                        f'You can use `{request.prefix}code NAME` to get the '
+                        'code of each player in this game.'
+                    )
+                name_warning = (
+                    ':warning: That game name looks made up - you are '
+                    'allowed to override due to your user level.'
+                )
+
+            old_name_value = getattr(game, 'name', None)
+            old_name = (
+                str(old_name_value)
+                if old_name_value is not None
+                else None
+            )
+            if request.clear:
+                game.name = None
+            else:
+                game.name = str(requested_name)
+            stored_name_value = getattr(game, 'name', None)
+            stored_name = (
+                str(stored_name_value)
+                if stored_name_value is not None
+                else None
+            )
+            normalized = (
+                requested_name is not None
+                and stored_name != str(requested_name)
+            )
+            truncated = bool(
+                requested_name is not None
+                and len(str(requested_name)) > 35
+                and stored_name is not None
+                and len(stored_name) < len(str(requested_name))
+            )
+            game.save()
+
+            league_warning = ''
+            if game.update_league_fields():
+                league_warning = (
+                    '\n:warning: Detected a difference in the season game '
+                    'status. New status is:\nGame season: '
+                    f'`{game.league_season}`, Team tier: '
+                    f'`{game.league_tier}`,  Playoff game? '
+                    f'`{game.league_playoff}`'
+                )
+
+            models.GameLog.write(
+                game_id=int(game.id),
+                guild_id=int(game.guild_id),
+                message=(
+                    f'{request.requester_description} renamed the game to *'
+                    f'{discord.utils.escape_markdown(str(stored_name))}*'
+                ),
+            )
+
+            return GameNameMutationResult(
+                game_id=int(game.id),
+                guild_id=int(game.guild_id),
+                old_name=old_name,
+                name=stored_name,
+                requested_name=(
+                    str(requested_name)
+                    if requested_name is not None
+                    else None
+                ),
+                cleared=stored_name is None,
+                normalized=normalized,
+                truncated=truncated,
+                name_warning=name_warning,
+                league_warning=league_warning,
+                is_pending=bool(getattr(game, 'is_pending', False)),
+                is_completed=bool(getattr(game, 'is_completed', False)),
+                announcement_channel_id=_optional_int(
+                    getattr(game, 'announcement_channel', None)
+                ),
+                announcement_message_id=_optional_int(
+                    getattr(game, 'announcement_message', None)
+                ),
+            )
+
+
+async def run_prepare_legacy_game_name(
+    request: GameNameMutationRequest,
+) -> GameNameTarget:
+    """Submit legacy name target resolution to the bounded read executor."""
+
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(
+        _game_name_read_executor,
+        functools.partial(prepare_legacy_game_name, request),
+    )
+
+
+async def run_game_name_read(
+    request: GameNameReadRequest,
+) -> GameNameReadResult:
+    """Submit a bounded current-name read."""
+
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(
+        _game_name_read_executor,
+        functools.partial(read_game_name, request),
+    )
+
+
+async def run_game_name_mutation(
+    request: GameNameMutationRequest,
+) -> GameNameMutationResult:
+    """Submit a name mutation and drain a canceled caller safely."""
+
+    loop = asyncio.get_running_loop()
+    call = functools.partial(set_game_name, request)
+    concurrent_future = _game_write_executor.submit(call)
+    future = asyncio.wrap_future(concurrent_future, loop=loop)
+    completed = asyncio.Event()
+    concurrent_future.add_done_callback(
+        lambda _future: loop.call_soon_threadsafe(completed.set)
+    )
+    try:
+        return await asyncio.shield(future)
+    except asyncio.CancelledError:
+        # A running synchronous transaction cannot be canceled. The caller
+        # remains attached until the worker has finished so a keyed game
+        # claim can be released only after the database transition drains.
         task = asyncio.current_task()
         if task is not None:
             task.uncancel()
