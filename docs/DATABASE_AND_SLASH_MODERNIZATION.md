@@ -425,10 +425,11 @@ check:
   `codex/p5-1-game-open`, based on exact clean base
   `d24aa6b5e64fba159a872eb565703465c79d712d`.
 
-Current unit: **P5.5 interactive pending-game card actions — Tier-2 reviewed;
-pending separately approved guild-scoped beta apply/smoke acceptance.**
-The next planned code unit after that acceptance and integration is P5.6,
-which remains planned and has not started.
+Current unit: **P5.6 unified game deletion service and pending-card Delete
+action — approved for Luna-Max implementation.**
+P5.5 is complete and integrated as `e118396`; its live beta smoke covered
+Join, Leave, Refresh, and Start, and the user accepted the follow-up join
+reaction correction without requiring another live retest.
 P8.0 is complete and integrated as `d6ee47c`, with explicit guild-only command
 deployment accepted in beta. Taxonomy v2.2 is provisionally accepted as the
 working implementation contract; minor wording refinements remain possible
@@ -2509,8 +2510,7 @@ complete Luna Tier-3 handoff.
 
 ### P5.5 — Interactive pending-game card actions
 
-Status: **Implemented locally; Tier-2 review passed; pending separate beta
-acceptance**
+Status: **Complete; beta-accepted and integrated**
 
 Risk tier: **Tier 2**. This unit adds a public Discord interaction layer over
 the already reviewed Tier-3 join, leave, and start services; it adds no new
@@ -2649,13 +2649,21 @@ Compatibility and limitations:
   persistence across process restarts remain intentionally unvalidated and
   out of scope until review and separate acceptance.
 
-Recommended next action: obtain separate approval for the guild-scoped beta
-apply/smoke gate. The reviewed branch is not integrated and must not be
-launched or synchronized from this task.
+Beta acceptance and integration:
+
+- the user exercised Join, Leave, Refresh, and Start against the development
+  beta and reported that they worked;
+- the beta was stopped cleanly before integration;
+- the follow-up configured join-reaction seed was accepted without a second
+  live retest after its focused 58-test and complete 379-test offline evidence;
+- merged into `codex/database-slash-modernization` as `e118396`.
+
+Recommended next action: implement P5.6 as the selected Tier-3 unit from the
+clean P5.5 integration checkpoint.
 
 ### P5.6 — Unified game deletion service and pending-card Delete action
 
-Status: **Planned; next code unit after P5.5 beta acceptance/integration**
+Status: **In progress; approved for Luna-Max implementation**
 
 Risk tier: **Tier 3**. This unit centralizes destructive game deletion across
 legacy and native interfaces and adds a public pending-card action. It must
@@ -4416,6 +4424,21 @@ post-commit reconciliation behavior. This direction is a separate bounded
 unit and does not reopen accepted P5.2 behavior.
 
 ## Progress log
+
+### 2026-08-01 — P5.5 accepted/integrated; P5.6 authorized
+
+- Accepted the reviewed P5.5 pending-card Join, Leave, Refresh, and Start
+  behavior after the user's development-beta smoke test.
+- Accepted the small follow-up join-reaction seed without another live test;
+  focused coverage passed 58 tests and complete offline discovery passed 379
+  tests with 16 expected skips.
+- Confirmed the task-owned beta was stopped and merged P5.5 into
+  `codex/database-slash-modernization` as `e118396`.
+- Selected P5.6 as the active Tier-3 unit: one deletion service for prefix,
+  slash, and pending-card interfaces, with transactional pending deletion and
+  the existing serialized ELO path for started/completed games.
+- No database, Discord synchronization, production, dependency, push, or PR
+  action accompanied the integration.
 
 ### 2026-08-01 — P5.5 interactive pending-game card actions planned
 
