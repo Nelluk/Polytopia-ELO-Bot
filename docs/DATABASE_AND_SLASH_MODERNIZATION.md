@@ -440,8 +440,8 @@ check:
 - P4.2b beta-transparency correction: `b43d31e` on
   `codex/p4-2b-notes-attribution`; accumulation merge `57de2a2`.
 
-Current unit: **P4.2c focused game-name read/edit workspace — reviewed and
-accepted for integration approval; not integrated, Complete, or beta-accepted.**
+Current unit: **P4.2c focused game-name read/edit workspace — integrated;
+beta acceptance pending.**
 P4.2a is complete, beta-validated, and integrated as `5845e8b` with public
 visibility correction merge `4fa4b4f`.
 P5.8 is complete, beta-validated, and integrated as `4fc5973`; its final
@@ -2210,13 +2210,12 @@ Integration result: the original unit merged as `1f1625b`; the reviewed
 actor-attribution correction merged as `57de2a2`. A later beta smoke remains
 the acceptance gate.
 
-Next action: review and integrate P4.2c, then batch its separately approved
-beta smoke with the corrected `/game notes` confirmation if authorized.
+Next action: beta-smoke P4.2c together with the corrected `/game notes`
+attribution, then record acceptance or narrowly scoped findings.
 
 #### P4.2c — Focused game-name read/edit workspace
 
-Status: **Reviewed and accepted for integration approval; not integrated,
-Complete, or beta-accepted**
+Status: **Integrated; beta acceptance pending**
 
 Risk tier: **Tier 3**. Game-name mutation updates ordinary game metadata,
 derived league fields, an audit record, squad/game channels, the announcement,
@@ -2231,6 +2230,7 @@ Implementation commit:
 - `4ebe5ca` — Preserve legacy prefix rename output and native normalization
   detail coverage.
 - `94a83c8` — Record the prefix-compatibility correction in the roadmap.
+- `fcd2646` — Accumulation merge.
 
 Objective and interface:
 
