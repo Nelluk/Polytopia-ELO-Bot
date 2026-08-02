@@ -9,8 +9,40 @@ from modules import components_v2, game_search_workers
 
 PAGE_SIZE = 6
 
+VIEW_LABELS = {
+    'all': 'All games',
+    'joinable': 'Joinable for me',
+    'all-open': 'All open',
+    'waiting': 'Waiting to start',
+    'mine': 'My open games',
+    'active': 'Active games',
+    'completed': 'Completed games',
+    'unconfirmed': 'Unconfirmed results',
+    'unfinished': 'Incomplete/open',
+    'open': 'Open games',
+}
+
+VIEW_OPTIONS = (
+    ('all', 'All games'),
+    ('joinable', 'Joinable for me'),
+    ('all-open', 'All open'),
+    ('waiting', 'Waiting to start'),
+    ('mine', 'My open games'),
+    ('active', 'Active games'),
+    ('completed', 'Completed games'),
+)
+
 
 def _row_text(row: game_search_workers.GameSearchRow) -> str:
+    if row.is_open_listing:
+        notes = f' · {row.notes[:120]}' if row.notes else ''
+        return (
+            f'**#{row.game_id} · {row.host_name}** `Open`\n'
+            f'> {row.size} · {row.players}/{row.capacity} · '
+            f'{"Ranked" if row.ranked else "Unranked"} · '
+            f'Expires {row.expiration}\n'
+            f'> {row.roster}{notes}'
+        )
     notes = f'\n> *{row.notes[:120]}*' if row.notes else ''
     channel = f' · {row.channel_mention}' if row.channel_mention else ''
     return (
@@ -80,6 +112,12 @@ class GameSearchWorkspace(components_v2.CachedRequesterLayoutView):
             status=self.status_select.values[0],
         )
 
+    async def _select_view(self, interaction: discord.Interaction) -> None:
+        await self._change_filter(
+            interaction,
+            status=self.view_select.values[0],
+        )
+
     async def _select_outcome(self, interaction: discord.Interaction) -> None:
         await self._change_filter(
             interaction,
@@ -105,45 +143,47 @@ class GameSearchWorkspace(components_v2.CachedRequesterLayoutView):
             if rows else '*No games match this view.*'
         )
         key = self.result.key
-        status_label = {
-            'unfinished': 'Incomplete/open',
-        }.get(key.status, key.status.title())
+        view_label = VIEW_LABELS.get(key.status, key.status.title())
         count = len(self.result.rows)
         query = self.result.query or 'none'
         truncated = ' · first 500 shown' if self.result.truncated else ''
+        waitlist = (
+            f'\n**Waiting to start:** {", ".join(self.result.waitlist_ids)}'
+            if self.result.waitlist_ids
+            and key.status in game_search_workers.OPEN_GAME_STATUSES
+            else ''
+        )
         components = [
             discord.ui.TextDisplay('# 🔎 Game search'),
             discord.ui.TextDisplay(
                 f'**Query:** `{query}`\n'
                 f'**Resolved:** {self.result.description}\n'
-                f'**Filters:** {status_label} · '
+                f'**View:** {view_label} · '
                 f'{key.outcome.title()} · {key.size}\n'
-                f'**Results:** {count}{truncated}'
+                f'**Results:** {count}{truncated}{waitlist}'
             ),
             discord.ui.Separator(spacing=discord.SeparatorSpacing.small),
             discord.ui.TextDisplay(body),
             discord.ui.Separator(spacing=discord.SeparatorSpacing.small),
         ]
-        status_options = [
-            ('all', 'All statuses'),
-            ('open', 'Open'),
-            ('active', 'Active'),
-            ('completed', 'Completed'),
-        ]
+        view_options = list(VIEW_OPTIONS)
         if self.can_view_unconfirmed:
-            status_options.append(('unconfirmed', 'Unconfirmed result'))
-        self.status_select = discord.ui.Select(
-            placeholder='Game status',
+            view_options.append(('unconfirmed', 'Unconfirmed results'))
+        self.view_select = discord.ui.Select(
+            placeholder='Search view',
             options=[
                 discord.SelectOption(
                     label=label,
                     value=value,
                     default=key.status == value,
                 )
-                for value, label in status_options
+                for value, label in view_options
             ],
         )
-        self.status_select.callback = self._select_status
+        self.view_select.callback = self._select_view
+        # Keep the old attribute as a compatibility seam for tests and any
+        # local callers that used the pre-P5.8 lifecycle name.
+        self.status_select = self.view_select
         self.outcome_select = discord.ui.Select(
             placeholder='Result for first player/team',
             options=[
@@ -179,7 +219,7 @@ class GameSearchWorkspace(components_v2.CachedRequesterLayoutView):
         )
         self.size_select.callback = self._select_size
         components.extend([
-            discord.ui.ActionRow(self.status_select),
+            discord.ui.ActionRow(self.view_select),
             discord.ui.ActionRow(self.outcome_select),
             discord.ui.ActionRow(self.size_select),
         ])

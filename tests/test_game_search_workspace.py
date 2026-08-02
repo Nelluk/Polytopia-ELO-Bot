@@ -58,7 +58,36 @@ class GameSearchRegistrationTests(unittest.TestCase):
         self.assertEqual(
             [(parameter.name, parameter.required, parameter.type)
              for parameter in command.parameters],
-            [('query', False, discord.AppCommandOptionType.string)],
+            [
+                ('query', False, discord.AppCommandOptionType.string),
+                ('view', False, discord.AppCommandOptionType.string),
+            ],
+        )
+        self.assertEqual(
+            [choice.name for choice in command.parameters[1].choices],
+            [
+                'All games',
+                'Joinable for me',
+                'All open',
+                'Waiting to start',
+                'My open games',
+                'Active games',
+                'Completed games',
+                'Unconfirmed results',
+            ],
+        )
+        self.assertEqual(
+            [choice.value for choice in command.parameters[1].choices],
+            [
+                'all',
+                'joinable',
+                'all-open',
+                'waiting',
+                'mine',
+                'active',
+                'completed',
+                'unconfirmed',
+            ],
         )
         prefix = {
             command.name: command
@@ -135,6 +164,74 @@ class GameSearchViewTests(unittest.IsolatedAsyncioTestCase):
         await view._change_filter(interaction, status='all')
         await view._change_filter(interaction, status='active')
         loader.assert_awaited_once_with(filtered_key)
+
+    async def test_view_navigation_preserves_public_cached_workspace(self):
+        initial = snapshot(count=1)
+        filtered_key = workers.GameSearchKey(status='joinable')
+        filtered = snapshot(key=filtered_key, count=2)
+        loader = mock.AsyncMock(return_value=filtered)
+        view = views.GameSearchWorkspace(
+            requester_id=10,
+            initial_result=initial,
+            loader=loader,
+        )
+
+        class Response:
+            def __init__(self):
+                self.defer = mock.AsyncMock()
+                self.edit_message = mock.AsyncMock()
+
+            def is_done(self):
+                return bool(self.defer.await_count)
+
+        interaction = SimpleNamespace(
+            response=Response(),
+            edit_original_response=mock.AsyncMock(),
+            followup=SimpleNamespace(send=mock.AsyncMock()),
+        )
+        await view._change_filter(interaction, status='joinable')
+        await view._change_filter(interaction, status='joinable')
+        loader.assert_awaited_once_with(filtered_key)
+        self.assertEqual(view.result.key.status, 'joinable')
+
+    async def test_view_switch_keeps_existing_outcome_and_size_refinements(self):
+        initial_key = workers.GameSearchKey(
+            status='all',
+            outcome='win',
+            size='2v2',
+        )
+        initial = snapshot(key=initial_key, count=1)
+        loader = mock.AsyncMock(return_value=snapshot(
+            key=workers.GameSearchKey(
+                status='active',
+                outcome='win',
+                size='2v2',
+            ),
+            count=1,
+        ))
+        view = views.GameSearchWorkspace(
+            requester_id=10,
+            initial_result=initial,
+            loader=loader,
+        )
+        response = SimpleNamespace(
+            defer=mock.AsyncMock(),
+            edit_message=mock.AsyncMock(),
+            is_done=lambda: True,
+        )
+        interaction = SimpleNamespace(
+            response=response,
+            edit_original_response=mock.AsyncMock(),
+            followup=SimpleNamespace(send=mock.AsyncMock()),
+        )
+        await view._change_filter(interaction, status='active')
+        loader.assert_awaited_once_with(
+            workers.GameSearchKey(
+                status='active',
+                outcome='win',
+                size='2v2',
+            )
+        )
 
     async def test_filter_failure_is_ephemeral_and_keeps_snapshot(self):
         initial = snapshot(count=1)
@@ -318,6 +415,24 @@ class GameSearchWorkerTests(unittest.IsolatedAsyncioTestCase):
                     )
                 )
 
+    def test_open_view_is_staff_guarded_and_uses_immutable_key(self):
+        with self.assertRaisesRegex(workers.GameSearchError, 'Only staff'):
+            workers.load_game_search(
+                workers.GameSearchRequest(
+                    guild_id=1,
+                    requester_discord_id=2,
+                    key=workers.GameSearchKey(status='unconfirmed'),
+                )
+            )
+        request = workers.GameSearchRequest(
+            guild_id=1,
+            requester_discord_id=2,
+            key=workers.GameSearchKey(status='joinable'),
+            requester_role_ids=(9, 10),
+        )
+        with self.assertRaises(Exception):
+            request.requester_role_ids = (11,)
+
 
 class GameSearchAdapterTests(unittest.IsolatedAsyncioTestCase):
     async def test_prefix_modes_map_to_workspace_filters(self):
@@ -409,6 +524,81 @@ class GameSearchAdapterTests(unittest.IsolatedAsyncioTestCase):
             'bad query',
             ephemeral=True,
         )
+
+    async def test_native_initial_view_mapping_defaults_to_all_games(self):
+        command = next(
+            command for command in games.polygames.__cog_app_commands__
+            if command.name == 'game'
+        ).get_command('search')
+        cog = games.polygames.__new__(games.polygames)
+        cog.allgames = SimpleNamespace(can_run=mock.AsyncMock(return_value=True))
+        supplied_views = (
+            (None, 'all'),
+            ('all', 'all'),
+            ('joinable', 'joinable'),
+            ('all-open', 'all-open'),
+            ('waiting', 'waiting'),
+            ('mine', 'mine'),
+            ('active', 'active'),
+            ('completed', 'completed'),
+            ('unconfirmed', 'unconfirmed'),
+        )
+        for supplied, expected in supplied_views:
+            with self.subTest(supplied=supplied):
+                loaded = snapshot(
+                    key=workers.GameSearchKey(status=expected),
+                    count=0,
+                )
+                cog._load_game_search = mock.AsyncMock(return_value=loaded)
+                interaction = SimpleNamespace(
+                    guild=SimpleNamespace(id=1),
+                    user=SimpleNamespace(id=2, roles=()),
+                    response=SimpleNamespace(defer=mock.AsyncMock()),
+                    edit_original_response=mock.AsyncMock(),
+                )
+                with (
+                    mock.patch.object(
+                        games.commands.Context,
+                        'from_interaction',
+                        new=mock.AsyncMock(return_value=SimpleNamespace()),
+                    ),
+                    mock.patch.object(
+                        games.settings,
+                        'guild_setting',
+                        return_value='$',
+                    ),
+                    mock.patch.object(
+                        games.settings,
+                        'is_staff',
+                        return_value=(expected == 'unconfirmed'),
+                    ),
+                    mock.patch.object(
+                        games.settings,
+                        'get_user_level',
+                        return_value=5,
+                    ),
+                ):
+                    await command.callback(
+                        cog,
+                        interaction,
+                        'term',
+                        supplied,
+                    )
+                request = cog._load_game_search.await_args.args[0]
+                self.assertEqual(request.key.status, expected)
+                self.assertEqual(request.query, 'term')
+
+    def test_unconfirmed_view_is_only_available_to_staff_workspace(self):
+        for staff, expected in ((False, False), (True, True)):
+            with self.subTest(staff=staff):
+                view = views.GameSearchWorkspace(
+                    requester_id=10,
+                    initial_result=snapshot(count=0),
+                    loader=mock.AsyncMock(),
+                    can_view_unconfirmed=staff,
+                )
+                labels = [option.label for option in view.view_select.options]
+                self.assertEqual('Unconfirmed results' in labels, expected)
 
     async def test_timeout_is_user_facing(self):
         cog = games.polygames.__new__(games.polygames)

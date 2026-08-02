@@ -9,6 +9,7 @@ from modules.games import post_newgame_messaging
 from modules.league import broadcast_team_game_to_server
 from modules import game_open, game_open_workers
 from modules import game_join_leave, game_join_workers, game_kick_workers
+from modules import game_search_workers
 from modules import game_start, game_start_workers
 import peewee
 import re
@@ -1187,145 +1188,180 @@ class matchmaking(commands.Cog):
         `[p]opengames me` - List unstarted opengames that you have joined
         You can also add keywords **ranked** or **unranked** or **steam** to filter by those types of games.
         """
-        # models.Game.purge_expired_games()
-
+        args = tuple(args)
         ranked_filter, ranked_str = 2, ''
-        platform_filter = 2  # mobile==1. 0 is desktop and 2 is any
+        platform_filter = 2  # Retained for legacy Steam/channel parsing.
         platform_str = ''
-        filter_unjoinable, novas_only = False, False
-        unjoinable_count = 0
-        ranked_chan = settings.guild_setting(ctx.guild.id, 'ranked_game_channel')
-        unranked_chan = settings.guild_setting(ctx.guild.id, 'unranked_game_channel')
-        steam_chan = settings.guild_setting(ctx.guild.id, 'steam_game_channel')
-        user_level = settings.get_user_level(ctx.author)
+        ranked_chan = settings.guild_setting(
+            ctx.guild.id,
+            'ranked_game_channel',
+        )
+        unranked_chan = settings.guild_setting(
+            ctx.guild.id,
+            'unranked_game_channel',
+        )
+        steam_chan = settings.guild_setting(
+            ctx.guild.id,
+            'steam_game_channel',
+        )
 
-        if ctx.invoked_with == 'nova' and args and args[0] == 'games':
-            # redirect '$nova games' to '$novagames'
+        invoked_with = str(ctx.invoked_with).lower()
+        if invoked_with == 'nova' and args and args[0].lower() == 'games':
+            # Preserve the historical '$nova games' redirect.
             args = args[1:]
 
-        if ctx.channel.id == unranked_chan or any(arg.upper() == 'UNRANKED' for arg in args):
+        channel_id = getattr(getattr(ctx, 'channel', None), 'id', None)
+        if (
+            channel_id == unranked_chan
+            or any(arg.upper() == 'UNRANKED' for arg in args)
+        ):
             ranked_filter = 0
             ranked_str = ' **unranked**'
-        elif ctx.channel.id == ranked_chan or any(arg.upper() == 'RANKED' for arg in args):
+        elif (
+            channel_id == ranked_chan
+            or any(arg.upper() == 'RANKED' for arg in args)
+        ):
             ranked_filter = 1
             ranked_str = ' **ranked**'
-        elif ctx.channel.id == steam_chan or any(arg.upper() == 'STEAM' for arg in args):
+        elif (
+            channel_id == steam_chan
+            or any(arg.upper() == 'STEAM' for arg in args)
+        ):
             platform_filter = 0
             platform_str = ' **Steam**'
 
-        if len(args) > 0 and args[0].upper() == 'WAITING':
+        if args and args[0].upper() == 'WAITING':
+            mode = 'waiting'
             title_str = f'Open{ranked_str} games waiting to start'
-            game_list = models.Game.search_pending(status_filter=1, guild_id=ctx.guild.id, ranked_filter=ranked_filter)
-
-        elif len(args) > 0 and args[0].upper() == 'ME':
+        elif args and args[0].upper() == 'ME':
+            mode = 'mine'
             title_str = f'Open games joined by **{ctx.author.name}**'
-            joined_list = models.Game.search_pending(guild_id=ctx.guild.id, player_discord_id=ctx.author.id)
-            hosting_list = models.Game.search_pending(status_filter=0, guild_id=ctx.guild.id, host_discord_id=ctx.author.id)
-            game_list = list(set(joined_list + hosting_list))
-
-        elif ctx.invoked_with == 'novagames' or ctx.invoked_with == 'nova':
-            if len(args) > 0 and args[0].upper() == 'ALL':
-                filter_unjoinable = False
-                title_str = f'Current pending Nova games\nUse `{ctx.prefix}games` for all joinable games.'
+        elif invoked_with in ('novagames', 'nova'):
+            if args and args[0].upper() == 'ALL':
+                mode = 'nova-all'
+                title_str = (
+                    f'Current pending Nova games\nUse `{ctx.prefix}games` '
+                    'for all joinable games.'
+                )
             else:
-                title_str = f'Current joinable Nova games\nUse `{ctx.prefix}novagames all` to view all Nova Games or `{ctx.prefix}games` for all joinable games.'
-                filter_unjoinable = True
-
-            novas_only = True
-            game_list = models.Game.search_pending(status_filter=2, guild_id=ctx.guild.id, ranked_filter=ranked_filter)
-
+                mode = 'nova-joinable'
+                title_str = (
+                    f'Current joinable Nova games\nUse `{ctx.prefix}'
+                    'novagames all` to view all Nova Games or '
+                    f'`{ctx.prefix}games` for all joinable games.'
+                )
         else:
-            if len(args) > 0 and args[0].upper() == 'ALL':
-                filter_unjoinable = False
+            if args and args[0].upper() == 'ALL':
+                mode = 'all-open'
                 filter_str = ''
             else:
+                mode = 'joinable'
                 filter_str = ' joinable'
-                filter_unjoinable = True
+            title_str = (
+                f'Current{filter_str}{ranked_str}{platform_str} open games '
+                'with available spots'
+            )
 
-            title_str = f'Current{filter_str}{ranked_str}{platform_str} open games with available spots'
-            game_list = models.Game.search_pending(status_filter=2, guild_id=ctx.guild.id, ranked_filter=ranked_filter, platform_filter=platform_filter)
-
-        gamelist_fields = [(f'`{"ID":<8}{"Host":<40} {"Type":<7} {"Capacity":<7} {"Exp":>4}` ', '\u200b')]
+        author_roles = tuple(getattr(ctx.author, 'roles', ()) or ())
+        request = game_search_workers.GameSearchRequest(
+            guild_id=ctx.guild.id,
+            requester_discord_id=ctx.author.id,
+            key=game_search_workers.GameSearchKey(status=mode),
+            requester_level=settings.get_user_level(ctx.author),
+            requester_role_ids=tuple(role.id for role in author_roles),
+            requester_name=getattr(ctx.author, 'name', ''),
+            requester_nick=getattr(ctx.author, 'nick', None),
+            staff=settings.is_staff(ctx.author),
+            ranked_filter=ranked_filter,
+            # Nova historically ignored platform filtering. Keep that
+            # compatibility while preserving Steam parsing for ordinary views.
+            platform_filter=(2 if mode.startswith('nova-') else platform_filter),
+            include_waitlist=True,
+        )
 
         async with ctx.typing():
-            for game in game_list:
+            try:
+                snapshot = await asyncio.wait_for(
+                    game_search_workers.run_game_search(request),
+                    timeout=20.0,
+                )
+            except (
+                game_search_workers.GameSearchError,
+                peewee.PeeweeException,
+                asyncio.TimeoutError,
+                ValueError,
+            ) as exc:
+                return await ctx.send(
+                    str(exc) or 'Game search timed out.'
+                )
 
-                notes_str = game.notes if game.notes else '\u200b'
-                players, capacity = game.capacity()
-                player_restricted_list = re.findall(r'<@!?(\d+)>', notes_str)
+        gamelist_fields = [
+            (
+                f'`{"ID":<8}{"Host":<40} {"Type":<7} '
+                f'{"Capacity":<7} {"Exp":>4}` ',
+                '\u200b',
+            )
+        ]
+        for row in snapshot.rows:
+            notes_str = row.notes if row.notes else '\u200b'
+            ranked_display = '*Unranked*' if not row.ranked else ''
+            ranked_display = (
+                ranked_display + ' - '
+                if row.notes and ranked_display
+                else ranked_display
+            )
+            gamelist_fields.append((
+                f'`{f"{row.game_id}":<8}{row.host_name:<40} '
+                f'{row.size:<7} {f" {row.players}/{row.capacity}":<7} '
+                f'{row.expiration:>5}`',
+                f'{row.platform_emoji} {ranked_display}{notes_str}\n \u200b',
+            ))
 
-                if filter_unjoinable and not game.has_player(discord_id=ctx.author.id)[0]:
+        if mode == 'joinable' and snapshot.filtered_count:
+            count = snapshot.filtered_count
+            noun = 'game' if count == 1 else 'games'
+            verb = 'was' if count == 1 else 'were'
+            title_str += (
+                f'\n{count} {noun} that you cannot join {verb} filtered. '
+                f'See `{ctx.prefix}{ctx.invoked_with} all` for an unfiltered '
+                'list.'
+            )
 
-                    game_allowed, _ = settings.can_user_join_game(user_level=user_level, game_size=capacity, is_ranked=game.is_ranked, is_host=False)
-                    if not game_allowed:
-                        # skipping games that user level restricts (ie joining a large ranked game for ELO Rookie/level 1)
-                        unjoinable_count += 1
-                        continue
+        title_str_full = (
+            title_str
+            + f'\nUse __`{ctx.prefix}join ID`__ to join one or '
+            f'__`{ctx.prefix}game ID`__ for more details.'
+        )
 
-                    if player_restricted_list and str(ctx.author.id) not in player_restricted_list and (len(player_restricted_list) >= capacity - 1):
-                        # skipping games that the command issuer is not invited to
-                        unjoinable_count += 1
-                        continue
-                    open_side, _ = game.first_open_side(roles=[role.id for role in ctx.author.roles])
-                    if not open_side:
-                        # skipping games that are role-locked that player doesn't have role for
-                        unjoinable_count += 1
-                        continue
-                    player, _ = models.Player.get_by_discord_id(discord_id=ctx.author.id, discord_name=ctx.author.name, discord_nick=ctx.author.nick, guild_id=ctx.guild.id)
-                    if player:
-                        # skip any games for which player does not meet ELO requirements, IF player is registered (unless ctx.author is already in game)
-                        (min_elo, max_elo, min_elo_g, max_elo_g) = game.elo_requirements()
-                        if player.elo_moonrise < min_elo or player.elo_moonrise > max_elo or player.discord_member.elo_moonrise < min_elo_g or player.discord_member.elo_moonrise > max_elo_g:
-                            unjoinable_count += 1
-                            continue
-                        if not (
-                            player.discord_member.polytopia_name
-                            or player.discord_member.name_steam
-                        ):
-                            # Historical ``is_mobile`` values do not select a
-                            # platform for cross-play games. A player only
-                            # needs one canonical account-name field.
-                            unjoinable_count += 1
-                            continue
-
-                if (novas_only and not game.notes) or (novas_only and game.notes and 'NOVA' not in game.notes.upper()):
-                    # skip all non-nova league template games, (will also include anything with "nova" in the game notes)
-                    unjoinable_count += 1
-                    continue
-
-                capacity_str = f' {players}/{capacity}'
-                expiration = int((game.expiration - datetime.datetime.now()).total_seconds() / 3600.0)
-                expiration = 'Exp' if expiration < 0 else f'{expiration}H'
-                ranked_str = '*Unranked*' if not game.is_ranked else ''
-                ranked_str = ranked_str + ' - ' if game.notes and ranked_str else ranked_str
-                creating_player = game.creating_player()
-                host_name = creating_player.name[:35] if creating_player else '<Vacant>'
-                gamelist_fields.append((f'`{f"{game.id}":<8}{host_name:<40} {game.size_string():<7} {capacity_str:<7} {expiration:>5}`',
-                    f'{game.platform_emoji()} {ranked_str}{notes_str}\n \u200b'))
-
-        if filter_unjoinable and unjoinable_count and not novas_only:
-            if unjoinable_count == 1:
-                title_str = title_str + f'\n1 game that you cannot join was filtered. See `{ctx.prefix}{ctx.invoked_with} all` for an unfiltered list.'
-            else:
-                title_str = title_str + f'\n{unjoinable_count} games that you cannot join were filtered. See `{ctx.prefix}{ctx.invoked_with} all` for an unfiltered list.'
-
-        title_str_full = title_str + f'\nUse __`{ctx.prefix}join ID`__ to join one or __`{ctx.prefix}game ID`__ for more details.'
-
-        asyncio.create_task(utilities.paginate(self.bot, ctx, title=title_str_full[:255], message_list=gamelist_fields, page_start=0, page_end=15, page_size=15))
-        # paginator done as a task because otherwise it will not let the waitlist message send until after pagination is complete (20+ seconds)
-
-        # Alert user if a game they are hosting OR should be creating is waiting to be created
-        waitlist_hosting = [f'{g.id}' for g in models.Game.search_pending(status_filter=1, guild_id=ctx.guild.id, host_discord_id=ctx.author.id)]
-        waitlist_creating = [f'{g.game}' for g in models.Game.waiting_for_creator(creator_discord_id=ctx.author.id)]
-        waitlist = set(waitlist_hosting + waitlist_creating)
-
-        if waitlist:
+        asyncio.create_task(
+            utilities.paginate(
+                self.bot,
+                ctx,
+                title=title_str_full[:255],
+                message_list=gamelist_fields,
+                page_start=0,
+                page_end=15,
+                page_size=15,
+            )
+        )
+        # The worker returned all database-derived waitlist data before the
+        # legacy paginator and reminder are scheduled.
+        if snapshot.waitlist_ids:
             await asyncio.sleep(1)
-            if len(waitlist) == 1:
-                start_str = f'Type __`{ctx.prefix}game {(waitlist_hosting + waitlist_creating)[0]}`__ for more details.'
+            if len(snapshot.waitlist_ids) == 1:
+                start_str = (
+                    f'Type __`{ctx.prefix}game '
+                    f'{snapshot.waitlist_ids[0]}`__ for more details.'
+                )
             else:
-                start_str = f'Type __`{ctx.prefix}game IDNUM`__ for more details, ie `{ctx.prefix}game {(waitlist_hosting + waitlist_creating)[0]}`'
-            await ctx.send(f'{ctx.author.mention}, you have full games waiting to start: **{", ".join(waitlist)}**\n{start_str}')
+                start_str = (
+                    f'Type __`{ctx.prefix}game IDNUM`__ for more details, '
+                    f'ie `{ctx.prefix}game {snapshot.waitlist_ids[0]}`'
+                )
+            await ctx.send(
+                f'{ctx.author.mention}, you have full games waiting to start: '
+                f'**{", ".join(snapshot.waitlist_ids)}**\n{start_str}'
+            )
 
     @settings.in_bot_channel()
     @models.is_registered_member()
