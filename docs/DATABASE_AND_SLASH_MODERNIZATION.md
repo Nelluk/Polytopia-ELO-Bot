@@ -2027,7 +2027,10 @@ after commit.
 Branch/base: `codex/p4-2b-game-notes` from exact clean accumulation base
 `190e6bb515911cedb329b4de5af88d2bbd0a1e58`.
 
-Implementation commit: `18d250b` — Implement focused game notes workspace.
+Implementation commits:
+
+- `18d250b` — Implement focused game notes workspace.
+- `7bba999` — Preserve PolyMatch numeric notes parsing.
 
 Files changed: `modules/game_workers.py`, `modules/game_notes.py`,
 `modules/game_notes_views.py`, `modules/games.py`,
@@ -6744,7 +6747,7 @@ unit and does not reopen accepted P5.2 behavior.
 
 - Created `codex/p4-2b-game-notes` from exact clean base
   `190e6bb515911cedb329b4de5af88d2bbd0a1e58` and recorded implementation
-  commit `18d250b`.
+  commits `18d250b` and `7bba999`.
 - Added a worker-local, atomic notes/audit service on the ordinary-game
   executor, cancellation-safe claim draining, bounded current-value reads,
   the public `/game notes` workspace with prefilled modal and explicit clear,
