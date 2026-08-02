@@ -127,10 +127,14 @@ class FakeMessage:
     def __init__(self):
         self.attachments = []
         self.edits = []
+        self.reactions = []
 
     async def edit(self, **kwargs):
         self.edits.append(kwargs)
         return self
+
+    async def add_reaction(self, emoji):
+        self.reactions.append(emoji)
 
 
 class FakeResponse:
@@ -535,9 +539,10 @@ class PendingGameCardAdapterTests(unittest.IsolatedAsyncioTestCase):
             get_member=lambda _member_id: None,
             get_role=lambda _role_id: None,
         )
+        pending_message = FakeMessage()
         target = SimpleNamespace(
             send=mock.AsyncMock(return_value=FakeMessage()),
-            edit_original_response=mock.AsyncMock(return_value=FakeMessage()),
+            edit_original_response=mock.AsyncMock(return_value=pending_message),
         )
         self.assertTrue(await cog._send_game_detail(
             target,
@@ -550,10 +555,15 @@ class PendingGameCardAdapterTests(unittest.IsolatedAsyncioTestCase):
         pending_kwargs = target.edit_original_response.await_args.kwargs
         self.assertIsInstance(pending_kwargs['view'], discord.ui.View)
         self.assertNotIsInstance(pending_kwargs['view'], discord.ui.LayoutView)
+        self.assertEqual(
+            pending_message.reactions,
+            [games.settings.emoji_join_game],
+        )
 
+        completed_message = FakeMessage()
         target = SimpleNamespace(
             send=mock.AsyncMock(return_value=FakeMessage()),
-            edit_original_response=mock.AsyncMock(return_value=FakeMessage()),
+            edit_original_response=mock.AsyncMock(return_value=completed_message),
         )
         cog._load_game_detail = mock.AsyncMock(
             return_value=card_snapshot(pending=False),
@@ -567,8 +577,10 @@ class PendingGameCardAdapterTests(unittest.IsolatedAsyncioTestCase):
             slash=True,
         ))
         self.assertNotIn('view', target.edit_original_response.await_args.kwargs)
+        self.assertEqual(completed_message.reactions, [])
 
-        target = SimpleNamespace(send=mock.AsyncMock(return_value=FakeMessage()))
+        prefix_message = FakeMessage()
+        target = SimpleNamespace(send=mock.AsyncMock(return_value=prefix_message))
         cog._load_game_detail = mock.AsyncMock(return_value=card_snapshot())
         self.assertTrue(await cog._send_game_detail(
             target,
@@ -578,6 +590,7 @@ class PendingGameCardAdapterTests(unittest.IsolatedAsyncioTestCase):
             game_id=77,
         ))
         self.assertNotIn('view', target.send.await_args.kwargs)
+        self.assertEqual(prefix_message.reactions, [])
         prefix_kwargs = target.send.await_args.kwargs
         prefix_render = views.render_classic_game_detail(
             views.resolve_display(
@@ -589,6 +602,81 @@ class PendingGameCardAdapterTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(prefix_kwargs['content'], prefix_render.content)
         self.assertEqual(prefix_kwargs['embed'].to_dict(), prefix_render.embed.to_dict())
+
+    async def test_reaction_seeding_skips_ineligible_pending_states(self):
+        cog = games.polygames.__new__(games.polygames)
+        cog.bot = SimpleNamespace(
+            guilds=[],
+            get_guild=lambda _guild_id: None,
+            get_user=lambda _discord_id: None,
+            get_channel=lambda _channel_id: None,
+            get_cog=lambda _name: None,
+        )
+        guild = SimpleNamespace(
+            id=10,
+            get_member=lambda _member_id: None,
+            get_role=lambda _role_id: None,
+        )
+
+        for snapshot in (
+            card_snapshot(full=True),
+            card_snapshot(expired=True),
+            card_snapshot(pending=False),
+        ):
+            with self.subTest(status=snapshot.status_label):
+                message = FakeMessage()
+                target = SimpleNamespace(
+                    edit_original_response=mock.AsyncMock(return_value=message),
+                )
+                cog._load_game_detail = mock.AsyncMock(return_value=snapshot)
+                self.assertTrue(await cog._send_game_detail(
+                    target,
+                    guild=guild,
+                    requester_id=900,
+                    channel_id=500,
+                    game_id=77,
+                    slash=True,
+                ))
+                self.assertEqual(message.reactions, [])
+
+    async def test_reaction_failure_keeps_native_card_successful(self):
+        cog = games.polygames.__new__(games.polygames)
+        cog.bot = SimpleNamespace(
+            guilds=[],
+            get_guild=lambda _guild_id: None,
+            get_user=lambda _discord_id: None,
+            get_channel=lambda _channel_id: None,
+            get_cog=lambda _name: None,
+        )
+        guild = SimpleNamespace(
+            id=10,
+            get_member=lambda _member_id: None,
+            get_role=lambda _role_id: None,
+        )
+        message = FakeMessage()
+        message.add_reaction = mock.AsyncMock(
+            side_effect=RuntimeError('reaction unavailable'),
+        )
+        target = SimpleNamespace(
+            edit_original_response=mock.AsyncMock(return_value=message),
+        )
+        cog._load_game_detail = mock.AsyncMock(return_value=card_snapshot())
+
+        with self.assertLogs(games.logger.name, level='ERROR') as logs:
+            self.assertTrue(await cog._send_game_detail(
+                target,
+                guild=guild,
+                requester_id=900,
+                channel_id=500,
+                game_id=77,
+                slash=True,
+            ))
+
+        self.assertIn('retain button and prefix fallback', '\n'.join(logs.output))
+        self.assertIn('view', target.edit_original_response.await_args.kwargs)
+        message.add_reaction.assert_awaited_once_with(
+            games.settings.emoji_join_game,
+        )
 
     async def test_adapter_validation_failure_is_ephemeral(self):
         cog = games.polygames.__new__(games.polygames)

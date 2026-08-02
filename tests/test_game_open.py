@@ -731,6 +731,15 @@ class OpenGameViewTests(unittest.IsolatedAsyncioTestCase):
             [False, False],
         )
 
+    async def test_shared_join_reaction_helper_uses_configured_emoji(self):
+        public_message = SimpleNamespace(add_reaction=mock.AsyncMock())
+
+        await game_open.add_join_reaction(public_message)
+
+        public_message.add_reaction.assert_awaited_once_with(
+            game_open.settings.emoji_join_game,
+        )
+
     async def test_discord_failure_is_logged_with_committed_game_id(self):
         result = game_open_workers.OpenGameResult(
             game_id=77,

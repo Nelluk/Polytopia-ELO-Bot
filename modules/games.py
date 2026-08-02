@@ -1505,6 +1505,19 @@ class polygames(commands.Cog):
             message = await target.send(**kwargs)
         if view is not None:
             view.message = message
+            if (
+                snapshot.is_pending
+                and snapshot.status_label != 'Expired open game'
+                and snapshot.pending_join_available
+            ):
+                try:
+                    await game_open.add_join_reaction(message)
+                except Exception:
+                    logger.exception(
+                        'Could not seed the join reaction on pending game %s '
+                        'card; retain button and prefix fallback',
+                        snapshot.game_id,
+                    )
         return True
 
     async def _send_game_search_workspace(
@@ -2357,14 +2370,11 @@ class polygames(commands.Cog):
                     wait=True,
                 )
 
-            async def add_join_reaction(message: object) -> None:
-                await message.add_reaction(settings.emoji_join_game)
-
             await game_open.publish_open_game_result(
                 result,
                 prefix=ctx.prefix,
                 send=send_public,
-                add_completion_reaction=add_join_reaction,
+                add_completion_reaction=game_open.add_join_reaction,
             )
 
         view = game_open_views.OpenGameView(
