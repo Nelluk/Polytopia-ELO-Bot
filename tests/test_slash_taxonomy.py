@@ -59,6 +59,7 @@ class SlashTaxonomyRegistrationTests(unittest.TestCase):
                 'set-ranked',
                 'map',
                 'notes',
+                'name',
                 'extend',
                 'unstart',
                 'manage',
@@ -155,6 +156,16 @@ class SlashTaxonomyRegistrationTests(unittest.TestCase):
                 (parameter.name, parameter.type, parameter.required)
                 for parameter
                 in game_group.get_command('notes').parameters
+            ],
+            [
+                ('game_id', discord.AppCommandOptionType.integer, True),
+            ],
+        )
+        self.assertEqual(
+            [
+                (parameter.name, parameter.type, parameter.required)
+                for parameter
+                in game_group.get_command('name').parameters
             ],
             [
                 ('game_id', discord.AppCommandOptionType.integer, True),

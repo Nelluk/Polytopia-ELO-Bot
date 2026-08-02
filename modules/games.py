@@ -16,6 +16,8 @@ from modules import game_win
 from modules import game_map
 from modules import game_notes
 from modules import game_notes_views
+from modules import game_name
+from modules import game_name_views
 from modules import game_workers
 from modules import game_open
 from modules import game_open_workers
@@ -3839,83 +3841,160 @@ class polygames(commands.Cog):
     @commands.command(usage='game_id "New Name"')
     @models.is_registered_member()
     async def rename(self, ctx, *args):
-        """Renames an existing game (due to restarts)
+        """Rename an existing game through the bounded ordinary-game worker.
 
-        You can rename a game for which you are the host. You can omit the game ID if you use the command in a game-specific channel.
+        You can rename a game for which you are the host. You can omit the
+        game ID if you use the command in a game-specific channel.
         **Example:**
         `[p]rename 52000 Mountains of Fire`
         `[p]rename 52000 None` - Remove a game's name. Required elevated permissions.
         """
 
-        usage = (f'**Example usage:** `{ctx.prefix}rename 100 New Game Name`\n'
-                    'You can also omit the game ID if you use the command from a game-specific channel.')
+        usage = (
+            f'**Example usage:** `{ctx.prefix}rename 100 New Game Name`\n'
+            'You can also omit the game ID if you use the command from a '
+            'game-specific channel.'
+        )
         if not args:
             return await ctx.send(usage)
-        try:
-            game_id = int(args[0])
-            new_game_name = ' '.join(args[1:])
-        except ValueError:
-            game_id = None
-            new_game_name = ' '.join(args)
 
-        inferred_game = None
+        channel_id = int(
+            getattr(getattr(ctx, 'message', None), 'channel', None).id
+            if getattr(getattr(ctx, 'message', None), 'channel', None) is not None
+            else getattr(getattr(ctx, 'channel', None), 'id', 0)
+        )
+        first_token = str(args[0]).strip('#')
         try:
-            inferred_game = Game.by_channel_id(chan_id=ctx.message.channel.id)
-        except exceptions.TooManyMatches:
-            logger.error(f'More than one game with matching channel {ctx.message.channel.id}')
-            return await ctx.send('Error looking up game based on current channel - please contact the bot owner.')
-        except exceptions.NoMatches:
-            if game_id:
-                game = await PolyGame().convert(ctx, int(game_id), allow_cross_guild=False)
-                if not await settings.is_bot_channel_strict(ctx):
-                    return await ctx.send('This command must be used in a bot spam channel or in a game-specific channel.')
-            else:
-                ctx.command.reset_cooldown(ctx)
-                return await ctx.send(f'Game ID was not included and this does not appear to be a game-specific channel.\n{usage}')
+            explicit_game_id = int(first_token)
+        except (TypeError, ValueError):
+            explicit_game_id = None
+        new_game_name = (
+            ' '.join(args[1:])
+            if explicit_game_id is not None
+            else ' '.join(args)
+        )
+        target_request = game_name.build_mutation_request(
+            member=ctx.author,
+            guild_id=ctx.guild.id,
+            channel_id=channel_id,
+            legacy_tokens=tuple(args),
+            allow_related_channel=True,
+            invoked_with=ctx.invoked_with or 'rename',
+            prefix=ctx.prefix,
+        )
+
+        try:
+            target = await game_workers.run_prepare_legacy_game_name(
+                target_request,
+            )
+        except game_workers.GameNameLookupError as exc:
+            if str(exc).startswith('Error looking up game based on current channel'):
+                logger.error(
+                    'More than one game with matching channel %s',
+                    channel_id,
+                )
+                return await ctx.send(str(exc))
+            if explicit_game_id is not None:
+                return await ctx.send(
+                    f'Game with ID {explicit_game_id} cannot be found.'
+                )
+            reset_cooldown = getattr(
+                getattr(ctx, 'command', None),
+                'reset_cooldown',
+                None,
+            )
+            if callable(reset_cooldown):
+                reset_cooldown(ctx)
+            return await ctx.send(
+                f'Game ID was not included and this does not appear to be a '
+                f'game-specific channel.\n{usage}'
+            )
+        except game_workers.GameNameValidationError as exc:
+            return await ctx.send(str(exc))
+        except peewee.PeeweeException:
+            logger.exception('Database failure resolving rename target')
+            return await ctx.send('The game name target could not be loaded.')
+
+        if not target.inferred_from_channel:
+            if not await settings.is_bot_channel_strict(ctx):
+                return await ctx.send(
+                    'This command must be used in a bot spam channel or in a '
+                    'game-specific channel.'
+                )
+            logger.debug(
+                'Using explicit game %s for rename command in channel %s',
+                target.game_id,
+                channel_id,
+            )
         else:
-            game = inferred_game
-            logger.debug(f'Inferring game {inferred_game.id} from rename command used in channel {ctx.message.channel.id}')
-
-        if game.is_pending:
-            return await ctx.send('This game has not started yet.')
+            logger.debug(
+                'Inferring game %s from rename command used in channel %s',
+                target.game_id,
+                channel_id,
+            )
 
         if not new_game_name:
             return await ctx.send(usage)
-        if new_game_name.upper() == 'NONE':
-            if settings.get_user_level(ctx.author) <= 3:
-                return await ctx.send('You do not have permissions to delete a game name.')
-            new_game_name = None
-        is_hosted_by, host = game.is_hosted_by(ctx.author.id)
-        if not is_hosted_by and not settings.is_staff(ctx.author) and not game.is_created_by(discord_id=ctx.author.id):
-            # host_name = f' **{host.name}**' if host else ''
-            return await ctx.send(f'Only the game creator **{game.creating_player().name}** or server staff can do this.')
-        if new_game_name and not utilities.is_valid_poly_gamename(input=new_game_name):
-            if settings.get_user_level(ctx.author) <= 2:
-                return await ctx.send('That name looks made up. :thinking: You need to manually create the game __in Polytopia__, come back and input the name of the new game you made.\n'
-                    f'You can use `{ctx.prefix}code NAME` to get the code of each player in this game.')
-            await ctx.send(':warning: That game name looks made up - you are allowed to override due to your user level.')
+        clear = new_game_name.upper() == 'NONE'
+        request = game_name.build_mutation_request(
+            member=ctx.author,
+            guild_id=ctx.guild.id,
+            channel_id=channel_id,
+            game_id=target.game_id,
+            name=None if clear else new_game_name,
+            clear=clear,
+            allow_related_channel=target.inferred_from_channel,
+            invoked_with=ctx.invoked_with or 'rename',
+            prefix=ctx.prefix,
+        )
 
-        old_game_name = game.name
-        game.name = new_game_name
-        game_guild = self.bot.get_guild(game.guild_id)
-        if not game_guild:
-            logger.error(f'Error attempting in rename command for game {game.id} - could not load guild {game.guild_id}')
-            return await ctx.send('Error loading guild associated with this game. Please contact the bot owner.')
+        async def after_commit(result):
+            game_guild = None
+            bot = getattr(self, 'bot', None)
+            get_guild = getattr(bot, 'get_guild', None)
+            if callable(get_guild):
+                game_guild = get_guild(result.guild_id)
+            game_guild = game_guild or ctx.guild
+            guild_list = getattr(bot, 'guilds', None) or (game_guild,)
+            await game_name.publish_mutation_result(
+                result,
+                send=ctx.send,
+                destination=ctx,
+                guild=game_guild,
+                guild_list=guild_list,
+                prefix=ctx.prefix,
+            )
 
-        game.save()
-        if game.update_league_fields():
-            league_warning = f'\n:warning: Detected a difference in the season game status. New status is:\nGame season: `{game.league_season}`, Team tier: `{game.league_tier}`,  Playoff game? `{game.league_playoff}`'
-        else:
-            league_warning = ''
-
-        await game.update_squad_channels(self.bot.guilds, game_guild.id)
-        await game.update_announcement(guild=game_guild, prefix=ctx.prefix)
-        models.GameLog.write(game_id=game, guild_id=game.guild_id, message=f'{models.GameLog.member_string(ctx.author)} renamed the game to *{discord.utils.escape_markdown(str(new_game_name))}*')
-
-        new_game_name = game.name if game.name else 'None'
-        old_game_name = old_game_name if old_game_name else 'None'
-
-        await ctx.send(f'Game ID {game.id} has been renamed to "**{new_game_name}**" from "**{old_game_name}**"{league_warning}')
+        try:
+            await game_name.run_name_mutation(
+                request,
+                after_commit=after_commit,
+            )
+        except game_workers.GameNameValidationError as exc:
+            message = str(exc)
+            if message.startswith('This command requires bot registration first.'):
+                message = message.replace(
+                    '__`setname ',
+                    f'__`{ctx.prefix}setname ',
+                ).replace(
+                    '__`steamname ',
+                    f'__`{ctx.prefix}steamname ',
+                )
+            return await ctx.send(message)
+        except exceptions.RecordLocked as exc:
+            return await ctx.send(str(exc))
+        except peewee.PeeweeException:
+            logger.exception('Database failure setting game name')
+            return await ctx.send(
+                'The game name change failed and rolled back. No Discord '
+                'announcement or card update was made.'
+            )
+        except Exception:
+            logger.exception('Unexpected failure setting game name')
+            return await ctx.send(
+                'The game name change failed. No Discord announcement or card '
+                'update was made.'
+            )
 
 
     @commands.command(aliases=['setmaptype'], usage='game_id map_type')
@@ -4313,6 +4392,208 @@ class polygames(commands.Cog):
             await interaction.followup.send(
                 'The current notes were loaded but could not be published. '
                 'Run `/game notes` again.',
+                ephemeral=True,
+            )
+        return workspace
+
+    @game_group.command(
+        name='name',
+        description='View or update a tracked Polytopia game name.',
+    )
+    @discord.app_commands.describe(
+        game_id='Game whose tracked name to view or edit.',
+    )
+    async def name_slash(
+        self,
+        interaction: discord.Interaction,
+        game_id: int,
+    ):
+        """Publish a short-lived public current-name workspace."""
+
+        await interaction.response.defer(ephemeral=True)
+        requester_actor = game_name.capture_actor(interaction.user)
+        channel_id = int(
+            getattr(interaction, 'channel_id', None)
+            or getattr(getattr(interaction, 'channel', None), 'id', 0)
+            or 0
+        )
+        request = game_name.build_read_request(
+            member=interaction.user,
+            guild_id=interaction.guild.id,
+            channel_id=channel_id,
+            game_id=game_id,
+        )
+
+        try:
+            result = await asyncio.wait_for(
+                game_name.run_name_read(request),
+                timeout=20,
+            )
+        except game_workers.GameNameValidationError as exc:
+            return await interaction.followup.send(str(exc), ephemeral=True)
+        except asyncio.TimeoutError:
+            return await interaction.followup.send(
+                'The current game name could not be loaded in time. Run '
+                '`/game name` again.',
+                ephemeral=True,
+            )
+        except peewee.PeeweeException:
+            logger.exception('Database failure reading game name')
+            return await interaction.followup.send(
+                'The current game name could not be loaded.',
+                ephemeral=True,
+            )
+        except Exception:
+            logger.exception('Unexpected failure reading game name')
+            return await interaction.followup.send(
+                'The current game name could not be loaded.',
+                ephemeral=True,
+            )
+
+        try:
+            prefix = settings.guild_setting(
+                interaction.guild.id,
+                'command_prefix',
+            )
+        except exceptions.CheckFailedError:
+            logger.warning(
+                'Could not load the guild prefix for game-name output; using '
+                'the default prefix'
+            )
+            prefix = '$'
+
+        bot = getattr(self, 'bot', None) or getattr(settings, 'bot', None)
+        guild_list = getattr(bot, 'guilds', None) or (interaction.guild,)
+
+        async def private_failure(native_interaction, message: str) -> None:
+            response = getattr(native_interaction, 'response', None)
+            is_done = getattr(response, 'is_done', None)
+            if callable(is_done) and is_done():
+                await native_interaction.followup.send(
+                    message,
+                    ephemeral=True,
+                )
+            else:
+                await native_interaction.response.send_message(
+                    message,
+                    ephemeral=True,
+                )
+
+        async def mutate(
+            native_interaction,
+            name,
+            expected_snapshot: game_workers.GameNameReadResult,
+            *,
+            clear: bool,
+        ):
+            actor = game_name.capture_actor(native_interaction.user)
+            mutation = game_name.build_mutation_request(
+                member=native_interaction.user,
+                guild_id=native_interaction.guild.id,
+                channel_id=int(
+                    getattr(native_interaction, 'channel_id', None)
+                    or getattr(
+                        getattr(native_interaction, 'channel', None),
+                        'id',
+                        0,
+                    )
+                    or 0
+                ),
+                game_id=expected_snapshot.game_id,
+                name=name,
+                clear=clear,
+                expected_name=expected_snapshot.name,
+                check_expected_name=True,
+                invoked_with='/game name',
+                prefix=prefix,
+            )
+            public_send = game_name.public_interaction_sender(
+                native_interaction,
+            )
+
+            async def after_commit(committed):
+                await game_name.publish_mutation_result(
+                    committed,
+                    send=public_send,
+                    destination=native_interaction.channel,
+                    guild=native_interaction.guild,
+                    guild_list=guild_list,
+                    prefix=prefix,
+                    actor=actor,
+                )
+
+            try:
+                return await game_name.run_name_mutation(
+                    mutation,
+                    after_commit=after_commit,
+                )
+            except game_workers.GameNameValidationError as exc:
+                await private_failure(native_interaction, str(exc))
+            except exceptions.RecordLocked as exc:
+                await private_failure(native_interaction, str(exc))
+            except peewee.PeeweeException:
+                logger.exception('Database failure changing game name')
+                await private_failure(
+                    native_interaction,
+                    'The game name change failed and rolled back. No Discord '
+                    'announcement or card update was made.',
+                )
+            except asyncio.TimeoutError:
+                await private_failure(
+                    native_interaction,
+                    'The game name change did not finish in time. Run `/game '
+                    'name` again to verify the current value.',
+                )
+            except Exception:
+                logger.exception('Unexpected failure changing game name')
+                await private_failure(
+                    native_interaction,
+                    'The game name change failed. No Discord announcement or '
+                    'card update was made.',
+                )
+            return None
+
+        async def edit_callback(
+            native_interaction,
+            name,
+            expected_snapshot,
+        ):
+            return await mutate(
+                native_interaction,
+                name,
+                expected_snapshot,
+                clear=False,
+            )
+
+        async def clear_callback(
+            native_interaction,
+            expected_snapshot,
+        ):
+            return await mutate(
+                native_interaction,
+                None,
+                expected_snapshot,
+                clear=True,
+            )
+
+        workspace = game_name_views.GameNameWorkspaceView(
+            result,
+            requester_id=interaction.user.id,
+            on_edit=edit_callback,
+            on_clear=clear_callback,
+            requester_actor=requester_actor,
+        )
+        public_send = game_name.public_interaction_sender(interaction)
+        try:
+            workspace.message = await public_send(
+                game_name.read_message(result, actor=requester_actor),
+                view=workspace,
+            )
+        except Exception:
+            logger.exception('Could not publish the game-name workspace')
+            await interaction.followup.send(
+                'The current game name was loaded but could not be published. '
+                'Run `/game name` again.',
                 ephemeral=True,
             )
         return workspace
