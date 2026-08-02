@@ -4,7 +4,7 @@ Last updated: 2026-08-02
 
 Status: Active
 
-Current branch at last update: `codex/p4-2a-game-map` (delegated unit;
+Current branch at last update: `codex/p4-2b-game-notes` (delegated unit;
 not integrated)
 
 Source task: `thread://019fae66-8e3a-7a50-9a0f-d3d7160d2287`
@@ -433,9 +433,13 @@ check:
   `codex/p4-2a-game-map`, based on exact clean base
   `5a310c0bdf5d66646bb9b6f8b47ee322cbe1e15c`.
 - P4.2a accumulation merge: `5845e8b`.
+- P4.2b implementation checkpoints: `18d250b`, `7bba999`; Tier-3 review
+  corrections: `f26db71`, `7070285`, `5c38e98` on
+  `codex/p4-2b-game-notes`, based on exact clean base
+  `190e6bb515911cedb329b4de5af88d2bbd0a1e58`.
 
-Current unit: **P4.2b focused game-notes workspace — In progress;
-implementation pending on a dedicated Luna worktree.**
+Current unit: **P4.2b focused game-notes workspace — Tier-3 reviewed and
+accepted for integration approval; not integrated.**
 P4.2a is complete, beta-validated, and integrated as `5845e8b` with public
 visibility correction merge `4fa4b4f`.
 P5.8 is complete, beta-validated, and integrated as `4fc5973`; its final
@@ -2015,14 +2019,31 @@ stopped cleanly after acceptance.
 
 #### P4.2b — Focused game-notes workspace
 
-Status: **In progress — implementation pending**
+Status: **Tier-3 reviewed and accepted for integration approval; not
+integrated**
 
 Risk tier: **Tier 3**. Notes mutation and its audit entry must commit
 atomically, while the public game-card refresh and mention warning occur only
 after commit.
 
-Branch/base: create `codex/p4-2b-game-notes` from the exact clean accumulation
-checkpoint containing this plan.
+Branch/base: `codex/p4-2b-game-notes` from exact clean accumulation base
+`190e6bb515911cedb329b4de5af88d2bbd0a1e58`.
+
+Implementation commits:
+
+- `18d250b` — Implement focused game notes workspace.
+- `7bba999` — Preserve PolyMatch numeric notes parsing.
+- `f26db71` — Remove the unsupported public-channel `wait` keyword and add a
+  strict sender regression.
+- `7070285` — Stabilize the slow-worker responsiveness test with an explicit
+  timer wake-up.
+- `5c38e98` — Replace the executor-dependent worker-start wait with bounded
+  async polling.
+
+Files changed: `modules/game_workers.py`, `modules/game_notes.py`,
+`modules/game_notes_views.py`, `modules/games.py`,
+`modules/matchmaking.py`, `tests/test_game_notes.py`, and
+`tests/test_slash_taxonomy.py`.
 
 Objective: establish a genuinely useful modal-backed read/edit attribute
 workflow for free-form game notes while moving the synchronous `$gamenotes`
@@ -2093,9 +2114,57 @@ Out of scope: game name, map, tribe, ranked state, join restrictions,
 attachments, notification composition, schema changes, generic persistent
 draft infrastructure, prefix deprecation, global sync, and production work.
 
-Next action: dispatch this exact Tier-3 unit to a clean Luna worktree. Sol must
-review the complete mutation, cancellation, permission, modal, and post-commit
-evidence before integration or beta authorization.
+Compatibility decision: no compatibility-ledger row was added. The prefix
+surface retains `$gamenotes`, `$notes`, and `$matchnotes`, including explicit
+`none`, channel inference, conversion/error wording, truncation, permissions,
+output, card refresh, and mention-warning behavior. The native command adds
+the approved public workspace without replacing the dense game card.
+
+Implementation evidence:
+
+- The shared notes service captures primitive/frozen requests, uses the
+  existing ordinary-game write executor and per-game claim, drains repeated
+  cancellation before release, reloads/revalidates in a worker-local
+  connection, and commits the notes plus `GameLog` entry atomically.
+- `/game notes game_id` reads through a separately bounded worker and publishes
+  successful current state through a genuinely public channel sender after its
+  private defer. Edit and clear failures remain ephemeral; clear requires an
+  explicit confirmation; the modal has one 150-character paragraph input and
+  the workspace has two requester-checked controls with a bounded timeout.
+- Prefix mutation now routes through the same service/worker and keeps the
+  dense `image_storage.send_game_embed` refresh and role/user mention warning
+  after commit.
+- Sol's Tier-3 review found that the public workspace passed the webhook-only
+  `wait` keyword through the normal `discord.py` channel sender. A real
+  `Messageable.send` rejects that keyword. Correction `f26db71` removed it and
+  added a strict channel-sender regression that accepts only content and view;
+  `channel.send` still returns the workspace `Message` directly.
+- Corrections `7070285` and `5c38e98` aligned the responsiveness test with the
+  repository's restricted-runner pattern: a short heartbeat must complete
+  while the worker remains pending, worker start uses bounded async polling,
+  and an explicit timer wake-up precedes awaiting executor completion.
+
+Validation evidence:
+
+- Authoritative clean-export focused run of `tests.test_game_notes` and
+  `tests.test_slash_taxonomy`: 34 tests passed.
+- Authoritative clean-export complete offline discovery: 500 tests passed with
+  17 gated development-database skips.
+- Unchanged gated `tests.test_database_integration -v`: 17 tests ran, 16
+  passed, and one intentionally skipped to preserve operator fixtures after
+  the gate confirmed `POLYBOT_ENV=development`, database `polytopia_dev`, and
+  role `polybot_dev`.
+- Git diff checks were clean.
+
+Known limitations: the preserved dense game-card refresh still performs its
+short `Game.load_full_game` reload on the event-loop thread, matching the
+adjacent P4.2a limitation. No beta, command inspection/synchronization,
+Discord connection, production or `polytopia2` access, schema/dependency
+action, push, PR, merge, or integration action was performed.
+
+Next action: obtain integration approval for the reviewed branch. Decide
+separately whether a beta smoke is required; do not merge or integrate without
+that approval.
 
 ## P5 — Matchmaking lifecycle
 
@@ -6683,6 +6752,34 @@ unit and does not reopen accepted P5.2 behavior.
 - Next: Sol should review the complete branch, independently run the unchanged
   development database gate when the approved ignored profile is available,
   and decide whether a separately approved beta smoke is required.
+
+### 2026-08-02 — P4.2b game-notes workspace Tier-3 accepted
+
+- Created `codex/p4-2b-game-notes` from exact clean base
+  `190e6bb515911cedb329b4de5af88d2bbd0a1e58` and recorded implementation
+  commits `18d250b` and `7bba999` plus review corrections `f26db71`,
+  `7070285`, and `5c38e98`.
+- Added a worker-local, atomic notes/audit service on the ordinary-game
+  executor, cancellation-safe claim draining, bounded current-value reads,
+  the public `/game notes` workspace with prefilled modal and explicit clear,
+  and prefix routing through the same service while preserving the dense card.
+- Sol's review found that normal `channel.send` rejects the webhook-only
+  `wait` keyword used by the public workspace. The correction removed that
+  keyword and added a strict channel-sender regression; two follow-up commits
+  made the responsiveness test independent of suppressed executor self-pipe
+  callbacks while preserving a strong heartbeat assertion.
+- Authoritative clean-export validation passed 34 focused notes/taxonomy
+  tests and 500 complete offline tests with 17 gated skips. The unchanged
+  gated database suite ran 17 tests after confirming
+  `development` / `polytopia_dev` / `polybot_dev`: 16 passed and one
+  intentionally skipped to preserve operator fixtures. Git diff checks were
+  clean.
+- No compatibility-ledger row was needed. No beta, Discord connection,
+  command inspection/synchronization, production or `polytopia2` access,
+  schema/dependency action, push, PR, merge, or integration action occurred.
+- Status: Tier-3 reviewed and accepted for integration approval; not Complete
+  and not integrated. Next: obtain explicit integration approval and decide
+  separately whether beta smoke is required.
 
 ## Resume checklist
 

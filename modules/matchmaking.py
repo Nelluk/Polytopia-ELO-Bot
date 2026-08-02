@@ -8,6 +8,7 @@ import modules.exceptions as exceptions
 from modules.games import post_newgame_messaging
 from modules.league import broadcast_team_game_to_server
 from modules import game_open, game_open_workers
+from modules import game_notes, game_workers
 from modules import game_join_leave, game_join_workers, game_kick_workers
 from modules import game_search_workers
 from modules import game_start, game_start_workers
@@ -1091,9 +1092,18 @@ class matchmaking(commands.Cog):
 
     @settings.in_bot_channel()
     @models.is_registered_member()
-    @commands.command(hidden=True, usage='game_id', aliases=['notes', 'matchnotes'])
-    # clean_content converter flattens and user/role tags
-    async def gamenotes(self, ctx, game: PolyMatch, *, notes: discord.ext.commands.clean_content = None):
+    @commands.command(
+        hidden=True,
+        usage='game_id [notes]',
+        aliases=['notes', 'matchnotes'],
+    )
+    # clean_content converter flattens and user/role tags.
+    async def gamenotes(
+        self,
+        ctx,
+        *,
+        args: discord.ext.commands.clean_content = None,
+    ):
         """
         Edit notes for an open game you host.
         **Example:**
@@ -1101,32 +1111,155 @@ class matchmaking(commands.Cog):
         `[p]gamenotes 1234 none` - Delete notes for game 1234
         """
 
+        raw_args = str(args or '').strip()
+        first_token, separator, remainder = raw_args.partition(' ')
+        explicit_game_id = first_token.strip('#')
+        inferred_from_channel = False
+
+        try:
+            game_id = int(explicit_game_id)
+        except ValueError:
+            game_id = None
+
+        if game_id is not None:
+            notes = remainder.strip() if separator else None
+        else:
+            # Preserve the old PolyMatch invalid-ID surface while allowing the
+            # established game-channel grammar used by adjacent game commands.
+            target_request = game_notes.build_mutation_request(
+                member=ctx.author,
+                guild_id=ctx.guild.id,
+                channel_id=ctx.channel.id,
+                game_id=None,
+                legacy_tokens=(),
+                allow_related_channel=True,
+                invoked_with=ctx.invoked_with or 'gamenotes',
+                prefix=ctx.prefix,
+            )
+            try:
+                target = await game_workers.run_prepare_legacy_game_notes(
+                    target_request,
+                )
+            except game_workers.GameNotesLookupError:
+                if explicit_game_id.upper() == 'ID':
+                    return await ctx.send(
+                        f'Invalid Game ID "**{explicit_game_id}**". Use the numeric '
+                        'game ID *only*.'
+                    )
+                if first_token:
+                    return await ctx.send(
+                        f'Invalid Game ID "**{explicit_game_id}**".'
+                    )
+                return await ctx.send(
+                    f'Include new note or *none* to delete existing note. '
+                    f'Usage: `{ctx.prefix}{ctx.invoked_with} game_id These '
+                    'are my new notes`'
+                )
+            except peewee.PeeweeException:
+                logger.exception('Database failure inferring notes game')
+                return await ctx.send(
+                    'The notes target could not be loaded.'
+                )
+            game_id = target.game_id
+            notes = raw_args or None
+            inferred_from_channel = True
+
         if not notes:
-            return await ctx.send(f'Include new note or *none* to delete existing note. Usage: `{ctx.prefix}{ctx.invoked_with} {game.id} These are my new notes`')
+            read_request = game_notes.build_read_request(
+                member=ctx.author,
+                guild_id=ctx.guild.id,
+                channel_id=ctx.channel.id,
+                game_id=game_id,
+                allow_related_channel=inferred_from_channel,
+            )
+            try:
+                await game_notes.run_notes_read(read_request)
+            except game_workers.GameNotesValidationError as exc:
+                message = str(exc)
+                if 'different discord server' in message:
+                    message = (
+                        f'Game with ID {game_id} is associated with a different '
+                        f'Discord server. Use `{ctx.prefix}opengames` to see '
+                        'available matches.'
+                    )
+                elif 'cannot be found' in message:
+                    message = (
+                        f'Game with ID {game_id} cannot be found. Use '
+                        f'`{ctx.prefix}opengames` to see available matches.'
+                    )
+                return await ctx.send(message)
+            except peewee.PeeweeException:
+                logger.exception('Database failure reading game notes usage')
+                return await ctx.send('The notes target could not be loaded.')
+            return await ctx.send(
+                f'Include new note or *none* to delete existing note. Usage: '
+                f'`{ctx.prefix}{ctx.invoked_with} {game_id} These are my new '
+                'notes`'
+            )
 
-        if not game.is_hosted_by(ctx.author.id)[0] and not settings.is_staff(ctx.author):
-            return await ctx.send('Only the game host or server staff can do this.')
-
-        if notes.lower() == 'none':
-            notes = None
-
-        if game.is_completed:
-            return await ctx.send('This game is completed and notes cannot be edited.')
-        elif not game.is_pending and not settings.is_staff(ctx.author):
-            return await ctx.send('Only server staff can edit notes of an in-progress game.')
-
-        game.notes = notes[:150] if notes else None
-        game.save()
-
-        models.GameLog.write(game_id=game, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} edited game notes: {game.notes}')
-        await ctx.send(f'Updated notes for game {game.id} to: {game.notes}')
-        embed, content = game.embed(guild=ctx.guild, prefix=ctx.prefix)
-        await image_storage.send_game_embed(
-            ctx, game, embed=embed, content=content
+        clear = notes.lower() == 'none'
+        request = game_notes.build_mutation_request(
+            member=ctx.author,
+            guild_id=ctx.guild.id,
+            channel_id=ctx.channel.id,
+            game_id=int(game_id),
+            notes=None if clear else notes,
+            clear=clear,
+            invoked_with=ctx.invoked_with or 'gamenotes',
+            prefix=ctx.prefix,
+            truncate=True,
+            legacy_none=True,
+            allow_related_channel=inferred_from_channel,
+            mention_warning=bool(
+                ctx.message.mentions or ctx.message.role_mentions
+            ),
         )
 
-        if ctx.message.mentions or ctx.message.role_mentions:
-            await ctx.send('**Warning**: Updated notes included role/user mentions. This will not impact who is allowed to join the game and will only change the content of the notes.')
+        async def after_commit(result):
+            await game_notes.publish_mutation_result(
+                result,
+                send=ctx.send,
+                refresh_card=lambda value: game_notes.refresh_game_card(
+                    value,
+                    destination=ctx,
+                    guild=ctx.guild,
+                    prefix=ctx.prefix,
+                ),
+            )
+
+        try:
+            await game_notes.run_notes_mutation(
+                request,
+                after_commit=after_commit,
+            )
+        except game_workers.GameNotesValidationError as exc:
+            message = str(exc)
+            if 'different discord server' in message:
+                message = (
+                    f'Game with ID {game_id} is associated with a different '
+                    f'Discord server. Use `{ctx.prefix}opengames` to see '
+                    'available matches.'
+                )
+            elif 'cannot be found' in message:
+                message = (
+                    f'Game with ID {game_id} cannot be found. Use '
+                    f'`{ctx.prefix}opengames` to see available matches.'
+                )
+            return await ctx.send(message)
+        except exceptions.RecordLocked as exc:
+            return await ctx.send(str(exc))
+        except peewee.PeeweeException:
+            logger.exception('Database failure setting game notes')
+            return await ctx.send(
+                'The notes change failed and rolled back. No Discord '
+                'announcement or card update was made.'
+            )
+        except Exception:
+            logger.exception('Unexpected failure setting game notes')
+            return await ctx.send(
+                'The notes change failed. No Discord announcement or card '
+                'update was made.'
+            )
 
     @settings.in_bot_channel()
     @models.is_registered_member()

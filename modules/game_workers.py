@@ -137,9 +137,98 @@ class GameMapMutationResult:
     announcement_message_id: int | None
 
 
+class GameNotesValidationError(RuntimeError):
+    """The current request or game state cannot be used for notes."""
+
+
+class GameNotesLookupError(GameNotesValidationError):
+    """A legacy notes target could not be resolved."""
+
+
+class GameNotesPermissionError(GameNotesValidationError):
+    """The requester cannot inspect or edit the requested game's notes."""
+
+
+class GameNotesConflictError(GameNotesValidationError):
+    """The immutable notes workspace was opened from stale state."""
+
+
+@dataclass(frozen=True)
+class GameNotesReadRequest:
+    """Primitive input for a bounded current-notes read."""
+
+    game_id: int | None
+    guild_id: int
+    channel_id: int
+    requester_id: int
+    allow_related_channel: bool = False
+    legacy_tokens: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class GameNotesMutationRequest:
+    """Primitive input for one authoritative notes mutation."""
+
+    game_id: int | None
+    guild_id: int
+    channel_id: int
+    requester_id: int
+    requester_level: int
+    requester_is_staff: bool
+    requester_description: str
+    notes: str | None = None
+    clear: bool = False
+    expected_notes: str | None = None
+    check_expected_notes: bool = False
+    legacy_tokens: tuple[str, ...] = ()
+    allow_related_channel: bool = False
+    invoked_with: str = 'gamenotes'
+    prefix: str = '$'
+    truncate: bool = False
+    legacy_none: bool = False
+    mention_warning: bool = False
+
+
+@dataclass(frozen=True)
+class GameNotesTarget:
+    """Resolved primitive target for a legacy notes mutation."""
+
+    game_id: int
+
+
+@dataclass(frozen=True)
+class GameNotesReadResult:
+    game_id: int
+    guild_id: int
+    notes: str | None
+    is_pending: bool = False
+    is_completed: bool = False
+    host_discord_id: int | None = None
+    announcement_channel_id: int | None = None
+    announcement_message_id: int | None = None
+
+
+@dataclass(frozen=True)
+class GameNotesMutationResult:
+    game_id: int
+    guild_id: int
+    old_notes: str | None
+    notes: str | None
+    mention_warning: bool = False
+    is_pending: bool = False
+    is_completed: bool = False
+    announcement_channel_id: int | None = None
+    announcement_message_id: int | None = None
+
+
 _game_map_read_executor = ThreadPoolExecutor(
     max_workers=2,
     thread_name_prefix='polybot-game-map-read',
+)
+
+_game_notes_read_executor = ThreadPoolExecutor(
+    max_workers=2,
+    thread_name_prefix='polybot-game-notes-read',
 )
 
 
@@ -445,6 +534,282 @@ async def run_game_map_mutation(
         raise asyncio.CancelledError
 
 
+def _registered_game_notes_requester(requester_id: int) -> bool:
+    """Recheck registration inside the worker-owned connection."""
+
+    member_model = getattr(models, 'DiscordMember', None)
+    getter = getattr(member_model, 'get_or_none', None)
+    if getter is None:
+        # Focused model fakes may omit registration tables. Production has the
+        # model and therefore performs the authoritative lookup.
+        return True
+    return getter(discord_id=int(requester_id)) is not None
+
+
+def _game_notes_registration_error() -> GameNotesPermissionError:
+    return GameNotesPermissionError(
+        'This command requires bot registration first. Type '
+        '__`setname Your Mobile Name`__ or  '
+        '__`steamname Your Steam Username`__ to get started.'
+    )
+
+
+def _load_game_for_notes(game_id: int):
+    try:
+        numeric_game_id = int(game_id)
+    except (TypeError, ValueError) as exc:
+        raise GameNotesValidationError(
+            f'Invalid Game ID "{game_id}".'
+        ) from exc
+    if numeric_game_id <= 0:
+        raise GameNotesValidationError(
+            f'Game with ID {numeric_game_id} cannot be found.'
+        )
+    try:
+        return models.Game.get_by_id(numeric_game_id)
+    except peewee.DoesNotExist as exc:
+        raise GameNotesValidationError(
+            f'Game with ID {numeric_game_id} cannot be found.'
+        ) from exc
+
+
+def _uses_notes_channel(game, channel_id: int) -> bool:
+    if not channel_id:
+        return False
+    uses_channel = getattr(game, 'uses_channel_id', None)
+    if callable(uses_channel):
+        return bool(uses_channel(int(channel_id)))
+    return False
+
+
+def _validate_notes_association(
+    game,
+    request: GameNotesReadRequest | GameNotesMutationRequest,
+) -> None:
+    if int(game.guild_id) == int(request.guild_id):
+        return
+    if (
+        request.allow_related_channel
+        and _uses_notes_channel(game, request.channel_id)
+    ):
+        return
+    raise GameNotesValidationError(
+        f'Game {game.id} is associated with a different discord server. '
+        'Use this command from that server or a game-specific channel.'
+    )
+
+
+def _resolve_legacy_notes_game(request: GameNotesReadRequest | GameNotesMutationRequest):
+    tokens = tuple(request.legacy_tokens or ())
+    first_token = tokens[0] if tokens else None
+    try:
+        game = models.Game.by_channel_or_arg(
+            chan_id=request.channel_id,
+            arg=first_token,
+        )
+    except (ValueError, exceptions.MyBaseException) as exc:
+        raise GameNotesLookupError(str(exc)) from exc
+    _validate_notes_association(game, request)
+    return game
+
+
+def _resolve_notes_game(
+    request: GameNotesReadRequest | GameNotesMutationRequest,
+):
+    if request.game_id is not None:
+        game = _load_game_for_notes(request.game_id)
+        _validate_notes_association(game, request)
+        return game
+    return _resolve_legacy_notes_game(request)
+
+
+def _notes_host_id(game) -> int | None:
+    host = getattr(game, 'host', None)
+    member = getattr(host, 'discord_member', None) if host else None
+    host_id = getattr(member, 'discord_id', None)
+    if host_id is None:
+        return None
+    return int(host_id)
+
+
+def _notes_is_host(game, requester_id: int) -> bool:
+    hosted_by = getattr(game, 'is_hosted_by', None)
+    if callable(hosted_by):
+        try:
+            return bool(hosted_by(int(requester_id))[0])
+        except (AttributeError, IndexError, TypeError, ValueError):
+            pass
+    return _notes_host_id(game) == int(requester_id)
+
+
+def _validate_game_notes_edit_permission(
+    game,
+    request: GameNotesMutationRequest,
+) -> None:
+    if not _registered_game_notes_requester(request.requester_id):
+        raise _game_notes_registration_error()
+
+    requester_is_staff = bool(
+        request.requester_is_staff or request.requester_level >= 5
+    )
+    if not _notes_is_host(game, request.requester_id) and not requester_is_staff:
+        raise GameNotesPermissionError(
+            'Only the game host or server staff can do this.'
+        )
+    if bool(getattr(game, 'is_completed', False)):
+        raise GameNotesValidationError(
+            'This game is completed and notes cannot be edited.'
+        )
+    if not bool(getattr(game, 'is_pending', False)) and not requester_is_staff:
+        raise GameNotesPermissionError(
+            'Only server staff can edit notes of an in-progress game.'
+        )
+
+
+def _normalize_game_notes(request: GameNotesMutationRequest) -> str | None:
+    if request.clear:
+        if request.notes not in (None, ''):
+            raise GameNotesValidationError(
+                'Choose either new notes or clear, not both.'
+            )
+        return None
+
+    if request.notes is None or request.notes == '':
+        raise GameNotesValidationError(
+            'A note is required. Use Clear notes to remove the current note.'
+        )
+
+    notes = str(request.notes)
+    if request.legacy_none and notes.lower() == 'none':
+        return None
+    if len(notes) > 150:
+        if not request.truncate:
+            raise GameNotesValidationError(
+                'Notes must be 150 characters or fewer.'
+            )
+        notes = notes[:150]
+    return notes
+
+
+def _check_expected_game_notes(
+    game,
+    request: GameNotesMutationRequest,
+) -> None:
+    if not request.check_expected_notes:
+        return
+    current_notes = str(getattr(game, 'notes', '') or '')
+    expected_notes = str(request.expected_notes or '')
+    if current_notes != expected_notes:
+        raise GameNotesConflictError(
+            'These notes changed after this workspace was opened. Run '
+            '`/game notes` again and retry your edit.'
+        )
+
+
+def _optional_int(value) -> int | None:
+    return int(value) if value is not None else None
+
+
+def prepare_legacy_game_notes(
+    request: GameNotesMutationRequest,
+) -> GameNotesTarget:
+    """Resolve legacy game/channel grammar on a bounded read worker."""
+
+    with models.db.connection_context():
+        game = _resolve_notes_game(request)
+        return GameNotesTarget(game_id=int(game.id))
+
+
+def read_game_notes(request: GameNotesReadRequest) -> GameNotesReadResult:
+    """Read current notes and state with a worker-owned connection."""
+
+    with models.db.connection_context():
+        if not _registered_game_notes_requester(request.requester_id):
+            raise _game_notes_registration_error()
+        game = _resolve_notes_game(request)
+        return GameNotesReadResult(
+            game_id=int(game.id),
+            guild_id=int(game.guild_id),
+            notes=(
+                str(game.notes)
+                if getattr(game, 'notes', None) is not None
+                else None
+            ),
+            is_pending=bool(getattr(game, 'is_pending', False)),
+            is_completed=bool(getattr(game, 'is_completed', False)),
+            host_discord_id=_notes_host_id(game),
+            announcement_channel_id=_optional_int(
+                getattr(game, 'announcement_channel', None)
+            ),
+            announcement_message_id=_optional_int(
+                getattr(game, 'announcement_message', None)
+            ),
+        )
+
+
+def set_game_notes(
+    request: GameNotesMutationRequest,
+) -> GameNotesMutationResult:
+    """Commit one notes change and its audit entry atomically."""
+
+    with models.db.connection_context():
+        with models.db.atomic():
+            game = _resolve_notes_game(request)
+            _validate_game_notes_edit_permission(game, request)
+            _check_expected_game_notes(game, request)
+            old_notes = getattr(game, 'notes', None)
+            new_notes = _normalize_game_notes(request)
+            game.notes = new_notes
+            game.save()
+            models.GameLog.write(
+                game_id=int(game.id),
+                guild_id=int(request.guild_id),
+                message=(
+                    f'{request.requester_description} edited game notes: '
+                    f'{new_notes}'
+                ),
+            )
+            return GameNotesMutationResult(
+                game_id=int(game.id),
+                guild_id=int(game.guild_id),
+                old_notes=(str(old_notes) if old_notes is not None else None),
+                notes=new_notes,
+                mention_warning=bool(request.mention_warning),
+                is_pending=bool(getattr(game, 'is_pending', False)),
+                is_completed=bool(getattr(game, 'is_completed', False)),
+                announcement_channel_id=_optional_int(
+                    getattr(game, 'announcement_channel', None)
+                ),
+                announcement_message_id=_optional_int(
+                    getattr(game, 'announcement_message', None)
+                ),
+            )
+
+
+async def run_prepare_legacy_game_notes(
+    request: GameNotesMutationRequest,
+) -> GameNotesTarget:
+    """Submit legacy target resolution to the notes read executor."""
+
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(
+        _game_notes_read_executor,
+        functools.partial(prepare_legacy_game_notes, request),
+    )
+
+
+async def run_game_notes_read(
+    request: GameNotesReadRequest,
+) -> GameNotesReadResult:
+    """Submit a bounded current-notes read."""
+
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(
+        _game_notes_read_executor,
+        functools.partial(read_game_notes, request),
+    )
+
+
 @dataclass(frozen=True)
 class GameChannelTarget:
     gameside_id: int | None
@@ -483,6 +848,38 @@ _game_write_executor = ThreadPoolExecutor(
     max_workers=1,
     thread_name_prefix='polybot-game-write',
 )
+
+
+async def run_game_notes_mutation(
+    request: GameNotesMutationRequest,
+) -> GameNotesMutationResult:
+    """Submit notes mutation and drain a canceled caller safely."""
+
+    loop = asyncio.get_running_loop()
+    call = functools.partial(set_game_notes, request)
+    concurrent_future = _game_write_executor.submit(call)
+    future = asyncio.wrap_future(concurrent_future, loop=loop)
+    completed = asyncio.Event()
+    concurrent_future.add_done_callback(
+        lambda _future: loop.call_soon_threadsafe(completed.set)
+    )
+    try:
+        return await asyncio.shield(future)
+    except asyncio.CancelledError:
+        # A running synchronous transaction cannot be canceled. Preserve the
+        # per-game claim until the transaction has actually finished, even if
+        # shutdown delivers cancellation repeatedly.
+        task = asyncio.current_task()
+        if task is not None:
+            task.uncancel()
+        while not completed.is_set():
+            try:
+                await completed.wait()
+            except asyncio.CancelledError:
+                if task is not None:
+                    task.uncancel()
+        concurrent_future.result()
+        raise asyncio.CancelledError
 
 
 def _member_view(participant: NewGameParticipant) -> _MemberView:
