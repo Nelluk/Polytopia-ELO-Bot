@@ -431,9 +431,10 @@ check:
 - P4.2a implementation checkpoints: `35f5f14`, `d0555b8`, `ec26661` on
   `codex/p4-2a-game-map`, based on exact clean base
   `5a310c0bdf5d66646bb9b6f8b47ee322cbe1e15c`.
+- P4.2a accumulation merge: `5845e8b`.
 
-Current unit: **P4.2a focused game-map attribute — Implemented with Tier-3 review
-corrections on the dedicated branch; integration and beta acceptance pending.**
+Current unit: **P4.2a focused game-map attribute — integrated after Tier-3
+review; development-beta acceptance pending.**
 P5.8 is complete, beta-validated, and integrated as `4fc5973`; its final
 acceptance evidence is recorded in `8125c1f`.
 P5.7 is complete, beta-accepted, and integrated as `b7cc2bc`; its
@@ -1838,7 +1839,7 @@ Exit criteria for each unit:
 
 #### P4.2a — Focused game-map attribute
 
-Status: **Implemented; integration and beta acceptance pending**
+Status: **Integrated after Tier-3 review; development-beta acceptance pending**
 
 Risk tier: **Tier 3**. Updating map metadata is an ordinary game mutation with
 an audit record and public announcement/card refresh.
@@ -1969,31 +1970,34 @@ Validation evidence:
 - `/home/nelluk/PolyBot39-dev/.venv/bin/python -m compileall -q` passed for all
   changed Python modules/tests, and `git diff --check` passed after the
   implementation commit.
+- Sol independently reran the corrected branch with the approved development
+  runtime profile: **29 focused map/taxonomy tests passed**, complete offline
+  discovery passed **469 tests with 17 explicit skips**, and the unchanged
+  gated suite confirmed `development` / `polytopia_dev` / `polybot_dev` before
+  passing **17 tests with one explicit skip**.
+- Tier-3 review accepted cancellation-safe claim retention, private initial
+  defer with explicit public success/read followups, atomic map/audit writes,
+  exact permission parity, and post-commit reconciliation behavior. The
+  reviewed branch was merged into `codex/database-slash-modernization` as
+  `5845e8b`.
 - No beta process, Discord connection, application-command inspection or
   synchronization, production access, schema change, dependency action,
   push, PR, or merge was performed.
 
 Remaining limitations:
 
-- The standard focused command and unchanged development-database gate remain
-  unavailable in this app-assigned worktree because its ignored
-  `config.development.ini` is absent. Sol should independently supply the
-  approved development profile and rerun the unchanged gate under the exact
-  `development` / `polytopia_dev` / `polybot_dev` checks. No production or
-  `polytopia2` access was attempted.
 - The post-commit announcement path still performs its short
   `Game.load_full_game` reload on the event-loop thread, matching the known
   limitation of adjacent P4.1 units; the map write, audit, and read are
   bounded and worker-local.
-- Beta acceptance and native command synchronization are intentionally
-  pending separate approval. The branch is not integrated.
+- Beta acceptance and the development-guild `game` root update remain pending
+  the separately approved plan/apply and smoke session.
 
-Next action: Sol should review the complete base-to-`ec26661` diff and the
-transaction/permission/cancellation/visibility/post-commit evidence, then
-integrate the implementation commits from this handoff into
-`codex/database-slash-modernization` only after acceptance. After integration,
-obtain separate approval for the gated development-profile rerun and any beta
-sync/smoke session.
+Next action: with the development beta stopped, run the explicit offline
+application-command plan, apply only development guild
+`478571892832206869`, and launch one beta with startup synchronization
+disabled. Smoke the focused read/update/clear paths plus one retained prefix
+path; do not perform a global synchronization.
 
 ## P5 — Matchmaking lifecycle
 
@@ -4926,6 +4930,23 @@ post-commit reconciliation behavior. This direction is a separate bounded
 unit and does not reopen accepted P5.2 behavior.
 
 ## Progress log
+
+### 2026-08-02 — P4.2a Tier-3 review passed and integrated; beta authorized
+
+- Reviewed the complete game-map branch and returned two focused blockers:
+  cancellation released the per-game claim before its executor transaction
+  finished, and a public defer conflicted with private slash failures.
+- Accepted correction `ec26661`: the executor future is drained through
+  repeated cancellation before unlocking, the claim releases before
+  post-commit Discord work, and `/game map` uses a private defer with explicit
+  public read/success followups.
+- Independently validated **29 focused tests**, **469 complete offline tests
+  with 17 explicit skips**, and **17 gated `polytopia_dev` tests with one
+  explicit skip** under the required development identity checks.
+- Integrated the reviewed branch into `codex/database-slash-modernization` as
+  `5845e8b`. The user authorized the development-guild command update and one
+  beta launch for a quick smoke test; no global or production operation is
+  authorized.
 
 ### 2026-08-02 — P4.2a game-map attribute selected
 
