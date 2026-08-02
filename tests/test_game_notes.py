@@ -403,7 +403,11 @@ class GameNotesWorkerTests(unittest.TestCase):
                 task = asyncio.create_task(
                     game_workers.run_game_notes_mutation(notes_request())
                 )
-                await asyncio.to_thread(started.wait, 1)
+                for _ in range(100):
+                    if started.is_set():
+                        break
+                    await asyncio.sleep(0.005)
+                self.assertTrue(started.is_set())
                 await asyncio.wait_for(heartbeat, timeout=0.04)
                 self.assertFalse(task.done())
                 # Restricted headless runners may need a timer wake-up before
