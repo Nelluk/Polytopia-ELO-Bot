@@ -233,7 +233,7 @@ def mutation_message(result: game_workers.GameNameMutationResult) -> str:
         f'"**{_display_name(result.old_name)}**"'
         f'{result.league_warning}'
     )
-    return message + _normalization_detail(result)
+    return message
 
 
 def native_mutation_message(

@@ -304,6 +304,29 @@ class GameNameWorkerTests(unittest.TestCase):
             actor=game_name.capture_actor(make_member()),
         ))
 
+        normalized_result = game_workers.GameNameMutationResult(
+            game_id=42,
+            guild_id=300,
+            old_name='Old War',
+            name='Warriors War',
+            requested_name='warriors war' + ('x' * 40),
+            normalized=True,
+            truncated=True,
+            league_warning='\n:warning: league changed',
+        )
+        self.assertEqual(
+            game_name.mutation_message(normalized_result),
+            'Game ID 42 has been renamed to "**Warriors War**" from '
+            '"**Old War**"\n:warning: league changed',
+        )
+        self.assertIn(
+            'normalized by the game model and truncated to 35 characters',
+            game_name.native_mutation_message(
+                normalized_result,
+                actor=game_name.capture_actor(make_member()),
+            ),
+        )
+
     def test_validation_override_warning_and_clear_conflict(self):
         with self.assertRaisesRegex(
             game_workers.GameNameValidationError,
