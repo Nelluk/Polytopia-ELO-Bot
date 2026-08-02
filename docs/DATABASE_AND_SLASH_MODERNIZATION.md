@@ -428,8 +428,10 @@ check:
 - P5.8 implementation checkpoint: `34f385c`, Tier-2 review correction
   `bc678d6`, and accumulation merge `4fc5973`.
 
-Current unit: **P5.8 open-game discovery parity — Complete and
-beta-validated.**
+Current unit: **P4.2a focused game-map attribute — In progress; implementation
+pending on a dedicated Luna worktree.**
+P5.8 is complete, beta-validated, and integrated as `4fc5973`; its final
+acceptance evidence is recorded in `8125c1f`.
 P5.7 is complete, beta-accepted, and integrated as `b7cc2bc`; its
 implementation is `0a969cc`, compatibility correction is `7eaf1cd`, and
 focused Tier-3 review correction is `a55270b`.
@@ -1432,7 +1434,7 @@ separately from harness-owned fixtures.
 
 ## P4 — Game correction and metadata mutations
 
-Status: **Planned; awaiting a visibly verified Luna-Max worker**
+Status: **In progress**
 
 Split this phase into small vertical units. Do not implement all candidates in
 one commit.
@@ -1829,6 +1831,71 @@ Exit criteria for each unit:
 - post-commit Discord effects;
 - prefix aliases preserved;
 - registration, rollback, and beta acceptance evidence.
+
+#### P4.2a — Focused game-map attribute
+
+Status: **In progress — implementation pending**
+
+Risk tier: **Tier 3**. Updating map metadata is an ordinary game mutation with
+an audit record and public announcement/card refresh.
+
+Branch/base: create `codex/p4-2a-game-map` from the exact clean accumulation
+checkpoint containing this plan.
+
+Objective: establish the accepted focused read-or-edit attribute pattern with
+one small, stable game property while removing the existing synchronous
+`setmap` mutation from the Discord event loop.
+
+Interface:
+
+- `/game map game_id` displays the current map type;
+- `/game map game_id map_type:<choice>` updates it;
+- `/game map game_id clear:true` clears it;
+- supplying both `map_type` and `clear:true` is rejected before mutation;
+- `$setmap` and `$setmaptype`, including channel inference and `none`, remain
+  compatible thin adapters over the same service.
+
+Database and permission boundary:
+
+- capture only primitive game/guild/requester/channel values before entering
+  the bounded ordinary-game worker;
+- open and close a worker-local Peewee connection, reload by ID, and
+  revalidate guild, current game state, requester membership, and the exact
+  existing participant/power-user edit permission;
+- serialize the change through the existing per-game mutation claim;
+- commit the map value and audit log in one wholly synchronous transaction;
+- return an immutable result DTO and perform announcement/card refresh only
+  after commit;
+- keep the read path worker-bounded and independently permissioned from edit.
+
+Components decision: no Components-v2 workspace is warranted. One optional
+stable map choice and explicit clear flag are clearer as native options; the
+argument-free slash form is the focused read.
+
+Required tests:
+
+- current-value read, typed update, explicit clear, and conflicting-option
+  rejection;
+- exact prefix participant/power-user/staff permission parity and cross-guild
+  rejection in both adapters and worker revalidation;
+- worker-local connection ownership, primitive inputs, event-loop
+  responsiveness, per-game conflict cleanup, transaction/audit rollback, and
+  no Discord effect after database failure;
+- announcement/card refresh only after commit and observable handling of a
+  post-commit Discord failure;
+- `$setmap`/`$setmaptype` behavior and channel inference;
+- `/game map` registration, typed choices, defer ordering, public successful
+  mutation output, and private denial/error output;
+- focused, complete offline, unchanged gated-development database, and later
+  separately approved beta smoke evidence.
+
+Out of scope: game name, tribe, notes, ranked state, platform semantics,
+schema changes, prefix deprecation, global command deployment, and production
+operations.
+
+Next action: dispatch this exact Tier-3 unit to a clean Luna worktree, review
+the complete branch at handoff, and do not integrate or beta-test before Sol
+accepts the transaction, permission, and post-commit evidence.
 
 ## P5 — Matchmaking lifecycle
 
@@ -4761,6 +4828,19 @@ post-commit reconciliation behavior. This direction is a separate bounded
 unit and does not reopen accepted P5.2 behavior.
 
 ## Progress log
+
+### 2026-08-02 — P4.2a game-map attribute selected
+
+- Selected `/game map` as the first focused read-or-edit metadata command.
+  Omitted map value reads; a typed value edits; `clear:true` removes the
+  value. `$setmap` and `$setmaptype` remain compatible.
+- Classified the unit Tier 3 because map mutation and audit logging must be
+  atomic and announcement/card effects must occur only after commit.
+- Recorded exact permission parity, worker ownership, per-game claim,
+  rollback, post-commit, registration, and validation requirements. Components
+  v2 is intentionally unnecessary for this small stable option set.
+- No implementation, beta, Discord apply, database, production, dependency,
+  schema, push, or PR action occurred while selecting the unit.
 
 ### 2026-08-02 — P5.8 development-beta smoke accepted
 
