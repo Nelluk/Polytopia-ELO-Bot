@@ -247,11 +247,86 @@ class WinServiceExecutionTests(unittest.IsolatedAsyncioTestCase):
                 acknowledged=True,
             )
 
-        self.assertIs(returned, result)
+        self.assertIs(returned.result, result)
+        self.assertTrue(returned.public_effects_published)
         self.assertEqual(events, ['squad-channels'])
         self.assertEqual(len(public_messages), 1)
         self.assertIn('pending confirmation of winner **Blue Team**', public_messages[0])
         self.assertIn('`!win 77 Blue Team`', public_messages[0])
+
+    async def test_committed_but_publish_failed_is_distinct_from_worker_failure(self):
+        result = elo_workers.WinResult(
+            game_id=77,
+            confirmed=True,
+            all_sides_confirmed=True,
+            winner_name='Blue Team',
+            confirmed_count=2,
+            side_count=2,
+            new_confirmation=True,
+            first_claim=False,
+            previous_winner_name=None,
+            previous_confirmed_count=0,
+            previous_side_count=0,
+        )
+
+        class Coordinator:
+            is_active = False
+
+            async def run(self, **_kwargs):
+                return result
+
+        committed_game = SimpleNamespace(
+            id=77,
+            name='Test Game',
+            mentions=lambda: ['<@900>', '<@901>'],
+            update_squad_channels=mock.AsyncMock(),
+        )
+        errors = []
+
+        async def send_error(content):
+            errors.append(content)
+
+        with (
+            mock.patch.object(
+                game_win.settings,
+                'elo_job_coordinator',
+                Coordinator(),
+            ),
+            mock.patch.object(
+                game_win.settings,
+                'bot',
+                SimpleNamespace(guilds=[]),
+            ),
+            mock.patch.object(
+                game_win.game_win_workers,
+                'run_prepare_win',
+                new=mock.AsyncMock(
+                    return_value=SimpleNamespace(winning_side_id=202),
+                ),
+            ),
+            mock.patch.object(
+                game_win.models.Game,
+                'load_full_game',
+                return_value=committed_game,
+            ),
+        ):
+            returned = await game_win.run_win(
+                self.request(),
+                guild=SimpleNamespace(id=10),
+                current_channel=SimpleNamespace(),
+                send_public=mock.AsyncMock(),
+                send_error=send_error,
+                post_win_publisher=mock.AsyncMock(
+                    side_effect=RuntimeError('publisher unavailable'),
+                ),
+                acknowledged=True,
+            )
+
+        self.assertIs(returned.result, result)
+        self.assertFalse(returned.public_effects_published)
+        self.assertEqual(len(errors), 1)
+        self.assertIn('was updated', errors[0])
+        self.assertNotIn('No public game change', errors[0])
 
     async def test_side_parser_check_failure_keeps_prefix_error_shape(self):
         errors = []
@@ -371,7 +446,8 @@ class WinServiceExecutionTests(unittest.IsolatedAsyncioTestCase):
                 acknowledged=True,
             )
 
-        self.assertIs(returned, result)
+        self.assertIs(returned.result, result)
+        self.assertTrue(returned.public_effects_published)
         self.assertEqual(events[0][0], 'coordinator')
         self.assertEqual(events[1], ('lock', 77))
         self.assertEqual(events[2], ('unlock', 77))

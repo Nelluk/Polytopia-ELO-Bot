@@ -39,6 +39,14 @@ class WinRequest:
     invoked_with: str = 'win'
 
 
+@dataclass(frozen=True)
+class WinApplicationOutcome:
+    """Describe the committed win and whether public effects fully published."""
+
+    result: elo_workers.WinResult
+    public_effects_published: bool
+
+
 Send = Callable[[str], Awaitable]
 Defer = Callable[[], Awaitable]
 PostWinPublisher = Callable[[object, str, object, object], Awaitable]
@@ -159,12 +167,14 @@ async def run_win(
     defer: Defer | None = None,
     acknowledged: bool = False,
     typing_context=None,
-):
+) -> WinApplicationOutcome | None:
     """Run one result claim through the shared win application boundary.
 
     ``send_public`` is used only after the mutation worker commits.  Failure
     paths use ``send_error`` and return without loading the committed game or
-    invoking any Discord post-commit publisher.
+    invoking any Discord post-commit publisher.  A non-``None`` outcome always
+    contains the committed worker result; ``public_effects_published`` is
+    false when the commit succeeded but reconciliation is still required.
     """
 
     if defer is not None and not acknowledged:
@@ -272,7 +282,10 @@ async def run_win(
                 current_channel,
                 winning_game,
             )
-            return result
+            return WinApplicationOutcome(
+                result=result,
+                public_effects_published=True,
+            )
 
         printed_side_name = (
             result.winner_name
@@ -314,7 +327,10 @@ async def run_win(
                 'claim with the command '
                 f'`{request.prefix}unwin {request.game_id}`'
             )
-        return result
+        return WinApplicationOutcome(
+            result=result,
+            public_effects_published=True,
+        )
     except Exception:
         # The database worker has already committed.  Do not claim that the
         # mutation rolled back; let the caller report a reconciliation error
@@ -323,12 +339,26 @@ async def run_win(
             'Committed win %s could not publish all post-commit effects',
             request.game_id,
         )
-        await _send_error(
-            send_error,
-            f'Game {request.game_id} was updated, but its public result '
-            'could not be fully published. An operator must reconcile it.',
+        try:
+            await _send_error(
+                send_error,
+                f'Game {request.game_id} was updated, but its public result '
+                'could not be fully published. An operator must reconcile it.',
+            )
+        except Exception:
+            logger.exception(
+                'Could not send committed win %s reconciliation warning',
+                request.game_id,
+            )
+        return WinApplicationOutcome(
+            result=result,
+            public_effects_published=False,
         )
-        return result
 
 
-__all__ = ['WinRequest', 'build_request', 'run_win']
+__all__ = [
+    'WinApplicationOutcome',
+    'WinRequest',
+    'build_request',
+    'run_win',
+]

@@ -1344,7 +1344,7 @@ class PendingGameCardAdapterTests(unittest.IsolatedAsyncioTestCase):
         interaction_value = interaction()
         interaction_value.guild = SimpleNamespace(id=10)
         interaction_value.channel = SimpleNamespace()
-        cog._native_pending_game_channel_allowed = mock.AsyncMock(
+        cog._native_winner_game_channel_allowed = mock.AsyncMock(
             return_value=True,
         )
 
@@ -1356,7 +1356,12 @@ class PendingGameCardAdapterTests(unittest.IsolatedAsyncioTestCase):
         ) as build_request, mock.patch.object(
             games.game_win,
             'run_win',
-            new=mock.AsyncMock(return_value=object()),
+            new=mock.AsyncMock(
+                return_value=games.game_win.WinApplicationOutcome(
+                    result=object(),
+                    public_effects_published=True,
+                ),
+            ),
         ) as run_win:
             result = await cog._pending_card_winner(
                 interaction_value,
@@ -1379,6 +1384,94 @@ class PendingGameCardAdapterTests(unittest.IsolatedAsyncioTestCase):
         run_win.assert_awaited_once()
         self.assertIs(run_win.await_args.args[0], request)
         self.assertTrue(run_win.await_args.kwargs['acknowledged'])
+
+    async def test_winner_card_adapter_does_not_refresh_after_publish_reconciliation(self):
+        cog = games.polygames.__new__(games.polygames)
+        interaction_value = interaction()
+        interaction_value.guild = SimpleNamespace(id=10)
+        interaction_value.channel = SimpleNamespace()
+        cog._native_winner_game_channel_allowed = mock.AsyncMock(
+            return_value=True,
+        )
+
+        with (
+            mock.patch.object(
+                games.game_win,
+                'build_request',
+                return_value=object(),
+            ),
+            mock.patch.object(
+                games.game_win,
+                'run_win',
+                new=mock.AsyncMock(
+                    return_value=games.game_win.WinApplicationOutcome(
+                        result=object(),
+                        public_effects_published=False,
+                    ),
+                ),
+            ) as run_win,
+        ):
+            result = await cog._pending_card_winner(
+                interaction_value,
+                game_id=77,
+                prefix='!',
+                winning_side_id=102,
+                winner_label='Side 2 — Blue',
+            )
+
+        self.assertFalse(result)
+        run_win.assert_awaited_once()
+        self.assertFalse(any(
+            'No public game change' in str(call[0])
+            for call in interaction_value.followup.calls
+        ))
+
+    async def test_winner_card_uses_strict_channels_and_mod_bypass(self):
+        cog = games.polygames.__new__(games.polygames)
+        denied = interaction()
+        denied.guild = SimpleNamespace(id=10)
+        # This channel is accepted by general bot_channels but rejected by
+        # the stricter policy used by the existing win commands.
+        denied.channel_id = 100
+
+        def guild_setting(_guild_id, name):
+            return {
+                'bot_channels': [100],
+                'bot_channels_strict': [300],
+                'bot_channels_private': [],
+            }[name]
+
+        with (
+            mock.patch.object(
+                games.settings,
+                'guild_setting',
+                side_effect=guild_setting,
+            ),
+            mock.patch.object(games.settings, 'is_mod', return_value=False),
+        ):
+            self.assertFalse(
+                await cog._native_winner_game_channel_allowed(denied),
+            )
+
+        self.assertIn('<#300>', denied.followup.calls[-1][0])
+        self.assertIn('bot spam channel', denied.followup.calls[-1][0])
+        self.assertTrue(denied.followup.calls[-1][1]['ephemeral'])
+
+        mod = interaction()
+        mod.guild = SimpleNamespace(id=10)
+        mod.channel_id = 100
+        with (
+            mock.patch.object(
+                games.settings,
+                'guild_setting',
+                side_effect=guild_setting,
+            ),
+            mock.patch.object(games.settings, 'is_mod', return_value=True),
+        ):
+            self.assertTrue(
+                await cog._native_winner_game_channel_allowed(mod),
+            )
+        self.assertEqual(mod.followup.calls, [])
 
 
 if __name__ == '__main__':

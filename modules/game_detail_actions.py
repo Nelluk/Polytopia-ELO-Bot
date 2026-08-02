@@ -551,7 +551,9 @@ class PendingGameCardView(discord.ui.View):
     The controls are deliberately chosen from the last immutable snapshot,
     but every mutation click loads a new snapshot before invoking its callback.
     A callback returns ``True`` only after the existing application service has
-    committed and published its public post-commit result.
+    committed and fully published its public post-commit result.  A committed
+    but reconciliation-required outcome is deliberately not a card refresh
+    success.
     """
 
     expired_message = (

@@ -1445,7 +1445,7 @@ class polygames(commands.Cog):
     ) -> bool:
         """Route a card winner claim through the shared win application service."""
 
-        if not await self._native_pending_game_channel_allowed(interaction):
+        if not await self._native_winner_game_channel_allowed(interaction):
             return False
 
         try:
@@ -1496,7 +1496,10 @@ class polygames(commands.Cog):
                 ephemeral=True,
             )
             return False
-        return result is not None
+        return bool(
+            result is not None
+            and getattr(result, 'public_effects_published', False)
+        )
 
     async def _pending_card_start(
         self,
@@ -2629,6 +2632,43 @@ class polygames(commands.Cog):
             'This command can only be used in a designated ELO bot channel. '
             f'Try: {channel_tags}' if channel_tags else
             'This command can only be used in a designated ELO bot channel.',
+            ephemeral=True,
+        )
+        return False
+
+    async def _native_winner_game_channel_allowed(
+        self,
+        interaction: discord.Interaction,
+    ) -> bool:
+        """Mirror the strict channel check on prefix and slash win commands."""
+
+        strict_channels = settings.guild_setting(
+            interaction.guild.id,
+            'bot_channels_strict',
+        )
+        if strict_channels is None:
+            strict_channels = settings.guild_setting(
+                interaction.guild.id,
+                'bot_channels',
+            )
+        private_channels = settings.guild_setting(
+            interaction.guild.id,
+            'bot_channels_private',
+        ) or []
+        if (
+            strict_channels is None
+            or settings.is_mod(interaction.user)
+            or interaction.channel_id in (strict_channels or []) + private_channels
+        ):
+            return True
+
+        channel_tags = ' '.join(
+            f'<#{channel_id}>' for channel_id in (strict_channels or [])
+        )
+        await interaction.followup.send(
+            'This command can only be used in a designated bot spam channel. '
+            f'Try: {channel_tags}' if channel_tags else
+            'This command can only be used in a designated bot spam channel.',
             ephemeral=True,
         )
         return False
