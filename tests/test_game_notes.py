@@ -265,6 +265,7 @@ class GameNotesWorkerTests(unittest.TestCase):
             notes_request(notes=None, clear=True)
         )
         self.assertIsNone(result.notes)
+        self.assertTrue(result.cleared)
         self.assertIsNone(self.state['notes'])
 
         self.game.notes = 'Again'
@@ -272,6 +273,7 @@ class GameNotesWorkerTests(unittest.TestCase):
             notes_request(notes='none', legacy_none=True)
         )
         self.assertIsNone(result.notes)
+        self.assertTrue(result.cleared)
 
     def test_native_boundary_rejects_151_and_prefix_truncates(self):
         with self.assertRaisesRegex(
@@ -480,6 +482,19 @@ class GameNotesWorkerTests(unittest.TestCase):
 
 
 class GameNotesServiceTests(unittest.IsolatedAsyncioTestCase):
+    async def test_actor_snapshot_has_mention_and_safe_textual_fallback(self):
+        member = make_member()
+        member.display_name = '@everyone `unsafe`'
+
+        actor = game_notes.capture_actor(member)
+
+        self.assertEqual(actor.mention, '<@100>')
+        self.assertIn('100', actor.identity)
+        self.assertNotEqual(
+            actor.identity,
+            '**@everyone `unsafe`** (`100`)',
+        )
+
     async def test_public_sender_clears_private_defer_without_ephemeral_followup(self):
         events = []
         interaction = Interaction(events=events)
@@ -710,7 +725,11 @@ class NativeGameNotesAdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(events[0], ('defer', True))
         self.assertEqual(events[1], ('delete-original',))
         self.assertEqual(events[2][0], 'strict-channel')
-        self.assertEqual(events[2][1], 'Current notes for game 42: None')
+        self.assertEqual(
+            events[2][1],
+            'Current notes for game 42: None\n'
+            'Requested by <@100> / **Player** (`100`).',
+        )
         self.assertIs(events[2][2], workspace)
         self.assertEqual(len(workspace.children), 2)
         self.assertFalse(any(event[0] == 'followup' for event in events))
@@ -809,10 +828,73 @@ class NativeGameNotesAdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             [event[1] for event in events if event[0] == 'channel'],
             [
-                'Current notes for game 42: Before',
-                'Updated notes for game 42 to: After',
+                'Current notes for game 42: Before\n'
+                'Requested by <@100> / **Player** (`100`).',
+                '<@100> / **Player** (`100`) edited notes for game 42 to: '
+                'After',
             ],
         )
+
+    async def test_native_clear_public_message_identifies_actor_and_action(self):
+        events = []
+        initial = make_snapshot(notes='Before')
+        committed = game_workers.GameNotesMutationResult(
+            game_id=42,
+            guild_id=300,
+            old_notes='Before',
+            notes=None,
+            cleared=True,
+        )
+        initial_interaction = Interaction(events=events)
+        clear_interaction = Interaction(events=events)
+        captured = []
+
+        async def run_mutation(request, *, after_commit):
+            captured.append(request)
+            events.append(('commit',))
+            await after_commit(committed)
+            return committed
+
+        cog = games.polygames.__new__(games.polygames)
+        with mock.patch.object(
+            games.game_notes,
+            'run_notes_read',
+            new=mock.AsyncMock(return_value=initial),
+        ), mock.patch.object(
+            games.game_notes,
+            'run_notes_mutation',
+            side_effect=run_mutation,
+        ), mock.patch.object(
+            games.game_notes,
+            'refresh_game_card',
+            new=mock.AsyncMock(),
+        ), mock.patch.object(
+            games.settings,
+            'guild_setting',
+            return_value='$',
+        ):
+            workspace = await self.command().callback(
+                cog,
+                initial_interaction,
+                42,
+            )
+            await clear_interaction.response.defer(ephemeral=True)
+            result = await workspace.on_clear(clear_interaction, initial)
+
+        self.assertIs(result, committed)
+        self.assertTrue(captured[0].clear)
+        public_messages = [
+            event[1] for event in events if event[0] == 'channel'
+        ]
+        self.assertEqual(
+            public_messages,
+            [
+                'Current notes for game 42: Before\n'
+                'Requested by <@100> / **Player** (`100`).',
+                '<@100> / **Player** (`100`) cleared notes for game 42.',
+            ],
+        )
+        self.assertNotIn('Updated notes', public_messages[1])
 
     async def test_native_mutation_failure_is_private_and_has_no_post_effect(self):
         events = []

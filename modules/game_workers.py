@@ -214,6 +214,7 @@ class GameNotesMutationResult:
     guild_id: int
     old_notes: str | None
     notes: str | None
+    cleared: bool = False
     mention_warning: bool = False
     is_pending: bool = False
     is_completed: bool = False
@@ -774,6 +775,7 @@ def set_game_notes(
                 guild_id=int(game.guild_id),
                 old_notes=(str(old_notes) if old_notes is not None else None),
                 notes=new_notes,
+                cleared=new_notes is None,
                 mention_warning=bool(request.mention_warning),
                 is_pending=bool(getattr(game, 'is_pending', False)),
                 is_completed=bool(getattr(game, 'is_completed', False)),
