@@ -527,17 +527,64 @@ class GameMapServiceTests(unittest.IsolatedAsyncioTestCase):
 class GameMapSlashTests(unittest.IsolatedAsyncioTestCase):
     def interaction(self):
         member = SimpleNamespace(id=100, display_name='Player')
-        return SimpleNamespace(
+        interaction = SimpleNamespace(
             user=member,
             guild=SimpleNamespace(id=300),
-            channel=SimpleNamespace(id=901),
             channel_id=901,
-            response=SimpleNamespace(
-                defer=mock.AsyncMock(),
-                send_message=mock.AsyncMock(),
-            ),
-            followup=SimpleNamespace(send=mock.AsyncMock()),
+            events=[],
+            public_messages=[],
+            private_messages=[],
+            followup_messages=[],
+            deferred_ephemeral=None,
+            original_delete_calls=0,
+            clear_error=None,
         )
+
+        async def defer(**kwargs):
+            interaction.deferred_ephemeral = kwargs.get('ephemeral', False)
+            interaction.events.append(('defer', kwargs))
+
+        async def send_message(content, **kwargs):
+            interaction.private_messages.append((content, kwargs))
+            interaction.events.append(('response-send', content, kwargs))
+
+        async def followup_send(content, **kwargs):
+            requested_ephemeral = kwargs.get('ephemeral', False)
+            effective_ephemeral = bool(
+                interaction.deferred_ephemeral or requested_ephemeral
+            )
+            interaction.followup_messages.append(
+                (content, effective_ephemeral)
+            )
+            interaction.events.append(
+                ('followup-send', content, effective_ephemeral)
+            )
+
+        async def channel_send(content, **kwargs):
+            interaction.public_messages.append(content)
+            interaction.events.append(('channel-send', content))
+
+        async def delete_original_response():
+            interaction.original_delete_calls += 1
+            if interaction.clear_error is not None:
+                raise interaction.clear_error
+            interaction.events.append('delete-original')
+
+        interaction.response = SimpleNamespace(
+            defer=mock.AsyncMock(side_effect=defer),
+            send_message=mock.AsyncMock(side_effect=send_message),
+        )
+        interaction.followup = SimpleNamespace(
+            send=mock.AsyncMock(side_effect=followup_send),
+        )
+        interaction.channel = SimpleNamespace(
+            id=901,
+            send=mock.AsyncMock(side_effect=channel_send),
+        )
+        interaction.delete_original_response = mock.AsyncMock(
+            side_effect=delete_original_response,
+        )
+        return interaction
 
     def map_command(self):
         return app_group('game').get_command('map')
@@ -560,18 +607,12 @@ class GameMapSlashTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_read_defers_then_returns_public_current_value(self):
         interaction = self.interaction()
-        events = []
-
-        async def defer(**kwargs):
-            events.append(('defer', kwargs))
 
         async def read(_request):
-            events.append('read')
+            interaction.events.append('read')
             self.assertEqual(_request.channel_id, 901)
             return game_workers.GameMapReadResult(42, 300, 'Dryland')
 
-        interaction.response.defer.side_effect = defer
-        interaction.followup.send.side_effect = lambda *args, **kwargs: events.append(('send', args, kwargs))
         with mock.patch.object(game_map, '_requester_level', return_value=3), \
                 mock.patch.object(games.game_map, 'run_map_read', side_effect=read):
             await self.map_command().callback(
@@ -583,23 +624,31 @@ class GameMapSlashTests(unittest.IsolatedAsyncioTestCase):
             )
 
         self.assertEqual(
-            events,
+            interaction.events,
             [
                 ('defer', {'ephemeral': True}),
                 'read',
-                ('send', mock.ANY, mock.ANY),
+                'delete-original',
+                ('channel-send', 'Current map type for game 42: "Dryland".'),
             ],
         )
         interaction.response.defer.assert_awaited_once_with(ephemeral=True)
-        self.assertEqual(interaction.followup.send.call_args.args[0], 'Current map type for game 42: "Dryland".')
-        self.assertFalse(interaction.followup.send.call_args.kwargs['ephemeral'])
+        interaction.delete_original_response.assert_awaited_once_with()
+        interaction.followup.send.assert_not_awaited()
+        interaction.channel.send.assert_awaited_once_with(
+            'Current map type for game 42: "Dryland".',
+        )
+        self.assertEqual(
+            interaction.public_messages,
+            ['Current map type for game 42: "Dryland".'],
+        )
+        self.assertEqual(interaction.followup_messages, [])
 
     async def test_update_defers_and_publishes_public_success(self):
         interaction = self.interaction()
-        events = []
 
         async def run(request, *, after_commit):
-            events.append(('worker', request))
+            interaction.events.append(('worker', request))
             await after_commit(
                 game_workers.GameMapMutationResult(
                     42, 300, 'Lakes', 'Archipelago', None, None,
@@ -607,10 +656,9 @@ class GameMapSlashTests(unittest.IsolatedAsyncioTestCase):
             )
 
         async def publish(result, **kwargs):
-            events.append(('publish', result))
+            interaction.events.append(('publish', result))
             await kwargs['send'](game_map.mutation_message(result))
 
-        interaction.response.defer.side_effect=lambda **kwargs: events.append(('defer', kwargs))
         with mock.patch.object(game_map, '_requester_level', return_value=3), \
                 mock.patch.object(games.game_map, 'run_map_mutation', side_effect=run), \
                 mock.patch.object(games.game_map, 'publish_mutation_result', side_effect=publish), \
@@ -623,15 +671,98 @@ class GameMapSlashTests(unittest.IsolatedAsyncioTestCase):
                 False,
             )
 
-        self.assertEqual(events[0], ('defer', {'ephemeral': True}))
-        interaction.response.defer.assert_awaited_once_with(ephemeral=True)
-        self.assertEqual(events[1][0], 'worker')
-        self.assertEqual(events[2][0], 'publish')
-        interaction.followup.send.assert_awaited_once_with(
-            'Map type for game 42 set to "Archipelago".',
-            ephemeral=False,
+        self.assertEqual(
+            interaction.events,
+            [
+                ('defer', {'ephemeral': True}),
+                mock.ANY,
+                mock.ANY,
+                'delete-original',
+                ('channel-send', 'Map type for game 42 set to "Archipelago".'),
+            ],
         )
-        self.assertEqual(events[1][1].clear, False)
+        interaction.response.defer.assert_awaited_once_with(ephemeral=True)
+        self.assertEqual(interaction.events[1][0], 'worker')
+        self.assertEqual(interaction.events[2][0], 'publish')
+        interaction.delete_original_response.assert_awaited_once_with()
+        interaction.followup.send.assert_not_awaited()
+        interaction.channel.send.assert_awaited_once_with(
+            'Map type for game 42 set to "Archipelago".',
+        )
+        self.assertEqual(interaction.public_messages, [
+            'Map type for game 42 set to "Archipelago".',
+        ])
+        self.assertEqual(interaction.followup_messages, [])
+        self.assertEqual(interaction.events[1][1].clear, False)
+
+    async def test_committed_mutation_stays_public_when_defer_clear_fails(self):
+        interaction = self.interaction()
+        interaction.clear_error = RuntimeError('could not clear placeholder')
+
+        async def run(_request, *, after_commit):
+            await after_commit(
+                game_workers.GameMapMutationResult(
+                    42, 300, 'Lakes', 'Archipelago', None, None,
+                )
+            )
+
+        async def publish(result, **kwargs):
+            await kwargs['send'](game_map.mutation_message(result))
+
+        with mock.patch.object(game_map, '_requester_level', return_value=3), \
+                mock.patch.object(games.game_map, 'run_map_mutation', side_effect=run), \
+                mock.patch.object(games.game_map, 'publish_mutation_result', side_effect=publish), \
+                mock.patch.object(games.settings, 'guild_setting', return_value='$'), \
+                mock.patch.object(game_map.logger, 'exception') as log_exception:
+            await self.map_command().callback(
+                SimpleNamespace(),
+                interaction,
+                42,
+                'Archipelago',
+                False,
+            )
+
+        interaction.response.defer.assert_awaited_once_with(ephemeral=True)
+        interaction.delete_original_response.assert_awaited_once_with()
+        interaction.channel.send.assert_awaited_once_with(
+            'Map type for game 42 set to "Archipelago".',
+        )
+        interaction.followup.send.assert_not_awaited()
+        self.assertEqual(
+            interaction.public_messages,
+            ['Map type for game 42 set to "Archipelago".'],
+        )
+        self.assertEqual(interaction.followup_messages, [])
+        log_exception.assert_called_once()
+
+    async def test_read_errors_stay_private_without_public_effects(self):
+        for error in (
+            game_workers.GameMapValidationError('game is not visible'),
+            peewee.OperationalError('database down'),
+        ):
+            with self.subTest(error=type(error).__name__):
+                interaction = self.interaction()
+                with mock.patch.object(
+                    games.game_map,
+                    'run_map_read',
+                    new=mock.AsyncMock(side_effect=error),
+                ):
+                    await self.map_command().callback(
+                        SimpleNamespace(),
+                        interaction,
+                        42,
+                        None,
+                        False,
+                    )
+
+                interaction.response.defer.assert_awaited_once_with(
+                    ephemeral=True,
+                )
+                self.assertEqual(len(interaction.followup_messages), 1)
+                self.assertTrue(interaction.followup_messages[0][1])
+                self.assertEqual(interaction.public_messages, [])
+                interaction.channel.send.assert_not_awaited()
+                interaction.delete_original_response.assert_not_awaited()
 
     async def test_explicit_clear_and_conflicting_options(self):
         interaction = self.interaction()
@@ -689,6 +820,11 @@ class GameMapSlashTests(unittest.IsolatedAsyncioTestCase):
                     )
                 interaction.response.defer.assert_awaited_once_with(ephemeral=True)
                 self.assertTrue(interaction.followup.send.call_args.kwargs['ephemeral'])
+                self.assertEqual(len(interaction.followup_messages), 1)
+                self.assertTrue(interaction.followup_messages[0][1])
+                self.assertEqual(interaction.public_messages, [])
+                interaction.channel.send.assert_not_awaited()
+                interaction.delete_original_response.assert_not_awaited()
 
 
 class GameMapPrefixTests(unittest.IsolatedAsyncioTestCase):

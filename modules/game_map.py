@@ -128,6 +128,27 @@ def mutation_message(result: game_workers.GameMapMutationResult) -> str:
     return f'Map type for game {result.game_id} set to "{result.map_type}".'
 
 
+def public_interaction_sender(interaction):
+    """Return a public sender that clears one private deferred response."""
+
+    cleared = False
+
+    async def send(content):
+        nonlocal cleared
+        if not cleared:
+            cleared = True
+            try:
+                await interaction.delete_original_response()
+            except Exception:
+                logger.exception(
+                    'Could not clear the private deferred game-map response '
+                    'before public output'
+                )
+        return await interaction.channel.send(content)
+
+    return send
+
+
 async def publish_mutation_result(
     result: game_workers.GameMapMutationResult,
     *,
