@@ -13,6 +13,7 @@ from modules import player_views
 from modules import player_workers
 from modules import elo_workers
 from modules import game_win
+from modules import game_map
 from modules import game_workers
 from modules import game_open
 from modules import game_open_workers
@@ -70,6 +71,11 @@ GAME_SEARCH_VIEW_CHOICES = [
         name='Unconfirmed results',
         value='unconfirmed',
     ),
+]
+
+GAME_MAP_TYPE_CHOICES = [
+    discord.app_commands.Choice(name=map_type, value=map_type)
+    for map_type in settings.map_types
 ]
 
 
@@ -3925,48 +3931,175 @@ class polygames(commands.Cog):
         if not args:
             return await ctx.send(f'No arguments provided. **Example usage:** `{ctx.prefix}{ctx.invoked_with} 1234 dry`')
 
-        arg_list = args.split()
+        request = game_map.build_mutation_request(
+            member=ctx.author,
+            guild_id=ctx.guild.id,
+            channel_id=ctx.channel.id,
+            legacy_tokens=tuple(args.split()),
+            allow_related_channel=True,
+            invoked_with=ctx.invoked_with,
+        )
+
+        async def after_commit(result):
+            await game_map.publish_mutation_result(
+                result,
+                send=ctx.send,
+                guild=ctx.guild,
+                prefix=ctx.prefix,
+            )
 
         try:
-            game = Game.by_channel_or_arg(chan_id=ctx.channel.id, arg=arg_list[0])
-        except (ValueError, exceptions.MyBaseException) as e:
-            return await ctx.send(f'{e}\n**Example usage:** `{ctx.prefix}{ctx.invoked_with} 1234 dry`\nYou can also omit the game ID if you use the command from a game-specific channel.')
+            await game_map.run_map_mutation(
+                request,
+                after_commit=after_commit,
+            )
+        except game_workers.GameMapLookupError as exc:
+            return await ctx.send(
+                f'{exc}\n**Example usage:** `{ctx.prefix}{ctx.invoked_with} '
+                '1234 dry`\nYou can also omit the game ID if you use the '
+                'command from a game-specific channel.'
+            )
+        except game_workers.GameMapValidationError as exc:
+            message = str(exc)
+            if 'No matching map type found' in message:
+                raw_map_type = request.legacy_tokens[-1] if request.legacy_tokens else ''
+                message = (
+                    'No matching map type found for '
+                    f'"{discord.utils.escape_mentions(raw_map_type)}". '
+                    'Check spelling or try a different name.'
+                )
+            return await ctx.send(message)
+        except exceptions.RecordLocked as exc:
+            return await ctx.send(str(exc))
+        except peewee.PeeweeException:
+            logger.exception('Database failure setting map for prefix command')
+            return await ctx.send(
+                'The map change failed and rolled back. No Discord '
+                'announcement or card update was made.'
+            )
+        except Exception:
+            logger.exception('Unexpected failure setting map for prefix command')
+            return await ctx.send(
+                'The map change failed. No Discord announcement or card '
+                'update was made.'
+            )
 
-        if str(game.id) == str(arg_list[0]):
-            arg_list = arg_list[1:]  # Remove game ID from list if it was used for lookup
-            if game.guild_id != ctx.guild.id and not game.uses_channel_id(ctx.channel.id):
-                return await ctx.send(f'Game {game.id} is associated with a different discord server. Use this command from that server or a game-specific channel.')
+    @game_group.command(
+        name='map',
+        description='View or update a game map type.',
+    )
+    @discord.app_commands.describe(
+        game_id='Game whose map type to view or edit.',
+        map_type='Map type to set; omit this to view the current value.',
+        clear='Clear the current map type.',
+    )
+    @discord.app_commands.choices(map_type=GAME_MAP_TYPE_CHOICES)
+    async def map_slash(
+        self,
+        interaction: discord.Interaction,
+        game_id: int,
+        map_type: str | None = None,
+        clear: bool = False,
+    ):
+        """Read or edit one game map through the shared map service."""
 
-        logger.debug(f'Attempting setmap for game {game.id}')
+        if map_type is not None and clear:
+            return await interaction.response.send_message(
+                'Choose either a map type or clear, not both.',
+                ephemeral=True,
+            )
 
-        if len(arg_list) != 1:
-            return await ctx.send(f'Wrong number of arguments. See `{ctx.prefix}help setmaptype` for usage examples.')
+        await interaction.response.defer()
+        channel_id = int(
+            getattr(interaction, 'channel_id', None)
+            or getattr(getattr(interaction, 'channel', None), 'id', 0)
+            or 0
+        )
 
-        map_type_name = arg_list[0]
+        if map_type is None and not clear:
+            request = game_map.build_read_request(
+                member=interaction.user,
+                guild_id=interaction.guild.id,
+                channel_id=channel_id,
+                game_id=game_id,
+            )
+            try:
+                result = await game_map.run_map_read(request)
+            except game_workers.GameMapValidationError as exc:
+                return await interaction.followup.send(
+                    str(exc),
+                    ephemeral=True,
+                )
+            except peewee.PeeweeException:
+                logger.exception('Database failure reading game map')
+                return await interaction.followup.send(
+                    'The current map type could not be loaded.',
+                    ephemeral=True,
+                )
+            except Exception:
+                logger.exception('Unexpected failure reading game map')
+                return await interaction.followup.send(
+                    'The current map type could not be loaded.',
+                    ephemeral=True,
+                )
+            return await interaction.followup.send(
+                game_map.read_message(result),
+                ephemeral=False,
+            )
 
-        if map_type_name.upper() == 'NONE':
-            map_type = ''
-        else:
-            map_type = utilities.get_map_type(map_type_name)
-            if not map_type:
-                return await ctx.send(f'No matching map type found for "{discord.utils.escape_mentions(map_type_name)}". Check spelling or try a different name.')
+        request = game_map.build_mutation_request(
+            member=interaction.user,
+            guild_id=interaction.guild.id,
+            channel_id=channel_id,
+            game_id=game_id,
+            map_type=map_type,
+            clear=clear,
+            invoked_with='/game map',
+        )
 
-        lineup_match = game.player(discord_id=ctx.author.id)
-        if lineup_match and settings.get_user_level(ctx.author) > 2:
-            logger.debug(f'Authorized since ctx.author is a player in the game')
-        elif settings.get_user_level(ctx.author) > 3:
-            logger.debug(f'Authorized since ctx.author is a power user')
-        else:
-            return await ctx.send(f'You are not authorized to set the map type for this game.')
-        
-        game.map_type = map_type
-        game.save()
+        async def after_commit(result):
+            await game_map.publish_mutation_result(
+                result,
+                send=lambda content: interaction.followup.send(
+                    content,
+                    ephemeral=False,
+                ),
+                guild=interaction.guild,
+                prefix=settings.guild_setting(
+                    interaction.guild.id,
+                    'command_prefix',
+                ),
+            )
 
-        await ctx.send(f'Map type for game {game.id} set to "{map_type}".')
-        models.GameLog.write(game_id=game.id, guild_id=game.guild_id, message=f'{models.GameLog.member_string(ctx.author)} set map type to "{map_type}"')
-
-        game = game.load_full_game()
-        await game.update_announcement(guild=ctx.guild, prefix=ctx.prefix)
+        try:
+            await game_map.run_map_mutation(
+                request,
+                after_commit=after_commit,
+            )
+        except game_workers.GameMapValidationError as exc:
+            return await interaction.followup.send(
+                str(exc),
+                ephemeral=True,
+            )
+        except exceptions.RecordLocked as exc:
+            return await interaction.followup.send(
+                str(exc),
+                ephemeral=True,
+            )
+        except peewee.PeeweeException:
+            logger.exception('Database failure setting map from slash')
+            return await interaction.followup.send(
+                'The map change failed and rolled back. No Discord '
+                'announcement or card update was made.',
+                ephemeral=True,
+            )
+        except Exception:
+            logger.exception('Unexpected failure setting map from slash')
+            return await interaction.followup.send(
+                'The map change failed. No Discord announcement or card '
+                'update was made.',
+                ephemeral=True,
+            )
     
 
     @commands.command(aliases=['settribes'], usage='game_id player_name tribe_name [player2 tribe2 ... ]')

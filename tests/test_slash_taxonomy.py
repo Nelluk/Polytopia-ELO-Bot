@@ -57,6 +57,7 @@ class SlashTaxonomyRegistrationTests(unittest.TestCase):
                 'confirm',
                 'unconfirmed',
                 'set-ranked',
+                'map',
                 'extend',
                 'unstart',
                 'manage',

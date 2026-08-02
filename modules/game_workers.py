@@ -10,7 +10,7 @@ from dataclasses import dataclass
 
 import peewee
 
-from modules import exceptions, models
+from modules import exceptions, models, utilities
 
 
 @dataclass(frozen=True)
@@ -69,6 +69,360 @@ class GameExtensionResult:
 
 class GameUnstartValidationError(RuntimeError):
     """The game cannot be returned to pending matchmaking."""
+
+
+class GameMapValidationError(RuntimeError):
+    """The current request or game state cannot be used for a map change."""
+
+
+class GameMapLookupError(GameMapValidationError):
+    """A legacy prefix target could not be resolved."""
+
+
+class GameMapPermissionError(GameMapValidationError):
+    """The requester cannot inspect or edit the requested game map."""
+
+
+@dataclass(frozen=True)
+class GameMapReadRequest:
+    """Primitive input for a bounded game-map read."""
+
+    game_id: int | None
+    guild_id: int
+    channel_id: int
+    requester_id: int
+    allow_related_channel: bool = False
+
+
+@dataclass(frozen=True)
+class GameMapMutationRequest:
+    """Primitive input for one authoritative map mutation."""
+
+    game_id: int | None
+    guild_id: int
+    channel_id: int
+    requester_id: int
+    requester_level: int
+    requester_description: str
+    map_type: str | None = None
+    clear: bool = False
+    legacy_tokens: tuple[str, ...] = ()
+    allow_related_channel: bool = False
+    invoked_with: str = 'setmap'
+
+
+@dataclass(frozen=True)
+class GameMapTarget:
+    """Resolved primitive target and canonical value for a map mutation."""
+
+    game_id: int
+    map_type: str
+    clear: bool
+
+
+@dataclass(frozen=True)
+class GameMapReadResult:
+    game_id: int
+    guild_id: int
+    map_type: str
+
+
+@dataclass(frozen=True)
+class GameMapMutationResult:
+    game_id: int
+    guild_id: int
+    old_map_type: str
+    map_type: str
+    announcement_channel_id: int | None
+    announcement_message_id: int | None
+
+
+_game_map_read_executor = ThreadPoolExecutor(
+    max_workers=2,
+    thread_name_prefix='polybot-game-map-read',
+)
+
+
+def _registered_game_map_requester(requester_id: int) -> bool:
+    """Recheck global registration inside the worker-owned connection."""
+
+    member_model = getattr(models, 'DiscordMember', None)
+    getter = getattr(member_model, 'get_or_none', None)
+    if getter is None:
+        # Focused model fakes may omit registration tables.  Production has
+        # the model and therefore performs the authoritative lookup.
+        return True
+    return getter(discord_id=int(requester_id)) is not None
+
+
+def _game_map_registration_error() -> GameMapPermissionError:
+    return GameMapPermissionError(
+        'This command requires bot registration first. Type '
+        '__`setname Your Mobile Name`__ or  '
+        '__`steamname Your Steam Username`__ to get started.'
+    )
+
+
+def _load_game_for_map(game_id: int):
+    try:
+        numeric_game_id = int(game_id)
+    except (TypeError, ValueError) as exc:
+        raise GameMapValidationError(
+            f'Invalid game ID "{game_id}".'
+        ) from exc
+    if numeric_game_id <= 0:
+        raise GameMapValidationError(
+            f'Invalid game ID "{game_id}".'
+        )
+    try:
+        return models.Game.get_by_id(numeric_game_id)
+    except peewee.DoesNotExist as exc:
+        raise GameMapValidationError(
+            f'No game found matching game ID `{numeric_game_id}`.'
+        ) from exc
+
+
+def _uses_map_channel(game, channel_id: int) -> bool:
+    if not channel_id:
+        return False
+    uses_channel = getattr(game, 'uses_channel_id', None)
+    if callable(uses_channel):
+        return bool(uses_channel(int(channel_id)))
+    return False
+
+
+def _validate_map_association(
+    game,
+    request: GameMapReadRequest | GameMapMutationRequest,
+) -> None:
+    if int(game.guild_id) == int(request.guild_id):
+        return
+    if (
+        request.allow_related_channel
+        and _uses_map_channel(game, request.channel_id)
+    ):
+        return
+    raise GameMapValidationError(
+        f'Game {game.id} is associated with a different discord server. '
+        'Use this command from that server or a game-specific channel.'
+    )
+
+
+def _resolve_legacy_map_game(request: GameMapMutationRequest):
+    if not request.legacy_tokens:
+        raise GameMapValidationError(
+            'No arguments provided. Please provide a game ID and map type.'
+        )
+    first_token = request.legacy_tokens[0]
+    try:
+        game = models.Game.by_channel_or_arg(
+            chan_id=request.channel_id,
+            arg=first_token,
+        )
+    except (ValueError, exceptions.MyBaseException) as exc:
+        raise GameMapLookupError(str(exc)) from exc
+    _validate_map_association(game, request)
+    return game, first_token
+
+
+def _normalize_game_map_type(map_type_name: str | None) -> str:
+    if map_type_name is None:
+        raise GameMapValidationError(
+            'A map type or clear option is required.'
+        )
+    map_type_name = str(map_type_name)
+    if map_type_name.upper() == 'NONE':
+        return ''
+    map_type = utilities.get_map_type(map_type_name)
+    if not map_type:
+        raise GameMapValidationError(
+            f'No matching map type found for "{map_type_name}". '
+            'Check spelling or try a different name.'
+        )
+    return map_type
+
+
+def _resolve_map_target(request: GameMapMutationRequest) -> GameMapTarget:
+    if request.clear and request.map_type not in (None, ''):
+        raise GameMapValidationError(
+            'Choose either a map type or clear, not both.'
+        )
+
+    if request.game_id is None:
+        game, first_token = _resolve_legacy_map_game(request)
+        value_tokens = request.legacy_tokens
+        if str(game.id) == str(first_token):
+            value_tokens = value_tokens[1:]
+        if len(value_tokens) != 1:
+            raise GameMapValidationError(
+                'Wrong number of arguments. See `help setmaptype` for '
+                'usage examples.'
+            )
+        raw_map_type = value_tokens[0]
+        clear = raw_map_type.upper() == 'NONE'
+        return GameMapTarget(
+            game_id=int(game.id),
+            map_type=_normalize_game_map_type(raw_map_type),
+            clear=clear,
+        )
+
+    if request.clear:
+        return GameMapTarget(
+            game_id=int(request.game_id),
+            map_type='',
+            clear=True,
+        )
+    return GameMapTarget(
+        game_id=int(request.game_id),
+        map_type=_normalize_game_map_type(request.map_type),
+        clear=False,
+    )
+
+
+def _game_has_requester(game, requester_id: int) -> bool:
+    player_lookup = getattr(game, 'player', None)
+    if callable(player_lookup):
+        return player_lookup(discord_id=int(requester_id)) is not None
+    for lineup in tuple(getattr(game, 'lineup', ()) or ()):
+        player = getattr(lineup, 'player', None)
+        member = getattr(player, 'discord_member', None)
+        if member is not None and int(member.discord_id) == int(requester_id):
+            return True
+    return False
+
+
+def _validate_game_map_edit_permission(
+    game,
+    request: GameMapMutationRequest,
+) -> None:
+    if not _registered_game_map_requester(request.requester_id):
+        raise _game_map_registration_error()
+    is_participant = _game_has_requester(game, request.requester_id)
+    if (is_participant and request.requester_level > 2) or (
+        request.requester_level > 3
+    ):
+        return
+    raise GameMapPermissionError(
+        'You are not authorized to set the map type for this game.'
+    )
+
+
+def _resolve_map_read_game(request: GameMapReadRequest):
+    if request.game_id is not None:
+        game = _load_game_for_map(request.game_id)
+    else:
+        if request.channel_id <= 0:
+            raise GameMapValidationError(
+                'I could not identify one game from this channel. Please '
+                'provide a game ID.'
+            )
+        try:
+            game = models.Game.by_channel_id(chan_id=request.channel_id)
+        except (ValueError, exceptions.MyBaseException) as exc:
+            raise GameMapValidationError(str(exc)) from exc
+    _validate_map_association(game, request)
+    return game
+
+
+def prepare_legacy_game_map(request: GameMapMutationRequest) -> GameMapTarget:
+    """Resolve prefix channel/ID grammar on a bounded read worker."""
+
+    with models.db.connection_context():
+        return _resolve_map_target(request)
+
+
+def read_game_map(request: GameMapReadRequest) -> GameMapReadResult:
+    """Read the current value with a worker-owned Peewee connection."""
+
+    with models.db.connection_context():
+        if not _registered_game_map_requester(request.requester_id):
+            raise _game_map_registration_error()
+        game = _resolve_map_read_game(request)
+        return GameMapReadResult(
+            game_id=int(game.id),
+            guild_id=int(game.guild_id),
+            map_type=str(getattr(game, 'map_type', '') or ''),
+        )
+
+
+def set_game_map(request: GameMapMutationRequest) -> GameMapMutationResult:
+    """Commit one map change and its audit entry atomically."""
+
+    if request.clear and request.map_type not in (None, ''):
+        raise GameMapValidationError(
+            'Choose either a map type or clear, not both.'
+        )
+
+    with models.db.connection_context():
+        with models.db.atomic():
+            target = _resolve_map_target(request)
+            game = _load_game_for_map(target.game_id)
+            _validate_map_association(game, request)
+            _validate_game_map_edit_permission(game, request)
+
+            old_map_type = str(getattr(game, 'map_type', '') or '')
+            game.map_type = target.map_type
+            game.save()
+            models.GameLog.write(
+                game_id=game.id,
+                guild_id=game.guild_id,
+                message=(
+                    f'{request.requester_description} set map type to '
+                    f'"{target.map_type}"'
+                ),
+            )
+            return GameMapMutationResult(
+                game_id=int(game.id),
+                guild_id=int(game.guild_id),
+                old_map_type=old_map_type,
+                map_type=target.map_type,
+                announcement_channel_id=(
+                    int(game.announcement_channel)
+                    if game.announcement_channel is not None
+                    else None
+                ),
+                announcement_message_id=(
+                    int(game.announcement_message)
+                    if game.announcement_message is not None
+                    else None
+                ),
+            )
+
+
+async def run_prepare_legacy_game_map(
+    request: GameMapMutationRequest,
+) -> GameMapTarget:
+    """Resolve legacy map grammar without blocking Discord's event loop."""
+
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(
+        _game_map_read_executor,
+        functools.partial(prepare_legacy_game_map, request),
+    )
+
+
+async def run_game_map_read(
+    request: GameMapReadRequest,
+) -> GameMapReadResult:
+    """Submit a bounded current-map read."""
+
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(
+        _game_map_read_executor,
+        functools.partial(read_game_map, request),
+    )
+
+
+async def run_game_map_mutation(
+    request: GameMapMutationRequest,
+) -> GameMapMutationResult:
+    """Submit a map mutation to the existing ordinary-game executor."""
+
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(
+        _game_write_executor,
+        functools.partial(set_game_map, request),
+    )
 
 
 @dataclass(frozen=True)
