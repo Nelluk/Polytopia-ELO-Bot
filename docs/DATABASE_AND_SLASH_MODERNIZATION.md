@@ -425,15 +425,10 @@ check:
   `codex/p5-1-game-open`, based on exact clean base
   `d24aa6b5e64fba159a872eb565703465c79d712d`.
 
-Current unit: **P5.7 in-progress game-card Declare Winner action — implemented
-locally; Tier-3 review pending.**
-P5.7 implementation/tests are committed as `0a969cc` on
-`codex/p5-7-winner-card-action`, based on exact clean checkpoint
-`f9fc4aaba7cd5ffa502e11571e6b0e063785d5a0` from
-`codex/database-slash-modernization`. No beta, command sync, production, push,
-PR, merge, or fixture-harness action was performed.
-The follow-up compatibility correction is `7eaf1cd`; the focused Tier-3 review
-correction is `a55270b`.
+Current unit: **P5.8 open-game discovery parity — planned.**
+P5.7 is complete, beta-accepted, and integrated as `b7cc2bc`; its
+implementation is `0a969cc`, compatibility correction is `7eaf1cd`, and
+focused Tier-3 review correction is `a55270b`.
 P5.6 is complete, beta-accepted, and integrated as `fc50623`.
 P5.5 is complete and integrated as `e118396`; its live beta smoke covered
 Join, Leave, Refresh, and Start, and the user accepted the follow-up join
@@ -2898,11 +2893,14 @@ Compatibility, retained seam, and limitations:
   for a future bounded post-commit extraction; it was not duplicated inside
   the card view.
 - Short-lived card controls are not restored across process restarts. Live
-  Discord/mobile smoke, command apply/synchronization, beta acceptance,
-  production operation, and integration remain intentionally unvalidated.
+  development smoke is accepted; production operation remains intentionally
+  unvalidated and separately gated.
 
-Beta acceptance and integration: **not performed**. P5.7 must not be marked
-Complete, Integrated, or beta-accepted from this checkpoint.
+Beta acceptance and integration: **Complete**. The reviewed branch was smoked
+live on the development beta on 2026-08-02. The user accepted the selector,
+confirmation, existing result output, and card-refresh behavior. The beta was
+stopped cleanly, and P5.7 was integrated into
+`codex/database-slash-modernization` as merge commit `b7cc2bc`.
 
 Commit:
 
@@ -2910,10 +2908,46 @@ Commit:
 - `7eaf1cd` — Narrow winner card stale reload retirement.
 - `a55270b` — Correct strict winner channel parity and publish outcome handling.
 
-Next action: perform the independent Tier-3 review of the shared win service,
-worker/transaction boundary, permission parity, and post-commit seam; then
-decide whether to integrate this branch. Any beta apply/smoke remains a
-separate explicitly approved step.
+Next action: implement P5.8 as a bounded read/presentation unit that gives the
+existing `/game search` workspace requester-aware open-game discovery parity
+with `$games`/`$opengames`, without adding another slash-command name.
+
+### P5.8 — Open-game discovery parity in `/game search`
+
+Status: **Planned**
+
+Risk tier: **Tier 2**. This is a bounded read and interactive presentation
+unit. Joining, leaving, starting, and deleting continue to use their existing
+reviewed mutation services.
+
+Objective: make the common “what games can I join?” flow native and obvious
+without registering `/opengames` or adding a long slash option matrix.
+
+Required inventory and behavior:
+
+- preserve `$games`, `$opengames`, `$novagames`, and `$nova`, including
+  `waiting`, `all`, `me`, ranked/unranked, joinability, invitation, role-lock,
+  and user-level filtering;
+- add requester-aware open-game views to the existing `/game search`
+  Components-v2 workspace, with a clearly discoverable initial/preset control
+  for **Joinable for me**, **Waiting to start**, **My games**, and **All open**;
+- keep the general lifecycle search and its current public, paginated result
+  views intact;
+- move any retained open-game listing query and eligibility work off the event
+  loop using worker-local Peewee connections and immutable DTOs;
+- avoid platform-specific Mobile/Steam filters in the new native design; the
+  project is winding down that distinction, while legacy prefix parsing may
+  remain for compatibility;
+- reuse reviewed game-card or join services only where an interaction offers a
+  concrete usability benefit; do not duplicate mutation or permission logic;
+- preserve public transparency and requester-only controls.
+
+Tests must cover the complete legacy option/eligibility matrix, restricted and
+role-locked games, host/member views, pagination, immediate defer, bounded
+worker responsiveness, prefix compatibility, and unchanged mutation routing.
+
+Next action: hand P5.8 to a clean Luna-Max branch from integration checkpoint
+`b7cc2bc` after committing this roadmap checkpoint.
 
 ## P6 — Registration and player preferences
 
@@ -4624,6 +4658,25 @@ post-commit reconciliation behavior. This direction is a separate bounded
 unit and does not reopen accepted P5.2 behavior.
 
 ## Progress log
+
+### 2026-08-02 — P5.7 beta-accepted and integrated; P5.8 planned
+
+- Independently reviewed P5.7 as Tier 3 and returned two focused findings:
+  strict win-channel parity and committed-but-unpublished card refresh.
+- Accepted corrections `a55270b` and `ae45f6f` after **82 focused tests** and
+  **422 complete offline tests with 17 explicit skips** passed.
+- Live development-beta smoke of the in-progress `/game show` Declare Winner
+  selector/confirmation flow passed user acceptance. No command apply was
+  needed because P5.7 changed no application-command registration.
+- Stopped the task-owned beta cleanly and integrated P5.7 into
+  `codex/database-slash-modernization` as `b7cc2bc`.
+- Inventoried open-game discovery: `/game search` can select the broad Open
+  lifecycle status, but no native path currently reproduces `$opengames`'
+  requester-aware joinable, waiting, all, mine, Nova, restriction, and
+  role-lock behavior. Planned P5.8 to close that gap within the existing
+  workspace rather than registering another slash command.
+- No production checkout, production service, `polytopia2`, push, PR,
+  dependency, schema, or fixture action occurred.
 
 ### 2026-08-02 — P5.7 implementation and review corrections locally; Tier-3 review pending
 
