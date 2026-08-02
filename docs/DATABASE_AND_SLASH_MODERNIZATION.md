@@ -434,9 +434,10 @@ check:
   `5a310c0bdf5d66646bb9b6f8b47ee322cbe1e15c`.
 - P4.2a accumulation merge: `5845e8b`.
 
-Current unit: **P4.2a focused game-map attribute — integrated with its
-reported beta visibility correction; final development-beta acceptance
-pending.**
+Current unit: **P4.2b focused game-notes workspace — In progress;
+implementation pending on a dedicated Luna worktree.**
+P4.2a is complete, beta-validated, and integrated as `5845e8b` with public
+visibility correction merge `4fa4b4f`.
 P5.8 is complete, beta-validated, and integrated as `4fc5973`; its final
 acceptance evidence is recorded in `8125c1f`.
 P5.7 is complete, beta-accepted, and integrated as `b7cc2bc`; its
@@ -1841,7 +1842,7 @@ Exit criteria for each unit:
 
 #### P4.2a — Focused game-map attribute
 
-Status: **Integrated after Tier-3 review; development-beta acceptance pending**
+Status: **Complete — reviewed, integrated, and beta-validated**
 
 Risk tier: **Tier 3**. Updating map metadata is an ordinary game mutation with
 an audit record and public announcement/card refresh.
@@ -2005,12 +2006,96 @@ Remaining limitations:
   inherited the ephemeral deferred response. Correction `4762d4c` deletes the
   private placeholder and publishes successful reads/mutations through the
   channel sender; private failures remain interaction-only. The correction is
-  integrated, and final beta acceptance remains pending a restart-only retest.
+  integrated as `4fa4b4f`. The user accepted the corrected public read and
+  mutation behavior in the restarted development beta.
 
-Next action: launch one development beta from the corrected accumulation
-checkpoint with startup synchronization disabled and verify that a successful
-read and mutation are public. The slash schema is unchanged, so do not repeat
-the guild command apply or perform a global synchronization.
+Next action: preserve the focused attribute/service pattern for P4.2b game
+notes, including public state/transparency and private failures. The beta was
+stopped cleanly after acceptance.
+
+#### P4.2b — Focused game-notes workspace
+
+Status: **In progress — implementation pending**
+
+Risk tier: **Tier 3**. Notes mutation and its audit entry must commit
+atomically, while the public game-card refresh and mention warning occur only
+after commit.
+
+Branch/base: create `codex/p4-2b-game-notes` from the exact clean accumulation
+checkpoint containing this plan.
+
+Objective: establish a genuinely useful modal-backed read/edit attribute
+workflow for free-form game notes while moving the synchronous `$gamenotes`
+mutation into the bounded ordinary-game worker.
+
+Interface and presentation:
+
+- `/game notes game_id` displays the current notes publicly, using `None` or a
+  similarly clear value when unset;
+- the response provides requester-authorized **Edit notes** and **Clear
+  notes** controls with a bounded timeout/rerun path;
+- **Edit notes** opens a modal prefilled from the immutable loaded snapshot,
+  preserves the existing 150-character stored limit, and shows the proposed
+  value before or as part of explicit submission;
+- **Clear notes** requires explicit confirmation rather than treating an
+  omitted value as deletion;
+- controls are visibility hints only: every mutation reloads and revalidates
+  the game and requester authoritatively;
+- successful reads and committed edits/clears remain public; private
+  interaction placeholders, permission denials, validation errors, stale
+  controls, conflicts, and database errors remain ephemeral;
+- preserve `$gamenotes`, `$notes`, and `$matchnotes`, including `none`, game
+  conversion/channel inference, 150-character truncation, host/staff rules,
+  completed/in-progress restrictions, output wording, and the warning for
+  role/user mentions.
+
+Database, concurrency, and Discord boundary:
+
+- capture only primitive IDs, requester/staff facts, note text, mention facts,
+  and audit description before worker submission; never pass Discord or
+  Peewee objects into the worker;
+- use the bounded ordinary-game write executor plus the existing per-game
+  claim, with cancellation-safe draining so the claim remains held until the
+  non-cancellable transaction finishes and releases before Discord effects;
+- the worker opens/closes its own connection, reloads by ID, revalidates guild
+  association, completion/pending state, host ownership, and staff override,
+  then commits notes plus `GameLog` in one synchronous transaction;
+- a separately bounded read returns an immutable notes snapshot suitable for
+  modal prefilling without another event-loop database query;
+- after commit, publish the public success, update the dense game card, and
+  emit any mention warning. Failure or cancellation before commit causes no
+  Discord effects; post-commit failures must be observable without claiming
+  rollback.
+
+Components decision: a modal and small requester-controlled workspace are
+justified because notes are free-form authored text with useful current-state
+prefill, explicit clear, and review. Do not replace the established dense game
+card or build a generic form framework in this unit.
+
+Required tests:
+
+- read/unset display, edit modal prefill and length boundary, explicit clear
+  confirmation, cancel/timeout/stale controls, and requester-only controls;
+- exact prefix aliases, channel/game conversion, `none`, truncation, mention
+  warning, host/staff permissions, completed/in-progress rules, and output;
+- worker-local connections, primitive/frozen inputs, guild and permission
+  revalidation, event-loop responsiveness, same-game conflict and repeated-
+  cancellation cleanup;
+- transaction/audit rollback and no Discord effect after database failure;
+- commit before public output/card refresh/warning, public-success visibility,
+  private errors, and observable post-commit reconciliation failures;
+- `/game notes` registration/defer/modal serialization and Discord component
+  count/timeout behavior;
+- focused, complete offline, unchanged gated-development database, and later
+  separately approved development-guild apply/beta evidence.
+
+Out of scope: game name, map, tribe, ranked state, join restrictions,
+attachments, notification composition, schema changes, generic persistent
+draft infrastructure, prefix deprecation, global sync, and production work.
+
+Next action: dispatch this exact Tier-3 unit to a clean Luna worktree. Sol must
+review the complete mutation, cancellation, permission, modal, and post-commit
+evidence before integration or beta authorization.
 
 ## P5 — Matchmaking lifecycle
 
@@ -4943,6 +5028,24 @@ post-commit reconciliation behavior. This direction is a separate bounded
 unit and does not reopen accepted P5.2 behavior.
 
 ## Progress log
+
+### 2026-08-02 — P4.2a accepted; P4.2b notes workspace selected
+
+- The restarted development beta confirmed that correction `4762d4c` sends
+  successful `/game map` reads and committed mutations publicly while private
+  failures remain ephemeral. The user accepted P4.2a, and the task-owned beta
+  stopped cleanly.
+- Marked P4.2a Complete with correction merge `4fa4b4f` and selected P4.2b as
+  the next Tier-3 attribute unit.
+- Scoped `/game notes game_id` as a public current-value workspace with a
+  requester-controlled prefilled edit modal and explicitly confirmed clear.
+  `$gamenotes`, `$notes`, and `$matchnotes` retain their existing direct-text
+  behavior and permission/state semantics.
+- Required cancellation-safe per-game claims, atomic notes/audit writes,
+  post-commit card/warning effects, modal lifecycle coverage, public/private
+  visibility, and exact prefix parity. No implementation, database, Discord
+  apply, production, dependency, schema, push, or PR action occurred while
+  selecting the unit.
 
 ### 2026-08-02 — P4.2a Tier-3 review passed and integrated; beta authorized
 
