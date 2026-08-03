@@ -1,6 +1,7 @@
 import argparse
 import asyncio
 import logging
+import os
 import sys
 import traceback
 from timeit import default_timer as timer
@@ -12,7 +13,7 @@ from discord.ext import commands
 import logging_config
 import modules.exceptions as exceptions
 import settings
-from modules import image_storage, initialize_data, models, utilities
+from modules import beta_operations, image_storage, initialize_data, models, utilities
 
 logger = logging.getLogger('polybot.' + __name__)
 # https://discord.com/channels/336642139381301249/1042604006226280468/1042645381143613532
@@ -87,6 +88,7 @@ class MyBot(commands.Bot):
         settings.bot = self
         self.purgable_messages = []  # auto-deleting messages to get cleaned up by Administraton.quit  (guild, channel, message) tuple list
         self.locked_game_records = set()  # Games which cannot be written to since another command is working on them right now. Ugly hack to do what should be done at the DB level
+        self.beta_release_control = None
 
     async def setup_hook(self):
         image_storage.ensure_image_directories()
@@ -104,6 +106,21 @@ class MyBot(commands.Bot):
             )
         for extension in initial_extensions:
             await self.load_extension(extension)
+        if beta_operations.beta_control_enabled():
+            self.beta_release_control = beta_operations.BetaReleaseControl(
+                self,
+                settings.runtime_profile,
+                startup_checkpoint=os.environ.get(
+                    beta_operations.BETA_CHECKPOINT_ENV,
+                ),
+            )
+            await self.beta_release_control.start()
+
+    async def close(self):
+        if self.beta_release_control is not None:
+            await self.beta_release_control.stop()
+            self.beta_release_control = None
+        await super().close()
 
 
 def get_prefix(bot, message):
