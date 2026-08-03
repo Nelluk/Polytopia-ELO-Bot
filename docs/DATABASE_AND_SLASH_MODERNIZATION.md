@@ -456,11 +456,12 @@ check:
   `f0429536d7ed899eb356794bcd3558baa9be3d45`.
 - P4.2d roadmap evidence: `e1a0959`; accumulation merge: `7c2269b`.
 
-Current unit: **WB1.1 structured `/staffhelp` feedback intake — prefix
-retirement implemented locally; production-boundary documentation review
-pending.**
+Current unit: **WB1.2 durable development-beta service and tester operations —
+planned; awaiting user feedback before implementation.**
 
-WB1.1 implementation is isolated on `codex/wb1-1-staffhelp-feedback` from the
+WB1.1 was integrated into `codex/database-slash-modernization` as merge
+`1c8ffe0`. Its implementation branch was
+`codex/wb1-1-staffhelp-feedback` from the
 exact clean accumulation checkpoint
 `86a6d1ccbd1213417af8ceda09ea43b86d06562d`. It does not launch the beta,
 synchronize commands, inspect Discord, modify production, or change the
@@ -5281,11 +5282,11 @@ explicit development-guild deployment and beta smoke of `/team image`.
 
 ## WB1 — Wider beta operations and structured feedback
 
-Status: **In progress; WB1.1 prefix retirement implemented locally and review pending**
+Status: **In progress; WB1.1 integrated and WB1.2 planned**
 
 ### WB1.1 — Structured `/staffhelp` feedback intake
 
-Status: **Implemented locally; prefix retirement review pending**
+Status: **Complete; reviewed and integrated as `1c8ffe0`**
 
 Branch/base: `codex/wb1-1-staffhelp-feedback` from the exact clean checkpoint
 `86a6d1ccbd1213417af8ceda09ea43b86d06562d`.
@@ -5386,11 +5387,37 @@ Limitations and next action:
   dependency, command synchronization, launch, or production action was
   introduced. The ignored development capability assignment remains unchanged,
   so `/staffhelp` remains default-deny until a later explicit deployment.
-- Next action: review the implementation/tests checkpoint and this separate
-  production-boundary documentation/evidence commit, then obtain the separate
-  P9 decision for a production-safe authoritative intake/retention path (or
-  another production relay design). Deployment and wider-beta smoke remain
-  later explicit operations.
+- Next action: WB1.2 durable development-beta service and tester operations.
+  Obtain user feedback on its service, restart-announcement, tester-scope, and
+  smoke-list interface before implementation. The separate P9 decision for a
+  production-safe authoritative intake/retention path remains a later
+  production prerequisite.
+
+### WB1.2 — Durable development-beta service and tester operations
+
+Status: **Planned; awaiting user feedback before implementation**
+
+Proposed boundary:
+
+- provide a user-level, development-only durable service with explicit
+  development identity, `polytopia_dev`/`polybot_dev`, `--skip_tasks`, and
+  restart-on-failure;
+- add an operator-owned deployment/restart workflow that keeps command
+  synchronization explicit and separate from startup;
+- after an approved code rollout and restart, publish an attributed release
+  notice to one configured development announcement channel, optionally ping
+  one configured tester role, and include a bounded smoke-test checklist plus
+  the running Git checkpoint;
+- make announcement publication explicit and idempotent rather than automatic
+  on every reconnect or crash restart, so outages cannot spam testers;
+- document status/log/start/stop/rollback commands, single-writer checks,
+  fixture policy, tester scope, incident response, and how oversight reads
+  `/staffhelp` reports;
+- do not use sudo, production services, global command synchronization,
+  `polytopia2`, or a second writer process.
+
+Legacy recommendation: **not applicable**. WB1.2 is operational tooling and
+does not replace a prefix command.
 
 Purpose: open the development guild and beta command surface to a wider group
 without weakening the production boundary or making the beta process depend
@@ -6303,6 +6330,19 @@ change the database, command deployment, or production boundary.
 - This was documentation-only. No launch, command synchronization, production
   operation, database action, dependency action, or code test run was performed;
   validation is limited to diff/link/text consistency checks.
+
+### 2026-08-03 — WB1.1 reviewed and integrated
+
+- Oversight accepted the native intake, security/privacy boundaries, explicit
+  prefix retirement, and production-readiness correction after independently
+  passing **41 focused tests** and **640 complete offline tests with 17
+  intentional integration skips**.
+- Integrated `codex/wb1-1-staffhelp-feedback` into the accumulation branch as
+  merge `1c8ffe0`. The running development beta was not restarted or
+  synchronized, so it continues using its pre-merge loaded code until a later
+  approved rollout.
+- Selected WB1.2 durable development-beta service and tester operations as the
+  next proposed unit, pending user feedback before dispatch.
 
 ### 2026-08-03 — P8.3 integrated and wider-beta milestone accepted
 
