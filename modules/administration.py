@@ -1478,7 +1478,7 @@ class administration(commands.Cog):
 
     @team_group.command(
         name='tier',
-        description='View or update a PolyChampions team tier.',
+        description='View or update a team tier.',
     )
     @discord.app_commands.autocomplete(
         team=team_attributes_service.autocomplete_teams,
@@ -1518,22 +1518,32 @@ class administration(commands.Cog):
         actor = team_attributes_service.capture_actor(interaction.user)
         await interaction.response.defer(ephemeral=True)
         try:
+            if tier is None:
+                result = await team_attributes_service.run_read(
+                    team_attributes_service.build_read_request(
+                        member=interaction.user,
+                        guild_id=guild_id,
+                        attribute=team_attributes_workers.TEAM_ATTRIBUTE_TIER,
+                        team_lookup=team,
+                        invoked_with='/team tier',
+                    )
+                )
+                await team_emoji_service.public_interaction_sender(
+                    interaction
+                )(
+                    team_attributes_service.read_message(
+                        result,
+                        actor=actor,
+                    )
+                )
+                return result
+
             preflight = await team_attributes_service.run_tier_preflight(
                 member=interaction.user,
                 guild=interaction.guild,
                 team_lookup=team,
                 invoked_with='/team tier',
             )
-            if tier is None:
-                await team_emoji_service.public_interaction_sender(
-                    interaction
-                )(
-                    team_attributes_service.read_message(
-                        preflight.current,
-                        actor=actor,
-                    )
-                )
-                return preflight.current
 
             request = team_attributes_service.build_mutation_request(
                 member=interaction.user,
@@ -1546,6 +1556,7 @@ class administration(commands.Cog):
                 expected_value_present=True,
                 team_role_id=preflight.team_role_id,
                 team_role_name=preflight.team_role_name,
+                team_member_ids=preflight.member_ids,
                 native=True,
                 invoked_with='/team tier',
             )

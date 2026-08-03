@@ -3,9 +3,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import logging
 
 import settings
 from modules import exceptions, models, team_emoji_workers
+
+
+logger = logging.getLogger('polybot.' + __name__)
 
 
 TEAM_ATTRIBUTE_NAME = 'name'
@@ -46,6 +50,8 @@ class TeamAttributeReadRequest:
     requester_id: int
     requester_is_mod: bool
     team_enabled: bool
+    # Captured for compatibility/diagnostics; tier authorization remains the
+    # legacy mod-only policy rather than a new guild-scope gate.
     league_scope: bool
     team_lookup: str | None
     attribute: str
@@ -62,6 +68,8 @@ class TeamAttributeMutationRequest:
     requester_id: int
     requester_is_mod: bool
     team_enabled: bool
+    # Captured for compatibility/diagnostics; tier authorization remains the
+    # legacy mod-only policy rather than a new guild-scope gate.
     league_scope: bool
     team_lookup: str | None
     attribute: str
@@ -79,6 +87,7 @@ class TeamAttributeMutationRequest:
     native: bool = True
     invoked_with: str = '/team'
     prefix: str = '$'
+    team_member_ids: tuple[int, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -121,6 +130,8 @@ class TeamAttributeMutationResult:
     house_role_names: tuple[str, ...]
     cleared: bool
     native: bool
+    persisted_member_ids: tuple[int, ...] = ()
+    persisted_member_failures: tuple[int, ...] = ()
 
 
 def _validate_attribute(attribute: str) -> str:
@@ -140,11 +151,11 @@ def _validate_access(request) -> str:
         raise TeamAttributePermissionError(
             'You do not have permission to manage team attributes.'
         )
-    if attribute == TEAM_ATTRIBUTE_TIER and not bool(request.league_scope):
-        raise TeamAttributePermissionError(
-            'Team tiers can only be managed in the PolyChampions league server.'
-        )
-    if attribute in {TEAM_ATTRIBUTE_NAME, TEAM_ATTRIBUTE_TIER} and request.clear:
+    if (
+        isinstance(request, TeamAttributeMutationRequest)
+        and attribute in {TEAM_ATTRIBUTE_NAME, TEAM_ATTRIBUTE_TIER}
+        and request.clear
+    ):
         raise TeamAttributeValidationError(
             f'Team {attribute}s cannot be cleared in this workflow.'
         )
@@ -260,6 +271,49 @@ def _validate_tier_preconditions(request, team) -> None:
         raise TeamAttributeConflictError(
             f'Team {team_name} changed before this update was applied.'
         )
+
+
+def _reconcile_persisted_team_members(
+    request: TeamAttributeMutationRequest,
+    team,
+) -> tuple[tuple[int, ...], tuple[int, ...]]:
+    """Apply the legacy team/preference update for captured role members.
+
+    Discord member objects never cross into this worker.  The event-loop
+    preflight captures only the exact team-role member IDs; this function then
+    performs the corresponding Peewee work on the worker-local connection and
+    transaction.  A missing player retains the legacy warning-and-continue
+    behavior, while database failures propagate and roll back the tier/audit.
+    """
+
+    if not request.team_member_ids:
+        return (), ()
+
+    updated_member_ids = []
+    failed_member_ids = []
+    for member_id in request.team_member_ids:
+        member_id = int(member_id)
+        try:
+            player = models.Player.get_or_except(
+                player_string=member_id,
+                guild_id=int(request.guild_id),
+            )
+        except exceptions.NoSingleMatch as exc:
+            logger.warning(
+                'Could not load Player %s for team %s tier reconciliation: %s',
+                member_id,
+                team.id,
+                exc,
+            )
+            failed_member_ids.append(member_id)
+            continue
+
+        player.team = team
+        player.save()
+        models.PlayerHousePreference.clear_preferences(player.id)
+        updated_member_ids.append(member_id)
+
+    return tuple(updated_member_ids), tuple(failed_member_ids)
 
 
 def read_team_attribute(
@@ -417,6 +471,13 @@ def set_team_attribute(
                 team.league_tier = new_tier
 
             team.save()
+            persisted_member_ids = ()
+            persisted_member_failures = ()
+            if attribute == TEAM_ATTRIBUTE_TIER:
+                (
+                    persisted_member_ids,
+                    persisted_member_failures,
+                ) = _reconcile_persisted_team_members(request, team)
             after = _snapshot(
                 team,
                 guild_id=request.guild_id,
@@ -445,6 +506,8 @@ def set_team_attribute(
                 house_role_names=after.house_role_names,
                 cleared=bool(request.clear),
                 native=bool(request.native),
+                persisted_member_ids=persisted_member_ids,
+                persisted_member_failures=persisted_member_failures,
             )
             models.GameLog.write(
                 guild_id=int(request.guild_id),

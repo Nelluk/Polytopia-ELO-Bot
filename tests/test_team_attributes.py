@@ -89,6 +89,9 @@ class FakeDatabase:
         self.rollbacks = 0
         self.fail_save = False
         self.fail_audit = False
+        self.fail_player_save = False
+        self.fail_preference_clear = False
+        self.players = []
 
     def connection_context(self):
         database = self
@@ -114,9 +117,14 @@ class FakeDatabase:
                 self.snapshot = (
                     database.team.name,
                     database.team.external_server,
-                    database.team.league_tier,
-                    list(database.logs),
-                )
+                database.team.league_tier,
+                list(database.logs),
+            )
+                self.player_snapshot = [
+                    (player, player.team)
+                    for player in database.players
+                ]
+                self.preference_snapshot = list(FakePlayerHousePreference.calls)
                 database.events.append('atomic-open')
                 return database
 
@@ -133,6 +141,9 @@ class FakeDatabase:
                     logs,
                 ) = self.snapshot
                 database.logs = list(logs)
+                for player, team in self.player_snapshot:
+                    player.team = team
+                FakePlayerHousePreference.calls = list(self.preference_snapshot)
                 database.events.append('rollback')
                 return False
 
@@ -213,6 +224,44 @@ class FakeGameLog:
         cls.database.logs.append(kwargs)
 
 
+class PlayerRecord:
+    def __init__(self, database, *, player_id=501, team=None):
+        self.database = database
+        self.id = player_id
+        self.team = team
+
+    def save(self):
+        self.database.events.append('player-save')
+        if self.database.fail_player_save:
+            raise peewee.OperationalError('player save failed')
+
+
+class FakePlayerModel:
+    records = {}
+
+    @classmethod
+    def get_or_except(cls, *, player_string, guild_id):
+        del guild_id
+        try:
+            return cls.records[int(player_string)]
+        except KeyError as exc:
+            raise workers.exceptions.NoMatches(
+                f'No matching player was found for "{player_string}"'
+            ) from exc
+
+
+class FakePlayerHousePreference:
+    calls = []
+    database = None
+
+    @classmethod
+    def clear_preferences(cls, player_id):
+        cls.calls.append(int(player_id))
+        cls.database.events.append('clear-preferences')
+        if cls.database.fail_preference_clear:
+            raise peewee.OperationalError('preference clear failed')
+
+
 def read_request(**overrides):
     values = dict(
         guild_id=300,
@@ -259,6 +308,9 @@ class TeamAttributeWorkerTests(unittest.TestCase):
         FakeTeamModel.responses = {}
         FakeHouseModel.records = [self.team.house]
         FakeGameLog.database = self.database
+        FakePlayerModel.records = {}
+        FakePlayerHousePreference.calls = []
+        FakePlayerHousePreference.database = self.database
         self.patches = ExitStack()
         self.patches.enter_context(
             mock.patch.object(workers.models, 'db', self.database)
@@ -271,6 +323,16 @@ class TeamAttributeWorkerTests(unittest.TestCase):
         )
         self.patches.enter_context(
             mock.patch.object(workers.models, 'GameLog', FakeGameLog)
+        )
+        self.patches.enter_context(
+            mock.patch.object(workers.models, 'Player', FakePlayerModel)
+        )
+        self.patches.enter_context(
+            mock.patch.object(
+                workers.models,
+                'PlayerHousePreference',
+                FakePlayerHousePreference,
+            )
         )
         self.addCleanup(self.patches.close)
 
@@ -380,6 +442,68 @@ class TeamAttributeWorkerTests(unittest.TestCase):
         self.assertEqual(self.database.connection_opened, 4)
         self.assertEqual(self.database.connection_closed, 4)
 
+    def test_real_worker_reads_all_attributes_without_mutation_only_fields(self):
+        expected = {
+            workers.TEAM_ATTRIBUTE_NAME: 'Ronin',
+            workers.TEAM_ATTRIBUTE_SERVER: None,
+            workers.TEAM_ATTRIBUTE_TIER: 2,
+        }
+        for attribute, value in expected.items():
+            result = workers.read_team_attribute(
+                read_request(
+                    attribute=attribute,
+                    include_hidden=(attribute != workers.TEAM_ATTRIBUTE_TIER),
+                    league_scope=False,
+                )
+            )
+            self.assertEqual(result.value, value)
+            self.assertEqual(result.attribute, attribute)
+
+    def test_tier_worker_reconciles_persisted_member_team_and_preferences(self):
+        player = PlayerRecord(self.database, team=None)
+        self.database.players = [player]
+        FakePlayerModel.records = {player.id: player}
+
+        result = workers.set_team_attribute(
+            mutation_request(
+                attribute=workers.TEAM_ATTRIBUTE_TIER,
+                tier='Gold',
+                include_hidden=False,
+                league_scope=False,
+                expected_value=2,
+                expected_value_present=True,
+                team_role_id=700,
+                team_role_name='Ronin',
+                team_member_ids=(player.id,),
+            )
+        )
+
+        self.assertIs(player.team, self.team)
+        self.assertEqual(FakePlayerHousePreference.calls, [player.id])
+        self.assertEqual(result.persisted_member_ids, (player.id,))
+        self.assertEqual(result.persisted_member_failures, ())
+        self.assertIn('player-save', self.database.events)
+        self.assertIn('clear-preferences', self.database.events)
+
+        old_team = SimpleNamespace(id=88)
+        player.team = old_team
+        self.database.fail_audit = True
+        with self.assertRaises(peewee.PeeweeException):
+            workers.set_team_attribute(
+                mutation_request(
+                    attribute=workers.TEAM_ATTRIBUTE_TIER,
+                    tier='Silver',
+                    include_hidden=False,
+                    expected_value=2,
+                    expected_value_present=True,
+                    team_role_id=700,
+                    team_role_name='Ronin',
+                    team_member_ids=(player.id,),
+                )
+            )
+        self.assertIs(player.team, old_team)
+        self.assertEqual(FakePlayerHousePreference.calls, [player.id])
+
     def test_name_boundary_duplicate_and_tier_lookup_preconditions_rollback(self):
         before_name = self.team.name
         with self.assertRaises(workers.TeamAttributeValidationError):
@@ -466,10 +590,14 @@ class TeamAttributeWorkerTests(unittest.TestCase):
             workers.read_team_attribute(read_request(requester_is_mod=False))
         with self.assertRaises(workers.TeamAttributePermissionError):
             workers.read_team_attribute(read_request(team_enabled=False))
-        with self.assertRaises(workers.TeamAttributePermissionError):
-            workers.read_team_attribute(
-                read_request(attribute=workers.TEAM_ATTRIBUTE_TIER, league_scope=False)
+        tier_read = workers.read_team_attribute(
+            read_request(
+                attribute=workers.TEAM_ATTRIBUTE_TIER,
+                include_hidden=False,
+                league_scope=False,
             )
+        )
+        self.assertEqual(tier_read.value, 2)
 
         FakeTeamModel.responses['R'] = (
             self.team,
@@ -721,6 +849,115 @@ class TeamAttributeServiceTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn(league_role, edited_roles)
         self.assertNotIn(old_tier, edited_roles)
 
+    async def test_tier_read_is_mod_only_and_skips_mutation_preconditions(self):
+        with mock.patch.object(
+            service,
+            '_requester_is_mod',
+            return_value=True,
+        ):
+            self.assertIsNone(
+                service.native_access_error(
+                    self.member,
+                    999,
+                    workers.TEAM_ATTRIBUTE_TIER,
+                )
+            )
+        interaction = SimpleNamespace(
+            guild=SimpleNamespace(id=999),
+            user=self.member,
+            response=SimpleNamespace(
+                send_message=mock.AsyncMock(),
+                defer=mock.AsyncMock(),
+            ),
+            followup=SimpleNamespace(send=mock.AsyncMock()),
+            delete_original_response=mock.AsyncMock(),
+            channel=SimpleNamespace(send=mock.AsyncMock()),
+        )
+        result = workers.TeamAttributeReadResult(
+            guild_id=999,
+            team_id=42,
+            team_name='Archived Ronin',
+            attribute=workers.TEAM_ATTRIBUTE_TIER,
+            value=2,
+            external_server=None,
+            league_tier=2,
+            tier_name='Gold',
+            house_name=None,
+            is_hidden=False,
+            is_archived=True,
+            house_role_names=(),
+        )
+        command = next(
+            command
+            for command in administration.administration.__cog_app_commands__
+            if command.name == 'team'
+        ).get_command('tier')
+        cog = administration.administration.__new__(administration.administration)
+        with mock.patch.object(
+            administration.team_attributes_service,
+            '_requester_is_mod',
+            return_value=True,
+        ), mock.patch.object(
+            administration.team_attributes_service,
+            'build_read_request',
+            return_value=SimpleNamespace(),
+        ) as build, mock.patch.object(
+            administration.team_attributes_service,
+            'run_read',
+            new=mock.AsyncMock(return_value=result),
+        ) as run_read, mock.patch.object(
+            administration.team_attributes_service,
+            'run_tier_preflight',
+            new=mock.AsyncMock(side_effect=AssertionError('read used mutation preflight')),
+        ) as preflight:
+            await command.callback(cog, interaction, None, None)
+        build.assert_called_once_with(
+            member=interaction.user,
+            guild_id=999,
+            attribute=workers.TEAM_ATTRIBUTE_TIER,
+            team_lookup=None,
+            invoked_with='/team tier',
+        )
+        run_read.assert_awaited_once()
+        preflight.assert_not_awaited()
+
+    async def test_tier_mutation_preflight_captures_only_role_member_ids(self):
+        current = workers.TeamAttributeReadResult(
+            guild_id=300,
+            team_id=42,
+            team_name='Ronin',
+            attribute=workers.TEAM_ATTRIBUTE_TIER,
+            value=2,
+            external_server=None,
+            league_tier=2,
+            tier_name='Gold',
+            house_name='Ninjas',
+            is_hidden=False,
+            is_archived=False,
+            house_role_names=('Ninjas',),
+        )
+        role = SimpleNamespace(
+            id=700,
+            name='Ronin',
+            members=[SimpleNamespace(id=101), SimpleNamespace(id=102)],
+        )
+        with mock.patch.object(
+            service,
+            'run_read',
+            new=mock.AsyncMock(return_value=current),
+        ), mock.patch.object(
+            service,
+            '_exact_team_role',
+            return_value=role,
+        ):
+            preflight = await service.run_tier_preflight(
+                member=self.member,
+                guild=SimpleNamespace(id=300),
+                team_lookup='Ronin',
+                invoked_with='team_tier',
+            )
+        self.assertEqual(preflight.member_ids, (101, 102))
+
 
 class TeamAttributePrefixTests(unittest.IsolatedAsyncioTestCase):
     def test_prefix_commands_remain_registered(self):
@@ -737,6 +974,14 @@ class TeamAttributePrefixTests(unittest.IsolatedAsyncioTestCase):
             league_commands['team_edit'].aliases,
             ['team_house', 'team_tier'],
         )
+
+    async def test_prefix_tier_keeps_mod_only_scope_without_league_cog_gate(self):
+        cog = league.league.__new__(league.league)
+        ctx = SimpleNamespace(
+            guild=SimpleNamespace(id=999),
+            invoked_with='team_tier',
+        )
+        self.assertTrue(await cog.cog_check(ctx))
 
     async def test_prefix_name_routes_through_shared_mutation_service(self):
         command = next(
@@ -870,6 +1115,7 @@ class TeamAttributePrefixTests(unittest.IsolatedAsyncioTestCase):
             current=current,
             team_role_id=700,
             team_role_name='Ronin',
+            member_ids=(101, 102),
         )
         result = SimpleNamespace(team_id=42)
         cog = league.league.__new__(league.league)
@@ -877,11 +1123,11 @@ class TeamAttributePrefixTests(unittest.IsolatedAsyncioTestCase):
             league.models.Team,
             'get_or_except',
             return_value=team,
-        ), mock.patch.object(
+        ) as direct_lookup, mock.patch.object(
             league.utilities,
             'guild_role_by_name',
             return_value=role,
-        ), mock.patch.object(
+        ) as direct_role_lookup, mock.patch.object(
             league.team_attributes_service,
             'run_tier_preflight',
             new=mock.AsyncMock(return_value=preflight),
@@ -920,10 +1166,13 @@ class TeamAttributePrefixTests(unittest.IsolatedAsyncioTestCase):
             expected_value_present=True,
             team_role_id=700,
             team_role_name='Ronin',
+            team_member_ids=(101, 102),
             native=False,
             invoked_with='team_tier',
             prefix='$',
         )
+        direct_lookup.assert_not_called()
+        direct_role_lookup.assert_not_called()
         reconcile.assert_awaited_once_with(ctx.guild, result)
         publish.assert_awaited_once()
 

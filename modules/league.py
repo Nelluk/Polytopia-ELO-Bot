@@ -196,6 +196,11 @@ class league(commands.Cog):
             self.task_draft_reminders.start()
 
     async def cog_check(self, ctx):
+        # The legacy tier alias is mod-gated by team_edit itself and has no
+        # league-server-only command check.  Keep that material prefix policy
+        # while retaining the cog scope for the unrelated league commands.
+        if getattr(ctx, 'invoked_with', None) == 'team_tier':
+            return True
         return ctx.guild.id == settings.server_ids['polychampions'] or ctx.guild.id == settings.server_ids['test']
 
     
@@ -945,45 +950,6 @@ class league(commands.Cog):
         args = arg.split() if arg else []
         if not args or len(args) != 2:
             return await ctx.send(f'See `{ctx.prefix}help {ctx.invoked_with}` for usage examples. Teams and Houses must be each identified by a single word.')
-        
-        try:
-            team = models.Team.get_or_except(team_name = args[0], guild_id=ctx.guild.id)
-        except (exceptions.TooManyMatches, exceptions.NoMatches) as e:
-            return await ctx.send(e)
-        
-        logger.debug(f'Loaded team {team.name} for editing')
-        team_role = utilities.guild_role_by_name(ctx.guild, name=team.name, allow_partial=False)
-        if not team_role:
-            return await ctx.send(f':warning: No role matching **{team.name}**. It must have a role to edit team properties. ')
-
-        if team.is_archived:
-            logger.warn('Team is_archive is True')
-            return await ctx.send(f'Team **{team.name}** is **archived**. If it *really* needs to be unarchived, ask the bot owner.')
-        
-        if ctx.invoked_with == 'team_house':
-            old_house_name = team.house.name if team.house else 'NONE'
-            if args[1] == 'NONE':
-                logger.info(f'Processing house removal')
-                new_house, new_house_name = None, 'NONE'
-            else:
-                logger.info(f'Processing house affiliation change')
-                try:
-                    new_house = models.House.get_or_except(house_name=args[1])
-                    new_house_name = new_house.name
-                except (exceptions.TooManyMatches, exceptions.NoMatches) as e:
-                    return await ctx.send(e)
-        
-            team.house = new_house
-            team.save()
-            models.GameLog.write(guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} set the House affiliation of Team {team.name} to {new_house_name} from {old_house_name}')
-            tier_warning = '' if team.league_tier else f'\n:warning:Team tier not set. You probably want to set one with `{ctx.prefix}team_tier`'
-            
-            async with ctx.typing():
-                for member in team_role.members:
-                    logger.debug(f'team_edit updating league roles for member {member.display_name}')
-                    await update_member_league_roles(member)
-
-                return await ctx.send(f'Changed House affiliation of team  **{team.name}** to {new_house_name}. Previous affiliation was "{old_house_name}".{tier_warning}. Team members have had their House roles refreshed.')
 
         if ctx.invoked_with == 'team_tier':
             try:
@@ -1004,6 +970,7 @@ class league(commands.Cog):
                     expected_value_present=True,
                     team_role_id=preflight.team_role_id,
                     team_role_name=preflight.team_role_name,
+                    team_member_ids=getattr(preflight, 'member_ids', ()),
                     native=False,
                     invoked_with=ctx.invoked_with,
                     prefix=ctx.prefix,
@@ -1046,6 +1013,45 @@ class league(commands.Cog):
                 reconciliation=reconciliation,
             )
             return result
+
+        try:
+            team = models.Team.get_or_except(team_name = args[0], guild_id=ctx.guild.id)
+        except (exceptions.TooManyMatches, exceptions.NoMatches) as e:
+            return await ctx.send(e)
+
+        logger.debug(f'Loaded team {team.name} for editing')
+        team_role = utilities.guild_role_by_name(ctx.guild, name=team.name, allow_partial=False)
+        if not team_role:
+            return await ctx.send(f':warning: No role matching **{team.name}**. It must have a role to edit team properties. ')
+
+        if team.is_archived:
+            logger.warn('Team is_archive is True')
+            return await ctx.send(f'Team **{team.name}** is **archived**. If it *really* needs to be unarchived, ask the bot owner.')
+
+        if ctx.invoked_with == 'team_house':
+            old_house_name = team.house.name if team.house else 'NONE'
+            if args[1] == 'NONE':
+                logger.info(f'Processing house removal')
+                new_house, new_house_name = None, 'NONE'
+            else:
+                logger.info(f'Processing house affiliation change')
+                try:
+                    new_house = models.House.get_or_except(house_name=args[1])
+                    new_house_name = new_house.name
+                except (exceptions.TooManyMatches, exceptions.NoMatches) as e:
+                    return await ctx.send(e)
+
+            team.house = new_house
+            team.save()
+            models.GameLog.write(guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} set the House affiliation of Team {team.name} to {new_house_name} from {old_house_name}')
+            tier_warning = '' if team.league_tier else f'\n:warning:Team tier not set. You probably want to set one with `{ctx.prefix}team_tier`'
+
+            async with ctx.typing():
+                for member in team_role.members:
+                    logger.debug(f'team_edit updating league roles for member {member.display_name}')
+                    await update_member_league_roles(member)
+
+                return await ctx.send(f'Changed House affiliation of team  **{team.name}** to {new_house_name}. Previous affiliation was "{old_house_name}".{tier_warning}. Team members have had their House roles refreshed.')
 
         if ctx.invoked_with == 'team_edit' and args[1] == 'ARCHIVE':
             logger.debug(f'Attempting to archive team {team.name}')

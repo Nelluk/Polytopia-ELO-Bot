@@ -29,11 +29,12 @@ TEAM_TIER_CHOICES = [
 
 @dataclass(frozen=True)
 class TierPreflight:
-    """Primitive result of a tier read plus exact role validation."""
+    """Primitive result of a tier mutation preflight and role validation."""
 
     current: workers.TeamAttributeReadResult
     team_role_id: int
     team_role_name: str
+    member_ids: tuple[int, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -142,6 +143,7 @@ def build_mutation_request(
     native: bool = True,
     invoked_with: str = '/team',
     prefix: str = '$',
+    team_member_ids: tuple[int, ...] = (),
 ) -> workers.TeamAttributeMutationRequest:
     """Capture Discord/member values into an immutable mutation request."""
 
@@ -171,6 +173,7 @@ def build_mutation_request(
         native=bool(native),
         invoked_with=str(invoked_with),
         prefix=str(prefix),
+        team_member_ids=tuple(int(member_id) for member_id in team_member_ids),
     )
 
 
@@ -182,8 +185,6 @@ def native_access_error(member, guild_id: int, attribute: str) -> str | None:
         return 'Teams are not enabled on this server.'
     if not _requester_is_mod(member):
         return 'You do not have permission to manage team attributes.'
-    if attribute == workers.TEAM_ATTRIBUTE_TIER and not _league_scope(guild_id):
-        return 'Team tiers can only be managed in the PolyChampions league server.'
     return None
 
 
@@ -235,6 +236,10 @@ async def run_tier_preflight(
         current=current,
         team_role_id=int(role.id),
         team_role_name=str(role.name),
+        member_ids=tuple(
+            int(member.id)
+            for member in (getattr(role, 'members', ()) or ())
+        ),
     )
 
 
