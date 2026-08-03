@@ -48,7 +48,9 @@ JSONL line is appended, flushed, and fsynced. A failure before publication
 cleans the stage. A failure after publication never acknowledges the report;
 an uncertain append leaves a reconciliation warning rather than deleting
 possibly committed evidence. Cancellation drains the worker before returning
-cancellation to the interaction.
+cancellation to the interaction. If cancellation arrives after a worker has
+committed, the worker drain logs only the committed report ID for
+reconciliation; no acknowledgement is sent.
 
 The checkpoint uses a validated runtime/build value when supplied, then a
 bounded `git rev-parse HEAD` lookup in the worker. If neither is available,
@@ -59,17 +61,30 @@ the record explicitly contains `"git_checkpoint": "unknown"`.
 `$staffhelp` and `$helpstaff` retain their existing grammar, user cooldown,
 public acknowledgement, staff-channel message, optional game card, and
 legacy `GameLog` write. A valid prefix request now commits to the JSONL store
-before the existing relay. Prefix attachment URLs remain in the legacy staff
-message; the authoritative store contains the captured attachment bytes and
-immutable metadata. A prefix storage failure does not send the success
-acknowledgement or write the legacy `GameLog` entry.
+before the existing relay when the selected runtime profile is `development`.
+Outside development, the JSONL/capture addition is skipped and the original
+prefix relay/card/`GameLog`/public acknowledgement path remains unchanged.
+
+In development, conforming prefix attachments are captured with the native
+limits and immutable metadata. If an old prefix attachment has an unsupported
+type, exceeds the beta per-file/aggregate limits, or cannot be read, the
+request is still accepted: its Discord URL remains in the bounded JSONL
+details and legacy staff relay, while local attachment bytes are omitted and
+the record carries a metadata-safe omission context. A development JSONL
+storage failure still blocks the success acknowledgement and legacy
+`GameLog` write. After a development record commits, a missing staff channel
+or relay exception reports the opaque ID and mirror failure without resetting
+cooldown or claiming the legacy relay succeeded.
 
 Native reports are acknowledged ephemerally with their report ID only after
 the local record and attachments are committed. The structured staff-channel
 mirror is attempted afterward. A relay failure leaves the report in JSONL and
 returns a private recorded-with-relay-warning acknowledgement; the warning is
 also logged with report/guild/channel identifiers only. Report details are
-never sent to the originating public channel.
+never sent to the originating public channel. If Discord rejects the final
+native followup after commit, the failure is logged with the report ID and the
+store remains authoritative; the handler never sends a false “no report ID”
+message.
 
 The existing `tools_support` capability remains default-deny. No development
 capability assignment was changed, and no command synchronization or bot
