@@ -40,6 +40,7 @@ class ApplicationCommandPolicyTests(unittest.TestCase):
 
         self.assertEqual(policy.allowed_guild_ids, (10, 20))
         self.assertEqual(policy.roots_for_guild(10), ())
+        self.assertNotIn('team', policy.roots_for_guild(10))
         self.assertEqual(policy.assigned_guild_ids(), ())
         with self.assertRaises(FrozenInstanceError):
             policy.allowed_guild_ids = (1,)

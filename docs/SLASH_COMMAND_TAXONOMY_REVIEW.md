@@ -387,7 +387,7 @@ operator repair commands stay out of the public tree.
 | `settime` | `/player timezone` | Strong candidate with UTC-offset choices |
 | `team` | `/team show` | Strong candidate |
 | `team_add` | `/team create` | Redesign staff options, including junior-team behavior |
-| `team_emoji` | `/team emoji` | View by default; optional emoji edits with staff permission |
+| `team_emoji` | `/team emoji` | Implemented locally in P8.1: view by default; optional emoji/clear edits with the preserved team-enabled and mod boundary; beta not run |
 | `team_image` | `/team image` | View by default; optional attachment/URL edits |
 | `team_name` | `/team name` | View exact name; optional name edits |
 | `team_server` | `/team server` | View when safe; optional configured server edits with staff permission |
@@ -487,6 +487,32 @@ setting. An omitted team is inferred only when the requester has one
 unambiguous team; otherwise autocomplete/selection is required. Equivalent
 safe patterns apply to team name/house/tier, squad name, house name/image,
 player timezone, and focused game attributes.
+
+#### P8.1 `/team emoji` implementation state
+
+The code-only implementation registers `/team emoji` under the existing
+`team` capability with the exact option shape
+`team:string?`, `emoji:string?`, `clear:boolean?`. Omitted `team` is resolved
+only from one persisted requester team; zero or multiple matches stay private
+and request an explicit target. Omitted replacement reads publicly, while
+successful emoji edits and `clear:true` removals are public and identify the
+actor. Conflicts, malformed values, permission failures, ambiguous lookup,
+and database failures remain private. `$team_emoji` remains registered with
+its existing `allow_teams` and mod decorators and uses the same service.
+
+The implementation checkpoint is `0bbfae0` on
+`codex/p8-1-team-emoji`, based on exact clean base
+`f93855b0eac3fb1e1f42119578c02ecac4213cd4`. Development capability
+assignment was not edited, so the root remains default-deny and no Discord
+command synchronization occurred. This unit deliberately does not add team
+image, server, name, house, or tier behavior.
+
+Compatibility accounting: no unapproved compromise was introduced. The
+legacy Unicode-validator bug is intentionally corrected; ordinary Unicode
+emoji now work, valid serialized static/animated custom emoji are accepted
+without cache lookup, and malformed values previously admitted by the broad
+`'<:'` substring test are rejected safely. Prefix wording, registration,
+lookup semantics, and permission boundary remain compatible.
 
 #### Player leaderboard interaction matrix
 
@@ -708,7 +734,7 @@ top-level roots into explicit capability families:
 |---|---|---|
 | `core_user` | `game`, `leaderboard`, `player` | public user surface |
 | `elo_maintenance` | `elo` | staff/maintenance |
-| `team` | `team` | reserved future family |
+| `team` | `team` | code-defined focused attribute root; remains default-deny until explicitly assigned |
 | `league` | `league` | reserved future family |
 | `house` | `house` | reserved future family |
 | `squad` | `squad` | reserved future family |
