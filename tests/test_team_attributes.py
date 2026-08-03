@@ -453,7 +453,7 @@ class TeamAttributeWorkerTests(unittest.TestCase):
                 read_request(
                     attribute=attribute,
                     include_hidden=(attribute != workers.TEAM_ATTRIBUTE_TIER),
-                    league_scope=False,
+                    league_scope=True,
                 )
             )
             self.assertEqual(result.value, value)
@@ -469,7 +469,7 @@ class TeamAttributeWorkerTests(unittest.TestCase):
                 attribute=workers.TEAM_ATTRIBUTE_TIER,
                 tier='Gold',
                 include_hidden=False,
-                league_scope=False,
+                league_scope=True,
                 expected_value=2,
                 expected_value_present=True,
                 team_role_id=700,
@@ -590,14 +590,14 @@ class TeamAttributeWorkerTests(unittest.TestCase):
             workers.read_team_attribute(read_request(requester_is_mod=False))
         with self.assertRaises(workers.TeamAttributePermissionError):
             workers.read_team_attribute(read_request(team_enabled=False))
-        tier_read = workers.read_team_attribute(
-            read_request(
-                attribute=workers.TEAM_ATTRIBUTE_TIER,
-                include_hidden=False,
-                league_scope=False,
+        with self.assertRaises(workers.TeamAttributePermissionError):
+            workers.read_team_attribute(
+                read_request(
+                    attribute=workers.TEAM_ATTRIBUTE_TIER,
+                    include_hidden=False,
+                    league_scope=False,
+                )
             )
-        )
-        self.assertEqual(tier_read.value, 2)
 
         FakeTeamModel.responses['R'] = (
             self.team,
@@ -849,21 +849,23 @@ class TeamAttributeServiceTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn(league_role, edited_roles)
         self.assertNotIn(old_tier, edited_roles)
 
-    async def test_tier_read_is_mod_only_and_skips_mutation_preconditions(self):
+    async def test_tier_read_keeps_scope_and_skips_mutation_preconditions(self):
         with mock.patch.object(
             service,
             '_requester_is_mod',
             return_value=True,
         ):
-            self.assertIsNone(
+            self.assertEqual(
                 service.native_access_error(
                     self.member,
                     999,
                     workers.TEAM_ATTRIBUTE_TIER,
-                )
+                ),
+                'Team tiers can only be managed in the PolyChampions league server.',
             )
+        allowed_guild_id = int(service.settings.server_ids['polychampions'])
         interaction = SimpleNamespace(
-            guild=SimpleNamespace(id=999),
+            guild=SimpleNamespace(id=allowed_guild_id),
             user=self.member,
             response=SimpleNamespace(
                 send_message=mock.AsyncMock(),
@@ -874,7 +876,7 @@ class TeamAttributeServiceTests(unittest.IsolatedAsyncioTestCase):
             channel=SimpleNamespace(send=mock.AsyncMock()),
         )
         result = workers.TeamAttributeReadResult(
-            guild_id=999,
+            guild_id=allowed_guild_id,
             team_id=42,
             team_name='Archived Ronin',
             attribute=workers.TEAM_ATTRIBUTE_TIER,
@@ -913,7 +915,7 @@ class TeamAttributeServiceTests(unittest.IsolatedAsyncioTestCase):
             await command.callback(cog, interaction, None, None)
         build.assert_called_once_with(
             member=interaction.user,
-            guild_id=999,
+            guild_id=allowed_guild_id,
             attribute=workers.TEAM_ATTRIBUTE_TIER,
             team_lookup=None,
             invoked_with='/team tier',
@@ -975,13 +977,20 @@ class TeamAttributePrefixTests(unittest.IsolatedAsyncioTestCase):
             ['team_house', 'team_tier'],
         )
 
-    async def test_prefix_tier_keeps_mod_only_scope_without_league_cog_gate(self):
+    async def test_prefix_tier_preserves_legacy_league_cog_scope(self):
         cog = league.league.__new__(league.league)
-        ctx = SimpleNamespace(
+        outside_scope = SimpleNamespace(
             guild=SimpleNamespace(id=999),
             invoked_with='team_tier',
         )
-        self.assertTrue(await cog.cog_check(ctx))
+        self.assertFalse(await cog.cog_check(outside_scope))
+        in_scope = SimpleNamespace(
+            guild=SimpleNamespace(
+                id=int(league.settings.server_ids['polychampions'])
+            ),
+            invoked_with='team_tier',
+        )
+        self.assertTrue(await cog.cog_check(in_scope))
 
     async def test_prefix_name_routes_through_shared_mutation_service(self):
         command = next(

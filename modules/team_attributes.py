@@ -185,6 +185,8 @@ def native_access_error(member, guild_id: int, attribute: str) -> str | None:
         return 'Teams are not enabled on this server.'
     if not _requester_is_mod(member):
         return 'You do not have permission to manage team attributes.'
+    if attribute == workers.TEAM_ATTRIBUTE_TIER and not _league_scope(guild_id):
+        return 'Team tiers can only be managed in the PolyChampions league server.'
     return None
 
 

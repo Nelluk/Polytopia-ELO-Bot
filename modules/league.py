@@ -196,11 +196,6 @@ class league(commands.Cog):
             self.task_draft_reminders.start()
 
     async def cog_check(self, ctx):
-        # The legacy tier alias is mod-gated by team_edit itself and has no
-        # league-server-only command check.  Keep that material prefix policy
-        # while retaining the cog scope for the unrelated league commands.
-        if getattr(ctx, 'invoked_with', None) == 'team_tier':
-            return True
         return ctx.guild.id == settings.server_ids['polychampions'] or ctx.guild.id == settings.server_ids['test']
 
     

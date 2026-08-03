@@ -50,8 +50,8 @@ class TeamAttributeReadRequest:
     requester_id: int
     requester_is_mod: bool
     team_enabled: bool
-    # Captured for compatibility/diagnostics; tier authorization remains the
-    # legacy mod-only policy rather than a new guild-scope gate.
+    # Captured before worker submission; tier authorization also enforces this
+    # legacy PolyChampions/test scope in the worker.
     league_scope: bool
     team_lookup: str | None
     attribute: str
@@ -68,8 +68,8 @@ class TeamAttributeMutationRequest:
     requester_id: int
     requester_is_mod: bool
     team_enabled: bool
-    # Captured for compatibility/diagnostics; tier authorization remains the
-    # legacy mod-only policy rather than a new guild-scope gate.
+    # Captured before worker submission; tier authorization also enforces this
+    # legacy PolyChampions/test scope in the worker.
     league_scope: bool
     team_lookup: str | None
     attribute: str
@@ -150,6 +150,10 @@ def _validate_access(request) -> str:
     if not bool(request.requester_is_mod):
         raise TeamAttributePermissionError(
             'You do not have permission to manage team attributes.'
+        )
+    if attribute == TEAM_ATTRIBUTE_TIER and not bool(request.league_scope):
+        raise TeamAttributePermissionError(
+            'Team tiers can only be managed in the PolyChampions league server.'
         )
     if (
         isinstance(request, TeamAttributeMutationRequest)
