@@ -14,6 +14,8 @@ from modules import player_workers
 from modules import elo_workers
 from modules import game_win
 from modules import game_map
+from modules import game_tribe
+from modules import game_tribe_views
 from modules import game_notes
 from modules import game_notes_views
 from modules import game_name
@@ -4597,10 +4599,290 @@ class polygames(commands.Cog):
                 ephemeral=True,
             )
         return workspace
-    
+
+    @game_group.command(
+        name='tribe',
+        description='View or update player tribes for a game.',
+    )
+    @discord.app_commands.describe(
+        game_id='Game whose player-to-tribe mapping to view or edit.',
+        bulk=(
+            'Optional staff batch: alternating player and tribe values, '
+            'for example "Player Bardur Other Elyrion".'
+        ),
+    )
+    async def tribe_slash(
+        self,
+        interaction: discord.Interaction,
+        game_id: int,
+        bulk: str | None = None,
+    ):
+        """Read a public mapping or apply one native all-or-nothing batch."""
+
+        await interaction.response.defer(ephemeral=True)
+        actor = game_tribe.capture_actor(interaction.user)
+        channel_id = int(
+            getattr(interaction, 'channel_id', None)
+            or getattr(getattr(interaction, 'channel', None), 'id', 0)
+            or 0
+        )
+        try:
+            prefix = settings.guild_setting(
+                interaction.guild.id,
+                'command_prefix',
+            )
+        except exceptions.CheckFailedError:
+            prefix = '$'
+
+        async def private_failure(native_interaction, message: str) -> None:
+            response = getattr(native_interaction, 'response', None)
+            is_done = getattr(response, 'is_done', None)
+            if callable(is_done) and is_done():
+                await native_interaction.followup.send(
+                    message,
+                    ephemeral=True,
+                )
+            else:
+                await native_interaction.response.send_message(
+                    message,
+                    ephemeral=True,
+                )
+
+        async def mutate(
+            native_interaction,
+            *,
+            assignments=(),
+            expected_snapshot=(),
+            raw_bulk=None,
+            require_elevated=False,
+        ):
+            submitter = game_tribe.capture_actor(native_interaction.user)
+            request = game_tribe.build_mutation_request(
+                member=native_interaction.user,
+                guild_id=native_interaction.guild.id,
+                channel_id=int(
+                    getattr(native_interaction, 'channel_id', None)
+                    or getattr(
+                        getattr(native_interaction, 'channel', None),
+                        'id',
+                        0,
+                    )
+                    or 0
+                ),
+                game_id=game_id,
+                assignments=tuple(assignments),
+                expected_snapshots=tuple(expected_snapshot),
+                check_expected_snapshots=bool(expected_snapshot),
+                raw_bulk=raw_bulk,
+                native=True,
+                require_elevated=require_elevated,
+                invoked_with='/game tribe',
+            )
+            public_send = game_tribe.public_interaction_sender(
+                native_interaction,
+            )
+
+            async def after_commit(committed):
+                await game_tribe.publish_mutation_result(
+                    committed,
+                    send=public_send,
+                    destination=getattr(
+                        native_interaction,
+                        'channel',
+                        getattr(interaction, 'channel', None),
+                    ),
+                    guild=native_interaction.guild,
+                    prefix=prefix,
+                    actor=submitter,
+                )
+
+            try:
+                return await asyncio.wait_for(
+                    game_tribe.run_tribe_mutation(
+                        request,
+                        after_commit=after_commit,
+                    ),
+                    timeout=20,
+                )
+            except game_workers.GameTribeValidationError as exc:
+                await private_failure(native_interaction, str(exc))
+            except exceptions.RecordLocked as exc:
+                await private_failure(native_interaction, str(exc))
+            except asyncio.TimeoutError:
+                await private_failure(
+                    native_interaction,
+                    'The tribe change did not finish in time. Run `/game tribe '
+                    f'{game_id}` again to verify the current mapping.',
+                )
+            except peewee.PeeweeException:
+                logger.exception('Database failure changing game tribes')
+                await private_failure(
+                    native_interaction,
+                    'The tribe change failed and rolled back. No Discord '
+                    'announcement or card update was made.',
+                )
+            except Exception:
+                logger.exception('Unexpected failure changing game tribes')
+                await private_failure(
+                    native_interaction,
+                    'The tribe change failed. No Discord announcement or card '
+                    'update was made.',
+                )
+            return None
+
+        if bulk is not None:
+            # This direct path deliberately does not open a modal or require a
+            # second interaction: the write worker parses and validates the
+            # whole raw batch before entering its atomic update loop.
+            return await mutate(
+                interaction,
+                raw_bulk=bulk,
+                require_elevated=True,
+            )
+
+        request = game_tribe.build_read_request(
+            member=interaction.user,
+            guild_id=interaction.guild.id,
+            channel_id=channel_id,
+            game_id=game_id,
+        )
+        try:
+            result = await asyncio.wait_for(
+                game_tribe.run_tribe_read(request),
+                timeout=20,
+            )
+        except game_workers.GameTribeValidationError as exc:
+            return await interaction.followup.send(str(exc), ephemeral=True)
+        except asyncio.TimeoutError:
+            return await interaction.followup.send(
+                'The current player tribes could not be loaded in time. Run '
+                f'`/game tribe {game_id}` again.',
+                ephemeral=True,
+            )
+        except peewee.PeeweeException:
+            logger.exception('Database failure reading game tribes')
+            return await interaction.followup.send(
+                'The current player tribes could not be loaded.',
+                ephemeral=True,
+            )
+        except Exception:
+            logger.exception('Unexpected failure reading game tribes')
+            return await interaction.followup.send(
+                'The current player tribes could not be loaded.',
+                ephemeral=True,
+            )
+
+        async def self_callback(native_interaction, tribe_token, snapshot):
+            assignment = game_workers.GameTribeAssignmentInput(
+                player_token=f'<@{native_interaction.user.id}>',
+                tribe_token=str(tribe_token),
+            )
+            return await mutate(
+                native_interaction,
+                assignments=(assignment,),
+                expected_snapshot=game_tribe.expected_snapshots(snapshot),
+            )
+
+        async def single_callback(
+            native_interaction,
+            player_token,
+            tribe_token,
+            snapshot,
+        ):
+            assignment = game_workers.GameTribeAssignmentInput(
+                player_token=str(player_token),
+                tribe_token=str(tribe_token),
+            )
+            return await mutate(
+                native_interaction,
+                assignments=(assignment,),
+                expected_snapshot=game_tribe.expected_snapshots(snapshot),
+            )
+
+        async def bulk_preview_callback(
+            native_interaction,
+            raw_text,
+            snapshot,
+        ):
+            preview_request = game_tribe.build_mutation_request(
+                member=native_interaction.user,
+                guild_id=native_interaction.guild.id,
+                channel_id=int(
+                    getattr(native_interaction, 'channel_id', None)
+                    or getattr(
+                        getattr(native_interaction, 'channel', None),
+                        'id',
+                        0,
+                    )
+                    or 0
+                ),
+                game_id=snapshot.game_id,
+                raw_bulk=raw_text,
+                native=True,
+                require_elevated=True,
+                invoked_with='/game tribe bulk preview',
+            )
+            try:
+                return await asyncio.wait_for(
+                    game_tribe.run_tribe_preview(preview_request),
+                    timeout=20,
+                )
+            except game_workers.GameTribeValidationError as exc:
+                await private_failure(native_interaction, str(exc))
+            except asyncio.TimeoutError:
+                await private_failure(
+                    native_interaction,
+                    'The bulk tribe preview timed out. Run `/game tribe '
+                    f'{snapshot.game_id}` again.',
+                )
+            except peewee.PeeweeException:
+                logger.exception('Database failure previewing game tribes')
+                await private_failure(
+                    native_interaction,
+                    'The bulk tribe preview could not be loaded.',
+                )
+            except Exception:
+                logger.exception('Unexpected failure previewing game tribes')
+                await private_failure(
+                    native_interaction,
+                    'The bulk tribe preview could not be loaded.',
+                )
+            return None
+
+        async def bulk_confirm_callback(native_interaction, preview):
+            assignments = tuple(preview.assignments)
+            return await mutate(
+                native_interaction,
+                assignments=assignments,
+                expected_snapshot=preview.expected_snapshots,
+                require_elevated=True,
+            )
+
+        workspace = game_tribe_views.GameTribeWorkspaceView(
+            result,
+            requester_id=interaction.user.id,
+            on_self=self_callback,
+            on_single=single_callback,
+            on_bulk_preview=bulk_preview_callback,
+            on_bulk_confirm=bulk_confirm_callback,
+            requester_actor=actor,
+        )
+        public_send = game_tribe.public_interaction_sender(interaction)
+        try:
+            workspace.message = await public_send(
+                game_tribe.read_message(result, actor=actor),
+                view=workspace,
+            )
+        except Exception:
+            logger.exception('Could not publish the game-tribe workspace')
+            await interaction.followup.send(
+                'The current player tribes were loaded but could not be '
+                f'published. Run `/game tribe {game_id}` again.',
+                ephemeral=True,
+            )
+        return workspace
 
     @commands.command(aliases=['settribes'], usage='game_id player_name tribe_name [player2 tribe2 ... ]')
-    @models.is_registered_member()
     async def settribe(self, ctx, *, args: str = None):
         """Set tribe of players for a game
 
@@ -4617,60 +4899,70 @@ class polygames(commands.Cog):
         if not args:
             return await ctx.send(f'No arguments provided. **Example usage:** `{ctx.prefix}{ctx.invoked_with} 1234 bardur`')
 
-        if settings.get_user_level(ctx.author) < 4:
-            perm_str = f'You only have permissions to set your own tribe. **Example usage:** `{ctx.prefix}{ctx.invoked_with} 1234 bardur`'
-        else:
-            perm_str = ''
+        request = game_tribe.build_mutation_request(
+            member=ctx.author,
+            guild_id=ctx.guild.id,
+            channel_id=ctx.channel.id,
+            legacy_tokens=tuple(args.split()),
+            allow_related_channel=True,
+            native=False,
+            legacy_partial=True,
+            invoked_with=ctx.invoked_with or 'settribe',
+        )
 
-        arg_list = args.split()
+        async def after_commit(result):
+            await game_tribe.publish_legacy_mutation_result(
+                result,
+                send=ctx.send,
+                destination=ctx,
+                guild=ctx.guild,
+                prefix=ctx.prefix,
+                requester_level=request.requester_level,
+            )
 
         try:
-            game = Game.by_channel_or_arg(chan_id=ctx.channel.id, arg=arg_list[0])
-        except (ValueError, exceptions.MyBaseException) as e:
-            return await ctx.send(f'{e}\n**Example usage:** `{ctx.prefix}{ctx.invoked_with} 1234 bardur`\nYou can also omit the game ID if you use the command from a game-specific channel.')
-
-        if str(game.id) == str(arg_list[0]):
-            arg_list = arg_list[1:]  # Remove game ID from list if it was used for lookup
-            if game.guild_id != ctx.guild.id and not game.uses_channel_id(ctx.channel.id):
-                return await ctx.send(f'Game {game.id} is associated with a different discord server. Use this command from that server or a game-specific channel.')
-
-        logger.debug(f'Attempting settribe for game {game.id}')
-
-        if settings.get_user_level(ctx.author) < 4 or len(arg_list) == 1:
-            # if non-priviledged user, force the command to be about the ctx.author
-            arg_list = [f'<@{ctx.author.id}>', arg_list[0] if arg_list else ' ']
-
-        if len(arg_list) % 2 != 0 or len(arg_list) == 0:
-            return await ctx.send(f'Wrong number of arguments. See `{ctx.prefix}help settribe` for usage examples.')
-
-        for i in range(0, len(arg_list), 2):
-            # iterate over args two at a time
-
-            player_name = arg_list[i]
-            tribe_name = arg_list[i + 1]
-
-            if tribe_name.upper() == 'NONE':
-                tribe = None
-
-            else:
-                tribe = Tribe.get_by_name(name=tribe_name)
-                if not tribe:
-                    await ctx.send(f'Matching Tribe not found matching "{discord.utils.escape_mentions(tribe_name)}". Check spelling or be more specific. {perm_str}')
-                    continue
-
-            lineup_match = game.player(name=player_name)
-
-            if not lineup_match:
-                await ctx.send(f'Matching player not found in game {game.id} matching "{utilities.escape_role_mentions(player_name)}". Check spelling or be more specific. {perm_str}')
-                continue
-
-            lineup_match.tribe = tribe
-            lineup_match.save()
-            await ctx.send(f'Player **{lineup_match.player.name}** assigned to tribe *{tribe.name if tribe else "None"}* in game {game.id} {tribe.emoji if tribe else ""}')
-            models.GameLog.write(game_id=game.id, guild_id=game.guild_id, message=f'{models.GameLog.member_string(ctx.author)} assigned tribe of player {models.GameLog.member_string(lineup_match.player.discord_member)} to *{tribe.name if tribe else "None"}*')
-
-        game = game.load_full_game()
-        await game.update_announcement(guild=ctx.guild, prefix=ctx.prefix)
+            await game_tribe.run_tribe_mutation(
+                request,
+                after_commit=after_commit,
+            )
+        except game_workers.GameTribeLookupError as exc:
+            return await ctx.send(
+                f'{exc}\n**Example usage:** `{ctx.prefix}{ctx.invoked_with} '
+                '1234 bardur`\nYou can also omit the game ID if you use the '
+                'command from a game-specific channel.'
+            )
+        except game_workers.GameTribeValidationError as exc:
+            message = str(exc)
+            if message.startswith(
+                'This command requires bot registration first.'
+            ):
+                message = message.replace(
+                    '__`setname ',
+                    f'__`{ctx.prefix}setname ',
+                ).replace(
+                    '__`steamname ',
+                    f'__`{ctx.prefix}steamname ',
+                )
+            elif message.startswith('Wrong number of arguments.'):
+                message = (
+                    f'Wrong number of arguments. See `{ctx.prefix}help '
+                    'settribe` for usage examples.'
+                )
+            return await ctx.send(message)
+        except exceptions.RecordLocked as exc:
+            return await ctx.send(str(exc))
+        except peewee.PeeweeException:
+            logger.exception('Database failure setting game tribes')
+            return await ctx.send(
+                'The tribe changes failed and rolled back. No Discord '
+                'announcement or card update was made.'
+            )
+        except Exception:
+            logger.exception('Unexpected failure setting game tribes')
+            return await ctx.send(
+                'The tribe changes failed. No Discord announcement or card '
+                'update was made.'
+            )
     
     @settings.in_bot_channel()
     @commands.command(usage='search_term', aliases=['gamelog', 'gamelogs', 'global_logs', 'log'])

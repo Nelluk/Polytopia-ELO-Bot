@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import datetime
 import functools
+import shlex
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 
@@ -309,6 +310,226 @@ class GameNameMutationResult:
     announcement_message_id: int | None = None
 
 
+class GameTribeValidationError(RuntimeError):
+    """The current request or game state cannot be used for tribe changes."""
+
+
+class GameTribeLookupError(GameTribeValidationError):
+    """A legacy prefix tribe target could not be resolved."""
+
+
+class GameTribePermissionError(GameTribeValidationError):
+    """The requester cannot inspect or edit the requested game's tribes."""
+
+
+class GameTribeConflictError(GameTribeValidationError):
+    """The immutable tribe workspace was opened from stale state."""
+
+
+@dataclass(frozen=True)
+class GameTribePairIssue:
+    """A primitive, explicit pair-resolution failure."""
+
+    player_token: str
+    tribe_token: str
+    kind: str
+    detail: str
+    matches: tuple[str, ...] = ()
+
+    @property
+    def message(self) -> str:
+        if self.kind == 'player' and self.detail == 'ambiguous':
+            return (
+                f'Player "{self.player_token}" is ambiguous; matches: '
+                f'{", ".join(self.matches)}.'
+            )
+        if self.kind == 'player':
+            return (
+                f'Player "{self.player_token}" was not found in this game.'
+            )
+        if self.detail == 'ambiguous':
+            return (
+                f'Tribe "{self.tribe_token}" is ambiguous; matches: '
+                f'{", ".join(self.matches)}.'
+            )
+        return f'Tribe "{self.tribe_token}" was not found.'
+
+
+class GameTribeBatchValidationError(GameTribeValidationError):
+    """A native batch contains one or more invalid pairs."""
+
+    def __init__(self, issues: tuple[GameTribePairIssue, ...]):
+        self.issues = tuple(issues)
+        details = '\n'.join(
+            f'• {issue.message}' for issue in self.issues
+        )
+        super().__init__(
+            'The tribe batch was rejected; no changes were made.\n'
+            f'{details}'
+        )
+
+
+@dataclass(frozen=True)
+class GameTribeAssignmentInput:
+    """Raw or already-resolved primitive assignment input."""
+
+    player_token: str
+    tribe_token: str
+    lineup_id: int | None = None
+    player_id: int | None = None
+    discord_id: int | None = None
+    tribe_id: int | None = None
+    tribe_name: str | None = None
+
+
+@dataclass(frozen=True)
+class GameTribeExpectedSnapshot:
+    """One immutable lineup tribe value captured for stale confirmation."""
+
+    lineup_id: int
+    player_id: int
+    tribe_name: str | None
+
+
+@dataclass(frozen=True)
+class GameTribePlayerSnapshot:
+    """One immutable player-to-tribe row safe for Discord rendering."""
+
+    lineup_id: int
+    player_id: int
+    discord_id: int
+    player_name: str
+    tribe_id: int | None
+    tribe_name: str | None
+    tribe_emoji: str
+
+
+@dataclass(frozen=True)
+class GameTribeReadRequest:
+    """Primitive input for a bounded current tribe read."""
+
+    game_id: int
+    guild_id: int
+    channel_id: int
+    requester_id: int
+    allow_related_channel: bool = False
+
+
+@dataclass(frozen=True)
+class GameTribeMutationRequest:
+    """Primitive input for one native or legacy tribe mutation batch."""
+
+    game_id: int | None
+    guild_id: int
+    channel_id: int
+    requester_id: int
+    requester_level: int
+    requester_is_staff: bool
+    requester_description: str
+    assignments: tuple[GameTribeAssignmentInput, ...] = ()
+    expected_snapshots: tuple[GameTribeExpectedSnapshot, ...] = ()
+    check_expected_snapshots: bool = False
+    raw_bulk: str | None = None
+    legacy_tokens: tuple[str, ...] = ()
+    allow_related_channel: bool = False
+    native: bool = True
+    legacy_partial: bool = False
+    require_elevated: bool = False
+    invoked_with: str = 'settribe'
+
+
+@dataclass(frozen=True)
+class GameTribeTarget:
+    """Resolved primitive target and normalized legacy assignment tokens."""
+
+    game_id: int
+    assignment_tokens: tuple[str, ...]
+    inferred_from_channel: bool
+    explicit_game_id: int | None = None
+
+
+@dataclass(frozen=True)
+class GameTribeResolvedAssignment:
+    """A worker-resolved assignment used by native preview/confirmation."""
+
+    lineup_id: int
+    player_id: int
+    discord_id: int
+    player_name: str
+    tribe_id: int | None
+    tribe_name: str | None
+    tribe_emoji: str
+    old_tribe_id: int | None
+    old_tribe_name: str | None
+    old_tribe_emoji: str
+
+
+@dataclass(frozen=True)
+class GameTribeBatchPreview:
+    """Frozen parsed native preview; no Peewee or Discord objects cross out."""
+
+    game_id: int
+    guild_id: int
+    assignments: tuple[GameTribeAssignmentInput, ...]
+    resolved_assignments: tuple[GameTribeResolvedAssignment, ...]
+    expected_snapshots: tuple[GameTribeExpectedSnapshot, ...]
+    announcement_channel_id: int | None
+    announcement_message_id: int | None
+
+
+@dataclass(frozen=True)
+class GameTribePairOutcome:
+    """One legacy pair's committed success or explicit skipped error."""
+
+    player_token: str
+    tribe_token: str
+    valid: bool
+    player_name: str | None = None
+    tribe_name: str | None = None
+    tribe_emoji: str = ''
+    changed: bool = False
+    error_kind: str | None = None
+    error_detail: str | None = None
+    matches: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class GameTribeChange:
+    """One committed player tribe change."""
+
+    lineup_id: int
+    player_id: int
+    discord_id: int
+    player_name: str
+    old_tribe_name: str | None
+    old_tribe_emoji: str
+    tribe_id: int | None
+    tribe_name: str | None
+    tribe_emoji: str
+
+
+@dataclass(frozen=True)
+class GameTribeReadResult:
+    game_id: int
+    guild_id: int
+    players: tuple[GameTribePlayerSnapshot, ...]
+    expected_snapshots: tuple[GameTribeExpectedSnapshot, ...]
+    tribe_choices: tuple[tuple[str, str], ...] = ()
+    announcement_channel_id: int | None = None
+    announcement_message_id: int | None = None
+
+
+@dataclass(frozen=True)
+class GameTribeMutationResult:
+    game_id: int
+    guild_id: int
+    changes: tuple[GameTribeChange, ...]
+    outcomes: tuple[GameTribePairOutcome, ...] = ()
+    native: bool = True
+    announcement_channel_id: int | None = None
+    announcement_message_id: int | None = None
+
+
 _game_map_read_executor = ThreadPoolExecutor(
     max_workers=2,
     thread_name_prefix='polybot-game-map-read',
@@ -323,6 +544,899 @@ _game_name_read_executor = ThreadPoolExecutor(
     max_workers=2,
     thread_name_prefix='polybot-game-name-read',
 )
+
+_game_tribe_read_executor = ThreadPoolExecutor(
+    max_workers=2,
+    thread_name_prefix='polybot-game-tribe-read',
+)
+
+
+def _game_tribe_registration_error() -> GameTribePermissionError:
+    return GameTribePermissionError(
+        'This command requires bot registration first. Type '
+        '__`setname Your Mobile Name`__ or  '
+        '__`steamname Your Steam Username`__ to get started.'
+    )
+
+
+def _registered_game_tribe_requester(requester_id: int) -> bool:
+    """Recheck global registration inside the worker-owned connection."""
+
+    member_model = getattr(models, 'DiscordMember', None)
+    getter = getattr(member_model, 'get_or_none', None)
+    if getter is None:
+        # Focused model fakes may omit registration tables. Production has the
+        # model and therefore performs the authoritative lookup.
+        return True
+    return getter(discord_id=int(requester_id)) is not None
+
+
+def _load_game_for_tribe(game_id: int):
+    try:
+        numeric_game_id = int(game_id)
+    except (TypeError, ValueError) as exc:
+        raise GameTribeValidationError(
+            f'Invalid game ID "{game_id}".'
+        ) from exc
+    if numeric_game_id <= 0:
+        raise GameTribeValidationError(
+            f'Invalid game ID "{game_id}".'
+        )
+    try:
+        return models.Game.get_by_id(numeric_game_id)
+    except peewee.DoesNotExist as exc:
+        raise GameTribeValidationError(
+            f'Game with ID {numeric_game_id} cannot be found.'
+        ) from exc
+
+
+def _uses_tribe_channel(game, channel_id: int) -> bool:
+    if not channel_id:
+        return False
+    uses_channel = getattr(game, 'uses_channel_id', None)
+    return bool(callable(uses_channel) and uses_channel(int(channel_id)))
+
+
+def _validate_tribe_association(
+    game,
+    request: GameTribeReadRequest | GameTribeMutationRequest,
+    *,
+    allow_related_channel: bool | None = None,
+) -> None:
+    if int(game.guild_id) == int(request.guild_id):
+        return
+    if allow_related_channel is None:
+        allow_related_channel = bool(request.allow_related_channel)
+    if allow_related_channel and _uses_tribe_channel(game, request.channel_id):
+        return
+    raise GameTribeValidationError(
+        f'Game {game.id} is associated with a different discord server. '
+        'Use this command from that server or a game-specific channel.'
+    )
+
+
+def _tribe_optional_int(value) -> int | None:
+    return int(value) if value is not None else None
+
+
+def _tribe_lineups(game) -> tuple:
+    lineups = getattr(game, 'lineup', None)
+    if lineups is not None:
+        return tuple(lineups)
+    try:
+        return tuple(
+            models.Lineup.select().where(models.Lineup.game == game)
+        )
+    except (AttributeError, TypeError, peewee.PeeweeException):
+        return ()
+
+
+def _tribe_player_ids(lineup) -> tuple[int, int]:
+    player = getattr(lineup, 'player', None)
+    member = getattr(player, 'discord_member', None)
+    player_id = getattr(player, 'id', None)
+    discord_id = getattr(member, 'discord_id', None)
+    if player_id is None or discord_id is None:
+        raise GameTribeValidationError(
+            'A game lineup contains a player with incomplete registration.'
+        )
+    return int(player_id), int(discord_id)
+
+
+def _tribe_player_name(lineup) -> str:
+    player = getattr(lineup, 'player', None)
+    return str(getattr(player, 'name', None) or 'Unknown player')
+
+
+def _tribe_snapshot(lineup) -> GameTribePlayerSnapshot:
+    player_id, discord_id = _tribe_player_ids(lineup)
+    tribe = getattr(lineup, 'tribe', None)
+    return GameTribePlayerSnapshot(
+        lineup_id=int(getattr(lineup, 'id', 0) or 0),
+        player_id=player_id,
+        discord_id=discord_id,
+        player_name=_tribe_player_name(lineup),
+        tribe_id=_tribe_optional_int(getattr(tribe, 'id', None)),
+        tribe_name=(
+            str(getattr(tribe, 'name'))
+            if tribe is not None and getattr(tribe, 'name', None) is not None
+            else None
+        ),
+        tribe_emoji=(
+            str(getattr(tribe, 'emoji', '') or '')
+            if tribe is not None
+            else ''
+        ),
+    )
+
+
+def _tribe_expected_snapshots(
+    rows: tuple[GameTribePlayerSnapshot, ...],
+) -> tuple[GameTribeExpectedSnapshot, ...]:
+    return tuple(
+        GameTribeExpectedSnapshot(
+            lineup_id=row.lineup_id,
+            player_id=row.player_id,
+            tribe_name=row.tribe_name,
+        )
+        for row in rows
+    )
+
+
+def _tribe_catalog() -> tuple:
+    return tuple(models.Tribe.select())
+
+
+def _tribe_match_player(
+    token: str,
+    rows: tuple[GameTribePlayerSnapshot, ...],
+) -> tuple[GameTribePlayerSnapshot | None, GameTribePairIssue | None]:
+    raw_token = str(token or '').strip()
+    if not raw_token:
+        return None, GameTribePairIssue(
+            player_token=raw_token,
+            tribe_token='',
+            kind='player',
+            detail='missing',
+        )
+
+    discord_id = models.string_to_user_id(raw_token)
+    if discord_id is not None:
+        matches = tuple(row for row in rows if row.discord_id == int(discord_id))
+    else:
+        folded = raw_token.casefold()
+        exact = tuple(
+            row for row in rows if row.player_name.casefold() == folded
+        )
+        matches = exact or tuple(
+            row for row in rows if folded in row.player_name.casefold()
+        )
+
+    if len(matches) == 1:
+        return matches[0], None
+    if len(matches) > 1:
+        return None, GameTribePairIssue(
+            player_token=raw_token,
+            tribe_token='',
+            kind='player',
+            detail='ambiguous',
+            matches=tuple(row.player_name for row in matches),
+        )
+    return None, GameTribePairIssue(
+        player_token=raw_token,
+        tribe_token='',
+        kind='player',
+        detail='missing',
+    )
+
+
+def _tribe_match_catalog(
+    token: str,
+    catalog: tuple,
+) -> tuple[object | None, GameTribePairIssue | None]:
+    raw_token = str(token or '').strip()
+    if raw_token.casefold() == 'none':
+        return None, None
+    if not raw_token:
+        return None, GameTribePairIssue(
+            player_token='',
+            tribe_token=raw_token,
+            kind='tribe',
+            detail='missing',
+        )
+
+    folded = raw_token.casefold()
+    exact = tuple(
+        tribe for tribe in catalog
+        if str(getattr(tribe, 'name', '')).casefold() == folded
+    )
+    matches = exact or tuple(
+        tribe for tribe in catalog
+        if str(getattr(tribe, 'name', '')).casefold().startswith(folded)
+    )
+    if len(matches) == 1:
+        return matches[0], None
+    names = tuple(str(getattr(tribe, 'name', '')) for tribe in matches)
+    return None, GameTribePairIssue(
+        player_token='',
+        tribe_token=raw_token,
+        kind='tribe',
+        detail='ambiguous' if len(matches) > 1 else 'missing',
+        matches=names,
+    )
+
+
+def parse_game_tribe_pairs(raw_text: str) -> tuple[tuple[str, str], ...]:
+    """Parse flat or one-pair-per-line tribe input without database access."""
+
+    text = str(raw_text or '').strip()
+    if not text:
+        raise GameTribeValidationError(
+            'Bulk tribe assignments are required.'
+        )
+
+    if '\n' in text or '\r' in text:
+        lines = [line.strip() for line in text.splitlines() if line.strip()]
+        parsed_lines: list[tuple[str, str]] = []
+        for line in lines:
+            try:
+                tokens = shlex.split(line)
+            except ValueError as exc:
+                raise GameTribeValidationError(
+                    f'Could not parse bulk tribe line "{line}".'
+                ) from exc
+            if len(tokens) != 2:
+                raise GameTribeValidationError(
+                    'Bulk tribe input with line breaks must contain one '
+                    'player/tribe pair per line.'
+                )
+            parsed_lines.append((tokens[0], tokens[1]))
+        if parsed_lines:
+            return tuple(parsed_lines)
+
+    try:
+        tokens = shlex.split(text)
+    except ValueError as exc:
+        raise GameTribeValidationError(
+            'Could not parse bulk tribe input. Check quotation marks.'
+        ) from exc
+    if not tokens or len(tokens) % 2:
+        raise GameTribeValidationError(
+            'Bulk tribe input must contain alternating player and tribe '
+            'values.'
+        )
+    return tuple(
+        (tokens[index], tokens[index + 1])
+        for index in range(0, len(tokens), 2)
+    )
+
+
+def _tribe_inputs_from_request(
+    request: GameTribeMutationRequest,
+) -> tuple[GameTribeAssignmentInput, ...]:
+    if request.raw_bulk is not None:
+        return tuple(
+            GameTribeAssignmentInput(player_token=player, tribe_token=tribe)
+            for player, tribe in parse_game_tribe_pairs(request.raw_bulk)
+        )
+    if request.assignments:
+        return tuple(request.assignments)
+    tokens = tuple(request.legacy_tokens or ())
+    if not tokens or len(tokens) % 2:
+        raise GameTribeValidationError(
+            'Wrong number of arguments. Tribe changes require alternating '
+            'player and tribe values.'
+        )
+    return tuple(
+        GameTribeAssignmentInput(tokens[index], tokens[index + 1])
+        for index in range(0, len(tokens), 2)
+    )
+
+
+def _tribe_resolve_one(
+    assignment: GameTribeAssignmentInput,
+    rows: tuple[GameTribePlayerSnapshot, ...],
+    catalog: tuple,
+) -> tuple[GameTribeResolvedAssignment | None, object | None, GameTribePairIssue | None]:
+    tribe, tribe_issue = _tribe_match_catalog(
+        assignment.tribe_name or assignment.tribe_token,
+        catalog,
+    ) if assignment.tribe_id is None else (None, None)
+    if assignment.tribe_id is not None:
+        tribe_matches = tuple(
+            item for item in catalog
+            if _tribe_optional_int(getattr(item, 'id', None)) == int(assignment.tribe_id)
+        )
+        if len(tribe_matches) != 1:
+            tribe_issue = GameTribePairIssue(
+                player_token=assignment.player_token,
+                tribe_token=assignment.tribe_token,
+                kind='tribe',
+                detail='stale',
+            )
+        else:
+            tribe = tribe_matches[0]
+            if (
+                assignment.tribe_name is not None
+                and str(getattr(tribe, 'name', '')).casefold()
+                != str(assignment.tribe_name).casefold()
+            ):
+                tribe_issue = GameTribePairIssue(
+                    player_token=assignment.player_token,
+                    tribe_token=assignment.tribe_token,
+                    kind='tribe',
+                    detail='stale',
+                )
+    if tribe_issue is not None:
+        return None, None, GameTribePairIssue(
+            player_token=assignment.player_token,
+            tribe_token=assignment.tribe_token,
+            kind=tribe_issue.kind,
+            detail=tribe_issue.detail,
+            matches=tribe_issue.matches,
+        )
+
+    row = None
+    row_issue = None
+    if assignment.lineup_id is not None:
+        matches = tuple(
+            item for item in rows if item.lineup_id == int(assignment.lineup_id)
+        )
+        if len(matches) != 1:
+            row_issue = GameTribePairIssue(
+                player_token=assignment.player_token,
+                tribe_token=assignment.tribe_token,
+                kind='player',
+                detail='stale',
+            )
+        else:
+            row = matches[0]
+            if (
+                assignment.player_id is not None
+                and row.player_id != int(assignment.player_id)
+            ) or (
+                assignment.discord_id is not None
+                and row.discord_id != int(assignment.discord_id)
+            ):
+                row_issue = GameTribePairIssue(
+                    player_token=assignment.player_token,
+                    tribe_token=assignment.tribe_token,
+                    kind='player',
+                    detail='stale',
+                )
+    elif assignment.player_id is not None or assignment.discord_id is not None:
+        matches = tuple(
+            item for item in rows
+            if (
+                assignment.player_id is not None
+                and item.player_id == int(assignment.player_id)
+            ) or (
+                assignment.discord_id is not None
+                and item.discord_id == int(assignment.discord_id)
+            )
+        )
+        if len(matches) == 1:
+            row = matches[0]
+        else:
+            row_issue = GameTribePairIssue(
+                player_token=assignment.player_token,
+                tribe_token=assignment.tribe_token,
+                kind='player',
+                detail='stale' if not matches else 'ambiguous',
+                matches=tuple(item.player_name for item in matches),
+            )
+    else:
+        row, player_issue = _tribe_match_player(
+            assignment.player_token,
+            rows,
+        )
+        if player_issue is not None:
+            row_issue = GameTribePairIssue(
+                player_token=assignment.player_token,
+                tribe_token=assignment.tribe_token,
+                kind=player_issue.kind,
+                detail=player_issue.detail,
+                matches=player_issue.matches,
+            )
+    if row_issue is not None or row is None:
+        return None, None, row_issue or GameTribePairIssue(
+            player_token=assignment.player_token,
+            tribe_token=assignment.tribe_token,
+            kind='player',
+            detail='missing',
+        )
+
+    old_tribe_id = row.tribe_id
+    old_tribe_name = row.tribe_name
+    old_tribe_emoji = row.tribe_emoji
+    resolved = GameTribeResolvedAssignment(
+        lineup_id=row.lineup_id,
+        player_id=row.player_id,
+        discord_id=row.discord_id,
+        player_name=row.player_name,
+        tribe_id=_tribe_optional_int(getattr(tribe, 'id', None)),
+        tribe_name=(str(getattr(tribe, 'name')) if tribe is not None else None),
+        tribe_emoji=(
+            str(getattr(tribe, 'emoji', '') or '') if tribe is not None else ''
+        ),
+        old_tribe_id=old_tribe_id,
+        old_tribe_name=old_tribe_name,
+        old_tribe_emoji=old_tribe_emoji,
+    )
+    return resolved, tribe, None
+
+
+def _tribe_resolved_changed(assignment: GameTribeResolvedAssignment) -> bool:
+    return (
+        assignment.old_tribe_id != assignment.tribe_id
+        or assignment.old_tribe_name != assignment.tribe_name
+    )
+
+
+def _tribe_validate_permission(
+    game,
+    request: GameTribeMutationRequest,
+    resolved: tuple[GameTribeResolvedAssignment, ...],
+) -> None:
+    elevated = bool(
+        request.requester_is_staff or request.requester_level >= 4
+    )
+    if request.require_elevated and not elevated:
+        raise GameTribePermissionError(
+            'Bulk tribe editing requires level 4 or higher permissions.'
+        )
+    if elevated:
+        return
+    if not resolved:
+        raise GameTribePermissionError(
+            'You are not a player in this game and can only set your own tribe.'
+        )
+    for assignment in resolved:
+        if assignment.discord_id != int(request.requester_id):
+            raise GameTribePermissionError(
+                'You only have permissions to set your own tribe.'
+            )
+
+
+def _tribe_validate_expected(
+    request: GameTribeMutationRequest,
+    resolved: tuple[GameTribeResolvedAssignment, ...],
+) -> None:
+    if not request.check_expected_snapshots:
+        return
+    expected = {
+        int(item.lineup_id): item for item in request.expected_snapshots
+    }
+    for assignment in resolved:
+        snapshot = expected.get(int(assignment.lineup_id))
+        if snapshot is None or snapshot.player_id != assignment.player_id:
+            raise GameTribeConflictError(
+                f'Player {assignment.player_name} changed after this tribe '
+                'workspace was opened. Run `/game tribe '
+                f'{request.game_id}` again and retry.'
+            )
+        if snapshot.tribe_name != assignment.old_tribe_name:
+            raise GameTribeConflictError(
+                f'{assignment.player_name} changed tribe after this '
+                'workspace was opened. Run `/game tribe '
+                f'{request.game_id}` again and retry.'
+            )
+
+
+def _tribe_effect_ids(game) -> tuple[int | None, int | None]:
+    return (
+        _tribe_optional_int(getattr(game, 'announcement_channel', None)),
+        _tribe_optional_int(getattr(game, 'announcement_message', None)),
+    )
+
+
+def _tribe_read_rows(game) -> tuple[GameTribePlayerSnapshot, ...]:
+    return tuple(_tribe_snapshot(lineup) for lineup in _tribe_lineups(game))
+
+
+def _resolve_legacy_game_tribe_target(
+    request: GameTribeMutationRequest,
+) -> GameTribeTarget:
+    tokens = tuple(request.legacy_tokens or ())
+    first_token = tokens[0] if tokens else None
+    if not tokens:
+        raise GameTribeValidationError(
+            'No arguments provided. Please provide a game ID and tribe value.'
+        )
+    try:
+        game = models.Game.by_channel_or_arg(
+            chan_id=request.channel_id,
+            arg=first_token,
+        )
+    except (ValueError, exceptions.MyBaseException) as exc:
+        raise GameTribeLookupError(str(exc)) from exc
+
+    explicit_game_id = None
+    value_tokens = tokens
+    if str(game.id) == str(first_token):
+        explicit_game_id = int(game.id)
+        value_tokens = tokens[1:]
+        _validate_tribe_association(
+            game,
+            request,
+            allow_related_channel=True,
+        )
+    else:
+        _validate_tribe_association(
+            game,
+            request,
+            allow_related_channel=True,
+        )
+
+    # This deliberately preserves the prefix command's self shorthand: an
+    # ordinary requester, or any requester providing only one value, targets
+    # their own lineup. The write worker rechecks the resulting membership.
+    if request.requester_level < 4 or len(value_tokens) == 1:
+        value_tokens = (
+            f'<@{request.requester_id}>',
+            value_tokens[0] if value_tokens else ' ',
+        )
+    if len(value_tokens) == 0 or len(value_tokens) % 2:
+        raise GameTribeValidationError(
+            'Wrong number of arguments. See `help settribe` for usage '
+            'examples.'
+        )
+    return GameTribeTarget(
+        game_id=int(game.id),
+        assignment_tokens=tuple(str(value) for value in value_tokens),
+        inferred_from_channel=_uses_tribe_channel(game, request.channel_id),
+        explicit_game_id=explicit_game_id,
+    )
+
+
+def prepare_legacy_game_tribe(
+    request: GameTribeMutationRequest,
+) -> GameTribeTarget:
+    """Resolve prefix game/channel grammar on a bounded read worker."""
+
+    with models.db.connection_context():
+        if not _registered_game_tribe_requester(request.requester_id):
+            raise _game_tribe_registration_error()
+        return _resolve_legacy_game_tribe_target(request)
+
+
+def _resolve_tribe_game(
+    request: GameTribeReadRequest | GameTribeMutationRequest,
+):
+    if request.game_id is None:
+        raise GameTribeValidationError('A game ID is required.')
+    game = _load_game_for_tribe(request.game_id)
+    _validate_tribe_association(game, request)
+    return game
+
+
+def read_game_tribes(request: GameTribeReadRequest) -> GameTribeReadResult:
+    """Read a complete player-to-tribe mapping on a worker-owned connection."""
+
+    with models.db.connection_context():
+        if not _registered_game_tribe_requester(request.requester_id):
+            raise _game_tribe_registration_error()
+        game = _resolve_tribe_game(request)
+        rows = _tribe_read_rows(game)
+        choices = tuple(
+            (
+                str(getattr(tribe, 'name', '')),
+                str(getattr(tribe, 'emoji', '') or ''),
+            )
+            for tribe in _tribe_catalog()
+        )
+        announcement_channel_id, announcement_message_id = _tribe_effect_ids(game)
+        return GameTribeReadResult(
+            game_id=int(game.id),
+            guild_id=int(game.guild_id),
+            players=rows,
+            expected_snapshots=_tribe_expected_snapshots(rows),
+            tribe_choices=choices,
+            announcement_channel_id=announcement_channel_id,
+            announcement_message_id=announcement_message_id,
+        )
+
+
+def prepare_game_tribe_batch(
+    request: GameTribeMutationRequest,
+) -> GameTribeBatchPreview:
+    """Parse and resolve a native batch without writing any database state."""
+
+    with models.db.connection_context():
+        if not _registered_game_tribe_requester(request.requester_id):
+            raise _game_tribe_registration_error()
+        game = _resolve_tribe_game(request)
+        rows = _tribe_read_rows(game)
+        catalog = _tribe_catalog()
+        inputs = _tribe_inputs_from_request(request)
+        resolved = []
+        issues = []
+        seen_lineups: set[int] = set()
+        for assignment in inputs:
+            item, _tribe, issue = _tribe_resolve_one(
+                assignment,
+                rows,
+                catalog,
+            )
+            if issue is not None:
+                issues.append(issue)
+                continue
+            assert item is not None
+            if item.lineup_id in seen_lineups:
+                issues.append(GameTribePairIssue(
+                    player_token=assignment.player_token,
+                    tribe_token=assignment.tribe_token,
+                    kind='player',
+                    detail='ambiguous',
+                    matches=(item.player_name,),
+                ))
+                continue
+            seen_lineups.add(item.lineup_id)
+            resolved.append(item)
+        if issues:
+            raise GameTribeBatchValidationError(tuple(issues))
+        if not inputs:
+            raise GameTribeValidationError(
+                'At least one player/tribe pair is required.'
+            )
+        _tribe_validate_permission(game, request, tuple(resolved))
+        channel_id, message_id = _tribe_effect_ids(game)
+        resolved_inputs = tuple(
+            GameTribeAssignmentInput(
+                player_token=assignment.player_name,
+                tribe_token=assignment.tribe_name or 'none',
+                lineup_id=assignment.lineup_id,
+                player_id=assignment.player_id,
+                discord_id=assignment.discord_id,
+                tribe_id=assignment.tribe_id,
+                tribe_name=assignment.tribe_name,
+            )
+            for assignment in resolved
+        )
+        return GameTribeBatchPreview(
+            game_id=int(game.id),
+            guild_id=int(game.guild_id),
+            assignments=resolved_inputs,
+            resolved_assignments=tuple(resolved),
+            expected_snapshots=_tribe_expected_snapshots(rows),
+            announcement_channel_id=channel_id,
+            announcement_message_id=message_id,
+        )
+
+
+def set_game_tribes(
+    request: GameTribeMutationRequest,
+) -> GameTribeMutationResult:
+    """Commit a native atomic or legacy valid-subset tribe batch."""
+
+    with models.db.connection_context():
+        with models.db.atomic():
+            if not _registered_game_tribe_requester(request.requester_id):
+                raise _game_tribe_registration_error()
+            game = _resolve_tribe_game(request)
+            lineups = _tribe_lineups(game)
+            rows = tuple(_tribe_snapshot(lineup) for lineup in lineups)
+            lineup_by_id = {
+                int(getattr(lineup, 'id', 0) or 0): lineup
+                for lineup in lineups
+            }
+            catalog = _tribe_catalog()
+            inputs = _tribe_inputs_from_request(request)
+            if not inputs:
+                raise GameTribeValidationError(
+                    'At least one player/tribe pair is required.'
+                )
+
+            resolved: list[
+                tuple[
+                    GameTribeResolvedAssignment,
+                    object | None,
+                    GameTribeAssignmentInput,
+                    int,
+                ]
+            ] = []
+            issues: list[GameTribePairIssue] = []
+            outcomes: list[GameTribePairOutcome | None] = [
+                None for _ in inputs
+            ]
+            seen_lineups: set[int] = set()
+            for input_index, assignment in enumerate(inputs):
+                item, tribe, issue = _tribe_resolve_one(
+                    assignment,
+                    rows,
+                    catalog,
+                )
+                if issue is not None:
+                    if not request.legacy_partial:
+                        issues.append(issue)
+                    else:
+                        outcomes[input_index] = GameTribePairOutcome(
+                            player_token=assignment.player_token,
+                            tribe_token=assignment.tribe_token,
+                            valid=False,
+                            error_kind=issue.kind,
+                            error_detail=issue.detail,
+                            matches=issue.matches,
+                        )
+                    continue
+                assert item is not None
+                if item.lineup_id in seen_lineups and not request.legacy_partial:
+                    issues.append(GameTribePairIssue(
+                        player_token=assignment.player_token,
+                        tribe_token=assignment.tribe_token,
+                        kind='player',
+                        detail='ambiguous',
+                        matches=(item.player_name,),
+                    ))
+                    continue
+                seen_lineups.add(item.lineup_id)
+                if not request.legacy_partial:
+                    resolved.append((item, tribe, assignment, input_index))
+                    continue
+                if (
+                    request.requester_level < 4
+                    and not request.requester_is_staff
+                    and item.discord_id != int(request.requester_id)
+                ):
+                    outcomes[input_index] = GameTribePairOutcome(
+                        player_token=assignment.player_token,
+                        tribe_token=assignment.tribe_token,
+                        valid=False,
+                        error_kind='permission',
+                        error_detail='self-only',
+                    )
+                    continue
+                resolved.append((item, tribe, assignment, input_index))
+
+            if issues:
+                raise GameTribeBatchValidationError(tuple(issues))
+            if not request.legacy_partial:
+                _tribe_validate_permission(
+                    game,
+                    request,
+                    tuple(
+                        item
+                        for item, _tribe, _input, _index in resolved
+                    ),
+                )
+                _tribe_validate_expected(
+                    request,
+                    tuple(
+                        item
+                        for item, _tribe, _input, _index in resolved
+                    ),
+                )
+
+            changes: list[GameTribeChange] = []
+            for item, tribe, assignment, input_index in resolved:
+                changed = _tribe_resolved_changed(item)
+                if changed:
+                    lineup = lineup_by_id[item.lineup_id]
+                    lineup.tribe = tribe
+                    lineup.save()
+                    target_member = getattr(
+                        getattr(lineup, 'player', None),
+                        'discord_member',
+                        None,
+                    )
+                    if target_member is not None:
+                        target_description = models.GameLog.member_string(
+                            target_member
+                        )
+                    else:
+                        target_description = f'**{item.player_name}**'
+                    models.GameLog.write(
+                        game_id=int(game.id),
+                        guild_id=int(game.guild_id),
+                        message=(
+                            f'{request.requester_description} assigned tribe '
+                            f'of player {target_description} to '
+                            f'*{item.tribe_name or "None"}*'
+                        ),
+                    )
+                    changes.append(GameTribeChange(
+                        lineup_id=item.lineup_id,
+                        player_id=item.player_id,
+                        discord_id=item.discord_id,
+                        player_name=item.player_name,
+                        old_tribe_name=item.old_tribe_name,
+                        old_tribe_emoji=item.old_tribe_emoji,
+                        tribe_id=item.tribe_id,
+                        tribe_name=item.tribe_name,
+                        tribe_emoji=item.tribe_emoji,
+                    ))
+                if request.legacy_partial:
+                    outcome = GameTribePairOutcome(
+                        player_token=assignment.player_token,
+                        tribe_token=assignment.tribe_token,
+                        valid=True,
+                        player_name=item.player_name,
+                        tribe_name=item.tribe_name,
+                        tribe_emoji=item.tribe_emoji,
+                        changed=changed,
+                    )
+                    outcomes[input_index] = outcome
+
+            channel_id, message_id = _tribe_effect_ids(game)
+            return GameTribeMutationResult(
+                game_id=int(game.id),
+                guild_id=int(game.guild_id),
+                changes=tuple(changes),
+                outcomes=tuple(
+                    outcome for outcome in outcomes if outcome is not None
+                ),
+                native=not request.legacy_partial,
+                announcement_channel_id=channel_id,
+                announcement_message_id=message_id,
+            )
+
+
+async def run_prepare_legacy_game_tribe(
+    request: GameTribeMutationRequest,
+) -> GameTribeTarget:
+    """Submit legacy game/channel resolution to the bounded read executor."""
+
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(
+        _game_tribe_read_executor,
+        functools.partial(prepare_legacy_game_tribe, request),
+    )
+
+
+async def run_game_tribe_read(
+    request: GameTribeReadRequest,
+) -> GameTribeReadResult:
+    """Submit a bounded current tribe read."""
+
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(
+        _game_tribe_read_executor,
+        functools.partial(read_game_tribes, request),
+    )
+
+
+async def run_game_tribe_preview(
+    request: GameTribeMutationRequest,
+) -> GameTribeBatchPreview:
+    """Submit native bulk parsing/validation without applying writes."""
+
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(
+        _game_tribe_read_executor,
+        functools.partial(prepare_game_tribe_batch, request),
+    )
+
+
+async def run_game_tribe_mutation(
+    request: GameTribeMutationRequest,
+) -> GameTribeMutationResult:
+    """Submit a tribe mutation and drain a canceled caller safely."""
+
+    loop = asyncio.get_running_loop()
+    call = functools.partial(set_game_tribes, request)
+    concurrent_future = _game_write_executor.submit(call)
+    future = asyncio.wrap_future(concurrent_future, loop=loop)
+    completed = asyncio.Event()
+    concurrent_future.add_done_callback(
+        lambda _future: loop.call_soon_threadsafe(completed.set)
+    )
+    try:
+        return await asyncio.shield(future)
+    except asyncio.CancelledError:
+        # A running synchronous transaction cannot be canceled. The service
+        # keeps the keyed claim until this worker has drained, including when
+        # shutdown or a competing caller delivers cancellation repeatedly.
+        task = asyncio.current_task()
+        if task is not None:
+            task.uncancel()
+        while not completed.is_set():
+            try:
+                await completed.wait()
+            except asyncio.CancelledError:
+                if task is not None:
+                    task.uncancel()
+        concurrent_future.result()
+        raise asyncio.CancelledError
 
 
 def _registered_game_map_requester(requester_id: int) -> bool:

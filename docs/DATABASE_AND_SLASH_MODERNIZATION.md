@@ -346,6 +346,7 @@ longer be retained.
 | C-002 `/player show` and player-card prefixes | The shared workspace preserves identity, canonical name, current/peak/all-time local/global ratings, records, ranks, timezone, team/squad context, and paged game sections/filters. | The legacy generated rating-history image, requester head-to-head follow-up, trophies, favorite-tribe summary, and pre-Moonrise miscellaneous statistics are not yet displayed after the prefix commands deep-link the workspace. These become unavailable from those commands even while message intent remains enabled. | Add a bounded analytics/details section and media attachment renderer after observing which legacy details staff/users still value; keep graph generation outside the event loop. | Open for beta/user review in P7.7 |
 | C-003 `/game open` | P5.1 implements arbitrary common size shapes plus a requester-controlled ranked/expiration/notes preview, confirmation/cancel, and public post-commit completion. Native and retained prefix aliases use one canonical cross-play creation path, follow the configured unranked-channel default, and accept either existing account-name field; only the legacy `is_mobile=True` storage value remains for compatibility. | Advanced role-locked sides and mention-restricted recruitment remain prefix-only in this bounded unit. Shared typed/raw join eligibility now accepts either account-name field and ignores historical `is_mobile` platform meaning. If message content intent were later removed before a native role/member editor exists, those uncommon restrictions would be unavailable; prefix support remains unchanged. | Add side-by-side native role selectors and an allowed-member editor to the open-game draft after the shared join-eligibility service exists. | Implemented for P5.1; beta review pending |
 | C-004 `$games`/`$opengames` and native open views | The shared worker preserves the legacy open-game modes, requester-aware eligibility, aliases, and native view switching while bounding the result DTO. | Open discovery now publishes at most the first 500 rows and marks truncation; the former prefix query did not impose an explicit cap. This is a deliberate Tier-2 bounded-read tradeoff, with ordinary results still paginated and query-refinable. | Add a cursor/continuation control backed by the same bounded worker if a guild's open-game volume makes the cap user-visible. | Accepted in P5.8 beta smoke |
+| C-005 `/game tribe` / `$settribe` | Native direct `bulk` and confirmed workspace batches validate every pair and commit all changed lineups/audits atomically. The retained prefix aliases preserve compact batch grammar, self shorthand, abbreviations, `none`, and per-pair outcomes. | Native batches are deliberately all-or-nothing; the legacy prefix deliberately keeps its historical valid-subset behavior, reporting invalid pairs while committing valid assignments/audits together. If message-content processing is later retired, the native workspace/direct option covers the ordinary staff workflow while the prefix-only partial-success distinction is unavailable. | Revisit prefix retirement only after usage evidence and an explicit compatibility decision; do not silently make `$settribe` atomic. | Implemented locally; beta review pending |
 
 Every later slash conversion must add a row when parity is intentionally
 reduced. If there is no compromise, its unit evidence should explicitly say
@@ -439,9 +440,14 @@ check:
 - P4.2b accumulation merge: `1f1625b`.
 - P4.2b beta-transparency correction: `b43d31e` on
   `codex/p4-2b-notes-attribution`; accumulation merge `57de2a2`.
+- P4.2d implementation checkpoint: `76e1423` on
+  `codex/p4-2d-game-tribe`, based on exact clean base
+  `f0429536d7ed899eb356794bcd3558baa9be3d45`.
 
-Current unit: **P4.2d game-tribe bulk/read-edit workflow — planned for a
-dedicated Luna worktree; implementation pending.**
+Current unit: **P4.2d game-tribe bulk/read-edit workflow — implemented locally;
+beta acceptance pending.**
+Implementation checkpoint: `76e1423` on `codex/p4-2d-game-tribe`, based on the
+verified clean accumulation checkpoint `f0429536d7ed899eb356794bcd3558baa9be3d45`.
 P4.2c is integrated as `fcd2646` with roadmap checkpoint `6374bbe`; beta
 acceptance remains pending and may be batched with a later smoke session.
 P4.2a is complete, beta-validated, and integrated as `5845e8b` with public
@@ -2331,11 +2337,13 @@ worker-bounded and worker-local.
 Integration result: merged into `codex/database-slash-modernization` as
 `fcd2646`; roadmap checkpoint `6374bbe`. Beta acceptance remains pending.
 
-Next action: implement P4.2d as the bounded game-tribe unit below.
+Next action: review the local P4.2d implementation and, after separate
+approval, run the bounded beta smoke; no command synchronization or launch is
+implied.
 
 #### P4.2d — Game-tribe bulk/read-edit workflow
 
-Status: **Planned; implementation pending**
+Status: **Implemented locally; beta acceptance pending**
 
 Risk tier: **Tier 3**. One request may update several lineup tribes and audit
 rows and must not leave a partially applied batch after a transaction failure.
@@ -2400,6 +2408,67 @@ gated development-database suite, and a later separately approved beta smoke.
 Out of scope: changing the tribe catalog, tribe emoji configuration, game-card
 redesign, schema/dependency changes, platform semantics, prefix retirement,
 global synchronization, and production work.
+
+Compatibility decision: C-005 records the deliberate native-versus-prefix
+batch distinction. Native direct and confirmed workspace batches are
+all-or-nothing. `$settribe` and `$settribes` retain valid-subset behavior: the
+worker resolves every pair, reports invalid entries, and commits valid lineup
+changes and their audit rows together. No prefix alias was retired or made
+hybrid.
+
+Implementation evidence:
+
+- `modules/game_workers.py` adds frozen primitive read, mutation, target,
+  expected-snapshot, parsed-preview, outcome, and committed-change DTOs;
+  case-insensitive exact/unique-prefix tribe matching; exact/unique player
+  matching; `none`; flat and line-based parsing; authoritative registration,
+  guild/channel, membership, permission, ambiguity, duplicate, and stale-state
+  checks; and worker-local atomic lineup/audit writes.
+- Native mutation uses the bounded ordinary-game executor and keyed game claim;
+  repeated cancellation drains the synchronous worker before release. Native
+  direct bulk validates and applies in one deferred invocation, while workspace
+  confirmation reuses stable lineup/player/tribe IDs and immutable expected
+  snapshots. Legacy target resolution uses the bounded read executor.
+- `modules/game_tribe.py` owns primitive request capture, actor attribution,
+  public/private output, legacy per-pair compatibility formatting, and
+  post-commit announcement/dense-card reconciliation. `modules/game_tribe_views.py`
+  contains only the requester-authorized self selector, typed single-player
+  modal, bulk modal, parsed preview confirmation, and bounded expiry/busy
+  handling.
+- `modules/games.py` registers `/game tribe game_id` with optional `bulk`,
+  preserves prefix-only `$settribe`/`$settribes`, and keeps database work out of
+  the command adapter and before-commit Discord effects. `tests/test_game_tribe.py`
+  covers parser ambiguity/missing/none cases, native all-or-nothing and legacy
+  valid-subset transactions, audit rollback, permissions, cross-guild/channel
+  rules, worker ownership/responsiveness/cancellation, component lifecycle,
+  actor visibility, private failures, and post-commit failure warnings.
+
+Validation evidence:
+
+- Focused `tests.test_game_tribe`: **23 passed**.
+- Complete offline discovery under the existing development-profile harness:
+  **552 passed, 17 explicitly gated database tests skipped**.
+- The unchanged gated `tests.test_database_integration -v` suite ran through
+  the required `development` / `polytopia_dev` / `polybot_dev` checks: **17
+  tests ran, 16 passed, and one operator-managed fixture round trip was
+  skipped**.
+- Changed-file compilation and `git diff --check` passed. Implementation and
+  tests are committed as `76e1423` on `codex/p4-2d-game-tribe`; this roadmap
+  update is a separate evidence commit.
+- No beta smoke, Discord connection/inspection/synchronization, production or
+  `polytopia2` access, schema/dependency change, push, PR, merge, or bot launch
+  was performed.
+
+Known limitation: the established post-commit announcement/dense-card path
+still performs its short `Game.load_full_game` reload on the event-loop thread,
+matching the documented adjacent P4.2a/P4.2b/P4.2c limitation. The tribe
+read, legacy target resolution, mutation, validation, and audit database work
+remain worker-bounded and worker-local; the reload is strictly after the
+committed transaction and before its Discord effects.
+
+Next action: obtain Tier-3 review, then run the separately approved beta smoke
+for `/game tribe` and retained prefix aliases. Do not synchronize commands or
+launch production from this checkpoint.
 
 ## P5 — Matchmaking lifecycle
 
