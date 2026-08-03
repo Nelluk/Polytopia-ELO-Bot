@@ -448,14 +448,15 @@ check:
   `f0429536d7ed899eb356794bcd3558baa9be3d45`.
 - P4.2d roadmap evidence: `e1a0959`; accumulation merge: `7c2269b`.
 
-Current unit: **P8.3 focused `/team image` read/edit/clear — implementation,
-tests, and review correction complete locally; review pending.**
+Current unit: **P8.3 focused `/team image` read/edit/clear — reviewed and
+integrated; development-guild deployment and beta smoke pending.**
 P8.3 implementation checkpoint: `a3031d5` on `codex/p8-3-team-image`, based on
 the exact clean accumulation checkpoint `c009e5a08e92cba83dbc470371af688b9e1643df`.
 P8.3 review correction implementation/tests checkpoint: `0acdea4` on the same
 branch. Oversight independently reran the strict development-database suite
 against `polytopia_dev`/`polybot_dev`: **16 passed and 1 fixture test was
 skipped** to preserve operator-managed fixtures.
+P8.3 accumulation merge: `7e108c7`.
 P8.2 focused team name/server/tier workflows remain integrated and beta
 accepted, with live tier mutation testing deferred until development
 House/role fixtures exist.
@@ -603,6 +604,7 @@ this decision does not authorize production deployment or synchronization.
 | P6 | Planned | Registration and player preferences | Worker-safe profile writes and slash UX |
 | P7 | In progress | Read-heavy game, player, and leaderboard commands | Bounded read path and responsive slash queries |
 | P8 | In progress | Guild application-command capability policy, explicit deployment tooling, then league and remaining administration workflows | Audited guild-scoped command policy and subsequent domain workers/native interfaces |
+| WB1 | Planned | Wider beta operations, durable development runtime, and structured tester feedback | Reviewed persistent beta service, explicit guild sync, searchable `/staffhelp` reports, and wider-tester runbook |
 | P9 | Planned | Production rollout and later prefix deprecation decision | Approved deployment, monitoring, and separate deprecation plan |
 
 ## P0 — Serialized ELO and slash-command pilot
@@ -5246,8 +5248,64 @@ interface; direct URL replacement remains available through the retained
 prefix path. The correction fixes only a stale prefix lookup-example command
 name (`team_emoji` to `team_image`) while preserving the established success
 and read output. No schema change or remote URL download was introduced.
-The next action is review of the correction and then selection of `/team house`
-as a separate higher-risk unit.
+The correction was accepted and integrated at `7e108c7`. The next action is an
+explicit development-guild deployment and beta smoke of `/team image`.
+
+## WB1 — Wider beta operations and structured feedback
+
+Status: **Planned; milestone accepted, implementation not started**
+
+Purpose: open the development guild and beta command surface to a wider group
+without weakening the production boundary or making the beta process depend
+on an interactive Codex terminal.
+
+Required scope:
+
+- provide a user-level, development-only durable beta service with explicit
+  `POLYBOT_ENV=development`, the reviewed development checkout,
+  `polytopia_dev`/`polybot_dev`, `--skip_tasks`, disabled API/background
+  integrations, restart-on-failure, and normal development logs;
+- keep application-command deployment separate from bot startup. Use the P8.0
+  plan/apply tool with an explicit development guild and no global fallback;
+- retain one writer process. Never run beta and production against the same
+  database, and never point the durable beta at `polytopia2`;
+- document start/stop/status/log commands, rollback, expected bot identity,
+  capability assignments, tester scope, fixture policy, and incident response;
+- add the established top-level `/staffhelp` interaction with a structured
+  modal for help, bug reports, and feature requests. Capture report ID, type,
+  summary, details, optional command/game reference, requester/guild/channel,
+  timestamp, and the running Git checkpoint;
+- append reports as one sanitized JSON object per line in a development-only
+  file beneath the configured development data/log root. Store bounded,
+  validated attachments by report ID when implemented. Use an in-process lock
+  plus atomic/flush-safe writes so concurrent submissions cannot corrupt the
+  stream;
+- provide a read-only repository utility with `list`, `show`, and search/export
+  operations. The JSONL is the direct oversight source and must be searchable
+  with ordinary tools such as `rg`; a Discord staff-channel/forum mirror is an
+  optional post-write effect, not a prerequisite or the authoritative store;
+- acknowledge submissions publicly only when that does not expose sensitive
+  report details. Validation/storage failures remain private and must not claim
+  that a report was recorded;
+- define retention, redaction, attachment limits, and cleanup before accepting
+  wider tester uploads. Feedback data and attachments remain ignored runtime
+  data and must never be committed with source changes.
+
+Exit gate:
+
+- service and feedback implementation reviewed with focused fault-injection,
+  concurrency, permission/privacy, path-safety, restart, and log-reader tests;
+- complete offline and existing gated development-database suites green;
+- explicit development-guild command plan/apply accepted;
+- durable beta authenticated as the beta application and observed healthy;
+- `/staffhelp` submission appears in the JSONL reader without leaking private
+  fields into public output;
+- a small invited tester cohort completes the runbook smoke matrix before the
+  beta server is opened more broadly.
+
+This milestone does not require a new database table, GitHub token, public
+API, or direct Discord access for Codex. It does not authorize production
+deployment or prefix retirement.
 
 ## P9 — Production rollout and prefix lifecycle
 
@@ -6002,7 +6060,38 @@ for these credential-bearing files because it would copy them into each
 managed worktree and saved snapshot instead of retaining one authoritative
 development-only copy.
 
+### D-036 — Use a durable isolated beta and searchable JSONL feedback
+
+Status: Accepted for WB1 planning
+
+The wider beta will remain a single development-only writer against
+`polytopia_dev`; it will not share the production database or rely on a Codex
+foreground terminal. Application-command synchronization remains an explicit
+guild-scoped deployment operation rather than a startup side effect.
+
+The first `/staffhelp` feedback implementation may write directly to an
+append-only, sanitized JSONL file beneath the development runtime data/log
+root. That file, plus a repository-backed read-only list/show/search utility,
+is sufficient for Codex oversight to inspect tester reports with ordinary
+filesystem tools. A Discord staff-channel mirror is optional and subordinate
+to the successful local write. A database table, GitHub issue integration,
+public API, or external connector is not required for the first wider-beta
+milestone.
+
 ## Progress log
+
+### 2026-08-03 — P8.3 integrated and wider-beta milestone accepted
+
+- Integrated the reviewed P8.3 branch into the accumulation branch as
+  `7e108c7`.
+- Added WB1 as a dedicated pre-production milestone for a durable
+  development-only beta runtime, explicit guild command deployment, a wider
+  invited tester cohort, and structured `/staffhelp` intake.
+- Accepted an append-only development JSONL stream and read-only repository
+  utility as the authoritative first feedback store; a Discord mirror remains
+  optional.
+- No production operation or production-database access is authorized by this
+  milestone.
 
 ### 2026-08-03 — P8.3 implementation checkpoint completed locally
 
