@@ -15,7 +15,11 @@ from unittest import mock
 import discord
 
 from modules import beta_feedback, beta_operations
-from scripts import manage_beta_release, run_development_beta
+from scripts import (
+    audit_development_beta_processes,
+    manage_beta_release,
+    run_development_beta,
+)
 
 
 CHECKPOINT = 'a' * 40
@@ -127,6 +131,12 @@ class BetaRuntimeGuardTests(unittest.TestCase):
         self.assertIn('Restart=on-failure', template)
         self.assertIn('RestartSec=5s', template)
         self.assertIn('KillSignal=SIGINT', template)
+        self.assertIn(
+            'ExecStartPre=/home/nelluk/PolyBot39-dev/.venv/bin/python '
+            '/home/nelluk/PolyBot39-dev/scripts/audit_development_beta_processes.py '
+            '--require-clear',
+            template,
+        )
         self.assertIn('WorkingDirectory=/home/nelluk/PolyBot39-dev', template)
         self.assertNotRegex(template, r'(?<!-)\/home/nelluk/PolyBot39(?:/|$)')
         self.assertNotIn('polytopia2', template)
@@ -192,6 +202,43 @@ class BetaRuntimeGuardTests(unittest.TestCase):
         lock.release()
         self.assertEqual(stat.S_IMODE(paths.writer_lock.stat().st_mode), 0o600)
 
+    def test_unguarded_legacy_beta_is_seen_without_a_wrapper_lock(self):
+        proc_root = self.root / 'proc'
+
+        def fake_process(pid, command, cwd, *, ppid=1, uid=1000):
+            process = proc_root / str(pid)
+            process.mkdir(parents=True)
+            (process / 'cmdline').write_bytes(b'\0'.join(
+                item.encode() for item in command
+            ) + b'\0')
+            (process / 'cwd').symlink_to(cwd)
+            (process / 'stat').write_text(
+                f'{pid} (python) S {ppid} 0 0 0',
+                encoding='utf-8',
+            )
+            (process / 'status').write_text(
+                f'Name:\tpython\nUid:\t{uid}\t{uid}\t{uid}\t{uid}\n',
+                encoding='utf-8',
+            )
+
+        fake_process(
+            101,
+            ['/home/nelluk/.venv/bin/python', '/tmp/task/PolyBot39-dev/bot.py', '--skip_tasks'],
+            '/tmp/task/PolyBot39-dev',
+            ppid=55,
+        )
+        fake_process(
+            202,
+            ['/home/nelluk/.venv/bin/python', '/home/nelluk/PolyBot39/bot.py', '--skip_tasks'],
+            '/home/nelluk/PolyBot39',
+            ppid=66,
+        )
+        audit = audit_development_beta_processes.audit_processes(proc_root)
+        self.assertEqual([candidate.pid for candidate in audit.candidates], [101, 202])
+        self.assertEqual(audit.candidates[0].classification, 'development')
+        self.assertEqual(audit.candidates[1].classification, 'production')
+        self.assertEqual(audit.unreadable, ())
+
     def test_launcher_executes_only_the_guarded_skip_tasks_command(self):
         selected_profile = profile(self.root)
         environment = {
@@ -239,6 +286,17 @@ class BetaRuntimeGuardTests(unittest.TestCase):
         self.assertNotIn('resolve-tester-role', on_ready_source)
         self.assertIn('Automatic application-command synchronization is disabled', on_ready_source)
 
+    def test_first_activation_gate_documents_unguarded_lock_limitation(self):
+        root = Path(__file__).resolve().parents[1]
+        service = (root / 'deploy/systemd/polybot-development-beta@.service').read_text()
+        runbook = (root / 'docs/DEVELOPMENT_BETA_OPERATIONS.md').read_text()
+        self.assertIn('--require-clear', service)
+        self.assertIn('cannot see or stop an already-running unguarded', runbook)
+        self.assertIn('kill -INT PID', runbook)
+        self.assertIn('Do not use `pkill`, `killall`', runbook)
+        self.assertNotIn('pkill', service)
+        self.assertNotIn('killall', service)
+
 
 class ReleaseManifestTests(unittest.TestCase):
     def setUp(self):
@@ -247,6 +305,14 @@ class ReleaseManifestTests(unittest.TestCase):
         self.manifest_root = self.root / beta_operations.BETA_MANIFEST_DIRECTORY
         self.manifest_root.mkdir()
         self.profile = profile(self.root)
+        self.template_path = self.manifest_root / beta_operations.BETA_TEMPLATE_FILENAME
+        self.template_path.write_text(
+            json.dumps(manifest(
+                checkpoint=beta_operations.DRAFT_CHECKPOINT,
+                release_id='replace-me',
+            )),
+            encoding='utf-8',
+        )
 
     def tearDown(self):
         self.tempdir.cleanup()
@@ -269,6 +335,52 @@ class ReleaseManifestTests(unittest.TestCase):
             beta_operations.validate_release_manifest({**manifest(), 'changed_commands': ['not a command']})
         with self.assertRaises(beta_operations.ReleaseManifestError):
             beta_operations.validate_release_manifest({**manifest(), 'title': 'x\nunsafe'})
+
+    def test_prepare_sequence_from_tracked_template_is_constructible(self):
+        draft = beta_operations.init_release_draft(self.profile, 'constructible-release')
+        draft_value = json.loads(draft.read_text(encoding='utf-8'))
+        draft_value['title'] = 'Prepared reviewed release'
+        draft.write_text(json.dumps(draft_value), encoding='utf-8')
+        prepared = beta_operations.prepare_release_manifest(
+            self.profile,
+            draft,
+            current_checkpoint=CHECKPOINT,
+        )
+        self.assertEqual(prepared.status, 'prepared')
+        self.assertEqual(prepared.manifest.expected_checkpoint, CHECKPOINT)
+        self.assertEqual(stat.S_IMODE(prepared.draft_path.stat().st_mode), 0o600)
+        self.assertEqual(stat.S_IMODE(prepared.prepared_path.stat().st_mode), 0o600)
+        loaded = beta_operations.load_prepared_release_manifest(
+            self.profile,
+            prepared.prepared_path,
+            current_checkpoint=CHECKPOINT,
+        )
+        self.assertEqual(loaded.as_dict(), prepared.manifest.as_dict())
+        state = beta_operations._read_release_state(
+            beta_operations.operation_paths(self.profile, create=False),
+        )
+        self.assertEqual(
+            state['prepared']['constructible-release']['fingerprint'],
+            prepared.fingerprint,
+        )
+        again = beta_operations.prepare_release_manifest(
+            self.profile,
+            draft,
+            current_checkpoint=CHECKPOINT,
+        )
+        self.assertEqual(again.status, 'already-prepared')
+
+    def test_prepare_rejects_a_self_pinned_or_unprepared_draft(self):
+        draft = beta_operations.init_release_draft(self.profile, 'checkpoint-gate')
+        draft_value = json.loads(draft.read_text(encoding='utf-8'))
+        draft_value['expected_checkpoint'] = CHECKPOINT
+        draft.write_text(json.dumps(draft_value), encoding='utf-8')
+        with self.assertRaises(beta_operations.ReleaseManifestError):
+            beta_operations.prepare_release_manifest(
+                self.profile,
+                draft,
+                current_checkpoint=CHECKPOINT,
+            )
 
     def test_manifest_file_path_is_repository_backed_and_traversal_safe(self):
         path = self.manifest_root / 'release.json'
@@ -314,9 +426,22 @@ class ReleaseDeliveryTests(unittest.IsolatedAsyncioTestCase):
         self.service = beta_operations.BetaReleaseService(
             self.bot, self.profile, CHECKPOINT
         )
+        self._archive_for_delivery(manifest())
 
     async def asyncTearDown(self):
         self.tempdir.cleanup()
+
+    def _archive_for_delivery(self, value):
+        parsed = beta_operations.validate_release_manifest(
+            value,
+            current_checkpoint=CHECKPOINT,
+        )
+        state = self.service.status()
+        state['prepared'][parsed.release_id] = {
+            'fingerprint': beta_operations.manifest_fingerprint(parsed),
+            'manifest': parsed.as_dict(),
+        }
+        beta_operations._write_release_state(self.service.paths, state)
 
     async def test_minor_release_posts_once_with_no_role_mention(self):
         first = await self.service.deliver(manifest())
@@ -337,12 +462,22 @@ class ReleaseDeliveryTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(beta_operations.BetaPathError):
             self.service.status()
 
+    async def test_delivery_requires_the_archived_prepared_manifest(self):
+        state = self.service.status()
+        state['prepared'].pop('wb1-2-test', None)
+        beta_operations._write_release_state(self.service.paths, state)
+        with self.assertRaises(beta_operations.ReleaseDeliveryError):
+            await self.service.deliver(manifest())
+        self.assertEqual(self.guild.channel.send_calls, [])
+
     async def test_ping_requires_persisted_unique_role_and_allows_only_that_role(self):
+        self._archive_for_delivery(manifest(ping=True))
         with self.assertRaises(beta_operations.ReleaseRoleError):
             await self.service.deliver(manifest(ping=True))
         self.guild.roles = [SimpleNamespace(id=901, name=beta_operations.BETA_TESTER_ROLE_NAME)]
         binding = await self.service.resolve_tester_role()
         self.assertEqual(binding.role_id, 901)
+        self._archive_for_delivery(manifest(ping=True, release_id='pinged-release'))
         result = await self.service.deliver(manifest(ping=True, release_id='pinged-release'))
         self.assertEqual(result.status, 'posted')
         content, kwargs = self.guild.channel.send_calls[0]
@@ -353,6 +488,7 @@ class ReleaseDeliveryTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(kwargs['allowed_mentions'].everyone)
 
     async def test_missing_or_ambiguous_or_changed_role_fails_before_post(self):
+        self._archive_for_delivery(manifest(ping=True))
         self.guild.roles = [SimpleNamespace(id=901, name=beta_operations.BETA_TESTER_ROLE_NAME)]
         await self.service.resolve_tester_role()
         self.guild.roles.append(SimpleNamespace(id=902, name=beta_operations.BETA_TESTER_ROLE_NAME))
@@ -366,6 +502,16 @@ class ReleaseDeliveryTests(unittest.IsolatedAsyncioTestCase):
         wrong_service = beta_operations.BetaReleaseService(
             wrong_bot, self.profile, CHECKPOINT
         )
+        wrong_state = wrong_service.status()
+        parsed = beta_operations.validate_release_manifest(
+            manifest(),
+            current_checkpoint=CHECKPOINT,
+        )
+        wrong_state['prepared'][parsed.release_id] = {
+            'fingerprint': beta_operations.manifest_fingerprint(parsed),
+            'manifest': parsed.as_dict(),
+        }
+        beta_operations._write_release_state(wrong_service.paths, wrong_state)
         with self.assertRaises(beta_operations.ReleaseDeliveryError):
             await wrong_service.deliver(manifest())
         with self.assertRaises(beta_operations.ReleaseManifestError):
@@ -499,8 +645,13 @@ class ReleaseControlAndSeparationTests(unittest.IsolatedAsyncioTestCase):
             root = Path(directory)
             manifest_root = root / beta_operations.BETA_MANIFEST_DIRECTORY
             manifest_root.mkdir()
-            path = manifest_root / 'release.json'
-            path.write_text(json.dumps(manifest()), encoding='utf-8')
+            (manifest_root / beta_operations.BETA_TEMPLATE_FILENAME).write_text(
+                json.dumps(manifest(
+                    checkpoint=beta_operations.DRAFT_CHECKPOINT,
+                    release_id='replace-me',
+                )),
+                encoding='utf-8',
+            )
             selected_profile = profile(root)
             stdout = []
             with mock.patch.object(manage_beta_release, '_selected_profile', return_value=selected_profile), \
@@ -508,7 +659,31 @@ class ReleaseControlAndSeparationTests(unittest.IsolatedAsyncioTestCase):
                     mock.patch.object(manage_beta_release, 'current_checkpoint', return_value=CHECKPOINT), \
                     mock.patch('sys.stdout', new_callable=lambda: _ListWriter(stdout)):
                 result = manage_beta_release.main([
-                    '--json', 'validate', '--manifest', 'release-manifests/release.json'
+                    '--json', 'init', '--release-id', 'manager-release'
+                ])
+                self.assertEqual(result, 0)
+                draft_path = (
+                    selected_profile.log_root
+                    / beta_operations.BETA_STATE_DIRECTORY
+                    / beta_operations.BETA_DRAFT_DIRECTORY
+                    / 'manager-release.json'
+                )
+                result = manage_beta_release.main([
+                    '--json', 'prepare', '--manifest', str(
+                        draft_path.relative_to(selected_profile.project_root)
+                    )
+                ])
+                self.assertEqual(result, 0)
+                prepared_path = (
+                    selected_profile.log_root
+                    / beta_operations.BETA_STATE_DIRECTORY
+                    / beta_operations.BETA_PREPARED_DIRECTORY
+                    / 'manager-release.json'
+                )
+                result = manage_beta_release.main([
+                    '--json', 'validate', '--manifest', str(
+                        prepared_path.relative_to(selected_profile.project_root)
+                    )
                 ])
             self.assertEqual(result, 0)
             self.assertIn('"status": "valid"', ''.join(stdout))

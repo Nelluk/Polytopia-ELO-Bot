@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Validate and explicitly deliver reviewed development-beta releases.
 
-``validate`` is offline.  ``deliver`` and ``resolve-tester-role`` send one
-local request to the already-authenticated beta process over its protected
-Unix socket; this utility never creates a Discord client of its own.
+``init``, ``prepare``, and ``validate`` are offline.  ``deliver`` and
+``resolve-tester-role`` send one local request to the already-authenticated
+beta process over its protected Unix socket; this utility never creates a
+Discord client of its own.
 """
 
 from __future__ import annotations
@@ -24,7 +25,9 @@ from modules.beta_operations import (  # noqa: E402
     BetaOperationsError,
     assert_clean_checkout,
     current_checkpoint,
-    load_release_manifest,
+    init_release_draft,
+    load_prepared_release_manifest,
+    prepare_release_manifest,
     send_control_request,
 )
 from runtime_config import RuntimeConfigurationError, load_runtime_profile  # noqa: E402
@@ -36,9 +39,19 @@ def _parser() -> argparse.ArgumentParser:
     )
     parser.add_argument('--json', action='store_true', help='emit JSON output')
     operations = parser.add_subparsers(dest='operation', required=True)
+    init = operations.add_parser(
+        'init',
+        help='copy the tracked schema template into a private release draft',
+    )
+    init.add_argument('--release-id', required=True)
+    prepare = operations.add_parser(
+        'prepare',
+        help='inject the clean checkout HEAD into an ignored operational manifest',
+    )
+    prepare.add_argument('--manifest', required=True)
     for name, help_text in (
-            ('validate', 'validate a reviewed manifest against the current checkout'),
-            ('deliver', 'deliver one explicit release through the running beta'),
+            ('validate', 'validate a prepared manifest against the current checkout'),
+            ('deliver', 'deliver one explicit prepared release through the running beta'),
     ):
         command = operations.add_parser(name, help=help_text)
         command.add_argument('--manifest', required=True)
@@ -67,11 +80,10 @@ def _manifest_path(value: str) -> Path:
     if (
             not value
             or candidate.is_absolute()
-            or len(candidate.parts) > 2
             or any(part in {'.', '..'} for part in candidate.parts)
             or candidate.suffix != '.json'
             or candidate.name != candidate.parts[-1]):
-        raise ValueError('--manifest must name one direct release-manifest file.')
+        raise ValueError('--manifest must name one direct operational manifest file.')
     return candidate
 
 
@@ -90,12 +102,39 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     try:
         profile = _selected_profile()
-        if args.operation in {'validate', 'deliver'}:
+        if args.operation == 'init':
             assert_clean_checkout(PROJECT_ROOT)
             checkpoint = current_checkpoint(PROJECT_ROOT)
-            manifest = load_release_manifest(
+            draft_path = init_release_draft(profile, args.release_id)
+            _emit({
+                'status': 'initialized',
+                'release_id': draft_path.stem,
+                'checkpoint': checkpoint,
+                'draft_path': str(draft_path),
+            }, as_json=args.json)
+            return 0
+        if args.operation in {'prepare', 'validate', 'deliver'}:
+            assert_clean_checkout(PROJECT_ROOT)
+            checkpoint = current_checkpoint(PROJECT_ROOT)
+            manifest_path = _manifest_path(args.manifest)
+            if args.operation == 'prepare':
+                prepared = prepare_release_manifest(
+                    profile,
+                    manifest_path,
+                    current_checkpoint=checkpoint,
+                )
+                _emit({
+                    'status': prepared.status,
+                    'release_id': prepared.manifest.release_id,
+                    'expected_checkpoint': prepared.manifest.expected_checkpoint,
+                    'fingerprint': prepared.fingerprint,
+                    'draft_path': str(prepared.draft_path),
+                    'prepared_path': str(prepared.prepared_path),
+                }, as_json=args.json)
+                return 0
+            manifest = load_prepared_release_manifest(
                 profile,
-                _manifest_path(args.manifest),
+                manifest_path,
                 current_checkpoint=checkpoint,
             )
             if args.operation == 'validate':

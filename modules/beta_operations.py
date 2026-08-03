@@ -42,6 +42,9 @@ BETA_STARTUP_SYNC_ENV = 'POLYBOT_BETA_STARTUP_SYNC'
 BETA_CHECKPOINT_ENV = 'POLYBOT_BETA_CHECKPOINT'
 BETA_STATE_DIRECTORY = 'beta-operations'
 BETA_MANIFEST_DIRECTORY = 'release-manifests'
+BETA_DRAFT_DIRECTORY = 'drafts'
+BETA_PREPARED_DIRECTORY = 'prepared'
+BETA_TEMPLATE_FILENAME = 'template.json'
 BETA_CONTROL_SOCKET = 'release-control.sock'
 BETA_RELEASE_STATE = 'release-state.json'
 BETA_TESTER_ROLE_STATE = 'tester-role.json'
@@ -50,6 +53,7 @@ BETA_WRITER_LOCK = 'beta-writer.lock'
 MANIFEST_SCHEMA_VERSION = 1
 RELEASE_STATE_SCHEMA_VERSION = 1
 ROLE_STATE_SCHEMA_VERSION = 1
+DRAFT_CHECKPOINT = '0' * 40
 MAX_RELEASE_ID_LENGTH = 64
 MAX_TITLE_LENGTH = 120
 MAX_SUMMARY_LENGTH = 500
@@ -109,6 +113,8 @@ class BetaOperationPaths:
     project_root: Path
     log_root: Path
     state_root: Path
+    draft_directory: Path
+    prepared_directory: Path
     writer_lock: Path
     release_state: Path
     tester_role_state: Path
@@ -155,6 +161,15 @@ class ReleaseDeliveryResult:
     status: str
     message_id: int | None
     attempts: int
+
+
+@dataclass(frozen=True, slots=True)
+class ReleasePreparationResult:
+    manifest: ReleaseManifest
+    fingerprint: str
+    draft_path: Path
+    prepared_path: Path
+    status: str
 
 
 def utc_timestamp() -> str:
@@ -235,9 +250,17 @@ def operation_paths(
         create: bool = False) -> BetaOperationPaths:
     project_root, log_root = _validate_profile_paths(profile)
     state_root = log_root / BETA_STATE_DIRECTORY
+    draft_directory = state_root / BETA_DRAFT_DIRECTORY
+    prepared_directory = state_root / BETA_PREPARED_DIRECTORY
     if create:
         _ensure_directory_tree(log_root, 0o750, label='development log root')
         _ensure_directory(state_root, 0o700, label='beta operation state root')
+        _ensure_directory(draft_directory, 0o700, label='beta release draft directory')
+        _ensure_directory(
+            prepared_directory,
+            0o700,
+            label='prepared beta release directory',
+        )
     else:
         info = _reject_symlink(state_root, label='beta operation state root')
         if info is not None and not stat.S_ISDIR(info.st_mode):
@@ -246,6 +269,8 @@ def operation_paths(
         project_root=project_root,
         log_root=log_root,
         state_root=state_root,
+        draft_directory=draft_directory,
+        prepared_directory=prepared_directory,
         writer_lock=state_root / BETA_WRITER_LOCK,
         release_state=state_root / BETA_RELEASE_STATE,
         tester_role_state=state_root / BETA_TESTER_ROLE_STATE,
@@ -253,19 +278,33 @@ def operation_paths(
     )
 
 
-def _read_json(path: Path, *, absent: Any) -> Any:
-    info = _reject_symlink(path, label='state file')
+def _load_json_file(
+        path: Path,
+        *,
+        absent: Any,
+        label: str,
+        require_private: bool) -> Any:
+    info = _reject_symlink(path, label=label)
     if info is None:
         return absent
     if not stat.S_ISREG(info.st_mode):
-        raise BetaPathError(f'State path is not a regular file: {path}')
-    if stat.S_IMODE(info.st_mode) & 0o077:
-        raise BetaPathError(f'State file permissions are too broad: {path.name}')
+        raise BetaPathError(f'{label} is not a regular file: {path}')
+    if require_private and stat.S_IMODE(info.st_mode) & 0o077:
+        raise BetaPathError(f'{label} permissions are too broad: {path.name}')
     try:
         with path.open(encoding='utf-8') as stream:
             return json.load(stream)
     except (OSError, UnicodeError, json.JSONDecodeError) as exc:
-        raise BetaPathError(f'Could not read state file: {path.name}') from exc
+        raise BetaPathError(f'Could not read {label}: {path.name}') from exc
+
+
+def _read_json(path: Path, *, absent: Any) -> Any:
+    return _load_json_file(
+        path,
+        absent=absent,
+        label='state file',
+        require_private=True,
+    )
 
 
 def _write_json(path: Path, value: Mapping[str, Any]) -> None:
@@ -525,7 +564,9 @@ def validate_release_manifest(
         if extra:
             detail.append('unknown ' + ', '.join(sorted(extra)))
         raise ReleaseManifestError('Invalid manifest fields: ' + '; '.join(detail))
-    if value['schema_version'] != MANIFEST_SCHEMA_VERSION:
+    if (
+            type(value['schema_version']) is not int
+            or value['schema_version'] != MANIFEST_SCHEMA_VERSION):
         raise ReleaseManifestError('Unsupported release manifest schema version.')
     release_id = _line_value(value['release_id'], 'release_id', MAX_RELEASE_ID_LENGTH).lower()
     if not _RELEASE_ID.fullmatch(release_id):
@@ -631,6 +672,229 @@ def load_release_manifest(
     return validate_release_manifest(value, current_checkpoint=current_checkpoint)
 
 
+def _safe_operational_manifest_path(
+        profile: RuntimeProfile,
+        manifest_path: Path,
+        *,
+        directory_name: str,
+        label: str) -> Path:
+    paths = operation_paths(profile, create=False)
+    directory = getattr(paths, directory_name)
+    directory_info = _reject_symlink(directory, label=label + ' directory')
+    if directory_info is None or not stat.S_ISDIR(directory_info.st_mode):
+        raise BetaPathError(f'{label} directory is not available: {directory}')
+    raw_path = (
+        manifest_path
+        if manifest_path.is_absolute()
+        else paths.project_root / manifest_path
+    )
+    if raw_path.parent != directory or raw_path.suffix != '.json':
+        raise BetaPathError(
+            f'{label} must be a direct .json file under {directory}.'
+        )
+    info = _reject_symlink(raw_path, label=label)
+    if info is None or not stat.S_ISREG(info.st_mode):
+        raise BetaPathError(f'{label} is not a regular file: {raw_path.name}')
+    if stat.S_IMODE(info.st_mode) & 0o077:
+        raise BetaPathError(f'{label} permissions are too broad: {raw_path.name}')
+    return raw_path
+
+
+def _load_operational_manifest_value(path: Path, *, label: str) -> Mapping[str, Any]:
+    value = _load_json_file(
+        path,
+        absent=None,
+        label=label,
+        require_private=True,
+    )
+    if not isinstance(value, Mapping):
+        raise ReleaseManifestError(f'{label} must contain a JSON object.')
+    return value
+
+
+def init_release_draft(profile: RuntimeProfile, release_id: str) -> Path:
+    """Copy the tracked template into a private ignored draft path."""
+
+    normalized_id = _line_value(
+        release_id,
+        'release_id',
+        MAX_RELEASE_ID_LENGTH,
+    ).lower()
+    if not _RELEASE_ID.fullmatch(normalized_id):
+        raise ReleaseManifestError(
+            'release_id must contain only lowercase letters, digits, dot, underscore, or hyphen.'
+        )
+    paths = operation_paths(profile, create=True)
+    draft_path = paths.draft_directory / f'{normalized_id}.json'
+    if _lstat(draft_path) is not None:
+        raise ReleaseManifestError(
+            f'A release draft already exists for {normalized_id}; edit it or choose a new ID.'
+        )
+
+    template_path = paths.project_root / BETA_MANIFEST_DIRECTORY / BETA_TEMPLATE_FILENAME
+    template_info = _reject_symlink(
+        template_path,
+        label='tracked release template',
+    )
+    if template_info is None or not stat.S_ISREG(template_info.st_mode):
+        raise BetaPathError('The tracked release template is unavailable.')
+    template_value = _load_json_file(
+        template_path,
+        absent=None,
+        label='tracked release template',
+        require_private=False,
+    )
+    if not isinstance(template_value, Mapping):
+        raise ReleaseManifestError('The tracked release template must be a JSON object.')
+    template_manifest = validate_release_manifest(
+        template_value,
+        current_checkpoint=DRAFT_CHECKPOINT,
+    )
+    draft_value = template_manifest.as_dict()
+    draft_value['release_id'] = normalized_id
+    _write_json(draft_path, draft_value)
+    return draft_path
+
+
+def _prepared_record(
+        manifest: ReleaseManifest,
+        fingerprint: str,
+        *,
+        draft_path: Path,
+        prepared_path: Path) -> dict[str, Any]:
+    return {
+        'fingerprint': fingerprint,
+        'manifest': manifest.as_dict(),
+        'expected_checkpoint': manifest.expected_checkpoint,
+        'draft_path': str(draft_path),
+        'prepared_path': str(prepared_path),
+        'prepared_at': utc_timestamp(),
+    }
+
+
+def prepare_release_manifest(
+        profile: RuntimeProfile,
+        draft_path: Path,
+        *,
+        current_checkpoint: str) -> ReleasePreparationResult:
+    """Inject a reviewed clean HEAD into an ignored operational manifest.
+
+    The draft must retain the all-zero checkpoint from the tracked template.
+    This makes it impossible to mistake a draft for a self-pinned committed
+    release file.  The final manifest and its fingerprint are archived in the
+    atomic release state before the operator can deliver it.
+    """
+
+    if not _CHECKPOINT.fullmatch(current_checkpoint):
+        raise BetaRuntimeInvariantError('The preparation checkpoint is invalid.')
+    paths = operation_paths(profile, create=True)
+    safe_draft_path = _safe_operational_manifest_path(
+        profile,
+        Path(draft_path),
+        directory_name='draft_directory',
+        label='release draft',
+    )
+    draft_value = _load_operational_manifest_value(
+        safe_draft_path,
+        label='release draft',
+    )
+    if draft_value.get('expected_checkpoint') != DRAFT_CHECKPOINT:
+        raise ReleaseManifestError(
+            'The release draft must retain the all-zero checkpoint placeholder; '
+            'prepare injects the reviewed checkout HEAD.'
+        )
+    prepared_value = dict(draft_value)
+    prepared_value['expected_checkpoint'] = current_checkpoint
+    manifest = validate_release_manifest(
+        prepared_value,
+        current_checkpoint=current_checkpoint,
+    )
+    if manifest.release_id != safe_draft_path.stem:
+        raise ReleaseManifestError(
+            'The release draft ID must match its filename.'
+        )
+    fingerprint = manifest_fingerprint(manifest)
+    prepared_path = paths.prepared_directory / f'{manifest.release_id}.json'
+    state = _read_release_state(paths)
+    prepared = state['prepared']
+    existing = prepared.get(manifest.release_id)
+    if existing is not None:
+        if (
+                not isinstance(existing, dict)
+                or existing.get('fingerprint') != fingerprint
+                or existing.get('manifest') != manifest.as_dict()):
+            raise ReleaseDeliveryError(
+                'The release ID is already prepared with different content; '
+                'do not overwrite its audit record.'
+            )
+
+    existing_file = _lstat(prepared_path)
+    if existing_file is not None:
+        existing_value = _load_operational_manifest_value(
+            prepared_path,
+            label='prepared release manifest',
+        )
+        if dict(existing_value) != manifest.as_dict():
+            raise ReleaseDeliveryError(
+                'The prepared release file conflicts with its requested content.'
+            )
+    else:
+        _write_json(prepared_path, manifest.as_dict())
+
+    if existing is None:
+        prepared[manifest.release_id] = _prepared_record(
+            manifest,
+            fingerprint,
+            draft_path=safe_draft_path,
+            prepared_path=prepared_path,
+        )
+        _write_release_state(paths, state)
+        status = 'prepared'
+    else:
+        status = 'already-prepared'
+    return ReleasePreparationResult(
+        manifest=manifest,
+        fingerprint=fingerprint,
+        draft_path=safe_draft_path,
+        prepared_path=prepared_path,
+        status=status,
+    )
+
+
+def load_prepared_release_manifest(
+        profile: RuntimeProfile,
+        manifest_path: Path,
+        *,
+        current_checkpoint: str | None = None) -> ReleaseManifest:
+    """Load only a mode-protected manifest archived by ``prepare``."""
+
+    path = _safe_operational_manifest_path(
+        profile,
+        Path(manifest_path),
+        directory_name='prepared_directory',
+        label='prepared release manifest',
+    )
+    value = _load_operational_manifest_value(
+        path,
+        label='prepared release manifest',
+    )
+    manifest = validate_release_manifest(
+        value,
+        current_checkpoint=current_checkpoint,
+    )
+    state = _read_release_state(operation_paths(profile, create=False))
+    record = state['prepared'].get(manifest.release_id)
+    if (
+            not isinstance(record, dict)
+            or record.get('fingerprint') != manifest_fingerprint(manifest)
+            or record.get('manifest') != manifest.as_dict()
+            or record.get('prepared_path') != str(path)):
+        raise ReleaseManifestError(
+            'The prepared manifest is not the archived audited release state.'
+        )
+    return manifest
+
+
 def build_release_announcement(
         manifest: ReleaseManifest,
         *,
@@ -679,6 +943,9 @@ def _read_release_state(paths: BetaOperationPaths) -> dict[str, Any]:
     releases = value.get('releases')
     if not isinstance(releases, dict):
         raise BetaPathError('The release state file has invalid release entries.')
+    prepared = value.setdefault('prepared', {})
+    if not isinstance(prepared, dict):
+        raise BetaPathError('The release state file has invalid prepared entries.')
     return value
 
 
@@ -872,6 +1139,16 @@ class BetaReleaseService:
                         'The previous release post has an uncertain outcome; reconcile it before retrying.'
                     )
                 was_in_flight = status == 'posting'
+
+            prepared = state['prepared'].get(manifest.release_id)
+            if (
+                    not isinstance(prepared, dict)
+                    or prepared.get('fingerprint') != fingerprint
+                    or prepared.get('manifest') != manifest.as_dict()):
+                raise ReleaseDeliveryError(
+                    'The release must be prepared from the tracked template at the '
+                    'reviewed checkpoint before delivery.'
+                )
 
             self._assert_authenticated_identity()
             guild = self._guild()

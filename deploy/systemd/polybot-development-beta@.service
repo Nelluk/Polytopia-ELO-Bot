@@ -26,6 +26,7 @@ TimeoutStopSec=45s
 UMask=0077
 NoNewPrivileges=true
 PrivateTmp=true
+ExecStartPre=/home/nelluk/PolyBot39-dev/.venv/bin/python /home/nelluk/PolyBot39-dev/scripts/audit_development_beta_processes.py --require-clear
 
 [Install]
 WantedBy=default.target
