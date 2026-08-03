@@ -447,13 +447,13 @@ check:
   `f0429536d7ed899eb356794bcd3558baa9be3d45`.
 - P4.2d roadmap evidence: `e1a0959`; accumulation merge: `7c2269b`.
 
-Current unit: **P8.2 focused team name/server/tier workflows — Implemented
-locally; review-ready; beta not run.**
-P8.1 focused team-emoji read/edit is Tier-2 reviewed and integrated; beta is
-intentionally batched with P8.2.
+Current unit: **P8.2 focused team name/server/tier workflows — Tier-3 reviewed
+and integrated; combined P8.1/P8.2 beta deployment in progress.**
+P8.1 focused team-emoji read/edit is Tier-2 reviewed and integrated; its beta
+smoke is intentionally batched with P8.2.
 Implementation checkpoint: `0bbfae0` on `codex/p8-1-team-emoji`, based on the
-exact clean base `f93855b0eac3fb1e1f42119578c02ecac4213cd4`. The development
-guild capability assignment remains unchanged and does not include `team`.
+exact clean base `f93855b0eac3fb1e1f42119578c02ecac4213cd4`. After P8.2 review,
+the approved development-only capability assignment now includes `team`.
 P4.2e focused game-side read/edit is Complete, beta-accepted, and integrated.
 P4.2d game-tribe bulk/read-edit is Complete, beta-accepted, and integrated.
 Implementation checkpoint: `76e1423` on `codex/p4-2d-game-tribe`, based on the
@@ -4958,11 +4958,11 @@ malformed custom-looking input is rejected safely.
 
 Future combined team-attribute beta checklist (not run in P8.1):
 
-- [ ] Batch reviewed implementations for `/team emoji`, `/team server`,
+- [x] Batch reviewed implementations for `/team emoji`, `/team server`,
   `/team name`, and `/team tier` with one shared capability/root review;
-- [ ] Re-run the exact development profile/database/role gate and complete
+- [x] Re-run the exact development profile/database/role gate and complete
   offline discovery after integration, with no production configuration;
-- [ ] Verify the code-only command plan keeps `team` default-deny until an
+- [x] Verify the code-only command plan keeps `team` default-deny until an
   explicit approval assigns it to the development guild;
 - [ ] After separate approval, inspect and apply only the development guild
   scope, with no global synchronization, then launch one approved beta;
@@ -4974,7 +4974,7 @@ Future combined team-attribute beta checklist (not run in P8.1):
 
 ### P8.2 — Focused team name, server, and tier workflows
 
-Status: **Implemented locally; review-ready; beta not run**
+Status: **Tier-3 reviewed and integrated; beta not run**
 
 Branch/base: `codex/p8-2-team-simple-attributes` from exact clean base
 `eab8388`. No capability assignment, Discord synchronization, beta launch,
@@ -4983,6 +4983,9 @@ merge, or sudo action was performed.
 
 Initial implementation commit: `de8a0a9`; Tier-3 correction commits:
 `4e4e15e`, `0848bdf`.
+
+Evidence commits: `553a54c`, `bafbe74`, `092e8c8`. Accumulation merge:
+`b958464`.
 
 Risk tier: **Tier 3**. Name and server are narrow metadata changes; tier also
 requires post-commit Discord role reconciliation for current team members.
@@ -5075,14 +5078,16 @@ Implementation evidence:
   isolation, direct real-worker reads, prefix permission/preflight parity,
   persisted member/preference reconciliation, audit rollback, and partial
   post-commit reconciliation reporting.
-- Focused validation passed with **53 tests**. Complete offline discovery via
+- Independent Tier-3 review passed with **53 focused tests**. Complete offline
+  discovery via
   `POLYBOT_ENV=development MPLCONFIGDIR=/tmp/polybot-matplotlib
   /home/nelluk/PolyBot39-dev/.venv/bin/python -m unittest discover -s tests
   -p 'test*.py' -v` passed with **603 tests and 17 skips**. The unchanged
   development database gate was invoked with
-  `POLYBOT_ENV=development POLYBOT_RUN_DB_INTEGRATION=1`; PostgreSQL was
-  unavailable during setup, so **zero integration tests ran** and no database
-  fixture or application data was changed.
+  `POLYBOT_ENV=development POLYBOT_RUN_DB_INTEGRATION=1`; it confirmed
+  `development`, `polytopia_dev`, and `polybot_dev`, then passed **16 tests**
+  with the existing operator-fixture preservation case skipped. No production
+  database was touched.
 - No new compatibility-ledger row is required: native and prefix workflows
   retain the material lookup, effective mod plus PolyChampions/test scope,
   public-output, and alias behavior, including the legacy persisted
@@ -5099,11 +5104,11 @@ and gated development suites, and the combined P8.1/P8.2 beta checklist below.
 
 Combined P8.1/P8.2 beta checklist (not run in this implementation task):
 
-- [ ] Re-run the exact development profile/database/role gate and complete
+- [x] Re-run the exact development profile/database/role gate and complete
   offline discovery after review, with no production configuration.
-- [ ] Verify the code-only command plan keeps `team` default-deny until an
+- [x] Verify the code-only command plan keeps `team` default-deny until an
   explicit approval assigns it to the development guild.
-- [ ] After separate approval, inspect and apply only the development-guild
+- [x] After separate approval, inspect and apply only the development-guild
   scope; do not synchronize globally.
 - [ ] Launch one approved beta and smoke public reads for emoji, name, server,
   and tier, authorized actor-attributed edits, server clear, invalid/conflict
@@ -5869,6 +5874,24 @@ managed worktree and saved snapshot instead of retaining one authoritative
 development-only copy.
 
 ## Progress log
+
+### 2026-08-03 — P8.2 reviewed, integrated, and deployed to development guild
+
+- Tier-3 review found and corrected real-worker read validation, redundant
+  prefix event-loop Peewee work, missing persisted player/preference
+  reconciliation, and a transient tier-scope parity regression.
+- Independently reran 53 focused tests and all 603 offline tests with 17 gated
+  skips. The unchanged development database suite confirmed
+  `development`/`polytopia_dev`/`polybot_dev` and passed 16 tests with one
+  operator-fixture preservation skip.
+- Integrated the six P8.2 implementation/correction/evidence commits as merge
+  `b958464` on `codex/database-slash-modernization`.
+- After explicit approval, assigned the default-deny `team` capability only to
+  development guild `478571892832206869`. The offline plan contained exactly
+  `elo`, `game`, `leaderboard`, `player`, and `team`; the guild-only apply
+  created `team`, left the other four roots unchanged, removed nothing, and
+  exposed no global synchronization path.
+- Functional P8.1/P8.2 beta acceptance remains pending.
 
 ### 2026-08-03 — P8.1 reviewed and integrated; P8.2 selected
 
