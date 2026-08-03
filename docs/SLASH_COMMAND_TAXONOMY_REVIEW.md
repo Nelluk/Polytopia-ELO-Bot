@@ -388,7 +388,7 @@ operator repair commands stay out of the public tree.
 | `team` | `/team show` | Strong candidate |
 | `team_add` | `/team create` | Redesign staff options, including junior-team behavior |
 | `team_emoji` | `/team emoji` | Implemented locally in P8.1: view by default; optional emoji/clear edits with the preserved team-enabled and mod boundary; beta not run |
-| `team_image` | `/team image` | View by default; optional attachment/URL edits |
+| `team_image` | `/team image` | Implemented locally in P8.3: public effective-image read, typed attachment replacement, and explicit clear; direct URL replacement remains on the retained prefix path |
 | `team_name` | `/team name` | Implemented locally in P8.2: public read/actor-attributed edit, legacy five-character and unique-name boundary, and an explicit exact-role rename warning |
 | `team_server` | `/team server` | Implemented locally in P8.2: raw integer read/edit and explicit nullable clear without requiring external-guild membership |
 | `team_edit` aliases | `/team house`, `/team tier` | `/team tier` implemented locally in P8.2 with effective legacy mod plus PolyChampions/test scope, configured choices, read-only access to current archived/house-less values within that scope, mutation-only house/archive/exact-role gates, worker-owned Player/preference reconciliation, and post-commit role reconciliation; house mutation remains prefix-only |
@@ -482,7 +482,7 @@ The intended team option shape is attribute-focused:
 - `/team name team:[optional] name:[optional]`;
 - `/team server team:[optional] server_id:[optional integer] clear:[optional]`;
 - `/team tier team:[optional] tier:[optional configured choice]`;
-- `/team image team:[optional] image:[optional] clear:[optional]` (future).
+- `/team image team:[optional] image:[optional typed attachment] clear:[optional]`;
 
 With no replacement or `clear` option, the command displays the current
 setting. An omitted team is inferred only when the requester has one
@@ -552,6 +552,40 @@ native-interface compatibility compromise was identified for P8.2, so no new
 ledger row is required. The combined P8.1/P8.2 beta gate,
 development-guild capability assignment, command synchronization, and beta
 smoke remain pending separate approval.
+
+#### P8.3 `/team image` implementation state
+
+The code-only implementation extends the existing default-deny `team`
+capability/root with `team:string?`, `image:attachment?`, and
+`clear:boolean?`. It reuses the P8.1/P8.2 guild-scoped autocomplete and
+requester-team inference. Omitted replacement reads the effective image
+publicly; a typed Discord attachment replaces it; `clear:true` removes every
+effective source. An attachment and `clear:true` are mutually exclusive.
+
+Effective source precedence is the existing canonical local team file first,
+then `Team.image_url`, then no image. The native command intentionally accepts
+one typed attachment rather than a free-form URL because Discord already
+provides a bounded upload interface and the existing URL path is a direct
+prefix/operator workflow with no download semantics. `$team_image` remains
+registered with its required team name, optional direct URL, attachment-wins
+behavior, and existing mod/team-enabled decorators; its mutation now uses the
+same staged publication and audited worker boundary.
+
+The native read and committed mutation messages are public, and native
+mutation success identifies the actor. Native validation, permission,
+ambiguity/conflict, attachment/download, database, and filesystem/publication
+failures remain ephemeral. Local upload inspection and staging run off the
+Discord event loop. The database change and `GameLog` row commit synchronously
+on a worker-local connection; only after commit does the service publish a
+staged replacement or quarantine/remove the old local override. A
+post-commit publication failure reports the committed state and retains a
+recoverable staged file when possible.
+
+The implementation and focused tests are on `codex/p8-3-team-image` from exact
+clean checkpoint `c009e5a`; no capability assignment, command synchronization,
+beta launch, production action, dependency installation, push, or merge is
+implied by this code-only checkpoint. The focused evidence and final commit
+hash are recorded in the modernization roadmap.
 
 #### Player leaderboard interaction matrix
 
@@ -675,7 +709,7 @@ authoritative.
 | Game notes | `/game notes` reads directly; an Edit button opens a paragraph modal | Long text is awkward as a slash option and benefits from prefilled review |
 | Player registration | `/player register` modal with one canonical Polytopia name and optional staff-selected member | Removes an obsolete platform/name/code distinction while keeping onboarding short |
 | Team/house creation | Modal for name and typed attributes, followed by a review/confirm view | Multi-field creation is clearer than many optional slash arguments |
-| Team/house image | Focused attribute command; Edit opens a modal file upload with explicit replace/clear choice | Native file upload avoids URL-only workflows |
+| Team/house image | Focused attribute command; one typed attachment is a direct replacement and `clear` is explicit | Native file upload avoids URL-only workflows; a modal remains optional for a future multi-field house/image workflow |
 | Staff help | `/staffhelp` modal with summary/details, game reference, and up to 10 uploads per upload component | Preserves the familiar name and supports structured reports and screenshots |
 | Game notification | `/game ping` composer with audience controls, repeatable text sections, multiple uploads, and public-effect preview/confirm | Separates authoring from potentially broad notification and supports bounded multi-message delivery |
 | League bulk maintenance | Buttons/selects for preview and confirmation; modal only for a reason/note | Bulk target selection and result review are iterative, not a one-shot form |
