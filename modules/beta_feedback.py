@@ -42,10 +42,6 @@ MAX_CONTEXT_LENGTH = 1000
 MAX_ATTACHMENTS = 10
 MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024
 MAX_TOTAL_ATTACHMENT_BYTES = 20 * 1024 * 1024
-PREFIX_ATTACHMENT_CAPTURE_OMITTED_CONTEXT = (
-    'Legacy prefix attachment bytes were omitted from the beta store; '
-    'the established Discord URL relay was preserved.'
-)
 
 _REPORT_ID_PATTERN = re.compile(r'^[A-Za-z0-9_-]{20,}$')
 _CHECKPOINT_PATTERN = re.compile(r'^[A-Za-z0-9._:/-]{1,128}$')
@@ -298,7 +294,7 @@ def build_report_draft(
         raise FeedbackValidationError('The detailed description is too long.')
     normalized_context = _optional_text(context, MAX_CONTEXT_LENGTH)
     normalized_source = _sanitize_text(source, 20).lower()
-    if normalized_source not in {'slash', 'prefix'}:
+    if normalized_source != 'slash':
         raise FeedbackValidationError('The feedback source is invalid.')
 
     frozen_attachments = tuple(attachments)
@@ -346,47 +342,6 @@ def build_report_draft(
         timestamp_utc=timestamp or utc_timestamp(),
         attachments=frozen_attachments,
         git_checkpoint=checkpoint,
-    )
-
-
-def build_prefix_draft(
-        *,
-        member: Any,
-        guild_id: int,
-        channel_id: int,
-        message: str,
-        invoked_with: str,
-        related_game_id: int | None = None,
-        attachments: Iterable[AttachmentInput] = (),
-        attachment_capture_warning: str | None = None,
-        timestamp: str | None = None) -> FeedbackReportDraft:
-    """Adapt the retained prefix grammar into the bounded feedback schema."""
-
-    details = _sanitize_text(message, MAX_DETAILS_LENGTH)
-    if not details:
-        details = 'Legacy prefix staffhelp request with attachment evidence.'
-    first_line = next((line.strip() for line in details.splitlines() if line.strip()), details)
-    summary = first_line[:MAX_SUMMARY_LENGTH]
-    if not summary:
-        summary = 'Legacy prefix staffhelp request'
-    return build_report_draft(
-        category='help',
-        summary=summary,
-        details=details,
-        context=attachment_capture_warning,
-        requester_id=int(member.id),
-        requester_display_name=(
-            getattr(member, 'display_name', None)
-            or getattr(member, 'name', None)
-            or f'user-{member.id}'
-        ),
-        guild_id=guild_id,
-        channel_id=channel_id,
-        source='prefix',
-        attachments=attachments,
-        game_id=related_game_id,
-        command_reference=invoked_with,
-        timestamp=timestamp,
     )
 
 
@@ -927,12 +882,6 @@ def staff_help_channel(bot: Any, guild_id: int) -> Any | None:
         return None
 
 
-async def relay_prefix(channel: Any, content: str) -> Any:
-    """Preserve the legacy prefix relay call behind the shared service boundary."""
-
-    return await channel.send(content)
-
-
 def _relay_chunks(value: str, limit: int = 1750) -> list[str]:
     if not value:
         return ['']
@@ -1022,7 +971,7 @@ def _valid_record(record: Any) -> bool:
         and isinstance(record['report_id'], str)
         and _report_id_is_safe(record['report_id'])
         and record['category'] in {'help', 'bug', 'feature'}
-        and record['source'] in {'slash', 'prefix'}
+        and record['source'] == 'slash'
         and isinstance(record['summary'], str)
         and isinstance(record['details'], str)
         and isinstance(record['attachments'], list)

@@ -3,17 +3,15 @@ import peewee
 from discord.ext import commands
 import modules.models as models
 import modules.utilities as utilities
-import modules.image_storage as image_storage
 import settings
 import logging
 import asyncio
 import modules.exceptions as exceptions
-import re
 import datetime
 import random
 from modules.games import PolyGame
 from modules.league import free_agent_role_name, leader_role_name, coleader_role_name
-from modules import beta_feedback, beta_feedback_views
+from modules import beta_feedback_views
 # import modules.imgen as imgen
 # import modules.achievements as achievements
 
@@ -402,187 +400,6 @@ class misc(commands.Cog):
         except exceptions.CheckFailedError as e:
             channel_tags = [f'<#{chan_id}>' for chan_id in permitted_channels]
             return await ctx.send(f'{e}\nTry sending `{ctx.prefix}ping` from a public channel that all members can view: {" ".join(channel_tags)}')
-
-    @commands.command(aliases=['helpstaff'], hidden=False)
-    @commands.cooldown(2, 30, commands.BucketType.user)
-    # @settings.guild_has_setting(setting_name='staff_help_channel')
-    async def staffhelp(self, ctx, *, message: str = ''):
-        """
-        Get staff help on bot usage or game disputes
-
-        The message will be relayed to a staff channel and someone should assist you shortly.
-        You can attach screenshots or links to the message.
-
-        **Example:**
-        `[p]staffhelp Game 42500 was claimed incorrectly`
-        `[p]staffhelp Game 42500 Does this screenshot show a restartable spawn?`
-        """
-
-        potential_game_id = re.search(r'\b\d{4,6}\b', message)
-        game_id_search = potential_game_id[0] if potential_game_id else None
-        try:
-            related_game = models.Game.by_channel_or_arg(chan_id=ctx.channel.id, arg=game_id_search)
-            guild_id = related_game.guild_id
-            # Send game embed summary if message includes a numeric ID of a game or command is used in a game channel
-        except (ValueError, exceptions.MyBaseException):
-            related_game = None
-            guild_id = ctx.guild.id
-
-        if ctx.message.attachments:
-            attachment_urls = '\n'.join([attachment.url for attachment in ctx.message.attachments])
-            message += f'\n{attachment_urls}'
-
-        if not message or len(message) < 7:
-            ctx.command.reset_cooldown(ctx)
-            return await ctx.send(f'You must supply a help request, ie: `{ctx.prefix}{ctx.invoked_with} Game 42500 Does this screenshot show a restartable spawn?`')
-
-        # The JSONL store is a development-beta addition.  Keep the
-        # established production prefix path independent of that optional
-        # store, including its historical attachment URL acceptance.
-        stored_report = None
-        if settings.runtime_profile.environment == 'development':
-            captured_attachments = ()
-            attachment_capture_warning = None
-            if ctx.message.attachments:
-                try:
-                    captured_attachments = await beta_feedback.capture_attachments(
-                        tuple(ctx.message.attachments),
-                    )
-                except beta_feedback.FeedbackValidationError:
-                    # Prefix attachments were historically URLs relayed to
-                    # staff.  Do not let the stricter beta-local byte limits
-                    # reject that retained command; the URL remains in the
-                    # bounded details field and in the legacy relay.
-                    attachment_capture_warning = (
-                        beta_feedback.PREFIX_ATTACHMENT_CAPTURE_OMITTED_CONTEXT
-                    )
-                except Exception as exc:
-                    # Preserve the prefix path for an unexpected Discord
-                    # attachment-read failure without logging user content.
-                    attachment_capture_warning = (
-                        beta_feedback.PREFIX_ATTACHMENT_CAPTURE_OMITTED_CONTEXT
-                    )
-                    logger.warning(
-                        'Prefix beta attachment capture was omitted '
-                        '(guild=%s channel=%s error=%s).',
-                        ctx.guild.id,
-                        ctx.channel.id,
-                        type(exc).__name__,
-                    )
-
-            try:
-                prefix_draft = beta_feedback.build_prefix_draft(
-                    member=ctx.author,
-                    guild_id=ctx.guild.id,
-                    channel_id=ctx.channel.id,
-                    message=message,
-                    invoked_with=ctx.invoked_with,
-                    related_game_id=(related_game.id if related_game else None),
-                    attachments=captured_attachments,
-                    attachment_capture_warning=attachment_capture_warning,
-                )
-            except beta_feedback.FeedbackValidationError:
-                if not captured_attachments or not ctx.message.attachments:
-                    ctx.command.reset_cooldown(ctx)
-                    return await ctx.send(
-                        'Your staff-help request could not be recorded. Please try again later.'
-                    )
-                # Keep compatibility if a future capture implementation
-                # returns values that fail the bounded local-storage checks.
-                prefix_draft = beta_feedback.build_prefix_draft(
-                    member=ctx.author,
-                    guild_id=ctx.guild.id,
-                    channel_id=ctx.channel.id,
-                    message=message,
-                    invoked_with=ctx.invoked_with,
-                    related_game_id=(related_game.id if related_game else None),
-                    attachments=(),
-                    attachment_capture_warning=(
-                        beta_feedback.PREFIX_ATTACHMENT_CAPTURE_OMITTED_CONTEXT
-                    ),
-                )
-
-            try:
-                stored_report = await beta_feedback.store_report(prefix_draft)
-            except beta_feedback.FeedbackValidationError as exc:
-                ctx.command.reset_cooldown(ctx)
-                return await ctx.send(f'Your staff-help request could not be recorded: {exc}')
-            except beta_feedback.FeedbackStorageError:
-                ctx.command.reset_cooldown(ctx)
-                return await ctx.send(
-                    'Your staff-help request could not be recorded. Please try again later.'
-                )
-
-        guild = self.bot.get_guild(guild_id)
-        if guild:
-            try:
-                channel = guild.get_channel(
-                    settings.guild_setting(guild_id, 'staff_help_channel')
-                )
-            except Exception:
-                if stored_report is None:
-                    raise
-                channel = None
-        else:
-            channel = None
-
-        if not channel:
-            if stored_report is not None:
-                logger.warning(
-                    'Prefix beta feedback report recorded without a staff channel '
-                    '(report_id=%s guild=%s).',
-                    stored_report.report_id,
-                    guild_id,
-                )
-                return await ctx.send(
-                    f'Your staff-help request was recorded as `{stored_report.report_id}`, '
-                    'but the staff mirror failed because the staff channel is unavailable. '
-                    'Staff can reconcile it from the beta store.'
-                )
-            ctx.command.reset_cooldown(ctx)
-            return await ctx.send('Cannot load staff channel. You will need to ping a staff member.')
-
-        helper_role_str = 'server staff'
-        helper_role_name = settings.guild_setting(guild_id, 'helper_roles')[0]
-        helper_role = discord.utils.get(guild.roles, name=helper_role_name)
-        helper_role_str = f'{helper_role.mention}' if helper_role else 'server staff'
-
-        if ctx.channel.guild.id == guild_id:
-            chan_str = f'({ctx.channel.name})'
-        else:
-            chan_str = f'({ctx.channel.name} on __{ctx.guild.name}__)'
-        try:
-            await beta_feedback.relay_prefix(
-                channel,
-                f'Attention {helper_role_str} - {ctx.author.mention} ({ctx.author.name}) asked for help from channel <#{ctx.channel.id}> {chan_str}:\n{ctx.message.jump_url}\n{message}',
-            )
-        except Exception as exc:
-            if stored_report is None:
-                raise
-            logger.warning(
-                'Prefix beta feedback report recorded but staff mirror failed '
-                '(report_id=%s guild=%s channel=%s error=%s).',
-                stored_report.report_id,
-                guild_id,
-                getattr(channel, 'id', 'unknown'),
-                type(exc).__name__,
-            )
-            return await ctx.send(
-                f'Your staff-help request was recorded as `{stored_report.report_id}`, '
-                'but the staff mirror failed. Staff can reconcile it from the beta store.'
-            )
-
-        if related_game:
-            embed, content = related_game.embed(guild=guild, prefix=ctx.prefix)
-            await image_storage.send_game_embed(
-                channel, related_game, embed=embed, content=content
-            )
-            game_id = related_game.id
-        else:
-            game_id = 0
-
-        models.GameLog.write(game_id=game_id, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} requested staffhelp: *{message}*')
-        await ctx.send('Your message has been sent to server staff. Please wait patiently or send additional information on your issue.')
 
     @discord.app_commands.command(
         name='staffhelp',

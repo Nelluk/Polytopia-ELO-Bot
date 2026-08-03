@@ -35,6 +35,14 @@ class SlashTaxonomyRegistrationTests(unittest.TestCase):
             ['staffhelp'],
         )
 
+    def test_staffhelp_has_no_retired_prefix_registration(self):
+        prefix_commands = misc.misc.__cog_commands__
+
+        self.assertNotIn('staffhelp', {command.name for command in prefix_commands})
+        self.assertFalse(
+            any('helpstaff' in command.aliases for command in prefix_commands)
+        )
+
     def test_current_native_surface_uses_domain_roots(self):
         game_group = app_group(games.polygames, 'game')
         leaderboard_group = app_group(games.polygames, 'leaderboard')

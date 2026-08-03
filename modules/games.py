@@ -219,8 +219,7 @@ class polygames(commands.Cog):
             return
 
         if message.role_mentions and discord.utils.get(message.role_mentions, name='ELO-Helper'):
-            prefix = settings.guild_setting(message.guild.id, 'command_prefix')
-            await message.channel.send(f'{message.author.mention}, to receive staff help in the future please use the `{prefix}staffhelp` command, '
+            await message.channel.send(f'{message.author.mention}, to receive staff help in the future please use `/staffhelp`, '
                 '- since you have already pinged please wait for a response.')
 
     @commands.Cog.listener()
