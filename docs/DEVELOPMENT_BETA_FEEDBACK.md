@@ -1,6 +1,6 @@
 # Development beta feedback runbook
 
-WB1.1 adds structured `/staffhelp` intake for the development beta. The
+WB1.1 adds structured `/staffhelp` intake for the development wider beta. The
 command is registered as a top-level command with no slash options. It opens a
 requester-bound modal containing:
 
@@ -9,6 +9,14 @@ requester-bound modal containing:
 - a 4,000-character detailed description;
 - optional 1,000-character command/game/context text; and
 - optional PNG, JPEG, WebP, GIF, PDF, Markdown, or plain-text attachments.
+
+The authoritative JSONL store is development-only. This wider-beta intake is
+not yet a production-ready replacement; before P9, the project must separately
+approve a production-safe authoritative intake/retention path or another
+production relay design. The production checkout remains unchanged today, and
+production communities should use their currently deployed support/moderator
+route until that decision and rollout. The approved retirement of the legacy
+prefix is not reversed by this boundary.
 
 The installed discord.py 2.7.1 Components v2 API supports `RadioGroup` and
 `FileUpload`; the native form accepts at most 10 files. Each file is limited
@@ -60,9 +68,10 @@ the record explicitly contains `"git_checkpoint": "unknown"`.
 
 The legacy `$staffhelp` and `$helpstaff` prefix adapters were intentionally
 retired before integration with user approval. Native `/staffhelp` is the
-replacement and is the only feedback intake path. It is available to ordinary
-testers in guilds assigned `tools_support`; the capability remains
-default-deny.
+replacement for this wider-beta intake and is the only feedback intake path
+implemented by WB1.1. It is available to ordinary testers in guilds assigned
+`tools_support`; the capability remains default-deny. This does not claim
+universal production availability.
 
 Native reports are acknowledged ephemerally with their report ID only after
 the local record and attachments are committed. The structured staff-channel

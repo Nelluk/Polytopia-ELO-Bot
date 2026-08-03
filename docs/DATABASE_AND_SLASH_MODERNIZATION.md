@@ -357,7 +357,7 @@ would become unavailable if a prefix is retired.
 | C-004 `$games`/`$opengames` and native open views | The shared worker preserves the legacy open-game modes, requester-aware eligibility, aliases, and native view switching while bounding the result DTO. | Open discovery now publishes at most the first 500 rows and marks truncation; the former prefix query did not impose an explicit cap. This is a deliberate Tier-2 bounded-read tradeoff, with ordinary results still paginated and query-refinable. | Add a cursor/continuation control backed by the same bounded worker if a guild's open-game volume makes the cap user-visible. | Accepted in P5.8 beta smoke |
 | C-005 `/game tribe` / `$settribe` | Native direct `bulk` and confirmed workspace batches validate every pair and commit all changed lineups/audits atomically. The retained prefix aliases preserve compact batch grammar, self shorthand, abbreviations, `none`, and per-pair outcomes. | Native batches are deliberately all-or-nothing; the legacy prefix deliberately keeps its historical valid-subset behavior, reporting invalid pairs while committing valid assignments/audits together. If message-content processing is later retired, the native workspace/direct option covers the ordinary staff workflow while the prefix-only partial-success distinction is unavailable. | Revisit prefix retirement only after usage evidence and an explicit compatibility decision; do not silently make `$settribe` atomic. | Implemented locally; beta review pending |
 | C-006 `/team image` / `$team_image` | Native `/team image` provides an effective-image read, one typed Discord attachment replacement, and explicit clear under the existing mod/team-enabled boundary. The retained prefix preserves its required team name, direct URL option, attachment-wins behavior, and legacy success/read wording; its stale lookup example now correctly names `team_image`. | Direct URL replacement remains prefix-only because the native command deliberately uses a typed attachment rather than a free-form URL. If prefix processing were later removed, staff would need to upload an attachment for replacement; existing stored URL images would still read and clear natively. Prefix success wording also remains legacy-compatible rather than adding native actor text. | Add a separately justified URL option or a multi-step/modal image editor only if direct URL replacement remains a demonstrated native need; do not add remote downloading without a new validation/security review. | Intentional P8.3 parity boundary; prefix retained |
-| C-007 `/staffhelp` / `$staffhelp` / `$helpstaff` | Native `/staffhelp` has no options and opens a requester-bound modal with bounded help/bug/feature category, summary, details, optional context, and up to 10 typed uploads. It is the sole feedback intake after the legacy prefix adapters were retired. | Legacy recommendation: **retire** — the low-use, redundant prefix intake is clearly superseded by the structured native form, which provides bounded categories, details, uploads, private acknowledgement, durable development storage, and staff reconciliation. This retirement was explicitly approved by the user before integration; `/staffhelp` is the replacement. No native attachment gap was required: the installed discord.py 2.7.1 Components v2 API provides the required multi-file upload. | Add retention/redaction operations or a later staff workflow only with a separate privacy and operational review; do not replace the JSONL authority with a Discord-only mirror. | Prefix retirement implemented locally; review pending |
+| C-007 `/staffhelp` / `$staffhelp` / `$helpstaff` | Native `/staffhelp` has no options and opens a requester-bound modal with bounded help/bug/feature category, summary, details, optional context, and up to 10 typed uploads. It is the sole WB1.1 feedback intake for the development wider beta after the legacy prefix adapters were retired. | Legacy recommendation: **retire** — the low-use, redundant prefix intake is clearly superseded by the structured native form. This retirement was explicitly approved by the user before integration; do not restore it. The native JSONL authority and `/staffhelp` intake are development-only and not a production-ready replacement. Before P9, make a separate approved decision on a production-safe authoritative intake/retention path or another production relay design; until then, production communities use their currently deployed support/moderator route. No native attachment gap was required: the installed discord.py 2.7.1 Components v2 API provides the required multi-file upload. | Add retention/redaction operations or a later staff workflow only with a separate privacy and operational review; do not replace the JSONL authority with a Discord-only mirror. | Prefix retirement implemented locally; production-boundary decision required before P9 |
 
 Every later slash conversion must add a row when parity is intentionally
 reduced. If there is no compromise, its unit evidence should explicitly say
@@ -457,7 +457,8 @@ check:
 - P4.2d roadmap evidence: `e1a0959`; accumulation merge: `7c2269b`.
 
 Current unit: **WB1.1 structured `/staffhelp` feedback intake — prefix
-retirement implemented locally; review pending.**
+retirement implemented locally; production-boundary documentation review
+pending.**
 
 WB1.1 implementation is isolated on `codex/wb1-1-staffhelp-feedback` from the
 exact clean accumulation checkpoint
@@ -577,10 +578,14 @@ invocation and presentation to evolve at different rates.
 1. **Semantic compatibility is mandatory.** Prefix and slash paths preserve
    permissions, validation, database effects, transactions, audit
    attribution, coordinator use, and post-commit Discord ordering.
-2. **Invocation compatibility remains during transition.** Prefix names and
-   aliases stay registered as thin adapters over the same bounded service used
-   by native commands. A hybrid decorator is optional and used only when its
-   grammar and slash placement map cleanly.
+2. **Invocation compatibility is decided per unit during transition.** Prefix
+   preservation is the default recommendation for high-frequency/day-to-day
+   workflows, power-user bulk entry, or capabilities not yet matched natively;
+   each unit records an explicit `retain` or `retire` recommendation and user
+   decision. Preserved prefixes remain thin adapters over the same bounded
+   service used by native commands, while explicitly approved retirements are
+   not restored. A hybrid decorator is optional and used only when its grammar
+   and slash placement map cleanly.
 3. **Presentation compatibility may intentionally change.** Components v2 may
    replace embeds, reactions, pagination, or option-heavy output. Material
    omissions or changed workflows are recorded in the compatibility ledger
@@ -628,7 +633,7 @@ this decision does not authorize production deployment or synchronization.
 | P7 | In progress | Read-heavy game, player, and leaderboard commands | Bounded read path and responsive slash queries |
 | P8 | In progress | Guild application-command capability policy, explicit deployment tooling, then league and remaining administration workflows | Audited guild-scoped command policy and subsequent domain workers/native interfaces |
 | WB1 | In progress | Wider beta operations, durable development runtime, and structured tester feedback | Reviewed persistent beta service, explicit guild sync, searchable `/staffhelp` reports, and wider-tester runbook |
-| P9 | Planned | Production rollout and later prefix deprecation decision | Approved deployment, monitoring, and separate deprecation plan |
+| P9 | Planned | Production rollout and remaining per-unit prefix lifecycle decisions, with the approved WB1.1 staffhelp retirement retained | Approved production-safe intake/retention decision, deployment, monitoring, and separate lifecycle plan |
 
 ## P0 — Serialized ELO and slash-command pilot
 
@@ -5327,7 +5332,15 @@ Storage and effect ordering:
   commit is logged with the committed ID and never emits a false no-ID
   message. The legacy prefix adapters were intentionally retired before
   integration with explicit user approval; `/staffhelp` is now the sole
-  feedback intake and no legacy `GameLog` path is part of WB1.1.
+  WB1.1 feedback intake for the development wider beta, and no legacy `GameLog`
+  path is part of WB1.1.
+
+- The native JSONL store and `/staffhelp` wider-beta intake are development-only
+  and are not a production-ready replacement. Before P9 production rollout,
+  make a separate approved decision for a production-safe authoritative
+  intake/retention path or another production relay design. Until then, the
+  production checkout remains unchanged and production communities use their
+  currently deployed support/moderator route.
 
 Reader/runbook and evidence:
 
@@ -5361,15 +5374,23 @@ Limitations and next action:
   approved filesystem retention process.
 - The legacy prefix adapters are intentionally retired before integration by
   explicit user decision; existing user-approved preserved commands elsewhere
-  in the bot remain unchanged. Native `/staffhelp` is the replacement and
-  retains strict attachment, privacy, durability, and development-path gates.
+  in the bot remain unchanged. Native `/staffhelp` is the development wider-beta
+  replacement and retains strict attachment, privacy, durability, and
+  development-path gates; the retired prefix is not restored.
+- The development-only JSONL store is not a production-ready authoritative
+  intake/retention path. A separate approved production-boundary decision (a
+  production-safe authoritative store or another production relay design) is a
+  prerequisite before P9 rollout; until then, production communities use the
+  currently deployed support/moderator route.
 - No database table, API endpoint, external token, GitHub integration,
   dependency, command synchronization, launch, or production action was
   introduced. The ignored development capability assignment remains unchanged,
   so `/staffhelp` remains default-deny until a later explicit deployment.
-- Next action: review the implementation/tests checkpoint and the separate
-  documentation/evidence commit. Deployment and wider-beta smoke remain later
-  explicit operations.
+- Next action: review the implementation/tests checkpoint and this separate
+  production-boundary documentation/evidence commit, then obtain the separate
+  P9 decision for a production-safe authoritative intake/retention path (or
+  another production relay design). Deployment and wider-beta smoke remain
+  later explicit operations.
 
 Purpose: open the development guild and beta command surface to a wider group
 without weakening the production boundary or making the beta process depend
@@ -5422,7 +5443,8 @@ Exit gate:
 
 This milestone does not require a new database table, GitHub token, public
 API, or direct Discord access for Codex. It does not authorize production
-deployment or prefix retirement.
+deployment or any additional prefix retirement; the WB1.1 staffhelp prefix
+retirement is separately approved and remains in force.
 
 ## P9 — Production rollout and prefix lifecycle
 
@@ -5440,12 +5462,17 @@ Required gates:
 - rollback point identified;
 - monitoring and log checks defined;
 - explicit approval for production deployment/restart/sync.
+- a separate approved decision for a production-safe authoritative feedback,
+  privacy, and security intake/retention path (or another production relay
+  design); the WB1.1 development JSONL store is not that path.
 
 Before deployment, reverify the P8.0 policy/tool and test the single-process
 guild capability canary described in D-031. The initial production observation
 stage should:
 
-- keep legacy prefix commands enabled;
+- keep legacy prefix commands enabled where the per-unit compatibility decision
+  is `retain`; the explicitly approved WB1.1 staffhelp retirement remains in
+  force;
 - expose new native/component commands only in the explicitly approved
   PolyChampions canary guild;
 - use the same production bot process and in-process services for both
@@ -6119,9 +6146,10 @@ the agreed domain roots instead of selecting only taxonomy-independent work.
 This is provisional in the release-engineering sense: minor names may still
 be refined before P9, and thin slash adapters must remain easy to rename. Such
 nitpicks no longer block worker, transaction, compatibility, or interaction
-work. Prefix names and aliases remain unchanged during transition. This
-decision does not authorize wholesale registration, beta synchronization, or
-production deployment.
+work. Prefix preservation follows the per-unit compatibility decision: retained
+names and aliases remain unchanged, while explicitly approved retirements stay
+retired. This decision does not authorize wholesale registration, beta
+synchronization, or production deployment.
 
 ### D-034 — Progressively enhance dense game cards with state-aware actions
 
@@ -6261,6 +6289,20 @@ change the database, command deployment, or production boundary.
 - Prefix-retirement implementation/tests checkpoint: `e38b147`. Focused
   validation passed **41 tests**; complete offline discovery passed **640 tests
   with 17 intentional integration skips**. Compile and diff checks passed.
+
+### 2026-08-03 — WB1.1 production-boundary documentation corrected
+
+- Corrected README, privacy/security policy, privacy runbook, readiness
+  checklist, taxonomy, and roadmap language to describe the no-option modal
+  fields and the currently deployed production support/moderator route.
+- Recorded that the authoritative JSONL store and `/staffhelp` are
+  development-only wider-beta intake, not a production-ready replacement.
+  Before P9, a separate approved production-safe authoritative intake/retention
+  path or another production relay design is required; the approved prefix
+  retirement remains in force and the production checkout is unchanged.
+- This was documentation-only. No launch, command synchronization, production
+  operation, database action, dependency action, or code test run was performed;
+  validation is limited to diff/link/text consistency checks.
 
 ### 2026-08-03 — P8.3 integrated and wider-beta milestone accepted
 

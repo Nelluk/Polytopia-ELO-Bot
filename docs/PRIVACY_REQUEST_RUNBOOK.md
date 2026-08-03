@@ -6,11 +6,20 @@ low request volume does not require a dedicated command or deletion script.
 
 ## 1. Receive and acknowledge
 
-Requests normally arrive through `/staffhelp` with a short message such as:
+In the current wider-beta flow, invoke `/staffhelp` with no options. The modal
+has no slash arguments; enter the request in the appropriate fields:
 
 ```text
-Privacy request - please contact me about my PolyELO data
+Short summary: Privacy request
+Detailed description: Please contact me about my PolyELO data.
+Optional context: Any relevant account or request context
 ```
+
+The authoritative JSONL record for this flow is development-only, and the
+wider-beta `/staffhelp` intake is not yet a production-ready replacement.
+Before P9, approve a production-safe authoritative intake/retention path (or
+another production relay design) separately. Until then, use the currently
+deployed support/moderator route for production communities.
 
 Move any detailed discussion to an appropriate private Discord conversation.
 Do not ask the user to post personal information in a public GitHub issue or
@@ -20,8 +29,8 @@ maintainer record.
 
 ## 2. Verify the requester
 
-- Verify control of the affected Discord account using the account that invoked
-  `/staffhelp` or a follow-up action from that account.
+- Verify control of the affected Discord account using the account that
+  submitted the `/staffhelp` modal or a follow-up action from that account.
 - Record the Discord user ID internally so the correct records can be located.
 - Do not request a Discord password, bot token, government identification,
   payment, or unrelated personal information.
