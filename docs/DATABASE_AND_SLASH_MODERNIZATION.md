@@ -2635,6 +2635,18 @@ while staff override remains available; clear both values; exercise
 announcement/card refresh, abbreviated lookup, and private validation/errors.
 Do not synchronize commands or launch the beta until separately approved.
 
+Deployment/launch evidence:
+
+- The explicit development-guild inspection found only the existing `game`
+  root required an update; `elo`, `leaderboard`, and `player` were unchanged,
+  with no creates or removals.
+- The confirmed guild-only apply updated development guild
+  `478571892832206869`; the tool exposed no global synchronization path.
+- The beta launched from accumulation checkpoint `c46bb0a` with
+  `POLYBOT_ENV=development`, `--skip_tasks`, and startup synchronization
+  disabled. It authenticated as **PolyELO Bot Beta**
+  (`479029527553638401`). Functional beta acceptance remains pending.
+
 ## P5 — Matchmaking lifecycle
 
 Status: **In progress**
@@ -5584,6 +5596,18 @@ managed worktree and saved snapshot instead of retaining one authoritative
 development-only copy.
 
 ## Progress log
+
+### 2026-08-03 — P4.2e deployed to the development guild
+
+- Explicit inspection found only the existing `game` root changed; no command
+  root was created or removed and `elo`, `leaderboard`, and `player` remained
+  unchanged.
+- Applied the reviewed tree only to development guild
+  `478571892832206869` with exact environment, guild, scope, and no-global-sync
+  confirmations.
+- Launched the beta from accumulation checkpoint `c46bb0a` with startup sync,
+  background tasks, and API disabled; authenticated as PolyELO Bot Beta
+  (`479029527553638401`). Functional acceptance remains pending.
 
 ### 2026-08-03 — P4.2e Tier-3 review passed and integrated
 
