@@ -447,8 +447,8 @@ check:
   `f0429536d7ed899eb356794bcd3558baa9be3d45`.
 - P4.2d roadmap evidence: `e1a0959`; accumulation merge: `7c2269b`.
 
-Current unit: **P4.2e focused game-side read/edit workflow — reviewed and
-integrated; beta acceptance pending.**
+Current unit: **P8.1 focused team-emoji read/edit workflow — Planned.**
+P4.2e focused game-side read/edit is Complete, beta-accepted, and integrated.
 P4.2d game-tribe bulk/read-edit is Complete, beta-accepted, and integrated.
 Implementation checkpoint: `76e1423` on `codex/p4-2d-game-tribe`, based on the
 verified clean accumulation checkpoint `f0429536d7ed899eb356794bcd3558baa9be3d45`.
@@ -2516,7 +2516,7 @@ the public game presentation only after commit.
 
 #### P4.2e — Focused game-side read/edit workflow
 
-Status: **Implemented, Tier-3 reviewed, and integrated; beta pending**
+Status: **Complete — reviewed, integrated, and beta-validated**
 
 Risk tier: **Tier 3**. Side naming and role restrictions directly affect who
 may join an open game and must preserve the existing host/staff permission
@@ -2646,6 +2646,11 @@ Deployment/launch evidence:
   `POLYBOT_ENV=development`, `--skip_tasks`, and startup synchronization
   disabled. It authenticated as **PolyELO Bot Beta**
   (`479029527553638401`). Functional beta acceptance remains pending.
+
+Beta result: **accepted.** The user confirmed the read, name, typed-role, and
+clear workflow behaved correctly in the development guild. No follow-up code
+finding was reported. The task-owned foreground beta was then stopped cleanly
+with `Ctrl-C`, and no `bot.py` process remained.
 
 ## P5 — Matchmaking lifecycle
 
@@ -4822,7 +4827,7 @@ the explicit deployment tool for later native-command beta sessions.
 
 ## P8 — League and remaining administration workflows
 
-Status: **Planned**
+Status: **In progress**
 
 Candidate domains:
 
@@ -4841,6 +4846,46 @@ database tables, so each needs its own transaction and reconciliation design.
 Do not expose destructive or emergency maintenance commands as slash commands
 without explicit confirmation UX, narrow permissions, audit logging, and
 separate approval.
+
+### P8.1 — Focused team-emoji read/edit workflow
+
+Status: **Planned**
+
+Risk tier: **Tier 2**. The mutation is narrow and reversible but changes a
+public team identity attribute used in cards and leaderboards.
+
+Objective: establish the shared `/team` root and team-attribute service with
+`/team emoji`, preserving `$team_emoji` and its mod/team-enabled permission
+boundary.
+
+Proposed native shape:
+
+- required typed/autocompleted team target unless the requester has one
+  unambiguous inferable team;
+- omitted replacement displays the current emoji publicly;
+- optional emoji string performs a permission-checked edit;
+- explicit `clear:true` removes the configured emoji;
+- committed edits and clears are public and identify the actor; denials,
+  validation errors, and database failures remain private.
+
+Implementation boundary:
+
+- keep team lookup, validation, mutation, and audit logging inside one
+  worker-local synchronous transaction using primitive request values;
+- validate guild/team-enabled scope and mod permission at the interaction
+  boundary and authoritatively where practical;
+- perform card/leaderboard or other Discord reconciliation only after commit;
+- preserve legacy custom-emoji behavior while deliberately handling Unicode
+  emoji input rather than carrying forward the prefix command's documented
+  validation bug;
+- register the `team` root under the existing `team` capability, which remains
+  default-deny until explicitly assigned to a development guild for beta.
+
+Required evidence: read/edit/clear behavior, Unicode and custom emoji
+validation, permission parity, rollback and connection cleanup, no Discord
+effects after failure, prefix registration/behavior, `/team` capability
+isolation, complete offline and gated development suites, then separately
+approved development-guild deployment and beta smoke.
 
 ## P9 — Production rollout and prefix lifecycle
 
@@ -5596,6 +5641,16 @@ managed worktree and saved snapshot instead of retaining one authoritative
 development-only copy.
 
 ## Progress log
+
+### 2026-08-03 — P4.2e beta accepted; P8.1 selected
+
+- Accepted `/game side` after development-guild smoke testing found the
+  read/name/role/clear workflow working as intended.
+- Stopped the task-owned foreground beta cleanly with `Ctrl-C` and confirmed
+  no `bot.py` process remained.
+- Marked P4.2e Complete and selected P8.1 `/team emoji` as the next bounded
+  unit, establishing the shared team root/capability and focused team
+  attribute pattern before broader team administration.
 
 ### 2026-08-03 — P4.2e deployed to the development guild
 
