@@ -447,7 +447,8 @@ check:
   `f0429536d7ed899eb356794bcd3558baa9be3d45`.
 - P4.2d roadmap evidence: `e1a0959`; accumulation merge: `7c2269b`.
 
-Current unit: **P8.2 focused team name/server/tier workflows — Planned.**
+Current unit: **P8.2 focused team name/server/tier workflows — Implemented
+locally; review-ready; beta not run.**
 P8.1 focused team-emoji read/edit is Tier-2 reviewed and integrated; beta is
 intentionally batched with P8.2.
 Implementation checkpoint: `0bbfae0` on `codex/p8-1-team-emoji`, based on the
@@ -4973,7 +4974,14 @@ Future combined team-attribute beta checklist (not run in P8.1):
 
 ### P8.2 — Focused team name, server, and tier workflows
 
-Status: **Planned**
+Status: **Implemented locally; review-ready; beta not run**
+
+Branch/base: `codex/p8-2-team-simple-attributes` from exact clean base
+`eab8388`. No capability assignment, Discord synchronization, beta launch,
+production checkout/service/database access, dependency installation, push,
+merge, or sudo action was performed.
+
+Implementation commit: `de8a0a9`.
 
 Risk tier: **Tier 3**. Name and server are narrow metadata changes; tier also
 requires post-commit Discord role reconciliation for current team members.
@@ -5002,12 +5010,89 @@ Boundaries:
 - keep the `team` capability default-deny and do not deploy until the combined
   P8.1/P8.2 beta gate receives separate approval.
 
+Implementation evidence:
+
+- `modules/administration.py` extends the existing `/team` root with
+  `/team name team:[optional] name:[optional]`, `/team server
+  team:[optional] server_id:[optional integer] clear:[optional]`, and
+  `/team tier team:[optional] tier:[optional configured choice]`. Omitted
+  replacements read the current value publicly; committed native changes and
+  the approved nullable-server clear identify the actor publicly. Native
+  permission, validation, ambiguity, conflict, and database failures remain
+  ephemeral. `/team tier` deliberately has no clear option because the legacy
+  tier workflow has no safe clear behavior to preserve.
+- `modules/team_attributes.py` is the shared adapter for all three attributes.
+  It captures primitive requests, retains unique requester-team inference,
+  formats public actor-attributed output, warns that name changes do not rename
+  the exact Discord team role, and performs tier reconciliation only after the
+  worker has committed. `$team_name` and `$team_server` use the same service;
+  `$team_tier` uses it through the existing `team_edit` alias command. The
+  `$team_house` branch and `$team_edit ... ARCHIVE` branch remain untouched.
+- `modules/team_attributes_workers.py` owns synchronous lookup, validation,
+  mutation, optimistic tier preconditions, and `GameLog` audit insertion in a
+  worker-local connection and one atomic transaction. Name validation preserves
+  the legacy five-character minimum and composite `(name, guild_id)` unique
+  boundary without model-side normalization. Server IDs retain the raw integer
+  value and support only the nullable attribute's explicit clear. Tier lookup
+  uses configured `settings.tier_lookup` names/numbers and retains house,
+  archived-team, exact team-role, mod, and PolyChampions/test scope checks.
+- `modules/team_emoji_workers.py` now provides the one shared bounded
+  autocomplete worker and executor. Suggestions filter by guild, exclude
+  hidden/archived teams, apply a hard 25-choice cap, and truncate Discord
+  choice display values safely. The same callback is registered on `/team
+  emoji`, `/team name`, `/team server`, and `/team tier`; no other guild's
+  team rows are returned.
+- Tier member-role reconciliation is event-loop-only and post-commit. It uses
+  captured Discord role/member objects after the transaction, removes managed
+  tier/house/League Member and preference roles, restores the committed
+  house/tier/League Member roles, and records per-member failures or missing
+  managed roles as a public warning without rolling back the database change.
+  No Discord await occurs in the worker transaction and no reconciliation runs
+  after a worker/database failure.
+- `tests/test_team_attributes.py`, `tests/test_slash_taxonomy.py`, and the
+  retained P8.1 tests cover immutable primitive requests, guild isolation and
+  25-choice autocomplete, registration/option shapes, public/private native
+  visibility, prefix registration/routing, name minimum/duplicate rollback,
+  server integer/read/edit/clear behavior, configured tier lookup and
+  house/archive/exact-role preconditions, audit rollback, worker connection
+  cleanup, cancellation, event-loop responsiveness, default-deny capability
+  isolation, and partial post-commit reconciliation reporting.
+- Focused validation passed with **48 tests**. Complete offline discovery via
+  `POLYBOT_ENV=development MPLCONFIGDIR=/tmp/polybot-matplotlib
+  /home/nelluk/PolyBot39-dev/.venv/bin/python -m unittest discover -s tests
+  -p 'test*.py' -v` passed with **598 tests and 17 skips**. The unchanged
+  development database gate was invoked with
+  `POLYBOT_ENV=development POLYBOT_RUN_DB_INTEGRATION=1`; PostgreSQL was
+  unavailable during setup, so **zero integration tests ran** and no database
+  fixture or application data was changed.
+- No new compatibility-ledger row is required: native and prefix workflows
+  retain the material lookup, permission, public-output, and alias behavior.
+  The native-only role-rename warning and the explicit server clear are
+  documented UX refinements; tier clear remains deliberately unavailable.
+
 Required evidence: prefix parity, typed native shapes, autocomplete isolation,
-read/edit and any approved clear behavior, name constraints, server-ID
+read/edit and approved server clear behavior, name constraints, server-ID
 validation, tier/house/archive/role preconditions, atomic audit rollback,
 worker connection/cancellation cleanup, no Discord effects after failure,
 post-commit tier-role reconciliation, capability isolation, complete offline
-and gated development suites, and a combined beta checklist.
+and gated development suites, and the combined P8.1/P8.2 beta checklist below.
+
+Combined P8.1/P8.2 beta checklist (not run in this implementation task):
+
+- [ ] Re-run the exact development profile/database/role gate and complete
+  offline discovery after review, with no production configuration.
+- [ ] Verify the code-only command plan keeps `team` default-deny until an
+  explicit approval assigns it to the development guild.
+- [ ] After separate approval, inspect and apply only the development-guild
+  scope; do not synchronize globally.
+- [ ] Launch one approved beta and smoke public reads for emoji, name, server,
+  and tier, authorized actor-attributed edits, server clear, invalid/conflict
+  private paths, prefix parity, and committed audit rows.
+- [ ] Verify name/role exact-match warning, hidden/archived autocomplete
+  exclusion, unique inference/ambiguity, tier house/archive/role gates, and
+  partial member-role reconciliation reporting.
+- [ ] Verify rollback and restart/command-prune recovery, then record the
+  acceptance decision before any production discussion.
 
 ## P9 — Production rollout and prefix lifecycle
 
@@ -5797,6 +5882,27 @@ development-only copy.
   correction is intentional and documented in P8.1 above. The next reviewable
   checkpoint is the separate documentation commit, followed by review rather
   than deployment.
+
+### 2026-08-03 — P8.2 implementation checkpoint completed locally
+
+- Implemented `/team name`, `/team server`, and `/team tier` on branch
+  `codex/p8-2-team-simple-attributes` from exact clean base `eab8388`.
+  The implementation/tests checkpoint is commit `de8a0a9`.
+  Extended the existing team root's shared autocomplete to all four focused
+  attributes, retained default-deny capability policy, and preserved the
+  `$team_name`, `$team_server`, `$team_tier`, `$team_house`, and archive paths.
+- Focused validation passed with **48 tests**, including the retained P8.1
+  team-emoji/policy coverage. Complete offline discovery passed with **598
+  tests and 17 skips** under the development profile.
+- The unchanged development database gate was invoked with
+  `POLYBOT_ENV=development POLYBOT_RUN_DB_INTEGRATION=1` against the verified
+  `polytopia_dev`/`polybot_dev` setup. Its PostgreSQL connection was
+  unavailable, so setup failed before any integration test ran; no fixture,
+  application data, or production resource was changed.
+- No capability assignment, Discord inspection/synchronization, beta launch,
+  production checkout/service/database action, dependency installation, push,
+  merge, or sudo action was performed. The combined P8.1/P8.2 beta checklist
+  remains pending separate approval.
 
 ### 2026-08-03 — P4.2e beta accepted; P8.1 selected
 

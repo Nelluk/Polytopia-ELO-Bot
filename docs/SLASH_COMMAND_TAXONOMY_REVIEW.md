@@ -389,9 +389,9 @@ operator repair commands stay out of the public tree.
 | `team_add` | `/team create` | Redesign staff options, including junior-team behavior |
 | `team_emoji` | `/team emoji` | Implemented locally in P8.1: view by default; optional emoji/clear edits with the preserved team-enabled and mod boundary; beta not run |
 | `team_image` | `/team image` | View by default; optional attachment/URL edits |
-| `team_name` | `/team name` | View exact name; optional name edits |
-| `team_server` | `/team server` | View when safe; optional configured server edits with staff permission |
-| `team_edit` aliases | `/team house`, `/team tier` | View by default; optional typed value edits |
+| `team_name` | `/team name` | Implemented locally in P8.2: public read/actor-attributed edit, legacy five-character and unique-name boundary, and an explicit exact-role rename warning |
+| `team_server` | `/team server` | Implemented locally in P8.2: raw integer read/edit and explicit nullable clear without requiring external-guild membership |
+| `team_edit` aliases | `/team house`, `/team tier` | `/team tier` implemented locally in P8.2 with configured choices, legacy house/archive/exact-role gates, and post-commit role reconciliation; house mutation remains prefix-only |
 | `squad` | `/squad show` | Redesign one-to-three member search |
 | `squadname` | `/squad name` | View by default; optional name edits |
 | `lb` | `/leaderboard players` | Components v2 workspace defaults to local/current/active and exposes common views, population, paging, and requester-rank controls in-message; preserve the full prefix matrix |
@@ -479,8 +479,10 @@ demonstrated.
 The intended team option shape is attribute-focused:
 
 - `/team emoji team:[optional] emoji:[optional] clear:[optional]`;
-- `/team image team:[optional] image:[optional] clear:[optional]`;
-- `/team server team:[optional] server:[optional] clear:[optional]`.
+- `/team name team:[optional] name:[optional]`;
+- `/team server team:[optional] server_id:[optional integer] clear:[optional]`;
+- `/team tier team:[optional] tier:[optional configured choice]`;
+- `/team image team:[optional] image:[optional] clear:[optional]` (future).
 
 With no replacement or `clear` option, the command displays the current
 setting. An omitted team is inferred only when the requester has one
@@ -513,6 +515,36 @@ emoji now work, valid serialized static/animated custom emoji are accepted
 without cache lookup, and malformed values previously admitted by the broad
 `'<:'` substring test are rejected safely. Prefix wording, registration,
 lookup semantics, and permission boundary remain compatible.
+
+#### P8.2 `/team name`, `/team server`, and `/team tier` implementation state
+
+The code-only implementation extends the existing default-deny `team`
+capability/root with optional-target `/team name`, `/team server`, and
+`/team tier` subcommands. All four team attributes share one guild-scoped,
+worker-bounded autocomplete that excludes hidden/archived teams and returns at
+most 25 choices. Omitted targets use persisted requester-team inference only
+when exactly one team resolves; ambiguity and no-match errors remain private.
+
+Name and server reads are public when their replacement is omitted. Successful
+native edits are public and identify the actor; permission, validation,
+ambiguity, conflict, and database failures remain ephemeral. Name keeps the
+legacy five-character minimum and composite guild uniqueness, cannot be
+cleared, does not rename the Discord role automatically, and warns that the
+role must be renamed to the exact new team name. Server uses a typed raw
+integer `server_id`, reads the configured value without requiring membership
+in the external guild, and supports an explicit clear because the model field
+is nullable. Tier accepts configured numeric choices/names, keeps the legacy
+mod, PolyChampions/test, house, archived-team, and exact team-role gates, and
+reconciles current member roles only after the audited database transaction
+commits. Tier clear is intentionally not exposed because the legacy workflow
+does not define a safe clear/reconciliation contract.
+
+`$team_name`, `$team_server`, and `$team_tier` remain registered and route
+through the shared worker/service; `$team_house` and `$team_edit ... ARCHIVE`
+remain unchanged. No native-interface compatibility compromise was identified
+for P8.2, so no new ledger row is required. The combined P8.1/P8.2 beta gate,
+development-guild capability assignment, command synchronization, and beta
+smoke remain pending separate approval.
 
 #### Player leaderboard interaction matrix
 
