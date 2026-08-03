@@ -391,7 +391,7 @@ operator repair commands stay out of the public tree.
 | `team_image` | `/team image` | View by default; optional attachment/URL edits |
 | `team_name` | `/team name` | Implemented locally in P8.2: public read/actor-attributed edit, legacy five-character and unique-name boundary, and an explicit exact-role rename warning |
 | `team_server` | `/team server` | Implemented locally in P8.2: raw integer read/edit and explicit nullable clear without requiring external-guild membership |
-| `team_edit` aliases | `/team house`, `/team tier` | `/team tier` implemented locally in P8.2 with mod-only read/edit parity, configured choices, read-only access to current archived/house-less values, mutation-only house/archive/exact-role gates, worker-owned Player/preference reconciliation, and post-commit role reconciliation; house mutation remains prefix-only |
+| `team_edit` aliases | `/team house`, `/team tier` | `/team tier` implemented locally in P8.2 with effective legacy mod plus PolyChampions/test scope, configured choices, read-only access to current archived/house-less values within that scope, mutation-only house/archive/exact-role gates, worker-owned Player/preference reconciliation, and post-commit role reconciliation; house mutation remains prefix-only |
 | `squad` | `/squad show` | Redesign one-to-three member search |
 | `squadname` | `/squad name` | View by default; optional name edits |
 | `lb` | `/leaderboard players` | Components v2 workspace defaults to local/current/active and exposes common views, population, paging, and requester-rank controls in-message; preserve the full prefix matrix |
@@ -533,20 +533,23 @@ be cleared, does not rename the Discord role automatically, and warns that the
 role must be renamed to the exact new team name. Server uses a typed raw
 integer `server_id`, reads the configured value without requiring membership
 in the external guild, and supports an explicit clear because the model field
-is nullable. Tier accepts configured numeric choices/names and is mod-only in
-both native and prefix forms, without a new PolyChampions/test-only gate. A
-tier read does not require the mutation-only house, archived-team, or exact
-team-role preconditions; a tier edit retains all three, updates persisted
-Player/team and house-preference state inside the worker transaction, and
-reconciles current Discord member roles only after the audited database
-transaction commits. Tier clear is intentionally not exposed because the
-legacy workflow does not define a safe clear/reconciliation contract.
+is nullable. Tier accepts configured numeric choices/names and retains the
+effective legacy mod plus PolyChampions/test scope in both native and prefix
+forms; the League cog check, worker, and native pre-defer check enforce that
+same boundary. A tier read within the allowed scope does not require the
+mutation-only house, archived-team, or exact team-role preconditions; a tier
+edit retains all three, updates persisted Player/team and house-preference
+state inside the worker transaction, and reconciles current Discord member
+roles only after the audited database transaction commits. Tier clear is
+intentionally not exposed because the legacy workflow does not define a safe
+clear/reconciliation contract.
 
 `$team_name`, `$team_server`, and `$team_tier` remain registered and route
-through the shared worker/service. `$team_tier` enters the bounded preflight
-before any legacy direct Peewee path; `$team_house` and `$team_edit ... ARCHIVE`
-remain unchanged. No native-interface compatibility compromise was identified
-for P8.2, so no new ledger row is required. The combined P8.1/P8.2 beta gate,
+through the shared worker/service. `$team_tier` remains behind the original
+League cog scope, then enters the bounded preflight before any legacy direct
+Peewee path; `$team_house` and `$team_edit ... ARCHIVE` remain unchanged. No
+native-interface compatibility compromise was identified for P8.2, so no new
+ledger row is required. The combined P8.1/P8.2 beta gate,
 development-guild capability assignment, command synchronization, and beta
 smoke remain pending separate approval.
 

@@ -4981,8 +4981,8 @@ Branch/base: `codex/p8-2-team-simple-attributes` from exact clean base
 production checkout/service/database access, dependency installation, push,
 merge, or sudo action was performed.
 
-Initial implementation commit: `de8a0a9`; Tier-3 correction commit:
-`4e4e15e`.
+Initial implementation commit: `de8a0a9`; Tier-3 correction commits:
+`4e4e15e`, `0848bdf`.
 
 Risk tier: **Tier 3**. Name and server are narrow metadata changes; tier also
 requires post-commit Discord role reconciliation for current team members.
@@ -5024,8 +5024,9 @@ Implementation evidence:
   permission, validation, ambiguity, conflict, and database failures remain
   ephemeral. `/team tier` deliberately has no clear option because the legacy
   tier workflow has no safe clear behavior to preserve. Native and prefix
-  tier authorization is mod-only; no new PolyChampions/test-only gate is
-  applied, matching the legacy `$team_tier` policy.
+  tier authorization retains the effective legacy mod plus
+  PolyChampions/test scope; the prefix League cog check and worker/native
+  checks all enforce that boundary.
 - `modules/team_attributes.py` is the shared adapter for all three attributes.
   It captures primitive requests, retains unique requester-team inference,
   formats public actor-attributed output, warns that name changes do not rename
@@ -5042,9 +5043,10 @@ Implementation evidence:
   `(name, guild_id)` unique boundary without model-side normalization. Server
   IDs retain the raw integer value and support only the nullable attribute's
   explicit clear. Tier lookup uses configured `settings.tier_lookup`
-  names/numbers and retains house, archived-team, exact team-role, and mod
-  checks. Captured primitive team-role member IDs keep `Player.team` updates
-  and `PlayerHousePreference.clear_preferences` inside that same transaction;
+  names/numbers and retains the effective mod plus PolyChampions/test scope,
+  house, archived-team, and exact team-role checks. Captured primitive
+  team-role member IDs keep `Player.team` updates and
+  `PlayerHousePreference.clear_preferences` inside that same transaction;
   missing Player rows retain legacy warning-and-continue behavior, while DB
   failures roll back the tier and audit.
 - `modules/team_emoji_workers.py` now provides the one shared bounded
@@ -5082,8 +5084,9 @@ Implementation evidence:
   unavailable during setup, so **zero integration tests ran** and no database
   fixture or application data was changed.
 - No new compatibility-ledger row is required: native and prefix workflows
-  retain the material lookup, mod-only permission, public-output, and alias
-  behavior, including the legacy persisted player/preference reconciliation.
+  retain the material lookup, effective mod plus PolyChampions/test scope,
+  public-output, and alias behavior, including the legacy persisted
+  player/preference reconciliation.
   The native-only role-rename warning and the explicit server clear are
   documented UX refinements; tier clear remains deliberately unavailable.
 
@@ -5927,8 +5930,9 @@ development-only copy.
 - Corrected the real-worker read request validation, split tier reads from
   mutation-only house/archive/exact-role preconditions, and moved the prefix
   `$team_tier` bounded preflight ahead of the unchanged house/archive direct
-  Peewee paths. Restored the legacy mod-only prefix authorization and kept the
-  native tier policy consistent with it.
+  Peewee paths. The final permission correction retains the pre-existing
+  League cog PolyChampions/test scope and restores the same worker/native
+  tier-scope enforcement.
 - Captured only primitive exact-team-role member IDs before the worker;
   `Player.team` updates and `PlayerHousePreference.clear_preferences` now run
   synchronously in the tier mutation transaction before `GameLog` audit. DB or
@@ -5938,10 +5942,10 @@ development-only copy.
   tests; complete offline discovery passed with 603 tests and 17 skips. The
   gated development database suite was rerun and PostgreSQL remained
   unavailable, so zero integration tests ran.
-- Corrective implementation/tests commit: `4e4e15e`; documentation/evidence
-  follows as a separate commit. No capability assignment, Discord
-  synchronization, beta launch, production action, push, merge, or sudo action
-  occurred.
+- Corrective implementation/tests commits: `4e4e15e`, followed by final scope
+  correction `0848bdf`; documentation/evidence follows as a separate commit.
+  No capability assignment, Discord synchronization, beta launch, production
+  action, push, merge, or sudo action occurred.
 
 ### 2026-08-03 — P4.2e beta accepted; P8.1 selected
 
