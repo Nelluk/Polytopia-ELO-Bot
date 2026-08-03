@@ -349,6 +349,7 @@ longer be retained.
 | C-003 `/game open` | P5.1 implements arbitrary common size shapes plus a requester-controlled ranked/expiration/notes preview, confirmation/cancel, and public post-commit completion. Native and retained prefix aliases use one canonical cross-play creation path, follow the configured unranked-channel default, and accept either existing account-name field; only the legacy `is_mobile=True` storage value remains for compatibility. | Advanced role-locked sides and mention-restricted recruitment remain prefix-only in this bounded unit. Shared typed/raw join eligibility now accepts either account-name field and ignores historical `is_mobile` platform meaning. If message content intent were later removed before a native role/member editor exists, those uncommon restrictions would be unavailable; prefix support remains unchanged. | Add side-by-side native role selectors and an allowed-member editor to the open-game draft after the shared join-eligibility service exists. | Implemented for P5.1; beta review pending |
 | C-004 `$games`/`$opengames` and native open views | The shared worker preserves the legacy open-game modes, requester-aware eligibility, aliases, and native view switching while bounding the result DTO. | Open discovery now publishes at most the first 500 rows and marks truncation; the former prefix query did not impose an explicit cap. This is a deliberate Tier-2 bounded-read tradeoff, with ordinary results still paginated and query-refinable. | Add a cursor/continuation control backed by the same bounded worker if a guild's open-game volume makes the cap user-visible. | Accepted in P5.8 beta smoke |
 | C-005 `/game tribe` / `$settribe` | Native direct `bulk` and confirmed workspace batches validate every pair and commit all changed lineups/audits atomically. The retained prefix aliases preserve compact batch grammar, self shorthand, abbreviations, `none`, and per-pair outcomes. | Native batches are deliberately all-or-nothing; the legacy prefix deliberately keeps its historical valid-subset behavior, reporting invalid pairs while committing valid assignments/audits together. If message-content processing is later retired, the native workspace/direct option covers the ordinary staff workflow while the prefix-only partial-success distinction is unavailable. | Revisit prefix retirement only after usage evidence and an explicit compatibility decision; do not silently make `$settribe` atomic. | Implemented locally; beta review pending |
+| C-006 `/team image` / `$team_image` | Native `/team image` provides an effective-image read, one typed Discord attachment replacement, and explicit clear under the existing mod/team-enabled boundary. The retained prefix preserves its required team name, direct URL option, attachment-wins behavior, and legacy success/read wording; its stale lookup example now correctly names `team_image`. | Direct URL replacement remains prefix-only because the native command deliberately uses a typed attachment rather than a free-form URL. If prefix processing were later removed, staff would need to upload an attachment for replacement; existing stored URL images would still read and clear natively. Prefix success wording also remains legacy-compatible rather than adding native actor text. | Add a separately justified URL option or a multi-step/modal image editor only if direct URL replacement remains a demonstrated native need; do not add remote downloading without a new validation/security review. | Intentional P8.3 parity boundary; prefix retained |
 
 Every later slash conversion must add a row when parity is intentionally
 reduced. If there is no compromise, its unit evidence should explicitly say
@@ -447,9 +448,17 @@ check:
   `f0429536d7ed899eb356794bcd3558baa9be3d45`.
 - P4.2d roadmap evidence: `e1a0959`; accumulation merge: `7c2269b`.
 
-Current unit: **P8.2 focused team name/server/tier workflows — Integrated and
-beta accepted, with live tier mutation testing deferred until development
-House/role fixtures exist.**
+Current unit: **P8.3 focused `/team image` read/edit/clear — implementation,
+tests, and review correction complete locally; review pending.**
+P8.3 implementation checkpoint: `a3031d5` on `codex/p8-3-team-image`, based on
+the exact clean accumulation checkpoint `c009e5a08e92cba83dbc470371af688b9e1643df`.
+P8.3 review correction implementation/tests checkpoint: `0acdea4` on the same
+branch. Oversight independently reran the strict development-database suite
+against `polytopia_dev`/`polybot_dev`: **16 passed and 1 fixture test was
+skipped** to preserve operator-managed fixtures.
+P8.2 focused team name/server/tier workflows remain integrated and beta
+accepted, with live tier mutation testing deferred until development
+House/role fixtures exist.
 P8.1 focused team-emoji read/edit is Complete and beta accepted.
 Implementation checkpoint: `0bbfae0` on `codex/p8-1-team-emoji`, based on the
 exact clean base `f93855b0eac3fb1e1f42119578c02ecac4213cd4`. After P8.2 review,
@@ -4827,9 +4836,10 @@ Validation/evidence so far:
   `479029527553638401`; host-wide verification showed beta PID `1832908`
   alongside untouched production PID `1534787`.
 
-Next action: select the next bounded P8 team/house or administration unit whose
-slash taxonomy and visibility policy are sufficiently settled. Continue using
-the explicit deployment tool for later native-command beta sessions.
+Next action: review the P8.3 implementation/tests and documentation checkpoint;
+after approval, select `/team house` as the next separately risked workflow.
+Continue using the explicit deployment tool for any later native-command beta
+session.
 
 ## P8 — League and remaining administration workflows
 
@@ -5122,9 +5132,122 @@ worker, and post-commit reconciliation coverage, but no live beta mutation
 acceptance because the development guild has no House setup. This is not a
 code blocker for the completed unit and must not be represented as live-tested.
 
-Next action: select P8.3 as a bounded `/team image` read/edit workflow, then
-handle `/team house` separately because its role and persisted-preference
-reconciliation make it a higher-risk mutation.
+Next action: review the P8.3 correction and documentation checkpoint, then
+handle `/team house` separately because its role and
+persisted-preference reconciliation make it a higher-risk mutation.
+
+### P8.3 — Focused team image read/edit/clear workflow
+
+Status: **Review correction implemented locally; review pending**
+
+Branch/base: `codex/p8-3-team-image` from exact clean checkpoint
+`c009e5a08e92cba83dbc470371af688b9e1643df`.
+
+Implementation/tests checkpoint: `a3031d5` (`Implement P8.3 team image
+workflow`). Review correction implementation/tests checkpoint: `0acdea4`
+(`Correct P8.3 team image reconciliation parity`). Documentation/evidence is
+intentionally separate from both implementation checkpoints.
+
+Risk tier: **Tier 3**. The attribute is narrow, but it combines asynchronous
+Discord download, bounded image inspection, an existing local/URL precedence
+rule, a database/audit transaction, and a post-commit filesystem publication
+boundary.
+
+Objective and interface:
+
+- add `/team image` under the existing `/team` application-command root with
+  `team:string?`, `image:attachment?`, and `clear:boolean?`;
+- reuse the P8.1/P8.2 shared team autocomplete and unique persisted-team
+  inference when `team` is omitted;
+- with no `image` and no `clear`, publicly show the effective local image,
+  configured URL, or an explicit no-image result;
+- accept exactly one typed PNG, JPEG, or WebP attachment for replacement;
+  `image` and `clear:true` are mutually exclusive;
+- preserve `$team_image` registration, required team name, mod plus
+  `allow_teams` decorators, direct URL option, attachment-wins behavior, and
+  established prefix success/read wording. The stale lookup example was
+  corrected to say `team_image`; there is no native free-form URL option.
+
+Source precedence and effect boundary:
+
+- the canonical local team file (`teams/<team-id>.png`) is effective first;
+  `Team.image_url` is the fallback; absent both, the result is no image;
+- attachment bytes are downloaded asynchronously, then normalized and staged
+  by a dedicated filesystem worker outside the Discord event loop and outside
+  `db.atomic()`;
+- native and prefix adapters pass only immutable primitive request values to
+  bounded workers. Workers reload the team and use a worker-local Peewee
+  connection. The synchronous database mutation and `GameLog` audit entry are
+  one atomic transaction;
+- a local replacement clears the stored URL in that transaction, then
+  atomically publishes the staged file only after commit. URL replacement and
+  clear commit their database state first, then remove/quarantine the old
+  local file so it cannot shadow the new URL or cleared state;
+- database failure leaves the visible local file unchanged and cleans the
+  temporary stage. A post-commit publication failure does not claim success:
+  native output sends the actor-attributed reconciliation warning through the
+  established public sender and keeps a staged replacement or hidden recovery
+  copy when possible. If public delivery of that committed-state warning
+  fails, the same warning is sent ephemerally as a fallback;
+- successful reads and committed native mutations are public; native
+  validation, permission, lookup/conflict, download, database, and pre-commit
+  filesystem failures are ephemeral. Native mutation success identifies the
+  actor. The retained prefix keeps its established public compatibility output,
+  with committed publication failures using an actor-attributed public
+  reconciliation warning.
+
+Implementation evidence:
+
+- `modules/team_image.py` is the shared native/prefix adapter. It captures
+  actor text and primitive requests, performs asynchronous attachment download,
+  runs blocking image work in a bounded filesystem executor, drains
+  cancellation, and publishes only after the worker transaction and staged
+  filesystem effect succeed.
+- `modules/team_image_workers.py` owns effective-image reads, authoritative
+  guild/team lookup, permission and URL/operation validation, optimistic local
+  digest checks, synchronous `Team.image_url` mutation, and in-transaction
+  `GameLog` audit writes on a worker-local connection.
+- `modules/image_storage.py` narrowly extends the existing rules with
+  canonical normalized-byte staging, atomic publication, idempotent cleanup,
+  local digest/read helpers, and local-file quarantine/removal. Existing
+  house/game image helpers and legacy URL activation remain available.
+- `modules/administration.py` registers the native command and routes the
+  retained prefix command through the shared service. Native committed
+  publication failures use the public interaction sender, with an ephemeral
+  fallback only when public delivery fails. The existing `team` capability
+  remains default-deny; no development capability assignment or registration
+  scope was changed.
+- `tests/test_team_image.py`, `tests/test_image_storage.py`, and
+  `tests/test_slash_taxonomy.py` cover registration and shared autocomplete,
+  prefix preservation, local/URL/none reads, typed attachment size/format
+  validation, clear/source neutralization, permission/private failure and
+  public actor attribution, primitive worker inputs, worker-local connection,
+  atomic audit/rollback, event-loop responsiveness, cancellation/exception
+  cleanup, successful cancellation drain logging, staged publication ordering,
+  unchanged files on DB failure, recoverable publication failure, native public
+  reconciliation with ephemeral fallback, and prefix URL/attachment output
+  parity through the retained command callback.
+- Focused P8 validation was rerun with the development profile and passed **86
+  tests** across the P8.1/P8.2 retained suites, image storage, P8.3, slash
+  taxonomy, and capability policy. Complete offline discovery passed **625
+  tests with 17 intentional integration skips**.
+- Oversight independently reran the strict gated development-database suite
+  against the verified development profile values `polytopia_dev` and
+  `polybot_dev`: **16 tests passed and 1 fixture test was skipped** to preserve
+  operator-managed fixtures. No fixture or application data was changed by
+  this correction task.
+- No command synchronization, Discord inspection, beta launch, production
+  checkout/service/database action, dependency installation, push, merge, or
+  sudo action occurred.
+
+Compatibility decision: **C-006 is intentional and recorded in the
+compatibility ledger.** Native uses the typed attachment as the clean bounded
+interface; direct URL replacement remains available through the retained
+prefix path. The correction fixes only a stale prefix lookup-example command
+name (`team_emoji` to `team_image`) while preserving the established success
+and read output. No schema change or remote URL download was introduced.
+The next action is review of the correction and then selection of `/team house`
+as a separate higher-risk unit.
 
 ## P9 — Production rollout and prefix lifecycle
 
@@ -5880,6 +6003,51 @@ managed worktree and saved snapshot instead of retaining one authoritative
 development-only copy.
 
 ## Progress log
+
+### 2026-08-03 — P8.3 implementation checkpoint completed locally
+
+- Implemented `/team image` on `codex/p8-3-team-image` from exact clean base
+  `c009e5a08e92cba83dbc470371af688b9e1643df`; implementation/tests commit is
+  `a3031d5`.
+- Added the typed attachment/read/clear native shape under the existing
+  default-deny `team` capability, reused shared target autocomplete/inference,
+  and preserved `$team_image` URL/attachment grammar, permissions, and
+  success/read wording. Native public success identifies the actor; native
+  failures remain private except for committed publication reconciliation.
+- Added worker-local effective-image reads and atomic audited URL-state
+  mutation, off-loop attachment normalization, staged local publication,
+  post-commit removal/quarantine, optimistic local-file digests, and
+  reconciliation reporting for publication failure. No schema change was
+  introduced.
+- The initial focused P8 validation passed with **80 tests**. The initial
+  complete offline discovery passed with **619 tests and 17 intentional
+  integration skips**. The later correction rerun and current evidence are
+  recorded below.
+- No capability assignment, Discord inspection/synchronization, beta launch,
+  production action, dependency installation, push, merge, or sudo action was
+  performed. Documentation/evidence is being committed separately.
+
+### 2026-08-03 — P8.3 review correction completed locally
+
+- Corrected native committed-publication failure handling in `0acdea4`:
+  the actor-attributed reconciliation warning now goes through the established
+  public interaction sender, and only a public-delivery failure triggers the
+  same warning as an ephemeral fallback.
+- Added adapter-level retained `$team_image` tests for direct URL replacement
+  and attachment-plus-URL attachment-wins behavior, including established
+  output and shared-service routing. Corrected the stale lookup example from
+  `team_emoji` to `team_image` without changing the legacy success/read output.
+- Added a successful caller-cancellation regression proving the worker
+  transaction and filesystem publication drain to completion, the staged file
+  is cleaned up, and the committed/publication outcome is logged without any
+  Discord send from the cancelled path.
+- Reran focused P8 validation: **86 tests passed**. Reran complete offline
+  discovery: **625 tests passed with 17 intentional integration skips**.
+- Oversight independently reran the strict development-database suite against
+  `polytopia_dev`/`polybot_dev`: **16 passed and 1 fixture test skipped** to
+  preserve operator-managed fixtures. No command synchronization, Discord
+  inspection, runtime/beta launch, production action, dependency installation,
+  push, merge, or sudo action occurred.
 
 ### 2026-08-03 — P8.1/P8.2 beta accepted with tier limitation
 

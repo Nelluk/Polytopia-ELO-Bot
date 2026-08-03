@@ -20,6 +20,8 @@ from modules import team_emoji as team_emoji_service
 from modules import team_emoji_workers
 from modules import team_attributes as team_attributes_service
 from modules import team_attributes_workers
+from modules import team_image as team_image_service
+from modules import team_image_workers
 
 logger = logging.getLogger('polybot.' + __name__)
 elo_logger = logging.getLogger('polybot.elo')
@@ -1605,6 +1607,150 @@ class administration(commands.Cog):
                 ephemeral=True,
             )
 
+    @team_group.command(
+        name='image',
+        description='View or update a team image.',
+    )
+    @discord.app_commands.autocomplete(
+        team=team_attributes_service.autocomplete_teams,
+    )
+    @discord.app_commands.describe(
+        team='Team name; omit this to infer your only team.',
+        image='PNG, JPEG, or WebP attachment; omit this to view the image.',
+        clear='Explicitly clear the team image.',
+    )
+    async def team_image_slash(
+        self,
+        interaction: discord.Interaction,
+        team: str | None = None,
+        image: discord.Attachment | None = None,
+        clear: bool = False,
+    ):
+        """Read or mod-edit one team image with staged publication."""
+
+        guild_id = getattr(interaction.guild, 'id', None)
+        if guild_id is None:
+            return await interaction.response.send_message(
+                'This command can only be used in a server.',
+                ephemeral=True,
+            )
+        access_error = team_image_service.native_access_error(
+            interaction.user,
+            guild_id,
+        )
+        if access_error:
+            return await interaction.response.send_message(
+                access_error,
+                ephemeral=True,
+            )
+        if clear and image is not None:
+            return await interaction.response.send_message(
+                'Choose either an image replacement or `clear`, not both.',
+                ephemeral=True,
+            )
+
+        actor = team_image_service.capture_actor(interaction.user)
+        await interaction.response.defer(ephemeral=True)
+        try:
+            current = await team_image_service.run_read(
+                team_image_service.build_read_request(
+                    member=interaction.user,
+                    guild_id=guild_id,
+                    team_lookup=team,
+                    invoked_with='/team image',
+                )
+            )
+            if image is None and not clear:
+                await team_image_service.publish_read(
+                    current,
+                    send=team_image_service.public_interaction_sender(
+                        interaction,
+                    ),
+                    actor=actor,
+                )
+                return current
+
+            staged = None
+            operation = team_image_workers.TEAM_IMAGE_CLEAR
+            if image is not None:
+                staged = await team_image_service.stage_attachment(
+                    image,
+                    team_id=current.team_id,
+                )
+                operation = team_image_workers.TEAM_IMAGE_LOCAL
+            request = team_image_service.build_mutation_request(
+                member=interaction.user,
+                guild_id=guild_id,
+                team_id=current.team_id,
+                operation=operation,
+                staged_path=(staged.path if staged is not None else None),
+                expected_image_url=current.image_url,
+                expected_local_digest=current.local_digest,
+                native=True,
+                invoked_with='/team image',
+            )
+            result = await team_image_service.run_mutation(
+                request,
+                staged=staged,
+            )
+            await team_image_service.publish_mutation_result(
+                result,
+                send=team_image_service.public_interaction_sender(
+                    interaction,
+                ),
+                actor=actor,
+            )
+            return result
+        except team_image_service.TeamImagePublicationError as exc:
+            logger.exception(
+                'Committed native team image %s requires publication '
+                'reconciliation for guild %s',
+                exc.result.team_id,
+                guild_id,
+            )
+            warning = team_image_service.publication_failure_message(
+                exc,
+                actor=actor,
+            )
+            try:
+                await team_image_service.public_interaction_sender(
+                    interaction,
+                )(warning)
+            except Exception:
+                logger.exception(
+                    'Committed native team image %s could not publish its '
+                    'public reconciliation warning; using an ephemeral '
+                    'fallback for guild %s',
+                    exc.result.team_id,
+                    guild_id,
+                )
+                return await interaction.followup.send(
+                    warning,
+                    ephemeral=True,
+                )
+            return None
+        except team_image_workers.TeamImageValidationError as exc:
+            return await interaction.followup.send(str(exc), ephemeral=True)
+        except (team_image_service.TeamImageDownloadError, image_storage.ImageStorageError) as exc:
+            return await interaction.followup.send(str(exc), ephemeral=True)
+        except peewee.PeeweeException:
+            logger.exception(
+                'Database failure in native team image command for guild %s',
+                guild_id,
+            )
+            return await interaction.followup.send(
+                'Team image operation failed and rolled back.',
+                ephemeral=True,
+            )
+        except Exception:
+            logger.exception(
+                'Unexpected native team image failure for guild %s',
+                guild_id,
+            )
+            return await interaction.followup.send(
+                'Team image operation failed and rolled back.',
+                ephemeral=True,
+            )
     @commands.command(usage='team_name [image_url or attachment]')
     @settings.is_mod_check()
     @settings.guild_has_setting(setting_name='allow_teams')
@@ -1616,65 +1762,92 @@ class administration(commands.Cog):
         `[p]team_image Ronin` with an attached PNG, JPEG, or WebP image
         `[p]team_image Ronin` - Display currently saved image
         """
-        try:
-            team = models.Team.get_or_except(team_name, ctx.guild.id, include_hidden=True)
-        except exceptions.NoSingleMatch as ex:
-            return await ctx.send(f'{ex}\nExample: `{ctx.prefix}team_emoji name :my_custom_emoji:`')
-
         attachments = ctx.message.attachments
         if len(attachments) > 1:
             return await ctx.send('Please attach exactly one image.')
+        try:
+            current = await team_image_service.run_read(
+                team_image_service.build_read_request(
+                    member=ctx.author,
+                    guild_id=ctx.guild.id,
+                    team_lookup=team_name,
+                    invoked_with=getattr(ctx, 'invoked_with', 'team_image'),
+                )
+            )
+            if not attachments and not image_url:
+                return await team_image_service.publish_legacy_read(
+                    current,
+                    send=ctx.send,
+                )
 
-        async with image_storage.update_lock('team', team.id):
+            staged = None
+            operation = team_image_workers.TEAM_IMAGE_URL
             if attachments:
-                try:
-                    await image_storage.save_attachment(attachments[0], 'team', team.id)
-                except (image_storage.ImageStorageError, discord.HTTPException) as exc:
-                    return await ctx.send(f'Unable to save team image: {exc}')
-
-                ignored_url = ' The supplied URL was ignored.' if image_url else ''
-                logger.info(f'team_image stored locally for {team.id} {team.name}')
-                models.GameLog.write(
-                    guild_id=ctx.guild.id,
-                    message=(
-                        f'{models.GameLog.member_string(ctx.author)} updated the local image '
-                        f'for Team {team.name}.{ignored_url}'
-                    ),
+                staged = await team_image_service.stage_attachment(
+                    attachments[0],
+                    team_id=current.team_id,
                 )
-                local_file = image_storage.local_attachment('team', team)
+                operation = team_image_workers.TEAM_IMAGE_LOCAL
+            request = team_image_service.build_mutation_request(
+                member=ctx.author,
+                guild_id=ctx.guild.id,
+                team_id=current.team_id,
+                operation=operation,
+                image_url=(image_url if operation == team_image_workers.TEAM_IMAGE_URL else None),
+                staged_path=(staged.path if staged is not None else None),
+                expected_image_url=current.image_url,
+                expected_local_digest=current.local_digest,
+                ignored_url=bool(attachments and image_url),
+                native=False,
+                invoked_with=getattr(ctx, 'invoked_with', 'team_image'),
+            )
+            result = await team_image_service.run_mutation(
+                request,
+                staged=staged,
+            )
+            return await team_image_service.publish_mutation_result(
+                result,
+                send=ctx.send,
+            )
+        except team_image_service.TeamImagePublicationError as exc:
+            logger.exception(
+                'Committed prefix team image %s requires publication '
+                'reconciliation for guild %s',
+                exc.result.team_id,
+                ctx.guild.id,
+            )
+            return await ctx.send(
+                team_image_service.publication_failure_message(
+                    exc,
+                    actor=team_image_service.capture_actor(ctx.author),
+                )
+            )
+        except team_image_workers.TeamImageLookupError as exc:
+            return await ctx.send(
+                f'{exc}\nExample: `{ctx.prefix}team_image name '
+                'http://url_to_image.png`'
+            )
+        except team_image_workers.TeamImageValidationError as exc:
+            return await ctx.send(str(exc))
+        except (team_image_service.TeamImageDownloadError, image_storage.ImageStorageError) as exc:
+            if image_url and not attachments:
                 return await ctx.send(
-                    f'Team **{team.name}** updated with a local image.{ignored_url}',
-                    file=local_file.to_discord_file(),
+                    f'{exc} Example: `{ctx.prefix}team_image name '
+                    'http://url_to_image.png`'
                 )
-
-            if image_url:
-                try:
-                    image_storage.activate_remote_url(team, 'team', image_url)
-                except image_storage.ImageStorageError as exc:
-                    return await ctx.send(
-                        f'{exc} Example: `{ctx.prefix}team_image name http://url_to_image.png`'
-                    )
-
-                logger.info(f'team_image set for {team.id} {team.name} to {team.image_url}')
-                models.GameLog.write(
-                    guild_id=ctx.guild.id,
-                    message=(
-                        f'{models.GameLog.member_string(ctx.author)} updated the image URL '
-                        f'for Team {team.name} to {team.image_url}'
-                    ),
-                )
-                await ctx.send(f'Team **{team.name}** updated with a direct image URL.')
-                return await ctx.send(team.image_url)
-
-            local_file = image_storage.local_attachment('team', team)
-            if local_file:
-                return await ctx.send(
-                    f'Locally stored image for team **{team.name}**:',
-                    file=local_file.to_discord_file(),
-                )
-            if team.image_url:
-                return await ctx.send(f'Image for team **{team.name}**: <{team.image_url}>')
-            return await ctx.send(f'Team **{team.name}** does not have an image set.')
+            return await ctx.send(f'Unable to save team image: {exc}')
+        except peewee.PeeweeException:
+            logger.exception(
+                'Database failure reading or updating team image for guild %s',
+                ctx.guild.id,
+            )
+            return await ctx.send('Team image operation failed and rolled back.')
+        except Exception:
+            logger.exception(
+                'Unexpected team image failure for guild %s',
+                ctx.guild.id,
+            )
+            return await ctx.send('Team image operation failed and rolled back.')
 
     @commands.command(usage='old_name new_name')
     @settings.is_mod_check()

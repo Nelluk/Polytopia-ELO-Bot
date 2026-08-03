@@ -91,6 +91,35 @@ class ImageStorageTests(unittest.TestCase):
             self.assertEqual(stored.mode, 'RGBA')
             self.assertEqual(stored.size, (1024, 512))
 
+    def test_staging_keeps_visible_image_until_publish_and_cleanup_is_idempotent(self):
+        destination = image_storage.team_image_path(12)
+        original = image_bytes('PNG', size=(20, 20))
+        image_storage._normalise_image(original, destination)
+        visible_before = destination.read_bytes()
+
+        staged = image_storage.stage_normalised_image(
+            image_bytes('JPEG', size=(30, 10), mode='RGB'),
+            'team',
+            12,
+        )
+        self.assertTrue(Path(staged.path).is_file())
+        self.assertEqual(destination.read_bytes(), visible_before)
+
+        image_storage.publish_staged_image(staged.path, 'team', 12)
+        self.assertFalse(Path(staged.path).exists())
+        self.assertEqual(destination.read_bytes(), staged.data)
+
+        image_storage.cleanup_staged_image(staged.path)
+
+    def test_remove_local_image_neutralises_effective_override(self):
+        destination = image_storage.team_image_path(13)
+        image_storage._normalise_image(image_bytes(), destination)
+
+        image_storage.remove_local_image('team', 13)
+
+        self.assertFalse(destination.exists())
+        self.assertIsNone(image_storage.local_image_bytes('team', 13))
+
     def test_rejects_corrupt_and_oversized_data(self):
         destination = image_storage.team_image_path(1)
         with self.assertRaises(image_storage.ImageStorageError):
