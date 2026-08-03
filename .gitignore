@@ -30,6 +30,7 @@ server_settings_dev.py
 pyvenv.cfg
 pip-selfcheck.json
 *.log*
+logs/development/beta-feedback/
 *.csv
 *.csv.gz
 *.json

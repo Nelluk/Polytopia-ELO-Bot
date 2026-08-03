@@ -3,16 +3,15 @@ import peewee
 from discord.ext import commands
 import modules.models as models
 import modules.utilities as utilities
-import modules.image_storage as image_storage
 import settings
 import logging
 import asyncio
 import modules.exceptions as exceptions
-import re
 import datetime
 import random
 from modules.games import PolyGame
 from modules.league import free_agent_role_name, leader_role_name, coleader_role_name
+from modules import beta_feedback_views
 # import modules.imgen as imgen
 # import modules.achievements as achievements
 
@@ -402,71 +401,32 @@ class misc(commands.Cog):
             channel_tags = [f'<#{chan_id}>' for chan_id in permitted_channels]
             return await ctx.send(f'{e}\nTry sending `{ctx.prefix}ping` from a public channel that all members can view: {" ".join(channel_tags)}')
 
-    @commands.command(aliases=['helpstaff'], hidden=False)
-    @commands.cooldown(2, 30, commands.BucketType.user)
-    # @settings.guild_has_setting(setting_name='staff_help_channel')
-    async def staffhelp(self, ctx, *, message: str = ''):
-        """
-        Get staff help on bot usage or game disputes
+    @discord.app_commands.command(
+        name='staffhelp',
+        description='Submit a structured help, bug, or feature report.',
+    )
+    @discord.app_commands.guild_only()
+    @discord.app_commands.checks.cooldown(
+        2,
+        30.0,
+        key=lambda interaction: interaction.user.id,
+    )
+    async def staffhelp_slash(self, interaction: discord.Interaction):
+        """Open the requester-bound structured beta feedback form."""
 
-        The message will be relayed to a staff channel and someone should assist you shortly.
-        You can attach screenshots or links to the message.
-
-        **Example:**
-        `[p]staffhelp Game 42500 was claimed incorrectly`
-        `[p]staffhelp Game 42500 Does this screenshot show a restartable spawn?`
-        """
-
-        potential_game_id = re.search(r'\b\d{4,6}\b', message)
-        game_id_search = potential_game_id[0] if potential_game_id else None
-        try:
-            related_game = models.Game.by_channel_or_arg(chan_id=ctx.channel.id, arg=game_id_search)
-            guild_id = related_game.guild_id
-            # Send game embed summary if message includes a numeric ID of a game or command is used in a game channel
-        except (ValueError, exceptions.MyBaseException):
-            related_game = None
-            guild_id = ctx.guild.id
-
-        guild = self.bot.get_guild(guild_id)
-        if guild:
-            channel = guild.get_channel(settings.guild_setting(guild_id, 'staff_help_channel'))
-        else:
-            channel = None
-
-        if not channel:
-            ctx.command.reset_cooldown(ctx)
-            return await ctx.send('Cannot load staff channel. You will need to ping a staff member.')
-
-        if ctx.message.attachments:
-            attachment_urls = '\n'.join([attachment.url for attachment in ctx.message.attachments])
-            message += f'\n{attachment_urls}'
-
-        if not message or len(message) < 7:
-            ctx.command.reset_cooldown(ctx)
-            return await ctx.send(f'You must supply a help request, ie: `{ctx.prefix}{ctx.invoked_with} Game 42500 Does this screenshot show a restartable spawn?`')
-
-        helper_role_str = 'server staff'
-        helper_role_name = settings.guild_setting(guild_id, 'helper_roles')[0]
-        helper_role = discord.utils.get(guild.roles, name=helper_role_name)
-        helper_role_str = f'{helper_role.mention}' if helper_role else 'server staff'
-
-        if ctx.channel.guild.id == guild_id:
-            chan_str = f'({ctx.channel.name})'
-        else:
-            chan_str = f'({ctx.channel.name} on __{ctx.guild.name}__)'
-        await channel.send(f'Attention {helper_role_str} - {ctx.author.mention} ({ctx.author.name}) asked for help from channel <#{ctx.channel.id}> {chan_str}:\n{ctx.message.jump_url}\n{message}')
-
-        if related_game:
-            embed, content = related_game.embed(guild=guild, prefix=ctx.prefix)
-            await image_storage.send_game_embed(
-                channel, related_game, embed=embed, content=content
+        if interaction.guild_id is None or interaction.channel_id is None:
+            return await interaction.response.send_message(
+                'Staff help is available in a server channel only.',
+                ephemeral=True,
             )
-            game_id = related_game.id
-        else:
-            game_id = 0
-
-        models.GameLog.write(game_id=game_id, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} requested staffhelp: *{message}*')
-        await ctx.send('Your message has been sent to server staff. Please wait patiently or send additional information on your issue.')
+        await interaction.response.send_modal(
+            beta_feedback_views.StaffHelpModal(
+                self.bot,
+                requester_id=interaction.user.id,
+                guild_id=interaction.guild_id,
+                channel_id=interaction.channel_id,
+            )
+        )
 
     @commands.command(hidden=False, aliases=['random_tribes', 'rtribe'], usage='n_tribes [-banned_tribe ...]')
     @settings.in_bot_channel()

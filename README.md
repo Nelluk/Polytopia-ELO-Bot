@@ -11,10 +11,14 @@ Requires CPython 3.12, PostgreSQL, and
 - [Data Retention Schedule](docs/DATA_RETENTION.md)
 - [Privacy Readiness Checklist](docs/PRIVACY_READINESS_CHECKLIST.md)
 
-For a privacy request, use the bot's configured command prefix followed by
-`staffhelp Privacy request - please contact me about my PolyELO data` in a
-Discord server where PolyELO operates. Do not post Discord IDs, credentials, or
-other sensitive details in a public GitHub issue.
+For a privacy request in the wider beta, invoke `/staffhelp` with no options.
+In the modal, use `Privacy request` as the short summary, put `Please contact
+me about my PolyELO data` in the detailed description, and add relevant account
+or other information in the optional context field. The native JSONL record is
+development-only, so `/staffhelp` is not yet a production-ready replacement.
+Before the separately approved P9 rollout decision, production communities
+should use their currently deployed support/moderator route. Do not post
+Discord IDs, credentials, or other sensitive details in a public GitHub issue.
 
 Create an application and application bot account at the Discord developer portal: https://discord.com/developers/applications
 

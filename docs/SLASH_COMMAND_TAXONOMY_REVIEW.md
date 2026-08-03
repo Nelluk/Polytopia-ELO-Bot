@@ -142,16 +142,21 @@ omission cannot naturally mean “view.”
 
 ### 4. Preserve migration safety
 
-Prefix names and aliases remain unchanged. Slash wrappers should stay thin
-over shared application/worker services so a pre-production spelling change
-does not alter permissions, transactions, or Discord-effect ordering. Once a
-path reaches production, rename it only through an explicit compatibility
+Prefix preservation is the default recommendation only for high-frequency or
+day-to-day workflows, power-user bulk entry, or capabilities not yet matched
+natively. Each unit records an explicit `legacy recommendation: retain` or
+`legacy recommendation: retire` with its rationale and user decision. Existing
+user-approved preserved commands remain unchanged; explicitly approved
+retirements are not restored. Slash wrappers should stay thin over shared
+application/worker services so a pre-production spelling change does not alter
+permissions, transactions, or Discord-effect ordering. Once a path reaches
+production, rename or retire it only through an explicit compatibility
 decision.
 
 Compatibility is evaluated in layers. Database semantics, permissions,
 transactions, audit attribution, and post-commit effects require parity.
-Prefix invocation remains available during transition. Presentation may move
-from embeds/reactions to Components v2 only when a concrete current usability
+Retained prefix invocation remains available during transition. Presentation may
+move from embeds/reactions to Components v2 only when a concrete current usability
 benefit justifies it and desktop/mobile evidence covers the replacement; simple
 reads should retain the proven common view.
 Do not maintain parallel classic and modern mutation implementations.
@@ -240,6 +245,20 @@ Taxonomy v2.2 applies this rule system-wide:
 This table is an interaction contract rather than permission to combine
 unrelated application services. Each bounded implementation unit still owns
 its worker, authorization, transaction, and post-effect review.
+
+WB1.1 implements the `/staffhelp` row locally on the locked discord.py 2.7.1
+environment: the native command has no options and opens a modal with a
+radio-group category, bounded summary/details/context inputs, and a 10-file
+Components v2 upload field. The legacy `$staffhelp`/`$helpstaff` adapters are
+intentionally retired by explicit user approval before integration; native
+`/staffhelp` is the development wider-beta replacement and the sole WB1.1
+feedback intake. The native submission uses the development-only append-only
+JSONL authority, and the configured staff-channel message is a post-write
+mirror. It is not a production-ready replacement; before P9, the project must
+separately approve a production-safe authoritative intake/retention path or
+another production relay design. Production communities continue using their
+currently deployed support/moderator route until then. This implementation is
+review-pending and does not authorize command synchronization or beta launch.
 
 ## Proposed game command tree
 
@@ -688,6 +707,19 @@ operational, security, privacy/retention, and dependency-compatibility fixes
 remain allowed and their current runtime/cutover documentation remains
 authoritative.
 
+### Per-unit legacy compatibility decisions
+
+Prefix preservation is the default recommendation only for commands crucial
+to day-to-day workflows, high-frequency or power-user bulk entry, or
+capabilities not yet matched natively. Low-use, redundant, administrative, or
+clearly superseded prefix commands may be retired with explicit user approval.
+For each newly selected unit, oversight records a concise
+`legacy recommendation: retain` or `legacy recommendation: retire` with its
+rationale, and the user approves or revises that recommendation before
+implementation. Existing user-approved preserved commands are not
+retroactively removed by this policy; revisit them only when naturally touched
+or during a later explicit prefix-retirement phase.
+
 ### General utilities and support
 
 | Current prefix handler(s) | Taxonomy v2.2 native home | Disposition / note |
@@ -698,7 +730,7 @@ authoritative.
 | `rtribes` | `/tools random-tribes` | Redesign bans, free-tribe count, and duplicates |
 | `credits` | `/about credits` | Strong candidate |
 | `stats` | `/about stats` | Strong candidate after bounded read work |
-| `staffhelp` | `/staffhelp` | Preserve the established top-level name; no slash options, opening a modal for game reference, long description, and multiple uploads |
+| `staffhelp` | `/staffhelp` | Legacy recommendation: **retire** — explicit user-approved retirement of the low-use, redundant prefix adapter; the no-option native modal is the development wider-beta replacement for game reference, long description, and multiple uploads. The native JSONL intake is development-only and not production-ready; a separate approved production-boundary decision is required before P9. |
 
 ### Best modal/component candidates
 
@@ -713,7 +745,7 @@ authoritative.
 | Player registration | `/player register` modal with one canonical Polytopia name and optional staff-selected member | Removes an obsolete platform/name/code distinction while keeping onboarding short |
 | Team/house creation | Modal for name and typed attributes, followed by a review/confirm view | Multi-field creation is clearer than many optional slash arguments |
 | Team/house image | Focused attribute command; one typed attachment is a direct replacement and `clear` is explicit | Native file upload avoids URL-only workflows; a modal remains optional for a future multi-field house/image workflow |
-| Staff help | `/staffhelp` modal with summary/details, game reference, and up to 10 uploads per upload component | Preserves the familiar name and supports structured reports and screenshots |
+| Staff help | `/staffhelp` modal with summary/details, game reference, and up to 10 uploads per upload component | Native development-wider-beta replacement after explicit retirement of the redundant prefix adapter; supports structured reports and screenshots. It is not a production-ready intake until a separate P9 production-boundary decision is approved. |
 | Game notification | `/game ping` composer with audience controls, repeatable text sections, multiple uploads, and public-effect preview/confirm | Separates authoring from potentially broad notification and supports bounded multi-message delivery |
 | League bulk maintenance | Buttons/selects for preview and confirmation; modal only for a reason/note | Bulk target selection and result review are iterative, not a one-shot form |
 

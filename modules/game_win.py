@@ -302,7 +302,7 @@ async def run_win(
                 'If opponents do not dispute the win then the game will be '
                 'confirmed automatically after a period of time.\n'
                 f'If this win was claimed falsely please use the '
-                f'`{request.prefix}staffhelp` command to contest, or you can '
+                '`/staffhelp` to contest, or you can '
                 'cancel your claim with the command '
                 f'`{request.prefix}unwin {request.game_id}`.\n'
                 f'*Game lineup*: {" ".join(winning_game.mentions())}'
@@ -323,7 +323,7 @@ async def run_win(
                 f'{printed_side_name}`__ to confirm the victory.\n'
                 'Please post a screenshot of your victory in case there is '
                 'a dispute. If this win was claimed in error please use the '
-                f'`{request.prefix}staffhelp` command, or you can cancel your '
+                '`/staffhelp`, or you can cancel your '
                 'claim with the command '
                 f'`{request.prefix}unwin {request.game_id}`'
             )
