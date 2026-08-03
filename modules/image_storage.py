@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass
 from io import BytesIO
+import hashlib
 import os
 from pathlib import Path
 import tempfile
@@ -53,6 +54,15 @@ class LocalImageAttachment:
 
     def to_discord_file(self) -> discord.File:
         return discord.File(self.path, filename=self.filename)
+
+
+@dataclass(frozen=True)
+class StagedImage:
+    """A validated image held in a hidden path until its DB mutation commits."""
+
+    path: str
+    data: bytes
+    filename: str
 
 
 def ensure_image_directories() -> None:
@@ -165,8 +175,8 @@ async def edit_game_embed(message, game, *, embed, content=None):
     return await message.edit(embed=embed, content=content, attachments=retained)
 
 
-def _normalise_image(data: bytes, destination: Path) -> None:
-    """Validate and write canonical PNG image data atomically."""
+def _normalise_image_bytes(data: bytes) -> bytes:
+    """Validate image data and return the canonical PNG bytes."""
 
     if not data:
         raise ImageStorageError('The attached image is empty.')
@@ -179,7 +189,10 @@ def _normalise_image(data: bytes, destination: Path) -> None:
             with Image.open(BytesIO(data)) as probe:
                 image_format = (probe.format or '').upper()
                 width, height = probe.size
-                is_animated = getattr(probe, 'is_animated', False) or getattr(probe, 'n_frames', 1) > 1
+                is_animated = (
+                    getattr(probe, 'is_animated', False)
+                    or getattr(probe, 'n_frames', 1) > 1
+                )
                 probe.verify()
     except (Image.DecompressionBombError, Image.DecompressionBombWarning):
         raise ImageStorageError('The attached image is too large to decode safely.')
@@ -202,28 +215,160 @@ def _normalise_image(data: bytes, destination: Path) -> None:
                 (MAX_IMAGE_DIMENSION, MAX_IMAGE_DIMENSION),
                 Image.Resampling.LANCZOS,
             )
-
-            destination.parent.mkdir(mode=0o750, parents=True, exist_ok=True)
-            fd, temp_name = tempfile.mkstemp(
-                prefix=f'.{destination.stem}-',
-                suffix='.tmp',
-                dir=str(destination.parent),
-            )
-            os.close(fd)
-            temp_path = Path(temp_name)
-            try:
-                image.save(temp_path, format='PNG', optimize=True)
-                if temp_path.stat().st_size > MAX_UPLOAD_BYTES:
-                    raise ImageStorageError('The normalised image is larger than 5 MiB.')
-                os.chmod(temp_path, 0o640)
-                os.replace(temp_path, destination)
-            finally:
-                if temp_path.exists():
-                    temp_path.unlink()
+            output = BytesIO()
+            image.save(output, format='PNG', optimize=True)
+            normalised = output.getvalue()
+            if len(normalised) > MAX_UPLOAD_BYTES:
+                raise ImageStorageError('The normalised image is larger than 5 MiB.')
+            return normalised
     except ImageStorageError:
         raise
     except (OSError, ValueError) as exc:
         raise ImageStorageError('The image could not be normalised and stored.') from exc
+
+
+def _write_bytes_atomically(data: bytes, destination: Path) -> None:
+    """Write bytes by replacing one visible file atomically."""
+
+    destination.parent.mkdir(mode=0o750, parents=True, exist_ok=True)
+    fd, temp_name = tempfile.mkstemp(
+        prefix=f'.{destination.stem}-',
+        suffix='.tmp',
+        dir=str(destination.parent),
+    )
+    temp_path = Path(temp_name)
+    try:
+        with os.fdopen(fd, 'wb') as output:
+            output.write(data)
+            output.flush()
+            os.fsync(output.fileno())
+        os.chmod(temp_path, 0o640)
+        os.replace(temp_path, destination)
+    finally:
+        if temp_path.exists():
+            temp_path.unlink()
+
+
+def _normalise_image(data: bytes, destination: Path) -> None:
+    """Validate and write canonical PNG image data atomically."""
+
+    _write_bytes_atomically(_normalise_image_bytes(data), destination)
+
+
+def stage_normalised_image(data: bytes, kind: str, entity_id: int) -> StagedImage:
+    """Validate an image into a hidden sibling file without replacing the live image."""
+
+    destination = entity_image_path(kind, entity_id)
+    normalised = _normalise_image_bytes(data)
+    destination.parent.mkdir(mode=0o750, parents=True, exist_ok=True)
+    fd, temp_name = tempfile.mkstemp(
+        prefix=f'.{destination.stem}-',
+        suffix='.stage',
+        dir=str(destination.parent),
+    )
+    temp_path = Path(temp_name)
+    try:
+        with os.fdopen(fd, 'wb') as output:
+            output.write(normalised)
+            output.flush()
+            os.fsync(output.fileno())
+        os.chmod(temp_path, 0o640)
+        return StagedImage(
+            path=str(temp_path),
+            data=normalised,
+            filename=f'{kind}-logo-{int(entity_id)}.png',
+        )
+    except Exception:
+        if temp_path.exists():
+            temp_path.unlink()
+        raise
+
+
+def publish_staged_image(staged_path: str, kind: str, entity_id: int) -> Path:
+    """Publish a staged image after commit, atomically replacing the visible file."""
+
+    staged = Path(staged_path)
+    destination = entity_image_path(kind, entity_id)
+    if not staged.is_file():
+        raise ImageStorageError('The staged image is no longer available.')
+    destination.parent.mkdir(mode=0o750, parents=True, exist_ok=True)
+    os.replace(staged, destination)
+    return destination
+
+
+def cleanup_staged_image(staged_path: str | None) -> None:
+    """Remove a staged image if it still exists; missing paths are already clean."""
+
+    if not staged_path:
+        return
+    try:
+        Path(staged_path).unlink()
+    except FileNotFoundError:
+        return
+
+
+def local_image_bytes(kind: str, entity_id: int) -> bytes | None:
+    """Read the effective local image in a worker, never on the event loop."""
+
+    path = entity_image_path(kind, entity_id)
+    if not path.is_file():
+        return None
+    try:
+        return path.read_bytes()
+    except OSError as exc:
+        raise ImageStorageError('The stored local image could not be read.') from exc
+
+
+def local_image_digest(kind: str, entity_id: int) -> str | None:
+    """Return a stable fingerprint for optimistic image-state validation."""
+
+    data = local_image_bytes(kind, entity_id)
+    if data is None:
+        return None
+    return hashlib.sha256(data).hexdigest()
+
+
+def remove_local_image(kind: str, entity_id: int) -> None:
+    """Remove a visible local override, quarantining it if direct unlink fails.
+
+    The quarantine fallback first removes the file from the effective path. If
+    its final cleanup fails, the hidden backup is deliberately retained for
+    operator recovery rather than leaving it shadowing a new URL or a clear.
+    """
+
+    path = entity_image_path(kind, entity_id)
+    if not path.is_file():
+        return
+    try:
+        path.unlink()
+        return
+    except FileNotFoundError:
+        return
+    except OSError as unlink_error:
+        backup_path = None
+        try:
+            fd, backup_name = tempfile.mkstemp(
+                prefix=f'.{path.stem}-',
+                suffix='.reconcile',
+                dir=str(path.parent),
+            )
+            os.close(fd)
+            backup_path = Path(backup_name)
+            backup_path.unlink()
+            os.replace(path, backup_path)
+        except OSError:
+            if backup_path and backup_path.exists():
+                backup_path.unlink()
+            raise ImageStorageError(
+                'The previous local image could not be removed.'
+            ) from unlink_error
+        try:
+            backup_path.unlink()
+        except OSError as cleanup_error:
+            raise ImageStorageError(
+                'The previous local image was quarantined but its hidden '
+                'recovery copy could not be cleaned up.'
+            ) from cleanup_error
 
 
 async def save_attachment(attachment: discord.Attachment, kind: str, entity_id: int) -> Path:

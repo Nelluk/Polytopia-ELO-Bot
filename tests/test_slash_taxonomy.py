@@ -78,7 +78,7 @@ class SlashTaxonomyRegistrationTests(unittest.TestCase):
         )
         self.assertEqual(
             {command.name for command in team_group.commands},
-            {'emoji', 'name', 'server', 'tier'},
+            {'emoji', 'image', 'name', 'server', 'tier'},
         )
         self.assertEqual(
             {command.name for command in leaderboard_group.commands},
@@ -261,13 +261,25 @@ class SlashTaxonomyRegistrationTests(unittest.TestCase):
                 ('tier', discord.AppCommandOptionType.string, False),
             ],
         )
+        self.assertEqual(
+            [
+                (parameter.name, parameter.type, parameter.required)
+                for parameter
+                in team_group.get_command('image').parameters
+            ],
+            [
+                ('team', discord.AppCommandOptionType.string, False),
+                ('image', discord.AppCommandOptionType.attachment, False),
+                ('clear', discord.AppCommandOptionType.boolean, False),
+            ],
+        )
         autocomplete_callbacks = {
             command.name: command._params['team'].autocomplete
             for command in team_group.commands
         }
         self.assertEqual(
             set(autocomplete_callbacks),
-            {'emoji', 'name', 'server', 'tier'},
+            {'emoji', 'image', 'name', 'server', 'tier'},
         )
         self.assertEqual(
             set(autocomplete_callbacks.values()),
@@ -286,6 +298,15 @@ class SlashTaxonomyRegistrationTests(unittest.TestCase):
         self.assertEqual(
             set(prefix['delete'].aliases),
             {'delete_game', 'delgame', 'delmatch', 'deletegame'},
+        )
+        administration_prefix = {
+            command.name: command
+            for command in administration.administration.__cog_commands__
+        }
+        self.assertIn('team_image', administration_prefix)
+        self.assertEqual(
+            administration_prefix['team_image'].clean_params['team_name'].annotation,
+            str,
         )
 
 
