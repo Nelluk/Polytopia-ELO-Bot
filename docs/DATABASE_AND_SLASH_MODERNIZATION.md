@@ -448,7 +448,7 @@ check:
 - P4.2d roadmap evidence: `e1a0959`; accumulation merge: `7c2269b`.
 
 Current unit: **P8.2 focused team name/server/tier workflows — Tier-3 reviewed
-and integrated; combined P8.1/P8.2 beta deployment in progress.**
+and integrated; combined P8.1/P8.2 beta smoke in progress.**
 P8.1 focused team-emoji read/edit is Tier-2 reviewed and integrated; its beta
 smoke is intentionally batched with P8.2.
 Implementation checkpoint: `0bbfae0` on `codex/p8-1-team-emoji`, based on the
@@ -4964,7 +4964,7 @@ Future combined team-attribute beta checklist (not run in P8.1):
   offline discovery after integration, with no production configuration;
 - [x] Verify the code-only command plan keeps `team` default-deny until an
   explicit approval assigns it to the development guild;
-- [ ] After separate approval, inspect and apply only the development guild
+- [x] After separate approval, inspect and apply only the development guild
   scope, with no global synchronization, then launch one approved beta;
 - [ ] Smoke each attribute's public read, authorized edit, explicit clear,
   invalid/conflicting/private-error path, prefix parity, audit row, and
@@ -4974,7 +4974,7 @@ Future combined team-attribute beta checklist (not run in P8.1):
 
 ### P8.2 — Focused team name, server, and tier workflows
 
-Status: **Tier-3 reviewed and integrated; beta not run**
+Status: **Tier-3 reviewed and integrated; beta running, smoke pending**
 
 Branch/base: `codex/p8-2-team-simple-attributes` from exact clean base
 `eab8388`. No capability assignment, Discord synchronization, beta launch,
@@ -5110,7 +5110,7 @@ Combined P8.1/P8.2 beta checklist (not run in this implementation task):
   explicit approval assigns it to the development guild.
 - [x] After separate approval, inspect and apply only the development-guild
   scope; do not synchronize globally.
-- [ ] Launch one approved beta and smoke public reads for emoji, name, server,
+- [ ] Smoke the running approved beta: public reads for emoji, name, server,
   and tier, authorized actor-attributed edits, server clear, invalid/conflict
   private paths, prefix parity, and committed audit rows.
 - [ ] Verify name/role exact-match warning, hidden/archived autocomplete
@@ -5891,7 +5891,10 @@ development-only copy.
   `elo`, `game`, `leaderboard`, `player`, and `team`; the guild-only apply
   created `team`, left the other four roots unchanged, removed nothing, and
   exposed no global synchronization path.
-- Functional P8.1/P8.2 beta acceptance remains pending.
+- Launched one foreground beta from integrated checkpoint `d904938` with
+  startup synchronization, background tasks, and API all disabled. It authenticated
+  as PolyELO Bot Beta (`479029527553638401`); functional P8.1/P8.2 acceptance
+  remains pending.
 
 ### 2026-08-03 — P8.1 reviewed and integrated; P8.2 selected
 
