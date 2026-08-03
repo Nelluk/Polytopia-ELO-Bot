@@ -440,8 +440,10 @@ check:
 - P4.2b beta-transparency correction: `b43d31e` on
   `codex/p4-2b-notes-attribution`; accumulation merge `57de2a2`.
 
-Current unit: **P4.2c focused game-name read/edit workspace — integrated;
-beta acceptance pending.**
+Current unit: **P4.2d game-tribe bulk/read-edit workflow — planned for a
+dedicated Luna worktree; implementation pending.**
+P4.2c is integrated as `fcd2646` with roadmap checkpoint `6374bbe`; beta
+acceptance remains pending and may be batched with a later smoke session.
 P4.2a is complete, beta-validated, and integrated as `5845e8b` with public
 visibility correction merge `4fa4b4f`.
 P5.8 is complete, beta-validated, and integrated as `4fc5973`; its final
@@ -2326,9 +2328,78 @@ matching the documented adjacent P4.2a/P4.2b limitation. Removing that reload
 is outside this focused unit; the read and mutation database work remains
 worker-bounded and worker-local.
 
-Next action: obtain explicit integration approval. Final review found no
-further Tier-3 blockers; beta acceptance remains pending and is not recorded
-by this unit.
+Integration result: merged into `codex/database-slash-modernization` as
+`fcd2646`; roadmap checkpoint `6374bbe`. Beta acceptance remains pending.
+
+Next action: implement P4.2d as the bounded game-tribe unit below.
+
+#### P4.2d — Game-tribe bulk/read-edit workflow
+
+Status: **Planned; implementation pending**
+
+Risk tier: **Tier 3**. One request may update several lineup tribes and audit
+rows and must not leave a partially applied batch after a transaction failure.
+
+Interface decision:
+
+- `/game tribe game_id` publicly displays the current player-to-tribe mapping
+  and opens a short-lived requester-authorized workspace.
+- The command has one optional string option, `bulk`, so experienced staff can
+  paste the compact legacy-style assignment list in one submission, for
+  example `/game tribe game_id:123 bulk:"xin xeldor ely ely"`.
+- Preserve unique tribe abbreviations, case-insensitive matching, `none`
+  clearing, and player-name matching. Ambiguous or unmatched values must be
+  shown explicitly and never guessed silently.
+- The workspace provides a quick self-assignment path, a typed single-player
+  edit path, and a **Bulk edit** modal. The modal accepts the same flat pair
+  grammar and a readable one-pair-per-line form. It is an alternative to the
+  direct `bulk` option, not a required extra step.
+- The **Bulk edit** modal receives a parsed preview before component-based
+  confirmation. The direct slash `bulk` option validates and applies in the
+  same deferred invocation without requiring another interaction, preserving
+  the one-paste/one-submit staff workflow.
+- Successful committed output is public, identifies the actor, summarizes all
+  changed players, and refreshes the established dense game presentation.
+  Parse/permission/stale/database errors remain private.
+
+Prefix compatibility:
+
+- Preserve `$settribe` and `$settribes`, including explicit game ID and game-
+  channel inference, compact alternating player/tribe pairs, abbreviation and
+  `none` behavior, self-only shorthand, elevated bulk permissions, per-player
+  success/error wording, audit attribution, and announcement refresh.
+- Do not make the prefix command hybrid and do not remove its efficient bulk
+  grammar. If exact legacy partial-success behavior conflicts with a safer
+  atomic native batch, preserve prefix behavior explicitly and record the
+  native distinction in the compatibility ledger rather than silently
+  changing it.
+
+Database and concurrency boundary:
+
+- Capture primitive IDs, permission facts, raw assignment text or typed
+  choices, and audit identity before worker submission.
+- Resolve the game, lineup/player matches, and tribe abbreviations inside a
+  worker-owned Peewee connection. Return a frozen parsed preview for native
+  confirmation without passing model objects to Discord views.
+- Use the bounded ordinary-game executor and keyed per-game claim with
+  repeated-cancellation-safe draining. A confirmed native batch commits all
+  lineup changes and audit rows in one synchronous transaction; no Discord
+  await occurs in `db.atomic()`.
+- Release the claim before public output, announcement/card reconciliation,
+  and warnings. A failed transaction produces no Discord post-effect; later
+  reconciliation failure is observable without claiming rollback.
+
+Required validation includes abbreviation/ambiguity parsing, flat and line-
+based bulk input, self/single/bulk permissions, `none`, prefix parity, frozen
+primitive previews, transaction/audit rollback, same-game conflict,
+cancellation cleanup, event-loop responsiveness, requester-only component
+state, preview confirmation/cancel/timeout, actor transparency, no post-effect
+after database failure, focused and complete offline suites, the unchanged
+gated development-database suite, and a later separately approved beta smoke.
+
+Out of scope: changing the tribe catalog, tribe emoji configuration, game-card
+redesign, schema/dependency changes, platform semantics, prefix retirement,
+global synchronization, and production work.
 
 ## P5 — Matchmaking lifecycle
 
