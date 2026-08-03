@@ -46,6 +46,69 @@ class FakeAttachment:
         return self.data
 
 
+class PrefixTestRole:
+    name = 'Helper'
+    mention = '<@&999>'
+
+
+class PrefixTestChannel:
+    id = 888
+    name = 'staff-help'
+
+
+class PrefixTestGuild:
+    id = 200
+    name = 'Test Guild'
+    roles = [PrefixTestRole()]
+
+    def __init__(self, staff_channel):
+        self.staff_channel = staff_channel
+
+    def get_channel(self, _channel_id):
+        return self.staff_channel
+
+
+class PrefixTestGame:
+    id = 42500
+    guild_id = 200
+    name = 'Game Name'
+
+    def embed(self, *, guild, prefix):
+        return 'embed', 'card content'
+
+
+class PrefixTestCommand:
+    def __init__(self):
+        self.reset_count = 0
+
+    def reset_cooldown(self, _ctx):
+        self.reset_count += 1
+
+
+class PrefixTestContext:
+    prefix = '$'
+    invoked_with = 'helpstaff'
+    author = SimpleNamespace(
+        id=100,
+        name='Tester',
+        display_name='Tester',
+        mention='<@100>',
+    )
+
+    def __init__(self, guild, *, attachments=()):
+        self.guild = guild
+        self.channel = SimpleNamespace(id=301, name='general', guild=guild)
+        self.message = SimpleNamespace(
+            jump_url='https://discord.test/jump',
+            attachments=list(attachments),
+        )
+        self.command = PrefixTestCommand()
+        self.sent = []
+
+    async def send(self, content):
+        self.sent.append(content)
+
+
 class FeedbackStoreTests(unittest.TestCase):
     def setUp(self):
         self.tempdir = tempfile.TemporaryDirectory()
@@ -212,10 +275,14 @@ class FeedbackStoreTests(unittest.TestCase):
             with self.assertRaises(asyncio.CancelledError):
                 await task
 
-        asyncio.run(cancel_submission())
+        with self.assertLogs('polybot.modules.beta_feedback', level='WARNING') as logs:
+            asyncio.run(cancel_submission())
         result = beta_feedback.read_feedback_records(self.profile)
         self.assertTrue(result.present)
         self.assertEqual(len(result.records), 1)
+        report_id = result.records[0]['report_id']
+        self.assertIn(report_id, '\n'.join(logs.output))
+        self.assertNotIn(result.records[0]['details'], '\n'.join(logs.output))
 
     def test_development_gate_and_symlink_escape_are_closed(self):
         production = SimpleNamespace(
@@ -488,6 +555,57 @@ class FeedbackRelayAndModalTests(unittest.TestCase):
         self.assertIn('`' + ('B' * 24) + '`', interaction.followup.sent[0][0])
         self.assertTrue(interaction.followup.sent[0][1]['ephemeral'])
 
+    def test_native_followup_failure_logs_committed_id_without_false_storage_message(self):
+        class Response:
+            async def defer(self, **kwargs):
+                self.deferred = kwargs
+
+        class FailingFollowup:
+            def __init__(self):
+                self.attempts = []
+
+            async def send(self, content, **kwargs):
+                self.attempts.append((content, kwargs))
+                raise RuntimeError('followup unavailable')
+
+        followup = FailingFollowup()
+        interaction = SimpleNamespace(
+            user=SimpleNamespace(id=100, display_name='Tester'),
+            guild_id=200,
+            channel_id=300,
+            response=Response(),
+            followup=followup,
+        )
+        modal = StaffHelpModal(object(), requester_id=100, guild_id=200, channel_id=300)
+        modal.category.component._value = 'bug'
+        modal.summary.component._value = 'A bug'
+        modal.details.component._value = 'Detailed bug description.'
+        modal.context.component._value = ''
+        modal.files.component._values = []
+        report_id = 'D' * 24
+        submission = beta_feedback.NativeSubmission(
+            report=SimpleNamespace(report_id=report_id),
+            relay_ok=False,
+        )
+        with mock.patch.object(
+                beta_feedback,
+                'capture_attachments',
+                new=mock.AsyncMock(return_value=())), \
+                mock.patch.object(
+                    beta_feedback,
+                    'submit_native_report',
+                    new=mock.AsyncMock(return_value=submission)), \
+                self.assertLogs(
+                    'polybot.modules.beta_feedback_views',
+                    level='ERROR',
+                ) as logs:
+            asyncio.run(modal.on_submit(interaction))
+
+        self.assertEqual(len(followup.attempts), 1)
+        joined_logs = '\n'.join(logs.output)
+        self.assertIn(report_id, joined_logs)
+        self.assertNotIn('No report ID was issued', joined_logs)
+
 
 class PrefixStaffHelpCompatibilityTests(unittest.TestCase):
     def test_prefix_registration_preserves_alias_grammar_and_cooldown(self):
@@ -642,6 +760,295 @@ class PrefixStaffHelpCompatibilityTests(unittest.TestCase):
         self.assertTrue(
             ctx.sent[-1].startswith('Your message has been sent to server staff.')
         )
+
+    def test_production_prefix_skips_beta_capture_and_store(self):
+        staff_channel = PrefixTestChannel()
+        guild = PrefixTestGuild(staff_channel)
+        ctx = PrefixTestContext(guild, attachments=(FakeAttachment(),))
+        game = PrefixTestGame()
+        bot = SimpleNamespace(get_guild=lambda _guild_id: guild)
+        cog = misc_module.misc(bot)
+        relay = mock.AsyncMock()
+        capture = mock.AsyncMock()
+        store = mock.AsyncMock()
+
+        def guild_setting(_guild_id, setting_name):
+            return {
+                'staff_help_channel': staff_channel.id,
+                'helper_roles': ['Helper'],
+            }[setting_name]
+
+        with mock.patch.object(
+                misc_module.settings,
+                'runtime_profile',
+                SimpleNamespace(environment='production')), \
+                mock.patch.object(
+                    misc_module.models.Game,
+                    'by_channel_or_arg',
+                    return_value=game), \
+                mock.patch.object(
+                    misc_module.models.GameLog,
+                    'member_string',
+                    return_value='Tester (`100`)'), \
+                mock.patch.object(
+                    misc_module.models.GameLog,
+                    'write') as gamelog_write, \
+                mock.patch.object(
+                    misc_module.settings,
+                    'guild_setting',
+                    side_effect=guild_setting), \
+                mock.patch.object(
+                    misc_module.beta_feedback,
+                    'capture_attachments',
+                    new=capture), \
+                mock.patch.object(
+                    misc_module.beta_feedback,
+                    'store_report',
+                    new=store), \
+                mock.patch.object(
+                    misc_module.beta_feedback,
+                    'relay_prefix',
+                    new=relay), \
+                mock.patch.object(
+                    misc_module.image_storage,
+                    'send_game_embed',
+                    new=mock.AsyncMock()) as card:
+            asyncio.run(misc_module.misc.staffhelp.callback(
+                cog,
+                ctx,
+                message='Game 42500 was claimed incorrectly',
+            ))
+
+        capture.assert_not_awaited()
+        store.assert_not_awaited()
+        relay.assert_awaited_once()
+        card.assert_awaited_once()
+        gamelog_write.assert_called_once()
+        self.assertTrue(
+            ctx.sent[-1].startswith('Your message has been sent to server staff.')
+        )
+
+    def test_development_prefix_attachment_limits_fall_back_to_url_only_records(self):
+        tempdir = tempfile.TemporaryDirectory()
+        root = Path(tempdir.name)
+        profile = SimpleNamespace(
+            environment='development',
+            project_root=root,
+            log_root=root / 'logs' / 'development',
+        )
+        store = beta_feedback.FeedbackStore(profile)
+        try:
+            cases = (
+                FakeAttachment(
+                    filename='payload.exe',
+                    content_type='application/x-msdownload',
+                    url='https://cdn.discord.test/unsupported.exe',
+                ),
+                FakeAttachment(
+                    filename='too-large.png',
+                    data=b'0123456789',
+                    url='https://cdn.discord.test/too-large.png',
+                ),
+            )
+            relayed = []
+
+            async def fake_relay(_channel, content):
+                relayed.append(content)
+
+            def guild_setting(_guild_id, setting_name):
+                return {
+                    'staff_help_channel': 888,
+                    'helper_roles': ['Helper'],
+                }[setting_name]
+
+            gamelog_write = mock.Mock()
+            card = mock.AsyncMock()
+            with mock.patch.object(
+                    misc_module.settings,
+                    'runtime_profile',
+                    profile), \
+                    mock.patch.object(
+                        misc_module.models.Game,
+                        'by_channel_or_arg',
+                        side_effect=ValueError), \
+                    mock.patch.object(
+                        misc_module.models.GameLog,
+                        'member_string',
+                        return_value='Tester (`100`)'), \
+                    mock.patch.object(
+                        misc_module.models.GameLog,
+                        'write',
+                        new=gamelog_write), \
+                    mock.patch.object(
+                        misc_module.settings,
+                        'guild_setting',
+                        side_effect=guild_setting), \
+                    mock.patch.object(
+                        misc_module.beta_feedback,
+                        'store_report',
+                        side_effect=store.store), \
+                    mock.patch.object(
+                        misc_module.beta_feedback,
+                        'relay_prefix',
+                        side_effect=fake_relay), \
+                    mock.patch.object(
+                        misc_module.image_storage,
+                        'send_game_embed',
+                        new=card):
+                for index, attachment in enumerate(cases):
+                    guild = PrefixTestGuild(PrefixTestChannel())
+                    ctx = PrefixTestContext(guild, attachments=(attachment,))
+                    bot = SimpleNamespace(get_guild=lambda _guild_id, guild=guild: guild)
+                    cog = misc_module.misc(bot)
+                    limit_patch = (
+                        mock.patch.object(beta_feedback, 'MAX_ATTACHMENT_BYTES', 3)
+                        if index == 1 else mock.patch.object(
+                            beta_feedback,
+                            'MAX_ATTACHMENT_BYTES',
+                            beta_feedback.MAX_ATTACHMENT_BYTES,
+                        )
+                    )
+                    with limit_patch:
+                        asyncio.run(misc_module.misc.staffhelp.callback(
+                            cog,
+                            ctx,
+                            message='A retained prefix request',
+                        ))
+                    self.assertTrue(
+                        ctx.sent[-1].startswith('Your message has been sent to server staff.')
+                    )
+                    self.assertEqual(ctx.command.reset_count, 0)
+
+            result = beta_feedback.read_feedback_records(profile)
+            self.assertEqual(len(result.records), 2)
+            self.assertEqual(len(relayed), 2)
+            for attachment, record in zip(cases, result.records):
+                self.assertEqual(record['attachments'], [])
+                self.assertIn(attachment.url, record['details'])
+                self.assertEqual(
+                    record['context'],
+                    beta_feedback.PREFIX_ATTACHMENT_CAPTURE_OMITTED_CONTEXT,
+                )
+            self.assertEqual(gamelog_write.call_count, 2)
+            self.assertEqual(card.await_count, 0)
+            attachment_root = profile.log_root / 'beta-feedback' / 'attachments'
+            attachment_dirs = tuple(
+                path for path in attachment_root.iterdir()
+                if path.name != '.staging'
+            )
+            self.assertEqual(attachment_dirs, ())
+        finally:
+            store.executor.shutdown(wait=True)
+            tempdir.cleanup()
+
+    def test_development_prefix_missing_channel_reports_committed_id_without_reset(self):
+        guild = PrefixTestGuild(None)
+        ctx = PrefixTestContext(guild)
+        bot = SimpleNamespace(get_guild=lambda _guild_id: guild)
+        cog = misc_module.misc(bot)
+        stored = SimpleNamespace(report_id='E' * 24)
+
+        with mock.patch.object(
+                misc_module.settings,
+                'runtime_profile',
+                SimpleNamespace(environment='development')), \
+                mock.patch.object(
+                    misc_module.models.Game,
+                    'by_channel_or_arg',
+                    side_effect=ValueError), \
+                mock.patch.object(
+                    misc_module.settings,
+                    'guild_setting',
+                    return_value=888), \
+                mock.patch.object(
+                    misc_module.beta_feedback,
+                    'capture_attachments',
+                    new=mock.AsyncMock(return_value=())), \
+                mock.patch.object(
+                    misc_module.beta_feedback,
+                    'store_report',
+                    new=mock.AsyncMock(return_value=stored)) as store, \
+                mock.patch.object(
+                    misc_module.beta_feedback,
+                    'relay_prefix',
+                    new=mock.AsyncMock()) as relay, \
+                mock.patch.object(
+                    misc_module.models.GameLog,
+                    'write') as gamelog_write:
+            asyncio.run(misc_module.misc.staffhelp.callback(
+                cog,
+                ctx,
+                message='A request with no staff channel',
+            ))
+
+        store.assert_awaited_once()
+        relay.assert_not_awaited()
+        gamelog_write.assert_not_called()
+        self.assertEqual(ctx.command.reset_count, 0)
+        self.assertIn(stored.report_id, ctx.sent[-1])
+        self.assertIn('mirror failed', ctx.sent[-1])
+        self.assertNotIn('Cannot load staff channel', ctx.sent[-1])
+
+    def test_development_prefix_relay_failure_reports_committed_id_without_legacy_success(self):
+        staff_channel = PrefixTestChannel()
+        guild = PrefixTestGuild(staff_channel)
+        ctx = PrefixTestContext(guild)
+        bot = SimpleNamespace(get_guild=lambda _guild_id: guild)
+        cog = misc_module.misc(bot)
+        stored = SimpleNamespace(report_id='F' * 24)
+
+        def guild_setting(_guild_id, setting_name):
+            return {
+                'staff_help_channel': staff_channel.id,
+                'helper_roles': ['Helper'],
+            }[setting_name]
+
+        with mock.patch.object(
+                misc_module.settings,
+                'runtime_profile',
+                SimpleNamespace(environment='development')), \
+                mock.patch.object(
+                    misc_module.models.Game,
+                    'by_channel_or_arg',
+                    side_effect=ValueError), \
+                mock.patch.object(
+                    misc_module.settings,
+                    'guild_setting',
+                    side_effect=guild_setting), \
+                mock.patch.object(
+                    misc_module.beta_feedback,
+                    'capture_attachments',
+                    new=mock.AsyncMock(return_value=())), \
+                mock.patch.object(
+                    misc_module.beta_feedback,
+                    'store_report',
+                    new=mock.AsyncMock(return_value=stored)), \
+                mock.patch.object(
+                    misc_module.beta_feedback,
+                    'relay_prefix',
+                    new=mock.AsyncMock(side_effect=RuntimeError('discord unavailable'))) as relay, \
+                mock.patch.object(
+                    misc_module.image_storage,
+                    'send_game_embed',
+                    new=mock.AsyncMock()) as card, \
+                mock.patch.object(
+                    misc_module.models.GameLog,
+                    'write') as gamelog_write, \
+                self.assertLogs('polybot.modules.misc', level='WARNING') as logs:
+            asyncio.run(misc_module.misc.staffhelp.callback(
+                cog,
+                ctx,
+                message='A request with a relay failure',
+            ))
+
+        relay.assert_awaited_once()
+        card.assert_not_awaited()
+        gamelog_write.assert_not_called()
+        self.assertEqual(ctx.command.reset_count, 0)
+        self.assertIn(stored.report_id, ctx.sent[-1])
+        self.assertIn('mirror failed', ctx.sent[-1])
+        self.assertNotIn('Your message has been sent to server staff.', ctx.sent[-1])
+        self.assertIn(stored.report_id, '\n'.join(logs.output))
 
 
 class FeedbackReaderCliTests(unittest.TestCase):

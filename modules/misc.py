@@ -436,12 +436,42 @@ class misc(commands.Cog):
             ctx.command.reset_cooldown(ctx)
             return await ctx.send(f'You must supply a help request, ie: `{ctx.prefix}{ctx.invoked_with} Game 42500 Does this screenshot show a restartable spawn?`')
 
-        try:
-            captured_attachments = await beta_feedback.capture_attachments(
-                tuple(ctx.message.attachments),
-            )
-            _stored_report = await beta_feedback.store_report(
-                beta_feedback.build_prefix_draft(
+        # The JSONL store is a development-beta addition.  Keep the
+        # established production prefix path independent of that optional
+        # store, including its historical attachment URL acceptance.
+        stored_report = None
+        if settings.runtime_profile.environment == 'development':
+            captured_attachments = ()
+            attachment_capture_warning = None
+            if ctx.message.attachments:
+                try:
+                    captured_attachments = await beta_feedback.capture_attachments(
+                        tuple(ctx.message.attachments),
+                    )
+                except beta_feedback.FeedbackValidationError:
+                    # Prefix attachments were historically URLs relayed to
+                    # staff.  Do not let the stricter beta-local byte limits
+                    # reject that retained command; the URL remains in the
+                    # bounded details field and in the legacy relay.
+                    attachment_capture_warning = (
+                        beta_feedback.PREFIX_ATTACHMENT_CAPTURE_OMITTED_CONTEXT
+                    )
+                except Exception as exc:
+                    # Preserve the prefix path for an unexpected Discord
+                    # attachment-read failure without logging user content.
+                    attachment_capture_warning = (
+                        beta_feedback.PREFIX_ATTACHMENT_CAPTURE_OMITTED_CONTEXT
+                    )
+                    logger.warning(
+                        'Prefix beta attachment capture was omitted '
+                        '(guild=%s channel=%s error=%s).',
+                        ctx.guild.id,
+                        ctx.channel.id,
+                        type(exc).__name__,
+                    )
+
+            try:
+                prefix_draft = beta_feedback.build_prefix_draft(
                     member=ctx.author,
                     guild_id=ctx.guild.id,
                     channel_id=ctx.channel.id,
@@ -449,24 +479,66 @@ class misc(commands.Cog):
                     invoked_with=ctx.invoked_with,
                     related_game_id=(related_game.id if related_game else None),
                     attachments=captured_attachments,
+                    attachment_capture_warning=attachment_capture_warning,
                 )
-            )
-        except beta_feedback.FeedbackValidationError as exc:
-            ctx.command.reset_cooldown(ctx)
-            return await ctx.send(f'Your staff-help request could not be recorded: {exc}')
-        except beta_feedback.FeedbackStorageError:
-            ctx.command.reset_cooldown(ctx)
-            return await ctx.send(
-                'Your staff-help request could not be recorded. Please try again later.'
-            )
+            except beta_feedback.FeedbackValidationError:
+                if not captured_attachments or not ctx.message.attachments:
+                    ctx.command.reset_cooldown(ctx)
+                    return await ctx.send(
+                        'Your staff-help request could not be recorded. Please try again later.'
+                    )
+                # Keep compatibility if a future capture implementation
+                # returns values that fail the bounded local-storage checks.
+                prefix_draft = beta_feedback.build_prefix_draft(
+                    member=ctx.author,
+                    guild_id=ctx.guild.id,
+                    channel_id=ctx.channel.id,
+                    message=message,
+                    invoked_with=ctx.invoked_with,
+                    related_game_id=(related_game.id if related_game else None),
+                    attachments=(),
+                    attachment_capture_warning=(
+                        beta_feedback.PREFIX_ATTACHMENT_CAPTURE_OMITTED_CONTEXT
+                    ),
+                )
+
+            try:
+                stored_report = await beta_feedback.store_report(prefix_draft)
+            except beta_feedback.FeedbackValidationError as exc:
+                ctx.command.reset_cooldown(ctx)
+                return await ctx.send(f'Your staff-help request could not be recorded: {exc}')
+            except beta_feedback.FeedbackStorageError:
+                ctx.command.reset_cooldown(ctx)
+                return await ctx.send(
+                    'Your staff-help request could not be recorded. Please try again later.'
+                )
 
         guild = self.bot.get_guild(guild_id)
         if guild:
-            channel = guild.get_channel(settings.guild_setting(guild_id, 'staff_help_channel'))
+            try:
+                channel = guild.get_channel(
+                    settings.guild_setting(guild_id, 'staff_help_channel')
+                )
+            except Exception:
+                if stored_report is None:
+                    raise
+                channel = None
         else:
             channel = None
 
         if not channel:
+            if stored_report is not None:
+                logger.warning(
+                    'Prefix beta feedback report recorded without a staff channel '
+                    '(report_id=%s guild=%s).',
+                    stored_report.report_id,
+                    guild_id,
+                )
+                return await ctx.send(
+                    f'Your staff-help request was recorded as `{stored_report.report_id}`, '
+                    'but the staff mirror failed because the staff channel is unavailable. '
+                    'Staff can reconcile it from the beta store.'
+                )
             ctx.command.reset_cooldown(ctx)
             return await ctx.send('Cannot load staff channel. You will need to ping a staff member.')
 
@@ -479,10 +551,26 @@ class misc(commands.Cog):
             chan_str = f'({ctx.channel.name})'
         else:
             chan_str = f'({ctx.channel.name} on __{ctx.guild.name}__)'
-        await beta_feedback.relay_prefix(
-            channel,
-            f'Attention {helper_role_str} - {ctx.author.mention} ({ctx.author.name}) asked for help from channel <#{ctx.channel.id}> {chan_str}:\n{ctx.message.jump_url}\n{message}',
-        )
+        try:
+            await beta_feedback.relay_prefix(
+                channel,
+                f'Attention {helper_role_str} - {ctx.author.mention} ({ctx.author.name}) asked for help from channel <#{ctx.channel.id}> {chan_str}:\n{ctx.message.jump_url}\n{message}',
+            )
+        except Exception as exc:
+            if stored_report is None:
+                raise
+            logger.warning(
+                'Prefix beta feedback report recorded but staff mirror failed '
+                '(report_id=%s guild=%s channel=%s error=%s).',
+                stored_report.report_id,
+                guild_id,
+                getattr(channel, 'id', 'unknown'),
+                type(exc).__name__,
+            )
+            return await ctx.send(
+                f'Your staff-help request was recorded as `{stored_report.report_id}`, '
+                'but the staff mirror failed. Staff can reconcile it from the beta store.'
+            )
 
         if related_game:
             embed, content = related_game.embed(guild=guild, prefix=ctx.prefix)

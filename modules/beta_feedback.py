@@ -42,6 +42,10 @@ MAX_CONTEXT_LENGTH = 1000
 MAX_ATTACHMENTS = 10
 MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024
 MAX_TOTAL_ATTACHMENT_BYTES = 20 * 1024 * 1024
+PREFIX_ATTACHMENT_CAPTURE_OMITTED_CONTEXT = (
+    'Legacy prefix attachment bytes were omitted from the beta store; '
+    'the established Discord URL relay was preserved.'
+)
 
 _REPORT_ID_PATTERN = re.compile(r'^[A-Za-z0-9_-]{20,}$')
 _CHECKPOINT_PATTERN = re.compile(r'^[A-Za-z0-9._:/-]{1,128}$')
@@ -354,6 +358,7 @@ def build_prefix_draft(
         invoked_with: str,
         related_game_id: int | None = None,
         attachments: Iterable[AttachmentInput] = (),
+        attachment_capture_warning: str | None = None,
         timestamp: str | None = None) -> FeedbackReportDraft:
     """Adapt the retained prefix grammar into the bounded feedback schema."""
 
@@ -368,7 +373,7 @@ def build_prefix_draft(
         category='help',
         summary=summary,
         details=details,
-        context=None,
+        context=attachment_capture_warning,
         requester_id=int(member.id),
         requester_display_name=(
             getattr(member, 'display_name', None)
@@ -877,12 +882,19 @@ class FeedbackStore:
                 await asyncio.sleep(0.001)
             # Retrieve the worker exception before re-raising cancellation.
             try:
-                future.result()
+                completed = future.result()
             except Exception:
                 logger.debug(
                     'Cancelled feedback submission completed with a worker failure.',
                     exc_info=True,
                 )
+            else:
+                if isinstance(completed, StoredReport):
+                    logger.warning(
+                        'Cancelled beta feedback submission committed a report; '
+                        'no acknowledgement was sent (report_id=%s).',
+                        completed.report_id,
+                    )
             raise
 
 

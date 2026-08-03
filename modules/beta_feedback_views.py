@@ -153,24 +153,18 @@ class StaffHelpModal(discord.ui.Modal, title='Staff help / beta feedback'):
                 command_reference=command_reference,
             )
             result = await beta_feedback.submit_native_report(self.bot, draft)
-            if result.relay_ok:
-                message = f'Your report was recorded as `{result.report.report_id}`. Staff will review it.'
-            else:
-                message = (
-                    f'Your report was recorded as `{result.report.report_id}`, '
-                    'but the staff relay is temporarily unavailable. Staff can reconcile it from the beta store.'
-                )
-            await interaction.followup.send(message, ephemeral=True)
         except beta_feedback.FeedbackValidationError as exc:
             await interaction.followup.send(
                 f'Your report was not stored: {exc}',
                 ephemeral=True,
             )
+            return
         except beta_feedback.FeedbackStorageError:
             await interaction.followup.send(
                 'Your report could not be recorded. No report ID was issued; please try again later.',
                 ephemeral=True,
             )
+            return
         except Exception:
             logger.exception(
                 'Unexpected structured staffhelp failure (requester=%s guild=%s channel=%s).',
@@ -181,4 +175,28 @@ class StaffHelpModal(discord.ui.Modal, title='Staff help / beta feedback'):
             await interaction.followup.send(
                 'Your report could not be completed. No report ID was issued; please try again later.',
                 ephemeral=True,
+            )
+            return
+
+        report_id = result.report.report_id
+        if result.relay_ok:
+            message = f'Your report was recorded as `{report_id}`. Staff will review it.'
+        else:
+            message = (
+                f'Your report was recorded as `{report_id}`, '
+                'but the staff relay is temporarily unavailable. Staff can reconcile it from the beta store.'
+            )
+        try:
+            await interaction.followup.send(message, ephemeral=True)
+        except Exception:
+            # The authoritative append and any relay attempt already
+            # completed.  Do not replace the real report ID with a false
+            # "not stored" acknowledgement if Discord rejects the followup.
+            logger.exception(
+                'Structured staffhelp acknowledgement failed after report commit '
+                '(report_id=%s requester=%s guild=%s channel=%s); reconcile from the beta store.',
+                report_id,
+                self.requester_id,
+                self.guild_id,
+                self.channel_id,
             )
