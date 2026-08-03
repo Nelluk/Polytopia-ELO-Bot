@@ -14,6 +14,7 @@ from pathlib import Path
 import sys
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+SHARED_DEVELOPMENT_PYTHON = Path('/home/nelluk/PolyBot39-dev/.venv/bin/python')
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
@@ -53,7 +54,10 @@ def main(argv: list[str] | None = None) -> int:
         # Preserve the venv entry-point path across exec. Resolving this
         # symlink selects the base interpreter and loses the venv's
         # site-packages (including discord.py).
-        python = PROJECT_ROOT / '.venv' / 'bin' / 'python'
+        # The app-managed worktree intentionally has no copied venv.  The
+        # durable service is fixed to the one reviewed development interpreter
+        # shared by the primary development checkout.
+        python = SHARED_DEVELOPMENT_PYTHON
         if not python.is_file() or not os.path.samefile(sys.executable, python):
             raise RuntimeError(
                 'The durable beta must run with the reviewed development venv.'

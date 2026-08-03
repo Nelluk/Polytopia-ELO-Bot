@@ -269,7 +269,7 @@ class BetaRuntimeGuardTests(unittest.TestCase):
         self.assertEqual(len(executed), 1)
         self.assertEqual(
             executed[0][0],
-            str(run_development_beta.PROJECT_ROOT / '.venv' / 'bin' / 'python'),
+            str(run_development_beta.SHARED_DEVELOPMENT_PYTHON),
         )
         self.assertEqual(executed[0][1][0], executed[0][0])
         self.assertEqual(executed[0][1][-1], '--skip_tasks')
