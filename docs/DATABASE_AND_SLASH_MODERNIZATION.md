@@ -448,8 +448,8 @@ check:
   `f0429536d7ed899eb356794bcd3558baa9be3d45`.
 - P4.2d roadmap evidence: `e1a0959`; accumulation merge: `7c2269b`.
 
-Current unit: **P8.3 focused `/team image` read/edit/clear — reviewed and
-integrated; development-guild deployment and beta smoke pending.**
+Current unit: **P8.3 focused `/team image` read/edit/clear — reviewed,
+integrated, and deployed to the development guild; beta smoke active.**
 P8.3 implementation checkpoint: `a3031d5` on `codex/p8-3-team-image`, based on
 the exact clean accumulation checkpoint `c009e5a08e92cba83dbc470371af688b9e1643df`.
 P8.3 review correction implementation/tests checkpoint: `0acdea4` on the same
@@ -457,6 +457,10 @@ branch. Oversight independently reran the strict development-database suite
 against `polytopia_dev`/`polybot_dev`: **16 passed and 1 fixture test was
 skipped** to preserve operator-managed fixtures.
 P8.3 accumulation merge: `7e108c7`.
+The explicit P8.0 deployment tool updated only the `team` root in development
+guild `478571892832206869`; `elo`, `game`, `leaderboard`, and `player` were
+unchanged. The beta then authenticated as application `479029527553638401`
+with startup synchronization disabled.
 P8.2 focused team name/server/tier workflows remain integrated and beta
 accepted, with live tier mutation testing deferred until development
 House/role fixtures exist.
@@ -6092,6 +6096,19 @@ milestone.
   optional.
 - No production operation or production-database access is authorized by this
   milestone.
+
+### 2026-08-03 — P8.3 development deployment started
+
+- The offline desired-state plan named only development guild
+  `478571892832206869` and roots `elo`, `game`, `leaderboard`, `player`, and
+  `team`.
+- The explicit guild-only apply updated `team` for `/team image`; the other
+  four roots were unchanged. No global synchronization path was used.
+- Launched one development beta from the accumulation checkout with
+  `POLYBOT_ENV=development` and `--skip_tasks`. It authenticated as PolyELO Bot
+  Beta application `479029527553638401`; startup performed no synchronization.
+- Production checkout/process/database remained untouched. P8.3 beta smoke is
+  pending user acceptance.
 
 ### 2026-08-03 — P8.3 implementation checkpoint completed locally
 
