@@ -16,6 +16,8 @@ from modules.games import PolyGame, post_win_messaging
 import modules.achievements as achievements
 from modules import elo_workers, game_workers
 from modules.elo_jobs import EloJobConflict
+from modules import team_emoji as team_emoji_service
+from modules import team_emoji_workers
 
 logger = logging.getLogger('polybot.' + __name__)
 elo_logger = logging.getLogger('polybot.elo')
@@ -77,6 +79,11 @@ class administration(commands.Cog):
     elo_group = discord.app_commands.Group(
         name='elo',
         description='Inspect and maintain ELO calculations.',
+        guild_only=True,
+    )
+    team_group = discord.app_commands.Group(
+        name='team',
+        description='View and manage competitive team attributes.',
         guild_only=True,
     )
 
@@ -1102,24 +1109,173 @@ class administration(commands.Cog):
         `[p]team_emoji Ronin` - Display currently saved emoji
         """
 
-        # Bug: does not handle a unicode emoji argument. Tried to fix using PartialEmojiConverter but that doesn't work either
-        # for now just added unicode emoji to database directly. would probably need some fancy regex to detect unicode emoji
-        if emoji and len(emoji) != 1 and ('<:' not in emoji):
+        if emoji is not None and not team_emoji_workers.is_valid_emoji(emoji):
             return await ctx.send(f'Valid emoji not detected. Example: `{ctx.prefix}team_emoji name :my_custom_emoji:`')
 
         try:
-            team = models.Team.get_or_except(team_name, ctx.guild.id, include_hidden=True)
+            if emoji is None:
+                result = await team_emoji_service.run_read(
+                    team_emoji_service.build_read_request(
+                        member=ctx.author,
+                        guild_id=ctx.guild.id,
+                        team_lookup=team_name,
+                        invoked_with=ctx.invoked_with,
+                    )
+                )
+                return await ctx.send(
+                    team_emoji_service.legacy_read_message(result),
+                )
+
+            request = team_emoji_service.build_mutation_request(
+                member=ctx.author,
+                guild_id=ctx.guild.id,
+                team_lookup=team_name,
+                emoji=emoji,
+                native=False,
+                invoked_with=ctx.invoked_with,
+            )
+
+            async def publish(result):
+                await team_emoji_service.publish_mutation_result(
+                    result,
+                    send=ctx.send,
+                )
+
+            await team_emoji_service.run_mutation(
+                request,
+                after_commit=publish,
+            )
         except exceptions.NoSingleMatch as ex:
             return await ctx.send(f'{ex}\nExample: `{ctx.prefix}team_emoji name :my_custom_emoji:`')
+        except team_emoji_workers.TeamEmojiLookupError as ex:
+            return await ctx.send(f'{ex}\nExample: `{ctx.prefix}team_emoji name :my_custom_emoji:`')
+        except team_emoji_workers.TeamEmojiValidationError as ex:
+            return await ctx.send(str(ex))
+        except peewee.PeeweeException:
+            logger.exception(
+                'Database failure reading or updating team emoji for guild %s',
+                ctx.guild.id,
+            )
+            return await ctx.send('Team emoji operation failed and rolled back.')
+        except Exception:
+            logger.exception(
+                'Unexpected team emoji failure for guild %s',
+                ctx.guild.id,
+            )
+            return await ctx.send('Team emoji operation failed and rolled back.')
 
-        if not emoji:
-            return await ctx.send(f'Emoji for team **{team.name}**: {team.emoji}')
+    @team_group.command(
+        name='emoji',
+        description='View or update a team emoji.',
+    )
+    @discord.app_commands.describe(
+        team='Team name; omit this to infer your only team.',
+        emoji='Unicode or custom emoji to set; omit this to view it.',
+        clear='Explicitly remove the configured team emoji.',
+    )
+    async def team_emoji_slash(
+        self,
+        interaction: discord.Interaction,
+        team: str | None = None,
+        emoji: str | None = None,
+        clear: bool = False,
+    ):
+        """Read or mod-edit one team emoji with post-commit public output."""
 
-        team.emoji = emoji
-        team.save()
+        guild_id = getattr(interaction.guild, 'id', None)
+        if guild_id is None:
+            return await interaction.response.send_message(
+                'This command can only be used in a server.',
+                ephemeral=True,
+            )
+        try:
+            teams_enabled = bool(
+                settings.guild_setting(guild_id, 'allow_teams')
+            )
+            requester_is_mod = bool(settings.is_mod(interaction.user))
+        except (AttributeError, TypeError, exceptions.CheckFailedError):
+            return await interaction.response.send_message(
+                'This command is not available on this server.',
+                ephemeral=True,
+            )
+        if not teams_enabled:
+            return await interaction.response.send_message(
+                'Teams are not enabled on this server.',
+                ephemeral=True,
+            )
+        if not requester_is_mod:
+            return await interaction.response.send_message(
+                'You do not have permission to manage team emojis.',
+                ephemeral=True,
+            )
+        if clear and emoji is not None:
+            return await interaction.response.send_message(
+                'Choose either an emoji or `clear`, not both.',
+                ephemeral=True,
+            )
+        if emoji is not None and not team_emoji_workers.is_valid_emoji(emoji):
+            return await interaction.response.send_message(
+                'Valid Unicode or custom emoji syntax was not detected.',
+                ephemeral=True,
+            )
 
-        logger.info(f'team_emoji set for {team.id} {team.name} to {team.emoji}')
-        await ctx.send(f'Team **{team.name}** updated with new emoji: {team.emoji}')
+        actor = team_emoji_service.capture_actor(interaction.user)
+        await interaction.response.defer(ephemeral=True)
+        try:
+            if emoji is None and not clear:
+                result = await team_emoji_service.run_read(
+                    team_emoji_service.build_read_request(
+                        member=interaction.user,
+                        guild_id=guild_id,
+                        team_lookup=team,
+                        invoked_with='/team emoji',
+                    )
+                )
+                await team_emoji_service.public_interaction_sender(
+                    interaction
+                )(
+                    team_emoji_service.read_message(result, actor=actor)
+                )
+                return result
+
+            request = team_emoji_service.build_mutation_request(
+                member=interaction.user,
+                guild_id=guild_id,
+                team_lookup=team,
+                emoji=emoji,
+                clear=clear,
+                native=True,
+                invoked_with='/team emoji',
+            )
+            result = await team_emoji_service.run_mutation(request)
+            await team_emoji_service.publish_mutation_result(
+                result,
+                send=team_emoji_service.public_interaction_sender(
+                    interaction
+                ),
+                actor=actor,
+            )
+            return result
+        except team_emoji_workers.TeamEmojiValidationError as ex:
+            return await interaction.followup.send(str(ex), ephemeral=True)
+        except peewee.PeeweeException:
+            logger.exception(
+                'Database failure in native team emoji command for guild %s',
+                guild_id,
+            )
+            return await interaction.followup.send(
+                'Team emoji operation failed and rolled back.',
+                ephemeral=True,
+            )
+        except Exception:
+            logger.exception(
+                'Unexpected native team emoji failure for guild %s',
+                guild_id,
+            )
+            return await interaction.followup.send(
+                'Team emoji operation failed and rolled back.',
+                ephemeral=True,
+            )
 
     @commands.command(usage='team_name [image_url or attachment]')
     @settings.is_mod_check()

@@ -28,6 +28,7 @@ class SlashTaxonomyRegistrationTests(unittest.TestCase):
         leaderboard_group = app_group(games.polygames, 'leaderboard')
         player_group = app_group(games.polygames, 'player')
         elo_group = app_group(administration.administration, 'elo')
+        team_group = app_group(administration.administration, 'team')
 
         self.assertEqual(
             [command.name for command in games.polygames.__cog_app_commands__],
@@ -39,7 +40,7 @@ class SlashTaxonomyRegistrationTests(unittest.TestCase):
                 for command
                 in administration.administration.__cog_app_commands__
             ],
-            ['elo'],
+            ['elo', 'team'],
         )
         self.assertEqual(
             {command.name for command in game_group.commands},
@@ -76,6 +77,10 @@ class SlashTaxonomyRegistrationTests(unittest.TestCase):
             {'recalculate', 'status'},
         )
         self.assertEqual(
+            {command.name for command in team_group.commands},
+            {'emoji'},
+        )
+        self.assertEqual(
             {command.name for command in leaderboard_group.commands},
             {'activity', 'players', 'squads'},
         )
@@ -87,6 +92,7 @@ class SlashTaxonomyRegistrationTests(unittest.TestCase):
     def test_typed_shapes_and_prefix_aliases_are_preserved(self):
         game_group = app_group(games.polygames, 'game')
         elo_group = app_group(administration.administration, 'elo')
+        team_group = app_group(administration.administration, 'team')
 
         self.assertEqual(
             [
@@ -207,6 +213,18 @@ class SlashTaxonomyRegistrationTests(unittest.TestCase):
             [
                 ('game_id', discord.AppCommandOptionType.integer),
                 ('confirm', discord.AppCommandOptionType.boolean),
+            ],
+        )
+        self.assertEqual(
+            [
+                (parameter.name, parameter.type, parameter.required)
+                for parameter
+                in team_group.get_command('emoji').parameters
+            ],
+            [
+                ('team', discord.AppCommandOptionType.string, False),
+                ('emoji', discord.AppCommandOptionType.string, False),
+                ('clear', discord.AppCommandOptionType.boolean, False),
             ],
         )
 
