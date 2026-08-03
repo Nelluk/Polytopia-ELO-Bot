@@ -11,7 +11,7 @@ Developer Portal or making claims in a privileged-intent review.
   fingerprints.
 - [ ] Confirm operational logs record command names and metadata, not complete
   command text and arguments.
-- [ ] Confirm `staffhelp` works in at least one documented support path for every
+- [ ] Confirm `/staffhelp` works in at least one documented support path for every
   production community, or ensure local moderators know how to relay a request.
 - [ ] Test the manual privacy-request runbook against a non-production or test
   account without destroying shared competitive history.

@@ -56,25 +56,13 @@ The checkpoint uses a validated runtime/build value when supplied, then a
 bounded `git rev-parse HEAD` lookup in the worker. If neither is available,
 the record explicitly contains `"git_checkpoint": "unknown"`.
 
-## Prefix compatibility and Discord relay
+## Native submission and Discord relay
 
-`$staffhelp` and `$helpstaff` retain their existing grammar, user cooldown,
-public acknowledgement, staff-channel message, optional game card, and
-legacy `GameLog` write. A valid prefix request now commits to the JSONL store
-before the existing relay when the selected runtime profile is `development`.
-Outside development, the JSONL/capture addition is skipped and the original
-prefix relay/card/`GameLog`/public acknowledgement path remains unchanged.
-
-In development, conforming prefix attachments are captured with the native
-limits and immutable metadata. If an old prefix attachment has an unsupported
-type, exceeds the beta per-file/aggregate limits, or cannot be read, the
-request is still accepted: its Discord URL remains in the bounded JSONL
-details and legacy staff relay, while local attachment bytes are omitted and
-the record carries a metadata-safe omission context. A development JSONL
-storage failure still blocks the success acknowledgement and legacy
-`GameLog` write. After a development record commits, a missing staff channel
-or relay exception reports the opaque ID and mirror failure without resetting
-cooldown or claiming the legacy relay succeeded.
+The legacy `$staffhelp` and `$helpstaff` prefix adapters were intentionally
+retired before integration with user approval. Native `/staffhelp` is the
+replacement and is the only feedback intake path. It is available to ordinary
+testers in guilds assigned `tools_support`; the capability remains
+default-deny.
 
 Native reports are acknowledged ephemerally with their report ID only after
 the local record and attachments are committed. The structured staff-channel

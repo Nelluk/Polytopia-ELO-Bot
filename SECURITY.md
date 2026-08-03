@@ -21,11 +21,10 @@ authorization, or credentials. Include:
   data; and
 - any suggested mitigation.
 
-If GitHub's private form is unavailable, use PolyELO's configured Discord
-prefix followed by:
+If GitHub's private form is unavailable, use `/staffhelp` followed by:
 
 ```text
-staffhelp Private security report - please contact me
+Private security report - please contact me
 ```
 
 Do not include vulnerability details in that initial Discord request. Staff

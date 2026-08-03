@@ -6,8 +6,7 @@ low request volume does not require a dedicated command or deletion script.
 
 ## 1. Receive and acknowledge
 
-Requests normally arrive through `$staffhelp` (or the server's configured
-prefix) with a short message such as:
+Requests normally arrive through `/staffhelp` with a short message such as:
 
 ```text
 Privacy request - please contact me about my PolyELO data
@@ -22,7 +21,7 @@ maintainer record.
 ## 2. Verify the requester
 
 - Verify control of the affected Discord account using the account that invoked
-  `staffhelp` or a follow-up action from that account.
+  `/staffhelp` or a follow-up action from that account.
 - Record the Discord user ID internally so the correct records can be located.
 - Do not request a Discord password, bot token, government identification,
   payment, or unrelated personal information.

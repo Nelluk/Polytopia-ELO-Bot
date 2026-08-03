@@ -115,15 +115,15 @@ The detailed operational schedule is available in
 Requests are handled manually; users do not need a special privacy command or
 external email account.
 
-To make a request from Discord, use the configured bot prefix followed by:
+To make a request from Discord, use `/staffhelp` followed by:
 
 ```text
-staffhelp Privacy request - please contact me about my PolyELO data
+Privacy request - please contact me about my PolyELO data
 ```
 
 Submit the command in a server where PolyELO operates. The request is relayed
 to that server's bot-support staff, who can follow up with the requester on
-Discord. If `staffhelp` is unavailable, ask a server moderator to relay a
+Discord. If `/staffhelp` is unavailable, ask a server moderator to relay a
 PolyELO privacy request to the bot maintainers. Do not include credentials or
 unrelated sensitive information in the initial request.
 
