@@ -1,6 +1,6 @@
 # Slash Command Taxonomy Review
 
-Last updated: 2026-08-01
+Last updated: 2026-08-03
 
 Status: Taxonomy v2.2 provisionally accepted as the working implementation
 taxonomy; minor pre-deployment wording refinements remain allowed
@@ -35,7 +35,7 @@ Static inspection found:
 
 - 78 active-target explicit prefix command handlers;
 - one customized framework `help` command;
-- sixteen locally implemented `/game` commands (fifteen immediate children,
+- seventeen locally implemented `/game` commands (sixteen immediate children,
   including the `manage` group, plus its nested `kick`) and two `/elo`
   subcommands;
 - three locally implemented `/leaderboard` subcommands plus temporary `/lb2`;
@@ -321,6 +321,13 @@ Bulk tribe assignment remains on the prefix path initially. A later native
 bulk editor should be interaction-driven rather than a long opaque argument.
 Commands that support clearing use an explicit `clear` option rather than
 overloading an omitted value.
+
+P4.2e now implements `/game side` locally with the typed shape described by
+this table: `game_id` and side selector are required, while role, name, and
+clear are optional. The command reads publicly when replacement inputs are
+omitted and routes edits through the existing host/staff and role-restricted
+join behavior. `$gameside` and its aliases remain registered. No intentional
+native compatibility compromise was introduced.
 
 ### Result review and correction
 
