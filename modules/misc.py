@@ -13,6 +13,7 @@ import datetime
 import random
 from modules.games import PolyGame
 from modules.league import free_agent_role_name, leader_role_name, coleader_role_name
+from modules import beta_feedback, beta_feedback_views
 # import modules.imgen as imgen
 # import modules.achievements as achievements
 
@@ -427,6 +428,38 @@ class misc(commands.Cog):
             related_game = None
             guild_id = ctx.guild.id
 
+        if ctx.message.attachments:
+            attachment_urls = '\n'.join([attachment.url for attachment in ctx.message.attachments])
+            message += f'\n{attachment_urls}'
+
+        if not message or len(message) < 7:
+            ctx.command.reset_cooldown(ctx)
+            return await ctx.send(f'You must supply a help request, ie: `{ctx.prefix}{ctx.invoked_with} Game 42500 Does this screenshot show a restartable spawn?`')
+
+        try:
+            captured_attachments = await beta_feedback.capture_attachments(
+                tuple(ctx.message.attachments),
+            )
+            _stored_report = await beta_feedback.store_report(
+                beta_feedback.build_prefix_draft(
+                    member=ctx.author,
+                    guild_id=ctx.guild.id,
+                    channel_id=ctx.channel.id,
+                    message=message,
+                    invoked_with=ctx.invoked_with,
+                    related_game_id=(related_game.id if related_game else None),
+                    attachments=captured_attachments,
+                )
+            )
+        except beta_feedback.FeedbackValidationError as exc:
+            ctx.command.reset_cooldown(ctx)
+            return await ctx.send(f'Your staff-help request could not be recorded: {exc}')
+        except beta_feedback.FeedbackStorageError:
+            ctx.command.reset_cooldown(ctx)
+            return await ctx.send(
+                'Your staff-help request could not be recorded. Please try again later.'
+            )
+
         guild = self.bot.get_guild(guild_id)
         if guild:
             channel = guild.get_channel(settings.guild_setting(guild_id, 'staff_help_channel'))
@@ -437,14 +470,6 @@ class misc(commands.Cog):
             ctx.command.reset_cooldown(ctx)
             return await ctx.send('Cannot load staff channel. You will need to ping a staff member.')
 
-        if ctx.message.attachments:
-            attachment_urls = '\n'.join([attachment.url for attachment in ctx.message.attachments])
-            message += f'\n{attachment_urls}'
-
-        if not message or len(message) < 7:
-            ctx.command.reset_cooldown(ctx)
-            return await ctx.send(f'You must supply a help request, ie: `{ctx.prefix}{ctx.invoked_with} Game 42500 Does this screenshot show a restartable spawn?`')
-
         helper_role_str = 'server staff'
         helper_role_name = settings.guild_setting(guild_id, 'helper_roles')[0]
         helper_role = discord.utils.get(guild.roles, name=helper_role_name)
@@ -454,7 +479,10 @@ class misc(commands.Cog):
             chan_str = f'({ctx.channel.name})'
         else:
             chan_str = f'({ctx.channel.name} on __{ctx.guild.name}__)'
-        await channel.send(f'Attention {helper_role_str} - {ctx.author.mention} ({ctx.author.name}) asked for help from channel <#{ctx.channel.id}> {chan_str}:\n{ctx.message.jump_url}\n{message}')
+        await beta_feedback.relay_prefix(
+            channel,
+            f'Attention {helper_role_str} - {ctx.author.mention} ({ctx.author.name}) asked for help from channel <#{ctx.channel.id}> {chan_str}:\n{ctx.message.jump_url}\n{message}',
+        )
 
         if related_game:
             embed, content = related_game.embed(guild=guild, prefix=ctx.prefix)
@@ -467,6 +495,33 @@ class misc(commands.Cog):
 
         models.GameLog.write(game_id=game_id, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} requested staffhelp: *{message}*')
         await ctx.send('Your message has been sent to server staff. Please wait patiently or send additional information on your issue.')
+
+    @discord.app_commands.command(
+        name='staffhelp',
+        description='Submit a structured help, bug, or feature report.',
+    )
+    @discord.app_commands.guild_only()
+    @discord.app_commands.checks.cooldown(
+        2,
+        30.0,
+        key=lambda interaction: interaction.user.id,
+    )
+    async def staffhelp_slash(self, interaction: discord.Interaction):
+        """Open the requester-bound structured beta feedback form."""
+
+        if interaction.guild_id is None or interaction.channel_id is None:
+            return await interaction.response.send_message(
+                'Staff help is available in a server channel only.',
+                ephemeral=True,
+            )
+        await interaction.response.send_modal(
+            beta_feedback_views.StaffHelpModal(
+                self.bot,
+                requester_id=interaction.user.id,
+                guild_id=interaction.guild_id,
+                channel_id=interaction.channel_id,
+            )
+        )
 
     @commands.command(hidden=False, aliases=['random_tribes', 'rtribe'], usage='n_tribes [-banned_tribe ...]')
     @settings.in_bot_channel()

@@ -41,6 +41,7 @@ class ApplicationCommandPolicyTests(unittest.TestCase):
         self.assertEqual(policy.allowed_guild_ids, (10, 20))
         self.assertEqual(policy.roots_for_guild(10), ())
         self.assertNotIn('team', policy.roots_for_guild(10))
+        self.assertNotIn('staffhelp', policy.roots_for_guild(10))
         self.assertEqual(policy.assigned_guild_ids(), ())
         with self.assertRaises(FrozenInstanceError):
             policy.allowed_guild_ids = (1,)
@@ -63,6 +64,14 @@ class ApplicationCommandPolicyTests(unittest.TestCase):
         self.assertEqual(policy.roots_for_guild(10), (
             'game', 'leaderboard', 'player',
         ))
+
+        tools_policy = build_capability_policy({
+            10: ('tools_support',),
+        }, [10])
+        self.assertEqual(
+            tools_policy.roots_for_guild(10),
+            ('about', 'guide', 'help', 'staffhelp', 'support', 'tools'),
+        )
 
     def test_unknown_guild_and_capability_are_rejected(self):
         with self.assertRaisesRegex(ApplicationCommandPolicyError, 'not in'):

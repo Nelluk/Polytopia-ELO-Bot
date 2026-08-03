@@ -12,6 +12,7 @@ from tests.test_newgame_worker import import_offline_runtime
 
 games = import_offline_runtime('modules.games')
 administration = import_offline_runtime('modules.administration')
+misc = import_offline_runtime('modules.misc')
 
 
 def app_group(cog_class, name):
@@ -23,6 +24,17 @@ def app_group(cog_class, name):
 
 
 class SlashTaxonomyRegistrationTests(unittest.TestCase):
+    def test_staffhelp_is_an_exact_no_option_tools_support_root(self):
+        command = app_group(misc.misc, 'staffhelp')
+
+        self.assertEqual(command.name, 'staffhelp')
+        self.assertEqual(command.parameters, [])
+        self.assertTrue(command.guild_only)
+        self.assertEqual(
+            [command.name for command in misc.misc.__cog_app_commands__],
+            ['staffhelp'],
+        )
+
     def test_current_native_surface_uses_domain_roots(self):
         game_group = app_group(games.polygames, 'game')
         leaderboard_group = app_group(games.polygames, 'leaderboard')
