@@ -5282,7 +5282,7 @@ explicit development-guild deployment and beta smoke of `/team image`.
 
 ## WB1 — Wider beta operations and structured feedback
 
-Status: **In progress; WB1.1 integrated and WB1.2 implemented locally**
+Status: **In progress; WB1.1 and WB1.2 integrated; WB1.3 planned**
 
 ### WB1.1 — Structured `/staffhelp` feedback intake
 
@@ -5387,13 +5387,14 @@ Limitations and next action:
   dependency, command synchronization, launch, or production action was
   introduced. The ignored development capability assignment remains unchanged,
   so `/staffhelp` remains default-deny until a later explicit deployment.
-- Next action: review the WB1.2 durable development-beta service and tester
-  operations branch. The separate P9 decision for a production-safe
-  authoritative intake/retention path remains a later production prerequisite.
+- Next action: complete the separately approved WB1.2 first-activation
+  procedure, then implement WB1.3 wider-tester server readiness. The separate
+  P9 decision for a production-safe authoritative intake/retention path remains
+  a later production prerequisite.
 
 ### WB1.2 — Durable development-beta service and tester operations
 
-Status: **Implemented locally; Tier-3 oversight review pending**
+Status: **Complete; Tier-3 reviewed and integrated as `b85f21c`**
 
 Branch/base and implementation checkpoint:
 
@@ -5402,8 +5403,10 @@ Branch/base and implementation checkpoint:
   `codex/database-slash-modernization`.
 - Implementation/tests checkpoint: `e6df8a4`.
 - Oversight-correction implementation/tests checkpoint: `36dc783`.
-- The implementation commits and this documentation/roadmap commit remain
-  separate for review; the branch is not merged or pushed by this unit.
+- Tier-3 oversight found and corrected the original self-referential manifest
+  contract and the first-activation unguarded-process gap. The reviewed branch
+  was integrated into `codex/database-slash-modernization` as merge checkpoint
+  `b85f21c`; it has not been pushed or activated as a service.
 
 Delivered boundary:
 
@@ -5460,8 +5463,6 @@ Tier-3 validation evidence:
 
 Remaining approved gates:
 
-- Oversight must review the complete Tier-3 branch and all correction and
-  documentation commits before integration.
 - Before first activation, the operator must complete the host-wide audit,
   review each candidate, stop only an authorized development beta, rerun until
   clear, and then allow the service's repeated `ExecStartPre` audit to pass.
@@ -5484,6 +5485,29 @@ This milestone does not require a new database table, GitHub token, public
 API, or direct Discord access for Codex. It does not authorize production
 deployment or any additional prefix retirement; the WB1.1 staffhelp prefix
 retirement is separately approved and remains in force.
+
+### WB1.3 — Wider-tester server readiness and controlled invitation
+
+Status: **Planned**
+
+Objective: prepare the development guild for approximately 5–20 wider-beta
+testers without ad hoc roles, database fixtures, capability assignments, or
+cleanup obligations.
+
+The unit begins with a read-only inventory and a reviewed desired-state
+manifest covering the `testers` role, tester-facing channels, application-
+command capability assignment (including whether `tools_support` should expose
+`/staffhelp`), representative development-only teams/houses/roles, owned
+fixture IDs, permissions, and cleanup/rollback. Planning and offline tooling
+must remain separate from any live Discord or `polytopia_dev` apply.
+
+After review, live application remains separately gated: stop or use the
+durable beta as required by the relevant tool, apply only to development guild
+`478571892832206869`, pin the uniquely resolved `testers` role ID, synchronize
+only the approved guild-scoped command tree, start the single durable beta,
+deliver one reviewed release manifest to `todo-and-changelog`, and complete
+the bounded smoke checklist before inviting testers. No production checkout,
+service, guild, or database is in scope.
 
 ## P9 — Production rollout and prefix lifecycle
 
@@ -6268,6 +6292,23 @@ post-write-only Discord staff-channel mirror. The implementation does not
 change the database, command deployment, or production boundary.
 
 ## Progress log
+
+### 2026-08-03 — WB1.2 reviewed and integrated
+
+- Completed the Tier-3 review of the durable development-beta service,
+  release-control boundary, fixed public/private channels, exact tester-role
+  mention gate, constructible release-manifest preparation, idempotency state,
+  and mandatory host-wide first-activation process audit.
+- Independently reran the focused WB1.2 suite (**26 tests**) and compilation,
+  diff, and service-template checks. The worker's writable isolated worktree
+  completed the full offline suite with **666 tests and 17 intentional gated
+  skips**.
+- Integrated `codex/wb1-2-durable-beta-operations` into the accumulation
+  branch as `b85f21c`. No service installation/lifecycle action, beta restart,
+  command synchronization, Discord post, role resolution, database mutation,
+  sudo, production action, or push occurred.
+- Selected WB1.3 wider-tester server readiness as the next planning unit after
+  the separately approved WB1.2 first-activation procedure.
 
 ### 2026-08-03 — WB1.2 oversight correction implemented locally
 
