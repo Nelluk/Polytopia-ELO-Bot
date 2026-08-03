@@ -241,6 +241,15 @@ This table is an interaction contract rather than permission to combine
 unrelated application services. Each bounded implementation unit still owns
 its worker, authorization, transaction, and post-effect review.
 
+WB1.1 implements the `/staffhelp` row locally on the locked discord.py 2.7.1
+environment: the native command has no options and opens a modal with a
+radio-group category, bounded summary/details/context inputs, and a 10-file
+Components v2 upload field. The retained `$staffhelp`/`$helpstaff` commands
+remain registered with their existing grammar and cooldown. Both sources use
+the development-only append-only JSONL authority; the configured staff-channel
+message is a post-write mirror. This implementation is review-pending and does
+not authorize command synchronization or beta launch.
+
 ## Proposed game command tree
 
 Discord permits a root, one optional subcommand-group level, and a command.

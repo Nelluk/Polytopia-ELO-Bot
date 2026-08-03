@@ -350,6 +350,7 @@ longer be retained.
 | C-004 `$games`/`$opengames` and native open views | The shared worker preserves the legacy open-game modes, requester-aware eligibility, aliases, and native view switching while bounding the result DTO. | Open discovery now publishes at most the first 500 rows and marks truncation; the former prefix query did not impose an explicit cap. This is a deliberate Tier-2 bounded-read tradeoff, with ordinary results still paginated and query-refinable. | Add a cursor/continuation control backed by the same bounded worker if a guild's open-game volume makes the cap user-visible. | Accepted in P5.8 beta smoke |
 | C-005 `/game tribe` / `$settribe` | Native direct `bulk` and confirmed workspace batches validate every pair and commit all changed lineups/audits atomically. The retained prefix aliases preserve compact batch grammar, self shorthand, abbreviations, `none`, and per-pair outcomes. | Native batches are deliberately all-or-nothing; the legacy prefix deliberately keeps its historical valid-subset behavior, reporting invalid pairs while committing valid assignments/audits together. If message-content processing is later retired, the native workspace/direct option covers the ordinary staff workflow while the prefix-only partial-success distinction is unavailable. | Revisit prefix retirement only after usage evidence and an explicit compatibility decision; do not silently make `$settribe` atomic. | Implemented locally; beta review pending |
 | C-006 `/team image` / `$team_image` | Native `/team image` provides an effective-image read, one typed Discord attachment replacement, and explicit clear under the existing mod/team-enabled boundary. The retained prefix preserves its required team name, direct URL option, attachment-wins behavior, and legacy success/read wording; its stale lookup example now correctly names `team_image`. | Direct URL replacement remains prefix-only because the native command deliberately uses a typed attachment rather than a free-form URL. If prefix processing were later removed, staff would need to upload an attachment for replacement; existing stored URL images would still read and clear natively. Prefix success wording also remains legacy-compatible rather than adding native actor text. | Add a separately justified URL option or a multi-step/modal image editor only if direct URL replacement remains a demonstrated native need; do not add remote downloading without a new validation/security review. | Intentional P8.3 parity boundary; prefix retained |
+| C-007 `/staffhelp` / `$staffhelp` / `$helpstaff` | Native `/staffhelp` has no options and opens a requester-bound modal with bounded help/bug/feature category, summary, details, optional context, and up to 10 typed uploads. The retained prefixes preserve aliases, grammar, cooldown, public relay, optional game card, and `GameLog`; both sources write the same development JSONL schema. | No native attachment gap was required: the installed discord.py 2.7.1 Components v2 API provides the required multi-file upload. The shared service commits the authoritative prefix/native record before Discord staff relay; a prefix relay failure therefore leaves a readable record without claiming the legacy success acknowledgement. | Add retention/redaction operations or a later staff workflow only with a separate privacy and operational review; do not replace the JSONL authority with a Discord-only mirror. | Implemented locally; review pending |
 
 Every later slash conversion must add a row when parity is intentionally
 reduced. If there is no compromise, its unit evidence should explicitly say
@@ -448,8 +449,17 @@ check:
   `f0429536d7ed899eb356794bcd3558baa9be3d45`.
 - P4.2d roadmap evidence: `e1a0959`; accumulation merge: `7c2269b`.
 
-Current unit: **P8.3 focused `/team image` read/edit/clear — reviewed,
-integrated, and deployed to the development guild; beta smoke active.**
+Current unit: **WB1.1 structured `/staffhelp` feedback intake — implemented
+locally; review pending.**
+
+WB1.1 implementation is isolated on `codex/wb1-1-staffhelp-feedback` from the
+exact clean accumulation checkpoint
+`86a6d1ccbd1213417af8ceda09ea43b86d06562d`. It does not launch the beta,
+synchronize commands, inspect Discord, modify production, or change the
+ignored development capability assignment. The implementation and evidence
+commits will remain separate from this roadmap/runbook documentation commit.
+Implementation/tests checkpoint: `53adff3`.
+
 P8.3 implementation checkpoint: `a3031d5` on `codex/p8-3-team-image`, based on
 the exact clean accumulation checkpoint `c009e5a08e92cba83dbc470371af688b9e1643df`.
 P8.3 review correction implementation/tests checkpoint: `0acdea4` on the same
@@ -608,7 +618,7 @@ this decision does not authorize production deployment or synchronization.
 | P6 | Planned | Registration and player preferences | Worker-safe profile writes and slash UX |
 | P7 | In progress | Read-heavy game, player, and leaderboard commands | Bounded read path and responsive slash queries |
 | P8 | In progress | Guild application-command capability policy, explicit deployment tooling, then league and remaining administration workflows | Audited guild-scoped command policy and subsequent domain workers/native interfaces |
-| WB1 | Planned | Wider beta operations, durable development runtime, and structured tester feedback | Reviewed persistent beta service, explicit guild sync, searchable `/staffhelp` reports, and wider-tester runbook |
+| WB1 | In progress | Wider beta operations, durable development runtime, and structured tester feedback | Reviewed persistent beta service, explicit guild sync, searchable `/staffhelp` reports, and wider-tester runbook |
 | P9 | Planned | Production rollout and later prefix deprecation decision | Approved deployment, monitoring, and separate deprecation plan |
 
 ## P0 — Serialized ELO and slash-command pilot
@@ -5257,7 +5267,92 @@ explicit development-guild deployment and beta smoke of `/team image`.
 
 ## WB1 — Wider beta operations and structured feedback
 
-Status: **Planned; milestone accepted, implementation not started**
+Status: **In progress; WB1.1 implemented locally and review pending**
+
+### WB1.1 — Structured `/staffhelp` feedback intake
+
+Status: **Implemented locally; review pending**
+
+Branch/base: `codex/wb1-1-staffhelp-feedback` from the exact clean checkpoint
+`86a6d1ccbd1213417af8ceda09ea43b86d06562d`.
+
+Objective and UX:
+
+- Add top-level `/staffhelp` under the existing default-deny
+  `tools_support` capability. It has no slash options and opens a modal.
+- The modal collects `help`, `bug`, or `feature`, a 160-character summary, a
+  4,000-character description, optional 1,000-character command/game/context,
+  and up to 10 typed file uploads.
+- discord.py 2.7.1 Components v2 `RadioGroup` and `FileUpload` were inspected
+  in the installed environment and work reliably for this shape. No native
+  attachment gap is deferred.
+- Native success is ephemeral and includes only the opaque report ID. Native
+  validation/storage failures remain private and do not claim persistence.
+  Details are never posted to the originating public channel.
+
+Storage and effect ordering:
+
+- `modules/beta_feedback.py` writes one deterministic UTF-8 JSON object per
+  line to `<development profile log_root>/beta-feedback/reports.jsonl` and
+  stores attachments under generated report-ID directories. The path gate
+  rejects non-development profiles, production log roots, outside-checkout
+  roots, symlinked components, and unsafe attachment paths.
+- Directories are `0700`; the JSONL and attachment files are `0600`. Records
+  include schema version, category, bounded report text, optional references,
+  immutable requester/guild/channel primitives, source, UTC timestamp,
+  checkpoint (or explicit `unknown`), and attachment size/type/digest
+  metadata. User content never determines a filesystem path.
+- A dedicated single-worker executor plus process lock serializes staging and
+  append. Attachment stages are fsynced and published before the JSONL append;
+  the line is written with append semantics, flushed/fsynced, and only then is
+  native success acknowledged. Failed stages are cleaned. A potentially
+  uncertain post-publication write is never acknowledged and is logged for
+  reconciliation without logging report bodies.
+- Git checkpoint lookup is bounded and runs in the storage worker. Cancellation
+  drains the worker before returning cancellation; Discord awaits remain
+  outside filesystem work.
+- Native staff-channel relay is a post-write mirror. A relay failure preserves
+  the report, returns a private recorded-with-warning message, and emits a
+  report/guild/channel reconciliation warning. The retained prefix keeps its
+  existing relay/card/GameLog/public acknowledgement behavior and now commits
+  to the same JSONL stream first.
+
+Reader/runbook and evidence:
+
+- `scripts/manage_beta_feedback.py` provides read-only `list`, `show`, and
+  `search`, with optional JSON output. It uses the same explicit development
+  profile/path gate, never reads attachment payloads, handles an absent file,
+  and reports malformed/truncated lines instead of presenting them as valid.
+- `docs/DEVELOPMENT_BETA_FEEDBACK.md` documents the exact path, modes, limits,
+  operator commands, retention/redaction limitation, relay ordering, and
+  validation gates.
+- Focused offline coverage in `tests/test_beta_feedback.py`,
+  `tests/test_slash_taxonomy.py`, and `tests/test_application_command_policy.py`
+  covers registration/policy, modal shape/lifecycle, prefix parity, primitive
+  capture and safe logging, schema/checkpoint, concurrent append and event-loop
+  responsiveness, cancellation/failure cleanup, attachment safety/digests,
+  relay ordering/failure, development gating, and reader behavior.
+- Validation evidence: the focused WB1.1/policy/manager set passed **41
+  tests**; complete offline discovery passed **640 tests with 17 intentional
+  database-integration skips**; the unchanged gated development-database
+  module passed **17 tests with 1 operator-fixture skip** under
+  `POLYBOT_ENV=development`, `polytopia_dev`, and `polybot_dev`. Compilation,
+  `git diff --check`, and the offline command plan also passed. The plan kept
+  `/staffhelp` out of the desired tree because `tools_support` remains
+  unassigned; no sync was attempted.
+
+Limitations and next action:
+
+- WB1.1 has no automatic retention or redaction operation; the development
+  feedback root must be treated as sensitive and managed through a separately
+  approved filesystem retention process.
+- No database table, API endpoint, external token, GitHub integration,
+  dependency, command synchronization, launch, or production action was
+  introduced. The ignored development capability assignment remains unchanged,
+  so `/staffhelp` remains default-deny until a later explicit deployment.
+- Next action: review the implementation/tests checkpoint and the separate
+  documentation/evidence commit. Deployment and wider-beta smoke remain later
+  explicit operations.
 
 Purpose: open the development guild and beta command surface to a wider group
 without weakening the production boundary or making the beta process depend
@@ -5284,8 +5379,9 @@ Required scope:
   validated attachments by report ID when implemented. Use an in-process lock
   plus atomic/flush-safe writes so concurrent submissions cannot corrupt the
   stream;
-- provide a read-only repository utility with `list`, `show`, and search/export
-  operations. The JSONL is the direct oversight source and must be searchable
+- provide a read-only repository utility with `list`, `show`, and search
+  operations (export is optional and not required for WB1.1). The JSONL is the
+  direct oversight source and must be searchable
   with ordinary tools such as `rg`; a Discord staff-channel/forum mirror is an
   optional post-write effect, not a prerequisite or the authoritative store;
 - acknowledge submissions publicly only when that does not expose sensitive
@@ -6082,7 +6178,34 @@ to the successful local write. A database table, GitHub issue integration,
 public API, or external connector is not required for the first wider-beta
 milestone.
 
+WB1.1 applies this decision with a development-only JSONL writer, a bounded
+attachment directory, a read-only list/show/search utility, and a
+post-write-only Discord staff-channel mirror. The implementation does not
+change the database, command deployment, or production boundary.
+
 ## Progress log
+
+### 2026-08-03 — WB1.1 structured staffhelp implemented locally
+
+- Implemented on isolated `codex/wb1-1-staffhelp-feedback` from exact clean
+  base `86a6d1ccbd1213417af8ceda09ea43b86d06562d`.
+- Added the top-level no-option `/staffhelp` modal under the existing
+  default-deny `tools_support` family. Installed discord.py 2.7.1 Components
+  v2 supports the planned category selector and up to 10 file uploads, so no
+  native attachment gap was deferred.
+- Added the development-only append-only JSONL authority, bounded attachment
+  staging/digests, reader utility, post-write relay, retained-prefix routing,
+  focused offline tests, and the operator/tester runbook. Prefix aliases,
+  grammar, cooldown, relay/card/GameLog behavior, and public success wording
+  remain intact.
+- Implementation/tests checkpoint: `53adff3`. Focused validation passed **41
+  tests**; complete offline discovery passed **640 tests with 17 intentional
+  integration skips**; the unchanged gated development-database suite passed
+  **17 tests with 1 operator-fixture skip**. The offline command plan kept
+  `/staffhelp` default-deny and no sync was attempted.
+- Documentation/evidence is being committed separately. No launch, Discord
+  inspection, production action, dependency installation, push, or merge
+  occurred.
 
 ### 2026-08-03 — P8.3 integrated and wider-beta milestone accepted
 
