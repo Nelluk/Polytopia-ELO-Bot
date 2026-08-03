@@ -2345,7 +2345,7 @@ beta launch.
 
 #### P4.2d — Game-tribe bulk/read-edit workflow
 
-Status: **Tier-3 reviewed and integrated; beta acceptance pending**
+Status: **Tier-3 reviewed and integrated; beta smoke active**
 
 Risk tier: **Tier 3**. One request may update several lineup tribes and audit
 rows and must not leave a partially applied batch after a transaction failure.
@@ -2474,6 +2474,21 @@ Integration evidence:
   Discord synchronization, production operation, schema/dependency action,
   push, or PR occurred during integration.
 
+Beta launch evidence:
+
+- The explicit deployment tool inspected only development guild
+  `478571892832206869`: `game` required an update, while `elo`,
+  `leaderboard`, and `player` were unchanged; no root was created or removed.
+- The confirmed guild-only apply updated that one existing `game` root. The
+  tool exposed no global synchronization path.
+- The beta launched from accumulation checkpoint `a2347ee` with
+  `POLYBOT_ENV=development`, startup synchronization disabled, background
+  tasks/API/Bullet disabled, and authenticated as **PolyELO Bot Beta**
+  (`479029527553638401`). Host-wide inspection found exactly one development
+  beta alongside the untouched production process.
+- Functional `/game tribe` and retained `$settribe`/`$settribes` acceptance
+  remains pending the user's smoke test. No fixture seed/cleanup was run.
+
 Known limitation: the established post-commit announcement/dense-card path
 still performs its short `Game.load_full_game` reload on the event-loop thread,
 matching the documented adjacent P4.2a/P4.2b/P4.2c limitation. The tribe
@@ -2481,10 +2496,9 @@ read, legacy target resolution, mutation, validation, and audit database work
 remain worker-bounded and worker-local; the reload is strictly after the
 committed transaction and before its Discord effects.
 
-Next action: prepare the Codex worktree environment improvement at the next
-accumulation refresh, then separately obtain approval for the beta smoke of
-`/game tribe` and retained prefix aliases. Do not synchronize commands or
-launch a bot from this checkpoint.
+Next action: smoke `/game tribe` read, self/single edit, direct or modal bulk,
+and one retained prefix bulk assignment. Record acceptance or a narrow
+finding, then stop the task-owned beta before any fixture operation.
 
 ## P5 — Matchmaking lifecycle
 
@@ -5435,6 +5449,19 @@ managed worktree and saved snapshot instead of retaining one authoritative
 development-only copy.
 
 ## Progress log
+
+### 2026-08-03 — P4.2d development beta launched
+
+- The explicit development-guild inspection found only the existing `game`
+  root changed. A confirmed guild-only apply updated it; `elo`, `leaderboard`,
+  and `player` remained unchanged, with no creates/removals and no global
+  synchronization path.
+- Launched accumulation checkpoint `a2347ee` as beta application
+  `479029527553638401` under the development profile with background tasks,
+  API, Bullet, and startup synchronization disabled.
+- Host-wide inspection confirmed exactly one development beta alongside the
+  untouched production process. `/game tribe` functional acceptance is now
+  pending; no database fixture operation ran.
 
 ### 2026-08-03 — Development worktree setup made repository-backed
 
