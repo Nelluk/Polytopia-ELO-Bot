@@ -1708,13 +1708,27 @@ class administration(commands.Cog):
                 exc.result.team_id,
                 guild_id,
             )
-            return await interaction.followup.send(
-                team_image_service.publication_failure_message(
-                    exc,
-                    actor=actor,
-                ),
-                ephemeral=True,
+            warning = team_image_service.publication_failure_message(
+                exc,
+                actor=actor,
             )
+            try:
+                await team_image_service.public_interaction_sender(
+                    interaction,
+                )(warning)
+            except Exception:
+                logger.exception(
+                    'Committed native team image %s could not publish its '
+                    'public reconciliation warning; using an ephemeral '
+                    'fallback for guild %s',
+                    exc.result.team_id,
+                    guild_id,
+                )
+                return await interaction.followup.send(
+                    warning,
+                    ephemeral=True,
+                )
+            return None
         except team_image_workers.TeamImageValidationError as exc:
             return await interaction.followup.send(str(exc), ephemeral=True)
         except (team_image_service.TeamImageDownloadError, image_storage.ImageStorageError) as exc:
@@ -1810,7 +1824,8 @@ class administration(commands.Cog):
             )
         except team_image_workers.TeamImageLookupError as exc:
             return await ctx.send(
-                f'{exc}\nExample: `{ctx.prefix}team_emoji name :my_custom_emoji:`'
+                f'{exc}\nExample: `{ctx.prefix}team_image name '
+                'http://url_to_image.png`'
             )
         except team_image_workers.TeamImageValidationError as exc:
             return await ctx.send(str(exc))

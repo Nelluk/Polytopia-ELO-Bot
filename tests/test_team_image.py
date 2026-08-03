@@ -647,6 +647,271 @@ class TeamImageWorkerTests(unittest.TestCase):
         self.assertIn('cleared the image', interaction.channel.send.await_args.args[0])
         self.assertIn('<@100>', interaction.channel.send.await_args.args[0])
 
+    def test_native_publication_failure_warns_publicly_with_actor_attribution(self):
+        command = next(
+            command
+            for command in administration.administration.__cog_app_commands__
+            if command.name == 'team'
+        ).get_command('image')
+        interaction = SimpleNamespace(
+            guild=SimpleNamespace(id=300),
+            user=SimpleNamespace(id=100, display_name='Mod', mention='<@100>'),
+            response=SimpleNamespace(defer=mock.AsyncMock()),
+            delete_original_response=mock.AsyncMock(),
+            channel=SimpleNamespace(send=mock.AsyncMock()),
+            followup=SimpleNamespace(send=mock.AsyncMock()),
+        )
+        current = workers.TeamImageReadResult(
+            guild_id=300,
+            team_id=42,
+            team_name='Ronin',
+            image_url='https://example.com/team.png',
+            effective_source=workers.TEAM_IMAGE_URL,
+            local_image_bytes=None,
+            local_digest=None,
+        )
+        committed = workers.TeamImageMutationResult(
+            guild_id=300,
+            team_id=42,
+            team_name='Ronin',
+            operation=workers.TEAM_IMAGE_CLEAR,
+            old_image_url=current.image_url,
+            image_url=None,
+            old_local_digest=None,
+            ignored_url=False,
+            native=True,
+        )
+        publication_error = service.TeamImagePublicationError(
+            committed,
+            detail='disk full',
+        )
+
+        with mock.patch.object(
+            administration.team_image_service,
+            'run_read',
+            new=mock.AsyncMock(return_value=current),
+        ), mock.patch.object(
+            administration.team_image_service,
+            'run_mutation',
+            new=mock.AsyncMock(side_effect=publication_error),
+        ):
+            returned = asyncio.run(
+                command.callback(SimpleNamespace(), interaction, 'Ronin', None, True)
+            )
+
+        self.assertIsNone(returned)
+        interaction.delete_original_response.assert_awaited_once()
+        interaction.channel.send.assert_awaited_once()
+        warning = interaction.channel.send.await_args.args[0]
+        self.assertIn('<@100>', warning)
+        self.assertIn('**Mod** (`100`)', warning)
+        self.assertIn('requires reconciliation', warning)
+        interaction.followup.send.assert_not_awaited()
+
+    def test_native_publication_warning_uses_ephemeral_fallback_when_public_delivery_fails(self):
+        command = next(
+            command
+            for command in administration.administration.__cog_app_commands__
+            if command.name == 'team'
+        ).get_command('image')
+        interaction = SimpleNamespace(
+            guild=SimpleNamespace(id=300),
+            user=SimpleNamespace(id=100, display_name='Mod', mention='<@100>'),
+            response=SimpleNamespace(defer=mock.AsyncMock()),
+            delete_original_response=mock.AsyncMock(),
+            channel=SimpleNamespace(send=mock.AsyncMock(side_effect=RuntimeError('channel unavailable'))),
+            followup=SimpleNamespace(send=mock.AsyncMock()),
+        )
+        current = workers.TeamImageReadResult(
+            guild_id=300,
+            team_id=42,
+            team_name='Ronin',
+            image_url='https://example.com/team.png',
+            effective_source=workers.TEAM_IMAGE_URL,
+            local_image_bytes=None,
+            local_digest=None,
+        )
+        committed = workers.TeamImageMutationResult(
+            guild_id=300,
+            team_id=42,
+            team_name='Ronin',
+            operation=workers.TEAM_IMAGE_CLEAR,
+            old_image_url=current.image_url,
+            image_url=None,
+            old_local_digest=None,
+            ignored_url=False,
+            native=True,
+        )
+        publication_error = service.TeamImagePublicationError(
+            committed,
+            detail='disk full',
+        )
+
+        with mock.patch.object(
+            administration.team_image_service,
+            'run_read',
+            new=mock.AsyncMock(return_value=current),
+        ), mock.patch.object(
+            administration.team_image_service,
+            'run_mutation',
+            new=mock.AsyncMock(side_effect=publication_error),
+        ):
+            asyncio.run(
+                command.callback(SimpleNamespace(), interaction, 'Ronin', None, True)
+            )
+
+        warning = interaction.followup.send.await_args.args[0]
+        self.assertIn('<@100>', warning)
+        self.assertIn('requires reconciliation', warning)
+        interaction.followup.send.assert_awaited_once_with(
+            warning,
+            ephemeral=True,
+        )
+
+    def test_prefix_direct_url_routes_through_shared_service_and_preserves_output(self):
+        command = next(
+            command
+            for command in administration.administration.__cog_commands__
+            if command.name == 'team_image'
+        )
+        send = mock.AsyncMock()
+        ctx = SimpleNamespace(
+            message=SimpleNamespace(attachments=[]),
+            author=SimpleNamespace(id=100, display_name='Mod', mention='<@100>'),
+            guild=SimpleNamespace(id=300),
+            prefix='$',
+            invoked_with='team_image',
+            send=send,
+        )
+        real_run_read = administration.team_image_service.run_read
+        real_run_mutation = administration.team_image_service.run_mutation
+        url = 'https://example.com/new.png'
+
+        with mock.patch.object(
+            administration.team_image_service,
+            'run_read',
+            new=mock.AsyncMock(side_effect=real_run_read),
+        ) as run_read, mock.patch.object(
+            administration.team_image_service,
+            'run_mutation',
+            new=mock.AsyncMock(side_effect=real_run_mutation),
+        ) as run_mutation:
+            asyncio.run(command.callback(SimpleNamespace(), ctx, 'Ronin', url))
+
+        run_read.assert_awaited_once()
+        run_mutation.assert_awaited_once()
+        request = run_mutation.await_args.args[0]
+        self.assertEqual(request.operation, workers.TEAM_IMAGE_URL)
+        self.assertEqual(request.image_url, url)
+        self.assertFalse(request.native)
+        self.assertEqual(self.team.image_url, url)
+        self.assertEqual(
+            send.await_args_list,
+            [
+                mock.call('Team **Ronin** updated with a direct image URL.'),
+                mock.call(url),
+            ],
+        )
+
+    def test_prefix_attachment_wins_over_url_and_routes_local_publication(self):
+        command = next(
+            command
+            for command in administration.administration.__cog_commands__
+            if command.name == 'team_image'
+        )
+        send = mock.AsyncMock()
+        ctx = SimpleNamespace(
+            message=SimpleNamespace(
+                attachments=[FakeAttachment(image_bytes('JPEG', size=(13, 9), mode='RGB'))]
+            ),
+            author=SimpleNamespace(id=100, display_name='Mod', mention='<@100>'),
+            guild=SimpleNamespace(id=300),
+            prefix='$',
+            invoked_with='team_image',
+            send=send,
+        )
+        real_run_read = administration.team_image_service.run_read
+        real_run_mutation = administration.team_image_service.run_mutation
+        ignored_url = 'https://example.com/ignored.png'
+
+        with mock.patch.object(
+            administration.team_image_service,
+            'run_read',
+            new=mock.AsyncMock(side_effect=real_run_read),
+        ) as run_read, mock.patch.object(
+            administration.team_image_service,
+            'run_mutation',
+            new=mock.AsyncMock(side_effect=real_run_mutation),
+        ) as run_mutation:
+            asyncio.run(
+                command.callback(SimpleNamespace(), ctx, 'Ronin', ignored_url)
+            )
+
+        run_read.assert_awaited_once()
+        run_mutation.assert_awaited_once()
+        request = run_mutation.await_args.args[0]
+        self.assertEqual(request.operation, workers.TEAM_IMAGE_LOCAL)
+        self.assertIsNone(request.image_url)
+        self.assertTrue(request.ignored_url)
+        self.assertFalse(request.native)
+        self.assertIsNone(self.team.image_url)
+        self.assertTrue(image_storage.team_image_path(self.team.id).exists())
+        self.assertEqual(send.await_count, 1)
+        self.assertEqual(
+            send.await_args.args[0],
+            'Team **Ronin** updated with a local image. The supplied URL was ignored.',
+        )
+        self.assertIn('file', send.await_args.kwargs)
+
+    def test_cancelled_success_drains_commit_and_publication_and_logs_outcome(self):
+        staged = self.stage(image_bytes('JPEG', size=(14, 10), mode='RGB'))
+        destination = image_storage.team_image_path(self.team.id)
+        request = mutation_request(staged_path=staged.path)
+        started = threading.Event()
+        release = threading.Event()
+        original_publish = image_storage.publish_staged_image
+
+        def blocked_publish(*args):
+            started.set()
+            release.wait(timeout=2)
+            self.database.events.append('publish')
+            return original_publish(*args)
+
+        async def exercise_cancel():
+            with mock.patch.object(
+                image_storage,
+                'publish_staged_image',
+                side_effect=blocked_publish,
+            ):
+                task = asyncio.create_task(
+                    service.run_mutation(request, staged=staged)
+                )
+                for _ in range(100):
+                    if started.is_set():
+                        break
+                    await asyncio.sleep(0.001)
+                self.assertTrue(started.is_set())
+                task.cancel()
+                await asyncio.sleep(0)
+                release.set()
+                with self.assertRaises(asyncio.CancelledError):
+                    await task
+
+        with self.assertLogs(service.logger, level='INFO') as logs:
+            asyncio.run(exercise_cancel())
+
+        self.assertEqual(self.database.commits, 1)
+        self.assertLess(
+            self.database.events.index('commit'),
+            self.database.events.index('publish'),
+        )
+        self.assertEqual(destination.read_bytes(), staged.data)
+        self.assertFalse(Path(staged.path).exists())
+        self.assertIn(
+            'committed and filesystem publication completed',
+            '\n'.join(logs.output),
+        )
+
     def test_event_loop_stays_responsive_during_blocking_stage_and_cancellation_cleans_stage(self):
         started = threading.Event()
         release = threading.Event()
@@ -764,6 +1029,37 @@ class TeamImagePrefixRegistrationTests(unittest.TestCase):
         )
         asyncio.run(command.callback(SimpleNamespace(), ctx, 'Ronin', None))
         send.assert_awaited_once_with('Please attach exactly one image.')
+
+    def test_lookup_example_uses_team_image_command_name(self):
+        command = next(
+            command
+            for command in administration.administration.__cog_commands__
+            if command.name == 'team_image'
+        )
+        send = mock.AsyncMock()
+        ctx = SimpleNamespace(
+            message=SimpleNamespace(attachments=[]),
+            author=SimpleNamespace(id=100, display_name='Mod', mention='<@100>'),
+            guild=SimpleNamespace(id=300),
+            prefix='$',
+            send=send,
+        )
+        with mock.patch.object(
+            administration.team_image_service,
+            'build_read_request',
+            return_value=read_request(),
+        ), mock.patch.object(
+            administration.team_image_service,
+            'run_read',
+            new=mock.AsyncMock(
+                side_effect=workers.TeamImageLookupError('Team was not found.')
+            ),
+        ):
+            asyncio.run(command.callback(SimpleNamespace(), ctx, 'Missing', None))
+
+        message = send.await_args.args[0]
+        self.assertIn('Example: `$team_image name http://url_to_image.png`', message)
+        self.assertNotIn('team_emoji', message)
 
 
 if __name__ == '__main__':

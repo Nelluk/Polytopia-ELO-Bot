@@ -287,7 +287,7 @@ async def run_mutation(
                     # below while preserving the caller's cancellation.
                     break
             try:
-                operation.result()
+                completed_result = operation.result()
             except asyncio.CancelledError:
                 pass
             except BaseException:
@@ -295,6 +295,14 @@ async def run_mutation(
                     'Cancelled team image operation for committed team %s '
                     'finished with an exception',
                     request.team_id,
+                )
+            else:
+                logger.info(
+                    'Caller cancelled after team image operation committed '
+                    'and filesystem publication completed for team %s '
+                    '(operation=%s)',
+                    completed_result.team_id,
+                    completed_result.operation,
                 )
             raise asyncio.CancelledError
 
