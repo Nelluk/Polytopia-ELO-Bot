@@ -74,14 +74,17 @@ implemented by WB1.1. It is available to ordinary testers in guilds assigned
 universal production availability.
 
 Native reports are acknowledged ephemerally with their report ID only after
-the local record and attachments are committed. The structured staff-channel
-mirror is attempted afterward. A relay failure leaves the report in JSONL and
+the local record and attachments are committed. The structured private
+staff-channel mirror is attempted afterward in `admin-spam`
+(`480078679930830849`). A relay failure leaves the report in JSONL and
 returns a private recorded-with-relay-warning acknowledgement; the warning is
 also logged with report/guild/channel identifiers only. Report details are
 never sent to the originating public channel. If Discord rejects the final
 native followup after commit, the failure is logged with the report ID and the
 store remains authoritative; the handler never sends a false “no report ID”
-message.
+message. The WB1.2 public release channel is separate: `todo-and-changelog`
+(`481779940124000256`) never receives staffhelp report details or a fallback
+relay.
 
 The existing `tools_support` capability remains default-deny. No development
 capability assignment was changed, and no command synchronization or bot
