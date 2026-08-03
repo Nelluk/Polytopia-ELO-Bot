@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass
 from io import BytesIO
+import logging
 import os
 from pathlib import Path
 import tempfile
@@ -14,6 +15,9 @@ import warnings
 
 import discord
 from PIL import Image, ImageOps, UnidentifiedImageError
+
+
+logger = logging.getLogger('polybot.' + __name__)
 
 
 # Tests may replace this override. Runtime code otherwise resolves the path
@@ -168,6 +172,11 @@ async def edit_game_embed(message, game, *, embed, content=None):
 def _normalise_image(data: bytes, destination: Path) -> None:
     """Validate and write canonical PNG image data atomically."""
 
+    logger.debug(
+        'Validating image upload: destination=%s bytes=%d',
+        destination,
+        len(data),
+    )
     if not data:
         raise ImageStorageError('The attached image is empty.')
     if len(data) > MAX_UPLOAD_BYTES:
@@ -184,12 +193,44 @@ def _normalise_image(data: bytes, destination: Path) -> None:
     except (Image.DecompressionBombError, Image.DecompressionBombWarning):
         raise ImageStorageError('The attached image is too large to decode safely.')
     except (UnidentifiedImageError, OSError, SyntaxError, ValueError) as exc:
+        logger.warning(
+            'Image validation failed: destination=%s bytes=%d error=%s',
+            destination,
+            len(data),
+            exc,
+        )
         raise ImageStorageError('The attachment is not a valid supported image.') from exc
 
+    pixel_count = width * height
+    logger.debug(
+        'Detected image upload: destination=%s format=%s dimensions=%dx%d '
+        'pixels=%d animated=%s bytes=%d',
+        destination,
+        image_format,
+        width,
+        height,
+        pixel_count,
+        is_animated,
+        len(data),
+    )
     if image_format not in ALLOWED_FORMATS:
         raise ImageStorageError('Image must be a static PNG, JPEG, or WebP file.')
-    if width <= 0 or height <= 0 or width * height > MAX_IMAGE_PIXELS:
-        raise ImageStorageError('Image dimensions exceed the 16 megapixel limit.')
+    if width <= 0 or height <= 0 or pixel_count > MAX_IMAGE_PIXELS:
+        logger.warning(
+            'Image rejected for dimensions: destination=%s format=%s '
+            'dimensions=%dx%d pixels=%d limit=%d bytes=%d',
+            destination,
+            image_format,
+            width,
+            height,
+            pixel_count,
+            MAX_IMAGE_PIXELS,
+            len(data),
+        )
+        raise ImageStorageError(
+            f'Image dimensions {width}x{height} ({pixel_count:,} pixels) '
+            f'exceed the {MAX_IMAGE_PIXELS:,}-pixel limit.'
+        )
     if is_animated:
         raise ImageStorageError('Animated images are not supported.')
 
@@ -215,6 +256,14 @@ def _normalise_image(data: bytes, destination: Path) -> None:
                 image.save(temp_path, format='PNG', optimize=True)
                 if temp_path.stat().st_size > MAX_UPLOAD_BYTES:
                     raise ImageStorageError('The normalised image is larger than 5 MiB.')
+                logger.debug(
+                    'Normalised image upload: destination=%s dimensions=%dx%d '
+                    'bytes=%d',
+                    destination,
+                    image.width,
+                    image.height,
+                    temp_path.stat().st_size,
+                )
                 os.chmod(temp_path, 0o640)
                 os.replace(temp_path, destination)
             finally:
@@ -229,11 +278,67 @@ def _normalise_image(data: bytes, destination: Path) -> None:
 async def save_attachment(attachment: discord.Attachment, kind: str, entity_id: int) -> Path:
     """Download, validate, and atomically store a Discord image attachment."""
 
+    logger.debug(
+        'Reading image attachment: kind=%s entity_id=%d filename=%r '
+        'reported_size=%s content_type=%r attachment_id=%s',
+        kind,
+        entity_id,
+        getattr(attachment, 'filename', None),
+        getattr(attachment, 'size', None),
+        getattr(attachment, 'content_type', None),
+        getattr(attachment, 'id', None),
+    )
     if attachment.size and attachment.size > MAX_UPLOAD_BYTES:
+        logger.warning(
+            'Image attachment rejected before download: kind=%s entity_id=%d '
+            'filename=%r reported_size=%d byte_limit=%d content_type=%r',
+            kind,
+            entity_id,
+            getattr(attachment, 'filename', None),
+            attachment.size,
+            MAX_UPLOAD_BYTES,
+            getattr(attachment, 'content_type', None),
+        )
         raise ImageStorageError('The attached image is larger than 5 MiB.')
-    data = await attachment.read()
+    try:
+        data = await attachment.read()
+    except discord.HTTPException:
+        logger.exception(
+            'Image attachment download failed: kind=%s entity_id=%d '
+            'filename=%r reported_size=%s content_type=%r attachment_id=%s',
+            kind,
+            entity_id,
+            getattr(attachment, 'filename', None),
+            getattr(attachment, 'size', None),
+            getattr(attachment, 'content_type', None),
+            getattr(attachment, 'id', None),
+        )
+        raise
     destination = entity_image_path(kind, entity_id)
-    await asyncio.to_thread(_normalise_image, data, destination)
+    try:
+        await asyncio.to_thread(_normalise_image, data, destination)
+    except ImageStorageError as exc:
+        logger.warning(
+            'Image attachment rejected: kind=%s entity_id=%d filename=%r '
+            'reported_size=%s downloaded_size=%d content_type=%r error=%s',
+            kind,
+            entity_id,
+            getattr(attachment, 'filename', None),
+            getattr(attachment, 'size', None),
+            len(data),
+            getattr(attachment, 'content_type', None),
+            exc,
+        )
+        raise
+    logger.info(
+        'Stored image attachment: kind=%s entity_id=%d filename=%r '
+        'downloaded_size=%d destination=%s',
+        kind,
+        entity_id,
+        getattr(attachment, 'filename', None),
+        len(data),
+        destination,
+    )
     return destination
 
 
