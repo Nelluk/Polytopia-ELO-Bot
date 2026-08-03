@@ -21,6 +21,8 @@ import modules.image_storage as image_storage
 import modules.models as models
 import modules.utilities as utilities
 import settings
+from modules import team_attributes as team_attributes_service
+from modules import team_attributes_workers
 
 logger = logging.getLogger('polybot.' + __name__)
 
@@ -943,12 +945,75 @@ class league(commands.Cog):
         args = arg.split() if arg else []
         if not args or len(args) != 2:
             return await ctx.send(f'See `{ctx.prefix}help {ctx.invoked_with}` for usage examples. Teams and Houses must be each identified by a single word.')
-        
+
+        if ctx.invoked_with == 'team_tier':
+            try:
+                preflight = await team_attributes_service.run_tier_preflight(
+                    member=ctx.author,
+                    guild=ctx.guild,
+                    team_lookup=args[0],
+                    invoked_with=ctx.invoked_with,
+                )
+                request = team_attributes_service.build_mutation_request(
+                    member=ctx.author,
+                    guild_id=ctx.guild.id,
+                    attribute=team_attributes_workers.TEAM_ATTRIBUTE_TIER,
+                    team_lookup=args[0],
+                    tier=args[1],
+                    expected_team_id=preflight.current.team_id,
+                    expected_value=preflight.current.value,
+                    expected_value_present=True,
+                    team_role_id=preflight.team_role_id,
+                    team_role_name=preflight.team_role_name,
+                    team_member_ids=getattr(preflight, 'member_ids', ()),
+                    native=False,
+                    invoked_with=ctx.invoked_with,
+                    prefix=ctx.prefix,
+                )
+                result = await team_attributes_service.run_mutation(request)
+            except team_attributes_workers.TeamAttributeValidationError as ex:
+                return await ctx.send(str(ex))
+            except peewee.PeeweeException:
+                logger.exception(
+                    'Database failure updating team tier for guild %s',
+                    ctx.guild.id,
+                )
+                return await ctx.send('Team tier operation failed and rolled back.')
+            except Exception:
+                logger.exception(
+                    'Unexpected team tier failure for guild %s',
+                    ctx.guild.id,
+                )
+                return await ctx.send('Team tier operation failed and rolled back.')
+
+            try:
+                reconciliation = await team_attributes_service.reconcile_tier_roles(
+                    ctx.guild,
+                    result,
+                )
+            except Exception:
+                logger.exception(
+                    'Committed team tier %s could not reconcile roles',
+                    result.team_id,
+                )
+                reconciliation = team_attributes_service.TierRoleReconciliation(
+                    team_id=result.team_id,
+                    attempted=0,
+                    updated=0,
+                    team_role_missing=True,
+                )
+            await team_attributes_service.publish_mutation_result(
+                result,
+                send=ctx.send,
+                reconciliation=reconciliation,
+            )
+            return result
+
         try:
             team = models.Team.get_or_except(team_name = args[0], guild_id=ctx.guild.id)
         except (exceptions.TooManyMatches, exceptions.NoMatches) as e:
             return await ctx.send(e)
-        
+
         logger.debug(f'Loaded team {team.name} for editing')
         team_role = utilities.guild_role_by_name(ctx.guild, name=team.name, allow_partial=False)
         if not team_role:
@@ -957,7 +1022,7 @@ class league(commands.Cog):
         if team.is_archived:
             logger.warn('Team is_archive is True')
             return await ctx.send(f'Team **{team.name}** is **archived**. If it *really* needs to be unarchived, ask the bot owner.')
-        
+
         if ctx.invoked_with == 'team_house':
             old_house_name = team.house.name if team.house else 'NONE'
             if args[1] == 'NONE':
@@ -970,40 +1035,18 @@ class league(commands.Cog):
                     new_house_name = new_house.name
                 except (exceptions.TooManyMatches, exceptions.NoMatches) as e:
                     return await ctx.send(e)
-        
+
             team.house = new_house
             team.save()
             models.GameLog.write(guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} set the House affiliation of Team {team.name} to {new_house_name} from {old_house_name}')
             tier_warning = '' if team.league_tier else f'\n:warning:Team tier not set. You probably want to set one with `{ctx.prefix}team_tier`'
-            
+
             async with ctx.typing():
                 for member in team_role.members:
                     logger.debug(f'team_edit updating league roles for member {member.display_name}')
                     await update_member_league_roles(member)
 
                 return await ctx.send(f'Changed House affiliation of team  **{team.name}** to {new_house_name}. Previous affiliation was "{old_house_name}".{tier_warning}. Team members have had their House roles refreshed.')
-
-        if ctx.invoked_with == 'team_tier':
-            try:
-                new_tier, new_tier_name = settings.tier_lookup(args[1])
-            except exceptions.NoMatches:
-                return await ctx.send(f'Could not set team tier based on "{args[1]}". You can use a name ("gold") or tier number ("2"). ')
-            
-            if not team.house:
-                return await ctx.send(f'Team **{team.name}** does not have a House affiliation. Set one with `{ctx.prefix}team_house` first.')
-            
-            logger.debug(f'Processing tier change for team {team.name}')
-            old_tier = str(team.league_tier) if team.league_tier else 'NONE'
-            team.league_tier = new_tier
-            team.save()
-            models.GameLog.write(guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} set the league tier of Team {team.name} to {new_tier} from {old_tier}')
-            
-            async with ctx.typing():
-                for member in team_role.members:
-                    logger.debug(f'team_edit updating league roles for member {member.display_name}')
-                    await update_member_league_roles(member)
-
-                return await ctx.send(f'Changed league tier of team  **{team.name}** to {new_tier_name} ({new_tier}). Previous tier was {old_tier}. Team members have had their tier roles refreshed.')
 
         if ctx.invoked_with == 'team_edit' and args[1] == 'ARCHIVE':
             logger.debug(f'Attempting to archive team {team.name}')

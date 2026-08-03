@@ -18,6 +18,8 @@ from modules import elo_workers, game_workers
 from modules.elo_jobs import EloJobConflict
 from modules import team_emoji as team_emoji_service
 from modules import team_emoji_workers
+from modules import team_attributes as team_attributes_service
+from modules import team_attributes_workers
 
 logger = logging.getLogger('polybot.' + __name__)
 elo_logger = logging.getLogger('polybot.elo')
@@ -1168,6 +1170,9 @@ class administration(commands.Cog):
         name='emoji',
         description='View or update a team emoji.',
     )
+    @discord.app_commands.autocomplete(
+        team=team_attributes_service.autocomplete_teams,
+    )
     @discord.app_commands.describe(
         team='Team name; omit this to infer your only team.',
         emoji='Unicode or custom emoji to set; omit this to view it.',
@@ -1277,6 +1282,329 @@ class administration(commands.Cog):
                 ephemeral=True,
             )
 
+    @team_group.command(
+        name='name',
+        description='View or update a team name.',
+    )
+    @discord.app_commands.autocomplete(
+        team=team_attributes_service.autocomplete_teams,
+    )
+    @discord.app_commands.describe(
+        team='Team name; omit this to infer your only team.',
+        name='Replacement name; omit this to view the current name.',
+    )
+    async def team_name_slash(
+        self,
+        interaction: discord.Interaction,
+        team: str | None = None,
+        name: str | None = None,
+    ):
+        """Read or mod-edit one team name with public committed output."""
+
+        guild_id = getattr(interaction.guild, 'id', None)
+        if guild_id is None:
+            return await interaction.response.send_message(
+                'This command can only be used in a server.',
+                ephemeral=True,
+            )
+        access_error = team_attributes_service.native_access_error(
+            interaction.user,
+            guild_id,
+            team_attributes_workers.TEAM_ATTRIBUTE_NAME,
+        )
+        if access_error:
+            return await interaction.response.send_message(
+                access_error,
+                ephemeral=True,
+            )
+
+        actor = team_attributes_service.capture_actor(interaction.user)
+        await interaction.response.defer(ephemeral=True)
+        try:
+            if name is None:
+                result = await team_attributes_service.run_read(
+                    team_attributes_service.build_read_request(
+                        member=interaction.user,
+                        guild_id=guild_id,
+                        attribute=team_attributes_workers.TEAM_ATTRIBUTE_NAME,
+                        team_lookup=team,
+                        invoked_with='/team name',
+                    )
+                )
+                await team_emoji_service.public_interaction_sender(
+                    interaction
+                )(
+                    team_attributes_service.read_message(result, actor=actor)
+                )
+                return result
+
+            request = team_attributes_service.build_mutation_request(
+                member=interaction.user,
+                guild_id=guild_id,
+                attribute=team_attributes_workers.TEAM_ATTRIBUTE_NAME,
+                team_lookup=team,
+                name=name,
+                native=True,
+                invoked_with='/team name',
+            )
+            result = await team_attributes_service.run_mutation(request)
+            await team_attributes_service.publish_mutation_result(
+                result,
+                send=team_emoji_service.public_interaction_sender(interaction),
+                actor=actor,
+            )
+            return result
+        except team_attributes_workers.TeamAttributeValidationError as exc:
+            return await interaction.followup.send(str(exc), ephemeral=True)
+        except peewee.PeeweeException:
+            logger.exception(
+                'Database failure in native team name command for guild %s',
+                guild_id,
+            )
+            return await interaction.followup.send(
+                'Team name operation failed and rolled back.',
+                ephemeral=True,
+            )
+        except Exception:
+            logger.exception(
+                'Unexpected native team name failure for guild %s',
+                guild_id,
+            )
+            return await interaction.followup.send(
+                'Team name operation failed and rolled back.',
+                ephemeral=True,
+            )
+
+    @team_group.command(
+        name='server',
+        description='View or update a team external server ID.',
+    )
+    @discord.app_commands.autocomplete(
+        team=team_attributes_service.autocomplete_teams,
+    )
+    @discord.app_commands.describe(
+        team='Team name; omit this to infer your only team.',
+        server_id='Raw external Discord server ID; omit this to view it.',
+        clear='Explicitly clear the nullable external server ID.',
+    )
+    async def team_server_slash(
+        self,
+        interaction: discord.Interaction,
+        team: str | None = None,
+        server_id: int | None = None,
+        clear: bool = False,
+    ):
+        """Read or mod-edit one team external server ID."""
+
+        guild_id = getattr(interaction.guild, 'id', None)
+        if guild_id is None:
+            return await interaction.response.send_message(
+                'This command can only be used in a server.',
+                ephemeral=True,
+            )
+        access_error = team_attributes_service.native_access_error(
+            interaction.user,
+            guild_id,
+            team_attributes_workers.TEAM_ATTRIBUTE_SERVER,
+        )
+        if access_error:
+            return await interaction.response.send_message(
+                access_error,
+                ephemeral=True,
+            )
+        if clear and server_id is not None:
+            return await interaction.response.send_message(
+                'Choose either a server ID or `clear`, not both.',
+                ephemeral=True,
+            )
+
+        actor = team_attributes_service.capture_actor(interaction.user)
+        await interaction.response.defer(ephemeral=True)
+        try:
+            if server_id is None and not clear:
+                result = await team_attributes_service.run_read(
+                    team_attributes_service.build_read_request(
+                        member=interaction.user,
+                        guild_id=guild_id,
+                        attribute=team_attributes_workers.TEAM_ATTRIBUTE_SERVER,
+                        team_lookup=team,
+                        invoked_with='/team server',
+                    )
+                )
+                await team_emoji_service.public_interaction_sender(
+                    interaction
+                )(
+                    team_attributes_service.read_message(result, actor=actor)
+                )
+                return result
+
+            request = team_attributes_service.build_mutation_request(
+                member=interaction.user,
+                guild_id=guild_id,
+                attribute=team_attributes_workers.TEAM_ATTRIBUTE_SERVER,
+                team_lookup=team,
+                server_id=server_id,
+                clear=clear,
+                native=True,
+                invoked_with='/team server',
+            )
+            result = await team_attributes_service.run_mutation(request)
+            await team_attributes_service.publish_mutation_result(
+                result,
+                send=team_emoji_service.public_interaction_sender(interaction),
+                actor=actor,
+            )
+            return result
+        except team_attributes_workers.TeamAttributeValidationError as exc:
+            return await interaction.followup.send(str(exc), ephemeral=True)
+        except peewee.PeeweeException:
+            logger.exception(
+                'Database failure in native team server command for guild %s',
+                guild_id,
+            )
+            return await interaction.followup.send(
+                'Team server operation failed and rolled back.',
+                ephemeral=True,
+            )
+        except Exception:
+            logger.exception(
+                'Unexpected native team server failure for guild %s',
+                guild_id,
+            )
+            return await interaction.followup.send(
+                'Team server operation failed and rolled back.',
+                ephemeral=True,
+            )
+
+    @team_group.command(
+        name='tier',
+        description='View or update a team tier.',
+    )
+    @discord.app_commands.autocomplete(
+        team=team_attributes_service.autocomplete_teams,
+    )
+    @discord.app_commands.choices(
+        tier=team_attributes_service.TEAM_TIER_CHOICES,
+    )
+    @discord.app_commands.describe(
+        team='Team name; omit this to infer your only team.',
+        tier='Configured tier number; omit this to view the current tier.',
+    )
+    async def team_tier_slash(
+        self,
+        interaction: discord.Interaction,
+        team: str | None = None,
+        tier: str | None = None,
+    ):
+        """Read or mod-edit a team tier with post-commit role refresh."""
+
+        guild_id = getattr(interaction.guild, 'id', None)
+        if guild_id is None:
+            return await interaction.response.send_message(
+                'This command can only be used in a server.',
+                ephemeral=True,
+            )
+        access_error = team_attributes_service.native_access_error(
+            interaction.user,
+            guild_id,
+            team_attributes_workers.TEAM_ATTRIBUTE_TIER,
+        )
+        if access_error:
+            return await interaction.response.send_message(
+                access_error,
+                ephemeral=True,
+            )
+
+        actor = team_attributes_service.capture_actor(interaction.user)
+        await interaction.response.defer(ephemeral=True)
+        try:
+            if tier is None:
+                result = await team_attributes_service.run_read(
+                    team_attributes_service.build_read_request(
+                        member=interaction.user,
+                        guild_id=guild_id,
+                        attribute=team_attributes_workers.TEAM_ATTRIBUTE_TIER,
+                        team_lookup=team,
+                        invoked_with='/team tier',
+                    )
+                )
+                await team_emoji_service.public_interaction_sender(
+                    interaction
+                )(
+                    team_attributes_service.read_message(
+                        result,
+                        actor=actor,
+                    )
+                )
+                return result
+
+            preflight = await team_attributes_service.run_tier_preflight(
+                member=interaction.user,
+                guild=interaction.guild,
+                team_lookup=team,
+                invoked_with='/team tier',
+            )
+
+            request = team_attributes_service.build_mutation_request(
+                member=interaction.user,
+                guild_id=guild_id,
+                attribute=team_attributes_workers.TEAM_ATTRIBUTE_TIER,
+                team_lookup=team,
+                tier=tier,
+                expected_team_id=preflight.current.team_id,
+                expected_value=preflight.current.value,
+                expected_value_present=True,
+                team_role_id=preflight.team_role_id,
+                team_role_name=preflight.team_role_name,
+                team_member_ids=preflight.member_ids,
+                native=True,
+                invoked_with='/team tier',
+            )
+            result = await team_attributes_service.run_mutation(request)
+            try:
+                reconciliation = await team_attributes_service.reconcile_tier_roles(
+                    interaction.guild,
+                    result,
+                )
+            except Exception:
+                logger.exception(
+                    'Committed team tier %s could not reconcile roles',
+                    result.team_id,
+                )
+                reconciliation = team_attributes_service.TierRoleReconciliation(
+                    team_id=result.team_id,
+                    attempted=0,
+                    updated=0,
+                    team_role_missing=True,
+                )
+            await team_attributes_service.publish_mutation_result(
+                result,
+                send=team_emoji_service.public_interaction_sender(interaction),
+                actor=actor,
+                reconciliation=reconciliation,
+            )
+            return result
+        except team_attributes_workers.TeamAttributeValidationError as exc:
+            return await interaction.followup.send(str(exc), ephemeral=True)
+        except peewee.PeeweeException:
+            logger.exception(
+                'Database failure in native team tier command for guild %s',
+                guild_id,
+            )
+            return await interaction.followup.send(
+                'Team tier operation failed and rolled back.',
+                ephemeral=True,
+            )
+        except Exception:
+            logger.exception(
+                'Unexpected native team tier failure for guild %s',
+                guild_id,
+            )
+            return await interaction.followup.send(
+                'Team tier operation failed and rolled back.',
+                ephemeral=True,
+            )
+
     @commands.command(usage='team_name [image_url or attachment]')
     @settings.is_mod_check()
     @settings.guild_has_setting(setting_name='allow_teams')
@@ -1360,19 +1688,38 @@ class administration(commands.Cog):
         """
 
         try:
-            team = models.Team.get_or_except(old_team_name, ctx.guild.id, include_hidden=True)
-        except exceptions.NoSingleMatch as ex:
-            return await ctx.send(f'{ex}\nExample: `{ctx.prefix}team_name \"Current name\" \"New Team Name\"`')
-
-        if len(new_team_name) < 5:
-            return await ctx.send(f'New team name needs to be at least 5 characters long. Be sure to enclose the name "In Quotation Marks" if it includes spaces.')
-        
-        old_name = team.name
-        team.name = new_team_name
-        team.save()
-
-        models.GameLog.write(guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} set the renamed team ID {team.id} from {old_name} to {new_team_name}.')
-        await ctx.send(f'Team **{old_name}** has been renamed to **{team.name}**.')
+            request = team_attributes_service.build_mutation_request(
+                member=ctx.author,
+                guild_id=ctx.guild.id,
+                attribute=team_attributes_workers.TEAM_ATTRIBUTE_NAME,
+                team_lookup=old_team_name,
+                name=new_team_name,
+                native=False,
+                invoked_with=ctx.invoked_with,
+                prefix=ctx.prefix,
+            )
+            result = await team_attributes_service.run_mutation(request)
+            await team_attributes_service.publish_mutation_result(
+                result,
+                send=ctx.send,
+            )
+        except team_attributes_workers.TeamAttributeValidationError as ex:
+            return await ctx.send(
+                f'{ex}\nExample: `{ctx.prefix}team_name "Current name" '
+                '"New Team Name"`'
+            )
+        except peewee.PeeweeException:
+            logger.exception(
+                'Database failure reading or updating team name for guild %s',
+                ctx.guild.id,
+            )
+            return await ctx.send('Team name operation failed and rolled back.')
+        except Exception:
+            logger.exception(
+                'Unexpected team name failure for guild %s',
+                ctx.guild.id,
+            )
+            return await ctx.send('Team name operation failed and rolled back.')
 
     @commands.command(usage='team_name server_id')
     @settings.is_mod_check()
@@ -1385,26 +1732,75 @@ class administration(commands.Cog):
         `[p]team_server Ronin 572885616656908288` Update the server setting
         """
         # TODO: better input handling (display server_id if new ID not provided)
+        example = (
+            f'`{ctx.prefix}team_server "Team Name" '
+            '447883341463814144` (Use the raw numeric ID of the team\'s server)'
+        )
         if not team_name:
-            return await ctx.send(f'Example: `{ctx.prefix}team_server \"Team Name\" 447883341463814144` (Use the raw numeric ID of the team\'s server)')
-        try:
-            team = models.Team.get_or_except(team_name, ctx.guild.id, include_hidden=True)
-        except exceptions.NoSingleMatch as ex:
-            return await ctx.send(f'{ex}\nExample: `{ctx.prefix}team_server \"Team Name\" 447883341463814144` (Use the raw numeric ID of the team\'s server)')
+            return await ctx.send(f'Example: {example}')
 
         if not team_server_id:
-            return await ctx.send(f'Team **{team.name}** has been assigned an external server of `{team.external_server}`.')
+            try:
+                result = await team_attributes_service.run_read(
+                    team_attributes_service.build_read_request(
+                        member=ctx.author,
+                        guild_id=ctx.guild.id,
+                        attribute=team_attributes_workers.TEAM_ATTRIBUTE_SERVER,
+                        team_lookup=team_name,
+                        invoked_with=ctx.invoked_with,
+                    )
+                )
+            except team_attributes_workers.TeamAttributeValidationError as ex:
+                return await ctx.send(f'{ex}\nExample: {example}')
+            except peewee.PeeweeException:
+                logger.exception(
+                    'Database failure reading team server for guild %s',
+                    ctx.guild.id,
+                )
+                return await ctx.send(
+                    'Team server operation failed and rolled back.'
+                )
+            return await ctx.send(
+                team_attributes_service.legacy_server_read_message(result)
+            )
+
         try:
             server_id = int(team_server_id)
-        except ValueError:
-            return await ctx.send(f'Server ID was invalid.\nExample: `{ctx.prefix}team_server \"Team Name\" 447883341463814144` (Use the raw numeric ID of the team\'s server)')
+        except (TypeError, ValueError):
+            return await ctx.send(
+                f'Server ID was invalid.\nExample: {example}'
+            )
 
-        old_server = str(team.external_server) if team.external_server else 'None'
-        team.external_server = server_id
-        team.save()
-
-        logger.info(f'team_server updating {team.id} {team.name} to {server_id} from {old_server}')
-        await ctx.send(f'Team **{team.name}** has been assigned an external server of `{server_id}`. Previous value was `{old_server}`.')
+        try:
+            request = team_attributes_service.build_mutation_request(
+                member=ctx.author,
+                guild_id=ctx.guild.id,
+                attribute=team_attributes_workers.TEAM_ATTRIBUTE_SERVER,
+                team_lookup=team_name,
+                server_id=server_id,
+                native=False,
+                invoked_with=ctx.invoked_with,
+                prefix=ctx.prefix,
+            )
+            result = await team_attributes_service.run_mutation(request)
+            await team_attributes_service.publish_mutation_result(
+                result,
+                send=ctx.send,
+            )
+        except team_attributes_workers.TeamAttributeValidationError as ex:
+            return await ctx.send(f'{ex}\nExample: {example}')
+        except peewee.PeeweeException:
+            logger.exception(
+                'Database failure updating team server for guild %s',
+                ctx.guild.id,
+            )
+            return await ctx.send('Team server operation failed and rolled back.')
+        except Exception:
+            logger.exception(
+                'Unexpected team server failure for guild %s',
+                ctx.guild.id,
+            )
+            return await ctx.send('Team server operation failed and rolled back.')
 
     @commands.command(aliases=['deactivate'])
     @settings.is_mod_check()
