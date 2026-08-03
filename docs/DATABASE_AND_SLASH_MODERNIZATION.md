@@ -1,10 +1,10 @@
 # Database Access and Slash Command Modernization
 
-Last updated: 2026-08-02
+Last updated: 2026-08-03
 
 Status: Active
 
-Current branch at last update: `codex/database-slash-modernization`
+Current branch at last update: `codex/p4-2e-game-side`
 
 Source task: `thread://019fae66-8e3a-7a50-9a0f-d3d7160d2287`
 
@@ -260,6 +260,8 @@ The current locally implemented native surface is:
 - `/game record`, `/game win`, `/game unwin`, `/game delete`;
 - `/game confirm`, `/game unconfirmed`, `/game set-ranked`;
 - `/game extend`, `/game unstart`;
+- focused `/game map`, `/game notes`, `/game name`, `/game tribe`,
+  `/game side`;
 - `/elo recalculate`, `/elo status`;
 - `/leaderboard players`, `/leaderboard activity`,
   `/leaderboard squads`, and temporary `/lb2`.
@@ -2513,11 +2515,17 @@ the public game presentation only after commit.
 
 #### P4.2e — Focused game-side read/edit workflow
 
-Status: **Planned**
+Status: **Implemented locally; review-ready; beta pending**
 
 Risk tier: **Tier 3**. Side naming and role restrictions directly affect who
 may join an open game and must preserve the existing host/staff permission
 boundary.
+
+Branch/base: `codex/p4-2e-game-side` from the exact clean accumulation
+checkpoint `bb33f55` (`Accept game tribe beta workflow`).
+
+Implementation checkpoint: `33281f1` — implement the focused game-side
+read/edit workflow and offline coverage.
 
 Objective: add `/game side` as a focused read/edit workspace for one game
 side while preserving `$gameside` and its abbreviated side lookup.
@@ -2529,6 +2537,12 @@ Essential native inputs:
 - optional typed Discord role restriction;
 - explicit `clear` option for removing both name and role restriction;
 - no replacement inputs means display the current side configuration.
+
+The native command registers required `game_id` and `side` inputs plus
+optional typed `role`, optional `name`, and optional Boolean `clear`. A read
+defers privately, then publicly displays the current side name and role
+restriction with requester attribution. A committed edit or clear is also
+public and actor-attributed; validation and database failures remain private.
 
 Implementation boundary:
 
@@ -2542,10 +2556,80 @@ Implementation boundary:
 - preserve the legacy prefix result and error visibility unless an intentional
   compatibility compromise is recorded.
 
+Implementation evidence:
+
+- `modules/game_workers.py` adds frozen primitive read/mutation/result DTOs,
+  a dedicated bounded side-read executor, and the ordinary-game write
+  executor path. The worker reloads the game and side, revalidates guild,
+  pending state, host/staff permission, side lookup, and typed-role guild
+  applicability, then saves the side and `GameLog` row atomically on its
+  worker-local Peewee connection.
+- `modules/game_side.py` owns request capture, the keyed per-game claim,
+  public native/legacy rendering, and post-commit announcement/dense-card
+  reconciliation. The claim is released before Discord effects; database
+  failures never invoke the callback. Role display falls back to a role
+  mention/ID if the current guild cache cannot resolve it.
+- `modules/games.py` registers `/game side`; `modules/matchmaking.py` keeps
+  `gameside`, `matchside`, and `sidename` on the shared service while
+  preserving role-mention behavior, `none` clearing, abbreviated lookup, and
+  legacy success wording.
+- The existing `modules/game_join_workers.py` role check remains the
+  authoritative join gate. Focused coverage verifies that the side fields
+  produced by this workflow deny an unqualified join and retain staff
+  override behavior.
+- No platform, mobile, or Steam distinction was added.
+
+Compatibility decision: **No intentional slash compatibility compromise.**
+The native path is additive; `$gameside` and both aliases remain available,
+prefix mutation/error visibility remains public, and native public success
+output preserves the competitive transparency of the prefix path. No
+compatibility-ledger row is required for this unit.
+
 Required evidence includes permission parity, role-restricted join behavior,
 read/edit/clear registration shape, rollback, no Discord effects after worker
 failure, prefix compatibility, and beta smoke of view, rename, role lock, and
 clear paths.
+
+Files changed:
+
+- `modules/game_side.py`
+- `modules/game_workers.py`
+- `modules/games.py`
+- `modules/matchmaking.py`
+- `tests/test_game_side.py`
+- `tests/test_slash_taxonomy.py`
+
+Validation evidence:
+
+- `POLYBOT_ENV=development MPLCONFIGDIR=/tmp/polybot-matplotlib
+  /home/nelluk/PolyBot39-dev/.venv/bin/python -m unittest
+  tests.test_game_side tests.test_slash_taxonomy -v`: 23 passed.
+- Complete offline suite with the development profile: 570 passed and 17
+  intentional development-database skips.
+- Required development database gate:
+  `POLYBOT_ENV=development POLYBOT_RUN_DB_INTEGRATION=1
+  MPLCONFIGDIR=/tmp/polybot-matplotlib
+  /home/nelluk/PolyBot39-dev/.venv/bin/python -m unittest
+  tests.test_database_integration -v`. The gate reached its existing
+  `psycopg2.connect` setup and failed with `psycopg2.OperationalError`
+  before any database test ran; no gate was weakened and no fixture or
+  application data was changed.
+- Compilation and `git diff --check` passed before this roadmap update.
+
+Known limitation: the shared post-commit presentation path still performs a
+short synchronous `Game.load_full_game` reload on the event-loop thread
+before the Discord announcement/card calls, matching the adjacent P4.2
+units. The side read, validation, mutation, and audit transaction remain
+worker-bounded; reload/effect failures are surfaced as reconciliation warnings
+without converting a committed write into a rollback.
+
+Beta smoke checklist (not run in this task): in the approved development
+guild only, inspect `/game side game_id:... side:...` with no replacements;
+rename a side; apply a typed role and verify an unqualified join is denied
+while staff override remains available; clear both values; exercise
+`$gameside`, `$matchside`, and `$sidename`; verify public actor attribution,
+announcement/card refresh, abbreviated lookup, and private validation/errors.
+Do not synchronize commands or launch the beta until separately approved.
 
 ## P5 — Matchmaking lifecycle
 
@@ -5496,6 +5580,30 @@ managed worktree and saved snapshot instead of retaining one authoritative
 development-only copy.
 
 ## Progress log
+
+### 2026-08-03 — P4.2e game-side workflow implemented locally
+
+- Implemented `/game side` as a focused public read/edit command with
+  required game ID and side selector, optional typed role/name inputs, and
+  explicit `clear:true`; no replacement inputs read the current name and role
+  restriction.
+- Preserved `$gameside`, `$matchside`, `$sidename`, abbreviated side lookup,
+  host/staff mutation permission, role-mention behavior, `none` clearing, and
+  legacy public success wording through the shared side service.
+- Kept the side mutation and `GameLog` audit in one worker-local transaction,
+  returned frozen primitive DTOs, retained the keyed game claim through the
+  synchronous worker, and deferred all public/card/announcement effects until
+  after commit. Existing join-worker role enforcement was covered without
+  broadening platform distinctions.
+- Focused side/taxonomy validation passed 23 tests; complete offline
+  discovery passed 570 tests with 17 gated skips. The unchanged development
+  database gate was invoked under the exact development/polytopia_dev/
+  polybot_dev profile gate but could not connect before running tests.
+- Implementation checkpoint: `33281f1`; roadmap evidence is this follow-up
+  checkpoint. No compatibility-ledger row was required. No beta, command
+  inspection/synchronization, production operation, dependency change,
+  push, merge, or sudo action was performed.
+- Status: review-ready locally; beta smoke remains separately gated.
 
 ### 2026-08-03 — P4.2d game-tribe beta accepted
 
