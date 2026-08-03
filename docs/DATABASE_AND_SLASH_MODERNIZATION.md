@@ -5387,11 +5387,9 @@ Limitations and next action:
   dependency, command synchronization, launch, or production action was
   introduced. The ignored development capability assignment remains unchanged,
   so `/staffhelp` remains default-deny until a later explicit deployment.
-- Next action: WB1.2 durable development-beta service and tester operations.
-  Obtain user feedback on its service, restart-announcement, tester-scope, and
-  smoke-list interface before implementation. The separate P9 decision for a
-  production-safe authoritative intake/retention path remains a later
-  production prerequisite.
+- Next action: review the WB1.2 durable development-beta service and tester
+  operations branch. The separate P9 decision for a production-safe
+  authoritative intake/retention path remains a later production prerequisite.
 
 ### WB1.2 — Durable development-beta service and tester operations
 
@@ -5403,7 +5401,8 @@ Branch/base and implementation checkpoint:
   checkpoint `96011050ddb344b15f538442d49270b22e143976` on
   `codex/database-slash-modernization`.
 - Implementation/tests checkpoint: `e6df8a4`.
-- The implementation commit and this documentation/roadmap commit remain
+- Oversight-correction implementation/tests checkpoint: `36dc783`.
+- The implementation commits and this documentation/roadmap commit remain
   separate for review; the branch is not merged or pushed by this unit.
 
 Delivered boundary:
@@ -5415,8 +5414,18 @@ Delivered boundary:
   integrations, no startup command synchronization, clean-checkout and
   checkpoint capture, restart backoff, clean stop, and a single writer lock.
 - Added a dependency-free, repository-backed JSON release-manifest schema and
-  template. Validation enforces bounded fields, safe paths, a full lowercase
-  checkpoint, and exact match to the beta process startup checkpoint.
+  template. The tracked template is copied into ignored mode-0600 draft state;
+  a separate preparation step injects the clean reviewed HEAD into an ignored
+  prepared manifest and atomically archives its bounded content/fingerprint in
+  state, avoiding an impossible self-pinned committed manifest. Validation
+  enforces bounded fields, safe paths, a full lowercase checkpoint, and exact
+  match to the beta process startup checkpoint.
+- Added a mandatory read-only host-wide first-activation audit that classifies
+  development, production, and unknown `bot.py --skip_tasks` candidates across
+  task worktrees. The gate never broad-kills processes: the operator must
+  review ancestry/ownership, stop only an authorized development beta, rerun
+  until clear, and only then enable the service; `ExecStartPre` repeats the
+  fail-closed audit.
 - Added explicit local control through the authenticated beta process rather
   than a second Discord client. Delivery is one-shot per release ID, uses a
   bounded public-channel marker scan, supports retry after a certainly
@@ -5433,14 +5442,16 @@ Delivered boundary:
 
 Tier-3 validation evidence:
 
-- Focused `tests.test_beta_operations` passed **21 tests**, including service
+- Focused `tests.test_beta_operations` passed **26 tests**, including service
   invariants, launcher arguments, single-writer locking, manifest bounds/path
-  safety/checkpoint matching, ping/no-ping and exact role gates, channel and
-  guild rejection, idempotency, failed-post retry, uncertain-post recovery,
-  private/public separation, and offline control behavior.
-- Complete offline discovery passed **661 tests with 17 intentional database
+  safety/checkpoint matching, constructible draft/preparation, ping/no-ping
+  and exact role gates, channel and guild rejection, idempotency, failed-post
+  retry, uncertain-post recovery, private/public separation, the unguarded
+  process audit, and offline control behavior.
+- Complete offline discovery passed **666 tests with 17 intentional database
   integration skips**. Compilation and `git diff --check` passed; the service
-  template passed `systemd-analyze verify` in the headless environment.
+  template and repeated pre-activation audit gate passed
+  `systemd-analyze verify` in the headless environment.
 - No database behavior changed, so no gated `polytopia_dev` test was run. No
   service was installed, enabled, started, stopped, or restarted; no command
   plan/apply, Discord inspection/post, role resolution, database mutation,
@@ -5449,8 +5460,11 @@ Tier-3 validation evidence:
 
 Remaining approved gates:
 
-- Oversight must review the complete Tier-3 branch and both commits before
-  integration.
+- Oversight must review the complete Tier-3 branch and all correction and
+  documentation commits before integration.
+- Before first activation, the operator must complete the host-wide audit,
+  review each candidate, stop only an authorized development beta, rerun until
+  clear, and then allow the service's repeated `ExecStartPre` audit to pass.
 - A later operator action must inspect user-systemd availability and, only if
   separately approved, install/enable the user service. If lingering is
   required, the exact privileged action is `sudo loginctl enable-linger
@@ -6254,6 +6268,31 @@ post-write-only Discord staff-channel mirror. The implementation does not
 change the database, command deployment, or production boundary.
 
 ## Progress log
+
+### 2026-08-03 — WB1.2 oversight correction implemented locally
+
+- Corrected the manifest/checkpoint contract: release-specific content now
+  starts as an ignored mode-0600 draft copied from the tracked template, and
+  `prepare` injects the already-known clean reviewed HEAD into a separate
+  ignored prepared file. The final manifest and fingerprint are atomically
+  archived in idempotency state; no release-specific file is committed.
+- Added a constructible offline `init`/edit/`prepare`/`validate` sequence and
+  fail-closed rejection of self-pinned drafts. Delivery now requires the
+  archived prepared content, preserving duplicate prevention.
+- Added a read-only host-wide process audit and mandatory first-activation
+  stop gate. It identifies development worktree candidates, distinguishes
+  production, never broad-kills processes, and is repeated by systemd
+  `ExecStartPre`; the file lock's limitation against unguarded legacy launches
+  is explicit and tested.
+- Documented that uncertain posting state without a bounded history marker
+  remains blocked for deliberate operator reconciliation; state must not be
+  deleted to force a retry.
+- Correction implementation/tests checkpoint: `36dc783`. Focused validation
+  passed **26 tests**; complete offline discovery passed **666 tests with 17
+  intentional database-integration skips**. Compilation, diff checks, and
+  service-template verification passed.
+- No service lifecycle, process audit/stop, Discord, command sync, database,
+  sudo, production, dependency, push, or merge action occurred.
 
 ### 2026-08-03 — WB1.2 durable beta operations implemented locally
 

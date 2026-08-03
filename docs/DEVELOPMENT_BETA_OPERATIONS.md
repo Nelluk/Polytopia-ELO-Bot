@@ -36,11 +36,48 @@ reconnect, crash restart, or ordinary service restart therefore cannot publish
 a release notice. Release delivery is reachable only through the explicit
 local control request described below.
 
+## Mandatory first-activation process gate
+
+The file lock protects only processes launched through the guarded wrapper. It
+cannot see or stop an already-running unguarded `bot.py --skip_tasks` process
+from an older terminal, PTY, Codex task worktree, or manually copied command.
+The first service activation must therefore complete a host-wide, read-only
+audit and an operator-reviewed stop gate before `enable --now`:
+
+```bash
+POLYBOT_ENV=development \
+/home/nelluk/PolyBot39-dev/.venv/bin/python \
+/home/nelluk/PolyBot39-dev/scripts/audit_development_beta_processes.py \
+--require-clear
+```
+
+If the audit reports a candidate, inspect each reported PID before taking any
+action:
+
+```bash
+ps -o pid=,ppid=,user=,lstart=,args= -p PID
+readlink /proc/PID/cwd
+```
+
+Only after confirming that a PID is the authorized development beta may the
+operator stop that exact process cleanly:
+
+```bash
+kill -INT PID
+```
+
+Do not use `pkill`, `killall`, wildcard matching, or a broad process-kill
+command. Never stop a candidate classified as production; do not stop an
+unknown candidate until its ownership and checkout are resolved. Rerun the
+read-only audit and require a clear result before continuing. The systemd
+template repeats this gate with `ExecStartPre`, but it intentionally fails
+closed rather than stopping a process for the operator.
+
 ## Install and run the user service later
 
 WB1.2 did not install, reload, enable, start, stop, or restart this service.
-After a separate approval, Nelluk can install the repository template as a
-user unit:
+After the mandatory process gate is clear and a separate approval is granted,
+Nelluk can install the repository template as a user unit:
 
 ```bash
 mkdir -p /home/nelluk/.config/systemd/user
@@ -139,9 +176,34 @@ no global fallback.
 
 ## Reviewed release manifests
 
-Tracked template: `release-manifests/template.json`. A real reviewed manifest
-must be a direct `.json` file under `release-manifests/`, must be committed in
-the reviewed checkout, and must use this exact schema:
+The tracked `release-manifests/template.json` is the schema/template source;
+it is not a release announcement and no release-specific manifest is committed
+with the code checkpoint. A committed release file cannot safely contain the
+hash of the commit that contains itself. WB1.2 therefore uses a two-stage
+ignored operational manifest:
+
+1. `init` copies the tracked template into a mode-0600 draft beneath the
+   ignored development operation root.
+2. The operator edits only that ignored draft and leaves its all-zero
+   `expected_checkpoint` placeholder unchanged.
+3. `prepare` requires a clean checkout, reads the exact current HEAD, injects
+   that checkpoint into a new mode-0600 prepared manifest, and atomically
+   archives the final manifest and fingerprint in release state.
+4. `validate` and `deliver` accept only that archived prepared manifest. They
+   recheck the current clean HEAD, and the authenticated beta process checks
+   the prepared checkpoint against its own startup checkpoint.
+
+This keeps the reviewed content bounded and repository-backed by the tracked
+template while ensuring that creating or editing the operational manifest does
+not change the Git checkpoint it records. The ignored draft and prepared paths
+are:
+
+```text
+logs/development/beta-operations/drafts/<release-id>.json
+logs/development/beta-operations/prepared/<release-id>.json
+```
+
+The prepared manifest uses this exact schema:
 
 ```json
 {
@@ -167,17 +229,38 @@ Discord content limit. `ping_testers` must be a JSON boolean.
 Minor releases set `ping_testers` to `false`. A major/tester-facing release
 may set it to `true`, but the role gate below must already be complete.
 
-Validate without Discord or PostgreSQL:
+Prepare a reviewed release without Discord or PostgreSQL:
+
+```bash
+POLYBOT_ENV=development \
+/home/nelluk/PolyBot39-dev/.venv/bin/python \
+scripts/manage_beta_release.py init \
+  --release-id 2026-08-03-wb1-2-minor
+
+# Edit only the printed ignored drafts/<release-id>.json path. Keep the
+# expected_checkpoint value as 40 zeroes while reviewing the bounded content.
+
+POLYBOT_ENV=development \
+/home/nelluk/PolyBot39-dev/.venv/bin/python \
+scripts/manage_beta_release.py prepare \
+  --manifest logs/development/beta-operations/drafts/2026-08-03-wb1-2-minor.json
+```
+
+The `prepare` output identifies the archived prepared path and fingerprint.
+Validate that prepared artifact against the same clean checkout:
 
 ```bash
 POLYBOT_ENV=development \
 /home/nelluk/PolyBot39-dev/.venv/bin/python \
 scripts/manage_beta_release.py validate \
-  --manifest release-manifests/2026-08-03-wb1-2-minor.json
+  --manifest logs/development/beta-operations/prepared/2026-08-03-wb1-2-minor.json
 ```
 
-The command requires a clean checkout and exact local checkpoint match. It
-does not create a client, open a database connection, or post anything.
+Both `init`, `prepare`, and `validate` require the clean reviewed checkout;
+`prepare` is the only step that injects the exact current HEAD. These commands
+do not create a client, open a database connection, or post anything. Do not
+edit `release-manifests/template.json` for a single rollout, and do not put a
+release-specific file under the tracked manifest directory.
 
 ## Tester role resolution and explicit delivery
 
@@ -207,7 +290,7 @@ explicit operator action:
 POLYBOT_ENV=development \
 /home/nelluk/PolyBot39-dev/.venv/bin/python \
 scripts/manage_beta_release.py deliver \
-  --manifest release-manifests/2026-08-03-wb1-2-minor.json
+  --manifest logs/development/beta-operations/prepared/2026-08-03-wb1-2-minor.json
 ```
 
 The utility sends one JSON request over the local mode-0600 Unix socket to the
@@ -240,12 +323,16 @@ The state machine is one-shot per `release_id`:
   explicit retry can post once and then become `posted`;
 - an uncertain send remains `posting` and blocks retry until a bounded history
   scan finds the visible release marker. A found marker records success without
-  reposting. If history cannot be checked, the operation fails closed;
+  reposting. If history cannot be checked, or the state remains uncertain and
+  no marker is found, the operation remains blocked and requires deliberate
+  operator reconciliation; it is not automatically recoverable and must not be
+  forced by deleting state or reposting;
 - a release ID cannot be reused with a different manifest fingerprint.
 
 This protects against duplicate success after a crash between Discord's
-acceptance and the local state write. There is no automatic retry on reconnect
-or service restart. Use `status` for local state inspection:
+acceptance and the local state write, while explicitly acknowledging that some
+crash outcomes cannot be proved from bounded history. There is no automatic
+retry on reconnect or service restart. Use `status` for local state inspection:
 
 ```bash
 POLYBOT_ENV=development \
