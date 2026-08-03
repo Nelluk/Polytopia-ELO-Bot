@@ -445,8 +445,8 @@ check:
   `f0429536d7ed899eb356794bcd3558baa9be3d45`.
 - P4.2d roadmap evidence: `e1a0959`; accumulation merge: `7c2269b`.
 
-Current unit: **P4.2d game-tribe bulk/read-edit workflow — Tier-3 reviewed and
-integrated; beta acceptance pending.**
+Current unit: **P4.2e focused game-side read/edit workflow — Planned.**
+P4.2d game-tribe bulk/read-edit is Complete, beta-accepted, and integrated.
 Implementation checkpoint: `76e1423` on `codex/p4-2d-game-tribe`, based on the
 verified clean accumulation checkpoint `f0429536d7ed899eb356794bcd3558baa9be3d45`.
 P4.2c is integrated as `fcd2646` with roadmap checkpoint `6374bbe`; beta
@@ -1830,6 +1830,7 @@ Candidates:
 - `setmap`
 - `settribe`
 - `gamenotes`
+- `gameside`
 
 Recommended slash shape:
 
@@ -2496,9 +2497,55 @@ read, legacy target resolution, mutation, validation, and audit database work
 remain worker-bounded and worker-local; the reload is strictly after the
 committed transaction and before its Discord effects.
 
-Next action: smoke `/game tribe` read, self/single edit, direct or modal bulk,
-and one retained prefix bulk assignment. Record acceptance or a narrow
-finding, then stop the task-owned beta before any fixture operation.
+Beta result: **accepted.** The user confirmed the tribe workflow works and
+that configured custom guild tribe emojis appear in the refreshed game card.
+The apparent missing-card display was traced to all sixteen `Tribe.emoji`
+values being blank in `polytopia_dev`, not to a renderer or reconciliation
+defect. Populating development-only custom emoji values resolved it; no code
+fallback or production data access was needed. The task-owned beta was no
+longer running when close-out began, so no process required shutdown.
+
+Next action: implement P4.2e as a separate bounded `/game side` read/edit
+unit. Preserve `$gameside`, expose typed side and role inputs, use the accepted
+read-by-default/explicit-clear attribute pattern, move the complete mutation
+and audit workflow into a worker-local synchronous transaction, and refresh
+the public game presentation only after commit.
+
+#### P4.2e — Focused game-side read/edit workflow
+
+Status: **Planned**
+
+Risk tier: **Tier 3**. Side naming and role restrictions directly affect who
+may join an open game and must preserve the existing host/staff permission
+boundary.
+
+Objective: add `/game side` as a focused read/edit workspace for one game
+side while preserving `$gameside` and its abbreviated side lookup.
+
+Essential native inputs:
+
+- required game ID and side selector;
+- optional side name;
+- optional typed Discord role restriction;
+- explicit `clear` option for removing both name and role restriction;
+- no replacement inputs means display the current side configuration.
+
+Implementation boundary:
+
+- validate guild, game state, actor, side, and role applicability before and
+  again inside the worker where appropriate;
+- pass primitive IDs and immutable values only;
+- open and close a worker-local Peewee connection;
+- update the side and its audit record in one synchronous transaction;
+- perform public attribution, announcement/card refresh, and other Discord
+  reconciliation only after commit;
+- preserve the legacy prefix result and error visibility unless an intentional
+  compatibility compromise is recorded.
+
+Required evidence includes permission parity, role-restricted join behavior,
+read/edit/clear registration shape, rollback, no Discord effects after worker
+failure, prefix compatibility, and beta smoke of view, rename, role lock, and
+clear paths.
 
 ## P5 — Matchmaking lifecycle
 
@@ -5449,6 +5496,19 @@ managed worktree and saved snapshot instead of retaining one authoritative
 development-only copy.
 
 ## Progress log
+
+### 2026-08-03 — P4.2d game-tribe beta accepted
+
+- Accepted `/game tribe` after live development-guild testing of the focused
+  read/edit and efficient bulk workflow.
+- Confirmed the dense game-card renderer already includes configured tribe
+  emoji values. The initially blank display reflected empty `Tribe.emoji`
+  values for all sixteen development tribes; configured custom guild emojis
+  displayed correctly without a code change.
+- Found no running `bot.py` process during close-out, so no development process
+  required shutdown and no service operation was performed.
+- Marked P4.2d Complete and selected P4.2e `/game side` as the next bounded
+  Tier-3 metadata unit.
 
 ### 2026-08-03 — P4.2d development beta launched
 
