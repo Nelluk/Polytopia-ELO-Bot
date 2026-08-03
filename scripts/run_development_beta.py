@@ -50,7 +50,14 @@ def main(argv: list[str] | None = None) -> int:
         writer_lock = BetaWriterLock(paths.writer_lock)
         writer_lock.acquire()
         os.environ['POLYBOT_BETA_CHECKPOINT'] = checkpoint
-        python = Path(sys.executable).resolve()
+        # Preserve the venv entry-point path across exec. Resolving this
+        # symlink selects the base interpreter and loses the venv's
+        # site-packages (including discord.py).
+        python = PROJECT_ROOT / '.venv' / 'bin' / 'python'
+        if not python.is_file() or not os.path.samefile(sys.executable, python):
+            raise RuntimeError(
+                'The durable beta must run with the reviewed development venv.'
+            )
         bot_path = (PROJECT_ROOT / 'bot.py').resolve()
         try:
             os.execv(

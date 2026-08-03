@@ -6293,6 +6293,21 @@ change the database, command deployment, or production boundary.
 
 ## Progress log
 
+### 2026-08-03 — WB1.2 activation launcher correction
+
+- First user-service activation passed the linger, user-manager, host-wide
+  process, profile, and `ExecStartPre` gates, but the launcher resolved the
+  development venv symlink to its base interpreter before `exec`; the bot then
+  failed before Discord login because `discord.py` was not on that interpreter's
+  environment.
+- Stopped the restart loop, preserved and verified the exact
+  `/home/nelluk/PolyBot39-dev/.venv/bin/python` entry-point across `exec`, and
+  added focused regression assertions for both the executable and `argv[0]`.
+- Focused WB1.2 validation remained green at **26 tests** with a clean diff
+  check. No command sync, Discord post, tester-role resolution, database
+  mutation, production action, dependency installation, or sudo occurred as
+  part of the correction.
+
 ### 2026-08-03 — WB1.2 reviewed and integrated
 
 - Completed the Tier-3 review of the durable development-beta service,

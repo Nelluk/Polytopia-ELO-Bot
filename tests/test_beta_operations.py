@@ -267,6 +267,11 @@ class BetaRuntimeGuardTests(unittest.TestCase):
             ):
                 self.assertEqual(run_development_beta.main(['--skip_tasks']), 0)
         self.assertEqual(len(executed), 1)
+        self.assertEqual(
+            executed[0][0],
+            str(run_development_beta.PROJECT_ROOT / '.venv' / 'bin' / 'python'),
+        )
+        self.assertEqual(executed[0][1][0], executed[0][0])
         self.assertEqual(executed[0][1][-1], '--skip_tasks')
 
     def test_launcher_rejects_any_other_runtime_argument(self):
