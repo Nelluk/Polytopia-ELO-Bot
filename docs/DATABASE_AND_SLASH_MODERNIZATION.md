@@ -443,9 +443,10 @@ check:
 - P4.2d implementation checkpoint: `76e1423` on
   `codex/p4-2d-game-tribe`, based on exact clean base
   `f0429536d7ed899eb356794bcd3558baa9be3d45`.
+- P4.2d roadmap evidence: `e1a0959`; accumulation merge: `7c2269b`.
 
-Current unit: **P4.2d game-tribe bulk/read-edit workflow — implemented locally;
-beta acceptance pending.**
+Current unit: **P4.2d game-tribe bulk/read-edit workflow — Tier-3 reviewed and
+integrated; beta acceptance pending.**
 Implementation checkpoint: `76e1423` on `codex/p4-2d-game-tribe`, based on the
 verified clean accumulation checkpoint `f0429536d7ed899eb356794bcd3558baa9be3d45`.
 P4.2c is integrated as `fcd2646` with roadmap checkpoint `6374bbe`; beta
@@ -2337,13 +2338,14 @@ worker-bounded and worker-local.
 Integration result: merged into `codex/database-slash-modernization` as
 `fcd2646`; roadmap checkpoint `6374bbe`. Beta acceptance remains pending.
 
-Next action: review the local P4.2d implementation and, after separate
-approval, run the bounded beta smoke; no command synchronization or launch is
-implied.
+Next action: when the accumulation checkout is next refreshed for worker use,
+add the approved Codex worktree environment setup so new managed worktrees can
+reuse only the development configuration and shared interpreter. Separately
+obtain approval before any P4.2d development-guild apply or beta launch.
 
 #### P4.2d — Game-tribe bulk/read-edit workflow
 
-Status: **Implemented locally; beta acceptance pending**
+Status: **Tier-3 reviewed and integrated; beta acceptance pending**
 
 Risk tier: **Tier 3**. One request may update several lineup tribes and audit
 rows and must not leave a partially applied batch after a transaction failure.
@@ -2459,6 +2461,19 @@ Validation evidence:
   `polytopia2` access, schema/dependency change, push, PR, merge, or bot launch
   was performed.
 
+Integration evidence:
+
+- Tier-3 review found no blocking defect. The focused suite was rerun after
+  accumulation integration: **23 passed**.
+- Complete offline discovery after integration: **552 passed with 17 gated
+  skips**.
+- The unchanged gated development-database suite confirmed `development`,
+  `polytopia_dev`, `polybot_dev`, and disabled background/API services, then
+  ran **17 tests: 16 passed and one operator-fixture preservation skip**.
+- Merged into `codex/database-slash-modernization` as `7c2269b`. No beta,
+  Discord synchronization, production operation, schema/dependency action,
+  push, or PR occurred during integration.
+
 Known limitation: the established post-commit announcement/dense-card path
 still performs its short `Game.load_full_game` reload on the event-loop thread,
 matching the documented adjacent P4.2a/P4.2b/P4.2c limitation. The tribe
@@ -2466,9 +2481,10 @@ read, legacy target resolution, mutation, validation, and audit database work
 remain worker-bounded and worker-local; the reload is strictly after the
 committed transaction and before its Discord effects.
 
-Next action: obtain Tier-3 review, then run the separately approved beta smoke
-for `/game tribe` and retained prefix aliases. Do not synchronize commands or
-launch production from this checkpoint.
+Next action: prepare the Codex worktree environment improvement at the next
+accumulation refresh, then separately obtain approval for the beta smoke of
+`/game tribe` and retained prefix aliases. Do not synchronize commands or
+launch a bot from this checkpoint.
 
 ## P5 — Matchmaking lifecycle
 
@@ -5401,6 +5417,24 @@ post-commit reconciliation behavior. This direction is a separate bounded
 unit and does not reopen accepted P5.2 behavior.
 
 ## Progress log
+
+### 2026-08-03 — P4.2d reviewed, integrated, and validated
+
+- Tier-3 review of `76e1423` and evidence checkpoint `e1a0959` found no
+  blocking defect in native atomic batches, retained prefix valid-subset
+  behavior, permission/stale-state checks, worker-local connection and
+  transaction ownership, cancellation draining, or post-commit effects.
+- Integrated the branch into `codex/database-slash-modernization` as
+  `7c2269b`.
+- Post-integration validation passed **23 focused tests** and **552 complete
+  offline tests with 17 explicit gated skips**. The unchanged gated suite
+  confirmed `development` / `polytopia_dev` / `polybot_dev` and ran **17
+  tests: 16 passed and one operator-fixture preservation skip**.
+- No beta, Discord command apply/synchronization, production or `polytopia2`
+  access, schema/dependency change, push, or PR occurred.
+- Deferred the Codex local-environment/worktree setup improvement until the
+  next accumulation refresh; it should link only development configuration,
+  use the shared development interpreter, and never expose production files.
 
 ### 2026-08-02 — P4.2b beta-transparency correction implemented locally
 
