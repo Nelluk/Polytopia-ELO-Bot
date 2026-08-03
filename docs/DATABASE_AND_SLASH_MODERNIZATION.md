@@ -447,7 +447,8 @@ check:
   `f0429536d7ed899eb356794bcd3558baa9be3d45`.
 - P4.2d roadmap evidence: `e1a0959`; accumulation merge: `7c2269b`.
 
-Current unit: **P4.2e focused game-side read/edit workflow — Planned.**
+Current unit: **P4.2e focused game-side read/edit workflow — reviewed and
+integrated; beta acceptance pending.**
 P4.2d game-tribe bulk/read-edit is Complete, beta-accepted, and integrated.
 Implementation checkpoint: `76e1423` on `codex/p4-2d-game-tribe`, based on the
 verified clean accumulation checkpoint `f0429536d7ed899eb356794bcd3558baa9be3d45`.
@@ -2515,7 +2516,7 @@ the public game presentation only after commit.
 
 #### P4.2e — Focused game-side read/edit workflow
 
-Status: **Implemented locally; review-ready; beta pending**
+Status: **Implemented, Tier-3 reviewed, and integrated; beta pending**
 
 Risk tier: **Tier 3**. Side naming and role restrictions directly affect who
 may join an open game and must preserve the existing host/staff permission
@@ -2526,6 +2527,8 @@ checkpoint `bb33f55` (`Accept game tribe beta workflow`).
 
 Implementation checkpoint: `33281f1` — implement the focused game-side
 read/edit workflow and offline coverage.
+
+Roadmap checkpoint: `d3f921c`. Accumulation merge: `5db842f`.
 
 Objective: add `/game side` as a focused read/edit workspace for one game
 side while preserving `$gameside` and its abbreviated side lookup.
@@ -2610,10 +2613,11 @@ Validation evidence:
   `POLYBOT_ENV=development POLYBOT_RUN_DB_INTEGRATION=1
   MPLCONFIGDIR=/tmp/polybot-matplotlib
   /home/nelluk/PolyBot39-dev/.venv/bin/python -m unittest
-  tests.test_database_integration -v`. The gate reached its existing
-  `psycopg2.connect` setup and failed with `psycopg2.OperationalError`
-  before any database test ran; no gate was weakened and no fixture or
-  application data was changed.
+  tests.test_database_integration -v`: the independent Tier-3 review reran
+  the unchanged gate successfully against `polytopia_dev` as `polybot_dev`;
+  16 tests passed and the operator-managed fixture round trip skipped as
+  designed. No gate was weakened and no fixture or application data was
+  changed.
 - Compilation and `git diff --check` passed before this roadmap update.
 
 Known limitation: the shared post-commit presentation path still performs a
@@ -5580,6 +5584,20 @@ managed worktree and saved snapshot instead of retaining one authoritative
 development-only copy.
 
 ## Progress log
+
+### 2026-08-03 — P4.2e Tier-3 review passed and integrated
+
+- Reviewed worker connection/transaction ownership, keyed game locking,
+  rollback and cancellation cleanup, prefix parity, typed-role enforcement,
+  public attribution, and commit-before-Discord-effect ordering; found no
+  blocking defect.
+- Independently reran 23 focused tests and the complete 570-test offline suite
+  with 17 gated skips.
+- Reran the strict development database gate successfully against
+  `polytopia_dev` as `polybot_dev`: 16 tests passed and one operator-fixture
+  round trip skipped as designed.
+- Integrated implementation `33281f1` and evidence `d3f921c` into the
+  accumulation branch as merge `5db842f`. Beta acceptance remains pending.
 
 ### 2026-08-03 — P4.2e game-side workflow implemented locally
 
