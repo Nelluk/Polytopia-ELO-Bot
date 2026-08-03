@@ -569,17 +569,20 @@ provides a bounded upload interface and the existing URL path is a direct
 prefix/operator workflow with no download semantics. `$team_image` remains
 registered with its required team name, optional direct URL, attachment-wins
 behavior, and existing mod/team-enabled decorators; its mutation now uses the
-same staged publication and audited worker boundary.
+same staged publication and audited worker boundary. A stale lookup example
+was corrected to use the retained command's `team_image` name.
 
 The native read and committed mutation messages are public, and native
 mutation success identifies the actor. Native validation, permission,
-ambiguity/conflict, attachment/download, database, and filesystem/publication
-failures remain ephemeral. Local upload inspection and staging run off the
-Discord event loop. The database change and `GameLog` row commit synchronously
-on a worker-local connection; only after commit does the service publish a
-staged replacement or quarantine/remove the old local override. A
-post-commit publication failure reports the committed state and retains a
-recoverable staged file when possible.
+ambiguity/conflict, attachment/download, database, and pre-commit filesystem
+failures remain ephemeral. A post-commit publication failure is a committed
+state requiring public, actor-attributed reconciliation through the established
+public sender; only failure of that public delivery uses an ephemeral fallback.
+Local upload inspection and staging run off the Discord event loop. The
+database change and `GameLog` row commit synchronously on a worker-local
+connection; only after commit does the service publish a staged replacement or
+quarantine/remove the old local override. A post-commit publication failure
+retains a recoverable staged file when possible.
 
 The implementation and focused tests are on `codex/p8-3-team-image` from exact
 clean checkpoint `c009e5a`; no capability assignment, command synchronization,
