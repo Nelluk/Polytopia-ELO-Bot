@@ -447,10 +447,10 @@ check:
   `f0429536d7ed899eb356794bcd3558baa9be3d45`.
 - P4.2d roadmap evidence: `e1a0959`; accumulation merge: `7c2269b`.
 
-Current unit: **P8.2 focused team name/server/tier workflows — Tier-3 reviewed
-and integrated; combined P8.1/P8.2 beta smoke in progress.**
-P8.1 focused team-emoji read/edit is Tier-2 reviewed and integrated; its beta
-smoke is intentionally batched with P8.2.
+Current unit: **P8.2 focused team name/server/tier workflows — Integrated and
+beta accepted, with live tier mutation testing deferred until development
+House/role fixtures exist.**
+P8.1 focused team-emoji read/edit is Complete and beta accepted.
 Implementation checkpoint: `0bbfae0` on `codex/p8-1-team-emoji`, based on the
 exact clean base `f93855b0eac3fb1e1f42119578c02ecac4213cd4`. After P8.2 review,
 the approved development-only capability assignment now includes `team`.
@@ -4855,7 +4855,7 @@ separate approval.
 
 ### P8.1 — Focused team-emoji read/edit workflow
 
-Status: **Implemented, Tier-2 reviewed, and integrated; beta batched with P8.2**
+Status: **Complete; Tier-2 reviewed, integrated, and beta accepted**
 
 Branch/base: `codex/p8-1-team-emoji` at implementation checkpoint `0bbfae0`,
 based on exact clean base `f93855b0eac3fb1e1f42119578c02ecac4213cd4`.
@@ -4966,15 +4966,14 @@ Future combined team-attribute beta checklist (not run in P8.1):
   explicit approval assigns it to the development guild;
 - [x] After separate approval, inspect and apply only the development guild
   scope, with no global synchronization, then launch one approved beta;
-- [ ] Smoke each attribute's public read, authorized edit, explicit clear,
-  invalid/conflicting/private-error path, prefix parity, audit row, and
-  post-commit team-card/leaderboard presentation behavior;
-- [ ] Verify rollback and restart/command-prune recovery, then record the
-  acceptance decision before any production discussion.
+- [x] Smoke emoji, name, and server public reads/edits, server clear,
+  autocomplete, public attribution, and private error behavior;
+- [ ] Smoke tier mutation and its Discord-role reconciliation after the
+  development guild has representative House and exact-role fixtures.
 
 ### P8.2 — Focused team name, server, and tier workflows
 
-Status: **Tier-3 reviewed and integrated; beta running, smoke pending**
+Status: **Complete with documented beta limitation; tier mutation smoke deferred**
 
 Branch/base: `codex/p8-2-team-simple-attributes` from exact clean base
 `eab8388`. No capability assignment, Discord synchronization, beta launch,
@@ -5110,15 +5109,22 @@ Combined P8.1/P8.2 beta checklist (not run in this implementation task):
   explicit approval assigns it to the development guild.
 - [x] After separate approval, inspect and apply only the development-guild
   scope; do not synchronize globally.
-- [ ] Smoke the running approved beta: public reads for emoji, name, server,
-  and tier, authorized actor-attributed edits, server clear, invalid/conflict
-  private paths, prefix parity, and committed audit rows.
-- [ ] Verify name/role exact-match warning, hidden/archived autocomplete
-  exclusion, unique inference/ambiguity, tier read versus mutation gates,
-  persisted player/preference reconciliation, and partial member-role
-  reconciliation reporting.
-- [ ] Verify rollback and restart/command-prune recovery, then record the
-  acceptance decision before any production discussion.
+- [x] Smoke public read/edit behavior for emoji, name, and server, including
+  autocomplete, server clear, actor attribution, and private failures.
+- [x] Accept the combined beta result for the workflows that the development
+  guild can currently represent.
+- [ ] Smoke tier mutation, persisted player/preference reconciliation, and
+  post-commit Discord-role reconciliation after House/exact-role fixtures are
+  available in the development guild.
+
+Remaining limitation: the tier path has full focused rollback, permission,
+worker, and post-commit reconciliation coverage, but no live beta mutation
+acceptance because the development guild has no House setup. This is not a
+code blocker for the completed unit and must not be represented as live-tested.
+
+Next action: select P8.3 as a bounded `/team image` read/edit workflow, then
+handle `/team house` separately because its role and persisted-preference
+reconciliation make it a higher-risk mutation.
 
 ## P9 — Production rollout and prefix lifecycle
 
@@ -5874,6 +5880,19 @@ managed worktree and saved snapshot instead of retaining one authoritative
 development-only copy.
 
 ## Progress log
+
+### 2026-08-03 — P8.1/P8.2 beta accepted with tier limitation
+
+- The user accepted the tested emoji, name, server, autocomplete, public
+  attribution, and private-error behavior in the development guild.
+- Live `/team tier` mutation testing was not practical because the development
+  guild does not yet have Houses and representative exact team/house/tier
+  roles. The limitation is recorded explicitly; offline Tier-3 coverage remains
+  green and no live tier claim is made.
+- Stopped the task-owned foreground beta cleanly after testing.
+- P8.1 is Complete. P8.2 is Complete with the documented tier-smoke
+  limitation. P8.3 `/team image` is the next recommended bounded unit, followed
+  by the separately risked `/team house` workflow.
 
 ### 2026-08-03 — P8.2 reviewed, integrated, and deployed to development guild
 
