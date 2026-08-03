@@ -139,6 +139,80 @@ class GameMapMutationResult:
     announcement_message_id: int | None
 
 
+class GameSideValidationError(RuntimeError):
+    """The current request or game state cannot be used for a side change."""
+
+
+class GameSideLookupError(GameSideValidationError):
+    """The requested game side could not be resolved."""
+
+
+class GameSidePermissionError(GameSideValidationError):
+    """The requester cannot edit the requested game side."""
+
+
+@dataclass(frozen=True)
+class GameSideReadRequest:
+    """Primitive input for a bounded current side read."""
+
+    game_id: int
+    guild_id: int
+    channel_id: int
+    requester_id: int
+    side_lookup: str
+
+
+@dataclass(frozen=True)
+class GameSideMutationRequest:
+    """Primitive input for one authoritative side mutation."""
+
+    game_id: int
+    guild_id: int
+    channel_id: int
+    requester_id: int
+    requester_is_staff: bool
+    requester_description: str
+    side_lookup: str
+    side_name: str | None = None
+    role_id: int | None = None
+    role_name: str | None = None
+    role_guild_id: int | None = None
+    clear: bool = False
+    native: bool = True
+    invoked_with: str = 'gameside'
+
+
+@dataclass(frozen=True)
+class GameSideReadResult:
+    game_id: int
+    guild_id: int
+    side_id: int
+    position: int
+    side_name: str | None
+    required_role_id: int | None
+    required_role_name: str | None
+    is_pending: bool
+    announcement_channel_id: int | None = None
+    announcement_message_id: int | None = None
+
+
+@dataclass(frozen=True)
+class GameSideMutationResult:
+    game_id: int
+    guild_id: int
+    side_id: int
+    position: int
+    old_side_name: str | None
+    side_name: str | None
+    old_required_role_id: int | None
+    required_role_id: int | None
+    required_role_name: str | None
+    cleared: bool
+    native: bool
+    announcement_channel_id: int | None = None
+    announcement_message_id: int | None = None
+
+
 class GameNotesValidationError(RuntimeError):
     """The current request or game state cannot be used for notes."""
 
@@ -533,6 +607,11 @@ class GameTribeMutationResult:
 _game_map_read_executor = ThreadPoolExecutor(
     max_workers=2,
     thread_name_prefix='polybot-game-map-read',
+)
+
+_game_side_read_executor = ThreadPoolExecutor(
+    max_workers=2,
+    thread_name_prefix='polybot-game-side-read',
 )
 
 _game_notes_read_executor = ThreadPoolExecutor(
@@ -1728,6 +1807,295 @@ async def run_game_map_mutation(
         # A running thread cannot be cancelled. Keep the game claim held
         # until its transaction actually finishes, including repeated
         # cancellation requests from shutdown or another caller.
+        task = asyncio.current_task()
+        if task is not None:
+            task.uncancel()
+        while not completed.is_set():
+            try:
+                await completed.wait()
+            except asyncio.CancelledError:
+                if task is not None:
+                    task.uncancel()
+        concurrent_future.result()
+        raise asyncio.CancelledError
+
+
+def _load_game_for_side(game_id: int):
+    try:
+        numeric_game_id = int(game_id)
+    except (TypeError, ValueError) as exc:
+        raise GameSideValidationError(
+            f'Invalid game ID "{game_id}".'
+        ) from exc
+    if numeric_game_id <= 0:
+        raise GameSideValidationError(
+            f'Invalid game ID "{game_id}".'
+        )
+    try:
+        return models.Game.get_by_id(numeric_game_id)
+    except peewee.DoesNotExist as exc:
+        raise GameSideValidationError(
+            f'Game with ID {numeric_game_id} cannot be found.'
+        ) from exc
+
+
+def _validate_side_association(game, request) -> None:
+    if int(game.guild_id) != int(request.guild_id):
+        raise GameSideValidationError(
+            f'Game {game.id} is associated with a different discord server.'
+        )
+
+
+def _resolve_game_side(game, side_lookup: str):
+    lookup = str(side_lookup)
+    get_side = getattr(game, 'get_side', None)
+    if callable(get_side):
+        try:
+            side, _ = get_side(lookup=lookup)
+        except (TypeError, ValueError):
+            side = None
+        if side is not None:
+            return side
+
+    # Keep the legacy numeric and abbreviated-name semantics for focused test
+    # doubles and for model versions without the helper method.
+    try:
+        side_number = int(lookup)
+    except (TypeError, ValueError):
+        side_number = None
+    for side in tuple(getattr(game, 'gamesides', ()) or ()):
+        if side_number is not None and int(side.position) == side_number:
+            return side
+        side_name = getattr(side, 'sidename', None)
+        if (
+            side_number is None
+            and side_name
+            and len(lookup) > 2
+            and lookup.upper() in str(side_name).upper()
+        ):
+            return side
+    return None
+
+
+def _side_lookup_error(game) -> GameSideLookupError:
+    return GameSideLookupError(
+        f"Can't find that side for game {game.id}."
+    )
+
+
+def _optional_int(value: int | None) -> int | None:
+    return int(value) if value is not None else None
+
+
+def _side_role_name(side) -> str | None:
+    if getattr(side, 'required_role_id', None) is None:
+        return None
+    value = getattr(side, 'sidename', None)
+    return str(value) if value else None
+
+
+def _side_effect_ids(game) -> tuple[int | None, int | None]:
+    return (
+        _optional_int(getattr(game, 'announcement_channel', None)),
+        _optional_int(getattr(game, 'announcement_message', None)),
+    )
+
+
+def _requester_is_side_host(game, requester_id: int) -> bool:
+    hosted_by = getattr(game, 'is_hosted_by', None)
+    if callable(hosted_by):
+        try:
+            return bool(hosted_by(int(requester_id))[0])
+        except (AttributeError, IndexError, TypeError, ValueError):
+            return False
+    host = getattr(game, 'host', None)
+    member = getattr(host, 'discord_member', None) if host else None
+    host_id = getattr(member, 'discord_id', None)
+    return host_id is not None and int(host_id) == int(requester_id)
+
+
+def _validate_game_side_mutation(
+    game,
+    request: GameSideMutationRequest,
+) -> None:
+    _validate_side_association(game, request)
+    if not bool(getattr(game, 'is_pending', False)):
+        raise GameSideValidationError(
+            'The game has already started and can no longer be changed.'
+        )
+    if not (
+        bool(request.requester_is_staff)
+        or _requester_is_side_host(game, request.requester_id)
+    ):
+        raise GameSidePermissionError(
+            'Only the game host or server staff can do this.'
+        )
+    if request.clear and (
+        request.side_name not in (None, '')
+        or request.role_id is not None
+    ):
+        raise GameSideValidationError(
+            'Choose either a side name or role restriction, not clear.'
+        )
+    if request.role_id is not None:
+        if int(request.role_id) <= 0 or not request.role_name:
+            raise GameSideValidationError(
+                'The selected role could not be used as a side restriction.'
+            )
+        if (
+            request.role_guild_id is not None
+            and int(request.role_guild_id) != int(request.guild_id)
+        ):
+            raise GameSideValidationError(
+                'The side restriction role must belong to this Discord server.'
+            )
+
+
+def _side_result_values(side) -> tuple[str | None, int | None, str | None]:
+    side_name = getattr(side, 'sidename', None)
+    side_name = str(side_name) if side_name is not None else None
+    role_id = _optional_int(getattr(side, 'required_role_id', None))
+    return side_name, role_id, _side_role_name(side)
+
+
+def read_game_side(request: GameSideReadRequest) -> GameSideReadResult:
+    """Read one side using a worker-owned connection and primitive output."""
+
+    with models.db.connection_context():
+        game = _load_game_for_side(request.game_id)
+        _validate_side_association(game, request)
+        side = _resolve_game_side(game, request.side_lookup)
+        if side is None:
+            raise _side_lookup_error(game)
+        side_name, role_id, role_name = _side_result_values(side)
+        announcement_channel_id, announcement_message_id = _side_effect_ids(
+            game
+        )
+        return GameSideReadResult(
+            game_id=int(game.id),
+            guild_id=int(game.guild_id),
+            side_id=int(side.id),
+            position=int(side.position),
+            side_name=side_name,
+            required_role_id=role_id,
+            required_role_name=role_name,
+            is_pending=bool(getattr(game, 'is_pending', False)),
+            announcement_channel_id=announcement_channel_id,
+            announcement_message_id=announcement_message_id,
+        )
+
+
+def set_game_side(request: GameSideMutationRequest) -> GameSideMutationResult:
+    """Commit one side name/role change and its audit row atomically."""
+
+    with models.db.connection_context():
+        with models.db.atomic():
+            game = _load_game_for_side(request.game_id)
+            _validate_game_side_mutation(game, request)
+            side = _resolve_game_side(game, request.side_lookup)
+            if side is None:
+                raise _side_lookup_error(game)
+
+            old_side_name, old_role_id, _ = _side_result_values(side)
+            if request.clear:
+                new_side_name = None
+                new_role_id = None
+                new_role_name = None
+            elif request.role_id is not None:
+                new_role_id = int(request.role_id)
+                new_side_name = (
+                    request.side_name
+                    if request.side_name is not None
+                    else str(request.role_name)
+                )
+                new_role_name = str(request.role_name)
+            else:
+                new_side_name = request.side_name
+                new_role_id = None
+                new_role_name = None
+
+            side.sidename = new_side_name
+            side.required_role_id = new_role_id
+            side.save()
+
+            if request.clear:
+                change_description = (
+                    f'cleared side {side.position} name and role restriction'
+                )
+            elif new_role_id is not None:
+                change_description = (
+                    f'locked side {side.position} to role '
+                    f'@{new_role_name} and named it {new_side_name!r}'
+                )
+            else:
+                change_description = (
+                    f'named side {side.position} {new_side_name!r} and '
+                    'removed its role restriction'
+                )
+            invocation_note = (
+                f' ({request.invoked_with})'
+                if request.invoked_with.startswith('/')
+                else ''
+            )
+            models.GameLog.write(
+                game_id=int(game.id),
+                guild_id=int(game.guild_id),
+                message=(
+                    f'{request.requester_description} {change_description}'
+                    f'{invocation_note}'
+                ),
+            )
+
+            announcement_channel_id, announcement_message_id = _side_effect_ids(
+                game
+            )
+            return GameSideMutationResult(
+                game_id=int(game.id),
+                guild_id=int(game.guild_id),
+                side_id=int(side.id),
+                position=int(side.position),
+                old_side_name=old_side_name,
+                side_name=(
+                    str(new_side_name) if new_side_name is not None else None
+                ),
+                old_required_role_id=old_role_id,
+                required_role_id=new_role_id,
+                required_role_name=new_role_name,
+                cleared=bool(request.clear),
+                native=bool(request.native),
+                announcement_channel_id=announcement_channel_id,
+                announcement_message_id=announcement_message_id,
+            )
+
+
+async def run_game_side_read(
+    request: GameSideReadRequest,
+) -> GameSideReadResult:
+    """Submit a bounded current-side read."""
+
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(
+        _game_side_read_executor,
+        functools.partial(read_game_side, request),
+    )
+
+
+async def run_game_side_mutation(
+    request: GameSideMutationRequest,
+) -> GameSideMutationResult:
+    """Submit a side mutation and drain a canceled caller safely."""
+
+    loop = asyncio.get_running_loop()
+    call = functools.partial(set_game_side, request)
+    concurrent_future = _game_write_executor.submit(call)
+    future = asyncio.wrap_future(concurrent_future, loop=loop)
+    completed = asyncio.Event()
+    concurrent_future.add_done_callback(
+        lambda _future: loop.call_soon_threadsafe(completed.set)
+    )
+    try:
+        return await asyncio.shield(future)
+    except asyncio.CancelledError:
         task = asyncio.current_task()
         if task is not None:
             task.uncancel()

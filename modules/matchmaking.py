@@ -9,6 +9,7 @@ from modules.games import post_newgame_messaging
 from modules.league import broadcast_team_game_to_server
 from modules import game_open, game_open_workers
 from modules import game_notes, game_workers
+from modules import game_side
 from modules import game_join_leave, game_join_workers, game_kick_workers
 from modules import game_search_workers
 from modules import game_start, game_start_workers
@@ -775,25 +776,66 @@ class matchmaking(commands.Cog):
         # matchside m1 1 name ronin
         # matchside m1 ronin nelluk rickdaheals jonathan
 
-        gameside, _ = game.get_side(lookup=side_lookup)
-        if not gameside:
-            return await ctx.send('Can\'t find that side for game {game.id}.')
+        role_mentions = tuple(
+            getattr(getattr(ctx, 'message', None), 'role_mentions', ()) or ()
+        )
+        role = role_mentions[0] if len(role_mentions) == 1 else None
+        clear = False
+        side_name = args
+        if role is None and args and args.lower() == 'none':
+            clear = True
+            side_name = None
 
-        if args and args.lower() == 'none':
-            args = None
+        request = game_side.build_mutation_request(
+            member=ctx.author,
+            guild_id=ctx.guild.id,
+            channel_id=ctx.channel.id,
+            game_id=game.id,
+            side_lookup=side_lookup,
+            side_name=(None if role is not None else side_name),
+            role_id=(role.id if role is not None else None),
+            role_name=(role.name if role is not None else None),
+            role_guild_id=(
+                getattr(getattr(role, 'guild', None), 'id', None)
+                if role is not None else None
+            ),
+            clear=clear,
+            native=False,
+            invoked_with=getattr(ctx, 'invoked_with', None) or 'gameside',
+        )
 
-        if len(ctx.message.role_mentions) == 1:
-            # using a role to lock side
-            gameside.required_role_id = ctx.message.role_mentions[0].id
-            gameside.sidename = ctx.message.role_mentions[0].name
-            msg = f'Side {gameside.position} for game {game.id} has been locked to role **@{gameside.sidename}** and named **{gameside.sidename}**'
-        else:
-            gameside.sidename = args
-            gameside.required_role_id = None
-            msg = f'Side {gameside.position} for game {game.id} has been named **{args}**'
-        gameside.save()
+        async def after_commit(result):
+            await game_side.publish_mutation_result(
+                result,
+                send=ctx.send,
+                destination=ctx,
+                guild=ctx.guild,
+                prefix=ctx.prefix,
+            )
 
-        return await ctx.send(msg)
+        try:
+            await game_side.run_side_mutation(
+                request,
+                after_commit=after_commit,
+            )
+        except game_workers.GameSideLookupError as exc:
+            return await ctx.send(str(exc))
+        except game_workers.GameSideValidationError as exc:
+            return await ctx.send(str(exc))
+        except exceptions.RecordLocked as exc:
+            return await ctx.send(str(exc))
+        except peewee.PeeweeException:
+            logger.exception('Database failure setting game side')
+            return await ctx.send(
+                'The side change failed and rolled back. No Discord '
+                'announcement or card update was made.'
+            )
+        except Exception:
+            logger.exception('Unexpected failure setting game side')
+            return await ctx.send(
+                'The side change failed. No Discord announcement or card '
+                'update was made.'
+            )
 
     @settings.in_bot_channel()
     @commands.command(usage='game_id', aliases=['joingame', 'joinmatch'])

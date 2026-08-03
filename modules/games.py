@@ -14,6 +14,7 @@ from modules import player_workers
 from modules import elo_workers
 from modules import game_win
 from modules import game_map
+from modules import game_side
 from modules import game_tribe
 from modules import game_tribe_views
 from modules import game_notes
@@ -4190,6 +4191,159 @@ class polygames(commands.Cog):
             logger.exception('Unexpected failure setting map from slash')
             return await interaction.followup.send(
                 'The map change failed. No Discord announcement or card '
+                'update was made.',
+                ephemeral=True,
+            )
+
+    @game_group.command(
+        name='side',
+        description='View or update one game side name and role restriction.',
+    )
+    @discord.app_commands.describe(
+        game_id='Game whose side to view or edit.',
+        side='Side number or an unambiguous side-name fragment.',
+        role='Role that should be required to join this side.',
+        name='Side name; omit it to use the role name when a role is set.',
+        clear='Clear both the side name and role restriction.',
+    )
+    async def side_slash(
+        self,
+        interaction: discord.Interaction,
+        game_id: int,
+        side: str,
+        role: discord.Role | None = None,
+        name: str | None = None,
+        clear: bool = False,
+    ):
+        """Read or edit one side through the shared worker service."""
+
+        if clear and (role is not None or name is not None):
+            return await interaction.response.send_message(
+                'Choose either a side name or role restriction, not clear.',
+                ephemeral=True,
+            )
+
+        role_guild_id = (
+            getattr(getattr(role, 'guild', None), 'id', None)
+            if role is not None else None
+        )
+        if role is not None and role_guild_id not in (None, interaction.guild.id):
+            return await interaction.response.send_message(
+                'The side restriction role must belong to this Discord server.',
+                ephemeral=True,
+            )
+
+        await interaction.response.defer(ephemeral=True)
+        actor = game_side.capture_actor(interaction.user)
+        channel_id = int(
+            getattr(interaction, 'channel_id', None)
+            or getattr(getattr(interaction, 'channel', None), 'id', 0)
+            or 0
+        )
+        try:
+            prefix = settings.guild_setting(
+                interaction.guild.id,
+                'command_prefix',
+            )
+        except exceptions.CheckFailedError:
+            prefix = '$'
+        public_send = game_side.public_interaction_sender(interaction)
+
+        if role is None and name is None and not clear:
+            request = game_side.build_read_request(
+                member=interaction.user,
+                guild_id=interaction.guild.id,
+                channel_id=channel_id,
+                game_id=game_id,
+                side_lookup=side,
+            )
+            try:
+                result = await asyncio.wait_for(
+                    game_side.run_side_read(request),
+                    timeout=20,
+                )
+            except game_workers.GameSideValidationError as exc:
+                return await interaction.followup.send(
+                    str(exc),
+                    ephemeral=True,
+                )
+            except asyncio.TimeoutError:
+                return await interaction.followup.send(
+                    'The current side configuration could not be loaded in '
+                    'time. Run `/game side` again.',
+                    ephemeral=True,
+                )
+            except peewee.PeeweeException:
+                logger.exception('Database failure reading game side')
+                return await interaction.followup.send(
+                    'The current side configuration could not be loaded.',
+                    ephemeral=True,
+                )
+            except Exception:
+                logger.exception('Unexpected failure reading game side')
+                return await interaction.followup.send(
+                    'The current side configuration could not be loaded.',
+                    ephemeral=True,
+                )
+            return await public_send(
+                game_side.read_message(
+                    result,
+                    actor=actor,
+                    guild=interaction.guild,
+                )
+            )
+
+        request = game_side.build_mutation_request(
+            member=interaction.user,
+            guild_id=interaction.guild.id,
+            channel_id=channel_id,
+            game_id=game_id,
+            side_lookup=side,
+            side_name=name,
+            role_id=(role.id if role is not None else None),
+            role_name=(role.name if role is not None else None),
+            role_guild_id=role_guild_id,
+            clear=clear,
+            native=True,
+            invoked_with='/game side',
+        )
+
+        async def after_commit(result):
+            await game_side.publish_mutation_result(
+                result,
+                send=public_send,
+                destination=interaction.channel,
+                guild=interaction.guild,
+                prefix=prefix,
+                actor=actor,
+            )
+
+        try:
+            await game_side.run_side_mutation(
+                request,
+                after_commit=after_commit,
+            )
+        except game_workers.GameSideValidationError as exc:
+            return await interaction.followup.send(
+                str(exc),
+                ephemeral=True,
+            )
+        except exceptions.RecordLocked as exc:
+            return await interaction.followup.send(
+                str(exc),
+                ephemeral=True,
+            )
+        except peewee.PeeweeException:
+            logger.exception('Database failure setting game side from slash')
+            return await interaction.followup.send(
+                'The side change failed and rolled back. No Discord '
+                'announcement or card update was made.',
+                ephemeral=True,
+            )
+        except Exception:
+            logger.exception('Unexpected failure setting game side from slash')
+            return await interaction.followup.send(
+                'The side change failed. No Discord announcement or card '
                 'update was made.',
                 ephemeral=True,
             )
