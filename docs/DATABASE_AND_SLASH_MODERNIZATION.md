@@ -447,7 +447,11 @@ check:
   `f0429536d7ed899eb356794bcd3558baa9be3d45`.
 - P4.2d roadmap evidence: `e1a0959`; accumulation merge: `7c2269b`.
 
-Current unit: **P8.1 focused team-emoji read/edit workflow — Planned.**
+Current unit: **P8.1 focused team-emoji read/edit workflow — Implemented
+locally; review-ready; beta not run.**
+Implementation checkpoint: `0bbfae0` on `codex/p8-1-team-emoji`, based on the
+exact clean base `f93855b0eac3fb1e1f42119578c02ecac4213cd4`. The development
+guild capability assignment remains unchanged and does not include `team`.
 P4.2e focused game-side read/edit is Complete, beta-accepted, and integrated.
 P4.2d game-tribe bulk/read-edit is Complete, beta-accepted, and integrated.
 Implementation checkpoint: `76e1423` on `codex/p4-2d-game-tribe`, based on the
@@ -4849,7 +4853,10 @@ separate approval.
 
 ### P8.1 — Focused team-emoji read/edit workflow
 
-Status: **Planned**
+Status: **Implemented locally; review-ready; beta not run**
+
+Branch/base: `codex/p8-1-team-emoji` at implementation checkpoint `0bbfae0`,
+based on exact clean base `f93855b0eac3fb1e1f42119578c02ecac4213cd4`.
 
 Risk tier: **Tier 2**. The mutation is narrow and reversible but changes a
 public team identity attribute used in cards and leaderboards.
@@ -4886,6 +4893,80 @@ validation, permission parity, rollback and connection cleanup, no Discord
 effects after failure, prefix registration/behavior, `/team` capability
 isolation, complete offline and gated development suites, then separately
 approved development-guild deployment and beta smoke.
+
+Implementation evidence:
+
+- `modules/administration.py` registers the `/team` root and `/team emoji`
+  subcommand with optional string `team`, optional string `emoji`, and
+  optional Boolean `clear`. It uses unambiguous requester-team inference when
+  the target is omitted; no Discord-native Team option is introduced.
+- `modules/team_emoji.py` is the shared adapter/service. It captures only
+  primitive request values and safe actor text, routes both native and prefix
+  interfaces through the same worker, preserves the prefix decorators and
+  public wording, and removes the deferred private response before committed
+  native success output is sent publicly.
+- `modules/team_emoji_workers.py` owns a bounded single-worker executor and
+  worker-local Peewee connections. Authoritative team lookup (including the
+  legacy `include_hidden=True` matching behavior), access checks, Unicode or
+  syntax-only custom-emoji validation, mutation, optimistic stale-value check,
+  and `GameLog` audit insertion are synchronous; mutation and audit are one
+  atomic transaction. No Discord await occurs in that boundary.
+- Successful reads, edits, and clears publish only after the worker returns a
+  committed result. Existing team cards, game cards, and leaderboard rows do
+  not retain a team-emoji message/cache that requires an immediate refresh;
+  they load the current value when rendered, so this unit performs no
+  pre-commit presentation effect and leaves future presentation refreshes for
+  the broader team batch.
+- Valid ordinary Unicode emoji sequences and valid `<:name:id>`/`<a:name:id>`
+  syntax are accepted without requiring a cached or globally available
+  Discord emoji. The legacy validator's documented Unicode bug is deliberately
+  corrected. Compatibility accounting: there is no unapproved compromise to
+  registration, permission gates, lookup semantics, prefix wording, or valid
+  custom emoji. Malformed strings that the old `'<:'` substring check happened
+  to accept are now rejected as an intentional safety correction.
+- Focused offline command/worker tests cover root and default-deny capability
+  registration, option shape, read/edit/clear, actor/audit attribution,
+  Unicode/custom validation, invalid/conflicting/stale input, inferred and
+  ambiguous targets, permission parity, prefix routing, rollback and
+  connection cleanup, event-loop responsiveness, and post-commit ordering.
+  `POLYBOT_ENV=development /home/nelluk/PolyBot39-dev/.venv/bin/python -m
+  unittest tests.test_team_emoji tests.test_slash_taxonomy
+  tests.test_application_command_policy` passed with **36 tests**. Complete
+  offline discovery via `POLYBOT_ENV=development
+  /home/nelluk/PolyBot39-dev/.venv/bin/python -m unittest discover -s tests -p
+  'test*.py'` passed with **586 tests, 17 skips**.
+- The unchanged development integration command was invoked as
+  `POLYBOT_ENV=development POLYBOT_RUN_DB_INTEGRATION=1
+  /home/nelluk/PolyBot39-dev/.venv/bin/python -m unittest
+  tests.test_database_integration`. Its preflight confirmed the development
+  environment, `polytopia_dev`, and `polybot_dev`, with tasks/API disabled;
+  the test process then stopped before running tests because its read-only
+  PostgreSQL connection to `localhost:5432` raised `psycopg2.OperationalError`.
+  No integration fixture was changed and no production database was touched.
+- No beta process, Discord command synchronization, capability assignment,
+  production checkout/service/database, dependency installation, push, or
+  merge was performed in this unit.
+
+Compatibility decision: **no unapproved compatibility compromise**. The one
+intentional legacy behavior change is the validator correction described above:
+ordinary Unicode emoji now work, valid animated custom syntax is accepted, and
+malformed custom-looking input is rejected safely.
+
+Future combined team-attribute beta checklist (not run in P8.1):
+
+- [ ] Batch reviewed implementations for `/team emoji`, `/team server`,
+  `/team name`, and `/team tier` with one shared capability/root review;
+- [ ] Re-run the exact development profile/database/role gate and complete
+  offline discovery after integration, with no production configuration;
+- [ ] Verify the code-only command plan keeps `team` default-deny until an
+  explicit approval assigns it to the development guild;
+- [ ] After separate approval, inspect and apply only the development guild
+  scope, with no global synchronization, then launch one approved beta;
+- [ ] Smoke each attribute's public read, authorized edit, explicit clear,
+  invalid/conflicting/private-error path, prefix parity, audit row, and
+  post-commit team-card/leaderboard presentation behavior;
+- [ ] Verify rollback and restart/command-prune recovery, then record the
+  acceptance decision before any production discussion.
 
 ## P9 — Production rollout and prefix lifecycle
 
@@ -5641,6 +5722,25 @@ managed worktree and saved snapshot instead of retaining one authoritative
 development-only copy.
 
 ## Progress log
+
+### 2026-08-03 — P8.1 implementation checkpoint completed locally
+
+- Implemented `/team emoji` and the shared `$team_emoji` adapter on branch
+  `codex/p8-1-team-emoji` from exact clean base `f93855b`; implementation/tests
+  checkpoint is `0bbfae0`.
+- Preserved the existing team-enabled and mod boundary, `Team.get_by_name`
+  hidden-team lookup behavior, prefix registration/read/update wording, and
+  dynamic team-emoji consumers. Added explicit clear, safe Unicode/custom
+  validation, one-worker transaction/audit ownership, stale-value protection,
+  and public-after-commit native output.
+- Focused tests and complete offline discovery passed: 586 tests, 17 skips.
+  The unchanged development integration gate verified its required profile
+  values but could not connect to localhost PostgreSQL, so no integration test
+  ran and no beta or command synchronization was authorized.
+- Compatibility review records no unapproved compromise; the validator bug
+  correction is intentional and documented in P8.1 above. The next reviewable
+  checkpoint is the separate documentation commit, followed by review rather
+  than deployment.
 
 ### 2026-08-03 — P4.2e beta accepted; P8.1 selected
 
