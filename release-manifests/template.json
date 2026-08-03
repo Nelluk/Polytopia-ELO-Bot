@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "release_id": "replace-me",
+  "expected_checkpoint": "0000000000000000000000000000000000000000",
+  "title": "Development beta release title",
+  "bounded_summary": "One short summary of the reviewed beta rollout.",
+  "changed_commands": [
+    "/game show"
+  ],
+  "known_limitations": [
+    "List one bounded limitation or remove this item."
+  ],
+  "smoke_test_checklist": [
+    "Run the reviewed command smoke test and confirm the public result."
+  ],
+  "ping_testers": false
+}

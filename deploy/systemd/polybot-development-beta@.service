@@ -1,0 +1,32 @@
+[Unit]
+Description=Polytopia development beta (%i)
+Documentation=file:///home/nelluk/PolyBot39-dev/docs/DEVELOPMENT_BETA_OPERATIONS.md
+After=network-online.target
+Wants=network-online.target
+ConditionPathIsDirectory=/home/nelluk/PolyBot39-dev
+StartLimitIntervalSec=60s
+StartLimitBurst=5
+
+[Service]
+Type=simple
+WorkingDirectory=/home/nelluk/PolyBot39-dev
+Environment=POLYBOT_ENV=development
+Environment=POLYBOT_BETA_CONTROL=enabled
+Environment=POLYBOT_BETA_STARTUP_SYNC=disabled
+Environment=POLYBOT_BETA_APPLICATION_ID=479029527553638401
+Environment=POLYBOT_BETA_GUILD_ID=478571892832206869
+Environment=POLYBOT_BETA_DATABASE=polytopia_dev
+Environment=POLYBOT_BETA_DATABASE_ROLE=polybot_dev
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/home/nelluk/PolyBot39-dev/.venv/bin/python /home/nelluk/PolyBot39-dev/scripts/run_development_beta.py --skip_tasks
+Restart=on-failure
+RestartSec=5s
+KillSignal=SIGINT
+TimeoutStopSec=45s
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ExecStartPre=/home/nelluk/PolyBot39-dev/.venv/bin/python /home/nelluk/PolyBot39-dev/scripts/audit_development_beta_processes.py --require-clear
+
+[Install]
+WantedBy=default.target

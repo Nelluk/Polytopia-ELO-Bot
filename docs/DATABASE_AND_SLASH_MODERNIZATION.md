@@ -457,7 +457,7 @@ check:
 - P4.2d roadmap evidence: `e1a0959`; accumulation merge: `7c2269b`.
 
 Current unit: **WB1.2 durable development-beta service and tester operations —
-planned; awaiting user feedback before implementation.**
+implemented locally; Tier-3 oversight review pending.**
 
 WB1.1 was integrated into `codex/database-slash-modernization` as merge
 `1c8ffe0`. Its implementation branch was
@@ -5282,7 +5282,7 @@ explicit development-guild deployment and beta smoke of `/team image`.
 
 ## WB1 — Wider beta operations and structured feedback
 
-Status: **In progress; WB1.1 integrated and WB1.2 planned**
+Status: **In progress; WB1.1 integrated and WB1.2 implemented locally**
 
 ### WB1.1 — Structured `/staffhelp` feedback intake
 
@@ -5387,86 +5387,98 @@ Limitations and next action:
   dependency, command synchronization, launch, or production action was
   introduced. The ignored development capability assignment remains unchanged,
   so `/staffhelp` remains default-deny until a later explicit deployment.
-- Next action: WB1.2 durable development-beta service and tester operations.
-  Obtain user feedback on its service, restart-announcement, tester-scope, and
-  smoke-list interface before implementation. The separate P9 decision for a
-  production-safe authoritative intake/retention path remains a later
-  production prerequisite.
+- Next action: review the WB1.2 durable development-beta service and tester
+  operations branch. The separate P9 decision for a production-safe
+  authoritative intake/retention path remains a later production prerequisite.
 
 ### WB1.2 — Durable development-beta service and tester operations
 
-Status: **Planned; awaiting user feedback before implementation**
+Status: **Implemented locally; Tier-3 oversight review pending**
 
-Proposed boundary:
+Branch/base and implementation checkpoint:
 
-- provide a user-level, development-only durable service with explicit
-  development identity, `polytopia_dev`/`polybot_dev`, `--skip_tasks`, and
-  restart-on-failure;
-- add an operator-owned deployment/restart workflow that keeps command
-  synchronization explicit and separate from startup;
-- after an approved code rollout and restart, publish an attributed release
-  notice to one configured development announcement channel, optionally ping
-  one configured tester role, and include a bounded smoke-test checklist plus
-  the running Git checkpoint;
-- make announcement publication explicit and idempotent rather than automatic
-  on every reconnect or crash restart, so outages cannot spam testers;
-- document status/log/start/stop/rollback commands, single-writer checks,
-  fixture policy, tester scope, incident response, and how oversight reads
-  `/staffhelp` reports;
-- do not use sudo, production services, global command synchronization,
-  `polytopia2`, or a second writer process.
+- Branch `codex/wb1-2-durable-beta-operations`, based on the exact clean
+  checkpoint `96011050ddb344b15f538442d49270b22e143976` on
+  `codex/database-slash-modernization`.
+- Implementation/tests checkpoint: `e6df8a4`.
+- Oversight-correction implementation/tests checkpoint: `36dc783`.
+- The implementation commits and this documentation/roadmap commit remain
+  separate for review; the branch is not merged or pushed by this unit.
+
+Delivered boundary:
+
+- Added the guarded user-level systemd template and launcher for only
+  `/home/nelluk/PolyBot39-dev`, with exact development identity
+  `479029527553638401`, guild `478571892832206869`, database
+  `polytopia_dev`/`polybot_dev`, `--skip_tasks`, disabled API/background/Bullet
+  integrations, no startup command synchronization, clean-checkout and
+  checkpoint capture, restart backoff, clean stop, and a single writer lock.
+- Added a dependency-free, repository-backed JSON release-manifest schema and
+  template. The tracked template is copied into ignored mode-0600 draft state;
+  a separate preparation step injects the clean reviewed HEAD into an ignored
+  prepared manifest and atomically archives its bounded content/fingerprint in
+  state, avoiding an impossible self-pinned committed manifest. Validation
+  enforces bounded fields, safe paths, a full lowercase checkpoint, and exact
+  match to the beta process startup checkpoint.
+- Added a mandatory read-only host-wide first-activation audit that classifies
+  development, production, and unknown `bot.py --skip_tasks` candidates across
+  task worktrees. The gate never broad-kills processes: the operator must
+  review ancestry/ownership, stop only an authorized development beta, rerun
+  until clear, and only then enable the service; `ExecStartPre` repeats the
+  fail-closed audit.
+- Added explicit local control through the authenticated beta process rather
+  than a second Discord client. Delivery is one-shot per release ID, uses a
+  bounded public-channel marker scan, supports retry after a certainly
+  rejected post, blocks uncertain retries, and persists atomic mode-0600 state
+  beneath ignored `logs/development/beta-operations/`.
+- Fixed development `/staffhelp` mirroring to private `admin-spam`
+  (`480078679930830849`) and kept it independent from public release notices
+  in `todo-and-changelog` (`481779940124000256`). Public content is sourced
+  only from the reviewed manifest and never includes private report details.
+- Tester pings are opt-in. A pinged release requires exactly one live
+  `testers` role in the fixed guild and a previously persisted exact role ID;
+  a minor release uses no role mention. No role, channel, team, house, or
+  fixture was created.
+
+Tier-3 validation evidence:
+
+- Focused `tests.test_beta_operations` passed **26 tests**, including service
+  invariants, launcher arguments, single-writer locking, manifest bounds/path
+  safety/checkpoint matching, constructible draft/preparation, ping/no-ping
+  and exact role gates, channel and guild rejection, idempotency, failed-post
+  retry, uncertain-post recovery, private/public separation, the unguarded
+  process audit, and offline control behavior.
+- Complete offline discovery passed **666 tests with 17 intentional database
+  integration skips**. Compilation and `git diff --check` passed; the service
+  template and repeated pre-activation audit gate passed
+  `systemd-analyze verify` in the headless environment.
+- No database behavior changed, so no gated `polytopia_dev` test was run. No
+  service was installed, enabled, started, stopped, or restarted; no command
+  plan/apply, Discord inspection/post, role resolution, database mutation,
+  sudo action, dependency installation, production access, push, or merge
+  occurred.
+
+Remaining approved gates:
+
+- Oversight must review the complete Tier-3 branch and all correction and
+  documentation commits before integration.
+- Before first activation, the operator must complete the host-wide audit,
+  review each candidate, stop only an authorized development beta, rerun until
+  clear, and then allow the service's repeated `ExecStartPre` audit to pass.
+- A later operator action must inspect user-systemd availability and, only if
+  separately approved, install/enable the user service. If lingering is
+  required, the exact privileged action is `sudo loginctl enable-linger
+  nelluk`, after the required disk-audit review.
+- Application-command deployment remains the existing P8.0 explicit
+  development-guild plan/apply operation and is not coupled to a restart.
+- A separately approved live step must resolve the unique `testers` role and
+  persist its reviewed ID before any `ping_testers: true` manifest is allowed.
+- The development beta must be observed healthy and a reviewed smoke matrix
+  completed before inviting a wider tester cohort. WB1.3 owns Discord fixture
+  creation and remains out of scope.
 
 Legacy recommendation: **not applicable**. WB1.2 is operational tooling and
 does not replace a prefix command.
-
-Purpose: open the development guild and beta command surface to a wider group
-without weakening the production boundary or making the beta process depend
-on an interactive Codex terminal.
-
-Required scope:
-
-- provide a user-level, development-only durable beta service with explicit
-  `POLYBOT_ENV=development`, the reviewed development checkout,
-  `polytopia_dev`/`polybot_dev`, `--skip_tasks`, disabled API/background
-  integrations, restart-on-failure, and normal development logs;
-- keep application-command deployment separate from bot startup. Use the P8.0
-  plan/apply tool with an explicit development guild and no global fallback;
-- retain one writer process. Never run beta and production against the same
-  database, and never point the durable beta at `polytopia2`;
-- document start/stop/status/log commands, rollback, expected bot identity,
-  capability assignments, tester scope, fixture policy, and incident response;
-- add the established top-level `/staffhelp` interaction with a structured
-  modal for help, bug reports, and feature requests. Capture report ID, type,
-  summary, details, optional command/game reference, requester/guild/channel,
-  timestamp, and the running Git checkpoint;
-- append reports as one sanitized JSON object per line in a development-only
-  file beneath the configured development data/log root. Store bounded,
-  validated attachments by report ID when implemented. Use an in-process lock
-  plus atomic/flush-safe writes so concurrent submissions cannot corrupt the
-  stream;
-- provide a read-only repository utility with `list`, `show`, and search
-  operations (export is optional and not required for WB1.1). The JSONL is the
-  direct oversight source and must be searchable
-  with ordinary tools such as `rg`; a Discord staff-channel/forum mirror is an
-  optional post-write effect, not a prerequisite or the authoritative store;
-- acknowledge submissions publicly only when that does not expose sensitive
-  report details. Validation/storage failures remain private and must not claim
-  that a report was recorded;
-- define retention, redaction, attachment limits, and cleanup before accepting
-  wider tester uploads. Feedback data and attachments remain ignored runtime
-  data and must never be committed with source changes.
-
-Exit gate:
-
-- service and feedback implementation reviewed with focused fault-injection,
-  concurrency, permission/privacy, path-safety, restart, and log-reader tests;
-- complete offline and existing gated development-database suites green;
-- explicit development-guild command plan/apply accepted;
-- durable beta authenticated as the beta application and observed healthy;
-- `/staffhelp` submission appears in the JSONL reader without leaking private
-  fields into public output;
-- a small invited tester cohort completes the runbook smoke matrix before the
-  beta server is opened more broadly.
 
 This milestone does not require a new database table, GitHub token, public
 API, or direct Discord access for Codex. It does not authorize production
@@ -6256,6 +6268,53 @@ post-write-only Discord staff-channel mirror. The implementation does not
 change the database, command deployment, or production boundary.
 
 ## Progress log
+
+### 2026-08-03 — WB1.2 oversight correction implemented locally
+
+- Corrected the manifest/checkpoint contract: release-specific content now
+  starts as an ignored mode-0600 draft copied from the tracked template, and
+  `prepare` injects the already-known clean reviewed HEAD into a separate
+  ignored prepared file. The final manifest and fingerprint are atomically
+  archived in idempotency state; no release-specific file is committed.
+- Added a constructible offline `init`/edit/`prepare`/`validate` sequence and
+  fail-closed rejection of self-pinned drafts. Delivery now requires the
+  archived prepared content, preserving duplicate prevention.
+- Added a read-only host-wide process audit and mandatory first-activation
+  stop gate. It identifies development worktree candidates, distinguishes
+  production, never broad-kills processes, and is repeated by systemd
+  `ExecStartPre`; the file lock's limitation against unguarded legacy launches
+  is explicit and tested.
+- Documented that uncertain posting state without a bounded history marker
+  remains blocked for deliberate operator reconciliation; state must not be
+  deleted to force a retry.
+- Correction implementation/tests checkpoint: `36dc783`. Focused validation
+  passed **26 tests**; complete offline discovery passed **666 tests with 17
+  intentional database-integration skips**. Compilation, diff checks, and
+  service-template verification passed.
+- No service lifecycle, process audit/stop, Discord, command sync, database,
+  sudo, production, dependency, push, or merge action occurred.
+
+### 2026-08-03 — WB1.2 durable beta operations implemented locally
+
+- Implemented on isolated `codex/wb1-2-durable-beta-operations` from exact
+  clean base `96011050ddb344b15f538442d49270b22e143976`.
+- Added a development-only user-service template and guarded launcher with
+  exact identity/database/guild invariants, disabled startup sync, a clean
+  checkpoint policy, bounded restart behavior, clean stop, and a single
+  process/database-writer lock.
+- Added strict JSON release manifests, explicit local control through the
+  already-authenticated beta process, exact public/private channel separation,
+  tester-role pinning gates, one-shot checkpoint-matched delivery, atomic
+  idempotency state, retry/reconciliation handling, and focused offline tests.
+- Implementation/tests checkpoint: `e6df8a4`. Focused validation passed **21
+  tests**; complete offline discovery passed **661 tests with 17 intentional
+  database-integration skips**. Compilation, diff checks, and service-template
+  verification passed.
+- No service installation or lifecycle action, command synchronization,
+  Discord inspection/post, role resolution, database mutation, sudo,
+  dependency installation, production access, push, or merge occurred. The
+  unit is ready for Tier-3 oversight review; integration and all live gates
+  remain pending.
 
 ### 2026-08-03 — WB1.1 structured staffhelp implemented locally
 

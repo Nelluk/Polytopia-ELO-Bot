@@ -31,9 +31,12 @@ pyvenv.cfg
 pip-selfcheck.json
 *.log*
 logs/development/beta-feedback/
+logs/development/beta-operations/
 *.csv
 *.csv.gz
 *.json
+!release-manifests/
+!release-manifests/*.json
 *test.py
 .python-version
 TODO.txt

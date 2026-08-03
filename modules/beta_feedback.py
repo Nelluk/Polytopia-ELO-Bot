@@ -30,6 +30,10 @@ from typing import Any, Iterable, Mapping, Sequence
 
 import discord
 
+from modules.beta_operations import (
+    BETA_GUILD_ID,
+    BETA_STAFFHELP_MIRROR_CHANNEL_ID,
+)
 from runtime_config import RuntimeProfile, get_runtime_profile
 
 
@@ -874,7 +878,13 @@ def staff_help_channel(bot: Any, guild_id: int) -> Any | None:
         guild = bot.get_guild(int(guild_id))
         if guild is None:
             return None
-        configured_id = settings.guild_setting(int(guild_id), 'staff_help_channel')
+        if (
+                getattr(getattr(settings, 'runtime_profile', None), 'environment', None)
+                == 'development'
+                and int(guild_id) == BETA_GUILD_ID):
+            configured_id = BETA_STAFFHELP_MIRROR_CHANNEL_ID
+        else:
+            configured_id = settings.guild_setting(int(guild_id), 'staff_help_channel')
         if not configured_id:
             return None
         return guild.get_channel(int(configured_id))
