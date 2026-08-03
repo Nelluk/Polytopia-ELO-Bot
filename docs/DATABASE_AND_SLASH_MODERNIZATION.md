@@ -4,7 +4,7 @@ Last updated: 2026-08-03
 
 Status: Active
 
-Current branch at last update: `codex/p4-2e-game-side`
+Current branch at last update: `codex/wb1-3a-beta-readiness-inventory`
 
 Source task: `thread://019fae66-8e3a-7a50-9a0f-d3d7160d2287`
 
@@ -456,8 +456,16 @@ check:
   `f0429536d7ed899eb356794bcd3558baa9be3d45`.
 - P4.2d roadmap evidence: `e1a0959`; accumulation merge: `7c2269b`.
 
-Current unit: **WB1.2 durable development-beta service and tester operations —
-implemented locally; Tier-3 oversight review pending.**
+Current unit: **WB1.3a read-only wider-beta readiness inventory and desired-state
+planning — implemented locally; Tier-3 oversight review pending.**
+
+WB1.3a implementation/tests checkpoint: `200310c` on branch
+`codex/wb1-3a-beta-readiness-inventory`, based on the exact clean
+`codex/database-slash-modernization` checkpoint
+`10f57eac38a4845d8b776880a3e7fdf3ad2953d7`. Its separate documentation and
+roadmap checkpoint is pending. No live Discord inventory, database inventory,
+service lifecycle action, command synchronization, invitation, fixture
+mutation, production action, dependency installation, push, or merge occurred.
 
 WB1.1 was integrated into `codex/database-slash-modernization` as merge
 `1c8ffe0`. Its implementation branch was
@@ -5488,7 +5496,7 @@ retirement is separately approved and remains in force.
 
 ### WB1.3 — Wider-tester server readiness and controlled invitation
 
-Status: **Planned**
+Status: **In progress; WB1.3a implemented locally, live apply remains planned**
 
 Objective: prepare the development guild for approximately 5–20 wider-beta
 testers without ad hoc roles, database fixtures, capability assignments, or
@@ -5508,6 +5516,82 @@ only the approved guild-scoped command tree, start the single durable beta,
 deliver one reviewed release manifest to `todo-and-changelog`, and complete
 the bounded smoke checklist before inviting testers. No production checkout,
 service, guild, or database is in scope.
+
+#### WB1.3a — Read-only readiness inventory and desired-state planning
+
+Status: **Implemented locally; Tier-3 oversight review pending**
+
+Branch/base: `codex/wb1-3a-beta-readiness-inventory` from the exact clean
+accumulation checkpoint `10f57eac38a4845d8b776880a3e7fdf3ad2953d7`.
+
+Objective: provide bounded, reviewable planning inputs before any wider-beta
+Discord/database fixture or capability change.
+
+Delivered:
+
+- `modules/beta_readiness.py` builds deterministic primitive-only Discord
+  inventories from the already-authenticated beta's cached guild, verifies the
+  exact bot/guild, fixed public/private channels, and unique pinned `testers`
+  role, and omits member lists, message bodies, report bodies, attachments,
+  and tokens. Role/channel/overwrite collections and the local socket response
+  are bounded and fail closed on identity mismatch.
+- `BetaReleaseControl` exposes only the separately named read-only
+  `readiness-inventory` operation for this surface. The CLI uses the existing
+  mode-protected socket and never creates a second Discord client. It has no
+  remote apply operation.
+- The separate `database-inventory` CLI path validates development profile,
+  `polytopia_dev`, `polybot_dev`, and the exact development guild before
+  opening a worker-local Peewee-style connection. It verifies live PostgreSQL
+  identity and starts a read-only transaction; it does not import the legacy
+  model module, write rows, recalculate ELO, seed/clean fixtures, or change
+  schema. It returns bounded teams, houses, role-name identifiers, counts, and
+  owned fixture summaries.
+- `readiness-manifests/template.json` and the strict validator/planner cover
+  fixed targets, testers/channels, current/proposed capabilities and
+  unresolved `tools_support`, proposed development-only teams/houses/role
+  bindings without choosing names, fixture retention/cleanup, rollback,
+  smoke, and 5–20 invitation prerequisites. The planner emits a deterministic
+  diff and always reports live apply as false.
+- `docs/DEVELOPMENT_BETA_READINESS.md` defines the exact later inventory and
+  review procedure. The tracked template is unignored explicitly; generated
+  snapshots remain local review artifacts.
+
+Validation evidence:
+
+- Focused `tests.test_beta_operations` plus `tests.test_beta_readiness`:
+  **42 passed**.
+- Complete offline discovery: **682 passed**, with **17 intentional gated
+  database-integration skips**. The launcher test also verifies the mandated
+  shared interpreter `/home/nelluk/PolyBot39-dev/.venv/bin/python` from an
+  app-managed worktree.
+- Compilation and `git diff --check`: passed. No live beta/Discord smoke or
+  gated real-database inventory was run.
+
+Privacy and safety boundaries:
+
+- Discord inventory reads only cached object metadata and permission shape;
+  it never reads history or invokes send/edit/delete/fetch/mutation methods.
+- Database inventory is CLI-only, exact-identity gated, bounded, and
+  read-only. Database role bindings expose source IDs/names but no resolved
+  Discord role IDs; those remain a later reviewed live concern.
+- Manifest paths reject absolute/traversal/symlink paths. No team/house name,
+  capability assignment, channel/role creation, fixture operation, command
+  sync, tester invitation, or generic remote apply is selected autonomously.
+
+Known limitations and next action:
+
+- The Discord snapshot is cache-only and refuses missing fixed channels rather
+  than fetching unbounded state. Counts/permission values can be unavailable
+  when the authenticated cache cannot safely provide them.
+- The database inventory assumes the current reviewed schema and reports only
+  bounded rows; a `truncated` result requires review rather than inference.
+- The current local template intentionally contains unresolved decisions for
+  `tools_support`, team/house names and bindings, cleanup/rollback ownership,
+  and invitation approval.
+- Next action: perform the Tier-3 oversight review of the complete branch and
+  the roadmap/runbook checkpoint. Only after that review may a separately
+  approved live inventory/apply unit use the precise procedure in
+  `docs/DEVELOPMENT_BETA_READINESS.md`.
 
 ## P9 — Production rollout and prefix lifecycle
 
@@ -6291,7 +6375,54 @@ attachment directory, a read-only list/show/search utility, and a
 post-write-only Discord staff-channel mirror. The implementation does not
 change the database, command deployment, or production boundary.
 
+### D-037 — Separate readiness inventory/planning from live wider-beta apply
+
+Status: Accepted for WB1.3a
+
+Wider-beta readiness begins with two bounded read-only inventories and a
+repository-backed desired-state diff. Discord inventory must run through the
+already-authenticated development beta's protected local control socket; it
+must not create a second client, read message/report content, or expose member
+lists. Database inventory remains CLI-only behind the exact development
+environment/database/role/guild gates and owns a read-only worker-local
+connection. Neither inventory may mutate Discord, commands, fixtures, rows, or
+schema.
+
+The desired-state manifest records fixed targets, unresolved capability and
+team/house/role choices, fixture ownership, rollback, smoke, and invitation
+prerequisites. The planner may report differences but has no apply path. Any
+live role/channel/team/house creation, capability change, guild-scoped command
+sync, fixture operation, release delivery, or tester invitation requires a
+separate explicit reviewed unit. This preserves the single development beta
+writer and prevents a planning snapshot from becoming an implicit rollout.
+
 ## Progress log
+
+### 2026-08-03 — WB1.3a readiness inventory and desired-state planning
+
+- Implemented WB1.3a on
+  `codex/wb1-3a-beta-readiness-inventory` from exact clean base
+  `10f57eac38a4845d8b776880a3e7fdf3ad2953d7`; implementation/tests checkpoint
+  `200310c`. The documentation/roadmap checkpoint is intentionally separate.
+- Added the bounded `readiness-inventory` local beta-control operation and
+  `scripts/manage_beta_readiness.py discord-inventory`; it uses the existing
+  authenticated beta socket and verifies application `479029527553638401`,
+  guild `478571892832206869`, public/private fixed channels, and pinned role
+  `480905534019731476` without a second client or Discord mutation.
+- Added the separate `database-inventory` CLI with exact development-only
+  identity gates, live PostgreSQL identity verification, a read-only
+  transaction, worker-local connection lifecycle, bounded team/house/role
+  identifiers and owned fixture summaries. No real gated database inventory
+  was run.
+- Added the repository-backed readiness template, strict offline validator,
+  deterministic diff planner, path safety checks, and
+  `docs/DEVELOPMENT_BETA_READINESS.md`. Unresolved choices remain explicit;
+  no team/house names or `tools_support` assignment was selected.
+- Focused validation passed **42 tests**; complete offline discovery passed
+  **682 tests with 17 intentional gated database skips**. Compilation and
+  `git diff --check` passed. No live beta/Discord smoke, service lifecycle,
+  command sync, fixture mutation, invitation, production, sudo, dependency,
+  push, or merge action occurred.
 
 ### 2026-08-03 — WB1.2 activation launcher correction
 
