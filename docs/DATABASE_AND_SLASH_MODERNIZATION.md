@@ -2338,10 +2338,10 @@ worker-bounded and worker-local.
 Integration result: merged into `codex/database-slash-modernization` as
 `fcd2646`; roadmap checkpoint `6374bbe`. Beta acceptance remains pending.
 
-Next action: when the accumulation checkout is next refreshed for worker use,
-add the approved Codex worktree environment setup so new managed worktrees can
-reuse only the development configuration and shared interpreter. Separately
-obtain approval before any P4.2d development-guild apply or beta launch.
+Next action: the repository-backed worktree setup is now available through
+`scripts/setup_development_worktree.sh`. Use it at the start of future worker
+units. Separately obtain approval before any P4.2d development-guild apply or
+beta launch.
 
 #### P4.2d — Game-tribe bulk/read-edit workflow
 
@@ -5416,7 +5416,39 @@ Discord awaits inside database transactions, and define timeout/refresh and
 post-commit reconciliation behavior. This direction is a separate bounded
 unit and does not reopen accepted P5.2 behavior.
 
+### D-035 — Configure development worktrees through a fail-closed setup script
+
+Status: Accepted
+
+New Codex-managed and fallback implementation worktrees run
+`scripts/setup_development_worktree.sh` before profile-dependent imports or
+tests. The script links only `config.development.ini` and
+`server_settings_dev.py` from the primary development clone, uses the shared
+development interpreter, refuses unexpected existing paths or any production
+target, and verifies the read-only development profile. It never installs
+dependencies, connects to a database, or launches a bot.
+
+This follows Codex's local-environment setup-script model while keeping the
+command explicit in the Luna handoff protocol. `.worktreeinclude` is not used
+for these credential-bearing files because it would copy them into each
+managed worktree and saved snapshot instead of retaining one authoritative
+development-only copy.
+
 ## Progress log
+
+### 2026-08-03 — Development worktree setup made repository-backed
+
+- Added an idempotent, fail-closed worktree setup script that creates only the
+  two approved development-profile symlinks and verifies the shared Python
+  interpreter plus the `development` / `polytopia_dev` / `polybot_dev` /
+  tasks-disabled / API-disabled profile without database access.
+- Updated the Sol/Luna handoff header so every new worker worktree runs the
+  setup before profile-dependent imports or tests. Codex local environments
+  may automate the same command.
+- Deliberately avoided `.worktreeinclude` for ignored credential-bearing
+  files so disposable worktrees and snapshots do not receive copied secrets.
+- No production checkout, dependency installation, database operation,
+  Discord operation, or bot process was involved in this setup change.
 
 ### 2026-08-03 — P4.2d reviewed, integrated, and validated
 

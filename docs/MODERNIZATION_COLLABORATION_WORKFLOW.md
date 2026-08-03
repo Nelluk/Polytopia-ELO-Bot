@@ -101,6 +101,26 @@ The worktree reuses only development-local resources:
 - production configuration and credentials are never linked into the
   worktree.
 
+Before a worker runs tests or imports the runtime profile in a new worktree,
+run:
+
+```bash
+/home/nelluk/PolyBot39-dev/scripts/setup_development_worktree.sh "$PWD"
+```
+
+The script is idempotent and fail-closed. It creates only the two documented
+development-configuration symlinks, refuses to overwrite an existing path or
+target the production checkout, verifies the shared interpreter, and runs the
+read-only development-profile check. It does not install dependencies,
+connect to PostgreSQL, launch the bot, or broaden any database/Discord gate.
+
+Codex local environments may run this command automatically as their Linux
+setup script. The repository workflow still includes the explicit command in
+worker prompts so it remains auditable when no app environment is selected.
+Do not use `.worktreeinclude` for these two files: that mechanism copies
+ignored files into disposable managed worktrees and snapshots, while the
+symlink setup keeps one authoritative development-only credential copy.
+
 Rules:
 
 - Never use or modify `/home/nelluk/PolyBot39`, the production checkout.
@@ -236,6 +256,9 @@ Read AGENTS.md, docs/DATABASE_AND_SLASH_MODERNIZATION.md, and any unit-specific
 runbook in full. Verify that the worktree is clean and detached at EXPECTED_SHA.
 Create and switch to BRANCH_NAME before editing. Stop if the base, branch,
 worktree, or runtime state differs from the prompt.
+
+Run `/home/nelluk/PolyBot39-dev/scripts/setup_development_worktree.sh "$PWD"`
+before profile-dependent tests or imports. Stop if it refuses the worktree.
 
 Run Python through /home/nelluk/PolyBot39-dev/.venv/bin/python; do not install
 or synchronize dependencies unless separately approved.
