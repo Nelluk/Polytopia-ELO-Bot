@@ -78,7 +78,7 @@ class SlashTaxonomyRegistrationTests(unittest.TestCase):
         )
         self.assertEqual(
             {command.name for command in team_group.commands},
-            {'emoji'},
+            {'emoji', 'name', 'server', 'tier'},
         )
         self.assertEqual(
             {command.name for command in leaderboard_group.commands},
@@ -226,6 +226,52 @@ class SlashTaxonomyRegistrationTests(unittest.TestCase):
                 ('emoji', discord.AppCommandOptionType.string, False),
                 ('clear', discord.AppCommandOptionType.boolean, False),
             ],
+        )
+        self.assertEqual(
+            [
+                (parameter.name, parameter.type, parameter.required)
+                for parameter
+                in team_group.get_command('name').parameters
+            ],
+            [
+                ('team', discord.AppCommandOptionType.string, False),
+                ('name', discord.AppCommandOptionType.string, False),
+            ],
+        )
+        self.assertEqual(
+            [
+                (parameter.name, parameter.type, parameter.required)
+                for parameter
+                in team_group.get_command('server').parameters
+            ],
+            [
+                ('team', discord.AppCommandOptionType.string, False),
+                ('server_id', discord.AppCommandOptionType.integer, False),
+                ('clear', discord.AppCommandOptionType.boolean, False),
+            ],
+        )
+        self.assertEqual(
+            [
+                (parameter.name, parameter.type, parameter.required)
+                for parameter
+                in team_group.get_command('tier').parameters
+            ],
+            [
+                ('team', discord.AppCommandOptionType.string, False),
+                ('tier', discord.AppCommandOptionType.string, False),
+            ],
+        )
+        autocomplete_callbacks = {
+            command.name: command._params['team'].autocomplete
+            for command in team_group.commands
+        }
+        self.assertEqual(
+            set(autocomplete_callbacks),
+            {'emoji', 'name', 'server', 'tier'},
+        )
+        self.assertEqual(
+            set(autocomplete_callbacks.values()),
+            {administration.team_attributes_service.autocomplete_teams},
         )
 
         prefix = {

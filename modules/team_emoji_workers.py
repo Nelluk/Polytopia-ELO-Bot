@@ -108,6 +108,23 @@ class TeamEmojiMutationResult:
     native: bool
 
 
+@dataclass(frozen=True)
+class TeamAutocompleteRequest:
+    """Immutable, guild-scoped input for a cheap team-name suggestion read."""
+
+    guild_id: int
+    current: str
+    limit: int = 25
+
+
+@dataclass(frozen=True)
+class TeamAutocompleteResult:
+    """One visible team suggestion returned from the worker."""
+
+    team_id: int
+    team_name: str
+
+
 def _is_in_range(codepoint: int, ranges: tuple[tuple[int, int], ...]) -> bool:
     return any(start <= codepoint <= end for start, end in ranges)
 
@@ -189,17 +206,27 @@ def _team_id(team) -> int:
     return int(getattr(team, 'id'))
 
 
-def _team_matches(team_lookup: str, guild_id: int):
+def _team_matches(
+    team_lookup: str,
+    guild_id: int,
+    *,
+    include_hidden: bool = True,
+):
     try:
         matches = models.Team.get_by_name(
             team_name=team_lookup,
             guild_id=int(guild_id),
-            include_hidden=True,
+            include_hidden=bool(include_hidden),
         )
     except TypeError:
         # Small model doubles and older local model shims may not expose the
         # keyword-only spelling, while the real Team helper does.
-        matches = models.Team.get_by_name(team_lookup, int(guild_id), False, True)
+        matches = models.Team.get_by_name(
+            team_lookup,
+            int(guild_id),
+            False,
+            bool(include_hidden),
+        )
     return tuple(matches)
 
 
@@ -224,10 +251,14 @@ def _inferred_team_matches(request: TeamEmojiReadRequest | TeamEmojiMutationRequ
     return tuple(query)
 
 
-def _resolve_team(request):
+def _resolve_team(request, *, include_hidden: bool = True):
     team_lookup = _normalise_lookup(request.team_lookup)
     if team_lookup is not None:
-        matches = _team_matches(team_lookup, request.guild_id)
+        matches = _team_matches(
+            team_lookup,
+            request.guild_id,
+            include_hidden=include_hidden,
+        )
         if not matches:
             raise TeamEmojiLookupError(
                 f'No matching team was found for "{team_lookup}".'
@@ -248,6 +279,36 @@ def _resolve_team(request):
             'Your team is ambiguous. Provide a team name.'
         )
     return matches[0]
+
+
+def list_team_autocomplete(
+    request: TeamAutocompleteRequest,
+) -> tuple[TeamAutocompleteResult, ...]:
+    """Return at most 25 visible teams from one guild.
+
+    Autocomplete is deliberately a small read-only worker.  Hidden and
+    archived teams remain addressable through the legacy-compatible explicit
+    lookup path, but are not suggested as ordinary team attributes.
+    """
+
+    with models.db.connection_context():
+        limit = min(max(int(request.limit), 1), 25)
+        current = str(request.current or '').strip()
+        query = models.Team.select(models.Team.id, models.Team.name).where(
+            (models.Team.guild_id == int(request.guild_id))
+            & (models.Team.is_hidden == 0)
+            & (models.Team.is_archived == 0)
+        )
+        if current:
+            query = query.where(models.Team.name.contains(current))
+        query = query.order_by(models.Team.name, models.Team.id).limit(limit)
+        return tuple(
+            TeamAutocompleteResult(
+                team_id=int(team.id),
+                team_name=str(team.name),
+            )
+            for team in query
+        )
 
 
 def _read_values(team) -> tuple[int, int, str, str]:
@@ -338,17 +399,58 @@ _team_emoji_executor = ThreadPoolExecutor(
 )
 
 
+async def run_bounded_team_worker(
+    function,
+    request,
+    *,
+    drain_on_cancel: bool,
+):
+    """Run a primitive team worker on the shared bounded executor."""
+
+    loop = asyncio.get_running_loop()
+    concurrent_future = _team_emoji_executor.submit(
+        functools.partial(function, request)
+    )
+    future = asyncio.wrap_future(concurrent_future, loop=loop)
+    if not drain_on_cancel:
+        return await future
+    try:
+        return await asyncio.shield(future)
+    except asyncio.CancelledError:
+        task = asyncio.current_task()
+        while not future.done():
+            if task is not None:
+                task.uncancel()
+            try:
+                await asyncio.shield(future)
+            except asyncio.CancelledError:
+                continue
+        future.result()
+        raise asyncio.CancelledError
+
+
 async def run_team_emoji_read(
     request: TeamEmojiReadRequest,
 ) -> TeamEmojiReadResult:
     """Submit a bounded current-value read."""
 
-    loop = asyncio.get_running_loop()
-    concurrent_future = _team_emoji_executor.submit(
-        functools.partial(read_team_emoji, request)
+    return await run_bounded_team_worker(
+        read_team_emoji,
+        request,
+        drain_on_cancel=False,
     )
-    future = asyncio.wrap_future(concurrent_future, loop=loop)
-    return await future
+
+
+async def run_team_autocomplete(
+    request: TeamAutocompleteRequest,
+) -> tuple[TeamAutocompleteResult, ...]:
+    """Run autocomplete through the same bounded team executor as P8.1."""
+
+    return await run_bounded_team_worker(
+        list_team_autocomplete,
+        request,
+        drain_on_cancel=False,
+    )
 
 
 async def run_team_emoji_mutation(
@@ -356,26 +458,8 @@ async def run_team_emoji_mutation(
 ) -> TeamEmojiMutationResult:
     """Submit a mutation and drain synchronous work if the caller cancels."""
 
-    loop = asyncio.get_running_loop()
-    concurrent_future = _team_emoji_executor.submit(
-        functools.partial(set_team_emoji, request)
+    return await run_bounded_team_worker(
+        set_team_emoji,
+        request,
+        drain_on_cancel=True,
     )
-    future = asyncio.wrap_future(concurrent_future, loop=loop)
-    completed = asyncio.Event()
-    concurrent_future.add_done_callback(
-        lambda _future: loop.call_soon_threadsafe(completed.set)
-    )
-    try:
-        return await asyncio.shield(future)
-    except asyncio.CancelledError:
-        task = asyncio.current_task()
-        if task is not None:
-            task.uncancel()
-        while not completed.is_set():
-            try:
-                await completed.wait()
-            except asyncio.CancelledError:
-                if task is not None:
-                    task.uncancel()
-        concurrent_future.result()
-        raise asyncio.CancelledError
