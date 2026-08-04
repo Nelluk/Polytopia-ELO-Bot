@@ -410,7 +410,7 @@ operator repair commands stay out of the public tree.
 | `team_image` | `/team image` | Implemented locally in P8.3: public effective-image read, typed attachment replacement, and explicit clear; direct URL replacement remains on the retained prefix path |
 | `team_name` | `/team name` | Implemented locally in P8.2: public read/actor-attributed edit, legacy five-character and unique-name boundary, and an explicit exact-role rename warning |
 | `team_server` | `/team server` | Implemented locally in P8.2: raw integer read/edit and explicit nullable clear without requiring external-guild membership |
-| `team_edit` aliases | `/team house`, `/team tier` | `/team tier` implemented locally in P8.2 with effective legacy mod plus PolyChampions/test scope, configured choices, read-only access to current archived/house-less values within that scope, mutation-only house/archive/exact-role gates, worker-owned Player/preference reconciliation, and post-commit role reconciliation; house mutation remains prefix-only |
+| `team_edit` aliases | `/team house`, `/team tier` | `/team tier` remains implemented with the effective legacy mod plus PolyChampions/test scope, configured choices, mutation-only house/archive/exact-role gates, worker-owned Player/preference reconciliation, and post-commit role reconciliation. P8.4 implements native `/team house` read/assign/clear and intentionally retires the `$team_house` alias/branch; `$team_edit ... ARCHIVE` remains retained. |
 | `squad` | `/squad show` | Redesign one-to-three member search |
 | `squadname` | `/squad name` | View by default; optional name edits |
 | `lb` | `/leaderboard players` | Components v2 workspace defaults to local/current/active and exposes common views, population, paging, and requester-rank controls in-message; preserve the full prefix matrix |
@@ -566,7 +566,9 @@ clear/reconciliation contract.
 `$team_name`, `$team_server`, and `$team_tier` remain registered and route
 through the shared worker/service. `$team_tier` remains behind the original
 League cog scope, then enters the bounded preflight before any legacy direct
-Peewee path; `$team_house` and `$team_edit ... ARCHIVE` remain unchanged. No
+Peewee path. At the later P8.4 checkpoint, `$team_house` was intentionally
+retired and `$team_edit` no longer routes house changes; `$team_edit ...
+ARCHIVE` remains retained. No
 native-interface compatibility compromise was identified for P8.2, so no new
 ledger row is required. The combined P8.1/P8.2 beta gate,
 development-guild capability assignment, command synchronization, and beta
@@ -608,6 +610,45 @@ clean checkpoint `c009e5a`; no capability assignment, command synchronization,
 beta launch, production action, dependency installation, push, or merge is
 implied by this code-only checkpoint. The focused evidence and final commit
 hash are recorded in the modernization roadmap.
+
+#### P8.4 `/team house` implementation state
+
+The code-only implementation extends the existing default-deny `team`
+capability/root with `team:string?`, `house:string?`, and `clear:boolean?`.
+Omitting `house` and `clear` publicly reads the current House affiliation;
+providing `house` assigns it; `clear:true` removes it; and `house` plus
+`clear:true` is rejected. Team and House suggestions are bounded to 25
+choices, use the shared worker/executor boundary, and only infer a requester
+team when exactly one persisted team resolves.
+
+House reads are public only within the existing team-enabled
+PolyChampions/test scope. Assignment and clear preserve the effective legacy
+mod boundary and that same scope. Committed native mutations publish publicly
+with actor attribution; validation, ambiguity, permission, conflict, and
+database failures remain private. The worker reloads the team and selected
+House inside one worker-local transaction, updates the team, reconciles the
+captured Player/team and House-preference rows, and writes the GameLog audit
+entry atomically. Discord role reconciliation occurs only after commit and
+reports bounded public warnings when managed House roles are absent or a
+member edit fails.
+
+The legacy `$team_house` alias and its `team_edit` branch are intentionally
+retired by explicit approval. `$team_tier` and `$team_edit ... ARCHIVE` remain
+registered and materially unchanged, with archive guidance updated to use
+`/team house ... clear:true`. This is recorded as compatibility ledger C-008;
+the old message-only House mutation path is no longer available, while the
+ordinary House workflow is covered natively.
+
+Implementation/tests checkpoint: `9d72507b2913b7c842224e6ea624fc108404ad28`
+on `codex/p8-4-team-house`, based on exact clean base
+`e4de007be33bd1b6d7b29efc7dd79cf9024ad22e`. No schema migration, command
+synchronization, beta/service lifecycle action, production action,
+dependency installation, push, or merge is implied by this checkpoint.
+Gated development-database validation is explicitly deferred while the
+durable beta is running; the review task must not stop, restart, inspect, or
+otherwise disturb that beta. Development Houses intentionally have no
+Discord House roles, so live role reconciliation smoke remains a separately
+approved fixture/oversight step.
 
 #### Player leaderboard interaction matrix
 

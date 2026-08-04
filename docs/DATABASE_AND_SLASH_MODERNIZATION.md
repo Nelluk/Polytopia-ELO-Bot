@@ -358,6 +358,7 @@ would become unavailable if a prefix is retired.
 | C-005 `/game tribe` / `$settribe` | Native direct `bulk` and confirmed workspace batches validate every pair and commit all changed lineups/audits atomically. The retained prefix aliases preserve compact batch grammar, self shorthand, abbreviations, `none`, and per-pair outcomes. | Native batches are deliberately all-or-nothing; the legacy prefix deliberately keeps its historical valid-subset behavior, reporting invalid pairs while committing valid assignments/audits together. If message-content processing is later retired, the native workspace/direct option covers the ordinary staff workflow while the prefix-only partial-success distinction is unavailable. | Revisit prefix retirement only after usage evidence and an explicit compatibility decision; do not silently make `$settribe` atomic. | Implemented locally; beta review pending |
 | C-006 `/team image` / `$team_image` | Native `/team image` provides an effective-image read, one typed Discord attachment replacement, and explicit clear under the existing mod/team-enabled boundary. The retained prefix preserves its required team name, direct URL option, attachment-wins behavior, and legacy success/read wording; its stale lookup example now correctly names `team_image`. | Direct URL replacement remains prefix-only because the native command deliberately uses a typed attachment rather than a free-form URL. If prefix processing were later removed, staff would need to upload an attachment for replacement; existing stored URL images would still read and clear natively. Prefix success wording also remains legacy-compatible rather than adding native actor text. | Add a separately justified URL option or a multi-step/modal image editor only if direct URL replacement remains a demonstrated native need; do not add remote downloading without a new validation/security review. | Intentional P8.3 parity boundary; prefix retained |
 | C-007 `/staffhelp` / `$staffhelp` / `$helpstaff` | Native `/staffhelp` has no options and opens a requester-bound modal with bounded help/bug/feature category, summary, details, optional context, and up to 10 typed uploads. It is the sole WB1.1 feedback intake for the development wider beta after the legacy prefix adapters were retired. | Legacy recommendation: **retire** — the low-use, redundant prefix intake is clearly superseded by the structured native form. This retirement was explicitly approved by the user before integration; do not restore it. The native JSONL authority and `/staffhelp` intake are development-only and not a production-ready replacement. Before P9, make a separate approved decision on a production-safe authoritative intake/retention path or another production relay design; until then, production communities use their currently deployed support/moderator route. No native attachment gap was required: the installed discord.py 2.7.1 Components v2 API provides the required multi-file upload. | Add retention/redaction operations or a later staff workflow only with a separate privacy and operational review; do not replace the JSONL authority with a Discord-only mirror. | Prefix retirement implemented locally; production-boundary decision required before P9 |
+| C-008 `/team house` / `$team_house` / `$team_edit` house branch | Native `/team house` provides public current-house reads and actor-attributed mod assignment/clear with bounded team/House autocomplete, unambiguous requester-team inference, worker-local atomic Team/Player/preference/GameLog state, and post-commit managed-role reconciliation. | Legacy recommendation: **retire** — explicit user approval retires `$team_house` and removes the house branch from `$team_edit`; the old message-only House mutation path and its message-intent-dependent syntax are no longer available. `$team_tier` and `$team_edit ... ARCHIVE` remain retained. The native path covers the ordinary House workflow within the existing team-enabled PolyChampions/test scope; validation, ambiguity, permission, conflict, and database failures remain private, while committed changes are public and identify the actor. | Revisit only with a separately approved prefix lifecycle decision or if beta evidence shows a material native usability gap; do not restore a compatibility wrapper. | Intentional P8.4 prefix retirement; implementation ready for review |
 
 Every later slash conversion must add a row when parity is intentionally
 reduced. If there is no compromise, its unit evidence should explicitly say
@@ -456,9 +457,16 @@ check:
   `f0429536d7ed899eb356794bcd3558baa9be3d45`.
 - P4.2d roadmap evidence: `e1a0959`; accumulation merge: `7c2269b`.
 
-Current unit: **WB1.3b reviewed wider-beta desired state and gated development
-setup — integrated and applied to the development environment; human smoke and
-wider-tester announcement/invitation remain.**
+Current unit: **P8.4 native-first team-house read/edit/clear workflow —
+implementation/tests ready for Tier-3 review; gated development-database
+validation and beta/role smoke remain deferred.**
+
+P8.4 implementation/tests checkpoint: `9d72507b2913b7c842224e6ea624fc108404ad28`
+on `codex/p8-4-team-house`, based on the exact clean base
+`e4de007be33bd1b6d7b29efc7dd79cf9024ad22e`. The durable beta was not
+inspected, stopped, restarted, or otherwise disturbed. WB1.3b remains the
+broader operational milestone whose human smoke and wider-tester invitation
+are downstream of this review/integration handoff.
 
 WB1.3a implementation/tests correction checkpoint: `b19a71c` on branch
 `codex/wb1-3a-beta-readiness-inventory`, based on the exact clean
@@ -5080,8 +5088,9 @@ Boundaries:
   house-less team; a mutation preserves the house, archived-team, and
   exact-role preconditions and performs member role reconciliation only after
   the committed database/audit transaction;
-- `$team_edit` archive and `$team_house` behavior are out of scope, as are
-  team image and house modernization;
+- `$team_edit` archive and `$team_house` behavior were out of scope for P8.2,
+  as were team image and House modernization; P8.4 later selected the native
+  House workflow and its explicit `$team_house` retirement;
 - add one shared cheap team autocomplete for all `/team` attributes, including
   the already integrated `/team emoji`, while preserving unique requester-team
   inference when the target is omitted;
@@ -5107,8 +5116,10 @@ Implementation evidence:
   formats public actor-attributed output, warns that name changes do not rename
   the exact Discord team role, and performs tier reconciliation only after the
   worker has committed. `$team_name` and `$team_server` use the same service;
-  `$team_tier` uses it through the existing `team_edit` alias command. The
-  `$team_house` branch and `$team_edit ... ARCHIVE` branch remain untouched.
+  `$team_tier` uses it through the existing `team_edit` alias command. At the
+  P8.2 checkpoint the `$team_house` branch and `$team_edit ... ARCHIVE` branch
+  remained untouched; P8.4 is the later checkpoint that retires only the
+  House branch.
 - `modules/team_attributes_workers.py` owns synchronous lookup, validation,
   mutation, optimistic tier preconditions, legacy persisted member-team and
   house-preference cleanup, and `GameLog` audit insertion in a worker-local
@@ -5311,6 +5322,122 @@ name (`team_emoji` to `team_image`) while preserving the established success
 and read output. No schema change or remote URL download was introduced.
 The correction was accepted and integrated at `7e108c7`. The next action is an
 explicit development-guild deployment and beta smoke of `/team image`.
+
+### P8.4 — Native-first team-house read/edit/clear workflow
+
+Status: **Implementation/tests complete locally; Tier-3 review handoff ready;
+integration, gated database validation, and beta/role smoke deferred**
+
+Branch/base: `codex/p8-4-team-house` from the exact clean base
+`e4de007be33bd1b6d7b29efc7dd79cf9024ad22e` on
+`codex/database-slash-modernization`. Implementation/tests commit:
+`9d72507b2913b7c842224e6ea624fc108404ad28`. Documentation/evidence is a
+separate checkpoint from the implementation/tests commit.
+
+Risk tier: **Tier 3**. A House mutation changes a relational team affiliation,
+audited state, persisted Player/team relationships, player House preferences,
+and post-commit Discord roles.
+
+Objective and approved interface:
+
+- add `/team house` under the existing default-deny `team` capability/root
+  with exactly `team:string?`, `house:string?`, and `clear:boolean?`;
+- omit `house` and `clear` to show the current House affiliation publicly;
+  provide `house` to assign it; provide `clear:true` to remove it; reject
+  `house` plus `clear:true`;
+- use bounded, cheap team and House autocomplete. Explicit or inferred team
+  resolution is accepted only when it is unambiguous; the requester-team
+  inference is the existing persisted-team path and captures no Discord or
+  Peewee objects for worker submission;
+- allow public reads only in the existing team-enabled PolyChampions/test
+  scope. Preserve the effective legacy mod plus PolyChampions/test boundary
+  for assignment and clear;
+- publish committed native changes publicly with the captured actor identity;
+  keep validation, ambiguity, permission, conflict, and database failures
+  private.
+
+Database/service and reconciliation boundary:
+
+- `modules/team_attributes.py` and `modules/team_attributes_workers.py`
+  extend the established team-attribute service and bounded worker rather
+  than duplicating team lookup or permission logic. Requests contain only
+  primitive IDs, strings, booleans, and immutable tuples;
+- the synchronous worker opens its own Peewee connection, reloads the team
+  and selected House, revalidates scope, visibility/lookup, archive state,
+  exact team-role preconditions, expected team/old-House values, and mutation
+  authority, then commits Team.house, captured Player.team reconciliation,
+  PlayerHousePreference cleanup, and GameLog audit together in one atomic
+  transaction. Database failures roll all of that state back;
+- no Discord await occurs in the transaction. After commit, the event-loop
+  service reuses the established tier-role reconciliation behavior to refresh
+  the exact team-role members' managed House/Tier/League Member/Prefers roles;
+- development Houses intentionally have no Discord House roles. Missing role
+  objects and partial member-edit failures do not roll back committed state;
+  they produce bounded public warnings, and actor attribution is retained.
+  A reconciliation exception cannot be reported as a database rollback.
+  Reads do not run archived-team, exact-role, or other mutation-only checks.
+
+Legacy compatibility decision:
+
+- `$team_house` is intentionally retired: remove the alias and the
+  `team_house` branch from `$team_edit`, with no prefix wrapper retained;
+- `$team_tier` remains registered and continues through the existing bounded
+  preflight/service path. `$team_edit ... ARCHIVE` remains materially
+  unchanged; its House-clear guidance now points to
+  `/team house team:<team> clear:true`;
+- this approved retirement is recorded as compatibility ledger **C-008**.
+  The old message-only House mutation syntax is no longer available, but the
+  ordinary House read/assign/clear workflow is covered natively.
+
+Implementation and test evidence:
+
+- `modules/administration.py` registers the exact slash shape, scope-aware
+  autocomplete callbacks, private pre-defer denials/conflicts, public
+  actor-attributed reads and committed mutations, and private follow-ups for
+  worker/validation/database failures;
+- `modules/team_emoji_workers.py` supplies the bounded House lookup on the
+  existing single team executor. `modules/league.py` retains tier/archive
+  behavior while retiring only the approved House prefix path;
+- focused P8 suite:
+  `tests.test_team_emoji`, `tests.test_team_attributes`,
+  `tests.test_team_image`, `tests.test_slash_taxonomy`,
+  `tests.test_application_command_policy`, and
+  `tests.test_application_command_management` passed **98 tests**;
+- complete offline discovery passed **721 tests with 19 intentional skips**.
+  Compilation and `git diff --check` passed. The required development setup
+  selected `POLYBOT_ENV=development`, database `polytopia_dev`, role
+  `polybot_dev`, development guild `478571892832206869`, beta application
+  `479029527553638401`, and disabled background/API features;
+- focused coverage includes exact registration/options, bounded and isolated
+  autocomplete, public reads, mod-only mutation/clear, inferred and
+  ambiguous targets, conflicting options, stale expected House, archived and
+  missing team/House, audit attribution, persisted Player/preference
+  reconciliation, rollback and connection cleanup, cancellation and event
+  loop responsiveness, serialization through the shared worker, post-commit
+  ordering, missing House roles, partial member failures, bounded public
+  warnings, no Discord effects after database failure, and explicit legacy
+  prefix retirement with tier/archive preservation;
+- a rollback-isolated gated development-database test for the real graph was
+  not run. It is deferred for oversight because the durable beta is running;
+  do not stop, restart, inspect, or otherwise disturb that beta in this unit.
+  No command synchronization, beta/service lifecycle action, production
+  checkout/service/database action, dependency installation, schema change,
+  fixture mutation, push, or merge occurred.
+
+Limitations and next action:
+
+- live Discord role reconciliation has not been smoke-tested because the
+  development Houses have no House roles; missing-role warnings are the
+  intentionally safe behavior until a separately approved fixture/oversight
+  window exists;
+- this unit does not add `/house show/name/image/create`, redesign team
+  create/archive or tier behavior, create Discord roles/channels, or touch
+  API, Bullet, anti-scam, dependencies, schema, production, synchronization,
+  or beta lifecycle;
+- next action: complete Tier-3 review of the implementation and evidence,
+  then integrate only after approval. Separately approve any development
+  command deployment/beta smoke and a stopped-beta window for the gated
+  database case.
 
 ## WB1 — Wider beta operations and structured feedback
 
@@ -6538,6 +6665,23 @@ separate explicit reviewed unit. This preserves the single development beta
 writer and prevents a planning snapshot from becoming an implicit rollout.
 
 ## Progress log
+
+### 2026-08-03 — P8.4 native team-house workflow implemented locally
+
+- Implemented P8.4 on `codex/p8-4-team-house` from the exact clean
+  `e4de007be33bd1b6d7b29efc7dd79cf9024ad22e` base. The separate
+  implementation/tests commit is `9d72507b2913b7c842224e6ea624fc108404ad28`.
+- Added native `/team house` read/assign/clear with the approved exact option
+  shape, shared bounded autocomplete/worker/service boundaries, atomic
+  Team.house/Player/preference/GameLog writes, and post-commit role
+  reconciliation warnings. Explicitly retired `$team_house` and the House
+  branch of `$team_edit` while retaining `$team_tier` and archive behavior.
+- Focused P8 suite passed 98 tests; complete offline discovery passed 721
+  tests with 19 intentional skips; compilation and diff checks passed. The
+  gated real-graph development-database case remains deferred while the
+  durable beta is running. No beta/process inspection or lifecycle action,
+  command sync, production action, fixture mutation, dependency operation,
+  push, or merge occurred.
 
 ### 2026-08-03 — WB1.3b applied to the development environment
 
