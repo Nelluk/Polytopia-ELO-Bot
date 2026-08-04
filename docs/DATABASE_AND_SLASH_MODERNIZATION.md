@@ -359,7 +359,7 @@ would become unavailable if a prefix is retired.
 | C-006 `/team image` / `$team_image` | Native `/team image` provides an effective-image read, one typed Discord attachment replacement, and explicit clear under the existing mod/team-enabled boundary. The retained prefix preserves its required team name, direct URL option, attachment-wins behavior, and legacy success/read wording; its stale lookup example now correctly names `team_image`. | Direct URL replacement remains prefix-only because the native command deliberately uses a typed attachment rather than a free-form URL. If prefix processing were later removed, staff would need to upload an attachment for replacement; existing stored URL images would still read and clear natively. Prefix success wording also remains legacy-compatible rather than adding native actor text. | Add a separately justified URL option or a multi-step/modal image editor only if direct URL replacement remains a demonstrated native need; do not add remote downloading without a new validation/security review. | Intentional P8.3 parity boundary; prefix retained |
 | C-007 `/staffhelp` / `$staffhelp` / `$helpstaff` | Native `/staffhelp` has no options and opens a requester-bound modal with bounded help/bug/feature category, summary, details, optional context, and up to 10 typed uploads. It is the sole WB1.1 feedback intake for the development wider beta after the legacy prefix adapters were retired. | Legacy recommendation: **retire** — the low-use, redundant prefix intake is clearly superseded by the structured native form. This retirement was explicitly approved by the user before integration; do not restore it. The native JSONL authority and `/staffhelp` intake are development-only and not a production-ready replacement. Before P9, make a separate approved decision on a production-safe authoritative intake/retention path or another production relay design; until then, production communities use their currently deployed support/moderator route. No native attachment gap was required: the installed discord.py 2.7.1 Components v2 API provides the required multi-file upload. | Add retention/redaction operations or a later staff workflow only with a separate privacy and operational review; do not replace the JSONL authority with a Discord-only mirror. | Prefix retirement implemented locally; production-boundary decision required before P9 |
 | C-008 `/team house` / `$team_house` / `$team_edit` house branch | Native `/team house` provides public current-house reads and actor-attributed mod assignment/clear with bounded team/House autocomplete, unambiguous requester-team inference, worker-local atomic Team/Player/preference/GameLog state, and post-commit managed-role reconciliation. | Legacy recommendation: **retire** — explicit user approval retires `$team_house` and removes the house branch from `$team_edit`; the old message-only House mutation path and its message-intent-dependent syntax are no longer available. `$team_tier` and `$team_edit ... ARCHIVE` remain retained. The native path covers the ordinary House workflow within the existing team-enabled PolyChampions/test scope; validation, ambiguity, permission, conflict, and database failures remain private, while committed changes are public and identify the actor. | Revisit only with a separately approved prefix lifecycle decision or if beta evidence shows a material native usability gap; do not restore a compatibility wrapper. | Intentional P8.4 prefix retirement; implementation ready for review |
-| C-009 `/player register` / `$setname` / `$steamname` / `$setcode` / `$getnames` aliases | Native `/player register member:[optional]` uses one account-wide canonical-name modal; `$setname` delegates to the same bounded worker, and the useful name-list aliases remain available for game setup. | Legacy recommendation: **retain** `$setname` through the production canary. `$steamname` and `$setcode` remain registered as non-writing deprecation adapters; `$code`/`$getcode` warn and return the transitional canonical read. Existing `name_steam` and `polytopia_id` values are preserved and are never cleared or backfilled by P6.1. If message content is later retired, the native registration path covers the ordinary workflow while the compact compatibility reads remain a deliberate seam. | Revisit retirement after usage evidence and an explicit compatibility decision; do not delete or migrate stored legacy values in this unit. | Implemented locally; Tier-3 review pending |
+| C-009 `/player register` / `$setname` / `$steamname` / `$setcode` / `$getnames` aliases | Native `/player register member:[optional]` uses one account-wide canonical-name modal; `$setname` delegates to the same bounded worker, and the useful name-list aliases remain available for game setup. | Legacy recommendation: **retain** `$setname` through the production canary. `$steamname` and `$setcode` remain registered as non-writing deprecation adapters; `$code`/`$getcode` warn and return the transitional canonical read. Existing `name_steam` and `polytopia_id` values are preserved and are never cleared or backfilled by P6.1. If message content is later retired, the native registration path covers the ordinary workflow while the compact compatibility reads remain a deliberate seam. | Revisit retirement after usage evidence and an explicit compatibility decision; do not delete or migrate stored legacy values in this unit. | Tier-3 reviewed and integrated; beta sync/smoke pending |
 
 Every later slash conversion must add a row when parity is intentionally
 reduced. If there is no compromise, its unit evidence should explicitly say
@@ -458,8 +458,8 @@ check:
   `f0429536d7ed899eb356794bcd3558baa9be3d45`.
 - P4.2d roadmap evidence: `e1a0959`; accumulation merge: `7c2269b`.
 
-Current unit: **P6.1 canonical player registration — implemented locally and
-ready for Tier-3 review.**
+Current unit: **P6.1 canonical player registration — Tier-3 reviewed and
+integrated; beta command deployment and smoke pending.**
 
 The audit is recorded in
 `docs/PLAYER_IDENTITY_AND_PREFERENCES_AUDIT.md`. It made no command, schema,
@@ -3698,7 +3698,7 @@ Declare Winner action.
 
 ### P5.7 — In-progress game-card Declare Winner action
 
-Status: **Implemented locally; Tier-3 review pending**
+Status: **Tier-3 reviewed and integrated; beta sync/smoke pending**
 
 Risk tier: **Tier 3**. The component is a thin interaction layer, but the
 existing win service can finalize a result and mutate ELO, so result,
@@ -3977,8 +3977,8 @@ branch. Reverify runtime and fixture state before any later beta session.
 
 ## P6 — Registration and player preferences
 
-Status: **In progress; P6.0 complete and P6.1 implemented locally, Tier-3
-review pending**
+Status: **In progress; P6.0 complete and P6.1 reviewed/integrated, beta
+acceptance pending**
 
 Candidate scope:
 
@@ -4117,15 +4117,28 @@ Validation evidence:
 - `compileall` and `git diff --check` passed. The development worktree setup
   script completed before profile-dependent imports/tests.
 
-Limitations and next action: this is local implementation evidence plus the
-separately identified oversight database evidence; Tier-3 review and any
-later beta acceptance remain pending. No database
+Tier-3 review and integration evidence:
+
+- Sol identified and returned the cross-executor unique-row race; correction
+  `53cd8cc` added nested savepoint/get-or-create/reload handling and a focused
+  conflict regression for both unique seams.
+- Sol reproduced the corrected focused suite at **59/59**, then passed the
+  corrected real-schema registration commit/rollback test through the exact
+  development gate. Its earlier full gated run passed **19 tests with 1
+  intentional operator-fixture skip**.
+- Luna's corrected complete offline run passed **751 tests with 20 intentional
+  skips**. Sol's final full-suite run reached the same P6.1 coverage but hit an
+  unrelated nondeterministic feedback-reader test when a random report ID
+  began with `-`; that isolated test passed immediately on rerun.
+- Integrated the reviewed branch into the accumulation branch as `9fcc622`.
+
+Limitations and next action: beta acceptance remains pending. No database
 schema migration, production inventory/data action, process restart, Discord
 command synchronization, fixture mutation, dependency installation, push, or
-merge was performed. P6.2's timezone schema transition remains a separate
-unit. Next action is review of `c40e3a4` and `53cd8cc` by the Sol oversight
-task, followed by an independently approved P6.2 plan if review accepts this
-bounded unit.
+production action was performed. P6.2's timezone schema transition remains a
+separate unit. The next operational action is explicit development-guild
+deployment and beta smoke of `/player register`; P6.2 may be implemented as a
+separate Tier-3 branch and batched into that later beta session.
 
 ## P7 — Read-heavy commands and analytics
 
@@ -7011,6 +7024,24 @@ visibility proposal, timezone range, and accepted decisions are in
 `docs/PLAYER_IDENTITY_AND_PREFERENCES_AUDIT.md`.
 
 ## Progress log
+
+### 2026-08-04 — P6.1 Tier-3 reviewed and integrated
+
+- Returned one concurrency finding: the registration executor did not
+  serialize against other worker families that could create the same unique
+  DiscordMember or guild Player. Accepted correction `53cd8cc`, which keeps
+  both race-safe reloads inside nested savepoints and one outer registration
+  transaction.
+- Reproduced the corrected focused suite at **59/59** and passed the corrected
+  real-schema registration test through the unchanged `development` /
+  `polytopia_dev` / `polybot_dev` gate. The earlier complete gated run passed
+  **19 with 1 intentional operator-fixture skip**.
+- Confirmed Luna's corrected **751 passed / 20 skipped** offline result. Sol's
+  final full-suite run encountered one unrelated random feedback-report-ID
+  argparse flake; its isolated rerun passed.
+- Integrated P6.1 as merge `9fcc622`. The durable beta was not restarted and
+  application commands were not synchronized, so `/player register` is not
+  yet deployed. Production and fixtures remained untouched.
 
 ### 2026-08-04 — P6.0 decisions accepted
 
