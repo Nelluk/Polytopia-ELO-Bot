@@ -4490,7 +4490,8 @@ combined P7.6/P7.7 beta session.
 
 ### P7.6a — Player leaderboard filter-modal correction
 
-Status: **Implemented locally; pending Tier-2 review and integration**
+Status: **Reviewed, integrated, and deployed to the durable beta; human smoke
+pending**
 
 Risk tier: **Tier 2 presentation correction**. This unit changes only the
 public Components v2 player-leaderboard presentation and its in-memory
@@ -4556,8 +4557,24 @@ Validation evidence for implementation/tests checkpoint `c78c1848db6a8992e5024da
   beta, Discord inspection/synchronization, production, dependency, push, or
   merge action occurred.
 
-Next action: complete the Tier-2 full-branch review, then integrate the
-implementation and this evidence commit only with explicit approval.
+Integration/deployment evidence:
+
+- Tier-2 full-branch review found no blocking defect; independent focused
+  review passed **35 tests**. Accumulation merge: `0cfb2cc`.
+- The durable beta restarted at checkpoint `c9b5884` and authenticated as beta
+  application `479029527553638401`. No command sync was needed because the
+  registered slash shape did not change.
+- Release `2026-08-03-leaderboard-filters` posted to `todo-and-changelog` as
+  message `1534037988521152512`, with an allowed direct notification only for
+  Vorce (`339773948537470976`) and no testers-role ping.
+- The worker task had been requested through the creation tool as Luna-Max,
+  but the user's visible UI showed Sol-Medium after completion. The visible UI
+  is authoritative, so this unit is not claimed as Luna-Max execution. Its
+  acceptance rests on the complete Tier-2 Sol review and independent tests.
+
+Next action: human desktop/mobile smoke of Common filters, Advanced filters,
+the active-dimension summary, and Jump to page. Address global showcase
+`0–0` records in a separate query/fixture unit.
 
 ### P7.7 — Unified player profile and game-history workspace
 
@@ -7022,6 +7039,20 @@ writer and prevents a planning snapshot from becoming an implicit rollout.
   service-template verification passed.
 - No service lifecycle, process audit/stop, Discord, command sync, database,
   sudo, production, dependency, push, or merge action occurred.
+
+### 2026-08-03 — P7.6a reviewed, deployed, and announced
+
+- Reviewed and integrated P7.6a at merge `0cfb2cc`; independent focused tests
+  passed 35/35 and no worker/query/permission/registration behavior changed.
+- Added bounded beta-release `notify_user_ids` support: at most five explicit
+  Discord IDs, exact-user allowed mentions, with unlisted users/roles and
+  broadcast mentions blocked. Focused beta-operation tests passed 28/28.
+- Restarted the durable beta at `c9b5884` and posted the leaderboard update as
+  message `1534037988521152512`, directly notifying Vorce without pinging the
+  testers role.
+- Recorded that the execution task appeared as Sol-Medium in the user's UI
+  despite a Luna-Max creation request; the unit was accepted based on the
+  subsequent full Tier-2 Sol review, not a claimed Luna-Max run.
 
 ### 2026-08-03 — P7.6a player leaderboard filter-modal correction implemented locally
 
