@@ -463,11 +463,11 @@ check:
 Current unit: **P7.10 native team leaderboard — implemented locally on
 `codex/p7-10-team-leaderboard`; Tier-2 review/integration remains pending.**
 
-P7.10 implementation/test checkpoint: `549bd41` from exact clean base
-`026c36cff69d131b43db97acd887debfb8ef499c`. The separate roadmap-evidence
-checkpoint follows this implementation commit. The branch is isolated and
-undeployed; no production checkout, durable beta, database, Discord command
-sync, service restart, push, or merge was performed.
+P7.10 implementation/test checkpoints: `549bd41` and Tier-2 parity correction
+`b8abcd8`, from exact clean base `026c36cff69d131b43db97acd887debfb8ef499c`.
+The separate roadmap-evidence checkpoint follows these code commits. The
+branch is isolated and undeployed; no production checkout, durable beta,
+database, Discord command sync, service restart, push, or merge was performed.
 
 P8.6 native team show remains Tier-2 reviewed, real-schema validated,
 integrated, deployed, and open for wider-beta acceptance. The durable beta is
@@ -5418,6 +5418,16 @@ Implementation evidence (local only):
   team snapshot gate. It was intentionally not run while the durable beta is
   active; defer it to the next separately approved stopped-writer review
   window. `docs/BETA_WHAT_TO_TEST.md` was intentionally not changed.
+- Tier-2 parity correction `b8abcd8` makes strict-channel precedence match
+  `settings.is_bot_channel_strict`, including strict-only, fallback,
+  private-channel, both-unset, and moderator-bypass cases. It also makes
+  Discord-built requests require an exact team role, logs and omits missing
+  roles, preserves present zero-member roles, and leaves the DB-only gate
+  policy opt-out explicit.
+- Refreshed validation passed 72 focused affected tests and complete offline
+  discovery (835 passed, 23 gated skips); `compileall` and `git diff --check`
+  passed again. The real-schema gate remains deferred to the next separately
+  approved stopped-writer review window.
 
 Out of scope: team ELO/rules changes, junior-team redesign, `/leaderboard
 roles`, `/team show` behavior, team mutations, schema/fixture changes,
@@ -7661,6 +7671,19 @@ features are deployed or receive sufficiently broad acceptance.
   registration evidence, and a deferred read-only schema gate.
 - Local focused and complete offline validation passed. No beta/database,
   production, deployment, sync, restart, push, or merge action was taken.
+
+### 2026-08-04 — P7.10 Tier-2 parity corrections
+
+- Review identified two bounded parity defects: strict-only bot-channel
+  configuration was treated as unrestricted, and missing exact team roles were
+  rendered as zero-member teams.
+- `b8abcd8` fixes strict-list precedence and adds an explicit frozen
+  `require_role_match` request policy. Prefix/native Discord adapters set it;
+  DB-only unit/schema seams retain the explicit false default. Missing exact
+  roles are logged and omitted, while present zero-member roles remain rows.
+- Added focused regressions for both policy paths and refreshed the affected
+  suites and complete offline discovery. The gated real-schema test remains
+  unrun while the durable beta is active.
 
 ### 2026-08-04 — P8.6 deployed for wider-beta testing
 
