@@ -70,7 +70,7 @@ class ApplicationCommandPolicyTests(unittest.TestCase):
         }, [10])
         self.assertEqual(
             tools_policy.roots_for_guild(10),
-            ('about', 'guide', 'help', 'staffhelp', 'support', 'tools'),
+            ('staffhelp',),
         )
 
     def test_unknown_guild_and_capability_are_rejected(self):

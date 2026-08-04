@@ -30,6 +30,13 @@ KNOWN_TOP_LEVEL_ROOTS = frozenset({
     'league', 'player', 'squad', 'staffhelp', 'support', 'team', 'tools',
 })
 
+# ``tools_support`` is deliberately explicit about the source roots it can
+# expose.  The other names remain taxonomy vocabulary, but are not loaded by
+# the current command source and therefore are not silently included in a
+# capability assignment.
+TOOLS_SUPPORT_IMPLEMENTED_ROOTS = ('staffhelp',)
+TOOLS_SUPPORT_RESERVED_ROOTS = ('about', 'guide', 'help', 'support', 'tools')
+
 
 @dataclass(frozen=True)
 class CapabilityFamily:
@@ -83,9 +90,12 @@ DEFAULT_CAPABILITY_FAMILIES = (
     ),
     CapabilityFamily(
         name="tools_support",
-        roots=("about", "guide", "help", "staffhelp", "support", "tools"),
-        visibility="future",
-        description="Reserved support and tool roots.",
+        # The source loader currently contains one tools-support root.  Keep
+        # the other taxonomy names reserved rather than making a capability
+        # assignment fail because it refers to roots that are not loaded.
+        roots=TOOLS_SUPPORT_IMPLEMENTED_ROOTS,
+        visibility="staff",
+        description="Structured staff-help support.",
     ),
     CapabilityFamily(
         name="operator_only",

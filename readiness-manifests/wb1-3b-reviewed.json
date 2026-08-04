@@ -1,0 +1,185 @@
+{
+  "schema_version": 1,
+  "target": {
+    "environment": "development",
+    "guild_id": 478571892832206869,
+    "application_id": 479029527553638401,
+    "database": "polytopia_dev",
+    "database_role": "polybot_dev"
+  },
+  "discord": {
+    "tester_role": {
+      "name": "testers",
+      "expected_id": 480905534019731476,
+      "required": true
+    },
+    "channels": {
+      "public_release": {
+        "id": 481779940124000256,
+        "name": "todo-and-changelog",
+        "required": true
+      },
+      "staffhelp_mirror": {
+        "id": 480078679930830849,
+        "name": "admin-spam",
+        "required": true
+      }
+    }
+  },
+  "capabilities": {
+    "current": [
+      "core_user",
+      "elo_maintenance",
+      "team"
+    ],
+    "proposed": [
+      "core_user",
+      "elo_maintenance",
+      "team",
+      "tools_support"
+    ],
+    "optional": [
+      {
+        "capability": "tools_support",
+        "decision": "include",
+        "reason": "Review the proposed staff-only capability as exposing /staffhelp only. The reserved taxonomy roots /about, /guide, /help, /support, and /tools are currently unloaded and must not be implied by this assignment; any later implementation requires a separate review."
+      }
+    ],
+    "unresolved": [
+      "No live capability assignment is performed in WB1.3b; a later operator must explicitly review the ignored development settings before any guild-scoped command apply."
+    ]
+  },
+  "database": {
+    "teams": {
+      "proposed": [
+        {
+          "name": "The Ronin",
+          "house_name": "Beta House Alpha",
+          "role_name": "The Ronin"
+        },
+        {
+          "name": "The Jets",
+          "house_name": "Beta House Alpha",
+          "role_name": "The Jets"
+        },
+        {
+          "name": "The Sparkies",
+          "house_name": "Beta House Beta",
+          "role_name": "The Sparkies"
+        }
+      ],
+      "unresolved": [
+        "No duplicate team roles may be created; exact Discord role identity remains a later guild-only review input."
+      ]
+    },
+    "houses": {
+      "proposed": [
+        {
+          "name": "Beta House Alpha",
+          "role_name": null
+        },
+        {
+          "name": "Beta House Beta",
+          "role_name": null
+        }
+      ],
+      "unresolved": [
+        "House roles are not created or bound in WB1.3b; house-role binding remains an explicit optional later decision."
+      ]
+    },
+    "role_bindings": {
+      "proposed": [
+        {
+          "kind": "team",
+          "source_id": null,
+          "role_name": "The Ronin",
+          "role_id": 480350546172182530
+        },
+        {
+          "kind": "team",
+          "source_id": null,
+          "role_name": "The Jets",
+          "role_id": 480350570717118465
+        },
+        {
+          "kind": "team",
+          "source_id": null,
+          "role_name": "The Sparkies",
+          "role_id": 481210095397634060
+        }
+      ],
+      "unresolved": []
+    },
+    "fixtures": {
+      "retain": [
+        {
+          "family": "beta_games",
+          "ids": [149, 150, 151],
+          "player_count": null
+        },
+        {
+          "family": "leaderboard_showcase",
+          "ids": [
+            200, 201, 202, 203, 204, 205, 206, 207, 208, 209,
+            210, 211, 212, 213, 214, 215, 216, 217, 218, 219,
+            220, 221, 222, 223, 224, 225, 226, 227, 228, 229,
+            230, 231, 232, 233, 234, 235, 236, 237, 238, 239,
+            240, 241, 242, 243, 244, 245, 246, 247
+          ],
+          "player_count": 24
+        }
+      ],
+      "cleanup": [],
+      "unresolved": [
+        "Retain games 149–151 and the 24-player, 48-game leaderboard showcase through the wider-beta period; no fixture cleanup is approved in WB1.3b."
+      ]
+    }
+  },
+  "lifecycle": {
+    "cleanup": {
+      "steps": [
+        "Stop the one durable beta writer and verify the exact development identity before any setup cleanup.",
+        "Use only the WB1.3b setup ownership evidence and exact confirmation; never clean fixtures, Phase7Test, Home, or Away.",
+        "Refuse cleanup if an owned team or house changed identity or has subsequent usage, then retain the evidence for review."
+      ],
+      "unresolved": [
+        "Approve any later disposable-resource and retention-date policy separately from this DB setup cleanup."
+      ]
+    },
+    "rollback": {
+      "steps": [
+        "Use known-good development runtime rollback checkpoint d895718 if the reviewed operator sequence needs runtime rollback.",
+        "Stop the durable beta before any rollback or database setup operation and restart only one reviewed beta afterward.",
+        "Treat capability assignment, guild command apply, Discord resources, and database cleanup as separate reviewed actions."
+      ],
+      "unresolved": [
+        "No live rollback or apply is authorized by WB1.3b; record the operator decision before the later sequence."
+      ]
+    }
+  },
+  "smoke": {
+    "checklist": [
+      "Verify the authenticated application, development guild, fixed channels, pinned testers role, and exact team-role IDs.",
+      "Run the existing offline guild-scoped command plan and review every proposed root before any apply.",
+      "If tools_support is later assigned, verify the plan contains /staffhelp only and does not invent reserved unloaded roots.",
+      "Exercise the bounded public command smoke matrix and confirm private staff-help visibility separately.",
+      "Verify the bot remains responsive, one durable writer exists, and retained fixtures 149–151 and 200–247 remain present.",
+      "Record any later disposable interactive IDs before a separately approved cleanup."
+    ],
+    "invitation_prerequisites": [
+      "Staff review of this manifest and its inventory diff is complete.",
+      "The unique testers role is live, pinned, and verified in the development guild.",
+      "The capability decision and exact loaded-root expansion are explicitly approved; no unresolved assignment is implied.",
+      "The reviewed database setup has completed through its exact development gate, with ownership evidence recorded.",
+      "The durable beta is healthy from the reviewed checkpoint and the bounded smoke checklist is complete.",
+      "Invite only 5–20 testers through a separately approved Discord invitation step; WB1.3b sends no invitations."
+    ],
+    "tester_range": {
+      "minimum": 5,
+      "maximum": 20
+    },
+    "unresolved": [
+      "No tester invitation is approved or performed in WB1.3b."
+    ]
+  }
+}

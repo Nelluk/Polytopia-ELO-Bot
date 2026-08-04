@@ -174,6 +174,135 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
             len(result['houses']), beta_readiness.MAX_DATABASE_HOUSES
         )
 
+    def test_wb13b_setup_is_rollback_isolated_and_preserves_retained_fixtures(self):
+        """Exercise the real schema through the existing strict gate only."""
+
+        from modules import beta_wider_setup
+
+        guild_id = beta_wider_setup.beta_readiness.BETA_GUILD_ID
+        fixture_ids = (149, 150, 151)
+        before_fixture = tuple(
+            self.models.Game.select(self.models.Game.id)
+            .where(self.models.Game.id.in_(fixture_ids))
+            .order_by(self.models.Game.id)
+            .tuples()
+        )
+        before_showcase_games = self.models.Game.select().where(
+            (self.models.Game.guild_id == guild_id)
+            & (self.models.Game.id >= 200)
+            & (self.models.Game.id <= 247)
+        ).count()
+        before_showcase_players = self.models.Player.select().join(
+            self.models.DiscordMember
+        ).where(
+            (self.models.Player.guild_id == guild_id)
+            & (self.models.DiscordMember.discord_id >= 9_000_000_000_100_000_001)
+            & (self.models.DiscordMember.discord_id <= 9_000_000_000_100_000_024)
+        ).count()
+
+        manifest = json.loads(
+            (
+                Path(__file__).resolve().parents[1]
+                / 'readiness-manifests/wb1-3b-reviewed.json'
+            ).read_text(encoding='utf-8')
+        )
+        with self.rollback_scope():
+            with mock.patch.object(
+                    beta_wider_setup,
+                    '_read_state',
+                    return_value=None), mock.patch.object(
+                        beta_wider_setup,
+                        '_write_state',
+                        return_value=Path('/tmp/wb1-3b-integration-state.json')):
+                result = beta_wider_setup.seed_wider_beta_setup(
+                    profile=self.profile,
+                    manifest=manifest,
+                    guild_id=guild_id,
+                    database_factory=lambda _profile: self.models.db,
+                    # The class gate owns the independently checked DB
+                    # identity; this test never probes the durable beta lock.
+                    writer_check=lambda _profile: None,
+                )
+            self.assertEqual(result['kind'], 'wb1_3b_setup_seed_result')
+            self.assertEqual(
+                [item['name'] for item in result['state']['houses']],
+                ['Beta House Alpha', 'Beta House Beta'],
+            )
+            self.assertEqual(
+                [item['name'] for item in result['state']['teams']],
+                ['The Ronin', 'The Jets', 'The Sparkies'],
+            )
+            self.assertEqual(
+                [item['role_id'] for item in result['state']['role_bindings']],
+                [item[2] for item in beta_wider_setup.EXPECTED_TEAMS],
+            )
+            for item in result['state']['teams']:
+                row = self.models.db.execute_sql(
+                    'SELECT t.guild_id, t.is_hidden, t.is_archived, '
+                    't.league_tier, h.name '
+                    'FROM team AS t JOIN house AS h ON h.id = t.house_id '
+                    'WHERE t.id = %s',
+                    (item['id'],),
+                ).fetchone()
+                self.assertIsNotNone(row)
+                self.assertEqual(row[0], guild_id)
+                self.assertFalse(row[1])
+                self.assertFalse(row[2])
+                self.assertIsNone(row[3])
+                self.assertEqual(row[4], item['baseline']['house_name'])
+
+            self.assertEqual(
+                tuple(
+                    self.models.Game.select(self.models.Game.id)
+                    .where(self.models.Game.id.in_(fixture_ids))
+                    .order_by(self.models.Game.id)
+                    .tuples()
+                ),
+                before_fixture,
+            )
+            self.assertEqual(
+                self.models.Game.select().where(
+                    (self.models.Game.guild_id == guild_id)
+                    & (self.models.Game.id >= 200)
+                    & (self.models.Game.id <= 247)
+                ).count(),
+                before_showcase_games,
+            )
+            self.assertEqual(
+                self.models.Player.select().join(self.models.DiscordMember).where(
+                    (self.models.Player.guild_id == guild_id)
+                    & (self.models.DiscordMember.discord_id >= 9_000_000_000_100_000_001)
+                    & (self.models.DiscordMember.discord_id <= 9_000_000_000_100_000_024)
+                ).count(),
+                before_showcase_players,
+            )
+
+        self.assertEqual(
+            tuple(
+                self.models.Game.select(self.models.Game.id)
+                .where(self.models.Game.id.in_(fixture_ids))
+                .order_by(self.models.Game.id)
+                .tuples()
+            ),
+            before_fixture,
+        )
+        self.assertEqual(
+            self.models.Game.select().where(
+                (self.models.Game.guild_id == guild_id)
+                & (self.models.Game.id >= 200)
+                & (self.models.Game.id <= 247)
+            ).count(),
+            before_showcase_games,
+        )
+        self.assertEqual(
+            self.models.Player.select().join(self.models.DiscordMember).where(
+                (self.models.Player.guild_id == guild_id)
+                & (self.models.DiscordMember.discord_id >= 9_000_000_000_100_000_001)
+                & (self.models.DiscordMember.discord_id <= 9_000_000_000_100_000_024)
+            ).count(),
+            before_showcase_players,
+        )
+
     def test_leaderboard_workers_read_real_schema(self):
         from modules import leaderboard_workers
 
