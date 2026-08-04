@@ -141,6 +141,30 @@ class NewGameRosterError(ValueError):
     """User-facing roster resolution or permission failure."""
 
 
+_NEWGAME_DESTINATION_UNSET = object()
+
+
+def _resolve_newgame_public_destination(ctx, destination):
+    """Return a sender for committed new-game effects.
+
+    Prefix invocations deliberately default to their existing context. Native
+    record confirmations must pass a real channel explicitly so a deferred
+    ephemeral interaction webhook cannot inherit its private visibility.
+    """
+
+    destination = (
+        ctx
+        if destination is _NEWGAME_DESTINATION_UNSET
+        else destination
+    )
+    if destination is None or not callable(getattr(destination, 'send', None)):
+        raise RuntimeError(
+            'No public channel destination is available for committed '
+            'new-game effects.'
+        )
+    return destination
+
+
 async def resolve_newgame_roster(ctx, args, *, ranked_flag):
     """Resolve the shared prefix/slash roster grammar to Discord members."""
 
@@ -3582,9 +3606,18 @@ class polygames(commands.Cog):
         longer changes game behavior because Polytopia supports cross-play.
         """
 
+        return await self._run_newgame(ctx, game_name, *args)
+
+    async def _run_newgame(
+        self,
+        ctx,
+        game_name: str = None,
+        *args,
+        public_destination=_NEWGAME_DESTINATION_UNSET,
+    ):
         record_confirmation = bool(
             getattr(ctx, '_game_record_confirmation', False)
-        )
+        ) or public_destination is not _NEWGAME_DESTINATION_UNSET
 
         async def fail_record(message: str):
             """Keep native confirmation failures in the private draft."""
@@ -3703,10 +3736,18 @@ class polygames(commands.Cog):
             return None
 
         try:
+            destination = _resolve_newgame_public_destination(
+                ctx,
+                public_destination,
+            )
             if result.warnings:
-                await ctx.send('\n'.join(result.warnings))
+                await destination.send('\n'.join(result.warnings))
             newgame = Game.load_full_game(game_id=result.game_id)
-            await post_newgame_messaging(ctx, game=newgame)
+            await post_newgame_messaging(
+                ctx,
+                game=newgame,
+                destination=destination,
+            )
         except Exception:
             logger.exception(
                 'Game record committed but a public post-commit effect failed'
@@ -3750,6 +3791,7 @@ class polygames(commands.Cog):
             interaction.guild.id,
             'command_prefix',
         )
+        public_destination = getattr(interaction, 'channel', None)
 
         # Reuse the existing command checks so registration, configured bot
         # channels, and any global checks remain identical during transition.
@@ -3795,8 +3837,8 @@ class polygames(commands.Cog):
         ) -> game_record_views.GameRecordConfirmationOutcome:
             # Component interactions do not carry application-command data
             # and therefore cannot create a new commands.Context. Retain the
-            # original slash context; its interaction webhook remains valid
-            # for this short-lived confirmation flow.
+            # original slash context for worker input and checks, but pass the
+            # invoking channel explicitly for every committed public effect.
             ctx.invoked_with = (
                 'newgame' if draft.ranked else 'newgameunranked'
             )
@@ -3809,11 +3851,11 @@ class polygames(commands.Cog):
                 return game_record_views.GameRecordConfirmationOutcome.retryable(
                     str(exc),
                 )
-            outcome = await self.newgame.callback(
-                self,
+            outcome = await self._run_newgame(
                 ctx,
                 draft.game_name,
                 *game_record_views.roster_arguments(parsed_sides),
+                public_destination=public_destination,
             )
             if outcome is None:
                 return game_record_views.GameRecordConfirmationOutcome.committed(
@@ -5685,7 +5727,15 @@ async def post_unwin_messaging(guild, prefix, current_chan, game, previously_con
     await current_chan.send(f'Game reset to *Incomplete*. Previously claimed win has been canceled.  Notifying game roster: {" ".join(game.mentions())}')
 
 
-async def post_newgame_messaging(ctx, game):
+async def post_newgame_messaging(
+    ctx,
+    game,
+    *,
+    destination=_NEWGAME_DESTINATION_UNSET,
+):
+    """Publish committed new-game effects to an explicit public destination."""
+
+    destination = _resolve_newgame_public_destination(ctx, destination)
 
     season, season_str = game.is_season_game(), ''
     if season:
@@ -5707,37 +5757,53 @@ async def post_newgame_messaging(ctx, game):
             announcement = await image_storage.send_game_embed(
                 channel, game, embed=embed, content=content
             )
-            await ctx.send(f'New {ranked_str}game ID **{game.id}** started! See {channel.mention} for full details.')
+            await destination.send(
+                f'New {ranked_str}game ID **{game.id}** started! '
+                f'See {channel.mention} for full details.'
+            )
             game.announcement_message = announcement.id
             game.announcement_channel = announcement.channel.id
             game.save()
         else:
             await image_storage.send_game_embed(
-                ctx, game, embed=embed, content=content
+                destination, game, embed=embed, content=content
             )
-            await ctx.send('Error loading game announcement channel from server settings. Please inform the bot owner.')
+            await destination.send(
+                'Error loading game announcement channel from server '
+                'settings. Please inform the bot owner.'
+            )
             logger.error(f'Could not load game_announce_channel channel for guild {ctx.guild.id}')
 
     else:
-        await ctx.send(f'{announce_str}')
+        await destination.send(f'{announce_str}')
         await image_storage.send_game_embed(
-            ctx, game, embed=embed, content=content
+            destination, game, embed=embed, content=content
         )
 
     if settings.guild_setting(ctx.guild.id, 'game_channel_categories'):
         try:
             await game.create_game_channels(settings.bot.guilds, ctx.guild.id)
         except exceptions.MyBaseException as e:
-            await ctx.send(f':warning: **Channel creation error:** {e}')
+            await destination.send(f':warning: **Channel creation error:** {e}')
 
     if game.is_uncaught_season_game():
-        await ctx.send(f':bulb: This game looks like an incorrectly named **Season Game**! You might want to use `{ctx.prefix}rename` and include the season tag at the beginning.')
+        await destination.send(
+            f':bulb: This game looks like an incorrectly named '
+            f'**Season Game**! You might want to use `{ctx.prefix}rename` '
+            'and include the season tag at the beginning.'
+        )
     if season and game.gamesides[0].team.is_hidden:
-        await ctx.send(f':warning: This game is marked as a **Season Game** but is not associated with a League Team. There are probably players with mixed roles on a side. I suggest you `{ctx.prefix}unstart`, fix the roles, and re-`{ctx.prefix}start`.')
+        await destination.send(
+            f':warning: This game is marked as a **Season Game** but is '
+            'not associated with a League Team. There are probably players '
+            'with mixed roles on a side. I suggest you '
+            f'`{ctx.prefix}unstart`, fix the roles, and '
+            f're-`{ctx.prefix}start`.'
+        )
     if game.guild_id == settings.server_ids['polychampions'] and game.smallest_team() > 1:
         populate_league_team_channels()
 
-    await auto_grad_novas(ctx.guild, game, ctx)
+    await auto_grad_novas(ctx.guild, game, destination)
 
 
 def parse_players_and_teams(input_list, guild_id: int):

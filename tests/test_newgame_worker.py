@@ -791,6 +791,18 @@ class NewGameCommandTests(unittest.IsolatedAsyncioTestCase):
         )
         return game_group.get_command('record')
 
+    def newgame_runner(self):
+        implementation = self.games.polygames._run_newgame
+
+        async def run(ctx, game_name=None, *args, **kwargs):
+            return await implementation(None, ctx, game_name, *args, **kwargs)
+
+        return run
+
+    def newgame_cog(self, **attributes):
+        attributes.setdefault('_run_newgame', self.newgame_runner())
+        return SimpleNamespace(**attributes)
+
     def test_prefix_command_and_aliases_are_preserved(self):
         command = self.newgame_command()
 
@@ -832,20 +844,25 @@ class NewGameCommandTests(unittest.IsolatedAsyncioTestCase):
             events.append('checks')
             return True
 
-        async def prefix_callback(cog, ctx, game_name, *args):
+        prefix_command = SimpleNamespace(
+            can_run=can_run,
+            callback=mock.AsyncMock(),
+        )
+
+        async def run_newgame(ctx, game_name, *args, **kwargs):
+            self.assertIsNone(kwargs['public_destination'])
             events.append('prefix')
-            self.assertIs(cog, fake_cog)
+            self.assertEqual(ctx.invoked_with, 'newgameunranked')
             self.assertEqual(game_name, 'Valid Game')
             self.assertEqual(
                 args,
                 ('101', '102', 'vs', '201', '202', '203'),
             )
 
-        prefix_command = SimpleNamespace(
-            can_run=can_run,
-            callback=prefix_callback,
+        fake_cog = self.newgame_cog(
+            newgame=prefix_command,
+            _run_newgame=run_newgame,
         )
-        fake_cog = SimpleNamespace(newgame=prefix_command)
         context = SimpleNamespace(
             invoked_with='newgame',
             author=SimpleNamespace(id=101),
@@ -956,6 +973,385 @@ class NewGameCommandTests(unittest.IsolatedAsyncioTestCase):
         prefix_command.can_run.assert_awaited_once_with(context)
         prefix_command.callback.assert_not_awaited()
 
+    async def test_native_commit_publishes_through_channel_after_ephemeral_defer(
+        self,
+    ):
+        events = []
+
+        class PublicChannel:
+            id = 400
+            mention = '<#400>'
+
+            async def send(self, content=None, **kwargs):
+                events.append(('public', self, content, kwargs))
+                return SimpleNamespace(id=900, channel=self)
+
+        public_channel = PublicChannel()
+
+        class Response:
+            def __init__(self):
+                self.deferred_ephemeral = None
+
+            async def defer(self, *, ephemeral=False):
+                self.deferred_ephemeral = ephemeral
+                events.append(('defer', ephemeral))
+
+        response = Response()
+
+        class Followup:
+            def __init__(self):
+                self.calls = []
+
+            async def send(self, content=None, **kwargs):
+                # Discord treats the first follow-up after an ephemeral defer
+                # as the original response. This fake makes that inheritance
+                # visible so public post-commit effects cannot hide here.
+                self.calls.append((content, kwargs, response.deferred_ephemeral))
+                events.append(
+                    ('followup', content, kwargs, response.deferred_ephemeral)
+                )
+                return SimpleNamespace(id=901, channel=public_channel)
+
+        followup = Followup()
+        author = SimpleNamespace(
+            id=100,
+            name='host',
+            nick='Host Nick',
+            display_name='Host Display',
+            roles=(SimpleNamespace(name='Helper'),),
+        )
+        opponent = SimpleNamespace(
+            id=200,
+            name='opponent',
+            nick=None,
+            display_name='Opponent Display',
+            roles=(),
+        )
+        guild = SimpleNamespace(
+            id=300,
+            get_channel=lambda channel_id: None,
+        )
+        interaction = SimpleNamespace(
+            response=response,
+            followup=followup,
+            channel=public_channel,
+            guild=guild,
+            user=author,
+        )
+
+        class Typing:
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, exc_type, exc_value, traceback):
+                return False
+
+        context = SimpleNamespace(
+            guild=guild,
+            author=author,
+            invoked_with='newgame',
+            prefix='$',
+            interaction=interaction,
+            typing=lambda: Typing(),
+            send=followup.send,
+        )
+        resolved = ((author,), (opponent,))
+        fake_game = SimpleNamespace(
+            id=42,
+            guild_id=300,
+            is_ranked=True,
+            is_mobile=True,
+            is_season_game=lambda: False,
+            is_uncaught_season_game=lambda: False,
+            smallest_team=lambda: 1,
+            mentions=lambda: ('<@100>', '<@200>'),
+            embed=lambda guild, prefix: ('EMBED', 'CARD CONTENT'),
+        )
+
+        async def edit_original_response(**kwargs):
+            events.append(('draft', kwargs))
+            return SimpleNamespace(edit=mock.AsyncMock())
+
+        interaction.edit_original_response = edit_original_response
+        prefix_command = SimpleNamespace(
+            can_run=mock.AsyncMock(return_value=True),
+            callback=mock.AsyncMock(),
+        )
+        fake_cog = self.newgame_cog(newgame=prefix_command)
+
+        def guild_setting(guild_id, setting_name):
+            del guild_id
+            return {
+                'command_prefix': '$',
+                'game_announce_channel': None,
+                'game_channel_categories': False,
+            }[setting_name]
+
+        async def send_game_embed(destination, game, *, embed, content=None, **kwargs):
+            del game
+            return await destination.send(
+                embed=embed,
+                content=content,
+                **kwargs,
+            )
+
+        with (
+            mock.patch.object(
+                self.games.commands.Context,
+                'from_interaction',
+                new=mock.AsyncMock(return_value=context),
+            ),
+            mock.patch.object(
+                self.games.settings,
+                'guild_setting',
+                side_effect=guild_setting,
+            ),
+            mock.patch.object(
+                self.games,
+                'resolve_newgame_roster',
+                new=mock.AsyncMock(return_value=resolved),
+            ),
+            mock.patch.object(self.games.settings, 'get_user_level', return_value=3),
+            mock.patch.object(self.games.settings, 'is_staff', return_value=True),
+            mock.patch.object(self.games.settings, 'is_mod', return_value=True),
+            mock.patch.object(
+                self.games.utilities,
+                'is_valid_poly_gamename',
+                return_value=True,
+            ),
+            mock.patch.object(
+                self.games.models.GameLog,
+                'member_string',
+                return_value='Host',
+            ),
+            mock.patch.object(
+                self.games.game_workers,
+                'run_new_game_creation',
+                new=mock.AsyncMock(
+                    return_value=self.games.game_workers.NewGameResult(
+                        game_id=42,
+                        warnings=(':warning: committed warning',),
+                    )
+                ),
+            ),
+            mock.patch.object(
+                self.games.Game,
+                'load_full_game',
+                return_value=fake_game,
+            ),
+            mock.patch.object(
+                self.games.image_storage,
+                'send_game_embed',
+                new=send_game_embed,
+            ),
+            mock.patch.object(
+                self.games,
+                'auto_grad_novas',
+                new=mock.AsyncMock(),
+            ),
+        ):
+            slash_command = self.newgame_slash_command()
+            await slash_command.callback(
+                fake_cog,
+                interaction,
+                'Valid Game',
+                'host vs opponent',
+                True,
+            )
+            view = next(
+                event[1]['view']
+                for event in events
+                if event[0] == 'draft'
+            )
+            confirmation = SimpleNamespace(
+                user=author,
+                response=SimpleNamespace(edit_message=mock.AsyncMock()),
+                edit_original_response=mock.AsyncMock(),
+            )
+            await view._confirm(confirmation)
+
+        public_events = [event for event in events if event[0] == 'public']
+        self.assertEqual(len(public_events), 3)
+        self.assertTrue(all(event[1] is public_channel for event in public_events))
+        self.assertEqual(public_events[0][2], ':warning: committed warning')
+        self.assertIn('New game ID **42** started!', public_events[1][2])
+        self.assertEqual(public_events[2][2], 'CARD CONTENT')
+        self.assertTrue(response.deferred_ephemeral)
+        self.assertEqual(followup.calls, [])
+        self.assertFalse(any(event[0] == 'followup' for event in events))
+        self.assertEqual(
+            view.outcome.state,
+            game_record_views.GameRecordConfirmationState.COMMITTED,
+        )
+
+    async def test_native_commit_without_public_destination_is_reconciliation(
+        self,
+    ):
+        author = SimpleNamespace(
+            id=100,
+            name='host',
+            nick='Host Nick',
+            display_name='Host Display',
+            roles=(SimpleNamespace(name='Helper'),),
+        )
+        opponent = SimpleNamespace(
+            id=200,
+            name='opponent',
+            nick=None,
+            display_name='Opponent Display',
+            roles=(),
+        )
+
+        class Typing:
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, exc_type, exc_value, traceback):
+                return False
+
+        context = SimpleNamespace(
+            guild=SimpleNamespace(id=300),
+            author=author,
+            invoked_with='newgame',
+            prefix='$',
+            typing=lambda: Typing(),
+            send=mock.AsyncMock(),
+        )
+        committed = self.games.game_workers.NewGameResult(
+            game_id=42,
+            warnings=(),
+        )
+        with (
+            mock.patch.object(self.games.settings, 'get_user_level', return_value=3),
+            mock.patch.object(self.games.settings, 'is_staff', return_value=True),
+            mock.patch.object(self.games.settings, 'is_mod', return_value=True),
+            mock.patch.object(self.games.utilities, 'is_valid_poly_gamename', return_value=True),
+            mock.patch.object(
+                self.games,
+                'resolve_newgame_roster',
+                new=mock.AsyncMock(return_value=((author,), (opponent,))),
+            ),
+            mock.patch.object(self.games.models.GameLog, 'member_string', return_value='Host'),
+            mock.patch.object(
+                self.games.game_workers,
+                'run_new_game_creation',
+                new=mock.AsyncMock(return_value=committed),
+            ),
+            mock.patch.object(self.games.Game, 'load_full_game') as load_game,
+            mock.patch.object(
+                self.games,
+                'post_newgame_messaging',
+                new=mock.AsyncMock(),
+            ) as post,
+            mock.patch.object(self.games.logger, 'exception'),
+        ):
+            outcome = await self.games.polygames._run_newgame(
+                None,
+                context,
+                'Exact Game Name',
+                'host',
+                'vs',
+                'opponent',
+                public_destination=None,
+            )
+
+        self.assertEqual(
+            outcome.state,
+            game_record_views.GameRecordConfirmationState.RECONCILIATION,
+        )
+        self.assertIn('Do not retry', outcome.message)
+        context.send.assert_not_awaited()
+        load_game.assert_not_called()
+        post.assert_not_awaited()
+
+    async def test_public_destination_preserves_announcement_channel_routing(self):
+        events = []
+
+        class Channel:
+            def __init__(self, channel_id):
+                self.id = channel_id
+                self.mention = f'<#{channel_id}>'
+
+            async def send(self, content=None, **kwargs):
+                events.append((self, content, kwargs))
+                return SimpleNamespace(id=900 + self.id, channel=self)
+
+        invoking_channel = Channel(400)
+        announcement_channel = Channel(500)
+        guild = SimpleNamespace(
+            id=300,
+            get_channel=lambda channel_id: announcement_channel,
+        )
+        game = SimpleNamespace(
+            id=42,
+            guild_id=300,
+            is_ranked=True,
+            is_mobile=True,
+            is_season_game=lambda: False,
+            is_uncaught_season_game=lambda: False,
+            smallest_team=lambda: 1,
+            mentions=lambda: ('<@100>', '<@200>'),
+            embed=lambda guild, prefix: ('EMBED', 'CARD CONTENT'),
+            save=mock.Mock(),
+        )
+        followup = mock.AsyncMock()
+        context = SimpleNamespace(
+            guild=guild,
+            prefix='$',
+            send=followup,
+        )
+
+        def guild_setting(guild_id, setting_name):
+            del guild_id
+            return {
+                'game_announce_channel': 500,
+                'game_channel_categories': False,
+            }[setting_name]
+
+        async def send_game_embed(destination, game, *, embed, content=None, **kwargs):
+            del game
+            return await destination.send(
+                embed=embed,
+                content=content,
+                **kwargs,
+            )
+
+        with (
+            mock.patch.object(
+                self.games.settings,
+                'guild_setting',
+                side_effect=guild_setting,
+            ),
+            mock.patch.object(
+                self.games.image_storage,
+                'send_game_embed',
+                new=send_game_embed,
+            ),
+            mock.patch.object(
+                self.games,
+                'auto_grad_novas',
+                new=mock.AsyncMock(),
+            ),
+        ):
+            await self.games.post_newgame_messaging(
+                context,
+                game,
+                destination=invoking_channel,
+            )
+
+        local_events = [event for event in events if event[0] is invoking_channel]
+        announcement_events = [
+            event for event in events
+            if event[0] is announcement_channel
+        ]
+        self.assertEqual(len(local_events), 1)
+        self.assertIn('See <#500> for full details.', local_events[0][1])
+        self.assertEqual(len(announcement_events), 2)
+        self.assertIn('New game ID **42** started!', announcement_events[0][1])
+        self.assertEqual(announcement_events[1][1], 'CARD CONTENT')
+        followup.assert_not_awaited()
+        game.save.assert_called_once_with()
+
     async def test_database_failure_prevents_post_commit_discord_effects(self):
         author = SimpleNamespace(
             id=100,
@@ -1045,7 +1441,7 @@ class NewGameCommandTests(unittest.IsolatedAsyncioTestCase):
             'exception',
         ):
             await command.callback(
-                SimpleNamespace(),
+                self.newgame_cog(),
                 context,
                 'Valid Game',
                 'host',
@@ -1121,7 +1517,7 @@ class NewGameCommandTests(unittest.IsolatedAsyncioTestCase):
             mock.patch.object(self.games.logger, 'exception'),
         ):
             outcome = await command.callback(
-                SimpleNamespace(),
+                self.newgame_cog(),
                 context,
                 'Exact Game Name',
                 'host',
@@ -1189,7 +1585,7 @@ class NewGameCommandTests(unittest.IsolatedAsyncioTestCase):
             mock.patch.object(self.games.logger, 'exception'),
         ):
             outcome = await command.callback(
-                SimpleNamespace(),
+                self.newgame_cog(),
                 context,
                 'Exact Game Name',
                 'host',
@@ -1285,7 +1681,7 @@ class NewGameCommandTests(unittest.IsolatedAsyncioTestCase):
             ),
         ):
             await command.callback(
-                SimpleNamespace(),
+                self.newgame_cog(),
                 context,
                 'Unusual Name',
                 'host',
