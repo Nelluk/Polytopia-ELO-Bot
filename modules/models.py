@@ -90,7 +90,11 @@ def is_registered_member():
         if ctx.invoked_with == 'help' and ctx.command.name != 'help':
             return False
         else:
-            await ctx.send(f'This command requires bot registration first. Type __`{ctx.prefix}setname Your Mobile Name`__ or  __`{ctx.prefix}steamname Your Steam Username`__ to get started.')
+            await ctx.send(
+                'This command requires bot registration first. Type '
+                f'__`{ctx.prefix}setname YOUR POLYTOPIA NAME`__ or use '
+                '`/player register` to set your account-wide canonical name.'
+            )
         return False
     return commands.check(predicate)
 
@@ -3413,7 +3417,8 @@ class GameLog(BaseModel):
     guild_id = BitField(unique=False, null=False, default=0)
     is_protected = BooleanField(default=False)
 
-    # Entries will have guild_id of 0 for things like $setcode and $setname that arent guild-specific
+    # Historical compatibility entries may have guild_id 0. Native player
+    # registration writes the actual guild ID for auditability.
 
     def member_string(member):
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import discord
 
-from modules import components_v2, player_workers
+from modules import components_v2, player_registration_workers, player_workers
 
 
 PAGE_SIZE = 6
@@ -123,8 +123,9 @@ class PlayerWorkspace(components_v2.RequesterLayoutView):
     async def _profile_actions(self, interaction: discord.Interaction) -> None:
         await interaction.response.send_message(
             'Profile editing remains available through the permission-checked '
-            '`setname` and `settime` commands while the native edit workflows '
-            'are modernized.',
+            '`/player register` (or `$setname`) and `settime` commands while '
+            'the remaining native edit workflows are modernized. The '
+            'registered Polytopia name is account-wide.',
             ephemeral=True,
         )
 
@@ -136,9 +137,24 @@ class PlayerWorkspace(components_v2.RequesterLayoutView):
                 if snapshot.team_name else 'No team'
             )
             timezone = snapshot.timezone or 'Not set'
+            if snapshot.polytopia_name:
+                polytopia_name = discord.utils.escape_markdown(
+                    player_registration_workers.safe_public_name(
+                        snapshot.polytopia_name
+                    ),
+                    as_needed=True,
+                )
+                polytopia_name_line = (
+                    '**Canonical Polytopia name (account-wide):** '
+                    f'{polytopia_name}'
+                )
+            else:
+                polytopia_name_line = (
+                    '**Canonical Polytopia name (account-wide):** *Not set*'
+                )
             return (
                 f'## <@{snapshot.discord_id}>\n'
-                f'**Polytopia name:** `{snapshot.polytopia_name}`\n'
+                f'{polytopia_name_line}\n'
                 f'**Team:** {team}\n'
                 f'**Timezone:** {timezone}\n\n'
                 f'**Local:** `{snapshot.local_elo} ELO` · '

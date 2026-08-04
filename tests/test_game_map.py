@@ -854,8 +854,9 @@ class GameMapPrefixTests(unittest.IsolatedAsyncioTestCase):
             new=mock.AsyncMock(
                 side_effect=game_workers.GameMapPermissionError(
                     'This command requires bot registration first. Type '
-                    '__`setname Your Mobile Name`__ or  '
-                    '__`steamname Your Steam Username`__ to get started.'
+                    '__`setname YOUR POLYTOPIA NAME`__ or use '
+                    '`/player register` to set your account-wide canonical '
+                    'name.'
                 )
             ),
         ):
@@ -863,8 +864,8 @@ class GameMapPrefixTests(unittest.IsolatedAsyncioTestCase):
 
         ctx.send.assert_awaited_once_with(
             'This command requires bot registration first. Type '
-            '__`!setname Your Mobile Name`__ or  '
-            '__`!steamname Your Steam Username`__ to get started.'
+            '__`!setname YOUR POLYTOPIA NAME`__ or use '
+            '`/player register` to set your account-wide canonical name.'
         )
 
     async def test_prefix_wrong_argument_usage_keeps_configured_prefix(self):

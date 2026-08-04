@@ -1,10 +1,10 @@
 # Database Access and Slash Command Modernization
 
-Last updated: 2026-08-03
+Last updated: 2026-08-04
 
 Status: Active
 
-Current branch at last update: `codex/p7-leaderboard-filter-modal`
+Current branch at last update: `codex/p6-1-player-registration`
 
 Source task: `thread://019fb4cd-0c73-7700-9988-141f6622d6f7`
 
@@ -359,6 +359,7 @@ would become unavailable if a prefix is retired.
 | C-006 `/team image` / `$team_image` | Native `/team image` provides an effective-image read, one typed Discord attachment replacement, and explicit clear under the existing mod/team-enabled boundary. The retained prefix preserves its required team name, direct URL option, attachment-wins behavior, and legacy success/read wording; its stale lookup example now correctly names `team_image`. | Direct URL replacement remains prefix-only because the native command deliberately uses a typed attachment rather than a free-form URL. If prefix processing were later removed, staff would need to upload an attachment for replacement; existing stored URL images would still read and clear natively. Prefix success wording also remains legacy-compatible rather than adding native actor text. | Add a separately justified URL option or a multi-step/modal image editor only if direct URL replacement remains a demonstrated native need; do not add remote downloading without a new validation/security review. | Intentional P8.3 parity boundary; prefix retained |
 | C-007 `/staffhelp` / `$staffhelp` / `$helpstaff` | Native `/staffhelp` has no options and opens a requester-bound modal with bounded help/bug/feature category, summary, details, optional context, and up to 10 typed uploads. It is the sole WB1.1 feedback intake for the development wider beta after the legacy prefix adapters were retired. | Legacy recommendation: **retire** — the low-use, redundant prefix intake is clearly superseded by the structured native form. This retirement was explicitly approved by the user before integration; do not restore it. The native JSONL authority and `/staffhelp` intake are development-only and not a production-ready replacement. Before P9, make a separate approved decision on a production-safe authoritative intake/retention path or another production relay design; until then, production communities use their currently deployed support/moderator route. No native attachment gap was required: the installed discord.py 2.7.1 Components v2 API provides the required multi-file upload. | Add retention/redaction operations or a later staff workflow only with a separate privacy and operational review; do not replace the JSONL authority with a Discord-only mirror. | Prefix retirement implemented locally; production-boundary decision required before P9 |
 | C-008 `/team house` / `$team_house` / `$team_edit` house branch | Native `/team house` provides public current-house reads and actor-attributed mod assignment/clear with bounded team/House autocomplete, unambiguous requester-team inference, worker-local atomic Team/Player/preference/GameLog state, and post-commit managed-role reconciliation. | Legacy recommendation: **retire** — explicit user approval retires `$team_house` and removes the house branch from `$team_edit`; the old message-only House mutation path and its message-intent-dependent syntax are no longer available. `$team_tier` and `$team_edit ... ARCHIVE` remain retained. The native path covers the ordinary House workflow within the existing team-enabled PolyChampions/test scope; validation, ambiguity, permission, conflict, and database failures remain private, while committed changes are public and identify the actor. | Revisit only with a separately approved prefix lifecycle decision or if beta evidence shows a material native usability gap; do not restore a compatibility wrapper. | Intentional P8.4 prefix retirement; implementation ready for review |
+| C-009 `/player register` / `$setname` / `$steamname` / `$setcode` / `$getnames` aliases | Native `/player register member:[optional]` uses one account-wide canonical-name modal; `$setname` delegates to the same bounded worker, and the useful name-list aliases remain available for game setup. | Legacy recommendation: **retain** `$setname` through the production canary. `$steamname` and `$setcode` remain registered as non-writing deprecation adapters; `$code`/`$getcode` warn and return the transitional canonical read. Existing `name_steam` and `polytopia_id` values are preserved and are never cleared or backfilled by P6.1. If message content is later retired, the native registration path covers the ordinary workflow while the compact compatibility reads remain a deliberate seam. | Revisit retirement after usage evidence and an explicit compatibility decision; do not delete or migrate stored legacy values in this unit. | Implemented locally; Tier-3 review pending |
 
 Every later slash conversion must add a row when parity is intentionally
 reduced. If there is no compromise, its unit evidence should explicitly say
@@ -457,8 +458,8 @@ check:
   `f0429536d7ed899eb356794bcd3558baa9be3d45`.
 - P4.2d roadmap evidence: `e1a0959`; accumulation merge: `7c2269b`.
 
-Current unit: **P6.1 canonical player registration — approved and ready for
-bounded implementation.**
+Current unit: **P6.1 canonical player registration — implemented locally and
+ready for Tier-3 review.**
 
 The audit is recorded in
 `docs/PLAYER_IDENTITY_AND_PREFERENCES_AUDIT.md`. It made no command, schema,
@@ -3976,7 +3977,8 @@ branch. Reverify runtime and fixture state before any later beta session.
 
 ## P6 — Registration and player preferences
 
-Status: **In progress; P6.0 complete and P6.1 ready for implementation**
+Status: **In progress; P6.0 complete and P6.1 implemented locally, Tier-3
+review pending**
 
 Candidate scope:
 
@@ -4056,6 +4058,74 @@ Recommended implementation sequence:
 Accepted compatibility decisions are recorded in D-038 and in the audit's
 final section. P6.1 is the next bounded Tier-3 implementation unit. P6.1 and
 the P6.2 schema transition must remain separate units.
+
+### P6.1 — Canonical player registration
+
+Status: **Implemented locally; Tier-3 review pending**
+
+Risk tier: **Tier 3**. Exact clean base: `5d1d44c`. Unit branch and worktree:
+`codex/p6-1-player-registration` in
+`/home/nelluk/.codex/worktrees/a6bc/PolyBot39-dev`. Implementation commits:
+`c40e3a4` (initial implementation) and `53cd8cc` (race-safe upsert
+correction).
+
+Objective and implementation evidence:
+
+- `/player register member:[optional]` opens exactly one modal field for the
+  account-wide canonical Polytopia name. Self-registration is allowed;
+  optional other-member targeting uses the existing staff boundary and is
+  revalidated authoritatively before the write.
+- The bounded ordinary-write worker receives only frozen primitive Discord
+  snapshots, owns its Peewee connection, reloads/creates models from those
+  values, and performs one synchronous `db.atomic()` covering the
+  DiscordMember/unique guild Player upsert, canonical
+  `DiscordMember.polytopia_name` write, persisted-team inference from captured
+  role names, and actor-attributed GameLog with the actual guild ID.
+- Both unique upsert seams use an inner PostgreSQL savepoint around
+  `get_or_create`, followed by an authoritative reload after an existing row
+  or competing `IntegrityError`; the outer registration transaction remains
+  the only commit boundary.
+- The implementation never repurposes `Player.name` as canonical identity and
+  never writes, clears, or backfills `name_steam` or `polytopia_id`.
+  `Player.name` and `Player.nick` may be refreshed as guild-specific Discord
+  display metadata. `/player show` explicitly reports an unset canonical name,
+  and transitional name-list reads use `polytopia_name or name_steam` without
+  exposing the old type distinction.
+- `$setname` uses the shared service. `$steamname` and `$setcode` are retained
+  as non-writing deprecation adapters, while `$code`/`$getcode` provide a
+  warning plus the transitional canonical read. Public committed success is
+  actor-attributed; validation, permission, and database failures are private.
+
+Validation evidence:
+
+- Focused registration/workspace/taxonomy/map coverage: **59 tests passed**;
+  the broader registration/game-start focus passed **74/74**.
+- Complete offline discovery after the correction: **751 passed, 20
+  intentional skips**.
+- The original worker-run development database gate was invoked with
+  `POLYBOT_ENV=development` and `POLYBOT_RUN_DB_INTEGRATION=1`; its source
+  gate verifies environment `development`, database `polytopia_dev`, role
+  `polybot_dev`, and disabled background/API services. It ran **0** database
+  tests because the local PostgreSQL connection failed in `setUpClass` with
+  `psycopg2.OperationalError`; the gate was not weakened or bypassed.
+- Oversight evidence: Sol independently reran the unchanged gated PostgreSQL
+  suite on the pre-correction P6.1 branch under `development` /
+  `polytopia_dev` / `polybot_dev` and reports **19 passed / 1 intentional
+  operator-fixture skip**. This is Sol’s evidence, not a claim that the
+  correction task ran that successful database command. The new race
+  regression is intentionally offline-only.
+- `compileall` and `git diff --check` passed. The development worktree setup
+  script completed before profile-dependent imports/tests.
+
+Limitations and next action: this is local implementation evidence plus the
+separately identified oversight database evidence; Tier-3 review and any
+later beta acceptance remain pending. No database
+schema migration, production inventory/data action, process restart, Discord
+command synchronization, fixture mutation, dependency installation, push, or
+merge was performed. P6.2's timezone schema transition remains a separate
+unit. Next action is review of `c40e3a4` and `53cd8cc` by the Sol oversight
+task, followed by an independently approved P6.2 plan if review accepts this
+bounded unit.
 
 ## P7 — Read-heavy commands and analytics
 
@@ -6950,6 +7020,31 @@ visibility proposal, timezone range, and accepted decisions are in
   unit and kept P6.2's additive timezone-minutes migration separate.
 - Did not authorize production inventory/data access, beta deployment,
   command synchronization, or schema work in this decision checkpoint.
+
+### 2026-08-04 — P6.1 canonical registration implemented locally
+
+- Implemented `codex/p6-1-player-registration` from exact clean base `5d1d44c`
+  in the Codex worktree; implementation/tests commit `c40e3a4` and the
+  race-safe upsert correction commit `53cd8cc`.
+- Added the account-wide `/player register` modal, shared `$setname` adapter,
+  bounded primitive-input ordinary-write worker, explicit unset `/player show`
+  output, transitional name-list reads, and narrow non-writing legacy
+  deprecation behavior. Added nested savepoint/get_or_create/reload handling
+  for both unique registration rows and its conflict regression. Updated the
+  P6.1 compatibility ledger as C-009.
+- Focused tests passed (**59** in the registration/workspace/taxonomy/map
+  focus; **74/74** in the broader registration/game-start focus), complete
+  offline discovery passed (**751**, with **20** intentional skips), and
+  compile/diff checks passed.
+- The original unchanged development database gate verified its required
+  identity (`development` / `polytopia_dev` / `polybot_dev`) but ran **0**
+  tests because PostgreSQL was unavailable at connection time. Sol’s
+  independent oversight rerun on the pre-correction branch reported **19
+  passed / 1 intentional operator-fixture skip** under the same identity.
+  No runtime, synchronization, production, fixture, dependency, push, or
+  merge action occurred.
+- Next action: Sol/Tier-3 review of both implementation commits; keep P6.2
+  timezone work separate.
 
 ### 2026-08-04 — P6.0 identity and preferences audit completed
 

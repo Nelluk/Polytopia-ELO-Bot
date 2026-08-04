@@ -51,7 +51,7 @@ class PlayerWorkspaceSnapshot:
     player_id: int
     discord_id: int
     display_name: str
-    polytopia_name: str
+    polytopia_name: str | None
     team_name: str
     team_emoji: str
     squad_names: tuple[str, ...]
@@ -169,7 +169,14 @@ def load_player_workspace(
             player_id=int(player.id),
             discord_id=int(member.discord_id),
             display_name=str(player.name),
-            polytopia_name=str(member.polytopia_name or player.name),
+            # Player.name is the guild display label, not a registered
+            # account-wide Polytopia name. Keep an unset canonical value
+            # explicit for the native workspace.
+            polytopia_name=(
+                str(member.polytopia_name)
+                if member.polytopia_name
+                else None
+            ),
             team_name=str(player.team.name) if player.team else '',
             team_emoji=str(player.team.emoji or '') if player.team else '',
             squad_names=tuple(sorted(squad_names)),

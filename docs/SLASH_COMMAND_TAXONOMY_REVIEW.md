@@ -401,7 +401,7 @@ operator repair commands stay out of the public tree.
 | Current prefix handler(s) | Taxonomy v2.2 native home | Disposition / note |
 |---|---|---|
 | `player` | `/player show` | Implemented locally as public Components v2 workspace |
-| `setname`, `steamname`, `setcode` alias behavior | `/player register` | One canonical Polytopia name; requester by default, optional staff target; do not expose platform/name/code type |
+| `setname`, `steamname`, `setcode` alias behavior | `/player register` | Implemented locally with one canonical Polytopia name; requester by default, optional staff target; do not expose platform/name/code type. `$setname` shares the worker; `$steamname`/`$setcode` are non-writing deprecation adapters. |
 | `getname` | `/player show` | Fold the useful canonical name into the normal profile workspace rather than preserving a name/code-specific lookup |
 | `settime` | `/player timezone` | Strong candidate with UTC-offset choices |
 | `team` | `/team show` | Strong candidate |
@@ -853,7 +853,15 @@ The current modernization stack registers:
 - `/game record|open|join|leave|search|show|win|unwin|delete|confirm|unconfirmed|set-ranked|extend|unstart`;
 - `/elo recalculate|status`;
 - `/leaderboard players|activity|squads` with temporary `/lb2` removed;
-- `/player show`.
+- `/player show|register`.
+
+P6.1 implements `/player register member:[optional]` locally on the accepted
+P6.0 identity contract. It opens exactly one modal field for the account-wide
+canonical Polytopia name, rechecks the existing staff boundary for an
+optional target, and publishes the committed result with actor attribution.
+The native command has not been synchronized to Discord; `$setname` remains
+the retained compatibility adapter and the legacy platform/code fields remain
+stored but dormant.
 
 For the already implemented game/ELO surface, Taxonomy v2.2 would change only
 the slash registration/adapters:

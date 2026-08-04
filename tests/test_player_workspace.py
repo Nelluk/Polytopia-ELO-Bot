@@ -102,6 +102,18 @@ class PlayerWorkspaceViewTests(unittest.IsolatedAsyncioTestCase):
             {key for key, _ in player_views.SECTIONS},
         )
 
+    def test_unset_canonical_name_is_explicit_and_not_player_display_label(self):
+        unset = snapshot()
+        unset = dataclasses.replace(unset, polytopia_name=None)
+        view = player_views.PlayerWorkspace(
+            requester_id=100,
+            snapshot=unset,
+        )
+        body = view._body()
+        self.assertIn('Canonical Polytopia name (account-wide)', body)
+        self.assertIn('Not set', body)
+        self.assertNotIn('Nelluk Poly', body)
+
     async def test_section_filter_and_pagination_are_cached(self):
         view = self.make_view(initial_section='completed')
         original = view.snapshot
