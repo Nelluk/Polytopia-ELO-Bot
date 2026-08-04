@@ -286,6 +286,35 @@ class RuntimeDependencyCompatibilityTests(unittest.TestCase):
                     startup_source = inspect.getsource(bot_module.init_bot)
                     self.assertNotIn('tree.sync', startup_source)
                     self.assertNotIn('copy_global_to', startup_source)
+
+                    self.assertEqual(
+                        instance.tree.on_error,
+                        instance._on_application_command_error,
+                    )
+                    response = SimpleNamespace(
+                        is_done=lambda: False,
+                        send_message=mock.AsyncMock(),
+                    )
+                    interaction = SimpleNamespace(
+                        id=9001,
+                        guild_id=478571892832206869,
+                        channel_id=123,
+                        user=SimpleNamespace(id=456),
+                        data={'name': 'squad'},
+                        response=response,
+                        followup=SimpleNamespace(send=mock.AsyncMock()),
+                    )
+                    asyncio.run(
+                        instance._on_application_command_error(
+                            interaction,
+                            discord.app_commands.CommandNotFound('squad', []),
+                        )
+                    )
+                    response.send_message.assert_awaited_once_with(
+                        'Discord delivered the command, but the beta could '
+                        'not route it. The failure has been logged for review.',
+                        ephemeral=True,
+                    )
                 finally:
                     asyncio.run(instance.close())
         finally:

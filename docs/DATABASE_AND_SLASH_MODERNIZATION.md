@@ -462,8 +462,9 @@ check:
   `f0429536d7ed899eb356794bcd3558baa9be3d45`.
 - P4.2d roadmap evidence: `e1a0959`; accumulation merge: `7c2269b`.
 
-Current unit: **P7.12/P7.11 squad workspace beta correction — bounded-query
-and publication safeguards validated; corrected beta smoke test pending.**
+Current unit: **P7.12/P7.11 squad workspace beta correction — first
+downstream correction failed live acceptance; interaction-delivery diagnostics
+in progress.**
 
 P7.12 acceptance remains blocked until the corrected beta path returns either
 an eligible workspace or a prompt “no eligible squads” result. P7.13
@@ -7984,9 +7985,18 @@ features are deployed or receive sufficiently broad acceptance.
   correction checkpoint, and have the original reporter retry `/squad show`.
   The beta was restarted once at 15:27 EDT from `4e35114`, authenticated as
   the expected beta application, and passed its local control-path health
-  check without a command sync or announcement. Only after the retry resolves
-  should squad testing return to `/whattotest` or a corrective tester notice
-  be sent.
+  check without a command sync or announcement. The retry still stalled and
+  produced no squad callback or PostgreSQL activity, proving that the first
+  correction addressed a real downstream inefficiency but not the observed
+  dispatch failure. Read-only Discord inspection confirmed that the deployed
+  development-guild `squad` root and local desired signature are unchanged.
+- Added a safe application-interaction routing log and a command-tree error
+  responder. A delivered interaction that fails local lookup/signature/check
+  dispatch will now receive a private response instead of remaining in
+  “Sending command...” indefinitely. The next live retry will distinguish a
+  Discord delivery/application-selection issue from a local dispatch error.
+  Only after that retry resolves should squad testing return to `/whattotest`
+  or a corrective tester notice be sent.
 
 ### 2026-08-04 — P7.12 reviewed, integrated, and deployed to development beta
 

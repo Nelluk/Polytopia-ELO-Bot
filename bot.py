@@ -89,6 +89,71 @@ class MyBot(commands.Bot):
         self.purgable_messages = []  # auto-deleting messages to get cleaned up by Administraton.quit  (guild, channel, message) tuple list
         self.locked_game_records = set()  # Games which cannot be written to since another command is working on them right now. Ugly hack to do what should be done at the DB level
         self.beta_release_control = None
+        # Guild commands are deployed out-of-process.  Keep runtime dispatch
+        # failures observable and always acknowledge a delivered interaction
+        # instead of leaving Discord's "Sending command..." state unresolved.
+        self.tree.on_error = self._on_application_command_error
+
+    async def on_interaction(self, interaction: discord.Interaction):
+        """Log the safe routing envelope for application-command delivery."""
+
+        if interaction.type in (
+            discord.InteractionType.application_command,
+            discord.InteractionType.autocomplete,
+        ):
+            data = interaction.data or {}
+            logger.info(
+                'Application interaction received: interaction=%s '
+                'application=%s type=%s guild=%s channel=%s user=%s '
+                'command=%s command_id=%s',
+                interaction.id,
+                interaction.application_id,
+                interaction.type.name,
+                interaction.guild_id,
+                interaction.channel_id,
+                interaction.user.id,
+                data.get('name'),
+                data.get('id'),
+            )
+
+    async def _on_application_command_error(
+        self,
+        interaction: discord.Interaction,
+        error: discord.app_commands.AppCommandError,
+    ):
+        """Log and acknowledge command-tree failures at the dispatch edge."""
+
+        logger.error(
+            'Application command dispatch failed: interaction=%s guild=%s '
+            'channel=%s user=%s command=%s error=%r',
+            interaction.id,
+            interaction.guild_id,
+            interaction.channel_id,
+            interaction.user.id,
+            (interaction.data or {}).get('name'),
+            error,
+            exc_info=(type(error), error, error.__traceback__),
+        )
+        if isinstance(error, discord.app_commands.CommandOnCooldown):
+            message = (
+                'That command is on cooldown. Try again in '
+                f'{error.retry_after:.0f} seconds.'
+            )
+        else:
+            message = (
+                'Discord delivered the command, but the beta could not route '
+                'it. The failure has been logged for review.'
+            )
+        try:
+            if interaction.response.is_done():
+                await interaction.followup.send(message, ephemeral=True)
+            else:
+                await interaction.response.send_message(message, ephemeral=True)
+        except discord.HTTPException:
+            logger.exception(
+                'Could not acknowledge failed application interaction %s',
+                interaction.id,
+            )
 
     async def setup_hook(self):
         image_storage.ensure_image_directories()
