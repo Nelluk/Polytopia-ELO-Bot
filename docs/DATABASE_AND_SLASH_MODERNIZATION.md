@@ -461,8 +461,8 @@ check:
 - P4.2d roadmap evidence: `e1a0959`; accumulation merge: `7c2269b`.
 
 Current unit: **P8.6 native team show and asynchronous dense-card rendering —
-Tier-2 reviewed, real-schema validated, and integrated; development-guild
-deployment and wider-beta acceptance pending.**
+Tier-2 reviewed, real-schema validated, integrated, and deployed for wider-
+beta acceptance.**
 
 The audit is recorded in
 `docs/PLAYER_IDENTITY_AND_PREFERENCES_AUDIT.md`. It made no command, schema,
@@ -7493,6 +7493,25 @@ database-free, split safely below Discord message limits, and updated as
 features are deployed or receive sufficiently broad acceptance.
 
 ## Progress log
+
+### 2026-08-04 — P8.6 deployed for wider-beta testing
+
+- The remote development-guild plan/apply updated only the `team` root;
+  `elo`, `game`, `leaderboard`, `player`, `staffhelp`, and `whattotest` were
+  unchanged. There was no global synchronization or other-guild operation.
+- The guarded beta restarted from clean checkpoint
+  `821171c11ddb3f796be6cc3937904bcae332ca46`, authenticated as beta application
+  `479029527553638401`, and passed the required read-only release-control
+  status check.
+- Posted wider-beta release `2026-08-04-team-show` to `todo-and-changelog` as
+  message `1534237819713880255`, with the configured testers-role ping and the
+  prominent `WHAT TO TEST` checklist.
+- The release asks testers to verify explicit and inferred Team lookup, the
+  dense roster/ELO/leadership/House/image/graph presentation, activity counts
+  and reordering, desktop/mobile layout, private failures, and `/staffhelp`
+  reporting. Wider-beta acceptance remains open.
+- The previously deployed temporary `/whattotest` root remains available and
+  its tracked running checklist now includes `/team show`.
 
 ### 2026-08-04 — P8.6 reviewed, gated, and integrated
 
