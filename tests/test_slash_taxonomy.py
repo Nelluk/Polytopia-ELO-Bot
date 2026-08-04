@@ -121,7 +121,7 @@ class SlashTaxonomyRegistrationTests(unittest.TestCase):
         )
         self.assertEqual(
             {command.name for command in leaderboard_group.commands},
-            {'activity', 'players', 'squads'},
+            {'activity', 'players', 'squads', 'teams'},
         )
         self.assertEqual(
             {command.name for command in player_group.commands},

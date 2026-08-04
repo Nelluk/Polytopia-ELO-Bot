@@ -9,6 +9,9 @@ from modules import image_storage
 from modules import leaderboard_views
 from modules import leaderboard_workers
 from modules import leaderboard_v2
+from modules import team_leaderboard as team_leaderboard_service
+from modules import team_leaderboard_views
+from modules import team_leaderboard_workers
 from modules import player_views
 from modules import player_workers
 from modules import player_registration
@@ -55,10 +58,6 @@ import logging
 import datetime
 import asyncio
 import re
-from matplotlib import pyplot as plt
-import io
-import pandas as pd
-import scipy.signal as signal
 from typing import Literal
 
 logger = logging.getLogger('polybot.' + __name__)
@@ -676,6 +675,94 @@ class polygames(commands.Cog):
         )
         view.message = await interaction.edit_original_response(view=view)
 
+    @leaderboard_group.command(
+        name='teams',
+        description='Explore current team ELO rankings.',
+    )
+    @discord.app_commands.checks.cooldown(
+        2,
+        30.0,
+        key=lambda interaction: interaction.channel_id,
+    )
+    async def team_leaderboard_slash(
+        self,
+        interaction: discord.Interaction,
+    ):
+        """Publish a public, requester-controlled team snapshot."""
+
+        await interaction.response.defer(ephemeral=True)
+        access_error = team_leaderboard_service.native_access_error(
+            interaction.user,
+            interaction.guild.id,
+            interaction.channel_id,
+        )
+        if access_error is not None:
+            return await interaction.followup.send(
+                access_error,
+                ephemeral=True,
+            )
+
+        try:
+            request = (
+                team_leaderboard_service.team_leaderboard_request_for_native(
+                    interaction,
+                )
+            )
+            result = await team_leaderboard_workers.run_team_leaderboard(
+                request,
+            )
+            _page, graph = await team_leaderboard_service.render_page_graph(
+                result,
+                tier_number=None,
+                include_archived=False,
+                page_index=0,
+            )
+        except (
+            peewee.PeeweeException,
+            team_leaderboard_workers.TeamLeaderboardValidationError,
+            ValueError,
+        ) as exc:
+            logger.exception('Could not load slash team leaderboard')
+            return await interaction.followup.send(
+                f'Could not load the team leaderboard: {exc}',
+                ephemeral=True,
+            )
+        except Exception:
+            logger.exception('Could not render slash team leaderboard')
+            return await interaction.followup.send(
+                'Could not load the team leaderboard. Please try again.',
+                ephemeral=True,
+            )
+
+        view = team_leaderboard_views.TeamLeaderboardWorkspace(
+            requester_id=interaction.user.id,
+            result=result,
+            tier_choices=team_leaderboard_service.configured_tier_choices(),
+            graph=graph,
+            timeout=team_leaderboard_service.TEAM_LEADERBOARD_CONTROL_TIMEOUT,
+        )
+        try:
+            await interaction.delete_original_response()
+            channel = getattr(interaction, 'channel', None)
+            if channel is not None:
+                view.message = await channel.send(
+                    view=view,
+                    files=view.graph_files(),
+                )
+            else:
+                view.message = await interaction.followup.send(
+                    view=view,
+                    files=view.graph_files(),
+                    ephemeral=False,
+                    wait=True,
+                )
+        except Exception:
+            logger.exception('Could not publish slash team leaderboard')
+            return await interaction.followup.send(
+                'Could not publish the team leaderboard. Please try again.',
+                ephemeral=True,
+            )
+
     @settings.in_bot_channel_strict()
     @commands.command(aliases=['recent', 'active', 'lbactivealltime'], hidden=True)
     @commands.cooldown(2, 30, commands.BucketType.channel)
@@ -785,115 +872,60 @@ class polygames(commands.Cog):
     @commands.command(aliases=['teamlb', 'lbteamjr'])
     @commands.cooldown(2, 30, commands.BucketType.channel)
     async def lbteam(self, ctx, *, arg: str = None):
-        """display team leaderboard
+        """Display the current team leaderboard.
 
         Examples:
-        `[p]lbteam` - Default team leaderboard, which resets occasionally
+        `[p]lbteam` - Current team leaderboard
         `[p]lbteam silver` - Team leaderboard only including teams in the Silver league tier.
         `[p]lbteam old` - Include old (archived) teams in the leaderboard.
         `[p]lbteamjr` - Display team leaderboard for Junior teams
         """
-        args = arg.lower().split() if arg else []
-        alltime = False  # Removed option to show pre-reset ELO during refactor May 2024
-        
-        tier_number, tier_name, tier_string = None, None, ''
-        archived_arg = (Team.is_archived == 0)
-        footer_message = ''
+        args = str(arg).lower().split() if arg else []
+        remaining_args = [value for value in args if value != 'old']
+        try:
+            tier_number, _tier_name, include_archived = (
+                team_leaderboard_service.parse_prefix_filters(arg)
+            )
+        except exceptions.NoMatches:
+            invalid_tier = remaining_args[0] if remaining_args else str(arg)
+            return await ctx.send(
+                f'Could not match "**{invalid_tier}**" to the name or '
+                f'number of a League tier. See `{ctx.prefix}help '
+                f'{ctx.invoked_with}` for usage examples.'
+            )
 
-        if 'old' in args:
-            archived_arg = (True)
-
-        remaining_args = [arg for arg in args if arg not in ['old']]
-
-        if len(remaining_args) > 0:
-            try:
-                tier_number, tier_name = settings.tier_lookup(remaining_args[0])
-                tier_string = f' - {tier_name} Tier '
-            except exceptions.NoMatches as e:
-                return await ctx.send(f'Could not match "**{remaining_args[0]}**" to the name or number of a League tier. See `{ctx.prefix}help {ctx.invoked_with}` for usage examples.')
-
-        embed = discord.Embed(title=f'**Team Leaderboard{tier_string}**')
-        fig, ax = plt.subplots(figsize=(12, 8))
-        plt.style.use('default')
-        fig.suptitle('Team ELO History', fontsize=16)
-        fig.autofmt_xdate()
-
-        guild_check = settings.server_ids['polychampions'] if ctx.guild.id == settings.server_ids['test'] else ctx.guild.id
-
-        if tier_number:
-            query = Team.select().where(
-                (Team.is_hidden == 0) & (archived_arg) & 
-                (Team.guild_id == guild_check) & (Team.league_tier == tier_number)
-            ).order_by(-Team.elo)
-        else:
-            query = Team.select().where(
-                (Team.is_hidden == 0) & (archived_arg) &
-                (Team.guild_id == guild_check) & (Team.league_tier.is_null(False))
-            ).order_by(-Team.elo)
-
+        request = team_leaderboard_service.team_leaderboard_request_for_prefix(
+            ctx=ctx,
+            tier_number=tier_number,
+            include_archived=include_archived,
+        )
         async with ctx.typing():
-            for counter, team in enumerate(query):
-                if counter > 24:
-                    footer_message = f'Only first 25 teams shown. You can specify a tier, example: {ctx.prefix}lb platinum'
-                    continue
-                team_role = discord.utils.get(ctx.guild.roles, name=team.name)
-                if not team_role:
-                    logger.error(f'Could not find matching role for team {team.name}')
-                    continue
-                member_count = 0
-                mia_role = discord.utils.get(ctx.guild.roles, name=settings.guild_setting(ctx.guild.id, 'inactive_role'))
-                for team_member in team_role.members:
-                    if mia_role and mia_role in team_member.roles:
-                        continue
-                    member_count += 1
-                team_name_str = f'**{team.name}**   ({member_count})'  # Show team name with number of members without MIA role
-                wins, losses = team.get_record(alltime=alltime)
+            try:
+                result = await team_leaderboard_workers.run_team_leaderboard(
+                    request,
+                )
+            except (
+                peewee.PeeweeException,
+                team_leaderboard_workers.TeamLeaderboardValidationError,
+                ValueError,
+            ) as exc:
+                logger.exception('Could not load team leaderboard')
+                return await ctx.send(
+                    f'Could not load the team leaderboard: {exc}'
+                )
 
-                elo = team.elo_alltime if alltime else team.elo
-                embed.add_field(name=f'{team.emoji} {(counter + 1):>3}. {team_name_str}\n`ELO: {elo:<5} W {wins} / L {losses}`', value='\u200b', inline=False)
-
-                team_elo_history_query = (GameSide
-                        .select(Game.completed_ts, (GameSide.team_elo_after_game_alltime if alltime else GameSide.team_elo_after_game).alias('elo'))
-                        .join(Game)
-                        .where((GameSide.team_id == team.id) & ((GameSide.team_elo_after_game_alltime if alltime else GameSide.team_elo_after_game).is_null(False)))
-                        .order_by(Game.completed_ts))
-
-                if team_elo_history_query:
-                    team_elo_history = pd.DataFrame(team_elo_history_query.dicts())
-                    team_elo_history_resampled = team_elo_history.set_index('completed_ts').resample('D').mean().interpolate().reset_index()
-                    filter_length = max(int(len(team_elo_history_resampled.index) / 3), 1)
-                    filter_length = filter_length if filter_length % 2 != 0 else filter_length - 1
-                    poly_order = 2 if filter_length > 2 else 0
-
-                    plt.plot(team_elo_history['completed_ts'],
-                                team_elo_history['elo'],
-                                'o', markersize=3, alpha=.05, color=str(team_role.color))
-
-                    plt.plot(team_elo_history_resampled['completed_ts'],
-                                signal.savgol_filter(team_elo_history_resampled['elo'].values, filter_length, poly_order),
-                                '-', linewidth=2, label=team.name, color=str(team_role.color))
-
-        ax.yaxis.grid()
-
-        ax.spines['top'].set_visible(False)
-        ax.spines['right'].set_visible(False)
-        ax.spines['left'].set_visible(False)
-
-        plt.legend(loc="best")
-
-        plt.savefig('graph.png', transparent=False)
-        plt.close(fig)
-
-        embed.set_image(url='attachment://graph.png')
-
-        with open('graph.png', 'rb') as f:
-            file = io.BytesIO(f.read())
-
-        image = discord.File(file, filename='graph.png')
-
-        if footer_message:
-            embed.set_footer(text=footer_message)
-        await ctx.send(embed=embed, file=image)
+        try:
+            await team_leaderboard_service.publish_prefix(
+                ctx,
+                result,
+                tier_number=tier_number,
+                include_archived=include_archived,
+            )
+        except Exception:
+            logger.exception('Could not render team leaderboard')
+            return await ctx.send(
+                'Could not render the team leaderboard. Please try again.'
+            )
 
     @settings.in_bot_channel_strict()
     @settings.guild_has_setting(setting_name='allow_teams')

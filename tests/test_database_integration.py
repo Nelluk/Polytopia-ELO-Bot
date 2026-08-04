@@ -377,6 +377,49 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
             self.assertIsInstance(row.losses, int)
             self.assertIsInstance(row.team_emoji, str)
 
+    def test_team_leaderboard_worker_reads_real_schema_without_writes(self):
+        """Read-only gate for the P7.10 team snapshot on the next beta window."""
+
+        from modules import leaderboard_workers
+
+        guild_id = self.settings.server_ids['test']
+        database_guild_id = self.settings.server_ids['polychampions']
+        before = (
+            self.models.Team.select().count(),
+            self.models.GameSide.select().count(),
+        )
+        result = asyncio.run(
+            leaderboard_workers.run_team_leaderboard(
+                leaderboard_workers.TeamLeaderboardRequest(
+                    guild_id=guild_id,
+                    database_guild_id=database_guild_id,
+                    include_archived=True,
+                    load_all_filters=True,
+                    team_enabled=True,
+                    channel_allowed=True,
+                    graph_attachment_name='gated-team-leaderboard.png',
+                )
+            )
+        )
+        self.assertIsInstance(result, leaderboard_workers.TeamLeaderboardResult)
+        self.assertIsInstance(result.rows, tuple)
+        self.assertEqual(
+            [row.rank for row in result.rows],
+            list(range(1, len(result.rows) + 1)),
+        )
+        for row in result.rows:
+            self.assertIsInstance(row, leaderboard_workers.TeamLeaderboardRow)
+            self.assertIsInstance(row.elo, int)
+            self.assertIsInstance(row.wins, int)
+            self.assertIsInstance(row.losses, int)
+        self.assertEqual(
+            before,
+            (
+                self.models.Team.select().count(),
+                self.models.GameSide.select().count(),
+            ),
+        )
+
     def test_representative_write_is_rolled_back(self):
         marker = f'phase6-rollback-{uuid.uuid4()}'
         with self.rollback_scope():
