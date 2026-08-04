@@ -457,8 +457,8 @@ check:
 - P4.2d roadmap evidence: `e1a0959`; accumulation merge: `7c2269b`.
 
 Current unit: **WB1.3b reviewed wider-beta desired state and gated development
-setup — Tier-3 mutation-safety correction implemented locally; live apply
-remains separately gated.**
+setup — integrated into the accumulation branch; live apply remains separately
+gated.**
 
 WB1.3a implementation/tests correction checkpoint: `b19a71c` on branch
 `codex/wb1-3a-beta-readiness-inventory`, based on the exact clean
@@ -472,7 +472,8 @@ occurred. A separately gated read-only database inventory test was run against
 
 WB1.3b implementation/tests checkpoints: `148839f` and Tier-3 correction
 `19f50a9` on branch `codex/wb1-3b-wider-beta-setup`, based on exact integrated
-accumulation base `40b27104f7173c31e2b10e6369f7f19e9dd992b5`. It adds the
+accumulation base `40b27104f7173c31e2b10e6369f7f19e9dd992b5`; accumulation
+merge: `c43a9f7`. It adds the
 tracked reviewed manifest `readiness-manifests/wb1-3b-reviewed.json`, explicit
 `tools_support` root reporting (`/staffhelp` only; `/about`, `/guide`,
 `/help`, `/support`, and `/tools` remain unloaded), and the exact-scope
@@ -481,13 +482,14 @@ owned, development/`polytopia_dev`/`polybot_dev`/guild gated, and refuses seed
 or cleanup while the durable beta writer is active. It creates only the two
 approved houses and three approved teams, records durable ownership evidence,
 and never touches Discord, commands, fixtures, games, ELO, `Phase7Test`,
-`Home`, or `Away`. Focused offline validation passed 45 tests; the existing
+`Home`, or `Away`. The final correction-focused suite passed 18 tests; the existing
 gated rollback-isolated real-schema test passed 1 after an independent exact
-identity preflight; complete offline discovery passed 698 tests with 19
+identity preflight; complete offline discovery passed 704 tests with 19
 intentional gated skips; compilation and diff checks passed. No live beta,
 Discord mutation, command synchronization, invitation, fixture mutation,
-production action, dependency installation, push, or merge occurred. No new
-compatibility compromise or prefix change was made.
+production action, dependency installation, or push occurred. No new
+compatibility compromise or prefix change was made. Integration itself did not
+apply the reviewed live setup.
 
 WB1.1 was integrated into `codex/database-slash-modernization` as merge
 `1c8ffe0`. Its implementation branch was
@@ -5628,11 +5630,11 @@ Known limitations and next action:
 
 #### WB1.3b — Reviewed wider-beta desired state and gated development setup
 
-Status: **Tier-3 mutation-safety correction implemented locally; live setup/apply and tester invitation remain separately gated**
+Status: **Integrated into the accumulation branch; live setup/apply and tester invitation remain separately gated**
 
 Branch/base: `codex/wb1-3b-wider-beta-setup` from exact integrated base
 `40b27104f7173c31e2b10e6369f7f19e9dd992b5`; implementation/tests checkpoints
-`148839f` and correction `19f50a9`.
+`148839f` and correction `19f50a9`; accumulation merge `c43a9f7`.
 
 The reviewed desired state is tracked at
 `readiness-manifests/wb1-3b-reviewed.json`. It resolves only the approved
@@ -5696,12 +5698,13 @@ Validation evidence:
   passed **1 test**. It ran inside the existing rollback scope, verified the
   real houses/teams/role-binding shape and `league_tier is NULL`, and verified
   retained fixture invariants without committing setup rows.
-- Complete offline discovery: **698 passed, 19 intentional gated skips**.
+- Complete offline discovery: **704 passed, 19 intentional gated skips**.
   Compilation and `git diff --check` passed.
 
 No live beta or Discord was inspected, stopped, restarted, mutated, or
 invited; no command sync, capability assignment edit, fixture operation,
-production action, dependency installation, push, or merge occurred.
+production action, dependency installation, or push occurred. The reviewed
+branch was integrated locally as `c43a9f7`; that merge performed no live apply.
 
 Precise later sequence: stop the one durable beta; run setup `status`/`plan`
 and review any pending evidence. A stale authoritative state may deliberately
@@ -6521,6 +6524,20 @@ separate explicit reviewed unit. This preserves the single development beta
 writer and prevents a planning snapshot from becoming an implicit rollout.
 
 ## Progress log
+
+### 2026-08-03 — WB1.3b reviewed and integrated
+
+- Accepted the corrected WB1.3b implementation after Tier-3 review and merged
+  `codex/wb1-3b-wider-beta-setup` into the accumulation branch as `c43a9f7`.
+- Independently reran the correction-focused suite (**18 passed**) and the
+  complete offline suite (**704 passed with 19 intentional gated skips**).
+  The previously gated rollback-isolated `polytopia_dev` case passed **1 test**
+  after confirming `polybot_dev`.
+- Integration changed no live development or production state. The practical
+  next objective remains a simple wider-beta rollout: separately approve and
+  apply the reviewed development setup, verify the beta, then invite testers
+  and collect `/staffhelp` feedback. Further operational machinery should be
+  added only for a demonstrated testing need.
 
 ### 2026-08-03 — WB1.3a live read-only snapshots captured
 
