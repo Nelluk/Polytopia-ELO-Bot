@@ -4151,7 +4151,7 @@ Risk tier: **Tier 3**. Exact clean base: `76b8813` on
 `codex/p6-2-player-timezone` in
 `/home/nelluk/.codex/worktrees/72cf/PolyBot39-dev`. Implementation/tests
 commit: `b233094`; migration-script entrypoint correction: `2b18eaf`; prefix
-attribution correction: `e820285`.
+attribution correction: `e820285`; migration safety correction: `871b388`.
 
 Interface and compatibility contract:
 
@@ -4205,17 +4205,16 @@ Migration and deployment boundary:
 
 - `modules/player_timezone_migration.py` and the standalone
   `scripts/migrate_player_timezone.py` provide an offline default plan and an
-  explicit, idempotent, fail-closed additive apply path. The path checks the
-  `public.discordmember` table and exact column type/nullability through
-  `information_schema`, validates the selected profile and PostgreSQL session
-  database/role, requires an exact confirmation token, and commits both DDL
-  statements in one transaction. The default refuses `polytopia_dev` /
-  `polybot_dev`; no migration was applied in this unit.
-- Rollback is explicit and reverse-ordered (`timezone_offset_cleared`, then
-  `timezone_offset_minutes`) for columns recorded as P6.2-owned. It is only a
-  separately gated compatibility action after code is rolled back and the
-  ownership/schema state is verified. It must not be used for production
-  cleanup or legacy-field removal.
+  explicit, idempotent, fail-closed additive apply path. This unit is
+  development-only: apply requires explicit `POLYBOT_ENV=development`, exact
+  profile database `polytopia_dev`, exact role `polybot_dev`, the matching live
+  PostgreSQL session identity, and the exact development acknowledgement
+  token. Production apply and rollback are refused/deferred to P9; no
+  migration was applied in this unit.
+- Rollback is deliberately offline review SQL only. The plan prints reverse
+  order (`timezone_offset_cleared`, then `timezone_offset_minutes`), but there
+  is no live rollback API and no operator-supplied ownership assertion can
+  authorize a drop.
 - Exact deployment order is: stop the beta; run the separately approved
   migration gate with profile/database/role identity verification; validate
   the real schema and the worker against that schema; then restart the beta
@@ -4225,8 +4224,8 @@ Migration and deployment boundary:
 
 Validation evidence:
 
-- Focused timezone, migration, and slash-taxonomy coverage: **29 tests
-  passed**. Complete offline discovery: **773 passed, 20 intentional skips**.
+- Focused timezone, migration, and slash-taxonomy coverage: **33 tests
+  passed**. Complete offline discovery: **777 passed, 20 intentional skips**.
   Compilation and `git diff --check` passed.
 - The migration tool's direct offline plan printed both additive statements
   and reverse rollback statements and explicitly performed no connection or
@@ -4239,7 +4238,7 @@ Limitations and next action: P6.2 has not been Tier-3 reviewed, beta-smoked,
 schema-applied, command-synchronized, or production-deployed. No production
 inventory/backfill, legacy-field removal, fixture mutation, dependency
 installation, service operation, push, merge, or sudo action occurred. Next
-action is independent Sol review of the three implementation commits, followed
+action is independent Sol review of the four implementation commits, followed
 by the separately approved stopped-beta migration/real-schema gate and only
 then beta command deployment/smoke.
 
@@ -7135,15 +7134,16 @@ visibility proposal, timezone range, and accepted decisions are in
 - Implemented P6.2 on `codex/p6-2-player-timezone` from exact clean base
   `76b8813`. The implementation/tests commit is `b233094`; the direct-script
   entrypoint correction is `2b18eaf`; the prefix-attribution correction is
-  `e820285`.
+  `e820285`; the development-only migration safety correction is `871b388`.
 - Added strict native normalized-offset parsing, bounded 15-minute
   autocomplete, explicit tombstone-backed clear semantics, minutes-first
   readers with legacy fallback, the public `/player timezone` command, and a
   shared worker-backed `$settime` adapter with self/staff-target compatibility.
 - Added the primitive-only, bounded worker transaction and actual-guild
-  actor-attributed audit behavior, plus offline migration planning/apply/
-  rollback safety checks. Focused coverage passed **29/29** and complete
-  offline discovery passed **773/773 with 20 intentional skips**.
+  actor-attributed audit behavior, plus offline migration planning,
+  development-only apply checks, and review-only rollback SQL. Focused
+  coverage passed **33/33** and complete offline discovery passed
+  **777/777 with 20 intentional skips**.
 - Ran only the migration tool's offline plan. The real-schema gate is
   intentionally deferred until the separately approved stopped-beta gate can
   add and verify both columns in the actual schema. No database DDL, beta
@@ -7151,6 +7151,26 @@ visibility proposal, timezone range, and accepted decisions are in
   push, merge, or sudo action occurred.
 - Next action: Sol/Tier-3 review, then the documented stopped-beta migration
   ordering and real-schema validation before any beta command deployment.
+
+### 2026-08-04 — P6.2 migration safety correction
+
+- Tier-3 review found that the original migration helper inverted the gate:
+  production was allowed by default while the development target was not
+  reachable through the CLI. Corrected this in `871b388`.
+- The tool now refuses every environment except explicit
+  `POLYBOT_ENV=development` with exact `polytopia_dev` / `polybot_dev` profile
+  and matching live session identity. The exact development acknowledgement
+  token is checked before opening a connection; production apply is not
+  supported.
+- Removed automated live rollback and operator-supplied column ownership
+  claims. `--rollback` now prints reviewed reverse SQL only and never loads a
+  profile or opens a connection. Tests explicitly cover unset/production
+  refusal, target/session identity, acknowledgement ordering, and rollback
+  review-only output.
+- Reran focused coverage (**33 passed**) and complete offline discovery
+  (**777 passed, 20 intentional skips**). No DDL, database connection, beta,
+  sync, production, fixture, dependency, service, push, merge, or sudo action
+  occurred.
 
 ### 2026-08-04 — P6.1 Tier-3 reviewed and integrated
 

@@ -244,7 +244,7 @@ beta command deployment remain pending**
 
 Risk: Tier 3 because the preferred design is an additive schema migration.
 Exact clean base: `76b8813`; branch: `codex/p6-2-player-timezone`;
-implementation commits: `b233094`, `2b18eaf`, `e820285`.
+implementation commits: `b233094`, `2b18eaf`, `e820285`, `871b388`.
 
 Native interface:
 
@@ -276,11 +276,13 @@ Schema transition:
    startup auto-migration is not used.
 
 P6.2's migration module checks the exact `public.discordmember` schema through
-`information_schema`, requires an explicit target/confirmation, commits the
-two additive columns atomically, and exposes reverse-order rollback only for
-explicitly owned P6.2 columns. The offline plan was run in this work unit;
-the real-schema gate remains deferred because it would require persistent DDL
-under the separately approved stopped-beta procedure.
+`information_schema`, requires the fixed development target and explicit
+acknowledgement, commits the two additive columns atomically, and exposes only
+reviewed reverse-order rollback SQL. There is no live rollback API and no
+operator-supplied ownership assertion can authorize a drop. The offline plan
+was run in this work unit; the real-schema gate remains deferred because it
+would require persistent DDL under the separately approved stopped-beta
+procedure.
 
 Worker evidence: requests/results are frozen primitive DTOs; the shared
 bounded P6.1 ordinary-write executor owns the Peewee connection, reloads the
@@ -288,7 +290,7 @@ exact guild Player row, revalidates staff targeting, and uses one atomic
 preference-plus-actual-guild-GameLog transaction. No Discord await occurs in
 the transaction, cancellation drains the synchronous worker, and public
 success is emitted only after commit. Focused timezone/migration/taxonomy
-coverage passed **29 tests**; complete offline discovery passed **773 tests
+coverage passed **33 tests**; complete offline discovery passed **777 tests
 with 20 intentional skips**; compile and diff checks passed. No live schema,
 beta, production, fixture, dependency, synchronization, or service action was
 performed.
