@@ -7394,7 +7394,40 @@ copying private report prose or requester IDs. Ambiguous, unsafe, cross-guild,
 or over-limit cases require an explicit recorded disposition rather than a
 silent mention or omission.
 
+### D-042 — Maintain one development-beta testing checklist
+
+Status: **Accepted**
+
+Tester-facing release announcements label their bounded checklist prominently
+as `WHAT TO TEST`, not “Smoke test.” The release-manifest JSON retains its
+existing `smoke_test_checklist` field temporarily as an internal compatibility
+detail; rendered copy and operator language use “What to test.”
+
+The temporary development-only `/whattotest` root publishes the tracked
+`docs/BETA_WHAT_TO_TEST.md` running checklist. It covers native slash commands
+and interactive work that still lacks broad testing, not only the latest
+release and not retained legacy-prefix parity. A dedicated `beta_testing`
+capability is assigned only in `server_settings_dev.py`; production and other
+guild policies do not receive the command. The checklist is repository-backed,
+database-free, split safely below Discord message limits, and updated as
+features are deployed or receive sufficiently broad acceptance.
+
 ## Progress log
+
+### 2026-08-04 — Running beta testing checklist implemented
+
+- Reframed rendered release announcements with the prominent heading
+  `WHAT TO TEST` while retaining the release manifest's internal field for
+  compatibility.
+- Added temporary development-only `/whattotest`, isolated behind the new
+  `beta_testing` application-command capability.
+- Added `docs/BETA_WHAT_TO_TEST.md` as the release-maintained running list of
+  native commands and interactions needing wider testing; legacy-prefix tests
+  are intentionally excluded.
+- Added offline coverage for command registration, capability isolation,
+  announcement wording, checklist loading, and Discord-safe pagination.
+- No command synchronization, beta restart, database access, production
+  operation, dependency action, or service action occurred.
 
 ### 2026-08-04 — P8.6 team-show decisions accepted and selected
 

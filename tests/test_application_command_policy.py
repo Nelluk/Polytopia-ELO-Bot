@@ -73,6 +73,11 @@ class ApplicationCommandPolicyTests(unittest.TestCase):
             ('staffhelp',),
         )
 
+        beta_policy = build_capability_policy({
+            10: ('beta_testing',),
+        }, [10])
+        self.assertEqual(beta_policy.roots_for_guild(10), ('whattotest',))
+
     def test_unknown_guild_and_capability_are_rejected(self):
         with self.assertRaisesRegex(ApplicationCommandPolicyError, 'not in'):
             build_capability_policy({30: ('core_user',)}, [10, 20])

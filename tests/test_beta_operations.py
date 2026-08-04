@@ -420,6 +420,8 @@ class ReleaseManifestTests(unittest.TestCase):
         )
         announcement = beta_operations.build_release_announcement(parsed)
         self.assertIn('Reviewed beta rollout', announcement)
+        self.assertIn('## 🧪 WHAT TO TEST', announcement)
+        self.assertNotIn('Smoke test:', announcement)
         self.assertNotIn('SECRET REPORT DETAILS', announcement)
         self.assertLessEqual(len(announcement), beta_operations.MAX_ANNOUNCEMENT_LENGTH)
 

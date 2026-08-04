@@ -12,6 +12,7 @@ import random
 from modules.games import PolyGame
 from modules.league import free_agent_role_name, leader_role_name, coleader_role_name
 from modules import beta_feedback_views
+from modules import beta_testing_guide
 # import modules.imgen as imgen
 # import modules.achievements as achievements
 
@@ -427,6 +428,33 @@ class misc(commands.Cog):
                 channel_id=interaction.channel_id,
             )
         )
+
+    @discord.app_commands.command(
+        name='whattotest',
+        description='Show the current wider-beta testing checklist.',
+    )
+    @discord.app_commands.guild_only()
+    async def whattotest_slash(self, interaction: discord.Interaction):
+        """Publish the repository-maintained development beta checklist."""
+
+        if settings.runtime_profile.environment != 'development':
+            return await interaction.response.send_message(
+                'This temporary command is available only on the development bot.',
+                ephemeral=True,
+            )
+        try:
+            pages = beta_testing_guide.message_pages(
+                beta_testing_guide.load_checklist()
+            )
+        except OSError:
+            logger.exception('Could not load the beta what-to-test checklist.')
+            return await interaction.response.send_message(
+                'The testing checklist is temporarily unavailable.',
+                ephemeral=True,
+            )
+        await interaction.response.send_message(pages[0])
+        for page in pages[1:]:
+            await interaction.followup.send(page)
 
     @commands.command(hidden=False, aliases=['random_tribes', 'rtribe'], usage='n_tribes [-banned_tribe ...]')
     @settings.in_bot_channel()

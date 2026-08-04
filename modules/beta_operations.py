@@ -961,7 +961,7 @@ def build_release_announcement(
         ))
     else:
         lines.append('**Known limitations:** none')
-    lines.append('**Smoke test:**\n' + '\n'.join(
+    lines.append('## 🧪 WHAT TO TEST\n' + '\n'.join(
         f'- [ ] {escape(item)}' for item in manifest.smoke_test_checklist
     ))
     # The marker is visible and searchable, making recovery after a process

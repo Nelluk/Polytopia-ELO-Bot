@@ -236,7 +236,8 @@ so explicitly and name the exact condition that will make one selectable.
 
 This section belongs in the Sol/operator handoff, not automatically in the
 public Discord release announcement. Public announcements retain the bounded
-release summary and smoke checklist defined by the beta-operations runbook.
+release summary and prominently labelled **WHAT TO TEST** checklist defined by
+the beta-operations runbook.
 
 ## Risk-tiered review
 
@@ -304,7 +305,7 @@ Discord visibility and post-commit effects:
 Focused tests and results:
 Complete offline tests and results:
 Gated development-database tests and safety identity:
-Beta sync/smoke result and process status:
+Beta sync/testing result and process status:
 Known limitations:
 Roadmap sections updated:
 Current worktree status:

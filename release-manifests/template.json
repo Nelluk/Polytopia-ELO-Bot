@@ -11,7 +11,7 @@
     "List one bounded limitation or remove this item."
   ],
   "smoke_test_checklist": [
-    "Run the reviewed command smoke test and confirm the public result."
+    "Run the reviewed command test and confirm the public result."
   ],
   "ping_testers": false,
   "notify_user_ids": []

@@ -179,10 +179,10 @@ no global fallback.
 Every beta deployment must choose and record one acceptance route before the
 service is restarted:
 
-1. operator smoke first, followed by an announcement after acceptance;
-2. wider-tester acceptance, where the reviewed tester announcement and smoke
-   checklist are part of deployment completion and no personal smoke is
-   required; or
+1. operator test first, followed by an announcement after acceptance;
+2. wider-tester acceptance, where the reviewed tester announcement and
+   **WHAT TO TEST** checklist are part of deployment completion and no
+   personal test is required; or
 3. no announcement, with an explicit reason and a later acceptance owner.
 
 Do not silently stop at “ready to test.” If wider-tester acceptance is chosen,
@@ -211,7 +211,7 @@ manifest only after the corrected clean checkpoint is running.
 
 After every beta push/restart or command apply, report the running checkpoint,
 process/identity result, synchronization scope when applicable, announcement
-disposition, and smoke-test owner. End the handoff with the literal heading
+disposition, and testing owner. End the handoff with the literal heading
 `What can we do next?` and provide:
 
 - one roadmap-backed recommended bounded unit;
@@ -219,7 +219,7 @@ disposition, and smoke-test owner. End the handoff with the literal heading
 - anything still waiting on tester feedback, approval, or validation.
 
 This is required even when the push is intentionally unannounced or no
-personal smoke test is planned. If no further unit is safe to start, state the
+personal test is planned. If no further unit is safe to start, state the
 blocking condition instead of omitting the section. The section is an
 operator-facing planning aid and is not added to the Discord announcement
 unless its content is independently useful to testers.
@@ -284,11 +284,15 @@ The prepared manifest uses this exact schema:
   "bounded_summary": "One bounded summary paragraph.",
   "changed_commands": ["/game show"],
   "known_limitations": ["One bounded limitation."],
-  "smoke_test_checklist": ["Run the reviewed smoke test."],
+  "smoke_test_checklist": ["Run the reviewed test and confirm the result."],
   "ping_testers": false,
   "notify_user_ids": []
 }
 ```
+
+`smoke_test_checklist` is retained as the schema-v1 compatibility key. The
+rendered Discord heading is the more prominent `WHAT TO TEST`; new operator
+copy should use that wording.
 
 Validation is strict and dependency-free: no missing or unknown fields,
 lowercase release ID, full 40-character lowercase Git SHA, bounded single-line

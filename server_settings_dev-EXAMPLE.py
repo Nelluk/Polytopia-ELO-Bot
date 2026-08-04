@@ -19,8 +19,10 @@ server_shortcut_ids = {
 # scripts/manage_application_commands.py, separately from launching the bot.
 # Example (after replacing TEST_GUILD_ID):
 # application_command_capabilities = {
-#     TEST_GUILD_ID: ('core_user',),
+#     TEST_GUILD_ID: ('core_user', 'beta_testing'),
 # }
+# ``beta_testing`` exposes temporary wider-beta utilities such as
+# /whattotest and should never be assigned in production settings.
 application_command_capabilities = {}
 
 server_list = {

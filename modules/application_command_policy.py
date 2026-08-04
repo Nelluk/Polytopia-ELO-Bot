@@ -28,6 +28,7 @@ _ROOT_PATTERN = re.compile(r"^[a-z][a-z0-9-]{0,31}$")
 KNOWN_TOP_LEVEL_ROOTS = frozenset({
     'about', 'elo', 'game', 'guide', 'help', 'house', 'leaderboard',
     'league', 'player', 'squad', 'staffhelp', 'support', 'team', 'tools',
+    'whattotest',
 })
 
 # ``tools_support`` is deliberately explicit about the source roots it can
@@ -96,6 +97,12 @@ DEFAULT_CAPABILITY_FAMILIES = (
         roots=TOOLS_SUPPORT_IMPLEMENTED_ROOTS,
         visibility="staff",
         description="Structured staff-help support.",
+    ),
+    CapabilityFamily(
+        name="beta_testing",
+        roots=("whattotest",),
+        visibility="development-only",
+        description="Temporary wider-beta testing guidance.",
     ),
     CapabilityFamily(
         name="operator_only",
