@@ -412,8 +412,8 @@ operator repair commands stay out of the public tree.
 | `team_name` | `/team name` | Implemented locally in P8.2: public read/actor-attributed edit, legacy five-character and unique-name boundary, and an explicit exact-role rename warning |
 | `team_server` | `/team server` | Implemented locally in P8.2: raw integer read/edit and explicit nullable clear without requiring external-guild membership |
 | `team_edit` aliases | `/team house`, `/team tier` | `/team tier` remains implemented with the effective legacy mod plus PolyChampions/test scope, configured choices, mutation-only house/archive/exact-role gates, worker-owned Player/preference reconciliation, and post-commit role reconciliation. P8.4 implements native `/team house` read/assign/clear and intentionally retires the `$team_house` alias/branch; `$team_edit ... ARCHIVE` remains retained. |
-| `squad`, `squads` | `/squad show` | P7.11 Tier-2 reviewed and integrated: the only invocation is optional integer `squad_id`; omission defaults to requester membership; requester-only one-to-three Discord member selector, paged/selectable snapshot results, and dense card; both prefix registrations retire under C-012. P7.11 retained `$squadname` only until the approved P7.12 identity unit. Capability assignment and beta deployment are deferred |
-| `squadname` | `/squad name` | P7.12 implemented locally in `f04d017`: required squad ID; omission reads, optional name edits, explicit clear removes; authorized `/squad show` cards gain a shared-service Edit Name modal; the hidden prefix command is retired without an adapter under C-013. Tier-3 review, schema gate, capability assignment, deployment, and beta acceptance are deferred |
+| `squad`, `squads` | `/squad show` | P7.11 Tier-2 reviewed and integrated: the only invocation is optional integer `squad_id`; omission defaults to requester membership; requester-only one-to-three Discord member selector, paged/selectable snapshot results, and dense card; both prefix registrations retire under C-012. The development `squad` capability, guild-only sync, beta restart, and announcement are complete alongside P7.12; wider-beta acceptance remains open |
+| `squadname` | `/squad name` | P7.12 integrated as `0b8541f` from implementation `f04d017`: required squad ID; omission reads, optional name edits, explicit clear removes; authorized `/squad show` cards gain a shared-service Edit Name modal; the hidden prefix command is retired without an adapter under C-013. Development-guild sync and announcement are complete; wider-beta acceptance remains open, with real-schema squad coverage deferred until a fixture exists |
 | `lb` | `/leaderboard players` | Components v2 workspace defaults to local/current/active and exposes common views, population, paging, and requester-rank controls in-message; preserve the full prefix matrix |
 | `lbrecent` | `/leaderboard activity` | Native now with explicit server-30-days and global-all-time views |
 | `lbteam`, `teamlb` | `/leaderboard teams` | P7.10 implemented locally: no required slash options; current active all-tier results by default, with one common tier/population control, public requester-controlled pagination/page jump, bounded graph exploration, and the preserved prefix matrix |
@@ -769,17 +769,17 @@ The implementation checkpoint is `bdaa930` on
 `codex/p7-11-squad-show`, based on exact clean base
 `0f02aa3451192bf67cf72e01bac6a0e637ff65d0`. `$squad` and `$squads` were
 removed without a prefix adapter; P7.11 retained `$squadname` only until the
-approved P7.12 identity unit. P7.12 is implemented locally in `f04d017` on
-`codex/p7-12-squad-identity`, based on exact base
-`ec347cad25f8bcaa059ee6c1d54e7744b63ef8f8`, and now retires `$squadname`
-without an adapter. `/leaderboard squads` plus `$lbsquad`/`$squadlb` remain
-unchanged. The reserved `squad` capability stays default-deny; no guild
-configuration, command synchronization, beta action, production action, or
-`docs/BETA_WHAT_TO_TEST.md` edit was made. P7.11 focused validation passed 18
-tests; P7.12 identity/show/taxonomy validation passed 20/18/8 tests, and
-complete offline discovery passed 875 tests with 25 gated skips. Compileall
-and diff checks passed. The P7.12 real-schema commit/rollback gate exists but
-is intentionally deferred while the durable beta is active.
+approved P7.12 identity unit. P7.12 is integrated in `0b8541f` from
+implementation `f04d017` on `codex/p7-12-squad-identity`, based on exact base
+`ec347cad25f8bcaa059ee6c1d54e7744b63ef8f8`, and retires `$squadname` without
+an adapter. `/leaderboard squads` plus `$lbsquad`/`$squadlb` remain unchanged.
+The development-only `squad` capability was assigned and the root was
+applied only to guild `478571892832206869`; the beta was restarted from
+`7f4cb11` and announced for wider acceptance. Independent review passed 46
+focused tests and complete offline discovery passed 875 tests with 25 gated
+skips; the gated database suite passed 22 tests with 3 intentional skips.
+The P7.12 real-schema case remains deferred because no squad fixture exists in
+`polytopia_dev`.
 
 #### P7.12 `/squad name` implementation state
 
@@ -802,10 +802,11 @@ reported as committed-but-needs-reconciliation rather than a database failure.
 
 Focused identity/show/taxonomy validation passed 20/18/8 tests, and complete
 offline discovery passed 875 tests with 25 intentional gated skips. The
-real-schema commit/rollback test is present behind the unchanged development /
-`polytopia_dev` / `polybot_dev` gate and was not run while the durable beta is
-active. Capability assignment, command apply/sync, beta action, production
-action, and `docs/BETA_WHAT_TO_TEST.md` remain untouched.
+real-schema commit/rollback test remains behind the unchanged development /
+`polytopia_dev` / `polybot_dev` gate and was skipped because no squad fixture
+exists. The development `squad` capability was assigned, the guild-only root
+was applied, and the beta checklist/release announcement are complete; wider
+acceptance remains open.
 
 #### Player leaderboard interaction matrix
 
