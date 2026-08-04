@@ -458,6 +458,54 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
             ),
         )
 
+    def test_squad_identity_worker_commit_and_outer_rollback(self):
+        """Gated P7.12 write/audit coverage for a stopped-writer window."""
+
+        from modules import squad_identity_workers
+
+        squad = self.models.Squad.select().order_by(self.models.Squad.id).first()
+        if squad is None:
+            self.skipTest('development database has no squad fixture')
+        members = tuple(squad.get_members())
+        if not members:
+            self.skipTest('development squad has no member fixture')
+        actor_id = int(members[0].discord_member.discord_id)
+        marker = f'p7-12-rollback-{uuid.uuid4().hex[:12]}'
+        before_name = str(squad.name or '')
+        request = squad_identity_workers.SquadNameMutationRequest(
+            guild_id=int(squad.guild_id),
+            squad_id=int(squad.id),
+            requester_id=actor_id,
+            requester_is_staff=False,
+            requester_description=f'**P7.12 test** (`{actor_id}`)',
+            name=marker,
+        )
+
+        with self.rollback_scope():
+            result = squad_identity_workers.set_squad_name(request)
+            self.assertEqual(result.name, marker)
+            self.assertEqual(
+                self.models.Squad.get_by_id(squad.id).name,
+                marker,
+            )
+            self.assertEqual(
+                self.models.GameLog.select().where(
+                    self.models.GameLog.message.contains(marker)
+                ).count(),
+                1,
+            )
+
+        self.assertEqual(
+            self.models.Squad.get_by_id(squad.id).name,
+            before_name,
+        )
+        self.assertEqual(
+            self.models.GameLog.select().where(
+                self.models.GameLog.message.contains(marker)
+            ).count(),
+            0,
+        )
+
     def test_representative_write_is_rolled_back(self):
         marker = f'phase6-rollback-{uuid.uuid4()}'
         with self.rollback_scope():

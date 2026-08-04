@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import functools
 import itertools
 import logging
@@ -59,6 +59,9 @@ class SquadShowRequest:
     squad_id: int | None = None
     team_enabled: bool = True
     channel_allowed: bool = True
+    # This is only a display snapshot.  Name mutation workers revalidate
+    # authority independently at submission time.
+    requester_is_staff: bool = False
 
 
 @dataclass(frozen=True)
@@ -93,6 +96,9 @@ class SquadShowCard:
     leaderboard_rank: int | None
     leaderboard_length: int
     recent_games: tuple[SquadShowRecentGame, ...]
+    # Captured eligibility controls whether the contextual editor is shown;
+    # it is never accepted as mutation authority by the write worker.
+    can_edit_name: bool = False
 
 
 @dataclass(frozen=True)
@@ -304,6 +310,24 @@ def _load_card(squad) -> SquadShowCard:
     )
 
 
+def _card_for_request(
+    squad,
+    request: SquadShowRequest,
+) -> SquadShowCard:
+    """Add requester-only display eligibility to an otherwise dense card."""
+
+    card = _load_card(squad)
+    if bool(request.requester_is_staff):
+        can_edit_name = True
+    else:
+        has_player = getattr(squad, 'has_player', None)
+        can_edit_name = bool(
+            callable(has_player)
+            and has_player(discord_id=int(request.requester_id))
+        )
+    return replace(card, can_edit_name=can_edit_name)
+
+
 def _squad_from_match_row(row):
     return getattr(row, 'squad', row)
 
@@ -329,7 +353,7 @@ def load_squad_show(request: SquadShowRequest) -> SquadShowResult:
                     f'Squad with ID {squad_id} is affiliated with a different '
                     'Discord server.'
                 )
-            card = _load_card(squad)
+            card = _card_for_request(squad, request)
             return SquadShowResult(
                 guild_id=guild_id,
                 requester_id=int(request.requester_id),
@@ -371,7 +395,7 @@ def load_squad_show(request: SquadShowRequest) -> SquadShowResult:
             total_matches = len(squads)
         truncated = total_matches > MAX_SQUAD_MATCHES or len(squads) > MAX_SQUAD_MATCHES
         cards = tuple(
-            _load_card(squad)
+            _card_for_request(squad, request)
             for squad in squads[:MAX_SQUAD_MATCHES]
         )
 
