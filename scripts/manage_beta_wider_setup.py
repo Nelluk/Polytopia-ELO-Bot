@@ -25,6 +25,7 @@ from runtime_config import RuntimeConfigurationError, load_runtime_profile  # no
 
 
 EXACT_CLEANUP_CONFIRMATION = 'WB1.3B-CLEANUP'
+EXACT_RECONCILE_CONFIRMATION = 'WB1.3B-RECONCILE'
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -55,6 +56,15 @@ def _parser() -> argparse.ArgumentParser:
         '--confirm',
         required=True,
         help=f'exact confirmation token: {EXACT_CLEANUP_CONFIRMATION}',
+    )
+    reconcile = operations.add_parser(
+        'reconcile-cleanup',
+        help='remove stale cleanup evidence after a read-only absence check',
+    )
+    reconcile.add_argument(
+        '--confirm',
+        required=True,
+        help=f'exact confirmation token: {EXACT_RECONCILE_CONFIRMATION}',
     )
     return parser
 
@@ -97,13 +107,16 @@ def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
         manifest = _load_manifest(args.manifest)
-        if (
-                args.operation == 'cleanup'
-                and args.confirm != EXACT_CLEANUP_CONFIRMATION
-        ):
-            raise beta_wider_setup.WiderBetaSetupConfirmationError(
-                f'cleanup requires --confirm {EXACT_CLEANUP_CONFIRMATION}.'
+        if args.operation in {'cleanup', 'reconcile-cleanup'}:
+            expected_confirmation = (
+                EXACT_CLEANUP_CONFIRMATION
+                if args.operation == 'cleanup'
+                else EXACT_RECONCILE_CONFIRMATION
             )
+            if args.confirm != expected_confirmation:
+                raise beta_wider_setup.WiderBetaSetupConfirmationError(
+                    f'{args.operation} requires --confirm {expected_confirmation}.'
+                )
         profile = _selected_profile()
         common = {
             'profile': profile,
@@ -116,8 +129,13 @@ def main(argv: list[str] | None = None) -> int:
             result = beta_wider_setup.plan_wider_beta_setup(**common)
         elif args.operation == 'seed':
             result = beta_wider_setup.seed_wider_beta_setup(**common)
-        else:
+        elif args.operation == 'cleanup':
             result = beta_wider_setup.cleanup_wider_beta_setup(
+                **common,
+                confirmed=True,
+            )
+        else:
+            result = beta_wider_setup.reconcile_cleanup_evidence(
                 **common,
                 confirmed=True,
             )

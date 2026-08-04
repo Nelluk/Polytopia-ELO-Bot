@@ -13,7 +13,12 @@ import tempfile
 import unittest
 from unittest import mock
 
-from modules import application_command_policy, beta_readiness, beta_wider_setup
+from modules import (
+    application_command_policy,
+    beta_operations,
+    beta_readiness,
+    beta_wider_setup,
+)
 from scripts import manage_beta_wider_setup
 
 
@@ -58,7 +63,7 @@ class Cursor:
 class SetupDatabase:
     """Small in-memory Peewee-like connection with transactional snapshots."""
 
-    def __init__(self, *, fail_team_name=None):
+    def __init__(self, *, fail_team_name=None, fail_commit=False):
         self.events = []
         self.queries = []
         self.houses = {}
@@ -69,6 +74,8 @@ class SetupDatabase:
         self.next_house_id = 100
         self.next_team_id = 200
         self.fail_team_name = fail_team_name
+        self.fail_commit = fail_commit
+        self.lock_probe = None
 
     @contextmanager
     def connection_context(self):
@@ -105,6 +112,18 @@ class SetupDatabase:
             self.events.append('transaction-rollback')
             raise
         else:
+            if self.fail_commit:
+                (
+                    self.houses,
+                    self.teams,
+                    self.team_usage,
+                    self.house_preferences,
+                    self.house_bids,
+                    self.next_house_id,
+                    self.next_team_id,
+                ) = snapshot
+                self.events.append('transaction-rollback')
+                raise RuntimeError('injected commit failure')
             self.events.append('transaction-commit')
         finally:
             self.events.append('transaction-close')
@@ -158,6 +177,8 @@ class SetupDatabase:
         return team_id
 
     def execute_sql(self, query, params=()):
+        if self.lock_probe is not None:
+            self.lock_probe()
         normalized = ' '.join(str(query).split()).lower()
         params = tuple(params)
         self.queries.append((normalized, params))
@@ -249,7 +270,6 @@ class WiderBetaSetupTests(unittest.TestCase):
         self.tempdir.cleanup()
 
     def seed(self, database, **kwargs):
-        kwargs.setdefault('writer_check', lambda _profile: None)
         return beta_wider_setup.seed_wider_beta_setup(
             profile=self.profile,
             manifest=self.manifest,
@@ -372,6 +392,63 @@ class WiderBetaSetupTests(unittest.TestCase):
              beta_wider_setup.SETUP_STATE_FILENAME).is_file()
         )
 
+    def test_writer_lock_is_held_through_seed_and_cleanup(self):
+        database = SetupDatabase()
+        lock_path = beta_operations.operation_paths(
+            self.profile, create=True
+        ).writer_lock
+        blocked_phases = []
+
+        def probe_writer(phase):
+            contender = beta_operations.BetaWriterLock(lock_path)
+            try:
+                with self.assertRaises(beta_operations.BetaRuntimeInvariantError):
+                    contender.acquire()
+                blocked_phases.append(phase)
+            finally:
+                contender.release()
+
+        database.lock_probe = lambda: probe_writer('database')
+        original_write_state = beta_wider_setup._write_state
+        original_publish_state = beta_wider_setup._publish_state
+        with mock.patch.object(
+                beta_wider_setup,
+                '_write_state',
+                side_effect=lambda profile, value: (
+                    probe_writer('state-write'),
+                    original_write_state(profile, value),
+                )[1]), mock.patch.object(
+                    beta_wider_setup,
+                    '_publish_state',
+                    side_effect=lambda profile: (
+                        probe_writer('state-publish'),
+                        original_publish_state(profile),
+                    )[1]):
+            self.seed(database)
+
+        original_remove_state = beta_wider_setup._remove_state
+        with mock.patch.object(
+                beta_wider_setup,
+                '_remove_state',
+                side_effect=lambda profile: (
+                    probe_writer('state-remove'),
+                    original_remove_state(profile),
+                )[1]):
+            beta_wider_setup.cleanup_wider_beta_setup(
+                profile=self.profile,
+                manifest=self.manifest,
+                confirmed=True,
+                database_factory=lambda _profile: database,
+            )
+        self.assertIn('database', blocked_phases)
+        self.assertIn('state-write', blocked_phases)
+        self.assertIn('state-publish', blocked_phases)
+        self.assertIn('state-remove', blocked_phases)
+
+        contender = beta_operations.BetaWriterLock(lock_path)
+        contender.acquire()
+        contender.release()
+
     def test_preexisting_compatible_rows_are_preserved_and_unowned(self):
         database = SetupDatabase()
         for house_name in beta_wider_setup.EXPECTED_HOUSES:
@@ -420,14 +497,111 @@ class WiderBetaSetupTests(unittest.TestCase):
 
     def test_writer_active_refuses_before_opening_worker_connection(self):
         database = SetupDatabase()
-        with self.assertRaises(beta_wider_setup.WiderBetaSetupSafetyError):
-            self.seed(
-                database,
-                writer_check=lambda _profile: (_ for _ in ()).throw(
-                    beta_wider_setup.WiderBetaSetupSafetyError('writer active')
-                ),
-            )
+        lock_path = beta_operations.operation_paths(
+            self.profile, create=True
+        ).writer_lock
+        holder = beta_operations.BetaWriterLock(lock_path)
+        holder.acquire()
+        try:
+            with self.assertRaises(beta_wider_setup.WiderBetaSetupSafetyError):
+                self.seed(database)
+        finally:
+            holder.release()
         self.assertEqual(database.events, [])
+
+    def test_ownership_write_failure_rolls_back_all_inserts(self):
+        database = SetupDatabase()
+        with mock.patch.object(
+                beta_wider_setup,
+                '_write_state',
+                side_effect=OSError('state filesystem unavailable')):
+            with self.assertRaises(beta_wider_setup.WiderBetaSetupSafetyError):
+                self.seed(database)
+        self.assertEqual(database.houses, {})
+        self.assertEqual(database.teams, {})
+        state_path = self.root / 'logs' / 'development' / 'beta-operations'
+        self.assertFalse((state_path / beta_wider_setup.SETUP_STATE_FILENAME).exists())
+        self.assertFalse((state_path / beta_wider_setup.SETUP_PENDING_STATE_FILENAME).exists())
+        self.assertIn('transaction-rollback', database.events)
+
+    def test_commit_failure_leaves_only_non_authoritative_recoverable_evidence(self):
+        database = SetupDatabase(fail_commit=True)
+        with self.assertRaises(beta_wider_setup.WiderBetaSetupSafetyError):
+            self.seed(database)
+        self.assertEqual(database.houses, {})
+        self.assertEqual(database.teams, {})
+        state_root = self.root / 'logs' / 'development' / 'beta-operations'
+        self.assertFalse((state_root / beta_wider_setup.SETUP_STATE_FILENAME).exists())
+        pending_path = state_root / beta_wider_setup.SETUP_PENDING_STATE_FILENAME
+        self.assertTrue(pending_path.exists())
+        pending = json.loads(pending_path.read_text(encoding='utf-8'))
+        self.assertEqual(pending['kind'], 'wb1_3b_setup_ownership')
+        with self.assertRaises(beta_wider_setup.WiderBetaSetupOwnershipError):
+            self.seed(SetupDatabase())
+
+    def test_post_commit_publication_failure_has_no_false_authoritative_state(self):
+        database = SetupDatabase()
+        with mock.patch.object(
+                beta_wider_setup,
+                '_publish_state',
+                side_effect=beta_wider_setup.WiderBetaSetupOwnershipError(
+                    'promotion unavailable')):
+            with self.assertRaises(beta_wider_setup.WiderBetaSetupOwnershipError):
+                self.seed(database)
+        self.assertTrue(database.houses)
+        self.assertTrue(database.teams)
+        state_root = self.root / 'logs' / 'development' / 'beta-operations'
+        self.assertFalse((state_root / beta_wider_setup.SETUP_STATE_FILENAME).exists())
+        self.assertTrue((state_root / beta_wider_setup.SETUP_PENDING_STATE_FILENAME).exists())
+        with self.assertRaises(beta_wider_setup.WiderBetaSetupOwnershipError):
+            beta_wider_setup.cleanup_wider_beta_setup(
+                profile=self.profile,
+                manifest=self.manifest,
+                confirmed=True,
+                database_factory=lambda _profile: database,
+            )
+
+    def test_cleanup_state_removal_failure_is_reported_and_reconciled(self):
+        database = SetupDatabase()
+        self.seed(database)
+        with mock.patch.object(
+                beta_wider_setup,
+                '_remove_state',
+                side_effect=beta_wider_setup.WiderBetaSetupOwnershipError(
+                    'state removal unavailable')):
+            with self.assertRaises(beta_wider_setup.WiderBetaSetupOwnershipError):
+                beta_wider_setup.cleanup_wider_beta_setup(
+                    profile=self.profile,
+                    manifest=self.manifest,
+                    confirmed=True,
+                    database_factory=lambda _profile: database,
+                )
+        self.assertEqual(database.houses, {})
+        self.assertEqual(database.teams, {})
+        state_path = self.root / 'logs' / 'development' / 'beta-operations' / beta_wider_setup.SETUP_STATE_FILENAME
+        self.assertTrue(state_path.exists())
+        result = beta_wider_setup.reconcile_cleanup_evidence(
+            profile=self.profile,
+            manifest=self.manifest,
+            confirmed=True,
+            database_factory=lambda _profile: database,
+        )
+        self.assertEqual(result['status'], 'reconciled')
+        self.assertFalse(state_path.exists())
+
+    def test_normal_owned_cleanup_completes_after_idempotent_seed(self):
+        database = SetupDatabase()
+        self.seed(database)
+        self.seed(database)
+        result = beta_wider_setup.cleanup_wider_beta_setup(
+            profile=self.profile,
+            manifest=self.manifest,
+            confirmed=True,
+            database_factory=lambda _profile: database,
+        )
+        self.assertEqual(result['status'], 'cleaned')
+        self.assertEqual(database.houses, {})
+        self.assertEqual(database.teams, {})
 
     def test_cleanup_refuses_subsequent_team_usage_and_shared_house(self):
         database = SetupDatabase()

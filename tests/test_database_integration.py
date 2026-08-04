@@ -213,7 +213,10 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
                     return_value=None), mock.patch.object(
                         beta_wider_setup,
                         '_write_state',
-                        return_value=Path('/tmp/wb1-3b-integration-state.json')):
+                        return_value=Path('/tmp/wb1-3b-integration-state.json')), mock.patch.object(
+                            beta_wider_setup,
+                            '_publish_state',
+                            return_value=Path('/tmp/wb1-3b-integration-state.json')):
                 result = beta_wider_setup.seed_wider_beta_setup(
                     profile=self.profile,
                     manifest=manifest,
@@ -221,7 +224,7 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
                     database_factory=lambda _profile: self.models.db,
                     # The class gate owns the independently checked DB
                     # identity; this test never probes the durable beta lock.
-                    writer_check=lambda _profile: None,
+                    writer_guard=lambda _profile: nullcontext(),
                 )
             self.assertEqual(result['kind'], 'wb1_3b_setup_seed_result')
             self.assertEqual(

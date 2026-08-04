@@ -16,9 +16,8 @@ usage condition in a new transaction.
 
 from __future__ import annotations
 
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from datetime import datetime, timezone
-import fcntl
 import hashlib
 import json
 import os
@@ -32,6 +31,7 @@ from modules import beta_operations, beta_readiness
 
 SETUP_SCHEMA_VERSION = 1
 SETUP_STATE_FILENAME = 'wb1-3b-setup.json'
+SETUP_PENDING_STATE_FILENAME = 'wb1-3b-setup.pending.json'
 DEFAULT_MANIFEST = 'readiness-manifests/wb1-3b-reviewed.json'
 
 EXPECTED_HOUSES = (
@@ -211,43 +211,70 @@ def _state_path(profile: Any, *, create: bool) -> Path:
     return paths.state_root / SETUP_STATE_FILENAME
 
 
-def _read_state(profile: Any) -> dict[str, Any] | None:
-    path = _state_path(profile, create=False)
+def _pending_state_path(profile: Any, *, create: bool) -> Path:
+    return _state_path(profile, create=create).with_name(SETUP_PENDING_STATE_FILENAME)
+
+
+def _read_private_state_path(
+        path: Path,
+        *,
+        label: str) -> dict[str, Any] | None:
     try:
         info = path.lstat()
     except FileNotFoundError:
         return None
     except OSError as exc:
         raise WiderBetaSetupOwnershipError(
-            'Could not inspect WB1.3b ownership evidence.'
+            f'Could not inspect {label}.'
         ) from exc
     if stat.S_ISLNK(info.st_mode) or not stat.S_ISREG(info.st_mode):
         raise WiderBetaSetupOwnershipError(
-            'WB1.3b ownership evidence must be a regular non-symlink file.'
+            f'{label} must be a regular non-symlink file.'
         )
     if stat.S_IMODE(info.st_mode) & 0o077:
         raise WiderBetaSetupOwnershipError(
-            'WB1.3b ownership evidence permissions are too broad.'
+            f'{label} permissions are too broad.'
         )
     if info.st_size > beta_readiness.MAX_MANIFEST_BYTES:
         raise WiderBetaSetupOwnershipError(
-            'WB1.3b ownership evidence exceeds its bound.'
+            f'{label} exceeds its bound.'
         )
     try:
         value = json.loads(path.read_text(encoding='utf-8'))
     except (OSError, UnicodeError, json.JSONDecodeError) as exc:
         raise WiderBetaSetupOwnershipError(
-            'WB1.3b ownership evidence is unreadable.'
+            f'{label} is unreadable.'
         ) from exc
     if not isinstance(value, dict):
         raise WiderBetaSetupOwnershipError(
-            'WB1.3b ownership evidence must be a JSON object.'
+            f'{label} must be a JSON object.'
         )
     return value
 
 
+def _read_state(profile: Any) -> dict[str, Any] | None:
+    return _read_private_state_path(
+        _state_path(profile, create=False),
+        label='WB1.3b ownership evidence',
+    )
+
+
+def _read_pending_state(profile: Any) -> dict[str, Any] | None:
+    return _read_private_state_path(
+        _pending_state_path(profile, create=False),
+        label='WB1.3b pending ownership evidence',
+    )
+
+
 def _write_state(profile: Any, value: Mapping[str, Any]) -> Path:
-    path = _state_path(profile, create=True)
+    """Write prepared evidence while the database transaction is open.
+
+    The pending filename is intentionally not accepted by cleanup as
+    authoritative.  It survives commit failure or process interruption and is
+    promoted only after the database transaction has committed.
+    """
+
+    path = _pending_state_path(profile, create=True)
     payload = json.dumps(
         value,
         ensure_ascii=True,
@@ -261,7 +288,7 @@ def _write_state(profile: Any, value: Mapping[str, Any]) -> Path:
     temporary_path: Path | None = None
     try:
         fd, name = tempfile.mkstemp(
-            prefix=f'.{SETUP_STATE_FILENAME}.',
+            prefix=f'.{SETUP_PENDING_STATE_FILENAME}.',
             suffix='.tmp',
             dir=path.parent,
         )
@@ -294,6 +321,38 @@ def _write_state(profile: Any, value: Mapping[str, Any]) -> Path:
     return path
 
 
+def _publish_state(profile: Any) -> Path:
+    """Promote prepared evidence after a successful DB commit."""
+
+    pending_path = _pending_state_path(profile, create=False)
+    state_path = _state_path(profile, create=False)
+    pending = _read_private_state_path(
+        pending_path,
+        label='WB1.3b pending ownership evidence',
+    )
+    if pending is None:
+        raise WiderBetaSetupOwnershipError(
+            'The setup committed without pending ownership evidence.'
+        )
+    try:
+        os.replace(pending_path, state_path)
+        directory_fd = os.open(
+            state_path.parent,
+            os.O_RDONLY | getattr(os, 'O_DIRECTORY', 0),
+        )
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
+    except OSError as exc:
+        raise WiderBetaSetupOwnershipError(
+            'The database transaction committed, but ownership publication '
+            'could not be promoted. Pending evidence was retained; reconcile '
+            'before retrying seed or cleanup.'
+        ) from exc
+    return state_path
+
+
 def _remove_state(profile: Any) -> None:
     path = _state_path(profile, create=False)
     try:
@@ -306,43 +365,53 @@ def _remove_state(profile: Any) -> None:
         ) from exc
 
 
-def assert_beta_writer_stopped(profile: Any) -> None:
-    """Probe the guarded beta lock without creating or changing the lock file."""
+@contextmanager
+def _held_beta_writer_lock(profile: Any):
+    """Hold the launcher's guarded writer lock for one mutation operation."""
 
-    path = _state_path(profile, create=False).parent / beta_operations.BETA_WRITER_LOCK
     try:
-        info = path.lstat()
-    except FileNotFoundError:
+        paths = beta_operations.operation_paths(profile, create=True)
+        lock = beta_operations.BetaWriterLock(paths.writer_lock)
+        lock.acquire()
+    except beta_operations.BetaOperationsError as exc:
+        raise WiderBetaSetupSafetyError(
+            'The durable beta writer is active or its guarded lock path is unsafe; '
+            'stop it before seed or cleanup.'
+        ) from exc
+    try:
+        yield lock
+    finally:
+        lock.release()
+
+
+@contextmanager
+def _mutation_writer_scope(
+        profile: Any,
+        *,
+        writer_guard: Callable[[Any], Any] | None = None,
+        writer_check: Callable[[Any], None] | None = None):
+    """Run the complete mutation boundary while one writer lock is held.
+
+    ``writer_guard`` is an internal test/integration seam.  The production
+    default is always the same lock object used by the durable launcher.
+    ``writer_check`` remains a compatibility preflight hook, but it executes
+    inside the held boundary and cannot replace it.
+    """
+
+    guard = writer_guard(profile) if writer_guard is not None else _held_beta_writer_lock(profile)
+    if guard is None:
+        guard = nullcontext()
+    with guard:
+        if writer_check is not None:
+            writer_check(profile)
+        yield
+
+
+def assert_beta_writer_stopped(profile: Any) -> None:
+    """Acquire and release the launcher's guarded writer lock once."""
+
+    with _held_beta_writer_lock(profile):
         return
-    except OSError as exc:
-        raise WiderBetaSetupSafetyError(
-            'Could not inspect the durable beta writer lock.'
-        ) from exc
-    if stat.S_ISLNK(info.st_mode) or not stat.S_ISREG(info.st_mode):
-        raise WiderBetaSetupSafetyError(
-            'The durable beta writer lock is not a regular non-symlink file.'
-        )
-    flags = os.O_RDWR | getattr(os, 'O_NOFOLLOW', 0)
-    try:
-        fd = os.open(path, flags)
-    except OSError as exc:
-        raise WiderBetaSetupSafetyError(
-            'The durable beta writer lock cannot be opened safely.'
-        ) from exc
-    try:
-        try:
-            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except (BlockingIOError, OSError) as exc:
-            raise WiderBetaSetupSafetyError(
-                'The durable beta writer is active; stop it before seed or cleanup.'
-            ) from exc
-        finally:
-            try:
-                fcntl.flock(fd, fcntl.LOCK_UN)
-            finally:
-                os.close(fd)
-    except WiderBetaSetupSafetyError:
-        raise
 
 
 def _validate_profile(profile: Any, guild_id: int) -> int:
@@ -874,6 +943,7 @@ def _status_value(
         guild_id: int,
         records: Mapping[str, Any],
         state: Mapping[str, Any] | None,
+        pending_state: Mapping[str, Any] | None,
         *,
         kind: str) -> dict[str, Any]:
     issues = _compatibility_issues(records, guild_id)
@@ -893,6 +963,7 @@ def _status_value(
         'target': manifest['target'],
         'manifest_fingerprint': _manifest_fingerprint(manifest),
         'state_file_present': state is not None,
+        'pending_state_file_present': pending_state is not None,
         'houses': public['houses'],
         'teams': public['teams'],
         'conflicts': sorted(set(issues)),
@@ -916,8 +987,10 @@ def _status_value(
             'command_registration_applied': False,
             'game_or_elo_mutation_applied': False,
         },
-        'ready_for_seed': not issues,
-        'ready_for_cleanup': bool(state is not None and not issues),
+        'ready_for_seed': not issues and pending_state is None,
+        'ready_for_cleanup': bool(
+            state is not None and not issues and pending_state is None
+        ),
         'boundaries': {
             'discord_mutation_applied': False,
             'command_registration_applied': False,
@@ -936,9 +1009,10 @@ def status_wider_beta_setup(
     reviewed = validate_reviewed_manifest(manifest)
     normalized_guild_id = _validate_profile(profile, guild_id)
     state = _read_state(profile)
+    pending_state = _read_pending_state(profile)
     records = _read_only_records(profile, normalized_guild_id, database_factory)
     return _status_value(
-        reviewed, profile, normalized_guild_id, records, state,
+        reviewed, profile, normalized_guild_id, records, state, pending_state,
         kind='wb1_3b_setup_status',
     )
 
@@ -952,9 +1026,10 @@ def plan_wider_beta_setup(
     reviewed = validate_reviewed_manifest(manifest)
     normalized_guild_id = _validate_profile(profile, guild_id)
     state = _read_state(profile)
+    pending_state = _read_pending_state(profile)
     records = _read_only_records(profile, normalized_guild_id, database_factory)
     result = _status_value(
-        reviewed, profile, normalized_guild_id, records, state,
+        reviewed, profile, normalized_guild_id, records, state, pending_state,
         kind='wb1_3b_setup_plan',
     )
     result['ready_for_live_apply'] = False
@@ -997,85 +1072,102 @@ def seed_wider_beta_setup(
         manifest: Mapping[str, Any],
         guild_id: int = beta_readiness.BETA_GUILD_ID,
         database_factory: Callable[[Any], Any] | None = None,
-        writer_check: Callable[[Any], None] = assert_beta_writer_stopped) -> dict[str, Any]:
+        writer_guard: Callable[[Any], Any] | None = None,
+        writer_check: Callable[[Any], None] | None = None) -> dict[str, Any]:
     reviewed = validate_reviewed_manifest(manifest)
     normalized_guild_id = _validate_profile(profile, guild_id)
-    writer_check(profile)
-    previous = _read_state(profile)
-
-    with _database_scope(profile, database_factory) as database:
-        with database.atomic():
-            _identity(database)
-            records = _read_records(database, normalized_guild_id)
-            issues = _compatibility_issues(records, normalized_guild_id)
-            if issues:
-                raise WiderBetaSetupConflictError('; '.join(issues))
-            if previous is not None:
-                _state_error_if_changed(
-                    previous, records, reviewed, normalized_guild_id
-                )
-
-            owned_houses: set[str] = set()
-            created_team_names: set[str] = set()
-            for house_name in EXPECTED_HOUSES:
-                if not records['houses'][house_name]:
-                    _insert_house(database, house_name)
-                    owned_houses.add(house_name)
-
-            # Houses must be committed in the same transaction before any
-            # team insert is attempted.
-            records = _read_records(database, normalized_guild_id)
-            for team_name, house_name, _role_id in EXPECTED_TEAMS:
-                found = records['teams'][team_name]
-                if found:
-                    continue
-                house_rows = records['houses'][house_name]
-                if len(house_rows) != 1:
-                    raise WiderBetaSetupConflictError(
-                        f'Cannot create team {team_name!r} without exactly one house '
-                        f'{house_name!r}.'
-                    )
-                _insert_team(
-                    database,
-                    normalized_guild_id,
-                    team_name,
-                    int(house_rows[0]['id']),
-                )
-                created_team_names.add(team_name)
-
-            records = _read_records(database, normalized_guild_id)
-            issues = _compatibility_issues(records, normalized_guild_id)
-            if issues:
-                raise WiderBetaSetupConflictError('; '.join(issues))
-            state = _build_state(
-                reviewed,
-                records,
-                previous,
-                normalized_guild_id,
-                owned_houses,
-                created_team_names,
-                created_at=(
-                    previous.get('created_at')
-                    if previous is not None
-                    else None
-                ),
+    with _mutation_writer_scope(
+            profile,
+            writer_guard=writer_guard,
+            writer_check=writer_check):
+        previous = _read_state(profile)
+        pending = _read_pending_state(profile)
+        if pending is not None:
+            raise WiderBetaSetupOwnershipError(
+                'Pending WB1.3b ownership evidence requires reconciliation; '
+                'seed will not overwrite recoverable evidence.'
             )
 
-    state_path = _write_state(profile, state)
-    result = {
-        'schema_version': SETUP_SCHEMA_VERSION,
-        'kind': 'wb1_3b_setup_seed_result',
-        'status': 'idempotent' if previous is not None else 'seeded',
-        'state_file': str(state_path),
-        'state': state,
-        'boundaries': {
-            'discord_mutation_applied': False,
-            'command_registration_applied': False,
-            'game_mutation_applied': False,
-            'elo_mutation_applied': False,
-        },
-    }
-    return result
+        with _database_scope(profile, database_factory) as database:
+            with database.atomic():
+                _identity(database)
+                records = _read_records(database, normalized_guild_id)
+                issues = _compatibility_issues(records, normalized_guild_id)
+                if issues:
+                    raise WiderBetaSetupConflictError('; '.join(issues))
+                if previous is not None:
+                    _state_error_if_changed(
+                        previous, records, reviewed, normalized_guild_id
+                    )
+
+                owned_houses: set[str] = set()
+                created_team_names: set[str] = set()
+                for house_name in EXPECTED_HOUSES:
+                    if not records['houses'][house_name]:
+                        _insert_house(database, house_name)
+                        owned_houses.add(house_name)
+
+                # Houses must be committed in the same transaction before any
+                # team insert is attempted.
+                records = _read_records(database, normalized_guild_id)
+                for team_name, house_name, _role_id in EXPECTED_TEAMS:
+                    found = records['teams'][team_name]
+                    if found:
+                        continue
+                    house_rows = records['houses'][house_name]
+                    if len(house_rows) != 1:
+                        raise WiderBetaSetupConflictError(
+                            f'Cannot create team {team_name!r} without exactly one house '
+                            f'{house_name!r}.'
+                        )
+                    _insert_team(
+                        database,
+                        normalized_guild_id,
+                        team_name,
+                        int(house_rows[0]['id']),
+                    )
+                    created_team_names.add(team_name)
+
+                records = _read_records(database, normalized_guild_id)
+                issues = _compatibility_issues(records, normalized_guild_id)
+                if issues:
+                    raise WiderBetaSetupConflictError('; '.join(issues))
+                state = _build_state(
+                    reviewed,
+                    records,
+                    previous,
+                    normalized_guild_id,
+                    owned_houses,
+                    created_team_names,
+                    created_at=(
+                        previous.get('created_at')
+                        if previous is not None
+                        else None
+                    ),
+                )
+                # This publication is intentionally inside the open DB
+                # transaction.  A filesystem fault rolls back all inserts;
+                # commit failure leaves only non-authoritative pending proof.
+                _write_state(profile, state)
+
+        try:
+            state_path = _publish_state(profile)
+        except WiderBetaSetupError:
+            raise
+        result = {
+            'schema_version': SETUP_SCHEMA_VERSION,
+            'kind': 'wb1_3b_setup_seed_result',
+            'status': 'idempotent' if previous is not None else 'seeded',
+            'state_file': str(state_path),
+            'state': state,
+            'boundaries': {
+                'discord_mutation_applied': False,
+                'command_registration_applied': False,
+                'game_mutation_applied': False,
+                'elo_mutation_applied': False,
+            },
+        }
+        return result
 
 
 def _delete_exact(database: Any, table: str, record_id: int) -> None:
@@ -1099,86 +1191,197 @@ def cleanup_wider_beta_setup(
         guild_id: int = beta_readiness.BETA_GUILD_ID,
         confirmed: bool,
         database_factory: Callable[[Any], Any] | None = None,
-        writer_check: Callable[[Any], None] = assert_beta_writer_stopped) -> dict[str, Any]:
+        writer_guard: Callable[[Any], Any] | None = None,
+        writer_check: Callable[[Any], None] | None = None) -> dict[str, Any]:
     if not confirmed:
         raise WiderBetaSetupConfirmationError(
             'WB1.3b cleanup requires the exact --confirm option.'
         )
     reviewed = validate_reviewed_manifest(manifest)
     normalized_guild_id = _validate_profile(profile, guild_id)
-    writer_check(profile)
-    state = _read_state(profile)
-    if state is None:
-        raise WiderBetaSetupOwnershipError(
-            'WB1.3b cleanup requires durable ownership evidence from seed.'
-        )
-
-    with _database_scope(profile, database_factory) as database:
-        with database.atomic():
-            _identity(database)
-            records = _read_records(database, normalized_guild_id)
-            _state_error_if_changed(
-                state, records, reviewed, normalized_guild_id
+    with _mutation_writer_scope(
+            profile,
+            writer_guard=writer_guard,
+            writer_check=writer_check):
+        state = _read_state(profile)
+        pending = _read_pending_state(profile)
+        if pending is not None:
+            raise WiderBetaSetupOwnershipError(
+                'Pending WB1.3b ownership evidence requires reconciliation; '
+                'cleanup will not act on it.'
             )
-            issues = _compatibility_issues(records, normalized_guild_id)
-            if issues:
-                raise WiderBetaSetupOwnershipError('; '.join(issues))
+        if state is None:
+            raise WiderBetaSetupOwnershipError(
+                'WB1.3b cleanup requires durable ownership evidence from seed.'
+            )
 
-            owned_team_ids = {
-                int(item['id']) for item in state['teams'] if item['owned']
-            }
-            owned_house_ids = {
-                int(item['id']) for item in state['houses'] if item['owned']
-            }
-            for item in state['teams']:
-                if not item['owned']:
-                    continue
-                record = records['teams'][item['name']][0]
-                usage = record['usage']
-                if usage['player_count'] or usage['game_side_count']:
-                    raise WiderBetaSetupOwnershipError(
-                        f'Team {item["name"]!r} is now used by players or game sides.'
-                    )
+        with _database_scope(profile, database_factory) as database:
+            with database.atomic():
+                _identity(database)
+                records = _read_records(database, normalized_guild_id)
+                _state_error_if_changed(
+                    state, records, reviewed, normalized_guild_id
+                )
+                issues = _compatibility_issues(records, normalized_guild_id)
+                if issues:
+                    raise WiderBetaSetupOwnershipError('; '.join(issues))
 
-            for item in state['houses']:
-                if not item['owned']:
-                    continue
-                record = records['houses'][item['name']][0]
-                usage = record['usage']
-                attached = set(usage['team_ids'])
-                if attached - owned_team_ids:
-                    raise WiderBetaSetupOwnershipError(
-                        f'House {item["name"]!r} is now shared by an unowned team.'
-                    )
-                if usage['preference_count'] or usage['bid_count']:
-                    raise WiderBetaSetupOwnershipError(
-                        f'House {item["name"]!r} has subsequent persisted usage.'
-                    )
+                owned_team_ids = {
+                    int(item['id']) for item in state['teams'] if item['owned']
+                }
+                owned_house_ids = {
+                    int(item['id']) for item in state['houses'] if item['owned']
+                }
+                for item in state['teams']:
+                    if not item['owned']:
+                        continue
+                    record = records['teams'][item['name']][0]
+                    usage = record['usage']
+                    if usage['player_count'] or usage['game_side_count']:
+                        raise WiderBetaSetupOwnershipError(
+                            f'Team {item["name"]!r} is now used by players or game sides.'
+                        )
 
-            # Delete children first.  These are the only two mutation tables
-            # in this operation; game, gameside, lineup, player, and ELO rows
-            # are never updated or deleted.
-            for item in sorted(state['teams'], key=lambda value: int(value['id']), reverse=True):
-                if item['owned']:
-                    _delete_exact(database, 'team', int(item['id']))
-            for item in sorted(state['houses'], key=lambda value: int(value['id']), reverse=True):
-                if item['owned']:
-                    _delete_exact(database, 'house', int(item['id']))
+                for item in state['houses']:
+                    if not item['owned']:
+                        continue
+                    record = records['houses'][item['name']][0]
+                    usage = record['usage']
+                    attached = set(usage['team_ids'])
+                    if attached - owned_team_ids:
+                        raise WiderBetaSetupOwnershipError(
+                            f'House {item["name"]!r} is now shared by an unowned team.'
+                        )
+                    if usage['preference_count'] or usage['bid_count']:
+                        raise WiderBetaSetupOwnershipError(
+                            f'House {item["name"]!r} has subsequent persisted usage.'
+                        )
 
-    _remove_state(profile)
-    return {
-        'schema_version': SETUP_SCHEMA_VERSION,
-        'kind': 'wb1_3b_setup_cleanup_result',
-        'status': 'cleaned',
-        'removed_team_ids': sorted(owned_team_ids),
-        'removed_house_ids': sorted(owned_house_ids),
-        'boundaries': {
-            'discord_mutation_applied': False,
-            'command_registration_applied': False,
-            'game_mutation_applied': False,
-            'elo_mutation_applied': False,
-        },
-    }
+                # Delete children first.  These are the only two mutation tables
+                # in this operation; game, gameside, lineup, player, and ELO rows
+                # are never updated or deleted.
+                for item in sorted(state['teams'], key=lambda value: int(value['id']), reverse=True):
+                    if item['owned']:
+                        _delete_exact(database, 'team', int(item['id']))
+                for item in sorted(state['houses'], key=lambda value: int(value['id']), reverse=True):
+                    if item['owned']:
+                        _delete_exact(database, 'house', int(item['id']))
+
+        # The DB delete is committed, but the lock remains held while stale
+        # ownership evidence is removed.  If this fails, do not claim success;
+        # reconciliation can verify the rows are gone and remove the evidence.
+        _remove_state(profile)
+        return {
+            'schema_version': SETUP_SCHEMA_VERSION,
+            'kind': 'wb1_3b_setup_cleanup_result',
+            'status': 'cleaned',
+            'removed_team_ids': sorted(owned_team_ids),
+            'removed_house_ids': sorted(owned_house_ids),
+            'boundaries': {
+                'discord_mutation_applied': False,
+                'command_registration_applied': False,
+                'game_mutation_applied': False,
+                'elo_mutation_applied': False,
+            },
+        }
+
+
+def _validate_reconciliation_state(
+        state: Mapping[str, Any],
+        records: Mapping[str, Any],
+        manifest: Mapping[str, Any],
+        guild_id: int) -> None:
+    """Allow evidence removal only after cleanup is externally verified."""
+
+    _validate_state_shape(state, manifest, guild_id)
+    for item in state['houses']:
+        found = records['houses'][item['name']]
+        if item['owned']:
+            if found:
+                raise WiderBetaSetupOwnershipError(
+                    f'Owned house {item["name"]!r} still exists; evidence is not reconcilable.'
+                )
+            continue
+        if len(found) != 1 or int(found[0]['id']) != int(item['id']):
+            raise WiderBetaSetupOwnershipError(
+                f'Unowned house {item["name"]!r} no longer matches evidence.'
+            )
+        if _house_baseline(found[0]) != dict(item['baseline']):
+            raise WiderBetaSetupOwnershipError(
+                f'Unowned house {item["name"]!r} changed after cleanup.'
+            )
+    for item in state['teams']:
+        found = records['teams'][item['name']]
+        if item['owned']:
+            if found:
+                raise WiderBetaSetupOwnershipError(
+                    f'Owned team {item["name"]!r} still exists; evidence is not reconcilable.'
+                )
+            continue
+        if len(found) != 1 or int(found[0]['id']) != int(item['id']):
+            raise WiderBetaSetupOwnershipError(
+                f'Unowned team {item["name"]!r} no longer matches evidence.'
+            )
+        if _baseline(found[0]) != dict(item['baseline']):
+            raise WiderBetaSetupOwnershipError(
+                f'Unowned team {item["name"]!r} changed after cleanup.'
+            )
+
+
+def reconcile_cleanup_evidence(
+        *,
+        profile: Any,
+        manifest: Mapping[str, Any],
+        guild_id: int = beta_readiness.BETA_GUILD_ID,
+        confirmed: bool,
+        database_factory: Callable[[Any], Any] | None = None,
+        writer_guard: Callable[[Any], Any] | None = None,
+        writer_check: Callable[[Any], None] | None = None) -> dict[str, Any]:
+    """Clear stale cleanup evidence only after a read-only absence check."""
+
+    if not confirmed:
+        raise WiderBetaSetupConfirmationError(
+            'WB1.3b evidence reconciliation requires the exact --confirm option.'
+        )
+    reviewed = validate_reviewed_manifest(manifest)
+    normalized_guild_id = _validate_profile(profile, guild_id)
+    with _mutation_writer_scope(
+            profile,
+            writer_guard=writer_guard,
+            writer_check=writer_check):
+        state = _read_state(profile)
+        pending = _read_pending_state(profile)
+        if pending is not None:
+            raise WiderBetaSetupOwnershipError(
+                'Pending seed evidence is not cleanup evidence; retain it for '
+                'manual commit-failure reconciliation.'
+            )
+        if state is None:
+            raise WiderBetaSetupOwnershipError(
+                'No stale WB1.3b cleanup evidence exists to reconcile.'
+            )
+        with _database_scope(profile, database_factory) as database:
+            with database.atomic():
+                database.execute_sql('SET TRANSACTION READ ONLY')
+                _identity(database)
+                records = _read_records(database, normalized_guild_id)
+                _validate_reconciliation_state(
+                    state, records, reviewed, normalized_guild_id
+                )
+        _remove_state(profile)
+        return {
+            'schema_version': SETUP_SCHEMA_VERSION,
+            'kind': 'wb1_3b_setup_cleanup_reconciliation_result',
+            'status': 'reconciled',
+            'state_file_removed': True,
+            'boundaries': {
+                'database_mutation_applied': False,
+                'discord_mutation_applied': False,
+                'command_registration_applied': False,
+                'game_mutation_applied': False,
+                'elo_mutation_applied': False,
+            },
+        }
 
 
 __all__ = [
@@ -1187,6 +1390,7 @@ __all__ = [
     'EXPECTED_TEAM_ROLE_IDS',
     'EXPECTED_TEAMS',
     'SETUP_SCHEMA_VERSION',
+    'SETUP_PENDING_STATE_FILENAME',
     'SETUP_STATE_FILENAME',
     'WiderBetaSetupConfirmationError',
     'WiderBetaSetupConflictError',
@@ -1195,6 +1399,7 @@ __all__ = [
     'WiderBetaSetupSafetyError',
     'assert_beta_writer_stopped',
     'cleanup_wider_beta_setup',
+    'reconcile_cleanup_evidence',
     'plan_wider_beta_setup',
     'seed_wider_beta_setup',
     'status_wider_beta_setup',
