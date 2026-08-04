@@ -598,7 +598,11 @@ class TimezoneAdapterAndCommandTests(unittest.IsolatedAsyncioTestCase):
         ):
             await prefix_command.callback(cog, ctx, 'GMT-4:45')
         run.assert_awaited_once_with(request_value)
-        self.assertIn('UTC-04:45', ctx.send.await_args.args[0])
+        message = ctx.send.await_args.args[0]
+        self.assertIn('UTC-04:45', message)
+        self.assertIn('account-wide fixed UTC offset', message)
+        self.assertIn('Actor', message)
+        self.assertIn('Target', message)
 
 
 if __name__ == '__main__':

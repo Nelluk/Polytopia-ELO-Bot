@@ -212,9 +212,10 @@ def prefix_success_message(request, result) -> str:
     """Keep the established public prefix confirmation shape, normalized."""
 
     return (
+        f'{result.actor_description} set the account-wide fixed UTC offset '
+        f'for {result.target_description} to **{_offset_text(result)}**. '
         f'Player **{discord.utils.escape_markdown(result.target_name, as_needed=True)}** '
-        'updated in system with timezone offset **'
-        f'{_offset_text(result)}**.'
+        'updated in system.'
     )
 
 
