@@ -4,9 +4,9 @@ Last updated: 2026-08-03
 
 Status: Active
 
-Current branch at last update: `codex/wb1-3b-wider-beta-setup`
+Current branch at last update: `codex/p7-leaderboard-filter-modal`
 
-Source task: `thread://019fae66-8e3a-7a50-9a0f-d3d7160d2287`
+Source task: `thread://019fb4cd-0c73-7700-9988-141f6622d6f7`
 
 ## Purpose
 
@@ -4488,6 +4488,77 @@ pending.
 Next action: smoke the promoted player and activity leaderboards during the
 combined P7.6/P7.7 beta session.
 
+### P7.6a — Player leaderboard filter-modal correction
+
+Status: **Implemented locally; pending Tier-2 review and integration**
+
+Risk tier: **Tier 2 presentation correction**. This unit changes only the
+public Components v2 player-leaderboard presentation and its in-memory
+interaction state. It does not change command registration, permissions,
+workers, DTOs, queries, transactions, or prefix parsing.
+
+Branch/base: `codex/p7-leaderboard-filter-modal` from exact clean accumulation
+checkpoint `045a1542cf0ec9474f04fd4e2f3248eddfae9709`.
+
+Objective: correct the promoted `/leaderboard players` workspace after beta
+feedback made the legacy 16-option inline selector hard to use and made
+changes in ELO/W–L output difficult to interpret.
+
+In scope:
+
+- Reframe the single inline select as clearly labeled **Common filters** while
+  retaining the useful presets and current/default option marking.
+- Replace the legacy advanced select with an **Advanced filters...** button
+  that opens a requester-bound modal containing independent Scope, Rating,
+  Era, and Population RadioGroup fields.
+- Initialize all modal defaults from the live workspace, map every legacy
+  combination to the existing bounded loader/cache key, reset successful
+  changes to page one, and roll back filter/page/result state after a load
+  failure.
+- Make the active Scope, Rating, Era, and Population explicit in the public
+  summary on every rebuilt page. The summary also states that Rating and
+  Population change the view without redefining W–L, and the page button now
+  says **Jump to page** while preserving its existing modal behavior.
+
+Out of scope:
+
+- Worker/query changes to ELO, records, scope membership, global-server
+  inclusion, or the seeded showcase data; global seeded rows showing `0–0`
+  remain a separate data/query/fixture unit.
+- New slash arguments, command registrations, aliases, permission paths,
+  database access, schema/data changes, beta launch, command synchronization,
+  dependency changes, or production operations.
+
+Implementation evidence:
+
+- `modules/leaderboard_v2.py` now renders exactly one inline select, one
+  advanced-filter button, the existing active/all quick-toggle, pagination,
+  page jump, and My rank controls. The advanced modal uses four modern
+  Components v2 `RadioGroup` fields with the legacy labels/options and
+  current-value defaults.
+- Modal submission rechecks requester identity and workspace expiry, then
+  reuses `CachedRequesterLayoutView.load_key()` and the existing public edit
+  path. Cached selections avoid the loader; uncached selections use the
+  existing bounded player-leaderboard loader. Successful selections reset to
+  page one; failures stay private and restore the previous public state.
+- `$lb`, `$leaderboard`, `$leaderboards`, `$lbglobal`, and `$lbg` retain their
+  parser/aliases, `/leaderboard players` remains no-option, and no worker or
+  leaderboard DTO/query file changed. No compatibility-ledger entry is
+  required.
+
+Validation evidence for implementation/tests checkpoint `c78c1848db6a8992e5024dab96cc622a0ee26d31`:
+
+- Focused leaderboard/component/taxonomy suite: **44 passed**.
+- Complete offline discovery: **728 passed, 19 intentional database
+  integration skips**.
+- Explicit development-profile compilation and `git diff --check`: passed.
+- No gated PostgreSQL run was needed because this is presentation-only. No
+  beta, Discord inspection/synchronization, production, dependency, push, or
+  merge action occurred.
+
+Next action: complete the Tier-2 full-branch review, then integrate the
+implementation and this evidence commit only with explicit approval.
+
 ### P7.7 — Unified player profile and game-history workspace
 
 Status: **Complete; integrated into the accumulation branch**
@@ -6939,6 +7010,23 @@ writer and prevents a planning snapshot from becoming an implicit rollout.
   service-template verification passed.
 - No service lifecycle, process audit/stop, Discord, command sync, database,
   sudo, production, dependency, push, or merge action occurred.
+
+### 2026-08-03 — P7.6a player leaderboard filter-modal correction implemented locally
+
+- Implemented the Tier-2 presentation correction on
+  `codex/p7-leaderboard-filter-modal` from exact clean base
+  `045a1542cf0ec9474f04fd4e2f3248eddfae9709`; implementation/tests checkpoint
+  is `c78c1848db6a8992e5024dab96cc622a0ee26d31`.
+- Replaced the inline 16-combination advanced selector with a requester-bound
+  four-RadioGroup modal, retained Common filters/current marking and the
+  active/all toggle, made all four active dimensions explicit in the public
+  summary, and clarified the page-jump button copy.
+- Focused leaderboard/component/taxonomy validation passed **44 tests**;
+  complete offline discovery passed **728 tests with 19 intentional database
+  integration skips**. Compilation and diff checks passed.
+- The global seeded-row `0–0` behavior is explicitly deferred to a separate
+  data/query/fixture unit. No worker/query, database, beta, Discord sync,
+  production, dependency, push, or merge action occurred.
 
 ### 2026-08-03 — WB1.2 durable beta operations implemented locally
 
