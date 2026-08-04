@@ -214,6 +214,30 @@ Do not stack a new unit on an unreviewed branch merely to keep Luna busy.
 Adjacent low-risk units may share one beta session, but their commits,
 evidence, and integration decisions remain separate.
 
+## Post-beta-push handoff
+
+After every beta code push/restart, command synchronization, or combined beta
+release, Sol must proactively end the operator handoff with this section:
+
+```text
+### What can we do next?
+
+Recommended: <one bounded unit and why it is ready>
+Also ready: <one useful alternative, or "none">
+Waiting on: <feedback, approval, validation, or "nothing">
+```
+
+Do not wait for Nelluk to ask what comes next. The recommendation must be
+derived from the current roadmap, integrated checkpoint, open beta feedback,
+and active worker state. Do not recommend stacking on an unreviewed unit or
+imply that a separately gated database, Discord, production, dependency, or
+deployment action is already authorized. If no safe unit is selectable, say
+so explicitly and name the exact condition that will make one selectable.
+
+This section belongs in the Sol/operator handoff, not automatically in the
+public Discord release announcement. Public announcements retain the bounded
+release summary and smoke checklist defined by the beta-operations runbook.
+
 ## Risk-tiered review
 
 ### Tier 1 — lightweight integration review
@@ -285,6 +309,7 @@ Known limitations:
 Roadmap sections updated:
 Current worktree status:
 Recommended integration action:
+Post-beta `What can we do next?` recommendation (when applicable):
 ```
 
 ## Prompt header for Luna

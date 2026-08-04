@@ -113,6 +113,35 @@ retention or redaction operation; operators must handle the development log
 root as sensitive data and use an approved filesystem-level retention process
 if required. The reader intentionally cannot delete or rewrite evidence.
 
+## Release attribution and reporter notification
+
+When an accepted report directly causes a beta correction, use the
+authoritative JSONL record to connect the release to its reporter:
+
+1. read the exact `report_id` through the read-only utility;
+2. verify the report's guild, command/workflow, and accepted fix match the
+   reviewed release;
+3. use only the stored integer `requester_id` as the release manifest's
+   `notify_user_ids` value;
+4. add a smoke-test item that asks the reporter to recheck the corrected
+   behavior; and
+5. after delivery, record the report ID and release/message IDs in roadmap
+   evidence without copying private report prose or the requester ID.
+
+This is the default for direct report-driven fixes and allows the reporter to
+see that their feedback was acted on. It is not a general-purpose mention
+mechanism. Do not notify someone for a merely related change, infer identity
+from a display name, reveal report contents publicly, or mention a requester
+from another guild. Deduplicate multiple reports from one requester. The
+release system permits at most five exact user IDs; if more reporters are
+linked, stop and record a deliberate notification disposition rather than
+silently dropping or inventing mentions.
+
+The public announcement identifies the reviewed users only through Discord
+mentions and describes the released behavior through its bounded summary and
+smoke checklist. The private `admin-spam` mirror and authoritative JSONL
+remain the places for report details.
+
 ## Validation and boundaries
 
 Focused offline validation is:

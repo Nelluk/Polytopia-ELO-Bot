@@ -207,6 +207,23 @@ ignored prepared manifest and release state are the immediate operational
 record. If a tracked correction is necessary before delivery, prepare a new
 manifest only after the corrected clean checkpoint is running.
 
+### Required post-push operator handoff
+
+After every beta push/restart or command apply, report the running checkpoint,
+process/identity result, synchronization scope when applicable, announcement
+disposition, and smoke-test owner. End the handoff with the literal heading
+`What can we do next?` and provide:
+
+- one roadmap-backed recommended bounded unit;
+- one alternate unit when another is genuinely ready; and
+- anything still waiting on tester feedback, approval, or validation.
+
+This is required even when the push is intentionally unannounced or no
+personal smoke test is planned. If no further unit is safe to start, state the
+blocking condition instead of omitting the section. The section is an
+operator-facing planning aid and is not added to the Discord announcement
+unless its content is independently useful to testers.
+
 ## Schema-bearing beta releases
 
 A schema unit uses a stopped-writer window and must include more than the
@@ -285,8 +302,25 @@ may set it to `true`, but the role gate below must already be complete.
 An update may additionally list up to five explicitly reviewed Discord user
 IDs in `notify_user_ids`. Only those exact users are mention-enabled for that
 one post; other user mentions, all unlisted roles, `@everyone`, and `@here`
-remain blocked. Keep the list empty unless the operator has explicitly
-approved notifying the named users for that release.
+remain blocked.
+
+When the release directly resolves an accepted `/staffhelp` report, reporter
+notification is the default disposition. Read the authoritative report with
+the feedback utility, verify that its guild and affected behavior match the
+release, and copy its stored integer `requester_id` into `notify_user_ids`.
+Never derive a mention from display text, free-form report content, an
+attachment, or a manually typed username. Deduplicate reporters when several
+reports describe the same fix. The release checklist should include the
+specific fixed behavior the notified reporter is being asked to recheck.
+
+The standing reporter-notification policy is sufficient approval when all of
+those conditions are met; a discretionary notification unrelated to an
+authoritative accepted report still requires explicit operator approval.
+Before delivery, the operator reviews the exact mentions in the prepared
+manifest. Keep the list empty and record a reason when notification would be
+unsafe, unrelated, ambiguous, outside the release guild, or beyond the
+five-user bound. A testers-role ping does not silently substitute for omitted
+direct attribution.
 
 Prepare a reviewed release without Discord or PostgreSQL:
 
@@ -366,6 +400,12 @@ The private `/staffhelp` mirror remains independently fixed to `admin-spam`
 the WB1.1 post-write mirror. It is not an input to, or fallback destination
 for, the public release announcement in `todo-and-changelog`
 (`481779940124000256`).
+
+For a feedback-driven release, record the contributing `report_id` values and
+the final release ID/message ID in the roadmap progress evidence. Do not copy
+private report prose or requester IDs into tracked documentation. This gives
+the project an auditable report-to-release link while the ignored prepared
+manifest and release state retain the operational mention details.
 
 Immediately after every service start or restart, wait for the authenticated
 beta identity and run the read-only `status` operation before attempting

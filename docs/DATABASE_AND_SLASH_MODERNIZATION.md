@@ -7213,7 +7213,42 @@ preparation through delivery; ignored release state is the immediate runtime
 authority, and the roadmap records the result at the next appropriate
 checkpoint.
 
+### D-041 — Make next-work guidance and reporter attribution automatic
+
+Status: **Accepted**
+
+After every beta push, restart, command apply, or combined release, the Sol
+operator handoff ends with a literal `What can we do next?` section. It names
+one roadmap-backed recommended bounded unit, one alternate when available,
+and anything waiting on feedback, approval, or validation. If nothing is safe
+to start, it names the exact gate instead. Nelluk should not need to ask for
+the next selectable work after each beta operation.
+
+When a beta release directly resolves accepted `/staffhelp` feedback, the
+default is to notify its reporter through the existing bounded
+`notify_user_ids` release-manifest field. The ID must come from the
+authoritative report's stored `requester_id` after matching report, guild, and
+released behavior; display names and free-form text are never identity
+sources. The smoke checklist asks for the corrected behavior to be retested.
+Tracked roadmap evidence links report IDs to release/message IDs without
+copying private report prose or requester IDs. Ambiguous, unsafe, cross-guild,
+or over-limit cases require an explicit recorded disposition rather than a
+silent mention or omission.
+
 ## Progress log
+
+### 2026-08-04 — Post-push next-work and reporter notification standardized
+
+- Required every beta-operation handoff to include a proactive
+  `What can we do next?` section with a recommendation, optional alternate,
+  and outstanding gate.
+- Made direct reporter notification the default for beta releases that
+  resolve accepted `/staffhelp` feedback, using only the authoritative
+  report-to-requester ID mapping and the existing exact-user mention gate.
+- Required a behavior-specific smoke item for notified reporters and a
+  privacy-preserving roadmap link from report ID to release/message ID.
+- Kept this as process/documentation work: no release schema, Discord command,
+  beta runtime, database, fixture, or production behavior changed.
 
 ### 2026-08-04 — P8.5 native team creation selected
 
