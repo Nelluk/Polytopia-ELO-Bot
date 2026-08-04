@@ -470,9 +470,19 @@ async def run_bounded_team_worker(
         task = asyncio.current_task()
         while not future.done():
             if task is not None:
-                task.uncancel()
+                # A second cancellation may arrive while the worker is
+                # draining.  Clear every pending request before yielding so
+                # the event loop can deliver the wrapped thread future's
+                # completion callback instead of spinning on shield().
+                while task.cancelling():
+                    task.uncancel()
             try:
-                await asyncio.shield(future)
+                # Do not await shield(future) here: on some Python versions a
+                # just-completed concurrent future can race its asyncio
+                # callback and immediately re-inject CancelledError.  A tiny
+                # cooperative yield preserves responsiveness and lets the
+                # callback mark the future done.
+                await asyncio.sleep(0)
             except asyncio.CancelledError:
                 continue
         future.result()

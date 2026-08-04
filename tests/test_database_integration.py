@@ -523,6 +523,79 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
         finally:
             cleanup((target_id, rollback_target_id))
 
+    def test_team_creation_worker_commits_and_rolls_back_real_graph(self):
+        """Exercise the new Team+GameLog graph under the unchanged gate."""
+
+        from modules import team_creation_workers
+
+        guild_id = self.profile.allowed_guild_ids[0]
+        suffix = uuid.uuid4().hex
+        actor_id = self.settings.owner_id
+        team_name = f'P85 Team {suffix}'
+        rollback_name = f'P85 Rollback {suffix}'
+
+        def make_request(name):
+            return team_creation_workers.TeamCreationRequest(
+                guild_id=guild_id,
+                requester_id=actor_id,
+                requester_is_mod=True,
+                team_enabled=True,
+                name=name,
+                requester_description=f'**P85 Integration Actor** (`{actor_id}`)',
+                native=True,
+                invoked_with='integration',
+            )
+
+        try:
+            result = asyncio.run(
+                team_creation_workers.run_team_creation(
+                    make_request(team_name),
+                )
+            )
+            self.assertEqual(result.guild_id, guild_id)
+            self.assertEqual(result.team_name, team_name)
+            saved = self.models.Team.get_by_id(result.team_id)
+            self.assertEqual(saved.name, team_name)
+            self.assertEqual(saved.guild_id, guild_id)
+            self.assertFalse(saved.is_hidden)
+            self.assertEqual(
+                self.models.GameLog.select().where(
+                    self.models.GameLog.guild_id == guild_id,
+                    self.models.GameLog.message.contains(team_name),
+                ).count(),
+                1,
+            )
+
+            with mock.patch.object(
+                self.models.GameLog,
+                'write',
+                side_effect=peewee.OperationalError('P85 audit failure'),
+            ):
+                with self.assertRaises(peewee.OperationalError):
+                    asyncio.run(
+                        team_creation_workers.run_team_creation(
+                            make_request(rollback_name),
+                        )
+                    )
+            self.assertIsNone(
+                self.models.Team.get_or_none(
+                    (self.models.Team.guild_id == guild_id)
+                    & (self.models.Team.name == rollback_name)
+                )
+            )
+        finally:
+            # The committed success is intentionally cleaned up even if a
+            # later assertion fails; the audit-failure case is transaction
+            # rolled back by the worker itself.
+            with self.models.db.atomic():
+                self.models.GameLog.delete().where(
+                    self.models.GameLog.message.contains(suffix)
+                ).execute()
+                self.models.Team.delete().where(
+                    (self.models.Team.guild_id == guild_id)
+                    & self.models.Team.name.contains(suffix)
+                ).execute()
+
     def test_game_search_workspace_reads_real_schema(self):
         from modules import game_search_workers
 

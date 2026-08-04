@@ -406,7 +406,7 @@ operator repair commands stay out of the public tree.
 | `getname` | `/player show` | Fold the useful canonical name into the normal profile workspace rather than preserving a name/code-specific lookup |
 | `settime` | `/player timezone` | P6.2 implemented locally: native normalized UTC±HH:MM input, bounded 15-minute autocomplete, explicit clear, and a shared worker-backed prefix adapter retaining self/staff-target grammar; schema gate and beta smoke remain pending |
 | `team` | `/team show` | Strong candidate |
-| `team_add` | `/team create` | Redesign staff options, including junior-team behavior |
+| `team_add` | `/team create` | Implemented locally in P8.5 with one required name option, the effective mod plus `allow_teams` boundary, a worker-local Team+GameLog transaction, exact-role membership guidance, and private validation/conflict failures; `$team_add` and `$team_add_junior` are intentionally retired because the alias has no distinct junior behavior |
 | `team_emoji` | `/team emoji` | Implemented locally in P8.1: view by default; optional emoji/clear edits with the preserved team-enabled and mod boundary; beta not run |
 | `team_image` | `/team image` | Implemented locally in P8.3: public effective-image read, typed attachment replacement, and explicit clear; direct URL replacement remains on the retained prefix path |
 | `team_name` | `/team name` | Implemented locally in P8.2: public read/actor-attributed edit, legacy five-character and unique-name boundary, and an explicit exact-role rename warning |
@@ -660,6 +660,48 @@ durable beta is running; the review task must not stop, restart, inspect, or
 otherwise disturb that beta. Development Houses intentionally have no
 Discord House roles, so live role reconciliation smoke remains a separately
 approved fixture/oversight step.
+
+#### P8.5 `/team create` implementation state
+
+The code-only implementation registers `/team create` under the existing
+default-deny `team` capability/root with exactly one required string option,
+`name`. The input is trimmed and bounded to Discord's 1–100-character role
+name boundary; empty, unsafe/invisible-control, and reserved broadcast names
+remain private validation failures. The native interaction preserves the
+effective mod plus `allow_teams` boundary both before defer and from the
+captured primitive snapshot in the worker.
+
+`$team_add` and `$team_add_junior` are intentionally retired by removing
+their registrations. The alias has no distinct junior behavior, so the native
+command deliberately has no `junior` option. There is no compatibility
+adapter. The public committed success identifies the actor and Team, explains
+that an exact matching Discord role is the existing membership convention,
+and points staff to the focused `/team emoji`, `/team image`, `/team name`,
+`/team server`, `/team house`, and `/team tier` commands. Validation,
+permission, duplicate/conflict, and database failures remain private.
+
+The worker uses frozen primitive request/result DTOs and the existing bounded
+team executor. It opens a worker-local Peewee connection and keeps exactly
+one synchronous `db.atomic()` around `Team(name, guild_id, is_hidden=False)`
+with model defaults plus the actual-guild actor-attributed `GameLog`. Unique
+constraint failures cover pre-existing duplicates and concurrent races; audit
+failure rolls the Team back. No Discord await or role/channel/House/tier/
+emoji/image/server/player/ELO/fixture effect occurs in that transaction or
+after a failed operation. Cancellation drains without blocking the event
+loop.
+
+Implementation/tests checkpoint: `eafe219` on `codex/p8-5-team-create`, based
+on exact clean base `d406dee5478360a097e381b5aff20e24d9b5fb9b`. Focused P8
+validation passed 89 tests; complete offline discovery passed 789 tests with
+21 intentional gated skips. The unchanged gated Team+GameLog real-schema
+commit/rollback test was added but not run while the durable beta remains
+active. No command synchronization, beta/service lifecycle action,
+PostgreSQL/production access, dependency installation, push, or merge is
+implied by this code-only checkpoint.
+
+This is compatibility ledger C-011: the prefix retirement is intentional and
+requires no native junior replacement. The stopped-writer schema gate and any
+native beta sync/smoke remain separate Tier-3 review actions.
 
 #### Player leaderboard interaction matrix
 
