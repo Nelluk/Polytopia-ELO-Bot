@@ -457,17 +457,17 @@ check:
 - P4.2d roadmap evidence: `e1a0959`; accumulation merge: `7c2269b`.
 
 Current unit: **WB1.3a read-only wider-beta readiness inventory and desired-state
-planning — implemented locally; Tier-3 oversight review pending.**
+planning — Complete; live snapshot capture remains separately gated.**
 
 WB1.3a implementation/tests correction checkpoint: `b19a71c` on branch
 `codex/wb1-3a-beta-readiness-inventory`, based on the exact clean
 `codex/database-slash-modernization` checkpoint
-`10f57eac38a4845d8b776880a3e7fdf3ad2953d7`. Its separate documentation and
-roadmap checkpoint is pending. No live Discord inventory, service lifecycle
-action, command synchronization, invitation, fixture mutation, production
-action, dependency installation, push, or merge occurred. A separately gated
-read-only database inventory test was run against `polytopia_dev` as
-`polybot_dev` after independent profile confirmation.
+`10f57eac38a4845d8b776880a3e7fdf3ad2953d7`. Documentation/correction
+checkpoint: `26c3c96`; accumulation merge: `e0fe2ae`. No live Discord
+inventory, service lifecycle action, command synchronization, invitation,
+fixture mutation, production action, dependency installation, or push
+occurred. A separately gated read-only database inventory test was run against
+`polytopia_dev` as `polybot_dev` after independent profile confirmation.
 
 WB1.1 was integrated into `codex/database-slash-modernization` as merge
 `1c8ffe0`. Its implementation branch was
@@ -5521,7 +5521,7 @@ service, guild, or database is in scope.
 
 #### WB1.3a — Read-only readiness inventory and desired-state planning
 
-Status: **Implemented locally; Tier-3 oversight review pending**
+Status: **Complete; integrated as `e0fe2ae`; live snapshot capture pending**
 
 Branch/base: `codex/wb1-3a-beta-readiness-inventory` from the exact clean
 accumulation checkpoint `10f57eac38a4845d8b776880a3e7fdf3ad2953d7`.
@@ -5599,10 +5599,12 @@ Known limitations and next action:
 - The current local template intentionally contains unresolved decisions for
   `tools_support`, team/house names and bindings, cleanup/rollback ownership,
   and invitation approval.
-- Next action: perform the Tier-3 oversight review of the complete branch and
-  the roadmap/runbook checkpoint. Only after that review may a separately
-  approved live inventory/apply unit use the precise procedure in
-  `docs/DEVELOPMENT_BETA_READINESS.md`.
+- Next action: after explicit approval, capture the current read-only Discord
+  and development-database snapshots using the precise procedure in
+  `docs/DEVELOPMENT_BETA_READINESS.md`, then review the generated diff before
+  choosing or applying team/house names, role bindings, `tools_support`, or
+  invitation policy. Snapshot capture is inventory only and is not approval
+  for any live apply action.
 
 ## P9 — Production rollout and prefix lifecycle
 
@@ -6408,6 +6410,24 @@ separate explicit reviewed unit. This preserves the single development beta
 writer and prevents a planning snapshot from becoming an implicit rollout.
 
 ## Progress log
+
+### 2026-08-03 — WB1.3a reviewed and integrated
+
+- Tier-3 oversight returned three correctness findings: missing real-schema
+  validation, inaccurate exact-limit truncation flags, and inconsistent
+  builder/socket/file-loader size bounds. Correction commits `b19a71c` and
+  `26c3c96` resolved all three.
+- Oversight reran the 44 focused readiness/operations tests and the complete
+  offline suite: **685 passed with 18 intentional gated skips**. The worker's
+  separately gated real-database inventory test passed against confirmed
+  `development` / `polytopia_dev` / `polybot_dev` and performed no writes.
+- Integrated the reviewed branch into `codex/database-slash-modernization` as
+  `e0fe2ae`. The durable beta was not restarted or inspected, so its running
+  process continues using the previously loaded checkpoint and does not yet
+  expose the new socket inventory operation.
+- Selected read-only snapshot capture as the recommended next decision point;
+  role/channel/team/house/capability changes and tester invitations remain
+  separate explicit approvals.
 
 ### 2026-08-03 — WB1.3a readiness correction
 
