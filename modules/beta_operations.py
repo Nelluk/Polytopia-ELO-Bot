@@ -67,7 +67,10 @@ MAX_SMOKE_TEST_LENGTH = 200
 MAX_ANNOUNCEMENT_LENGTH = 1900
 MAX_HISTORY_SCAN = 100
 MAX_SOCKET_REQUEST_BYTES = 64 * 1024
-MAX_SOCKET_RESPONSE_BYTES = MAX_SOCKET_REQUEST_BYTES
+MAX_SOCKET_RESPONSE_OVERHEAD_BYTES = 1024
+MAX_SOCKET_RESPONSE_BYTES = (
+    beta_readiness.MAX_SNAPSHOT_BYTES + MAX_SOCKET_RESPONSE_OVERHEAD_BYTES
+)
 
 _RELEASE_ID = re.compile(r'^[a-z0-9][a-z0-9._-]{0,63}$')
 _CHECKPOINT = re.compile(r'^[0-9a-f]{40}$')
@@ -1417,13 +1420,16 @@ async def send_control_request(
         if len(request_payload) > MAX_SOCKET_REQUEST_BYTES:
             raise BetaOperationsError('The beta control request is too large.')
         reader, writer = await asyncio.wait_for(
-            asyncio.open_unix_connection(str(paths.socket_path)),
+            asyncio.open_unix_connection(
+                str(paths.socket_path),
+                limit=MAX_SOCKET_RESPONSE_BYTES,
+            ),
             timeout=timeout,
         )
         writer.write(request_payload)
         await writer.drain()
         raw = await asyncio.wait_for(reader.readline(), timeout=timeout)
-    except (OSError, asyncio.TimeoutError) as exc:
+    except (OSError, asyncio.TimeoutError, asyncio.LimitOverrunError) as exc:
         raise BetaOperationsError('The beta release control request did not complete.') from exc
     finally:
         if writer is not None:

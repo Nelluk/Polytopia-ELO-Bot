@@ -58,7 +58,15 @@ def _parser() -> argparse.ArgumentParser:
 
 def _emit(value: Any, *, as_json: bool) -> None:
     if as_json:
-        print(json.dumps(value, ensure_ascii=True, sort_keys=True, separators=(',', ':')))
+        # Keep the documented snapshot file byte size equal to the JSON
+        # payload bound; a trailing print newline would make an exact-bound
+        # inventory unloadable by the planner.
+        sys.stdout.write(json.dumps(
+            value,
+            ensure_ascii=True,
+            sort_keys=True,
+            separators=(',', ':'),
+        ))
         return
     if isinstance(value, dict):
         print(json.dumps(value, ensure_ascii=True, sort_keys=True, indent=2))
@@ -80,7 +88,10 @@ def _selected_profile():
 
 def _load_manifest(value: str) -> dict[str, Any]:
     raw = beta_readiness.load_json_path(
-        PROJECT_ROOT, value, label='readiness manifest'
+        PROJECT_ROOT,
+        value,
+        label='readiness manifest',
+        max_bytes=beta_readiness.MAX_MANIFEST_BYTES,
     )
     return beta_readiness.validate_readiness_manifest(raw)
 
@@ -133,11 +144,13 @@ def main(argv: list[str] | None = None) -> int:
             PROJECT_ROOT,
             args.discord_inventory,
             label='Discord inventory snapshot',
+            max_bytes=beta_readiness.MAX_SNAPSHOT_BYTES,
         )
         database_snapshot = beta_readiness.load_json_path(
             PROJECT_ROOT,
             args.database_inventory,
             label='database inventory snapshot',
+            max_bytes=beta_readiness.MAX_SNAPSHOT_BYTES,
         )
         result = beta_readiness.plan_readiness(
             manifest=manifest,

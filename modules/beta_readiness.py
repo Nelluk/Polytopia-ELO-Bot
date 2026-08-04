@@ -728,7 +728,7 @@ def read_development_database_inventory(
                     (
                         normalized_guild_id,
                         'polybot-dev-beta-fixture:v1',
-                        MAX_DATABASE_FIXTURE_ROWS,
+                        MAX_DATABASE_FIXTURE_ROWS + 1,
                     ),
                 )
                 leaderboard_player_rows = _database_rows(
@@ -746,7 +746,7 @@ def read_development_database_inventory(
                         normalized_guild_id,
                         9_000_000_000_100_000_001,
                         9_000_000_000_100_000_024,
-                        MAX_DATABASE_FIXTURE_ROWS,
+                        MAX_DATABASE_FIXTURE_ROWS + 1,
                     ),
                 )
                 leaderboard_game_rows = _database_rows(
@@ -761,7 +761,7 @@ def read_development_database_inventory(
                     (
                         normalized_guild_id,
                         'polybot-dev-lb2-showcase:v1',
-                        MAX_DATABASE_FIXTURE_ROWS,
+                        MAX_DATABASE_FIXTURE_ROWS + 1,
                     ),
                 )
 
@@ -785,16 +785,20 @@ def read_development_database_inventory(
                 'external_server': int(row[7]) if row[7] is not None else None,
                 'player_count': int(row[8]),
             }
-            for row in team_rows
+            for row in team_rows[:MAX_DATABASE_TEAMS]
         ]
         houses = [
             {'id': int(row[0]), 'name': str(row[1])}
-            for row in house_rows
+            for row in house_rows[:MAX_DATABASE_HOUSES]
         ]
-        fixture_games = [_fixture_game(row) for row in fixture_rows]
-        leaderboard_player_ids = [int(row[0]) for row in leaderboard_player_rows]
-        leaderboard_discord_ids = [int(row[1]) for row in leaderboard_player_rows]
-        leaderboard_game_ids = [int(row[0]) for row in leaderboard_game_rows]
+        fixture_games = [
+            _fixture_game(row) for row in fixture_rows[:MAX_DATABASE_FIXTURE_ROWS]
+        ]
+        bounded_leaderboard_players = leaderboard_player_rows[:MAX_DATABASE_FIXTURE_ROWS]
+        bounded_leaderboard_games = leaderboard_game_rows[:MAX_DATABASE_FIXTURE_ROWS]
+        leaderboard_player_ids = [int(row[0]) for row in bounded_leaderboard_players]
+        leaderboard_discord_ids = [int(row[1]) for row in bounded_leaderboard_players]
+        leaderboard_game_ids = [int(row[0]) for row in bounded_leaderboard_games]
     except Exception as exc:
         raise ReadinessInventoryError(
             'The development database inventory returned an invalid row shape.'
@@ -812,10 +816,10 @@ def read_development_database_inventory(
         'counts': counts,
         'teams': teams,
         'teams_total': counts['teams'],
-        'teams_truncated': counts['teams'] >= MAX_DATABASE_TEAMS,
+        'teams_truncated': counts['teams'] > MAX_DATABASE_TEAMS,
         'houses': houses,
         'houses_total': counts['houses'],
-        'houses_truncated': counts['houses'] >= MAX_DATABASE_HOUSES,
+        'houses_truncated': counts['houses'] > MAX_DATABASE_HOUSES,
         'role_binding_identifiers': {
             'team_roles': [
                 {
@@ -840,7 +844,7 @@ def read_development_database_inventory(
                 'ownership_marker': 'polybot-dev-beta-fixture:v1',
                 'count': len(fixture_games),
                 'games': fixture_games,
-                'truncated': len(fixture_games) >= MAX_DATABASE_FIXTURE_ROWS,
+                'truncated': len(fixture_rows) > MAX_DATABASE_FIXTURE_ROWS,
             },
             'leaderboard_showcase': {
                 'ownership_marker': 'polybot-dev-lb2-showcase:v1',
@@ -848,8 +852,8 @@ def read_development_database_inventory(
                 'player_record_ids': _range_or_empty(leaderboard_player_ids),
                 'games': _range_or_empty(leaderboard_game_ids),
                 'truncated': (
-                    len(leaderboard_player_ids) >= MAX_DATABASE_FIXTURE_ROWS
-                    or len(leaderboard_game_ids) >= MAX_DATABASE_FIXTURE_ROWS
+                    len(leaderboard_player_rows) > MAX_DATABASE_FIXTURE_ROWS
+                    or len(leaderboard_game_rows) > MAX_DATABASE_FIXTURE_ROWS
                 ),
             },
         },
@@ -1603,13 +1607,20 @@ def safe_read_path(
     return path
 
 
-def load_json_path(root: Path, value: str | Path, *, label: str) -> dict[str, Any]:
+def load_json_path(
+        root: Path,
+        value: str | Path,
+        *,
+        label: str,
+        max_bytes: int) -> dict[str, Any]:
+    if type(max_bytes) is not int or max_bytes <= 0:
+        raise ReadinessPathError('The JSON byte bound must be a positive integer.')
     path = safe_read_path(root, value, label=label)
     try:
         payload = path.read_bytes()
     except OSError as exc:
         raise ReadinessPathError(f'Could not read {label}.') from exc
-    if len(payload) > MAX_MANIFEST_BYTES:
+    if len(payload) > max_bytes:
         raise ReadinessPathError(f'{label} exceeds its size bound.')
     try:
         value = json.loads(payload.decode('utf-8'))

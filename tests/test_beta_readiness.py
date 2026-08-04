@@ -9,6 +9,7 @@ import inspect
 import io
 import json
 from pathlib import Path
+import stat
 from types import SimpleNamespace
 import os
 import tempfile
@@ -363,6 +364,10 @@ class SocketInventoryTests(unittest.IsolatedAsyncioTestCase):
                 control = beta_operations.BetaReleaseControl(
                     FakeBot(make_discord_world()), selected_profile, CHECKPOINT
                 )
+                self.assertGreater(
+                    beta_operations.MAX_SOCKET_RESPONSE_BYTES,
+                    beta_readiness.MAX_SNAPSHOT_BYTES,
+                )
                 oversized_request = Writer()
                 await control._handle_client(
                     Reader(b'{' + b'x' * beta_operations.MAX_SOCKET_REQUEST_BYTES + b'}\n'),
@@ -371,6 +376,26 @@ class SocketInventoryTests(unittest.IsolatedAsyncioTestCase):
                 request_result = json.loads(oversized_request.payload)
                 self.assertFalse(request_result['ok'])
                 self.assertIn('too large', request_result['error'])
+
+                with mock.patch.object(
+                        control,
+                        '_dispatch',
+                        new=mock.AsyncMock(return_value={
+                            'payload': 'x' * (
+                                beta_operations.MAX_SOCKET_RESPONSE_BYTES - 512
+                            ),
+                        })):
+                    near_bound_response = Writer()
+                    await control._handle_client(
+                        Reader(b'{"operation":"status"}\n'),
+                        near_bound_response,
+                    )
+                near_bound_result = json.loads(near_bound_response.payload)
+                self.assertTrue(near_bound_result['ok'])
+                self.assertLessEqual(
+                    len(near_bound_response.payload),
+                    beta_operations.MAX_SOCKET_RESPONSE_BYTES,
+                )
 
                 with mock.patch.object(
                         control,
@@ -387,6 +412,56 @@ class SocketInventoryTests(unittest.IsolatedAsyncioTestCase):
                 self.assertFalse(response_result['ok'])
                 self.assertIn('response is too large', response_result['error'])
 
+                response_payload = json.dumps(
+                    {'ok': True, 'result': {'payload': 'near-bound'}},
+                    separators=(',', ':'),
+                ).encode('utf-8') + b'\n'
+                with mock.patch.object(
+                        beta_operations,
+                        'operation_paths',
+                        return_value=control.paths), \
+                        mock.patch.object(
+                            beta_operations,
+                            '_reject_symlink',
+                            return_value=SimpleNamespace(st_mode=stat.S_IFSOCK)), \
+                        mock.patch.object(
+                            asyncio,
+                            'open_unix_connection',
+                            new=mock.AsyncMock(
+                                return_value=(Reader(response_payload), Writer())
+                            )) as open_connection:
+                    result = await beta_operations.send_control_request(
+                        selected_profile,
+                        {'operation': 'status'},
+                    )
+                self.assertEqual(result['payload'], 'near-bound')
+                open_connection.assert_awaited_once_with(
+                    str(control.paths.socket_path),
+                    limit=beta_operations.MAX_SOCKET_RESPONSE_BYTES,
+                )
+
+                oversized_payload = Writer()
+                oversized_raw = b'x' * (beta_operations.MAX_SOCKET_RESPONSE_BYTES + 1)
+                with mock.patch.object(
+                        beta_operations,
+                        'operation_paths',
+                        return_value=control.paths), \
+                        mock.patch.object(
+                            beta_operations,
+                            '_reject_symlink',
+                            return_value=SimpleNamespace(st_mode=stat.S_IFSOCK)), \
+                        mock.patch.object(
+                            asyncio,
+                            'open_unix_connection',
+                            new=mock.AsyncMock(
+                                return_value=(Reader(oversized_raw), oversized_payload)
+                            )):
+                    with self.assertRaises(beta_operations.BetaOperationsError):
+                        await beta_operations.send_control_request(
+                            selected_profile,
+                            {'operation': 'status'},
+                        )
+
 
 class FakeCursor:
     def __init__(self, rows):
@@ -401,6 +476,12 @@ class FakeDatabase:
         self.events = []
         self.queries = []
         self.closed = False
+        self.counts = {
+            'players': 24,
+            'teams': 1,
+            'houses': 1,
+            'games': 51,
+        }
         self.team_row = (1, 'Existing Team', beta_readiness.BETA_GUILD_ID, None, False, False, None, None, 2)
         self.house_row = (1, 'Existing House')
         self.fixture_rows = [
@@ -439,13 +520,13 @@ class FakeDatabase:
         if 'current_database()' in normalized:
             return FakeCursor([('polytopia_dev', 'polybot_dev')])
         if 'count(*) from player' in normalized:
-            return FakeCursor([(24,)])
+            return FakeCursor([(self.counts['players'],)])
         if 'count(*) from team' in normalized:
-            return FakeCursor([(1,)])
+            return FakeCursor([(self.counts['teams'],)])
         if 'count(*) from house' in normalized:
-            return FakeCursor([(1,)])
+            return FakeCursor([(self.counts['houses'],)])
         if 'count(*) from game' in normalized:
-            return FakeCursor([(51,)])
+            return FakeCursor([(self.counts['games'],)])
         if normalized.startswith('select t.id'):
             return FakeCursor([self.team_row])
         if normalized.startswith('select id, name, is_completed'):
@@ -529,6 +610,73 @@ class DatabaseInventoryTests(unittest.TestCase):
                 database_factory=lambda _profile: fake_database,
             )
 
+    def test_database_inventory_truncation_is_truthful_at_bound_and_overflow(self):
+        def database_with_rows(row_count):
+            database = FakeDatabase()
+            database.counts.update(
+                teams=(
+                    beta_readiness.MAX_DATABASE_TEAMS
+                    if row_count == beta_readiness.MAX_DATABASE_FIXTURE_ROWS
+                    else beta_readiness.MAX_DATABASE_TEAMS + 1
+                ),
+                houses=(
+                    beta_readiness.MAX_DATABASE_HOUSES
+                    if row_count == beta_readiness.MAX_DATABASE_FIXTURE_ROWS
+                    else beta_readiness.MAX_DATABASE_HOUSES + 1
+                ),
+            )
+            database.fixture_rows = [
+                (5000 + index, f'Fixture {index}', False, False, True, False, None)
+                for index in range(row_count)
+            ]
+            database.leaderboard_players = [
+                (
+                    6000 + index,
+                    9_000_000_000_100_000_000 + index,
+                )
+                for index in range(row_count)
+            ]
+            database.leaderboard_games = [
+                (7000 + index,) for index in range(row_count)
+            ]
+            return database
+
+        exact = database_with_rows(beta_readiness.MAX_DATABASE_FIXTURE_ROWS)
+        exact_result = beta_readiness.read_development_database_inventory(
+            profile=profile(self.root),
+            database_factory=lambda _profile: exact,
+        )
+        self.assertFalse(exact_result['teams_truncated'])
+        self.assertFalse(exact_result['houses_truncated'])
+        self.assertFalse(exact_result['fixtures']['beta_games']['truncated'])
+        self.assertFalse(exact_result['fixtures']['leaderboard_showcase']['truncated'])
+        self.assertEqual(
+            exact_result['fixtures']['beta_games']['count'],
+            beta_readiness.MAX_DATABASE_FIXTURE_ROWS,
+        )
+        self.assertEqual(
+            exact_result['fixtures']['leaderboard_showcase']['games']['count'],
+            beta_readiness.MAX_DATABASE_FIXTURE_ROWS,
+        )
+
+        overflow = database_with_rows(beta_readiness.MAX_DATABASE_FIXTURE_ROWS + 1)
+        overflow_result = beta_readiness.read_development_database_inventory(
+            profile=profile(self.root),
+            database_factory=lambda _profile: overflow,
+        )
+        self.assertTrue(overflow_result['teams_truncated'])
+        self.assertTrue(overflow_result['houses_truncated'])
+        self.assertTrue(overflow_result['fixtures']['beta_games']['truncated'])
+        self.assertTrue(overflow_result['fixtures']['leaderboard_showcase']['truncated'])
+        self.assertEqual(
+            len(overflow_result['fixtures']['beta_games']['games']),
+            beta_readiness.MAX_DATABASE_FIXTURE_ROWS,
+        )
+        self.assertEqual(
+            overflow_result['fixtures']['leaderboard_showcase']['games']['count'],
+            beta_readiness.MAX_DATABASE_FIXTURE_ROWS,
+        )
+
 
 def minimal_manifest():
     root = Path(__file__).resolve().parents[1]
@@ -580,6 +728,55 @@ class ReadinessManifestTests(unittest.TestCase):
         link.symlink_to(manifest_path)
         with self.assertRaises(beta_readiness.ReadinessPathError):
             beta_readiness.safe_read_path(self.root, 'link.json', label='manifest')
+
+    def test_json_loader_uses_explicit_manifest_and_snapshot_bounds(self):
+        def write_exact(path, size):
+            payload = b'{}'
+            path.write_bytes(payload + b' ' * (size - len(payload)))
+
+        manifest_path = self.root / 'manifest-bound.json'
+        write_exact(manifest_path, beta_readiness.MAX_MANIFEST_BYTES)
+        self.assertEqual(
+            beta_readiness.load_json_path(
+                self.root,
+                'manifest-bound.json',
+                label='manifest',
+                max_bytes=beta_readiness.MAX_MANIFEST_BYTES,
+            ),
+            {},
+        )
+        manifest_path.write_bytes(
+            b'{}' + b' ' * (beta_readiness.MAX_MANIFEST_BYTES - 1)
+        )
+        with self.assertRaises(beta_readiness.ReadinessPathError):
+            beta_readiness.load_json_path(
+                self.root,
+                'manifest-bound.json',
+                label='manifest',
+                max_bytes=beta_readiness.MAX_MANIFEST_BYTES,
+            )
+
+        snapshot_path = self.root / 'snapshot-bound.json'
+        write_exact(snapshot_path, beta_readiness.MAX_SNAPSHOT_BYTES)
+        self.assertEqual(
+            beta_readiness.load_json_path(
+                self.root,
+                'snapshot-bound.json',
+                label='snapshot',
+                max_bytes=beta_readiness.MAX_SNAPSHOT_BYTES,
+            ),
+            {},
+        )
+        snapshot_path.write_bytes(
+            b'{}' + b' ' * (beta_readiness.MAX_SNAPSHOT_BYTES - 1)
+        )
+        with self.assertRaises(beta_readiness.ReadinessPathError):
+            beta_readiness.load_json_path(
+                self.root,
+                'snapshot-bound.json',
+                label='snapshot',
+                max_bytes=beta_readiness.MAX_SNAPSHOT_BYTES,
+            )
 
     def test_offline_cli_validates_without_profile_or_database(self):
         output = io.StringIO()
