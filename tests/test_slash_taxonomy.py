@@ -57,12 +57,13 @@ class SlashTaxonomyRegistrationTests(unittest.TestCase):
         game_group = app_group(games.polygames, 'game')
         leaderboard_group = app_group(games.polygames, 'leaderboard')
         player_group = app_group(games.polygames, 'player')
+        squad_group = app_group(games.polygames, 'squad')
         elo_group = app_group(administration.administration, 'elo')
         team_group = app_group(administration.administration, 'team')
 
         self.assertEqual(
             [command.name for command in games.polygames.__cog_app_commands__],
-            ['game', 'leaderboard', 'player'],
+            ['game', 'leaderboard', 'player', 'squad'],
         )
         self.assertEqual(
             [
@@ -126,6 +127,10 @@ class SlashTaxonomyRegistrationTests(unittest.TestCase):
         self.assertEqual(
             {command.name for command in player_group.commands},
             {'show', 'register', 'timezone'},
+        )
+        self.assertEqual(
+            {command.name for command in squad_group.commands},
+            {'show'},
         )
 
     def test_typed_shapes_and_prefix_aliases_are_preserved(self):
