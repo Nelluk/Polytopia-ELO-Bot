@@ -158,6 +158,29 @@ should be inferred by the reviewing model. Accepted related findings may be
 combined into one bounded correction unit, but their report IDs and requester
 attribution remain distinct for release evidence and notification.
 
+## WB1.4 accepted interaction-lifecycle evidence
+
+The following accepted report IDs drove the interaction-lifecycle correction
+unit. This record intentionally stores IDs and bounded dispositions, not
+private report prose or requester identities:
+
+- `46AfEE3ffDPQ2BytH9GILxDe`: preserve a `/game record` draft after a
+  confirm-time validation or database failure so the requester can retry.
+- `X-XZcpIiULdM26a-Jon1ndQr`: make a staff-selected `/player register member`
+  target visible in the modal and prove the primitive target reaches the
+  worker request after submission.
+- `2k-rbXRD8CmxQuxjLy1UJuGk`: record the accepted no-channel-dependent-
+  visibility decision. Drafts and failures remain private; committed
+  competitive/profile outcomes remain public in every allowed channel.
+- Repeated beta log evidence of Discord 404/error 10008 `Unknown Message`
+  during player-registration private-placeholder cleanup: treat an already
+  cleared placeholder as benign, preserve one public success, and keep other
+  cleanup failures observable without changing commit semantics.
+
+The `/staffhelp` disposition remains unchanged: it has no slash invocation
+arguments and opens its structured modal. No options were invented for this
+unit. Rename report `GgWxVs31FyFa72V2dHOleM0j` was explicitly out of scope.
+
 ## Validation and boundaries
 
 Focused offline validation is:

@@ -1171,9 +1171,11 @@ Implementation evidence:
 - Preview member resolution and existing registration/channel/participation
   checks happen before confirmation. The prefix callback and bounded P2.1
   worker are not invoked until Confirm.
-- The record invocation and parsed preview are public for competitive
-  transparency. Only the requester can use its Edit/Confirm/Cancel controls;
-  unauthorized control attempts remain ephemeral.
+- The record invocation and parsed preview are private to the requester. Only
+  the requester can use its Edit/Confirm/Cancel controls; unauthorized control
+  attempts remain ephemeral. Once the worker commits, the existing
+  post-commit path publishes the competitive result publicly in every allowed
+  channel without inspecting channel-dependent visibility.
 - The shared prefix/slash resolver preserves permissions and the one-opponent
   shortcut. Prefix aliases remain registered.
 - All new recorded games use the legacy `is_mobile=True` compatibility value,
@@ -6725,7 +6727,7 @@ Limitations and next action:
 
 ## WB1 — Wider beta operations and structured feedback
 
-Status: **In progress; WB1.1 and WB1.2 integrated; WB1.3 planned**
+Status: **In progress; WB1.1, WB1.2, and WB1.3 integrated; WB1.4 complete locally**
 
 ### WB1.1 — Structured `/staffhelp` feedback intake
 
@@ -7144,6 +7146,86 @@ deliver one reviewed wider-beta announcement to `todo-and-changelog`, ping the
 already pinned `testers` role, and invite the intended 5–20 testers as a
 separate human-facing action. Retain `wb1-3b-setup.json` as cleanup ownership
 evidence; do not run cleanup while the wider beta is using these records.
+
+### WB1.4 — Interaction lifecycle and retryability hardening
+
+Status: **Complete locally; Tier-3 implementation/tests committed; integration and beta review pending**
+
+Branch/base: `codex/wb1-4-interaction-lifecycle` from exact clean base
+`b7e95b5ee7fe1e1af265655bfef6f3c51efe228f`.
+
+Implementation/tests commit: `4fe39299861496b7e60ae8f5ed009740e179f16f`.
+
+Accepted beta evidence IDs:
+
+- `46AfEE3ffDPQ2BytH9GILxDe` — `/game record` consumed its draft after a
+  confirm-time error.
+- `X-XZcpIiULdM26a-Jon1ndQr` — modal invocation context, especially a staff
+  selected `/player register member`, was not visible through submission.
+- `2k-rbXRD8CmxQuxjLy1UJuGk` — requested channel-dependent ephemerality;
+  the accepted disposition is to keep one visibility policy across channels.
+- Repeated beta logs showed Discord 404/error 10008 `Unknown Message` while
+  player registration deleted an already-cleared private original.
+
+Delivered behavior:
+
+- `GameRecordConfirmationOutcome` now distinguishes retryable pre-commit
+  failure, committed success, and terminal reconciliation. A running
+  confirmation disables duplicate submission. Validation, permission,
+  roster-resolution, and pre-commit database failures retain the exact game
+  name, roster, ranked flag, and edited side snapshots, restore requester-only
+  Confirm/Edit/Cancel controls, and provide retry guidance. The view finishes
+  permanently only after commit; a later public-effect failure never
+  re-enables confirmation.
+- The existing prefix `newgame` grammar, aliases, title-casing behavior,
+  worker-local connection, synchronous atomic transaction, authoritative
+  worker checks, and post-commit Discord boundary remain unchanged. Native
+  `/game record` uses a private draft/failure response and the existing
+  committed post-commit path publishes competitive output publicly in every
+  allowed channel. It does not inspect the invocation channel to choose
+  ephemerality.
+- `/player register` visibly restates the selected member using escaped
+  display text only. Submission still revalidates the captured primitive
+  target and the focused test proves a staff-selected target reaches the
+  worker request end to end.
+- Registration and timezone public-success paths reuse one narrow cleanup
+  helper. A private placeholder missing with Discord error 10008 is benign,
+  emits no traceback, and still produces one public success. Other cleanup
+  failures remain observable and cannot reinterpret a committed write.
+- `/staffhelp` remains a top-level no-option command; WB1.4 records that
+  disposition and adds no invented invocation arguments. No compatibility
+  ledger row was needed; retained prefix grammar and aliases remain intact.
+
+Visibility decision: do not implement channel-dependent ephemerality. Drafts,
+validation/permission/roster failures, and pre-commit failures are private;
+committed competitive/profile outcomes are public in every allowed channel;
+post-commit reconciliation is terminal and requester-visible without offering
+a duplicate retry.
+
+Validation evidence:
+
+- Focused `tests.test_newgame_worker tests.test_player_registration
+  tests.test_player_timezone`: **65 passed**.
+- Expanded affected registration/taxonomy/presentation focus (including
+  `tests.test_slash_taxonomy`, `tests.test_application_command_policy`, and
+  `tests.test_player_workspace`): **99 passed**.
+- Complete offline discovery with `POLYBOT_ENV=development` and database
+  integration unset: **920 passed, 26 intentional gated skips**.
+- `compileall` and `git diff --check`: passed.
+- PostgreSQL real-schema validation remains behind its unchanged gate and was
+  deferred. No development beta inspection, stop, restart, synchronization,
+  production access, dependency action, fixture action, push, PR, merge, or
+  database access occurred.
+
+Changed files: `modules/game_record_views.py`, `modules/games.py`,
+`modules/interaction_lifecycle.py`, `modules/player_registration.py`,
+`modules/player_registration_views.py`, `modules/player_timezone.py`,
+`tests/test_newgame_worker.py`, `tests/test_player_registration.py`, and
+`tests/test_player_timezone.py`.
+
+Next action: Tier-3 review and authorized integration of the implementation
+commit, followed by a separate beta smoke decision. Keep the PostgreSQL gate
+deferred until the next approved stopped-writer validation window.
 
 ## P9 — Production rollout and prefix lifecycle
 
@@ -7731,6 +7813,12 @@ This staged design restores the prefix command's flexible shapes without
 message-content intent and avoids a large fixed slash option matrix. Mentions
 remain the safest initial input; the native side editor corrects the parsed
 draft without exposing raw mention strings.
+
+WB1.4 hardens the lifecycle without changing that command shape: the draft,
+validation, permission, roster-resolution, and pre-commit database failure
+states remain private and retryable; a committed competitive result remains
+public; and a post-commit publication failure becomes terminal reconciliation
+state rather than a retryable draft.
 
 ### D-029 — Keep Bullet and anti-scam as legacy maintenance-only modules
 
@@ -8713,6 +8801,27 @@ component refinements that do not require command re-registration.
 - Next candidate: scope P8.6 as a bounded `/team show` dense-card/read-worker
   unit, preserving or explicitly deciding the common `$team` compatibility
   path before implementation.
+
+### 2026-08-04 — WB1.4 interaction lifecycle implemented locally
+
+- Implemented `codex/wb1-4-interaction-lifecycle` from exact clean base
+  `b7e95b5ee7fe1e1af265655bfef6f3c51efe228f`; implementation/tests commit
+  `4fe3929`.
+- Hardened `/game record` with typed retryable/committed/reconciliation
+  outcomes, duplicate-submit prevention, exact draft preservation on all known
+  pre-commit failures, and terminal no-retry handling after commit/publication
+  failure. Prefix grammar, aliases, worker-local transaction, title-casing,
+  and post-commit effects remain intact.
+- Restated the selected `/player register member` target in display-only modal
+  text and proved the selected primitive target reaches the worker. Shared
+  registration/timezone cleanup treats Discord 10008 `Unknown Message` as
+  already-cleared while keeping other cleanup failures observable.
+- Recorded the no-channel-dependent-visibility decision and the unchanged
+  no-option `/staffhelp` disposition against accepted beta evidence. Focused
+  coverage passed **65 tests**; complete offline discovery passed **920 with
+  26 intentional gated skips**; compileall and diff checks passed.
+- PostgreSQL, the durable beta, Discord synchronization, production, fixtures,
+  dependencies, push, PR, merge, and sudo actions remained deferred.
 
 ### 2026-08-04 — P8.5 Tier-3 validated and integrated
 
