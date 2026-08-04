@@ -30,10 +30,13 @@ This is the running wider-beta checklist—not just the newest release. Please u
 
 ## Squads
 
-- **Temporarily blocked:** requester/member discovery in `/squad show` has a
-  known long-running query regression on the current development data. Do not
-  spend time testing `/squad show` or `/squad name` until a correction is
-  announced.
+- `/squad show` with no ID should return **No eligible squads** promptly on
+  the current fixture set rather than leaving the interaction pending.
+- If Discord leaves a typed invocation on **Sending command...**, reopen the
+  command picker or invoke the exact rendered command once; this has refreshed
+  stale desktop/mobile command caches during beta testing.
+- Exact squad cards, member search, and `/squad name` remain untestable until
+  the development database has an owned squad fixture.
 
 ## Maintenance and feedback
 

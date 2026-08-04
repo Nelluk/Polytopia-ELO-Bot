@@ -462,16 +462,14 @@ check:
   `f0429536d7ed899eb356794bcd3558baa9be3d45`.
 - P4.2d roadmap evidence: `e1a0959`; accumulation merge: `7c2269b`.
 
-Current unit: **P7.12/P7.11 squad workspace beta correction — first
-downstream correction failed live acceptance; interaction-delivery diagnostics
-in progress.**
+Current unit: **P7.12/P7.11 squad workspace beta correction accepted for the
+currently testable no-match path; full card/name acceptance awaits a fixture.**
 
-P7.12 acceptance remains blocked until the corrected beta path returns either
-an eligible workspace or a prompt “no eligible squads” result. P7.13
-`/leaderboard roles` remains the next proposed feature unit but must not start
-before that smoke result is accepted.
+The corrected no-match path returns “No eligible squads” promptly. Exact card,
+member-search, and name-edit acceptance still require an owned squad fixture.
+P7.13 `/leaderboard roles` is unblocked as the next proposed feature unit.
 
-The durable beta is running correction checkpoint `4e35114`; it authenticated
+The durable beta is running dispatch checkpoint `e834afe`; it authenticated
 as beta application `479029527553638401`. Its guild-only command tree already
 includes the `squad` root, so no command synchronization was performed for
 this code-only correction. P7.10, P8.6, and P7.12 remain open for wider-beta
@@ -7993,10 +7991,22 @@ features are deployed or receive sufficiently broad acceptance.
 - Added a safe application-interaction routing log and a command-tree error
   responder. A delivered interaction that fails local lookup/signature/check
   dispatch will now receive a private response instead of remaining in
-  “Sending command...” indefinitely. The next live retry will distinguish a
-  Discord delivery/application-selection issue from a local dispatch error.
-  Only after that retry resolves should squad testing return to `/whattotest`
-  or a corrective tester notice be sent.
+  “Sending command...” indefinitely. This made the next live retry distinguish
+  a Discord delivery/application-selection issue from a local dispatch error.
+- The exact guild command mention
+  `</squad show:1534274477163020371>` reached beta application
+  `479029527553638401` and returned “No eligible squads.” Subsequent typed
+  invocations from desktop and mobile reached that same application and
+  command ID across channels `738839896520917072`, `479292913080336397`, and
+  `480078679930830849`. Earlier silent stalls have no corresponding gateway
+  receipt, callback, or SQL log. The accepted operational diagnosis is a stale
+  Discord client/user/guild command cache refreshed by the exact rendered
+  command, not a remaining squad worker failure.
+- Retained the SQL `LIMIT`, private-cleanup timeout, safe routing envelope, and
+  private command-tree error response because each is independently useful.
+  Restored only the currently testable no-match behavior to `/whattotest`;
+  squad cards and identity edits remain fixture-blocked. No corrective tester
+  announcement or command synchronization was performed.
 
 ### 2026-08-04 — P7.12 reviewed, integrated, and deployed to development beta
 

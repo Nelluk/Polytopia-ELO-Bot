@@ -318,8 +318,9 @@ class BetaRuntimeGuardTests(unittest.TestCase):
         self.assertIn('does not justify restarting an unchanged bot', runbook)
         self.assertIn('Chat promises are not process authority', workflow)
         self.assertIn('Successful announcement delivery is', workflow)
-        self.assertIn('**Temporarily blocked:**', checklist)
-        self.assertIn('long-running query regression', checklist)
+        self.assertIn('**No eligible squads** promptly', checklist)
+        self.assertIn('stale desktop/mobile command caches', checklist)
+        self.assertIn('owned squad fixture', checklist)
 
 
 class ReleaseManifestTests(unittest.TestCase):
