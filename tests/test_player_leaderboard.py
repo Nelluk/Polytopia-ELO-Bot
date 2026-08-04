@@ -10,6 +10,7 @@ import unittest
 from unittest import mock
 
 import discord
+import peewee
 from discord.ext import commands
 
 from tests.test_newgame_worker import import_offline_runtime
@@ -78,6 +79,54 @@ class FakeQuery:
 
     def __getitem__(self, item):
         return self.rows[item]
+
+
+class CapturingModelQuery:
+    """Small query double that records model predicates without a database."""
+
+    def __init__(self, count_value):
+        self.count_value = count_value
+        self.where_conditions = []
+        self.joins = []
+        self.distinct_called = False
+
+    def join(self, *args, **kwargs):
+        self.joins.append((args, kwargs))
+        return self
+
+    def where(self, condition):
+        self.where_conditions.append(condition)
+        return self
+
+    def distinct(self):
+        self.distinct_called = True
+        return self
+
+    def order_by(self, *args):
+        return self
+
+    def count(self):
+        return self.count_value
+
+    def __getitem__(self, item):
+        return []
+
+
+def expression_contains_in(expression, field, expected_values):
+    """Find one field IN predicate inside a Peewee boolean expression."""
+
+    if not isinstance(expression, peewee.Expression):
+        return False
+    if (
+        expression.lhs is field
+        and expression.op == 'IN'
+        and tuple(expression.rhs) == tuple(expected_values)
+    ):
+        return True
+    return (
+        expression_contains_in(expression.lhs, field, expected_values)
+        or expression_contains_in(expression.rhs, field, expected_values)
+    )
 
 
 class PlayerLeaderboardWorkerTests(unittest.TestCase):
@@ -176,6 +225,265 @@ class PlayerLeaderboardWorkerTests(unittest.TestCase):
         self.assertIn('Including Inactive Players', result.title)
         self.assertIn('Maximum ELO Achieved', result.title)
         self.assertIn('Alltime', result.title)
+
+    def test_option_matrix_preserves_scope_rating_era_population_invariants(self):
+        database = FakeDatabase()
+        active_cutoff = datetime.datetime(2025, 1, 1)
+        calls = []
+        current_record = (11, 3)
+        alltime_record = (17, 5)
+        elo_values = {
+            ('current', None): 1200,
+            ('peak', None): 1600,
+            ('current', 'ALLTIME'): 1300,
+            ('peak', 'ALLTIME'): 1800,
+        }
+
+        def leaderboard_for(scope):
+            def leaderboard(**kwargs):
+                calls.append((scope, kwargs.copy()))
+                version = kwargs['version']
+                rating = 'peak' if kwargs['max_flag'] else 'current'
+                row = SimpleNamespace(
+                    name='Matrix Player',
+                    elo_field=elo_values[(rating, version)],
+                    discord_id=501,
+                    discord_member=SimpleNamespace(discord_id=501),
+                    team=(
+                        SimpleNamespace(emoji='🏹')
+                        if scope == 'local'
+                        else None
+                    ),
+                    get_record=(
+                        lambda version=None: (
+                            alltime_record
+                            if version == 'ALLTIME'
+                            else current_record
+                        )
+                    ),
+                )
+                return FakeQuery([row])
+
+            return leaderboard
+
+        results = {}
+        with mock.patch.object(
+            leaderboard_workers.models,
+            'db',
+            database,
+        ), mock.patch.object(
+            leaderboard_workers.models.Player,
+            'leaderboard',
+            side_effect=leaderboard_for('local'),
+        ), mock.patch.object(
+            leaderboard_workers.models.DiscordMember,
+            'leaderboard',
+            side_effect=leaderboard_for('global'),
+        ):
+            for scope, rating, era, population in product(
+                ('local', 'global'),
+                ('current', 'peak'),
+                ('current', 'all-time'),
+                ('active', 'all'),
+            ):
+                request = leaderboard_workers.PlayerLeaderboardRequest(
+                    guild_id=300,
+                    scope=scope,
+                    rating=rating,
+                    era=era,
+                    population=population,
+                    active_cutoff=active_cutoff,
+                )
+                result = leaderboard_workers.load_player_leaderboard(request)
+                row = result.rows[0]
+                results[(scope, rating, era, population)] = row
+
+        self.assertEqual(len(calls), 16)
+        for scope, rating, era, population in product(
+            ('local', 'global'),
+            ('current', 'peak'),
+            ('current', 'all-time'),
+            ('active', 'all'),
+        ):
+            row = results[(scope, rating, era, population)]
+            matching_call = next(
+                kwargs
+                for called_scope, kwargs in calls
+                if called_scope == scope
+                and kwargs['max_flag'] == (rating == 'peak')
+                and kwargs['version'] == (
+                    'ALLTIME' if era == 'all-time' else None
+                )
+                and kwargs['date_cutoff'] == (
+                    datetime.date.min
+                    if population == 'all'
+                    else active_cutoff
+                )
+            )
+            self.assertEqual(
+                matching_call['max_flag'],
+                rating == 'peak',
+            )
+            self.assertEqual(
+                matching_call['version'],
+                'ALLTIME' if era == 'all-time' else None,
+            )
+            self.assertEqual(
+                matching_call['date_cutoff'],
+                datetime.date.min if population == 'all' else active_cutoff,
+            )
+            self.assertEqual(row.name, 'Matrix Player')
+            self.assertEqual(row.discord_id, 501)
+
+        for scope, rating, era in product(
+            ('local', 'global'),
+            ('current', 'peak'),
+            ('current', 'all-time'),
+        ):
+            active = results[(scope, rating, era, 'active')]
+            all_players = results[(scope, rating, era, 'all')]
+            self.assertEqual(
+                (active.elo, active.wins, active.losses),
+                (all_players.elo, all_players.wins, all_players.losses),
+            )
+            self.assertEqual(active.team_emoji, all_players.team_emoji)
+
+        for scope, era, population in product(
+            ('local', 'global'),
+            ('current', 'all-time'),
+            ('active', 'all'),
+        ):
+            current = results[(scope, 'current', era, population)]
+            peak = results[(scope, 'peak', era, population)]
+            self.assertNotEqual(current.elo, peak.elo)
+            self.assertEqual(
+                (current.wins, current.losses),
+                (peak.wins, peak.losses),
+            )
+            self.assertEqual(current.team_emoji, peak.team_emoji)
+
+        for scope, rating, population in product(
+            ('local', 'global'),
+            ('current', 'peak'),
+            ('active', 'all'),
+        ):
+            current = results[(scope, rating, 'current', population)]
+            alltime = results[(scope, rating, 'all-time', population)]
+            self.assertNotEqual(current.elo, alltime.elo)
+            self.assertNotEqual(
+                (current.wins, current.losses),
+                (alltime.wins, alltime.losses),
+            )
+            self.assertEqual(current.team_emoji, alltime.team_emoji)
+
+
+class GlobalLeaderboardScopeTests(unittest.TestCase):
+    def test_global_candidates_and_small_population_fallback_use_included_guilds(self):
+        included_guilds = (101, 202)
+        candidate_query = CapturingModelQuery(count_value=3)
+        fallback_query = CapturingModelQuery(count_value=2)
+        select = mock.Mock(
+            side_effect=[candidate_query, fallback_query],
+        )
+        member_model = leaderboard_workers.models.DiscordMember
+
+        with mock.patch.object(
+            leaderboard_workers.models.settings,
+            'servers_included_in_global_lb',
+            return_value=list(included_guilds),
+        ), mock.patch.object(
+            member_model,
+            'select',
+            side_effect=select,
+        ):
+            member_model.leaderboard(
+                date_cutoff=datetime.datetime(2025, 1, 1),
+                guild_id=300,
+            )
+
+        self.assertEqual(select.call_count, 2)
+        self.assertTrue(
+            any(
+                expression_contains_in(
+                    condition,
+                    leaderboard_workers.models.Game.guild_id,
+                    included_guilds,
+                )
+                for condition in candidate_query.where_conditions
+            )
+        )
+        self.assertTrue(
+            any(
+                expression_contains_in(
+                    condition,
+                    leaderboard_workers.models.Player.guild_id,
+                    included_guilds,
+                )
+                for condition in fallback_query.where_conditions
+            )
+        )
+        self.assertTrue(fallback_query.distinct_called)
+
+    def test_empty_global_server_set_returns_empty_query_without_fallback(self):
+        empty_query = CapturingModelQuery(count_value=0)
+        select = mock.Mock(return_value=empty_query)
+        member_model = leaderboard_workers.models.DiscordMember
+
+        with mock.patch.object(
+            leaderboard_workers.models.settings,
+            'servers_included_in_global_lb',
+            return_value=[],
+        ), mock.patch.object(
+            member_model,
+            'select',
+            side_effect=select,
+        ):
+            member_model.leaderboard(
+                date_cutoff=datetime.datetime(2025, 1, 1),
+                guild_id=300,
+            )
+
+        self.assertEqual(select.call_count, 1)
+        self.assertTrue(
+            any(
+                expression_contains_in(
+                    condition,
+                    member_model.id,
+                    (),
+                )
+                for condition in empty_query.where_conditions
+            )
+        )
+
+    def test_empty_global_scope_worker_returns_no_ranked_zero_zero_rows(self):
+        database = FakeDatabase()
+        empty_query = CapturingModelQuery(count_value=0)
+        member_model = leaderboard_workers.models.DiscordMember
+
+        with mock.patch.object(
+            leaderboard_workers.models,
+            'db',
+            database,
+        ), mock.patch.object(
+            leaderboard_workers.models.settings,
+            'servers_included_in_global_lb',
+            return_value=[],
+        ), mock.patch.object(
+            member_model,
+            'select',
+            return_value=empty_query,
+        ):
+            result = leaderboard_workers.load_player_leaderboard(
+                leaderboard_workers.PlayerLeaderboardRequest(
+                    guild_id=300,
+                    scope='global',
+                    population='all',
+                    active_cutoff=datetime.datetime(2025, 1, 1),
+                )
+            )
+
+        self.assertEqual(result.total_ranked, 0)
+        self.assertEqual(result.rows, ())
 
     def test_page_boundaries_are_deterministic(self):
         result = result_with_rows()

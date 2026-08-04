@@ -367,6 +367,9 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
             player_result.total_ranked,
             len(player_result.rows),
         )
+        if not self.settings.servers_included_in_global_lb():
+            self.assertEqual(player_result.total_ranked, 0)
+            self.assertEqual(player_result.rows, ())
         for row in player_result.rows:
             self.assertIsInstance(row.name, str)
             self.assertIsInstance(row.elo, int)
