@@ -150,6 +150,9 @@ class TeamLeaderboardRequest:
     load_all_filters: bool = False
     team_enabled: bool = True
     channel_allowed: bool = True
+    # Discord adapters set this explicitly; DB-only seams can read rows
+    # without a live role snapshot, such as the gated schema test.
+    require_role_match: bool = False
 
 
 @dataclass(frozen=True)
@@ -601,11 +604,18 @@ def load_team_leaderboard(
             .where(*conditions)
             .order_by(-models.Team.elo, models.Team.id)
         )
-        total_teams = query.count()
-        for rank, team in enumerate(query, start=1):
+        for team in query:
             tier_number = int(team.league_tier)
             role_snapshot = role_by_name.get(str(team.name))
             if role_snapshot is None:
+                if request.require_role_match:
+                    logger.warning(
+                        'Omitting team %s (id=%s) from team leaderboard: '
+                        'no exact Discord role match.',
+                        team.name,
+                        team.id,
+                    )
+                    continue
                 member_count = 0
                 role_color = '#5865F2'
             else:
@@ -614,7 +624,7 @@ def load_team_leaderboard(
             wins, losses = team.get_record(alltime=False)
             rows.append(
                 TeamLeaderboardRow(
-                    rank=rank,
+                    rank=len(rows) + 1,
                     team_id=int(team.id),
                     team_name=str(team.name),
                     team_emoji=str(getattr(team, 'emoji', '') or ''),
@@ -631,7 +641,7 @@ def load_team_leaderboard(
             )
 
     return TeamLeaderboardResult(
-        total_teams=int(total_teams),
+        total_teams=len(rows),
         rows=tuple(rows),
         graph_attachment_name=str(request.graph_attachment_name),
         loaded_all_filters=bool(request.load_all_filters),

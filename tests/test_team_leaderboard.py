@@ -238,6 +238,61 @@ class PrefixMatrixTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn('!help teamlb', ctx.send.await_args.args[0])
 
 
+class ChannelParityTests(unittest.TestCase):
+    def _allowed(self, values, channel_id, *, is_mod=False):
+        def setting(_guild_id, name, default=None):
+            return values.get(name, default)
+
+        with mock.patch.object(
+            service,
+            '_setting',
+            side_effect=setting,
+        ), mock.patch.object(
+            service,
+            '_is_mod',
+            return_value=is_mod,
+        ):
+            return service._channel_allowed(
+                SimpleNamespace(id=777),
+                300,
+                channel_id,
+            )
+
+    def test_strict_only_configuration_takes_precedence_and_keeps_private(self):
+        values = {
+            'bot_channels': None,
+            'bot_channels_strict': [200],
+            'bot_channels_private': [300],
+        }
+        self.assertTrue(self._allowed(values, 200))
+        self.assertTrue(self._allowed(values, 300))
+        self.assertFalse(self._allowed(values, 100))
+
+    def test_ordinary_channels_are_used_when_strict_is_unset(self):
+        values = {
+            'bot_channels': [100],
+            'bot_channels_strict': None,
+            'bot_channels_private': [300],
+        }
+        self.assertTrue(self._allowed(values, 100))
+        self.assertTrue(self._allowed(values, 300))
+        self.assertFalse(self._allowed(values, 200))
+
+    def test_both_channel_lists_unset_allow_everywhere_and_mods_bypass(self):
+        self.assertTrue(self._allowed(
+            {'bot_channels': None, 'bot_channels_strict': None},
+            999,
+        ))
+        self.assertTrue(self._allowed(
+            {
+                'bot_channels': None,
+                'bot_channels_strict': [200],
+            },
+            999,
+            is_mod=True,
+        ))
+
+
 class TeamLeaderboardWorkerTests(unittest.IsolatedAsyncioTestCase):
     def test_worker_uses_local_connection_and_current_record(self):
         database = FakeDatabase()
@@ -318,6 +373,100 @@ class TeamLeaderboardWorkerTests(unittest.IsolatedAsyncioTestCase):
             loaded = workers.load_team_leaderboard(request_value)
         self.assertEqual(loaded.total_teams, 31)
         self.assertEqual(len(loaded.rows), 31)
+
+    def test_discord_adapters_require_exact_roles_but_zero_member_roles_match(self):
+        guild_id = 478571892832206869
+        channel_id = 479292913080336397
+        team = SimpleNamespace(
+            id=42,
+            name='Ronin',
+            emoji='⚔️',
+            league_tier=2,
+            is_archived=False,
+            elo=1234,
+            get_record=lambda **kwargs: (12, 8),
+        )
+        database = FakeDatabase()
+
+        def make_requests(roles):
+            guild = SimpleNamespace(id=guild_id, roles=roles)
+            member = SimpleNamespace(id=777, roles=(), guild=guild)
+            ctx = SimpleNamespace(
+                author=member,
+                guild=guild,
+                message=SimpleNamespace(
+                    channel=SimpleNamespace(id=channel_id),
+                ),
+            )
+            native = SimpleNamespace(
+                user=member,
+                guild=guild,
+                channel_id=channel_id,
+            )
+            return (
+                service.team_leaderboard_request_for_prefix(
+                    ctx=ctx,
+                    tier_number=None,
+                    include_archived=False,
+                ),
+                service.team_leaderboard_request_for_native(native),
+            )
+
+        def load(request_value):
+            with mock.patch.object(worker_impl.models, 'db', database), mock.patch.object(
+                worker_impl.models.Team,
+                'select',
+                return_value=FakeQuery((team,)),
+            ), mock.patch.object(
+                worker_impl,
+                '_team_history_rows',
+                return_value=(),
+            ), mock.patch.object(
+                worker_impl.settings,
+                'tier_lookup',
+                return_value=(2, 'Gold'),
+            ):
+                return workers.load_team_leaderboard(request_value)
+
+        missing_prefix, missing_native = make_requests(())
+        self.assertTrue(missing_prefix.require_role_match)
+        self.assertTrue(missing_native.require_role_match)
+        with mock.patch.object(worker_impl.logger, 'warning') as warning:
+            missing_results = tuple(
+                load(request_value)
+                for request_value in (missing_prefix, missing_native)
+            )
+        self.assertEqual(
+            [result.rows for result in missing_results],
+            [(), ()],
+        )
+        self.assertEqual(warning.call_count, 2)
+
+        zero_member_role = SimpleNamespace(
+            name='Ronin',
+            color=SimpleNamespace(value=0xABCDEF),
+            members=[],
+        )
+        present_prefix, present_native = make_requests((zero_member_role,))
+        present_results = tuple(
+            load(request_value)
+            for request_value in (present_prefix, present_native)
+        )
+        self.assertEqual(
+            [len(result.rows) for result in present_results],
+            [1, 1],
+        )
+        self.assertEqual(
+            [result.rows[0].member_count for result in present_results],
+            [0, 0],
+        )
+
+        db_only = workers.TeamLeaderboardRequest(
+            guild_id=guild_id,
+            database_guild_id=guild_id,
+            graph_attachment_name='db-only.png',
+        )
+        self.assertEqual(len(load(db_only).rows), 1)
 
     def test_filter_page_recomputes_deterministic_ranks_and_pages(self):
         loaded = result(31)

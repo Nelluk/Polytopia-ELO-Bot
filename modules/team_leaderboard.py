@@ -34,11 +34,13 @@ def _is_mod(member) -> bool:
 
 def _channel_allowed(member, guild_id: int, channel_id: int | None) -> bool:
     bot_channels = _setting(guild_id, 'bot_channels', None)
-    if bot_channels is None or _is_mod(member):
+    strict_channels = _setting(guild_id, 'bot_channels_strict', None)
+    if strict_channels is None and bot_channels is None:
+        return True
+    if _is_mod(member):
         return True
     private_channels = _setting(guild_id, 'bot_channels_private', ()) or ()
     try:
-        strict_channels = _setting(guild_id, 'bot_channels_strict', None)
         channel_choices = (
             strict_channels
             if strict_channels is not None
@@ -190,6 +192,7 @@ def build_request(
             guild_id,
             channel_id,
         ),
+        require_role_match=True,
     )
 
 
