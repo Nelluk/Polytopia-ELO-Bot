@@ -225,12 +225,16 @@ def _load_players(
 
 
 def _bounded_query_rows(query, limit: int) -> tuple[object, ...]:
-    """Materialize no more than ``limit`` rows even for simple test queries."""
+    """Materialize no more than ``limit`` rows at the database when possible."""
 
+    query_limit = getattr(query, 'limit', None)
+    if callable(query_limit):
+        return tuple(query_limit(int(limit)))
     try:
+        iterator = iter(query)
+    except TypeError:
         return tuple(query[:limit])
-    except (TypeError, AttributeError):
-        return tuple(itertools.islice(iter(query), limit))
+    return tuple(itertools.islice(iterator, int(limit)))
 
 
 def _guild_scoped_matching_query(

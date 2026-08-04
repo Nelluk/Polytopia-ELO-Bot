@@ -44,9 +44,14 @@ class FakeQuery:
     def __init__(self, rows, count=None):
         self.rows = tuple(rows)
         self._count = len(self.rows) if count is None else count
+        self.limit_calls = []
 
     def count(self):
         return self._count
+
+    def limit(self, value):
+        self.limit_calls.append(value)
+        return FakeQuery(self.rows[:value], count=min(self._count, value))
 
     def __getitem__(self, item):
         return self.rows[item]
@@ -234,6 +239,15 @@ class WorkerBoundaryTests(unittest.TestCase):
         )
         self.assertEqual(result_value.total_matches, 51)
         self.assertTrue(result_value.truncated)
+        self.assertEqual(query.limit_calls, [workers.MAX_SQUAD_MATCHES + 1])
+
+    def test_bounded_rows_use_database_limit_instead_of_python_slice(self):
+        query = FakeQuery(range(100))
+
+        loaded = workers._bounded_query_rows(query, 7)
+
+        self.assertEqual(loaded, tuple(range(7)))
+        self.assertEqual(query.limit_calls, [7])
 
     def test_permission_and_member_validation_happen_at_worker_boundary(self):
         with self.assertRaises(workers.SquadShowPermissionError):
@@ -545,6 +559,38 @@ class CommandTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(
             interaction_value.channel.send.await_args.kwargs.get('ephemeral', False)
         )
+
+    async def test_public_success_does_not_stall_when_private_delete_hangs(self):
+        interaction_value = self._interaction()
+        blocker = asyncio.Event()
+
+        async def never_finishes():
+            await blocker.wait()
+
+        interaction_value.delete_original_response.side_effect = never_finishes
+        loaded = result(1, selected=1001)
+        cog = object.__new__(games.polygames)
+        with (
+            mock.patch.object(service, 'native_access_error', return_value=None),
+            mock.patch.object(
+                service,
+                'build_request',
+                return_value=workers.SquadShowRequest(
+                    guild_id=300,
+                    requester_id=999,
+                    member_ids=(999,),
+                ),
+            ),
+            mock.patch.object(
+                workers,
+                'run_squad_show',
+                new=mock.AsyncMock(return_value=loaded),
+            ),
+            mock.patch.object(service, 'PRIVATE_RESPONSE_DELETE_TIMEOUT', 0.001),
+        ):
+            await self.command().callback(cog, interaction_value, 1001)
+
+        interaction_value.channel.send.assert_awaited_once()
 
     async def test_native_permission_failure_stays_private_and_does_not_read(self):
         interaction_value = self._interaction()

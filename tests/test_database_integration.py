@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 import tempfile
+import time
 from types import SimpleNamespace
 import unittest
 from unittest import mock
@@ -421,7 +422,7 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
         )
 
     def test_squad_show_worker_reads_real_schema_without_writes(self):
-        """Read-only P7.11 gate for the next stopped-writer window."""
+        """Read-only P7.11 exact and requester-discovery regression gate."""
 
         from modules import squad_show_workers
 
@@ -449,6 +450,41 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
         self.assertEqual(len(result.cards), 1)
         self.assertEqual(result.cards[0].squad_id, int(squad.id))
         self.assertIsInstance(result.cards[0].members, tuple)
+
+        member = (
+            self.models.SquadMember
+            .select(self.models.SquadMember, self.models.Player, self.models.DiscordMember)
+            .join(self.models.Player)
+            .join(self.models.DiscordMember)
+            .where(self.models.SquadMember.squad == squad)
+            .first()
+        )
+        if member is None:
+            self.skipTest('development squad has no member fixture')
+        requester_id = int(member.player.discord_member.discord_id)
+        started = time.monotonic()
+        discovery = asyncio.run(
+            squad_show_workers.run_squad_show(
+                squad_show_workers.SquadShowRequest(
+                    guild_id=int(squad.guild_id),
+                    requester_id=requester_id,
+                    member_ids=(requester_id,),
+                    team_enabled=True,
+                    channel_allowed=True,
+                )
+            )
+        )
+        elapsed = time.monotonic() - started
+        self.assertIsInstance(discovery, squad_show_workers.SquadShowResult)
+        self.assertLessEqual(
+            len(discovery.cards),
+            squad_show_workers.MAX_SQUAD_MATCHES,
+        )
+        self.assertLess(
+            elapsed,
+            5.0,
+            f'requester squad discovery took {elapsed:.3f}s',
+        )
         self.assertEqual(
             before,
             (

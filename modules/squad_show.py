@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 
 import discord
@@ -13,6 +14,7 @@ from modules import exceptions, squad_show_workers
 logger = logging.getLogger('polybot.' + __name__)
 
 SQUAD_SHOW_CONTROL_TIMEOUT = 300.0
+PRIVATE_RESPONSE_DELETE_TIMEOUT = 2.0
 
 
 def _setting(guild_id: int, name: str, default=None):
@@ -147,7 +149,15 @@ def public_interaction_sender(interaction):
             )
             if delete_original is not None:
                 try:
-                    await delete_original()
+                    await asyncio.wait_for(
+                        delete_original(),
+                        timeout=PRIVATE_RESPONSE_DELETE_TIMEOUT,
+                    )
+                except TimeoutError:
+                    logger.warning(
+                        'Timed out clearing private squad-show response; '
+                        'continuing with public output'
+                    )
                 except Exception:
                     logger.exception(
                         'Could not clear private squad-show response before '
