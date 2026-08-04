@@ -4,7 +4,7 @@ Last updated: 2026-08-04
 
 Status: Active
 
-Current branch at last update: `codex/p6-2-player-timezone`
+Current branch at last update: `codex/beta-report-parity-corrections`
 
 Source task: `thread://019fb4cd-0c73-7700-9988-141f6622d6f7`
 
@@ -464,20 +464,22 @@ check:
   `f0429536d7ed899eb356794bcd3558baa9be3d45`.
 - P4.2d roadmap evidence: `e1a0959`; accumulation merge: `7c2269b`.
 
-Current unit: **P7.13 native role leaderboard integrated; development-schema
-and wider-beta acceptance are pending.**
+Current unit: **Accepted beta-report parity corrections implemented locally;
+integration and live acceptance are pending.**
 
-Tier-2 review accepted P7.13 after its serialized Action Row correction and
-integrated it as accumulation merge `cddf636`. The durable beta remains on its
-earlier dispatch checkpoint; no command synchronization, restart, database
-gate, or announcement has yet occurred for P7.13. The earlier P7.11/P7.12
-squad workspace still has a fixture-dependent wider-beta acceptance path.
+This unit is isolated on `codex/beta-report-parity-corrections` from exact base
+`80e44ff2e3afc99237fc395e667559097f5fdedd`; implementation/tests commit
+`e007c67` is complete and the separate roadmap-evidence commit records this
+status. No command synchronization, beta inspection/lifecycle action,
+database gate, announcement, service operation, or production action was
+performed by this unit.
 
-The durable beta is running dispatch checkpoint `e834afe`; it authenticated
-as beta application `479029527553638401`. Its guild-only command tree already
-includes the `squad` root, so no command synchronization was performed for
-this code-only correction. P7.10, P8.6, and P7.12 remain open for wider-beta
-acceptance; no new worker is being actively monitored after its handoff.
+The correction preserves configured-prefix legacy cards and makes native card
+presentation explicit. It moves `/game record` name-policy authority into the
+worker DTO/transaction boundary, limits size overrides to the existing Mod
+snapshot, publishes committed warnings after the transaction, and makes
+`/squad show` recent-game ordering deterministic by date then game ID. The
+existing legacy `Game.name` title-casing behavior is unchanged.
 
 P7.10 implementation/test checkpoints: `549bd41` and Tier-2 parity correction
 `b8abcd8`, from exact clean base `026c36cff69d131b43db97acd887debfb8ef499c`.
@@ -8075,6 +8077,43 @@ changes, preserve stable command identities where practical, and prefer
 component refinements that do not require command re-registration.
 
 ## Progress log
+
+### 2026-08-04 — Accepted beta-report parity corrections implemented locally
+
+- Corrected native pending-game guidance so slash-rendered cards use
+  `/game join` and `/game start`; configured-prefix legacy cards retain their
+  prefix. Native full-game guidance points to the surviving `/game show`
+  workflow for player names instead of advertising the legacy codes command.
+  Presentation context is explicit through the card and post-commit refresh
+  paths; there is no global prefix replacement.
+- Added a primitive `requester_is_staff` snapshot to `/game record`. The
+  synchronous worker now authoritatively rejects non-staff single-word or
+  invalid names and returns a staff override warning only after the atomic
+  write succeeds. The exact input still reaches `Game.create_game`, so the
+  established `Game.name` title-casing setter remains untouched.
+- Matched `/game open`'s Mod-only total-player override for record creation at
+  both total-player and per-side `max_team_size` checks. Helpers/non-Mod staff
+  retain normal limits. Override warnings are returned in the primitive result
+  and sent publicly after commit; the worker-local Peewee connection,
+  synchronous transaction, and no-Discord-await transaction boundary remain
+  intact.
+- Added descending `Game.date`, then descending game-ID ordering to
+  `/squad show` recent games and regressions over both query ordering and
+  rendered order. Prefix compatibility/taxonomy documentation did not require
+  a change.
+- Focused requested suites passed 108 tests; adjacent mutation/start/action
+  suites passed 193 tests (301 tests across those validation runs). Complete
+  offline discovery ran 908 tests with 26 intentional database-gated skips;
+  it exposed one existing timing failure in
+  `tests.test_game_tribe.GameTribeExecutorTests.test_worker_keeps_event_loop_responsive`.
+  The failure reproduces when that unchanged worker test is isolated under
+  this Python/`IsolatedAsyncioTestCase` environment; no unrelated worker or
+  test stabilization was included in this bounded unit.
+- The existing integration constructors were updated only for the new
+  primitive field and valid gated marker names. PostgreSQL integration remains
+  deferred while the durable beta is active. Recommended next action is
+  Tier-2 review of `e007c67`, followed by authorized integration into the
+  accumulation branch; no integration was performed here.
 
 ### 2026-08-04 — P7.12 gated-test connection boundary corrected during deployment
 
