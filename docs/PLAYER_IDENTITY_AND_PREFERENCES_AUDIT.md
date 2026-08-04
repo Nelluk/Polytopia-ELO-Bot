@@ -220,10 +220,15 @@ write worker. The worker receives only frozen primitive Discord snapshots,
 revalidates staff targeting from the captured role-name boundary, owns its
 Peewee connection, and commits the DiscordMember/unique guild Player upsert,
 canonical write, persisted-team inference, and actual-guild GameLog in one
-transaction. `$setname` delegates to the same service; `$steamname` and
-`$setcode` remain registered only as non-writing deprecation adapters. Focused
-offline coverage includes rollback, duplicate warning, visibility, and
-cancellation behavior. No production data, schema, runtime, or Discord
+transaction. Both unique upsert seams use nested savepoints with
+`get_or_create` and authoritative reload after a competing insert;
+`$setname` delegates to the same service; `$steamname` and `$setcode` remain
+registered only as non-writing deprecation adapters. Focused offline coverage
+now includes the member/player conflict regression in addition to rollback,
+duplicate warning, visibility, and cancellation behavior. The original local
+database attempt could not connect; Sol independently reports **19 passed / 1
+intentional operator-fixture skip** from the unchanged gated suite on the
+pre-correction branch. No production data, schema, runtime, or Discord
 registration was changed; P6.2 remains separate.
 
 ## Proposed P6.2 — Timezone preference

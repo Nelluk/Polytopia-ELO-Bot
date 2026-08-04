@@ -4065,8 +4065,9 @@ Status: **Implemented locally; Tier-3 review pending**
 
 Risk tier: **Tier 3**. Exact clean base: `5d1d44c`. Unit branch and worktree:
 `codex/p6-1-player-registration` in
-`/home/nelluk/.codex/worktrees/a6bc/PolyBot39-dev`. Implementation commit:
-`c40e3a4`.
+`/home/nelluk/.codex/worktrees/a6bc/PolyBot39-dev`. Implementation commits:
+`c40e3a4` (initial implementation) and `53cd8cc` (race-safe upsert
+correction).
 
 Objective and implementation evidence:
 
@@ -4080,9 +4081,14 @@ Objective and implementation evidence:
   DiscordMember/unique guild Player upsert, canonical
   `DiscordMember.polytopia_name` write, persisted-team inference from captured
   role names, and actor-attributed GameLog with the actual guild ID.
-- The implementation never writes, clears, or backfills `Player.name`,
-  `name_steam`, or `polytopia_id`; `Player.name` remains the guild-specific
-  display label. `/player show` explicitly reports an unset canonical name,
+- Both unique upsert seams use an inner PostgreSQL savepoint around
+  `get_or_create`, followed by an authoritative reload after an existing row
+  or competing `IntegrityError`; the outer registration transaction remains
+  the only commit boundary.
+- The implementation never repurposes `Player.name` as canonical identity and
+  never writes, clears, or backfills `name_steam` or `polytopia_id`.
+  `Player.name` and `Player.nick` may be refreshed as guild-specific Discord
+  display metadata. `/player show` explicitly reports an unset canonical name,
   and transitional name-list reads use `polytopia_name or name_steam` without
   exposing the old type distinction.
 - `$setname` uses the shared service. `$steamname` and `$setcode` are retained
@@ -4092,25 +4098,34 @@ Objective and implementation evidence:
 
 Validation evidence:
 
-- Focused registration/workspace/taxonomy/map coverage: **58 tests passed**;
-  the broader pre-final registration/game-start focus also passed **71/71**.
-- Complete offline discovery: **750 passed, 20 intentional skips**.
-- The unchanged development database gate was invoked with
+- Focused registration/workspace/taxonomy/map coverage: **59 tests passed**;
+  the broader registration/game-start focus passed **74/74**.
+- Complete offline discovery after the correction: **751 passed, 20
+  intentional skips**.
+- The original worker-run development database gate was invoked with
   `POLYBOT_ENV=development` and `POLYBOT_RUN_DB_INTEGRATION=1`; its source
   gate verifies environment `development`, database `polytopia_dev`, role
   `polybot_dev`, and disabled background/API services. It ran **0** database
   tests because the local PostgreSQL connection failed in `setUpClass` with
   `psycopg2.OperationalError`; the gate was not weakened or bypassed.
+- Oversight evidence: Sol independently reran the unchanged gated PostgreSQL
+  suite on the pre-correction P6.1 branch under `development` /
+  `polytopia_dev` / `polybot_dev` and reports **19 passed / 1 intentional
+  operator-fixture skip**. This is Sol’s evidence, not a claim that the
+  correction task ran that successful database command. The new race
+  regression is intentionally offline-only.
 - `compileall` and `git diff --check` passed. The development worktree setup
   script completed before profile-dependent imports/tests.
 
-Limitations and next action: this is local implementation evidence only;
-Tier-3 review and any later beta acceptance remain pending. No database
+Limitations and next action: this is local implementation evidence plus the
+separately identified oversight database evidence; Tier-3 review and any
+later beta acceptance remain pending. No database
 schema migration, production inventory/data action, process restart, Discord
 command synchronization, fixture mutation, dependency installation, push, or
 merge was performed. P6.2's timezone schema transition remains a separate
-unit. Next action is review of `c40e3a4` by the Sol oversight task, followed by
-an independently approved P6.2 plan if review accepts this bounded unit.
+unit. Next action is review of `c40e3a4` and `53cd8cc` by the Sol oversight
+task, followed by an independently approved P6.2 plan if review accepts this
+bounded unit.
 
 ## P7 — Read-heavy commands and analytics
 
@@ -7009,20 +7024,26 @@ visibility proposal, timezone range, and accepted decisions are in
 ### 2026-08-04 — P6.1 canonical registration implemented locally
 
 - Implemented `codex/p6-1-player-registration` from exact clean base `5d1d44c`
-  in the Codex worktree; implementation/tests commit `c40e3a4`.
+  in the Codex worktree; implementation/tests commit `c40e3a4` and the
+  race-safe upsert correction commit `53cd8cc`.
 - Added the account-wide `/player register` modal, shared `$setname` adapter,
   bounded primitive-input ordinary-write worker, explicit unset `/player show`
   output, transitional name-list reads, and narrow non-writing legacy
-  deprecation behavior. Updated the P6.1 compatibility ledger as C-009.
-- Focused tests passed (**58** in the final registration focus; **71/71** in
-  the broader registration/game-start focus), complete offline discovery
-  passed (**750**, with **20** intentional skips), and compile/diff checks
-  passed.
-- The unchanged development database gate verified its required identity
-  (`development` / `polytopia_dev` / `polybot_dev`) but ran **0** tests because
-  PostgreSQL was unavailable at connection time. No runtime, synchronization,
-  production, fixture, dependency, push, or merge action occurred.
-- Next action: Sol/Tier-3 review of the implementation commit; keep P6.2
+  deprecation behavior. Added nested savepoint/get_or_create/reload handling
+  for both unique registration rows and its conflict regression. Updated the
+  P6.1 compatibility ledger as C-009.
+- Focused tests passed (**59** in the registration/workspace/taxonomy/map
+  focus; **74/74** in the broader registration/game-start focus), complete
+  offline discovery passed (**751**, with **20** intentional skips), and
+  compile/diff checks passed.
+- The original unchanged development database gate verified its required
+  identity (`development` / `polytopia_dev` / `polybot_dev`) but ran **0**
+  tests because PostgreSQL was unavailable at connection time. Sol’s
+  independent oversight rerun on the pre-correction branch reported **19
+  passed / 1 intentional operator-fixture skip** under the same identity.
+  No runtime, synchronization, production, fixture, dependency, push, or
+  merge action occurred.
+- Next action: Sol/Tier-3 review of both implementation commits; keep P6.2
   timezone work separate.
 
 ### 2026-08-04 — P6.0 identity and preferences audit completed
