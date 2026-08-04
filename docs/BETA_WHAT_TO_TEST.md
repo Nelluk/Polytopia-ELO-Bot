@@ -17,6 +17,7 @@ This is the running wider-beta checklist—not just the newest release. Please u
 - `/player show`, including profile sections and navigation
 - `/player register` and `/player timezone` read/edit/clear behavior
 - `/leaderboard players`: pagination, common filters, advanced filters, active/all toggle, jump-to-page, desktop/mobile layout
+- `/leaderboard teams`: active/all-tier default, tier and archived-team filters, pagination/page jump, current-page ELO graph, desktop/mobile layout, and sensible behavior for teams with missing or empty Discord roles
 - `/leaderboard activity` and `/leaderboard squads`
 - Check local/global, current/peak, current-era/all-time, and active/all combinations for plausible ELO and W-L records
 

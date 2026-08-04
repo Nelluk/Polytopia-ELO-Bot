@@ -460,14 +460,18 @@ check:
   `f0429536d7ed899eb356794bcd3558baa9be3d45`.
 - P4.2d roadmap evidence: `e1a0959`; accumulation merge: `7c2269b`.
 
-Current unit: **P7.10 native team leaderboard — implemented locally on
-`codex/p7-10-team-leaderboard`; Tier-2 review/integration remains pending.**
+Current unit: **P7.10 native team leaderboard — Tier-2 reviewed and integrated;
+development deployment/acceptance in progress.**
 
 P7.10 implementation/test checkpoints: `549bd41` and Tier-2 parity correction
 `b8abcd8`, from exact clean base `026c36cff69d131b43db97acd887debfb8ef499c`.
-The separate roadmap-evidence checkpoint follows these code commits. The
-branch is isolated and undeployed; no production checkout, durable beta,
-database, Discord command sync, service restart, push, or merge was performed.
+The separate roadmap-evidence checkpoint follows these code commits. During
+implementation the branch remained isolated and did not touch production, the
+durable beta, PostgreSQL, Discord registration, or services. Tier-2 review
+accepted the parity correction and integrated the complete branch as merge
+`7ba66b9`. The running wider-beta checklist now includes the native team
+workspace; command apply, restart, announcement, and acceptance evidence
+remain the deployment actions for the next clean checkpoint.
 
 P8.6 native team show remains Tier-2 reviewed, real-schema validated,
 integrated, deployed, and open for wider-beta acceptance. The durable beta is
@@ -5309,7 +5313,7 @@ Known limitations and next action:
 
 ### P7.10 — Native team leaderboard workspace
 
-Status: **Implemented locally; Tier-2 review/integration pending**
+Status: **Tier-2 reviewed and integrated; development deployment pending**
 
 Branch/base: `codex/p7-10-team-leaderboard` from exact clean base
 `026c36cff69d131b43db97acd887debfb8ef499c`.
@@ -5434,10 +5438,14 @@ roles`, `/team show` behavior, team mutations, schema/fixture changes,
 dependency work, command apply/sync, beta lifecycle actions, production,
 push, or merge.
 
-Exit: clean implementation/test and separate roadmap-evidence commits plus a
-handoff to the originating Sol task. The unit remains unintegrated and
-undeployed until Tier-2 review and a later explicit integration/deployment
-decision.
+Exit evidence: clean implementation/test and separate roadmap-evidence
+commits, an explicit worker handoff, Tier-2 correction/review, and accumulation
+merge. Development deployment and wider-beta acceptance remain pending.
+
+Integration: Tier-2 review accepted corrected checkpoints `b8abcd8` and
+`8c0424a`; the full branch merged into `codex/database-slash-modernization` as
+`7ba66b9`. The tracked wider-beta checklist now includes `/leaderboard teams`.
+Deployment and wider-beta acceptance remain separately evidenced.
 
 ## P8.0 — Guild application-command capability policy and explicit deployment tooling
 
@@ -7635,6 +7643,21 @@ database-free, split safely below Discord message limits, and updated as
 features are deployed or receive sufficiently broad acceptance.
 
 ## Progress log
+
+### 2026-08-04 — P7.10 Tier-2 accepted and integrated
+
+- Rechecked the final strict-channel and exact-role parity correction; 28
+  focused team/taxonomy tests passed independently after the worker's 72-test
+  affected run and 835-test complete offline run with 23 gated skips.
+- Accepted the Tier-2 branch and integrated it as merge `7ba66b9` without
+  touching the running beta, PostgreSQL, Discord registration, production, or
+  global command scope.
+- Added `/leaderboard teams` to the tracked running wider-beta checklist.
+- Next deployment sequence: commit the clean integration/checklist checkpoint,
+  stop only the durable development beta, run the deferred gated read suite,
+  apply only the development-guild `leaderboard` root, restart the exact
+  checkpoint, verify release control, and publish the approved wider-beta
+  **WHAT TO TEST** announcement.
 
 ### 2026-08-04 — P7.10 native team leaderboard selected
 
