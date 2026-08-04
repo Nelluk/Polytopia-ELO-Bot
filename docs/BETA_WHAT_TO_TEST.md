@@ -25,7 +25,7 @@ This is the running wider-beta checklist—not just the newest release. Please u
 - `/team create`
 - `/team emoji`, `/team image`, `/team name`, `/team server`, `/team tier`, and `/team house`: read, edit, clear where offered, requester-team inference, and public actor attribution
 - Team permission checks using `@testers` (staff) and `@Mod` roles
-- `/team show` will be added to this checklist after its current implementation is deployed
+- `/team show`: explicit and inferred-team lookup, dense roster/ELO card, graph and image display, recent/all-completed activity toggle, missing-role warning, and desktop/mobile layout
 
 ## Maintenance and feedback
 

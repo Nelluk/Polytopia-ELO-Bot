@@ -461,7 +461,8 @@ check:
 - P4.2d roadmap evidence: `e1a0959`; accumulation merge: `7c2269b`.
 
 Current unit: **P8.6 native team show and asynchronous dense-card rendering —
-selected as a Tier-2 unit while P8.5 and P6.2 wider-beta feedback continues.**
+Tier-2 reviewed, real-schema validated, and integrated; development-guild
+deployment and wider-beta acceptance pending.**
 
 The audit is recorded in
 `docs/PLAYER_IDENTITY_AND_PREFERENCES_AUDIT.md`. It made no command, schema,
@@ -482,11 +483,11 @@ synchronization and beta restart/acceptance remain pending.
 
 P8.6 implementation/tests checkpoints: `7716398` and Tier-2 correction
 `644ff95` on `codex/p8-6-team-show`, based on exact clean base
-`8d6d469787475210002098697f0395af0bed5f4a`. The branch is isolated from the
-accumulation and production checkouts; correction documentation/evidence is
-intentionally kept in a separate follow-up commit. Offline validation is
-complete after the correction, while the stopped-writer real-schema gate,
-integration, command synchronization, and beta smoke remain pending.
+`8d6d469787475210002098697f0395af0bed5f4a`. Tier-2 review accepted the
+correction; the stopped-writer development gate passed 21 tests with one
+intentional operator-fixture skip. The branch was integrated as merge
+`219c5b6`. Command synchronization, beta restart, announcement, and wider-beta
+acceptance remain pending.
 
 P7.6b implementation/tests checkpoint: `3806d0e` on
 `codex/p7-global-leaderboard-records`, based on exact accumulation commit
@@ -6029,7 +6030,7 @@ staff smoke remains open.
 
 ### P8.6 — Native team show and asynchronous dense-card rendering
 
-Status: **Implemented locally; Tier-2 corrections complete; validation-gate follow-up pending**
+Status: **Complete; Tier-2 reviewed, real-schema validated, and integrated**
 
 Branch/base: `codex/p8-6-team-show` in the isolated worktree
 `/home/nelluk/.codex/worktrees/4837/PolyBot39-dev`, from exact clean base
@@ -6136,10 +6137,15 @@ Implementation and validation evidence:
   policy vocabulary, offline discovery used a non-writing in-memory settings
   load scoped to this worktree. It did not connect to PostgreSQL or access
   fixtures.
-- The gated PostgreSQL suite was **not run** because the durable beta is
-  active. The P8.6 real-schema result is therefore deferred; this checkpoint
-  claims no successful database evidence and performs no database or fixture
-  access.
+- After stopping only the durable development beta, the unchanged gated suite
+  confirmed `development` / `polytopia_dev` / `polybot_dev` and passed
+  **21 tests with one intentional operator-fixture preservation skip**. The
+  P8.6 real-schema read passed. No fixture cleanup, production access, or
+  production operation occurred.
+- Post-merge focused validation passed **52 tests**. Complete offline discovery
+  passed **814 tests with 22 gated skips** after one independently passing
+  rerun of an unrelated one-second game-tribe responsiveness test that timed
+  out under initial suite contention. Integration merge: `219c5b6`.
 
 Compatibility decision: no new ledger row is required. `$team` and its
 `completed` form remain registered and share the native worker/presentation
@@ -6149,10 +6155,9 @@ Limitations and next action:
 
 - This is a read/presentation unit only. It does not mutate Teams, roles,
   Houses, tiers, images, players, ELO, fixtures, or command deployment state.
-- The exact development-guild capability assignment and command
-  synchronization remain unchanged. Run the gated read-only schema case only
-  in the next approved stopped-writer validation window, then perform Tier-2
-  review and separately decide integration/beta smoke.
+- The exact development-guild capability assignment remains unchanged.
+  Synchronize only the updated `team` root, restart the guarded beta at the
+  clean checkpoint, and publish a wider-beta **WHAT TO TEST** announcement.
 
 ## WB1 — Wider beta operations and structured feedback
 
@@ -7488,6 +7493,22 @@ database-free, split safely below Discord message limits, and updated as
 features are deployed or receive sufficiently broad acceptance.
 
 ## Progress log
+
+### 2026-08-04 — P8.6 reviewed, gated, and integrated
+
+- Tier-2 review found and corrected metric-toggle roster ordering and global
+  Matplotlib state; correction `644ff95` sorts per displayed metric with stable
+  ties and uses an object-owned Agg Figure/canvas.
+- Independent corrected focused validation passed 27 tests. The stopped-beta
+  gated development suite then passed 21 tests with one intentional retained-
+  fixture skip, including the P8.6 real-schema read.
+- Integrated the complete branch as merge `219c5b6`. Post-merge focused
+  validation passed 52 tests; complete offline discovery passed 814 tests with
+  22 gated skips after an unrelated timing test passed independently and on
+  the clean rerun.
+- Updated the running `/whattotest` checklist with the deployed P8.6 behavior.
+  Development-guild command apply, guarded restart, release-control status,
+  and announcement remain the next separately recorded deployment actions.
 
 ### 2026-08-04 — Running beta testing checklist implemented
 
