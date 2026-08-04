@@ -412,7 +412,7 @@ operator repair commands stay out of the public tree.
 | `team_name` | `/team name` | Implemented locally in P8.2: public read/actor-attributed edit, legacy five-character and unique-name boundary, and an explicit exact-role rename warning |
 | `team_server` | `/team server` | Implemented locally in P8.2: raw integer read/edit and explicit nullable clear without requiring external-guild membership |
 | `team_edit` aliases | `/team house`, `/team tier` | `/team tier` remains implemented with the effective legacy mod plus PolyChampions/test scope, configured choices, mutation-only house/archive/exact-role gates, worker-owned Player/preference reconciliation, and post-commit role reconciliation. P8.4 implements native `/team house` read/assign/clear and intentionally retires the `$team_house` alias/branch; `$team_edit ... ARCHIVE` remains retained. |
-| `squad`, `squads` | `/squad show` | P7.11 selected: optional exact squad ID; omission defaults to requester membership; requester-only one-to-three Discord member selector, paged/selectable multi-match results, and dense card; retire both prefix registrations under C-012 |
+| `squad`, `squads` | `/squad show` | P7.11 implemented locally: the only invocation is optional integer `squad_id`; omission defaults to requester membership; requester-only one-to-three Discord member selector, paged/selectable snapshot results, and dense card; both prefix registrations retire under C-012. Tier-2 review, capability assignment, and beta deployment remain pending |
 | `squadname` | `/squad name` | View by default; optional name edits |
 | `lb` | `/leaderboard players` | Components v2 workspace defaults to local/current/active and exposes common views, population, paging, and requester-rank controls in-message; preserve the full prefix matrix |
 | `lbrecent` | `/leaderboard activity` | Native now with explicit server-30-days and global-all-time views |
@@ -741,6 +741,43 @@ this branch's policy vocabulary. The read-isolated real-schema case exists but
 was not run while the durable beta is active; no successful database evidence
 is claimed. Prefix retention introduced no compatibility compromise and
 therefore no new ledger row.
+
+#### P7.11 `/squad show` implementation state
+
+The local implementation defines the reserved `/squad` root with exactly one
+subcommand, `/squad show squad_id:[optional integer]`. An exact ID loads only a
+guild-affiliated squad; omission searches eligible squads containing the
+requester. The public Components v2 workspace provides a requester-only
+one-to-three-member Discord UserSelect, a bounded multi-match result select,
+snapshot-only paging/page-jump controls, and dense cards containing squad
+ID/name, member names and team emoji, current ELO, confirmed ranked W/L,
+current leaderboard rank/length, and up to ten recent-game summaries. Result
+selection and paging reuse the loaded immutable snapshot; a member selection
+is the only control that performs a new bounded worker read.
+
+Reads use a dedicated bounded executor, worker-local Peewee connection scopes,
+and frozen primitive DTOs. The matching path preserves
+`Squad.get_all_matching_squads` eligibility, ordering, and the 50-result
+ceiling while adding the explicit guild boundary required by native exact-ID
+and discovery behavior. Successful initial views, member searches, result
+selections, and page changes are public; preflight, lookup, database,
+component-validation, and expired-control failures are private. The command
+defers privately before the worker read and publishes successful workspaces
+through the established public transparency pattern.
+
+The implementation checkpoint is `bdaa930` on
+`codex/p7-11-squad-show`, based on exact clean base
+`0f02aa3451192bf67cf72e01bac6a0e637ff65d0`. `$squad` and `$squads` are
+removed without a prefix adapter; `$squadname` remains a separate write
+command with corrected `/squad show`/`$lbsquad` guidance, and
+`/leaderboard squads` plus `$lbsquad`/`$squadlb` remain unchanged. The
+reserved `squad` capability stays default-deny; no guild configuration,
+command synchronization, beta action, production action, or
+`docs/BETA_WHAT_TO_TEST.md` edit was made. Focused squad-show validation
+passed 18 tests, affected focused suites passed 55, and complete offline
+discovery passed 854 tests with 24 gated skips; compileall and diff checks
+passed. The read-only real-schema gate exists but is intentionally deferred
+while the durable beta is active.
 
 #### Player leaderboard interaction matrix
 
