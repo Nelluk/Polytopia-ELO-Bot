@@ -14,6 +14,9 @@ from modules import player_workers
 from modules import player_registration
 from modules import player_registration_views
 from modules import player_registration_workers
+from modules import player_timezone
+from modules import player_timezone_workers
+from modules import player_timezone_values
 from modules import elo_workers
 from modules import game_win
 from modules import game_map
@@ -1946,6 +1949,95 @@ class polygames(commands.Cog):
                     ephemeral=True,
                 )
 
+    @player_group.command(
+        name='timezone',
+        description='View or set an account-wide fixed UTC offset.',
+    )
+    @discord.app_commands.describe(
+        member='Member whose preference to view or set; defaults to you.',
+        offset='Normalized fixed offset such as UTC-05:00.',
+        clear='Clear the fixed offset instead of setting one.',
+    )
+    @discord.app_commands.autocomplete(
+        offset=player_timezone.autocomplete_offsets,
+    )
+    async def player_timezone_slash(
+        self,
+        interaction: discord.Interaction,
+        member: discord.Member | None = None,
+        offset: str | None = None,
+        clear: bool = False,
+    ):
+        target = member or interaction.user
+        try:
+            request = player_timezone.build_request(
+                actor=interaction.user,
+                target=target,
+                guild_id=interaction.guild.id,
+                offset=offset,
+                clear=bool(clear),
+                invoked_with='/player timezone',
+                native=True,
+            )
+        except (
+            player_timezone.TimezoneValidationError,
+            player_timezone.TimezonePermissionError,
+            ValueError,
+        ) as exc:
+            return await interaction.response.send_message(
+                str(exc),
+                ephemeral=True,
+            )
+
+        await interaction.response.defer(ephemeral=True)
+        try:
+            result = await player_timezone_workers.run_timezone_request(
+                request,
+            )
+        except (
+            player_timezone_workers.PlayerTimezoneValidationError,
+            player_timezone_workers.PlayerTimezonePermissionError,
+            player_timezone_workers.PlayerTimezoneNotFound,
+            peewee.PeeweeException,
+            ValueError,
+        ) as exc:
+            return await interaction.followup.send(
+                str(exc),
+                ephemeral=True,
+            )
+        except Exception:
+            logger.exception('Unexpected player timezone failure')
+            return await interaction.followup.send(
+                'The timezone preference could not be saved or read.',
+                ephemeral=True,
+            )
+
+        try:
+            await player_timezone.public_interaction_sender(interaction)(
+                player_timezone.public_message(request, result),
+            )
+        except Exception:
+            logger.exception(
+                'Player timezone committed/read but public output failed'
+            )
+            try:
+                await interaction.followup.send(
+                    (
+                        'The timezone preference was committed, but the public '
+                        'confirmation could not be posted. An operator can '
+                        'verify the account preference and audit entry.'
+                    )
+                    if result.mutated
+                    else (
+                        'The timezone preference was read, but the public '
+                        'result could not be posted. Please run the command '
+                        'again.'
+                    ),
+                    ephemeral=True,
+                )
+            except Exception:
+                logger.exception('Could not send timezone reconciliation')
+
     @settings.in_bot_channel()
     @commands.command(brief='See details on a player', usage='player_name', aliases=['elo', 'rank'])
     async def player(self, ctx, *, args=None):
@@ -2345,10 +2437,14 @@ class polygames(commands.Cog):
                     await ctx.send(f'{header_str}\n**{p["player"].name}**{in_game_name_str} -- *Creates the game and invites everyone else*')
                     first_loop = False
                 else:
-                    if dm_obj.timezone_offset:
-                        tz_str = f'`UTC+{dm_obj.timezone_offset}`' if dm_obj.timezone_offset > 0 else f'`UTC{dm_obj.timezone_offset}`'
-                    else:
-                        tz_str = ''
+                    effective_timezone = (
+                        player_timezone_values.effective_timezone_offset(dm_obj)
+                    )
+                    tz_str = (
+                        f'`{effective_timezone}`'
+                        if effective_timezone
+                        else ''
+                    )
                     await ctx.send(f'**{p["player"].name}**{in_game_name_str} {tz_str}')
                 await ctx.send(
                     player_registration.safe_public_name(account_name)
@@ -2367,49 +2463,28 @@ class polygames(commands.Cog):
 
         *Accepts arguments like: UTC+05:00, GMT-5:30*
         """
-
-        if len(args) == 1:
-            # User setting code for themselves. No special permissions required.
-            target_string = f'<@{ctx.author.id}>'
-            tz_string = args[0]
-        elif len(args) == 2:
-            # User changing another user's code. Admin permissions required.
-            if args[0].upper() in ('GMT', 'UTC'):
-                # catching the case of someone doing '$settime UTC +5'
-                target_string = f'<@{ctx.author.id}>'
-                tz_string = (args[0] + args[1]).replace(' ', '')
-            elif settings.is_staff(ctx.author) is False:
-                return await ctx.send('You do not have permission to trigger this command.')
-            else:
-                target_string = args[0]
-                tz_string = args[1]
-        else:
-            # Unexpected input
-            return await ctx.send(f'Wrong number of arguments. Use `{ctx.prefix}settime my_time_zone_offset`. Example: `{ctx.prefix}settime UTC-5:00` for Eastern Standard Time.')
-
         try:
-            player_target = Player.get_or_except(target_string, ctx.guild.id)
-        except exceptions.NoSingleMatch as ex:
-            return await ctx.send(f'{ex}\nExample usage: `{ctx.prefix}settime @Player time_zone_offset`')
+            request = await player_timezone.build_prefix_request(ctx, args)
+            result = await player_timezone_workers.run_timezone_request(request)
+        except (
+            player_timezone.TimezoneValidationError,
+            player_timezone.TimezonePermissionError,
+            player_timezone.TimezoneTargetError,
+            player_timezone_workers.PlayerTimezoneValidationError,
+            player_timezone_workers.PlayerTimezonePermissionError,
+            player_timezone_workers.PlayerTimezoneNotFound,
+            peewee.PeeweeException,
+            ValueError,
+        ) as exc:
+            logger.warning('Prefix timezone preference failed: %s', exc)
+            return await ctx.send(str(exc))
+        except Exception:
+            logger.exception('Unexpected prefix timezone preference failure')
+            return await ctx.send(
+                'The timezone preference could not be saved. Please try again later.'
+            )
 
-        m = re.search(r'(?:GMT|UTC)([+-][0-9]{1,2})(:[0-9]{2}\b)?', tz_string, re.I)
-        if m:
-            offset = int(m[1])
-            if m[2] and m[2] == ':30':
-                if m[1][:1] == '+':
-                    offset = offset + .5
-                else:
-                    offset = offset - .5
-        elif tz_string.upper() in ['UTC', 'GMT']:
-            offset = 0
-            # case of "$settime UTC"
-        else:
-            return await ctx.send(f'Could not interpret input. Use `{ctx.prefix}settime my_time_zone_offset`.\nExample: `{ctx.prefix}settime UTC-5:00` for Eastern Standard Time.')
-
-        player_target.discord_member.timezone_offset = offset
-        player_target.discord_member.save()
-        offset_str = 'UTC+' if offset >= 0 else 'UTC'
-        await ctx.send(f'Player **{player_target.name}** updated in system with timezone offset **{offset_str}{offset}**.')
+        await ctx.send(player_timezone.prefix_success_message(request, result))
 
     @commands.command(aliases=['match'], usage='game_id')
     async def game(self, ctx, *, game_search: str = None):
