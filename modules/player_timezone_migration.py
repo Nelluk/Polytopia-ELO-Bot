@@ -3,7 +3,8 @@
 This module deliberately does not import ``modules.models``.  The application
 model selects the new columns, so a deployment must add the columns before
 starting code that contains the P6.2 model.  The standalone script uses this
-module against an explicitly verified PostgreSQL target.
+module only against the explicitly verified development PostgreSQL target;
+production apply/rollback is outside this unit.
 """
 
 from __future__ import annotations
@@ -14,8 +15,10 @@ from dataclasses import dataclass
 TABLE_NAME = 'discordmember'
 MINUTES_COLUMN = 'timezone_offset_minutes'
 CLEARED_COLUMN = 'timezone_offset_cleared'
-ADD_CONFIRMATION = 'P6.2-TIMEZONE-ADD'
-ROLLBACK_CONFIRMATION = 'P6.2-TIMEZONE-ROLLBACK'
+DEVELOPMENT_ENVIRONMENT = 'development'
+DEVELOPMENT_DATABASE = 'polytopia_dev'
+DEVELOPMENT_ROLE = 'polybot_dev'
+DEVELOPMENT_APPLY_CONFIRMATION = 'P6.2-DEVELOPMENT-TIMEZONE-APPLY'
 
 
 class MigrationSafetyError(RuntimeError):
@@ -69,12 +72,22 @@ def validate_target_identity(
     actual_database: str,
     actual_user: str,
 ) -> None:
-    """Require exact profile and PostgreSQL session identity."""
+    """Require the fixed development profile and PostgreSQL identity."""
 
-    if target.environment not in {'production', 'development'}:
+    if target.environment != DEVELOPMENT_ENVIRONMENT:
         raise MigrationSafetyError(
-            'Schema migration requires an explicit production or development '
-            'runtime profile.'
+            'P6.2 migration is development-only; production schema work is '
+            'deferred to the separately reviewed P9 unit.'
+        )
+    if target.database_name != DEVELOPMENT_DATABASE:
+        raise MigrationSafetyError(
+            f'P6.2 migration requires database {DEVELOPMENT_DATABASE!r}; '
+            f'configured target was {target.database_name!r}.'
+        )
+    if target.database_user != DEVELOPMENT_ROLE:
+        raise MigrationSafetyError(
+            f'P6.2 migration requires role {DEVELOPMENT_ROLE!r}; '
+            f'configured target was {target.database_user!r}.'
         )
     if actual_database != target.database_name:
         raise MigrationSafetyError(
@@ -90,27 +103,23 @@ def validate_target_identity(
 
 def validate_apply_target(
     target: MigrationTarget,
-    *,
-    allow_development: bool = False,
 ) -> None:
-    """Refuse a live apply unless the caller has separately opened its gate."""
+    """Refuse every live target outside the fixed development profile."""
 
     validate_target_identity(
         target,
         actual_database=target.database_name,
         actual_user=target.database_user,
     )
-    if target.environment == 'development' and not allow_development:
+
+
+def validate_apply_confirmation(confirmation: str) -> None:
+    """Require the explicit acknowledgement for development DDL."""
+
+    if confirmation != DEVELOPMENT_APPLY_CONFIRMATION:
         raise MigrationSafetyError(
-            'P6.2 migration apply is not enabled for development databases '
-            'by default; use the separately approved stopped-beta gate.'
-        )
-    if target.environment == 'development' and (
-        target.database_name == 'polytopia_dev'
-        or target.database_user == 'polybot_dev'
-    ) and not allow_development:
-        raise MigrationSafetyError(
-            'Refusing to apply P6.2 to the polytopia_dev/polybot_dev target.'
+            'Development apply requires confirmation token '
+            f'{DEVELOPMENT_APPLY_CONFIRMATION!r}.'
         )
 
 
@@ -228,15 +237,11 @@ def apply_migration(
     *,
     target: MigrationTarget,
     confirmation: str,
-    allow_development: bool = False,
 ) -> MigrationPlan:
-    """Apply only the additive plan inside one transaction."""
+    """Apply only the additive plan to the fixed development target."""
 
-    if confirmation != ADD_CONFIRMATION:
-        raise MigrationSafetyError(
-            f'Apply requires confirmation token {ADD_CONFIRMATION!r}.'
-        )
-    validate_apply_target(target, allow_development=allow_development)
+    validate_apply_confirmation(confirmation)
+    validate_apply_target(target)
 
     try:
         with connection.cursor() as cursor:
@@ -248,53 +253,6 @@ def apply_migration(
             )
             table_exists, columns = schema_metadata(cursor)
             plan = plan_migration(columns, table_exists=table_exists)
-            for statement in plan.statements:
-                cursor.execute(statement)
-        connection.commit()
-        return plan
-    except Exception:
-        connection.rollback()
-        raise
-
-
-def rollback_migration(
-    connection,
-    *,
-    target: MigrationTarget,
-    confirmation: str,
-    owned_columns: tuple[str, ...],
-    allow_development: bool = False,
-) -> MigrationPlan:
-    """Remove only explicitly owned additive columns, in reverse order."""
-
-    if confirmation != ROLLBACK_CONFIRMATION:
-        raise MigrationSafetyError(
-            f'Rollback requires confirmation token {ROLLBACK_CONFIRMATION!r}.'
-        )
-    validate_apply_target(target, allow_development=allow_development)
-    allowed = {MINUTES_COLUMN, CLEARED_COLUMN}
-    if not owned_columns or any(column not in allowed for column in owned_columns):
-        raise MigrationSafetyError(
-            'Rollback requires explicit ownership of only P6.2 columns.'
-        )
-    statements = tuple(
-        f'ALTER TABLE "{TABLE_NAME}" DROP COLUMN "{name}"'
-        for name in reversed(tuple(dict.fromkeys(owned_columns)))
-    )
-    plan = MigrationPlan(
-        table=TABLE_NAME,
-        statements=statements,
-        rollback_statements=(),
-        added_columns=tuple(dict.fromkeys(owned_columns)),
-    )
-    try:
-        with connection.cursor() as cursor:
-            actual_database, actual_user = _session_identity(cursor)
-            validate_target_identity(
-                target,
-                actual_database=actual_database,
-                actual_user=actual_user,
-            )
             for statement in plan.statements:
                 cursor.execute(statement)
         connection.commit()

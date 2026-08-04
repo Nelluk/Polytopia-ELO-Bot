@@ -1,11 +1,28 @@
-"""Offline safety tests for the P6.2 additive migration path."""
+"""Offline safety tests for the P6.2 development-only migration path."""
 
+from contextlib import redirect_stderr, redirect_stdout
+import importlib.util
+from io import StringIO
+import os
+from pathlib import Path
 import unittest
+from unittest import mock
 
 from tests.test_newgame_worker import import_offline_runtime
 
 
 migration = import_offline_runtime('modules.player_timezone_migration')
+
+_SCRIPT_PATH = (
+    Path(__file__).resolve().parents[1] / 'scripts' /
+    'migrate_player_timezone.py'
+)
+_SCRIPT_SPEC = importlib.util.spec_from_file_location(
+    'test_migrate_player_timezone_script',
+    _SCRIPT_PATH,
+)
+migration_script = importlib.util.module_from_spec(_SCRIPT_SPEC)
+_SCRIPT_SPEC.loader.exec_module(migration_script)
 
 
 class MigrationPlanTests(unittest.TestCase):
@@ -64,7 +81,7 @@ class MigrationPlanTests(unittest.TestCase):
                 },
             })
 
-    def test_target_identity_and_development_apply_gate_are_fail_closed(self):
+    def test_only_exact_development_target_and_acknowledgement_are_allowed(self):
         production = migration.MigrationTarget(
             environment='production',
             database_name='polytopia2',
@@ -73,22 +90,54 @@ class MigrationPlanTests(unittest.TestCase):
         with self.assertRaises(migration.MigrationSafetyError):
             migration.validate_target_identity(
                 production,
-                actual_database='polytopia_dev',
-                actual_user='polybot_dev',
+                actual_database='polytopia2',
+                actual_user='polybot',
             )
         development = migration.MigrationTarget(
             environment='development',
             database_name='polytopia_dev',
             database_user='polybot_dev',
         )
+        migration.validate_target_identity(
+            development,
+            actual_database='polytopia_dev',
+            actual_user='polybot_dev',
+        )
+        migration.validate_apply_target(development)
+        migration.validate_apply_confirmation(
+            migration.DEVELOPMENT_APPLY_CONFIRMATION,
+        )
         with self.assertRaises(migration.MigrationSafetyError):
-            migration.validate_apply_target(development)
+            migration.validate_apply_confirmation('')
+        for invalid in (
+            migration.MigrationTarget(
+                environment='development',
+                database_name='polytopia2',
+                database_user='polybot_dev',
+            ),
+            migration.MigrationTarget(
+                environment='development',
+                database_name='polytopia_dev',
+                database_user='polybot',
+            ),
+        ):
+            with self.subTest(invalid=invalid):
+                with self.assertRaises(migration.MigrationSafetyError):
+                    migration.validate_apply_target(invalid)
 
 
 class FakeCursor:
-    def __init__(self, *, fail_statement=False):
+    def __init__(
+        self,
+        *,
+        fail_statement=False,
+        database='polytopia_dev',
+        user='polybot_dev',
+    ):
         self.statements = []
         self.fail_statement = fail_statement
+        self.database = database
+        self.user = user
         self._fetchone = None
         self._fetchall = []
 
@@ -101,7 +150,7 @@ class FakeCursor:
     def execute(self, statement, params=None):
         self.statements.append((statement, params))
         if statement.startswith('SELECT current_database'):
-            self._fetchone = ('polytopia2', 'polybot')
+            self._fetchone = (self.database, self.user)
         elif 'information_schema.tables' in statement:
             self._fetchone = (True,)
         elif 'information_schema.columns' in statement:
@@ -117,8 +166,18 @@ class FakeCursor:
 
 
 class FakeConnection:
-    def __init__(self, *, fail_statement=False):
-        self.cursor_value = FakeCursor(fail_statement=fail_statement)
+    def __init__(
+        self,
+        *,
+        fail_statement=False,
+        database='polytopia_dev',
+        user='polybot_dev',
+    ):
+        self.cursor_value = FakeCursor(
+            fail_statement=fail_statement,
+            database=database,
+            user=user,
+        )
         self.commits = 0
         self.rollbacks = 0
 
@@ -135,9 +194,9 @@ class FakeConnection:
 class MigrationExecutionTests(unittest.TestCase):
     def setUp(self):
         self.target = migration.MigrationTarget(
-            environment='production',
-            database_name='polytopia2',
-            database_user='polybot',
+            environment='development',
+            database_name='polytopia_dev',
+            database_user='polybot_dev',
         )
 
     def test_apply_is_transactional_and_uses_expected_identity(self):
@@ -145,7 +204,7 @@ class MigrationExecutionTests(unittest.TestCase):
         plan = migration.apply_migration(
             connection,
             target=self.target,
-            confirmation=migration.ADD_CONFIRMATION,
+            confirmation=migration.DEVELOPMENT_APPLY_CONFIRMATION,
         )
         ddl = [statement for statement, _ in connection.cursor_value.statements]
         self.assertEqual(plan.added_columns, (
@@ -165,29 +224,95 @@ class MigrationExecutionTests(unittest.TestCase):
             migration.apply_migration(
                 connection,
                 target=self.target,
-                confirmation=migration.ADD_CONFIRMATION,
+                confirmation=migration.DEVELOPMENT_APPLY_CONFIRMATION,
             )
         self.assertEqual(connection.commits, 0)
         self.assertEqual(connection.rollbacks, 1)
 
-    def test_rollback_is_reverse_order_and_transactional(self):
-        connection = FakeConnection()
-        plan = migration.rollback_migration(
-            connection,
-            target=self.target,
-            confirmation=migration.ROLLBACK_CONFIRMATION,
-            owned_columns=(
-                migration.MINUTES_COLUMN,
-                migration.CLEARED_COLUMN,
-            ),
+    def test_apply_rejects_wrong_live_session_identity_before_ddl(self):
+        connection = FakeConnection(
+            database='polytopia2',
+            user='polybot',
         )
-        ddl = [statement for statement, _ in connection.cursor_value.statements]
+        with self.assertRaises(migration.MigrationSafetyError):
+            migration.apply_migration(
+                connection,
+                target=self.target,
+                confirmation=migration.DEVELOPMENT_APPLY_CONFIRMATION,
+            )
+        ddl = [
+            statement for statement, _ in connection.cursor_value.statements
+            if statement.startswith('ALTER TABLE')
+        ]
+        self.assertEqual(ddl, [])
+        self.assertEqual(connection.commits, 0)
+        self.assertEqual(connection.rollbacks, 1)
+
+    def test_plan_retains_reviewed_reverse_order_without_live_rollback(self):
+        plan = migration.plan_migration({})
         self.assertEqual(
-            [statement for statement in ddl if statement.startswith('ALTER')],
-            list(plan.statements),
+            plan.rollback_statements[0].split('"')[3],
+            migration.CLEARED_COLUMN,
         )
-        self.assertEqual(plan.statements[0].split('"')[3], migration.CLEARED_COLUMN)
-        self.assertEqual(connection.commits, 1)
+        self.assertFalse(hasattr(migration, 'rollback_migration'))
+
+
+class MigrationCliTests(unittest.TestCase):
+    def test_apply_refuses_unset_or_production_environment_before_connection(self):
+        for environment in (None, 'production'):
+            with self.subTest(environment=environment):
+                env = {} if environment is None else {
+                    'POLYBOT_ENV': environment,
+                }
+                stderr = StringIO()
+                with (
+                    mock.patch.dict(os.environ, env, clear=True),
+                    mock.patch.object(
+                        migration_script,
+                        '_live_connection',
+                        side_effect=AssertionError('connection opened'),
+                    ),
+                    redirect_stderr(stderr),
+                ):
+                    result = migration_script.main([
+                        '--apply',
+                        '--confirm',
+                        migration.DEVELOPMENT_APPLY_CONFIRMATION,
+                    ])
+                self.assertEqual(result, 2)
+                self.assertIn('development', stderr.getvalue())
+
+    def test_apply_requires_acknowledgement_before_connection(self):
+        stderr = StringIO()
+        with (
+            mock.patch.dict(os.environ, {'POLYBOT_ENV': 'development'}, clear=True),
+            mock.patch.object(
+                migration_script,
+                '_live_connection',
+                side_effect=AssertionError('connection opened'),
+            ),
+            redirect_stderr(stderr),
+        ):
+            result = migration_script.main(['--apply'])
+        self.assertEqual(result, 2)
+        self.assertIn('confirmation token', stderr.getvalue())
+
+    def test_rollback_is_offline_review_only_and_does_not_open_connection(self):
+        stdout = StringIO()
+        with (
+            mock.patch.object(
+                migration_script,
+                '_live_connection',
+                side_effect=AssertionError('connection opened'),
+            ),
+            redirect_stdout(stdout),
+        ):
+            result = migration_script.main(['--rollback'])
+        self.assertEqual(result, 0)
+        output = stdout.getvalue()
+        self.assertIn('reviewed rollback statements (not executed)', output)
+        self.assertIn(migration.CLEARED_COLUMN, output)
+        self.assertIn('no database connection or DDL', output)
 
 
 if __name__ == '__main__':

@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
-"""Plan or apply the additive P6.2 timezone schema migration.
+"""Plan or explicitly apply the development P6.2 timezone schema migration.
 
 The default mode is offline and prints the exact additive/rollback SQL.  Live
-apply and rollback require explicit confirmation, an exact production runtime
-profile, and PostgreSQL session identity verification.  This script never
-runs as bot startup work.
+apply requires explicit ``POLYBOT_ENV=development``, the exact
+``polytopia_dev``/``polybot_dev`` profile, an acknowledgement token, and
+PostgreSQL session identity verification.  Rollback is intentionally offline
+review SQL only; this script never runs DDL at bot startup.
 """
 
 from __future__ import annotations
 
 import argparse
+import os
 from pathlib import Path
 import sys
 
@@ -27,36 +29,62 @@ def _offline_plan() -> migration.MigrationPlan:
 
 def _parse_args(argv=None):
     parser = argparse.ArgumentParser(
-        description='Plan or explicitly apply the P6.2 timezone migration.'
+        description=(
+            'Plan or explicitly apply the development-only P6.2 timezone '
+            'migration.'
+        )
     )
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument('--apply', action='store_true')
     mode.add_argument('--rollback', action='store_true')
-    parser.add_argument('--confirm', default='')
     parser.add_argument(
-        '--owned-column',
-        action='append',
-        dest='owned_columns',
-        default=[],
-        help='P6.2 column previously recorded as owned; repeat as needed.',
+        '--confirm',
+        default='',
+        help=(
+            'development apply acknowledgement; required value is '
+            f'{migration.DEVELOPMENT_APPLY_CONFIRMATION}'
+        ),
     )
     return parser.parse_args(argv)
 
 
-def _print_plan(plan: migration.MigrationPlan) -> None:
+def _print_statements(label: str, statements: tuple[str, ...], empty: str) -> None:
+    print(f'{label}:')
+    if statements:
+        for statement in statements:
+            print(f'  {statement};')
+    else:
+        print(f'  ({empty})')
+
+
+def _print_plan(
+    plan: migration.MigrationPlan,
+    *,
+    apply_executed: bool = False,
+    rollback_only: bool = False,
+) -> None:
     print(f'table: public.{plan.table}')
-    print('apply statements:')
-    if plan.statements:
-        for statement in plan.statements:
-            print(f'  {statement};')
+    if rollback_only:
+        _print_statements(
+            'reviewed rollback statements (not executed)',
+            plan.rollback_statements,
+            'none in this plan',
+        )
     else:
-        print('  (already applied)')
-    print('rollback statements:')
-    if plan.rollback_statements:
-        for statement in plan.rollback_statements:
-            print(f'  {statement};')
-    else:
-        print('  (none)')
+        _print_statements(
+            (
+                'apply statements (executed)'
+                if apply_executed
+                else 'planned apply statements (not executed)'
+            ),
+            plan.statements,
+            'already applied',
+        )
+        _print_statements(
+            'reviewed rollback statements (not executed)',
+            plan.rollback_statements,
+            'none in this plan',
+        )
 
 
 def _live_connection(profile):
@@ -73,13 +101,28 @@ def _live_connection(profile):
 
 def main(argv=None) -> int:
     args = _parse_args(argv)
-    if not args.apply and not args.rollback:
+    if args.rollback:
+        _print_plan(_offline_plan(), rollback_only=True)
+        print(
+            'Rollback is review-only in P6.2: no database connection or DDL '
+            'was performed.'
+        )
+        return 0
+    if not args.apply:
         _print_plan(_offline_plan())
         print(
             'No database connection or DDL was performed. Live operations '
-            'require the stopped-beta deployment gate.'
+            'require the stopped-beta development gate.'
         )
         return 0
+
+    if os.environ.get('POLYBOT_ENV') != migration.DEVELOPMENT_ENVIRONMENT:
+        print(
+            'Migration refused: set explicit POLYBOT_ENV=development; '
+            'P6.2 does not support production schema operations.',
+            file=sys.stderr,
+        )
+        return 2
 
     from runtime_config import get_runtime_profile
 
@@ -91,20 +134,15 @@ def main(argv=None) -> int:
     )
     connection = None
     try:
+        # Validate the fixed profile before opening a PostgreSQL connection.
+        migration.validate_apply_target(target)
+        migration.validate_apply_confirmation(args.confirm)
         connection = _live_connection(profile)
-        if args.apply:
-            plan = migration.apply_migration(
-                connection,
-                target=target,
-                confirmation=args.confirm,
-            )
-        else:
-            plan = migration.rollback_migration(
-                connection,
-                target=target,
-                confirmation=args.confirm,
-                owned_columns=tuple(args.owned_columns),
-            )
+        plan = migration.apply_migration(
+            connection,
+            target=target,
+            confirmation=args.confirm,
+        )
     except migration.MigrationSafetyError as exc:
         print(f'Migration refused: {exc}', file=sys.stderr)
         return 2
@@ -112,8 +150,8 @@ def main(argv=None) -> int:
         if connection is not None:
             connection.close()
 
-    _print_plan(plan)
-    print('Migration transaction committed.')
+    _print_plan(plan, apply_executed=True)
+    print('Development migration transaction committed.')
     return 0
 
 
