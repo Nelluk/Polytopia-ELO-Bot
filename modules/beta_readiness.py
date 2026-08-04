@@ -16,6 +16,11 @@ import re
 import stat
 from typing import Any, Callable
 
+from modules.application_command_policy import (
+    TOOLS_SUPPORT_IMPLEMENTED_ROOTS,
+    TOOLS_SUPPORT_RESERVED_ROOTS,
+)
+
 
 READINESS_SCHEMA_VERSION = 1
 DISCORD_INVENTORY_SCHEMA_VERSION = 1
@@ -708,12 +713,16 @@ def read_development_database_inventory(
                     ORDER BY t.id
                     LIMIT %s
                     ''',
-                    (normalized_guild_id, normalized_guild_id, MAX_DATABASE_TEAMS),
+                    (
+                        normalized_guild_id,
+                        normalized_guild_id,
+                        MAX_DATABASE_TEAMS + 1,
+                    ),
                 )
                 house_rows = _database_rows(
                     database,
                     'SELECT id, name FROM house ORDER BY id LIMIT %s',
-                    (MAX_DATABASE_HOUSES,),
+                    (MAX_DATABASE_HOUSES + 1,),
                 )
                 fixture_rows = _database_rows(
                     database,
@@ -956,7 +965,13 @@ def _validate_proposed_house(value: Any, field: str) -> dict[str, Any]:
         )
     return {
         'name': _bounded_text(value['name'], f'{field}.name'),
-        'role_name': _bounded_text(value['role_name'], f'{field}.role_name'),
+        # A house role is deliberately optional: WB1.3b creates no house
+        # roles, while retaining the field keeps the template extensible for
+        # a later reviewed house-role decision.
+        'role_name': (
+            _bounded_text(value['role_name'], f'{field}.role_name')
+            if value['role_name'] is not None else None
+        ),
     }
 
 
@@ -970,11 +985,22 @@ def _validate_role_binding(value: Any, field: str) -> dict[str, Any]:
     kind = _bounded_text(value['kind'], f'{field}.kind', 20)
     if kind not in {'team', 'house'}:
         raise ReadinessManifestError(f'{field}.kind must be team or house.')
+    source_id = _optional_positive_int(
+        value['source_id'], f'{field}.source_id'
+    )
+    role_id = _optional_positive_int(value['role_id'], f'{field}.role_id')
+    if source_id is None and role_id is None:
+        raise ReadinessManifestError(
+            f'{field} must pin a Discord role ID before its database source ID exists.'
+        )
     return {
         'kind': kind,
-        'source_id': _positive_int(value['source_id'], f'{field}.source_id'),
+        # Proposed records do not have database IDs until the separate setup
+        # transaction creates them.  Existing bindings retain their source
+        # ID; a pending binding must still pin the Discord role ID.
+        'source_id': source_id,
         'role_name': _bounded_text(value['role_name'], f'{field}.role_name'),
-        'role_id': _optional_positive_int(value['role_id'], f'{field}.role_id'),
+        'role_id': role_id,
     }
 
 
@@ -1421,6 +1447,12 @@ def plan_readiness(
         'add': sorted(proposed_capabilities - actual_capabilities),
         'remove': sorted(actual_capabilities - proposed_capabilities),
         'unchanged': sorted(actual_capabilities & proposed_capabilities),
+        'root_review': {
+            'tools_support': {
+                'implemented_roots': list(TOOLS_SUPPORT_IMPLEMENTED_ROOTS),
+                'reserved_unloaded_roots': list(TOOLS_SUPPORT_RESERVED_ROOTS),
+            },
+        },
     }
     changes.extend(
         f'capability add: {name}' for name in capability_diff['add']
