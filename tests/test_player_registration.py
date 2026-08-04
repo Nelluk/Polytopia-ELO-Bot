@@ -72,6 +72,8 @@ class TransactionDatabase:
         self.connection_closed = 0
         self.commits = 0
         self.rollbacks = 0
+        self.savepoints = 0
+        self.atomic_depth = 0
 
     def connection_context(self):
         database = self
@@ -93,11 +95,17 @@ class TransactionDatabase:
         class Atomic(AbstractContextManager):
             def __enter__(self):
                 self.snapshot = copy.deepcopy(database.state)
+                self.depth = database.atomic_depth
+                database.atomic_depth += 1
+                if self.depth:
+                    database.savepoints += 1
                 return self
 
             def __exit__(self, exc_type, exc_value, traceback):
+                database.atomic_depth -= 1
                 if exc_type is None:
-                    database.commits += 1
+                    if self.depth == 0:
+                        database.commits += 1
                 else:
                     database.rollbacks += 1
                     database.state.clear()
@@ -128,7 +136,23 @@ class FakeMemberModel:
 
     @classmethod
     def get_or_none(cls, *, discord_id):
-        return cls.state['members'].get(discord_id)
+        return cls.state['members'].get(discord_id) or cls.race_existing
+
+    @classmethod
+    def get_or_create(cls, **kwargs):
+        defaults = kwargs.pop('defaults', {})
+        if cls.race_conflict:
+            cls.race_conflict = False
+            cls.race_existing = cls(
+                cls.state,
+                kwargs['discord_id'],
+                'Concurrent Discord Name',
+            )
+            raise peewee.IntegrityError('simulated DiscordMember conflict')
+        existing = cls.get_or_none(**kwargs)
+        if existing is not None:
+            return existing, False
+        return cls.create(**kwargs, **defaults), True
 
     @classmethod
     def create(cls, **kwargs):
@@ -170,11 +194,31 @@ class FakePlayerModel:
         return f'{player_name} ({player_nick})' if player_nick else player_name
 
     @classmethod
-    def get_or_none(cls, query):
+    def get_or_none(cls, query=None, **kwargs):
         # The production query is represented by the fake's current member
         # and guild fields in the patched test path.
-        del query
-        return cls.existing
+        del query, kwargs
+        return cls.existing or cls.race_existing
+
+    @classmethod
+    def get_or_create(cls, **kwargs):
+        defaults = kwargs.pop('defaults', {})
+        if cls.race_conflict:
+            cls.race_conflict = False
+            conflict_values = {**kwargs, **defaults}
+            conflict_values['name'] = 'Concurrent Discord Label'
+            cls.race_existing = cls(
+                cls.state,
+                **conflict_values,
+            )
+            raise peewee.IntegrityError('simulated Player conflict')
+        existing = cls.get_or_none(**kwargs)
+        if existing is not None:
+            return existing, False
+        result = cls(cls.state, **kwargs, **defaults)
+        cls.state['players'].append(result)
+        cls.existing = result
+        return result, True
 
     @classmethod
     def create(cls, **kwargs):
@@ -184,7 +228,8 @@ class FakePlayerModel:
         return result
 
     def save(self):
-        return None
+        if self not in self._state['players']:
+            self._state['players'].append(self)
 
 
 class FakeGameLog:
@@ -256,8 +301,12 @@ class PlayerRegistrationWorkerTests(unittest.TestCase):
         self.state = {'members': {}, 'players': [], 'logs': []}
         self.database = TransactionDatabase(self.state)
         FakeMemberModel.state = self.state
+        FakeMemberModel.race_conflict = False
+        FakeMemberModel.race_existing = None
         FakePlayerModel.state = self.state
         FakePlayerModel.existing = None
+        FakePlayerModel.race_conflict = False
+        FakePlayerModel.race_existing = None
         FakeGameLog.state = self.state
         FakeGameLog.fail = False
 
@@ -323,6 +372,32 @@ class PlayerRegistrationWorkerTests(unittest.TestCase):
         self.assertEqual(self.database.commits, 0)
         self.assertEqual(self.database.rollbacks, 1)
         self.assertEqual(self.database.connection_closed, 1)
+
+    def test_conflicting_member_and_player_inserts_reload_inside_outer_transaction(self):
+        FakeMemberModel.race_conflict = True
+        FakePlayerModel.race_conflict = True
+        team = FakeTeam('The Ronin')
+
+        with self.patches(matching_team=(team,)):
+            result = workers.register_player(
+                request(target_id=200, actor_roles=('Helper',)),
+            )
+
+        saved_member = self.state['members'][200]
+        saved_player = self.state['players'][0]
+        self.assertFalse(result.member_created)
+        self.assertFalse(result.player_created)
+        self.assertEqual(saved_member.name, 'Target')
+        self.assertEqual(saved_member.polytopia_name, 'Poly Name')
+        self.assertEqual(saved_member.name_steam, 'Legacy Steam Value')
+        self.assertEqual(saved_member.polytopia_id, 'legacy-id')
+        self.assertEqual(saved_player.name, 'Target')
+        self.assertIs(saved_player.team, team)
+        self.assertEqual(self.database.savepoints, 2)
+        self.assertEqual(self.database.commits, 1)
+        self.assertEqual(self.database.rollbacks, 2)
+        self.assertEqual(len(self.state['logs']), 1)
+        self.assertEqual(self.state['logs'][0]['guild_id'], 300)
 
     def test_worker_revalidates_exact_staff_parity_from_role_snapshot(self):
         with self.patches():

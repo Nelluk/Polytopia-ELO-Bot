@@ -11,6 +11,7 @@ import re
 import unicodedata
 
 import discord
+import peewee
 
 from modules import models
 import settings
@@ -202,6 +203,35 @@ def _safe_name(value: str) -> str:
     )
 
 
+def _race_safe_get_or_create(model, lookup, defaults):
+    """Get or create a unique row without poisoning the outer transaction.
+
+    Peewee's PostgreSQL ``get_or_create`` already uses an inner transaction
+    for its insert, but keep an explicit savepoint around the call so a
+    competing insert that surfaces as an IntegrityError is rolled back before
+    the authoritative reload.  The caller remains inside the one outer
+    transaction for the complete registration graph.
+    """
+
+    try:
+        with models.db.atomic():
+            instance, created = model.get_or_create(
+                defaults=defaults,
+                **lookup,
+            )
+    except peewee.IntegrityError:
+        instance = model.get_or_none(**lookup)
+        if instance is None:
+            raise
+        return instance, False
+
+    if not created:
+        # Reload the row after the savepoint so subsequent writes use the
+        # authoritative instance, including a row returned after a race.
+        instance = model.get_or_none(**lookup) or instance
+    return instance, created
+
+
 def register_player(request: PlayerRegistrationRequest) -> PlayerRegistrationResult:
     """Commit member, guild player, canonical name, team, and audit together."""
 
@@ -211,16 +241,12 @@ def register_player(request: PlayerRegistrationRequest) -> PlayerRegistrationRes
 
     with models.db.connection_context():
         with models.db.atomic():
-            member = models.DiscordMember.get_or_none(
-                discord_id=target.discord_id,
+            member, member_created = _race_safe_get_or_create(
+                models.DiscordMember,
+                {'discord_id': target.discord_id},
+                {'name': target.discord_name},
             )
-            member_created = member is None
-            if member is None:
-                member = models.DiscordMember.create(
-                    discord_id=target.discord_id,
-                    name=target.discord_name,
-                )
-            else:
+            if not member_created:
                 # Keep the account-wide legacy fields untouched. The current
                 # Discord username is only metadata used by old displays.
                 member.name = target.discord_name
@@ -230,18 +256,17 @@ def register_player(request: PlayerRegistrationRequest) -> PlayerRegistrationRes
                 player_name=target.discord_name,
                 player_nick=target.discord_nick,
             )
-            player = models.Player.get_or_none(
-                (models.Player.discord_member == member)
-                & (models.Player.guild_id == request.guild_id)
+            player, player_created = _race_safe_get_or_create(
+                models.Player,
+                {
+                    'discord_member': member,
+                    'guild_id': request.guild_id,
+                },
+                {
+                    'nick': target.discord_nick,
+                    'name': display_name,
+                },
             )
-            player_created = player is None
-            if player is None:
-                player = models.Player.create(
-                    discord_member=member,
-                    guild_id=request.guild_id,
-                    nick=target.discord_nick,
-                    name=display_name,
-                )
 
             matching_teams = _matching_team(
                 request.guild_id,
