@@ -42,6 +42,9 @@ from modules import game_detail_workers
 from modules import game_detail_actions
 from modules import team_show as team_show_service
 from modules import team_show_workers
+from modules import squad_show as squad_show_service
+from modules import squad_show_views
+from modules import squad_show_workers
 from modules import game_deletion
 from modules import game_join_leave
 from modules import game_join_workers
@@ -211,6 +214,11 @@ class polygames(commands.Cog):
     player_group = discord.app_commands.Group(
         name='player',
         description='View and manage player profiles.',
+        guild_only=True,
+    )
+    squad_group = discord.app_commands.Group(
+        name='squad',
+        description='Find squads and view dense squad cards.',
         guild_only=True,
     )
 
@@ -1032,6 +1040,95 @@ class polygames(commands.Cog):
             view=view,
         )
 
+    @squad_group.command(
+        name='show',
+        description='Find squads or open a squad card.',
+    )
+    @discord.app_commands.describe(
+        squad_id='Exact squad ID to view; omit to search by members.',
+    )
+    @discord.app_commands.checks.cooldown(
+        2,
+        20.0,
+        key=lambda interaction: interaction.channel_id,
+    )
+    async def squad_show_slash(
+        self,
+        interaction: discord.Interaction,
+        squad_id: int | None = None,
+    ):
+        """Publish a public, requester-controlled squad snapshot."""
+
+        await interaction.response.defer(ephemeral=True)
+        access_error = squad_show_service.native_access_error(
+            interaction.user,
+            interaction.guild.id,
+            interaction.channel_id,
+        )
+        if access_error is not None:
+            return await interaction.followup.send(
+                access_error,
+                ephemeral=True,
+            )
+
+        try:
+            request = squad_show_service.build_request(
+                member=interaction.user,
+                guild=interaction.guild,
+                squad_id=squad_id,
+                channel_id=interaction.channel_id,
+            )
+            result = await squad_show_workers.run_squad_show(request)
+        except (
+            squad_show_workers.SquadShowValidationError,
+            squad_show_workers.SquadShowLookupError,
+            peewee.PeeweeException,
+            ValueError,
+        ) as exc:
+            logger.exception('Could not load slash squad show')
+            return await interaction.followup.send(
+                str(exc),
+                ephemeral=True,
+            )
+        except Exception:
+            logger.exception('Unexpected slash squad-show failure')
+            return await interaction.followup.send(
+                'Could not load the squad workspace. Please run `/squad show` '
+                'again.',
+                ephemeral=True,
+            )
+
+        if not result.cards:
+            return await interaction.followup.send(
+                'No eligible squads matched those members.',
+                ephemeral=True,
+            )
+
+        async def load_members(member_ids):
+            member_request = squad_show_service.build_request(
+                member=interaction.user,
+                guild=interaction.guild,
+                member_ids=tuple(member_ids),
+                channel_id=interaction.channel_id,
+            )
+            return await squad_show_workers.run_squad_show(member_request)
+
+        view = squad_show_views.SquadShowWorkspace(
+            requester_id=interaction.user.id,
+            result=result,
+            member_loader=load_members,
+            timeout=squad_show_service.SQUAD_SHOW_CONTROL_TIMEOUT,
+        )
+        try:
+            await squad_show_service.publish_native(interaction, view)
+        except Exception:
+            logger.exception('Could not publish slash squad-show workspace')
+            return await interaction.followup.send(
+                'Could not publish the squad workspace. Please run '
+                '`/squad show` again.',
+                ephemeral=True,
+            )
+
     @settings.in_bot_channel()
     @settings.guild_has_setting(setting_name='allow_teams')
     @commands.command(brief='Set a squad name', usage='squad_id New Squad Name', hidden=True)
@@ -1046,7 +1143,7 @@ class polygames(commands.Cog):
         args = args.split() if args else []
         usage = f'**Example**: `{ctx.prefix}{ctx.invoked_with} 500 The Super Cool Squad`'
         if not args:
-            return await ctx.send(f'No squad ID number supplied. You can use `{ctx.prefix}squad` or `{ctx.prefix}lbsquad` to look up squad IDs.\n{usage}')
+            return await ctx.send(f'No squad ID number supplied. You can use `/squad show` or `{ctx.prefix}lbsquad` to look up squad IDs.\n{usage}')
 
         try:
             # Argument is an int, so show squad by ID
@@ -1054,7 +1151,7 @@ class polygames(commands.Cog):
             squad = Squad.get(id=squad_id)
             new_squad_name = discord.utils.escape_markdown(' '.join(args[1:])[:50])
         except ValueError:
-            return await ctx.send(f'No squad ID number supplied. You can use `{ctx.prefix}squad` or `{ctx.prefix}lbsquad` to look up squad IDs.\n{usage}')
+            return await ctx.send(f'No squad ID number supplied. You can use `/squad show` or `{ctx.prefix}lbsquad` to look up squad IDs.\n{usage}')
         except peewee.DoesNotExist:
             return await ctx.send(f'Squad with ID {squad_id} cannot be found.')
 
@@ -1081,90 +1178,6 @@ class polygames(commands.Cog):
 
         models.GameLog.write(game_id=0, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} set squadname of squad {squad.id} to {new_squad_name}')
         await ctx.send(f'Squad name for {squad.id} set to {new_squad_name_str}.')
-
-    @settings.in_bot_channel()
-    @settings.guild_has_setting(setting_name='allow_teams')
-    @commands.command(brief='Find squads or see details on a squad', usage='player1 [player2] [player3]', aliases=['squads'])
-    async def squad(self, ctx, *args):
-        """Find squads with specific players, or see details on a squad
-
-        A squad is any combination of players that have completed at least two games together.
-        To set a squad name see `[p]help squadname`
-
-        **Examples:**
-        `[p]squad 5` - details on squad 5
-        `[p]squad Nelluk` - squads containing Nelluk
-        `[p]squad Nelluk jd` - squad containing both players
-        """
-        if not args:
-            return await ctx.send(f'Use `{ctx.prefix}{ctx.invoked_with} player [player2]` to search for squads by membership, or `{ctx.prefix}lbsquad` for the squad leaderboard.')
-        try:
-            # Argument is an int, so show squad by ID
-            squad_id = int(''.join(args))
-            squad = Squad.get(id=squad_id)
-        except ValueError:
-            squad_id = None
-            # Args is not an int, which means search by game name
-        except peewee.DoesNotExist:
-            return await ctx.send(f'Squad with ID {squad_id} cannot be found.')
-
-        if squad_id is None:
-            # Search by player names
-            squad_players = []
-            for p_name in args:
-
-                try:
-                    squad_players.append(Player.get_or_except(p_name, guild_id=ctx.guild.id))
-                except exceptions.NoSingleMatch as e:
-                    return await ctx.send(e)
-
-            squad_list = Squad.get_all_matching_squads(squad_players, guild_id=ctx.guild.id)
-            if len(squad_list) == 0:
-                return await ctx.send(f'Found no squads containing players: {" / ".join([p.name for p in squad_players])}')
-            if len(squad_list) > 1:
-                # more than one match, so display a paginating list
-                squadlist = []
-                for squadside in squad_list[:50]:
-                    squad = squadside.squad
-                    wins, losses = squad.get_record()
-                    squad_name_str = f' - *{squad.name}*\n' if squad.name else ' - '
-                    squadlist.append(
-                        (f'`#{squad.id:>3}`{squad_name_str}{" / ".join(squad.get_names()):40}', f'`(ELO: {squad.elo}) W {wins} / L {losses}`')
-                    )
-                await utilities.paginate(self.bot, ctx, title=f'Found {len(squad_list)} matches. Try `{ctx.prefix}squad #`:', message_list=squadlist, page_start=0, page_end=10, page_size=10)
-                return
-
-            # Exact matching squad found by player name
-            squad = squad_list[0].squad
-
-        if squad.guild_id != ctx.guild.id:
-            return await ctx.send(f'Squad with ID {squad_id} is affiliated with a different Discord server.')
-
-        wins, losses = squad.get_record()
-        rank, lb_length = squad.leaderboard_rank(settings.date_cutoff)
-
-        if rank is None:
-            rank_str = 'Unranked'
-        else:
-            rank_str = f'{rank} of {lb_length}'
-
-        names_with_emoji = [f'{p.team.emoji} **{p.name}**' if p.team is not None else f'**{p.name}**' for p in squad.get_members()]
-
-        squad_name_str = f'\n*{squad.name}*' if squad.name else ''
-        embed = discord.Embed(title=f'Squad card for Squad {squad.id}{squad_name_str}', description=f'{"  /  ".join(names_with_emoji)}'[:2048])
-        embed.add_field(name='Results', value=f'ELO: {squad.elo},  W {wins} / L {losses}', inline=True)
-        embed.add_field(name='Ranking', value=rank_str, inline=True)
-        recent_games = GameSide.select(Game).join(Game).where(
-            (GameSide.squad == squad)
-        ).order_by(-Game.date)
-
-        embed.add_field(value='\u200b', name='Most recent games', inline=False)
-        game_list = utilities.summarize_game_list(recent_games[:10])
-
-        for game, result in game_list:
-            embed.add_field(name=game, value=result, inline=False)
-
-        await ctx.send(embed=embed)
 
     async def _load_player_workspace(
         self,

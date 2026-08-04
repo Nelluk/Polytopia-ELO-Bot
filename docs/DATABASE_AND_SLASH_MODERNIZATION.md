@@ -362,7 +362,7 @@ would become unavailable if a prefix is retired.
 | C-009 `/player register` / `$setname` / `$steamname` / `$setcode` / `$getnames` aliases | Native `/player register member:[optional]` uses one account-wide canonical-name modal; `$setname` delegates to the same bounded worker, and the useful name-list aliases remain available for game setup. | Legacy recommendation: **retain** `$setname` through the production canary. `$steamname` and `$setcode` remain registered as non-writing deprecation adapters; `$code`/`$getcode` warn and return the transitional canonical read. Existing `name_steam` and `polytopia_id` values are preserved and are never cleared or backfilled by P6.1. If message content is later retired, the native registration path covers the ordinary workflow while the compact compatibility reads remain a deliberate seam. | Revisit retirement after usage evidence and an explicit compatibility decision; do not delete or migrate stored legacy values in this unit. | Tier-3 reviewed and integrated; beta sync/smoke pending |
 | C-010 `/player timezone` / `$settime` | Native `/player timezone member:[optional] offset:[optional] clear:[optional]` covers effective reads, normalized fixed-offset writes, explicit clear, and staff-targeting. `$settime` delegates to the same bounded worker and retains compatible self/staff-target grammar, including compact UTC/GMT forms. | Legacy recommendation: **retain** `$settime` initially because timezone preference is a day-to-day workflow and the prefix path remains useful while native commands are not synchronized. Native input deliberately requires normalized `UTC±HH:MM`; the shared service corrects legacy half/quarter-hour storage through minutes and never writes the old whole-hour field. | Revisit prefix retirement only after beta usage evidence and a separately approved command/message-intent lifecycle decision; do not remove the legacy column or clear legacy values in this unit. | Implemented locally; Tier-3 review, schema gate, and beta sync/smoke pending |
 | C-011 `/team create` / `$team_add` / `$team_add_junior` | Native `/team create name:<required>` creates one visible guild-scoped Team plus an actual-guild actor-attributed GameLog in one worker transaction. It validates a trimmed 1–100-character exact-role-compatible name, reports duplicate/racing inserts privately, and directs staff to the focused team-attribute commands. It intentionally creates no Discord role or other team attributes. | Legacy recommendation: **retire** — explicit approval removes both prefix registrations. `$team_add_junior` had no distinct junior behavior, so native creation has no `junior` option. The former one-line message-command workflow is unavailable, but ordinary staff team creation and follow-up configuration are covered natively; the existing exact Discord-role membership convention is explained publicly after commit. | Revisit only through a separately approved prefix lifecycle decision; do not restore a compatibility adapter or add junior behavior without a distinct product and data contract. | Intentional P8.5 prefix retirement; Tier-3 reviewed, real-schema validated, and integrated; beta sync/smoke pending |
-| C-012 `/squad show` / `$squad` / `$squads` | Native `/squad show squad_id:[optional]` opens an exact card or defaults to squads containing the requester; a requester-only Discord member selector performs one-to-three-member discovery, and multi-match results are paged/selectable. | Legacy recommendation: **retire** — explicit user approval removes `$squad` and `$squads` because the lookup is rarely used. The native workspace replaces ambiguous free-text member lookup with typed guild members while preserving useful ID/member search, record/rank, and recent-game information. `$squadname` remains a separate mutation until `/squad name`. | Revisit only through an explicit prefix lifecycle decision or demonstrated native discovery gap; do not restore a redundant prefix adapter. | Intentional P7.11 prefix retirement; implementation pending |
+| C-012 `/squad show` / `$squad` / `$squads` | Native `/squad show squad_id:[optional]` opens an exact card or defaults to squads containing the requester; a requester-only Discord member selector performs one-to-three-member discovery, and multi-match results are paged/selectable. | Legacy recommendation: **retire** — explicit user approval removes `$squad` and `$squads` because the lookup is rarely used. The native workspace replaces ambiguous free-text member lookup with typed guild members while preserving useful ID/member search, record/rank, and recent-game information. `$squadname` remains a separate mutation until `/squad name`. | Revisit only through an explicit prefix lifecycle decision or demonstrated native discovery gap; do not restore a redundant prefix adapter. | Intentional P7.11 prefix retirement; implemented locally; Tier-2 review, deferred schema gate, and beta acceptance pending |
 
 Every later slash conversion must add a row when parity is intentionally
 reduced. If there is no compromise, its unit evidence should explicitly say
@@ -462,7 +462,7 @@ check:
 - P4.2d roadmap evidence: `e1a0959`; accumulation merge: `7c2269b`.
 
 Current unit: **P7.11 native squad-show workspace and prefix retirement —
-selected for isolated Luna implementation.**
+implemented locally; Tier-2 review and beta acceptance pending.**
 
 P7.10 remains Tier-2 reviewed, integrated, deployed, and open for wider-beta
 acceptance. The durable beta continues running checkpoint `a91b278`; P7.11
@@ -479,6 +479,14 @@ workspace. The development-guild `leaderboard` root was updated, the durable
 beta restarted from checkpoint `a91b278`, and wider-beta release
 `2026-08-04-team-leaderboard` was posted. Broader tester acceptance remains
 open.
+
+P7.11 implementation/test checkpoint: `bdaa930` on
+`codex/p7-11-squad-show`, based on exact clean base
+`0f02aa3451192bf67cf72e01bac6a0e637ff65d0`. The implementation remained
+isolated and did not inspect, stop, restart, or otherwise disturb the durable
+beta; it did not access PostgreSQL, synchronize Discord commands, modify
+capability configuration, touch production, or install dependencies. The
+separate roadmap-evidence checkpoint follows this code commit.
 
 P8.6 native team show remains Tier-2 reviewed, real-schema validated,
 integrated, deployed, and open for wider-beta acceptance. The durable beta is
@@ -5465,7 +5473,7 @@ open.
 
 ### P7.11 — Native squad-show workspace and prefix retirement
 
-Status: **Selected; implementation pending**
+Status: **Implemented locally; Tier-2 review and beta acceptance pending**
 
 Risk tier: **Tier 2**. This is a guild-scoped read/presentation conversion and
 intentional retirement of a low-use prefix lookup. It does not change squad
@@ -5533,6 +5541,34 @@ Presentation boundaries:
 - The new `/squad` root uses the existing reserved `squad` capability and
   remains default-deny until a separately approved development policy/apply
   step. Do not modify ignored guild configuration during implementation.
+
+Implementation evidence (local only):
+
+- Checkpoint `bdaa930` is on isolated branch `codex/p7-11-squad-show`, based
+  on exact clean base `0f02aa3451192bf67cf72e01bac6a0e637ff65d0`. The native
+  registration contains only `/squad show` with optional integer `squad_id`;
+  the reserved capability remains default-deny and no ignored profile or
+  deployment configuration changed.
+- `modules/squad_show_workers.py` uses a dedicated two-worker read executor,
+  worker-local Peewee connection scopes, frozen primitive request/result/card/
+  member/recent-game DTOs, the unchanged matching helper plus an explicit
+  guild boundary, and a bounded 50-result snapshot. Cards preserve the
+  legacy member/team-emoji order, current squad ELO, confirmed ranked record,
+  current rank/length, and ten recent-game summaries.
+- `modules/squad_show.py` and `modules/squad_show_views.py` provide the
+  requester-only one-to-three-member UserSelect, snapshot-only result
+  selection and paging, bounded one-call member reloads, truncation labeling,
+  private deferred failures, and public successful workspaces. Component
+  serialization stays within Discord select/action-row limits.
+- `$squad` and `$squads` registrations are removed without an adapter;
+  `$squadname` remains registered with `/squad show`/`$lbsquad` guidance, and
+  `$lbsquad`/`$squadlb` remain unchanged.
+- Focused squad-show tests passed 18 tests; the affected focused suites
+  passed 55 tests; complete offline unittest discovery passed 854 tests with
+  24 intentional gated skips. `compileall` and `git diff --check` passed.
+  A read-only real-schema gate is present behind the unchanged development /
+  `polytopia_dev` / `polybot_dev` gate and was intentionally not run while
+  the durable beta is active. `docs/BETA_WHAT_TO_TEST.md` was not changed.
 
 Required evidence:
 
@@ -7776,6 +7812,31 @@ features are deployed or receive sufficiently broad acceptance.
   guild assignment/apply and beta deployment remain separate later gates.
 - Next action: dispatch the isolated Luna-Max unit and wait for its explicit
   completion/blocker handoff without active Sol monitoring.
+
+### 2026-08-04 — P7.11 squad-show workspace implemented locally
+
+- The isolated implementation checkpoint is `bdaa930` on
+  `codex/p7-11-squad-show`, based on exact clean base
+  `0f02aa3451192bf67cf72e01bac6a0e637ff65d0`. It registers only
+  `/squad show squad_id:[optional integer]` under the reserved default-deny
+  `squad` capability.
+- The worker/service/view split adds bounded worker-local reads with frozen
+  primitive DTOs, requester-default and exact-ID discovery, typed one-to-three
+  member reloads, dense cards, public success/private failure handling, and
+  snapshot-only result selection and paging. The matching helper's eligibility,
+  ordering, guild boundary, and 50-result ceiling are preserved, with
+  truncation labeled.
+- `$squad` and `$squads` were retired without an adapter; `$squadname` remains
+  with corrected native/leaderboard lookup guidance, while leaderboard squad
+  commands remain unchanged. This records the C-012 decision locally.
+- Focused squad-show tests passed 18 tests, affected focused suites passed 55,
+  and complete offline discovery passed 854 with 24 gated skips. Compile and
+  diff checks passed. The read-only real-schema gate is present but deferred
+  while the durable beta is active; no PostgreSQL, beta lifecycle, Discord
+  registration, capability configuration, production, dependency, or
+  `docs/BETA_WHAT_TO_TEST.md` action was taken.
+- Next action: Tier-2 review and later integration/deployment gates; do not
+  assign the reserved capability or sync commands from this checkpoint.
 
 ### 2026-08-04 — P7.10 deployed for wider-beta testing
 

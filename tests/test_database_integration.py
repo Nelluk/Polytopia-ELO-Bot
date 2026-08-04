@@ -420,6 +420,44 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
             ),
         )
 
+    def test_squad_show_worker_reads_real_schema_without_writes(self):
+        """Read-only P7.11 gate for the next stopped-writer window."""
+
+        from modules import squad_show_workers
+
+        squad = self.models.Squad.select().order_by(self.models.Squad.id).first()
+        if squad is None:
+            self.skipTest('development database has no squad fixture')
+        before = (
+            self.models.Squad.select().count(),
+            self.models.SquadMember.select().count(),
+            self.models.GameSide.select().count(),
+        )
+        result = asyncio.run(
+            squad_show_workers.run_squad_show(
+                squad_show_workers.SquadShowRequest(
+                    guild_id=int(squad.guild_id),
+                    requester_id=1,
+                    member_ids=(1,),
+                    squad_id=int(squad.id),
+                    team_enabled=True,
+                    channel_allowed=True,
+                )
+            )
+        )
+        self.assertIsInstance(result, squad_show_workers.SquadShowResult)
+        self.assertEqual(len(result.cards), 1)
+        self.assertEqual(result.cards[0].squad_id, int(squad.id))
+        self.assertIsInstance(result.cards[0].members, tuple)
+        self.assertEqual(
+            before,
+            (
+                self.models.Squad.select().count(),
+                self.models.SquadMember.select().count(),
+                self.models.GameSide.select().count(),
+            ),
+        )
+
     def test_representative_write_is_rolled_back(self):
         marker = f'phase6-rollback-{uuid.uuid4()}'
         with self.rollback_scope():
