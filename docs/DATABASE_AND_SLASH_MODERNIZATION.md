@@ -8076,6 +8076,24 @@ component refinements that do not require command re-registration.
 
 ## Progress log
 
+### 2026-08-04 — `/game open` standalone publication correction implemented
+
+- Accepted `/staffhelp` report `NH89W6NKgYcScXoIOEzoZrkM` identified public
+  `/game open` completion/warning output appearing attached to the private or
+  deleted draft interaction.
+- The native confirmation path now publishes committed public effects through
+  the interaction channel rather than a public follow-up to the ephemeral
+  component interaction. Draft controls, validation, database failures, and
+  pre-commit failures remain private; post-commit warning/completion order,
+  reconciliation logging, and join-reaction behavior remain unchanged.
+- Focused game-open/taxonomy validation passed 46 tests. The running beta
+  checklist now requests a standalone-message check and adds the integrated
+  P7.13 role workspace. No capability edit is required because the existing
+  development `core_user` capability already owns the `leaderboard` root.
+- This correction and P7.13 are being prepared as one later guild-schema beta
+  release. The remote command plan/apply, stopped-writer read-only database
+  gate, service restart, and announcement remain separately gated actions.
+
 ### 2026-08-04 — P7.13 accepted and integrated; beta feedback queue reviewed
 
 - Tier-2 review accepted the complete P7.13 branch after correction

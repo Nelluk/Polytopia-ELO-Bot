@@ -5,6 +5,9 @@ This is the running wider-beta checklist—not just the newest release. Please u
 ## Games
 
 - `/game record`, `/game open`, `/game join`, `/game leave`, `/game start`, `/game show`, `/game search`, and `/game players`
+- After confirming `/game open`, its public warning/completion messages should
+  appear as standalone channel messages—not as replies to a private or deleted
+  draft interaction—and the join reaction should still be added.
 - Interactive open-game card: join, leave, refresh, start, and delete controls
 - Interactive game card actions appropriate to the game state
 - `/game win`, `/game result confirm`, `/game result undo`, and staff corrections
@@ -18,6 +21,10 @@ This is the running wider-beta checklist—not just the newest release. Please u
 - `/player register` and `/player timezone` read/edit/clear behavior
 - `/leaderboard players`: pagination, common filters, advanced filters, active/all toggle, jump-to-page, desktop/mobile layout
 - `/leaderboard teams`: active/all-tier default, tier and archived-team filters, pagination/page jump, current-page ELO graph, desktop/mobile layout, and sensible behavior for teams with missing or empty Discord roles
+- `/leaderboard roles`: Free Agents default for ordinary users; staff/House
+  Leader multi-role selection; All/Any matching; global/local ELO and W-L;
+  total/recent-game sorting; inactive-member handling; pagination/page jump;
+  desktop/mobile layout
 - `/leaderboard activity` and `/leaderboard squads`
 - Check local/global, current/peak, current-era/all-time, and active/all combinations for plausible ELO and W-L records
 
@@ -32,9 +39,10 @@ This is the running wider-beta checklist—not just the newest release. Please u
 
 - `/squad show` with no ID should return **No eligible squads** promptly on
   the current fixture set rather than leaving the interaction pending.
-- If Discord leaves a typed invocation on **Sending command...**, reopen the
-  command picker or invoke the exact rendered command once; this has refreshed
-  stale desktop/mobile command caches during beta testing.
+- If stale desktop/mobile command caches leave a newly changed command on
+  **Sending command...**, fully restart Discord and retry. Reopening the picker
+  or invoking a rendered command may help but did not refresh every tester's
+  client cache.
 - Exact squad cards, member search, and `/squad name` remain untestable until
   the development database has an owned squad fixture.
 
