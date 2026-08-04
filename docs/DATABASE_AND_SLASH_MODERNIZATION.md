@@ -457,8 +457,14 @@ check:
   `f0429536d7ed899eb356794bcd3558baa9be3d45`.
 - P4.2d roadmap evidence: `e1a0959`; accumulation merge: `7c2269b`.
 
-Current unit: **P7.6b global player leaderboard record consistency —
-complete, integrated, and deployed to the development beta.**
+Current unit: **P6.0 player identity and preferences source-of-truth audit —
+decision-ready; implementation approval pending.**
+
+The audit is recorded in
+`docs/PLAYER_IDENTITY_AND_PREFERENCES_AUDIT.md`. It made no command, schema,
+data, runtime, or Discord-registration change. Its recommendations remain
+proposed until the user accepts the compatibility and schema decisions listed
+there.
 
 P8.4 native-first team-house read/edit/clear remains integrated and deployed.
 Its beta read/assign/clear role smoke remains a separate downstream acceptance
@@ -3971,7 +3977,7 @@ branch. Reverify runtime and fixture state before any later beta session.
 
 ## P6 — Registration and player preferences
 
-Status: **Planned**
+Status: **In progress; P6.0 audit decision-ready**
 
 Candidate scope:
 
@@ -3999,6 +4005,59 @@ Goals:
 to choose platform or name type as slash options. This phase is a suitable
 proving ground for a reusable non-ELO write executor if P2 and P4 demonstrate
 common infrastructure.
+
+### P6.0 — Player identity and preferences source-of-truth audit
+
+Status: **Decision-ready; implementation approval pending**
+
+The complete audit is maintained in
+`docs/PLAYER_IDENTITY_AND_PREFERENCES_AUDIT.md`. It inspected the model,
+current prefix mutations, modernized readers, worker boundaries, taxonomy,
+and aggregate-only development data. It did not change a command, schema,
+database row, bot process, or Discord registration.
+
+Principal findings:
+
+- `DiscordMember.polytopia_name` is the proposed account-wide canonical
+  Polytopia name. `Player.name` remains a guild-specific Discord display
+  label and must not be repurposed.
+- `name_steam` and `polytopia_id` are preserved dormant legacy fields. No P6
+  implementation may overwrite, clear, or auto-resolve conflicting values.
+- the current registration callback spreads one logical change across
+  separate transactions and performs part of the write on the event-loop
+  thread;
+- the current timezone parser accepts half hours but stores them in a
+  PostgreSQL `smallint` whole-hour field, so preserving that behavior would
+  preserve a representation bug;
+- a separately approved aggregate-only production inventory is required
+  before any production backfill or legacy-field retirement.
+
+Development evidence was collected through the unchanged integration
+preflight and an explicitly read-only second connection to `polytopia_dev` as
+`polybot_dev`: 32 DiscordMember rows, 32 Player rows, 31 canonical names, no
+Steam names, no legacy codes, no timezone values, no identity duplicates, and
+one registered Player without either account-name field. No identity value or
+Discord ID was printed. This proves that development needs no identity
+backfill; it says nothing about production conflicts.
+
+Recommended implementation sequence:
+
+1. P6.1 adds `/player register member?` with a one-field modal and one
+   worker-local transaction for DiscordMember/Player upsert, canonical-name
+   write, inferred persisted team, and actor-attributed audit entry. Retain
+   `$setname` as a thin adapter through the production canary and keep the
+   useful batch `$getnames` aliases.
+2. P6.2 separately adds nullable `timezone_offset_minutes SMALLINT`, makes
+   readers prefer minutes with temporary whole-hour fallback, and implements
+   `/player timezone member? offset? clear?`. Retain `$settime` initially as
+   a shared adapter and support bounded 15-minute UTC offsets.
+3. Before P9, run a separately approved aggregate-only production inventory,
+   then explicitly review any Steam-only or conflicting-name migration cases.
+
+Proposed compatibility decisions requiring user acceptance are recorded in
+D-038 and in the audit's final section. P6.1 is the next code unit only after
+those decisions are accepted; P6.1 and the P6.2 schema transition must remain
+separate Tier-3 units.
 
 ## P7 — Read-heavy commands and analytics
 
@@ -5403,7 +5462,7 @@ persisted-preference reconciliation make it a higher-risk mutation.
 
 ### P8.3 — Focused team image read/edit/clear workflow
 
-Status: **Review correction implemented locally; review pending**
+Status: **Complete; reviewed, integrated, deployed, and beta accepted**
 
 Branch/base: `codex/p8-3-team-image` from exact clean checkpoint
 `c009e5a08e92cba83dbc470371af688b9e1643df`.
@@ -6855,7 +6914,49 @@ sync, fixture operation, release delivery, or tester invitation requires a
 separate explicit reviewed unit. This preserves the single development beta
 writer and prevents a planning snapshot from becoming an implicit rollout.
 
+### D-038 — Canonicalize player identity before native registration
+
+Status: **Proposed by P6.0; user decision pending**
+
+The P6.0 audit recommends treating `DiscordMember.polytopia_name` as the one
+account-wide canonical Polytopia name while retaining `Player.name` as the
+guild-specific Discord display label. New native writes would update only the
+canonical field. `name_steam` and `polytopia_id` would remain preserved but
+dormant until a separately approved aggregate-only production inventory and
+explicit conflict review make retirement safe.
+
+The proposed compatibility boundary retains `$setname` through the production
+canary, retains the useful batch `$getnames`/`$names`/`$codes`/`$getcodes`
+workflow with canonical-name output, initially retains `$settime`, and
+deprecates or retires the Steam-name and legacy-code-specific prefix paths only
+after explicit approval. `/player register` would use one canonical-name modal
+and a single worker-local transaction; `/player timezone` would be a separate
+schema-backed unit using offset minutes rather than reproducing the current
+fractional-value-to-smallint bug.
+
+This entry records a decision proposal, not authorization. The detailed field
+inventory, migration cases, worker boundary, visibility proposal, timezone
+range, and six required decisions are in
+`docs/PLAYER_IDENTITY_AND_PREFERENCES_AUDIT.md`.
+
 ## Progress log
+
+### 2026-08-04 — P6.0 identity and preferences audit completed
+
+- Audited the identity/timezone model, prefix writers, modernized readers,
+  taxonomy, transaction seams, and compatibility obligations without changing
+  code, schema, data, runtime, or Discord registrations.
+- Ran an aggregate-only inventory through the unchanged development gate and
+  an explicitly read-only connection to `polytopia_dev` as `polybot_dev`.
+  Found 32 DiscordMember rows, 32 Player rows, 31 canonical names, no legacy
+  Steam/code/timezone values, no duplicate groups, and one Player without an
+  account name; no identity values or Discord IDs were printed.
+- Proposed `DiscordMember.polytopia_name` as the canonical account-wide name,
+  preserved legacy fields pending a separately approved production inventory,
+  and separated P6.1 registration from P6.2's additive timezone-minutes schema
+  transition.
+- Recorded the audit in `docs/PLAYER_IDENTITY_AND_PREFERENCES_AUDIT.md` and
+  left its six compatibility/schema choices pending user acceptance.
 
 ### 2026-08-04 — P7.6b reviewed, integrated, and deployed
 

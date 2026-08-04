@@ -421,18 +421,26 @@ operator repair commands stay out of the public tree.
 | `recalc_games_from` | `/elo recalculate` | Native now; owner-only and confirmed |
 | active job status (slash-only) | `/elo status` | Native now; staff-only |
 
+P6.0 audited the underlying field meanings, mutation boundaries, compatibility
+paths, and aggregate development data. Its detailed, decision-ready proposal
+is in `PLAYER_IDENTITY_AND_PREFERENCES_AUDIT.md`; it does not yet authorize
+command retirement, a schema migration, or a data backfill.
+
 `/player register` is preferred over `/player set name` because the common
 flow establishes or updates the user's bot registration, not merely a display
 field. It opens a small registration modal containing one canonical Polytopia
 name. Staff targeting can be an optional typed member rather than a separate
 public command.
 
-The native interface deliberately retires the mobile-name, Steam-name, and
-legacy-code distinction. `/player show` displays the canonical name and can
-offer an authorized **Edit name** control; `/game players` uses that same
-value. Existing database fields and prefix aliases may remain temporarily for
-data migration and prefix compatibility, but no new slash command should ask
-which account-name type is being set. A separate data-cleanup unit must decide
+The native interface deliberately omits the mobile-name, Steam-name, and
+legacy-code distinction. P6.0 proposes `DiscordMember.polytopia_name` as the
+canonical account-wide field while preserving the other fields dormant until
+production inventory and conflict review. `/player show` displays the
+canonical name and can offer an authorized **Edit name** control; `/game
+players` uses that same value. Existing database fields and selected prefix
+aliases may remain temporarily for data migration and compatibility, but no
+new slash command should ask which account-name type is being set. The P6.0
+audit and a later approved data-cleanup unit must decide
 which existing value becomes canonical when records disagree; taxonomy work
 must not silently discard stored values.
 
