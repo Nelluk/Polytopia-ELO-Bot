@@ -6411,6 +6411,34 @@ writer and prevents a planning snapshot from becoming an implicit rollout.
 
 ## Progress log
 
+### 2026-08-03 — WB1.3a live read-only snapshots captured
+
+- With explicit approval, restarted only
+  `polybot-development-beta@main.service` so it loaded integrated checkpoint
+  `d895718`. It returned healthy as `PolyELO Bot Beta`
+  (`479029527553638401`), PID `2290832`, with zero automatic restarts and no
+  startup command synchronization.
+- Captured ignored bounded snapshots at
+  `readiness-snapshots/discord.json` and
+  `readiness-snapshots/database.json`, then generated the offline
+  `readiness-snapshots/plan.json`. Discord inventory used only the protected
+  local beta socket; database inventory passed the exact read-only
+  `development` / `polytopia_dev` / `polybot_dev` gates.
+- Discord inventory verified 56 roles, 10 categories, and 38 channels without
+  truncation; the unique pinned `testers` role has 12 cached members, both
+  fixed channels match, and current capabilities are exactly `core_user`,
+  `elo_maintenance`, and `team`.
+- Database inventory reported 28 players, three teams (`Phase7Test` plus the
+  hidden generic `Home` and `Away` teams), no houses, and 57 games. Owned
+  fixtures match exactly: beta games `149`-`151`, 24 leaderboard showcase
+  players, and showcase games `200`-`247`.
+- The generated plan is valid and ready for review with no target, channel,
+  role, capability, or fixture-retention mismatch. It remains deliberately
+  not ready for live apply or tester invitation until `tools_support`,
+  representative team/house bindings, retention/cleanup, rollback ownership,
+  and invitation approval are resolved. No Discord/database mutation,
+  command sync, release post, fixture operation, or tester invitation occurred.
+
 ### 2026-08-03 — WB1.3a reviewed and integrated
 
 - Tier-3 oversight returned three correctness findings: missing real-schema
