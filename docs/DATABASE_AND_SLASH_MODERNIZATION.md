@@ -7950,7 +7950,61 @@ guild policies do not receive the command. The checklist is repository-backed,
 database-free, split safely below Discord message limits, and updated as
 features are deployed or receive sufficiently broad acceptance.
 
+### D-043 — Treat Discord command-cache acceptance as tester-pool evidence
+
+Status: **Accepted**
+
+The bot cannot autonomously perform a real Discord-client slash invocation or
+invalidate a client's application-command cache. After a release changes the
+registered slash schema, deployment verifies the remote command tree and IDs,
+then publishes the bounded **WHAT TO TEST** request without requiring Nelluk to
+perform a personal canary test. Runtime interaction-envelope logging supplies
+passive evidence of the first real invocation of each changed command; no
+receipt means “untested,” not failed.
+
+Schema-changing tester notices instruct affected users to fully restart
+Discord if a new or changed command is missing or remains at “Sending
+command...”, then report a persistent failure through `/staffhelp`. Reopening
+the picker or clicking an exact rendered command may help but is not a
+reliable recovery. Synchronize only when the slash schema changes, batch such
+changes, preserve stable command identities where practical, and prefer
+component refinements that do not require command re-registration.
+
 ## Progress log
+
+### 2026-08-04 — P7.13 role leaderboard decisions accepted and selected
+
+- Selected a Tier-2 `/leaderboard roles` Components workspace as the next
+  isolated Luna unit.
+- The native command has no required slash arguments. Staff and configured
+  House leaders receive a native multi-role selector with All/Any matching;
+  ordinary users receive the broadly accessible Free Agents preset without
+  arbitrary role lookup.
+- Use every ordinary current-guild role and reject `@everyone`, managed bot,
+  and integration roles automatically; do not add a manually maintained role
+  allow-list. Cap multi-role selection at five.
+- Preserve current default global/current ELO semantics and expose local ELO,
+  total games, and recent activity through the workspace rather than a large
+  slash-option matrix. Display one selected rating scope's ELO and W/L at a
+  time, and continue excluding inactive members unless Inactive is selected.
+- Defer CSV export. Preserve `$freeagents` as a convenience command while
+  retiring `$roleelo` and `$roleeloany` with the accepted native replacement.
+- Next action: dispatch from this exact clean accumulation checkpoint and wait
+  for the worker's explicit completion or blocker handoff without active Sol
+  monitoring.
+
+### 2026-08-04 — Discord client-cache recovery evidence refined
+
+- Additional testers could not invoke the newly synchronized squad command,
+  including from an exact rendered command, until fully restarting Discord.
+- Revised the earlier operational conclusion: exact command mentions remain a
+  useful diagnostic but are not a dependable refresh mechanism. A full client
+  restart is the primary tester recovery instruction for a schema-changing
+  release; the bot has no API to purge client caches or acknowledge an
+  interaction Discord never delivers.
+- Accepted D-043 so future deployments rely on remote-tree verification,
+  tester-pool invocation telemetry, and `/staffhelp` failure reports rather
+  than requiring Nelluk to perform personal smoke tests.
 
 ### 2026-08-04 — P7.12 squad discovery stall corrected; beta smoke pending
 
