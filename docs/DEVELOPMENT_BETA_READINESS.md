@@ -1,9 +1,9 @@
 # Development wider-beta readiness
 
 WB1.3a provides a read-only readiness inventory and an offline desired-state
-planner for the development wider beta. It is a review aid, not a rollout
-mechanism. It does not create, rename, edit, delete, invite, synchronize, seed,
-clean, recalculate, restart, or apply anything.
+planner for the development wider beta. WB1.3b adds a separately gated,
+reviewed development database setup boundary. Both are review/operations aids,
+not a general rollout mechanism; no live action is implied by a plan.
 
 The fixed scope is:
 
@@ -153,6 +153,108 @@ The template intentionally leaves policy choices unresolved. A valid plan is
 not approval to choose names, add `tools_support`, create database records,
 create Discord roles/channels, or invite testers.
 
+## WB1.3b reviewed desired state and setup boundary
+
+The resolved, tracked manifest is
+[`readiness-manifests/wb1-3b-reviewed.json`](/home/nelluk/.codex/worktrees/8d96/PolyBot39-dev/readiness-manifests/wb1-3b-reviewed.json).
+It remains development-only and records these decisions without applying
+them:
+
+- The proposed capability set is `core_user`, `elo_maintenance`, `team`, and
+  `tools_support`. The current command source exposes `/staffhelp` as the only
+  implemented `tools_support` root. `/about`, `/guide`, `/help`, `/support`,
+  and `/tools` are reserved, currently unloaded roots and are not implied.
+  The ignored development capability assignment is unchanged and live command
+  deployment remains false.
+- The exact houses are `Beta House Alpha` and `Beta House Beta`, with no house
+  roles. The exact teams are `The Ronin` and `The Jets` in Beta House Alpha,
+  and `The Sparkies` in Beta House Beta. Their existing role IDs are pinned as
+  `480350546172182530`, `480350570717118465`, and `481210095397634060`,
+  respectively. No duplicate team role or house role is created, and
+  `league_tier` remains unset.
+- Games `149`–`151` and the 24-player/48-game leaderboard showcase
+  (`200`–`247`) remain retained. `Phase7Test`, hidden `Home`, and hidden
+  `Away` remain outside the setup scope. No tester invitation is approved.
+
+The exact-scope CLI is
+[`scripts/manage_beta_wider_setup.py`](/home/nelluk/.codex/worktrees/8d96/PolyBot39-dev/scripts/manage_beta_wider_setup.py):
+
+```bash
+POLYBOT_ENV=development \
+/home/nelluk/PolyBot39-dev/.venv/bin/python \
+scripts/manage_beta_wider_setup.py --json status
+
+POLYBOT_ENV=development \
+/home/nelluk/PolyBot39-dev/.venv/bin/python \
+scripts/manage_beta_wider_setup.py --json plan
+```
+
+`status` and `plan` are read-only. They validate the exact development
+environment, guild, `polytopia_dev`, and `polybot_dev`, open a worker-local
+Peewee connection, verify the live PostgreSQL identity, and use a read-only
+transaction. They never import the model module and therefore cannot trigger
+schema creation or touch fixtures, games, ELO, Discord, or commands.
+
+Only a later explicitly reviewed operator may run the synchronous setup seed,
+after stopping the durable beta writer:
+
+```bash
+POLYBOT_ENV=development \
+/home/nelluk/PolyBot39-dev/.venv/bin/python \
+scripts/manage_beta_wider_setup.py --json seed
+```
+
+Seed creates only missing exact houses first and then missing exact teams in
+one transaction, assigns the approved house relationships, preserves a
+compatible existing row, and refuses incompatible guild/name/house/visibility
+state. It never creates Discord roles, changes capability settings, registers
+commands, touches `Phase7Test`/`Home`/`Away`, or mutates game/ELO/fixture rows.
+The stopped-writer check is performed before the worker connection is opened.
+
+The seed records a private mode-0600 ownership file at
+`logs/development/beta-operations/wb1-3b-setup.json`. It contains the exact
+manifest fingerprint, database IDs, immutable baselines, and pinned team-role
+bindings. Pre-existing compatible rows are recorded unowned. Cleanup can
+remove only rows marked owned by that evidence, after rechecking IDs,
+identities, baseline values, player/game-side use, house preferences/bids, and
+unowned sharing. It requires the exact confirmation token and the durable beta
+to be stopped:
+
+```bash
+POLYBOT_ENV=development \
+/home/nelluk/PolyBot39-dev/.venv/bin/python \
+scripts/manage_beta_wider_setup.py --json cleanup \
+  --confirm WB1.3B-CLEANUP
+```
+
+No setup command has a generic remote apply mechanism. The implementation and
+its transaction are synchronous so a worker-local connection cannot leak into
+the bot event loop; a failed transaction rolls back all house/team inserts.
+
+### Precise later reviewed live sequence
+
+WB1.3b itself performs none of this sequence. A later approved unit must keep
+the steps separate and record their output:
+
+1. Stop the one durable beta and confirm its identity/checkpoint. Do not run
+   setup seed or cleanup while its writer lock is active.
+2. Run setup `status`/`plan`, review the exact diff, then run `seed` only with
+   explicit approval for the reviewed manifest. Keep the ownership evidence.
+3. Through a separately reviewed local operator edit, update only the ignored
+   development capability assignment if `tools_support` is approved. This
+   task does not edit that ignored setting.
+4. Run the existing offline application-command plan. If approved, separately
+   run guild-only inspect/apply for guild `478571892832206869` with the
+   existing no-global-sync confirmations; never use a global scope.
+5. Restart exactly one durable beta from known-good rollback checkpoint
+   `d895718` or the separately reviewed successor.
+6. Verify identity, command roots, fixed channels, tester role, exact team-role
+   bindings, retained fixtures, responsiveness, and the bounded smoke
+   checklist. Record rollback ownership.
+7. Only after review, deliver a separate release announcement and invite 5–20
+   testers through a separately approved Discord operation. Neither action is
+   provided by this setup CLI.
+
 ## Review and later live boundaries
 
 WB1.3a ends after inventory, validation, and offline diff review. A later
@@ -177,7 +279,8 @@ these boundaries:
    the deployment runbook, run the offline `manage_application_commands.py`
    plan, obtain the exact guild-scoped apply approval, and verify that global
    synchronization is impossible. Adding `tools_support` would expose
-   `/staffhelp`; it is not implied by this readiness plan.
+   `/staffhelp` only; the reserved unloaded roots are not implied by this
+   readiness plan.
 5. Start or use exactly one reviewed durable development beta only after its
    separate lifecycle approval. Resolve/pin the `testers` role through the
    existing explicit role step, deliver only a reviewed release manifest to

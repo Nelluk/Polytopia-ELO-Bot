@@ -19,7 +19,10 @@ application_command_capabilities = {
 The guild ID must already be in that profile's `server_list`. The policy is
 default-deny. Current families are `core_user`, `elo_maintenance`, and
 reserved `team`, `league`, `house`, `squad`, and `tools_support`; operator-only
-work has no application-command capability. See
+work has no application-command capability. The current `tools_support` family
+exposes `/staffhelp` only. The taxonomy names `/about`, `/guide`, `/help`,
+`/support`, and `/tools` remain unloaded and reserved; an assignment must not
+silently invent them. See
 `modules/application_command_policy.py` for the authoritative membership.
 
 Discord can filter only top-level roots. A capability cannot hide an

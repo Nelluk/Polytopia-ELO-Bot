@@ -4,7 +4,7 @@ Last updated: 2026-08-03
 
 Status: Active
 
-Current branch at last update: `codex/wb1-3a-beta-readiness-inventory`
+Current branch at last update: `codex/wb1-3b-wider-beta-setup`
 
 Source task: `thread://019fae66-8e3a-7a50-9a0f-d3d7160d2287`
 
@@ -456,8 +456,8 @@ check:
   `f0429536d7ed899eb356794bcd3558baa9be3d45`.
 - P4.2d roadmap evidence: `e1a0959`; accumulation merge: `7c2269b`.
 
-Current unit: **WB1.3a read-only wider-beta readiness inventory and desired-state
-planning — Complete; live snapshot capture remains separately gated.**
+Current unit: **WB1.3b reviewed wider-beta desired state and gated development
+setup — implemented locally; live apply remains separately gated.**
 
 WB1.3a implementation/tests correction checkpoint: `b19a71c` on branch
 `codex/wb1-3a-beta-readiness-inventory`, based on the exact clean
@@ -468,6 +468,25 @@ inventory, service lifecycle action, command synchronization, invitation,
 fixture mutation, production action, dependency installation, or push
 occurred. A separately gated read-only database inventory test was run against
 `polytopia_dev` as `polybot_dev` after independent profile confirmation.
+
+WB1.3b implementation/tests checkpoint: `148839f` on branch
+`codex/wb1-3b-wider-beta-setup`, based on exact integrated accumulation base
+`40b27104f7173c31e2b10e6369f7f19e9dd992b5`. It adds the tracked reviewed
+manifest `readiness-manifests/wb1-3b-reviewed.json`, explicit
+`tools_support` root reporting (`/staffhelp` only; `/about`, `/guide`,
+`/help`, `/support`, and `/tools` remain unloaded), and the exact-scope
+development DB setup CLI/module. The setup is synchronous, worker-connection
+owned, development/`polytopia_dev`/`polybot_dev`/guild gated, and refuses seed
+or cleanup while the durable beta writer is active. It creates only the two
+approved houses and three approved teams, records durable ownership evidence,
+and never touches Discord, commands, fixtures, games, ELO, `Phase7Test`,
+`Home`, or `Away`. Focused offline validation passed 45 tests; the existing
+gated rollback-isolated real-schema test passed 1 after an independent exact
+identity preflight; complete offline discovery passed 698 tests with 19
+intentional gated skips; compilation and diff checks passed. No live beta,
+Discord mutation, command synchronization, invitation, fixture mutation,
+production action, dependency installation, push, or merge occurred. No new
+compatibility compromise or prefix change was made.
 
 WB1.1 was integrated into `codex/database-slash-modernization` as merge
 `1c8ffe0`. Its implementation branch was
@@ -5498,7 +5517,7 @@ retirement is separately approved and remains in force.
 
 ### WB1.3 — Wider-tester server readiness and controlled invitation
 
-Status: **In progress; WB1.3a implemented locally, live apply remains planned**
+Status: **In progress; WB1.3a complete, WB1.3b implemented locally, live apply remains planned**
 
 Objective: prepare the development guild for approximately 5–20 wider-beta
 testers without ad hoc roles, database fixtures, capability assignments, or
@@ -5506,10 +5525,10 @@ cleanup obligations.
 
 The unit begins with a read-only inventory and a reviewed desired-state
 manifest covering the `testers` role, tester-facing channels, application-
-command capability assignment (including whether `tools_support` should expose
-`/staffhelp`), representative development-only teams/houses/roles, owned
-fixture IDs, permissions, and cleanup/rollback. Planning and offline tooling
-must remain separate from any live Discord or `polytopia_dev` apply.
+command capability assignment (including the complete implemented-root review
+for `tools_support`), representative development-only teams/houses/roles,
+owned fixture IDs, permissions, and cleanup/rollback. Planning and offline
+tooling must remain separate from any live Discord or `polytopia_dev` apply.
 
 After review, live application remains separately gated: stop or use the
 durable beta as required by the relevant tool, apply only to development guild
@@ -5605,6 +5624,73 @@ Known limitations and next action:
   choosing or applying team/house names, role bindings, `tools_support`, or
   invitation policy. Snapshot capture is inventory only and is not approval
   for any live apply action.
+
+#### WB1.3b — Reviewed wider-beta desired state and gated development setup
+
+Status: **Implemented locally; live setup/apply and tester invitation remain separately gated**
+
+Branch/base: `codex/wb1-3b-wider-beta-setup` from exact integrated base
+`40b27104f7173c31e2b10e6369f7f19e9dd992b5`; implementation/tests checkpoint
+`148839f`.
+
+The reviewed desired state is tracked at
+`readiness-manifests/wb1-3b-reviewed.json`. It resolves only the approved
+development scope: guild `478571892832206869`, application
+`479029527553638401`, `polytopia_dev`/`polybot_dev`, houses `Beta House Alpha`
+and `Beta House Beta`, and teams `The Ronin`, `The Jets`, and `The Sparkies`
+with their existing exact role IDs. It retains games `149`–`151` and the
+24-player/48-game showcase `200`–`247`, preserves `Phase7Test`, hidden `Home`,
+and hidden `Away`, leaves `league_tier` unset, creates no house roles or
+duplicate team roles, and approves no invitation.
+
+Capability review is explicit: the proposed set adds `tools_support` to
+`core_user`, `elo_maintenance`, and `team`; the current loaded source exposes
+`/staffhelp` only. `/about`, `/guide`, `/help`, `/support`, and `/tools` are
+reserved unloaded roots and are not implied. The ignored development settings
+assignment remains unchanged. There is no new compatibility compromise or
+prefix change.
+
+`modules/beta_wider_setup.py` and
+`scripts/manage_beta_wider_setup.py` provide synchronous `status`, `plan`,
+`seed`, and exact-confirmation `cleanup` operations. Status/plan open a
+worker-local read-only Peewee transaction. Seed/cleanup require all existing
+development profile/live identity/guild gates and probe the durable beta lock
+before opening the connection. Seed inserts houses before teams in one
+transaction, explicitly supplies schema defaults, assigns the reviewed house
+relationships, preserves only compatible exact rows, and fails closed on
+conflict. It never imports Discord/model/command/game/ELO code or touches
+fixtures. A private mode-0600 state file records the reviewed manifest
+fingerprint, IDs, immutable baselines, and team role bindings. Existing rows
+are unowned; cleanup can delete only state-owned rows after rechecking identity,
+baseline, IDs, player/game-side use, house preferences/bids, and unowned
+sharing. It requires `--confirm WB1.3B-CLEANUP` and never deletes games or
+ELO data.
+
+Validation evidence:
+
+- Focused offline WB1.3b/readiness/policy tests: **45 passed**.
+- Independent read-only preflight confirmed `POLYBOT_ENV=development`,
+  `polytopia_dev`, and `polybot_dev`; the existing gated
+  `test_wb13b_setup_is_rollback_isolated_and_preserves_retained_fixtures`
+  passed **1 test**. It ran inside the existing rollback scope, verified the
+  real houses/teams/role-binding shape and `league_tier is NULL`, and verified
+  retained fixture invariants without committing setup rows.
+- Complete offline discovery: **698 passed, 19 intentional gated skips**.
+  Compilation and `git diff --check` passed.
+
+No live beta or Discord was inspected, stopped, restarted, mutated, or
+invited; no command sync, capability assignment edit, fixture operation,
+production action, dependency installation, push, or merge occurred.
+
+Precise later sequence: stop the one durable beta; run setup `status`/`plan`
+and, after explicit review, `seed` through the exact gate; update the ignored
+development capability assignment only through a separately reviewed local
+operator step; run the existing offline command plan and separately approved
+guild-only inspect/apply for the fixed development guild with no global sync;
+restart one beta from known-good checkpoint `d895718`; verify identity, exact
+roots/roles/channels/team bindings, retained fixtures, responsiveness, and
+smoke results; then handle any release announcement and 5–20 tester invitation
+as separate reviewed actions. WB1.3b performs none of those live steps.
 
 ## P9 — Production rollout and prefix lifecycle
 
@@ -6390,7 +6476,7 @@ change the database, command deployment, or production boundary.
 
 ### D-037 — Separate readiness inventory/planning from live wider-beta apply
 
-Status: Accepted for WB1.3a
+Status: Accepted for WB1.3a/WB1.3b
 
 Wider-beta readiness begins with two bounded read-only inventories and a
 repository-backed desired-state diff. Discord inventory must run through the
@@ -6503,6 +6589,44 @@ writer and prevents a planning snapshot from becoming an implicit rollout.
   `git diff --check` passed. No live beta/Discord smoke, service lifecycle,
   command sync, fixture mutation, invitation, production, sudo, dependency,
   push, or merge action occurred.
+
+### 2026-08-03 — WB1.3b reviewed desired state and gated setup
+
+- Implemented WB1.3b on `codex/wb1-3b-wider-beta-setup` from exact integrated
+  base `40b27104f7173c31e2b10e6369f7f19e9dd992b5`; implementation/tests
+  checkpoint `148839f`. The tracked reviewed manifest is
+  `readiness-manifests/wb1-3b-reviewed.json`.
+- Resolved the approved houses, teams, existing exact team-role IDs, retained
+  fixtures, no-house-role/no-duplicate-role policy, unset `league_tier`, and
+  no-invitation boundary. `tools_support` is reviewed as `/staffhelp` only;
+  `/about`, `/guide`, `/help`, `/support`, and `/tools` remain unloaded and
+  reserved. The ignored capability assignment is unchanged and no prefix or
+  compatibility behavior changed.
+- Added `modules/beta_wider_setup.py` and
+  `scripts/manage_beta_wider_setup.py` with synchronous `status`, `plan`,
+  `seed`, and exact-confirmation `cleanup`. It uses only the existing exact
+  development profile/live identity/guild gates, refuses seed/cleanup while
+  the durable beta writer is active, creates houses before teams in one
+  transaction, owns its normal worker-local Peewee connection, and records
+  mode-0600 ownership evidence. Existing compatible records are unowned;
+  cleanup rechecks identity, baseline, use, and sharing before deleting only
+  owned team/house rows. Discord, command, fixture, game, ELO, Phase7Test,
+  Home, and Away mutation paths are absent.
+- Focused offline validation passed **45 tests**. After an independent
+  read-only `development`/`polytopia_dev`/`polybot_dev` identity preflight, the
+  existing gated rollback-isolated real-schema test passed **1 test** and
+  verified representative rows, exact role-binding shape, `league_tier NULL`,
+  and retained fixture invariants without committing setup rows. Complete
+  offline discovery passed **698 tests with 19 intentional gated skips**;
+  compilation and `git diff --check` passed.
+- No live beta/Discord inspection or mutation, service lifecycle action,
+  command synchronization, ignored capability edit, tester invitation,
+  fixture mutation, production action, dependency installation, push, or merge
+  occurred. Later live work remains a separate sequence: stop the beta, run
+  reviewed setup, explicitly edit the ignored capability assignment if
+  approved, run offline plan plus separately approved guild-only inspect/apply,
+  restart one beta from `d895718`, verify/smoke, then separately announce and
+  invite.
 
 ### 2026-08-03 — WB1.2 activation launcher correction
 
