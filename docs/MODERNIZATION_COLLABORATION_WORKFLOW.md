@@ -218,6 +218,23 @@ before integration. Require fault injection, rollback, concurrency,
 permission, post-commit ordering, operational rollback, and the exact
 production or beta approval gates relevant to the unit.
 
+### Development-database validation cadence
+
+Do not take the durable beta offline for a real-database suite after every
+ordinary unit. When a unit extends an already validated worker/transaction
+pattern without changing schema, ELO coordination, or database-writer
+ownership, its focused rollback/fault-injection coverage and complete offline
+suite are sufficient for integration. Record the deferred real-database case
+and batch it into the next planned stopped-writer validation window.
+
+A stopped-beta development-database run remains mandatory before integration
+when a unit introduces a new transactional graph, changes ELO/coordinator
+semantics, changes schema or fixtures, adds another database-writing process,
+or exposes uncertainty that only PostgreSQL can resolve. Run the accumulated
+gated suite before wider-beta release checkpoints and production cutover.
+This cadence reduces tester downtime without weakening the single-writer
+boundary.
+
 ## Luna handoff packet
 
 Every execution handoff must include:
