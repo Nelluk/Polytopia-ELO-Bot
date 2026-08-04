@@ -416,7 +416,7 @@ operator repair commands stay out of the public tree.
 | `squadname` | `/squad name` | View by default; optional name edits |
 | `lb` | `/leaderboard players` | Components v2 workspace defaults to local/current/active and exposes common views, population, paging, and requester-rank controls in-message; preserve the full prefix matrix |
 | `lbrecent` | `/leaderboard activity` | Native now with explicit server-30-days and global-all-time views |
-| `lbteam`, `teamlb` | `/leaderboard teams` | P7.10 selected: no required slash options; current active all-tier results by default, with tier/archive refinements, pagination, and graph exploration in the public requester-controlled workspace; preserve the prefix matrix |
+| `lbteam`, `teamlb` | `/leaderboard teams` | P7.10 implemented locally: no required slash options; current active all-tier results by default, with one common tier/population control, public requester-controlled pagination/page jump, bounded graph exploration, and the preserved prefix matrix |
 | `lbsquad` | `/leaderboard squads` | Native now with current/all-time eligibility choices |
 | `roleelo` | `/leaderboard roles` | Redesign role filters, sorting, and export |
 | `recalc_games_from` | `/elo recalculate` | Native now; owner-only and confirmed |

@@ -460,8 +460,14 @@ check:
   `f0429536d7ed899eb356794bcd3558baa9be3d45`.
 - P4.2d roadmap evidence: `e1a0959`; accumulation merge: `7c2269b`.
 
-Current unit: **P7.10 native team leaderboard — selected and ready for Luna
-implementation from clean accumulation checkpoint `a51766a`.**
+Current unit: **P7.10 native team leaderboard — implemented locally on
+`codex/p7-10-team-leaderboard`; Tier-2 review/integration remains pending.**
+
+P7.10 implementation/test checkpoint: `549bd41` from exact clean base
+`026c36cff69d131b43db97acd887debfb8ef499c`. The separate roadmap-evidence
+checkpoint follows this implementation commit. The branch is isolated and
+undeployed; no production checkout, durable beta, database, Discord command
+sync, service restart, push, or merge was performed.
 
 P8.6 native team show remains Tier-2 reviewed, real-schema validated,
 integrated, deployed, and open for wider-beta acceptance. The durable beta is
@@ -5303,7 +5309,10 @@ Known limitations and next action:
 
 ### P7.10 — Native team leaderboard workspace
 
-Status: **Selected; implementation pending**
+Status: **Implemented locally; Tier-2 review/integration pending**
+
+Branch/base: `codex/p7-10-team-leaderboard` from exact clean base
+`026c36cff69d131b43db97acd887debfb8ef499c`.
 
 Risk tier: **Tier 2**. This is a read/presentation and event-loop-boundary
 unit. It must not change ELO calculation, team eligibility, stored data,
@@ -5383,6 +5392,32 @@ Required evidence:
 - add a read-only gated real-schema test, but do not stop or access the
   durable beta/database during implementation. Defer that gate to the next
   separately approved stopped-writer review window.
+
+Implementation evidence (local only):
+
+- `549bd41` adds the worker-local immutable DTO/service, classic prefix
+  adapter, native Components v2 workspace, and focused tests. The native
+  command has no invocation options; it immediately defers privately, then
+  publishes the successful snapshot publicly with requester-only controls.
+- The Common filters select is the only tier/population refinement control;
+  selecting Active/All tiers is also the reset state. Pagination and page jump
+  use the immutable result and only re-render a graph, with no new database
+  query. Prefix presentation remains the classic embed/reaction flow while
+  sharing the new frozen rows and off-loop renderer; `$lbteamjr` remains only
+  in the unchanged prefix alias list.
+- The graph policy is explicitly bounded to the selected page (at most 10
+  ranked series) and at most 250 evenly sampled current ELO-history points per
+  series. Each request receives a unique in-memory PNG attachment name; the
+  implementation contains no filesystem `graph.png`, pyplot state, or
+  mutable plotting object crossing the worker boundary.
+- Local validation passed the P7.10 focused suite (16 tests), the combined
+  focused leaderboard/taxonomy/team-show suites (66 tests), and complete
+  offline discovery (831 passed, 23 gated skips). `compileall` and
+  `git diff --check` passed.
+- `tests/test_database_integration.py` now contains a read-only real-schema
+  team snapshot gate. It was intentionally not run while the durable beta is
+  active; defer it to the next separately approved stopped-writer review
+  window. `docs/BETA_WHAT_TO_TEST.md` was intentionally not changed.
 
 Out of scope: team ELO/rules changes, junior-team redesign, `/leaderboard
 roles`, `/team show` behavior, team mutations, schema/fixture changes,
@@ -7608,6 +7643,24 @@ features are deployed or receive sufficiently broad acceptance.
   database/runtime/deployment action while the durable beta remains active.
 - Next action: dispatch the isolated Luna-Max unit and wait for its explicit
   completion/blocker handoff without active Sol monitoring.
+
+### 2026-08-04 — P7.10 native team leaderboard implemented locally
+
+- Implemented on isolated branch `codex/p7-10-team-leaderboard` from exact
+  base `026c36cff69d131b43db97acd887debfb8ef499c`; implementation/tests are
+  checkpoint `549bd41`.
+- Added `/leaderboard teams` with no required options, public requester-bound
+  Components v2 pagination/filter/page-jump controls, private unauthorized/
+  expired/validation/load failures, and no second filter popup.
+- Preserved the `$lbteam`/`$teamlb` default, tier, `old`, and `old TIER` matrix
+  with classic reaction presentation; removed the event-loop Peewee/role/
+  Matplotlib path and kept `$lbteamjr` prefix-only.
+- Added frozen role snapshots, worker-local read DTOs, shared bounded
+  leaderboard execution, selected-page/250-point graph bounding, unique
+  in-memory attachments, offline responsiveness/boundary tests, taxonomy
+  registration evidence, and a deferred read-only schema gate.
+- Local focused and complete offline validation passed. No beta/database,
+  production, deployment, sync, restart, push, or merge action was taken.
 
 ### 2026-08-04 — P8.6 deployed for wider-beta testing
 
