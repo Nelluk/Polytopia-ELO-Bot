@@ -416,7 +416,7 @@ operator repair commands stay out of the public tree.
 | `squadname` | `/squad name` | View by default; optional name edits |
 | `lb` | `/leaderboard players` | Components v2 workspace defaults to local/current/active and exposes common views, population, paging, and requester-rank controls in-message; preserve the full prefix matrix |
 | `lbrecent` | `/leaderboard activity` | Native now with explicit server-30-days and global-all-time views |
-| `lbteam` | `/leaderboard teams` | Strong candidate |
+| `lbteam`, `teamlb` | `/leaderboard teams` | P7.10 selected: no required slash options; current active all-tier results by default, with tier/archive refinements, pagination, and graph exploration in the public requester-controlled workspace; preserve the prefix matrix |
 | `lbsquad` | `/leaderboard squads` | Native now with current/all-time eligibility choices |
 | `roleelo` | `/leaderboard roles` | Redesign role filters, sorting, and export |
 | `recalc_games_from` | `/elo recalculate` | Native now; owner-only and confirmed |
@@ -795,6 +795,22 @@ dependencies, graph/export behavior, filters, and permissions differ.
 `$lbteamjr` is legacy. It remains prefix-only until a later prefix-retirement
 decision and receives no slash conversion; its documented junior-team
 distinction is not implemented by the current callback.
+
+P7.10 resolves the native team-leaderboard interface without adding a slash
+alias or reproducing its small prefix argument matrix as invocation options:
+
+| Prefix form | Native workspace state |
+|---|---|
+| `$lbteam` or `$teamlb` | Current ELO, active teams, all configured tiers |
+| `$lbteam TIER` | Current ELO, active teams, selected tier |
+| `$lbteam old` | Current ELO, active plus archived teams, all tiers |
+| `$lbteam old TIER` | Current ELO, active plus archived teams, selected tier |
+
+`/leaderboard teams` opens the first state directly. A bounded common-filter
+control changes tier and active/archive population; pagination and page jump
+remain in-message. The removed pre-reset/all-time path stays removed.
+`$lbteamjr` remains an unchanged legacy prefix alias and receives no native
+state or filter.
 
 ### League and house workflows
 

@@ -460,9 +460,13 @@ check:
   `f0429536d7ed899eb356794bcd3558baa9be3d45`.
 - P4.2d roadmap evidence: `e1a0959`; accumulation merge: `7c2269b`.
 
-Current unit: **P8.6 native team show and asynchronous dense-card rendering —
-Tier-2 reviewed, real-schema validated, integrated, and deployed for wider-
-beta acceptance.**
+Current unit: **P7.10 native team leaderboard — selected and ready for Luna
+implementation from clean accumulation checkpoint `a51766a`.**
+
+P8.6 native team show remains Tier-2 reviewed, real-schema validated,
+integrated, deployed, and open for wider-beta acceptance. The durable beta is
+not part of P7.10 implementation and must remain undisturbed until a later
+reviewed deployment gate.
 
 The audit is recorded in
 `docs/PLAYER_IDENTITY_AND_PREFERENCES_AUDIT.md`. It made no command, schema,
@@ -5297,6 +5301,99 @@ Known limitations and next action:
   progressive enhancement. Select the smallest independently testable P8
   team/house or administration unit whose slash taxonomy is settled.
 
+### P7.10 — Native team leaderboard workspace
+
+Status: **Selected; implementation pending**
+
+Risk tier: **Tier 2**. This is a read/presentation and event-loop-boundary
+unit. It must not change ELO calculation, team eligibility, stored data,
+permissions, or Discord deployment policy.
+
+Objective: add canonical `/leaderboard teams` with public, paginated,
+requester-controlled refinements while preserving the useful `$lbteam` and
+`$teamlb` prefix behavior and moving the legacy synchronous Peewee, Discord
+role traversal, and Matplotlib work off the event loop.
+
+Accepted interface and option matrix:
+
+- `/leaderboard teams` has no required invocation options. It opens the
+  current, active, all-tier team leaderboard, matching `$lbteam`.
+- Tier and population are interactive refinements rather than a large slash
+  option list. Tier choices come from the configured bounded tier vocabulary;
+  population switches between active teams and active plus archived teams.
+- `$lbteam TIER` maps to the selected tier with active teams only;
+  `$lbteam old` maps to all tiers including archived teams; and
+  `$lbteam old TIER` maps to that tier including archived teams. Preserve the
+  legacy tier-name/number lookup and its error behavior for prefix users.
+- The removed pre-reset/all-time code path is not revived. Current team ELO
+  and the current-reset W/L record remain authoritative.
+- `$lbteamjr` is legacy and receives no native equivalent. Its callback does
+  not currently implement the documented junior distinction. Retain it only
+  as an unchanged prefix alias in this unit pending a later explicit prefix-
+  retirement decision.
+
+Presentation and interaction contract:
+
+- Preserve the dense ranked row information: team emoji/name, active Discord
+  role-member count, current ELO, wins, and losses.
+- Paginate all matching teams instead of silently truncating after 25. Reuse
+  the established requester-bound previous/next/page-jump behavior; public
+  results and successful refinements remain public, while unauthorized,
+  expired, validation, or load failures are private.
+- Use one clear common-filter control for tier/population and do not add a
+  second redundant filter popup. Page and filter changes operate on the
+  immutable loaded snapshot without new database queries.
+- Preserve the useful team-ELO history visualization without shared
+  `graph.png`, pyplot global state, or event-loop plotting. Render immutable
+  per-request image bytes off-loop using an object-owned Agg figure/canvas.
+  If the graph would become unreadable for a broad result, the worker/renderer
+  may use the selected page or an explicitly documented bounded series set,
+  but the initial ranked rows must remain complete and paginated.
+- Discord role colors and active member counts are captured as primitive
+  event-loop snapshots before submission. No Discord objects, Peewee models,
+  lazy queries, or mutable Matplotlib objects cross the worker boundary.
+
+Implementation boundaries:
+
+- Reuse the bounded leaderboard read executor and reusable Components v2
+  leaderboard toolkit where clean; do not create an unbounded/default
+  executor or couple this read to ELO/ordinary-write workers.
+- A worker-local Peewee connection loads frozen team/record/history DTOs.
+  All database work is read-only. No Discord await occurs inside database
+  connection or transaction scopes.
+- Keep the existing `allow_teams` and bot-channel checks equivalent across
+  prefix and native paths. The `leaderboard` root remains under the existing
+  `core_user` guild-capability policy.
+- Retain the legacy prefix presentation unless sharing the new immutable
+  service is demonstrably parity-safe; native Components must not require a
+  second query or change prefix semantics.
+
+Required evidence:
+
+- complete prefix/native option-matrix tests, including `old TIER`, tier
+  errors, `$teamlb`, and explicit non-conversion of `$lbteamjr`;
+- native registration, no-required-option shape, immediate defer, public
+  success, private failures, requester-only controls, filter reset, paging,
+  page jump, expiry, and rerun guidance;
+- deterministic rank/tie/page behavior and more-than-25 coverage;
+- primitive snapshot/DTO boundaries, worker-local connection ownership,
+  event-loop responsiveness under slow read and graph rendering, bounded
+  concurrency, in-memory unique attachment names, and no plotting globals;
+- focused and complete offline suites plus compilation and diff checks;
+- add a read-only gated real-schema test, but do not stop or access the
+  durable beta/database during implementation. Defer that gate to the next
+  separately approved stopped-writer review window.
+
+Out of scope: team ELO/rules changes, junior-team redesign, `/leaderboard
+roles`, `/team show` behavior, team mutations, schema/fixture changes,
+dependency work, command apply/sync, beta lifecycle actions, production,
+push, or merge.
+
+Exit: clean implementation/test and separate roadmap-evidence commits plus a
+handoff to the originating Sol task. The unit remains unintegrated and
+undeployed until Tier-2 review and a later explicit integration/deployment
+decision.
+
 ## P8.0 — Guild application-command capability policy and explicit deployment tooling
 
 Status: **Complete**
@@ -7493,6 +7590,24 @@ database-free, split safely below Discord message limits, and updated as
 features are deployed or receive sufficiently broad acceptance.
 
 ## Progress log
+
+### 2026-08-04 — P7.10 native team leaderboard selected
+
+- Selected canonical `/leaderboard teams` as the next bounded Tier-2 unit
+  from clean accumulation checkpoint `a51766a` while P8.6 wider-beta feedback
+  remains open.
+- Preserved `$lbteam` and `$teamlb`, recorded the exact default/tier/old/tier+
+  old matrix, and confirmed that the dead all-time path will not be revived.
+- Kept legacy `$lbteamjr` prefix-only with no native equivalent; its current
+  callback does not implement a distinct junior-team filter.
+- Chose an argument-light Components workspace: current active all-tier
+  results by default, tier/archive refinements in-message, full pagination,
+  requester-only controls, and public competitive output.
+- Required worker-local immutable reads, primitive Discord role snapshots,
+  off-loop object-owned Agg rendering, unique in-memory attachments, and no
+  database/runtime/deployment action while the durable beta remains active.
+- Next action: dispatch the isolated Luna-Max unit and wait for its explicit
+  completion/blocker handoff without active Sol monitoring.
 
 ### 2026-08-04 — P8.6 deployed for wider-beta testing
 
