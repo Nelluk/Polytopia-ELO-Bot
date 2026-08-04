@@ -460,8 +460,8 @@ check:
   `f0429536d7ed899eb356794bcd3558baa9be3d45`.
 - P4.2d roadmap evidence: `e1a0959`; accumulation merge: `7c2269b`.
 
-Current unit: **P7.10 native team leaderboard — Tier-2 reviewed and integrated;
-development deployment/acceptance in progress.**
+Current unit: **P7.10 native team leaderboard — Tier-2 reviewed, integrated,
+and deployed for wider-beta acceptance.**
 
 P7.10 implementation/test checkpoints: `549bd41` and Tier-2 parity correction
 `b8abcd8`, from exact clean base `026c36cff69d131b43db97acd887debfb8ef499c`.
@@ -470,8 +470,10 @@ implementation the branch remained isolated and did not touch production, the
 durable beta, PostgreSQL, Discord registration, or services. Tier-2 review
 accepted the parity correction and integrated the complete branch as merge
 `7ba66b9`. The running wider-beta checklist now includes the native team
-workspace; command apply, restart, announcement, and acceptance evidence
-remain the deployment actions for the next clean checkpoint.
+workspace. The development-guild `leaderboard` root was updated, the durable
+beta restarted from checkpoint `a91b278`, and wider-beta release
+`2026-08-04-team-leaderboard` was posted. Broader tester acceptance remains
+open.
 
 P8.6 native team show remains Tier-2 reviewed, real-schema validated,
 integrated, deployed, and open for wider-beta acceptance. The durable beta is
@@ -5313,7 +5315,8 @@ Known limitations and next action:
 
 ### P7.10 — Native team leaderboard workspace
 
-Status: **Tier-2 reviewed and integrated; development deployment pending**
+Status: **Tier-2 reviewed, integrated, and deployed; wider-beta acceptance
+pending**
 
 Branch/base: `codex/p7-10-team-leaderboard` from exact clean base
 `026c36cff69d131b43db97acd887debfb8ef499c`.
@@ -5440,12 +5443,20 @@ push, or merge.
 
 Exit evidence: clean implementation/test and separate roadmap-evidence
 commits, an explicit worker handoff, Tier-2 correction/review, and accumulation
-merge. Development deployment and wider-beta acceptance remain pending.
+merge. Development deployment is complete; wider-beta acceptance remains
+pending.
 
 Integration: Tier-2 review accepted corrected checkpoints `b8abcd8` and
 `8c0424a`; the full branch merged into `codex/database-slash-modernization` as
 `7ba66b9`. The tracked wider-beta checklist now includes `/leaderboard teams`.
-Deployment and wider-beta acceptance remain separately evidenced.
+The stopped-writer development gate subsequently passed 22 tests with one
+intentional operator-fixture skip, including the P7.10 real-schema read. Only
+the development guild's `leaderboard` root changed during explicit apply. The
+durable beta restarted cleanly at `a91b278`, authenticated as application
+`479029527553638401`, and passed release-control status. Wider-beta release
+`2026-08-04-team-leaderboard` posted to `todo-and-changelog` as message
+`1534250663050088601` with the testers-role ping. Wider-beta acceptance remains
+open.
 
 ## P8.0 — Guild application-command capability policy and explicit deployment tooling
 
@@ -7643,6 +7654,29 @@ database-free, split safely below Discord message limits, and updated as
 features are deployed or receive sufficiently broad acceptance.
 
 ## Progress log
+
+### 2026-08-04 — P7.10 deployed for wider-beta testing
+
+- Stopped only `polybot-development-beta@main.service`; it exited cleanly and
+  the host-wide writer audit confirmed no remaining development beta process.
+- The unchanged gated suite confirmed `development`, `polytopia_dev`, and
+  `polybot_dev`, then passed 22 tests with one intentional retained-fixture
+  skip. The new P7.10 read-only real-schema test passed.
+- Remote command inspection reported exactly one update: `leaderboard` in
+  development guild `478571892832206869`. `elo`, `game`, `player`,
+  `staffhelp`, `team`, and `whattotest` were unchanged; no root was created or
+  removed and no global scope was available or touched.
+- The explicit guild-only apply succeeded. The durable beta restarted from
+  clean checkpoint `a91b2784f3662752654ec6a3332aeb7feae6b692`, authenticated
+  as PolyELO Bot Beta (`479029527553638401`), PID `2409290`, and passed the
+  mandatory local release-control status check.
+- Posted wider-beta release `2026-08-04-team-leaderboard` to
+  `todo-and-changelog` as message `1534250663050088601`, with the unique
+  `testers` role ping and a prominent **WHAT TO TEST** checklist. No accepted
+  `/staffhelp` report directly originated this unit, so no user-specific
+  notification was added.
+- Wider-beta acceptance remains open. Production checkout/services/database,
+  other guilds, global command scope, dependencies, and sudo were untouched.
 
 ### 2026-08-04 — P7.10 Tier-2 accepted and integrated
 
