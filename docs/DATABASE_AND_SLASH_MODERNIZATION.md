@@ -4637,9 +4637,9 @@ Validation evidence for implementation/tests checkpoint `3806d0e`:
   empty-global-scope/no-fallback behavior, and the complete 16-combination
   option-matrix invariants.
 - Complete offline discovery:
-  `POLYBOT_ENV=development MPLCONFIGDIR=/tmp/polybot-matplotlib /home/nelluk/.codex/worktrees/e55b/PolyBot39-dev/.venv/bin/python -m unittest discover -s tests -p 'test*.py' -v`
+  `POLYBOT_ENV=development MPLCONFIGDIR=/tmp/polybot-matplotlib /home/nelluk/PolyBot39-dev/.venv/bin/python -m unittest discover -s tests -p 'test*.py' -v`
   — **734 passed, 19 intentional gated database skips**.
-- Explicit development-profile compilation of the changed Python files and
+- Python 3.12 `compileall` for `modules` and `tests`, plus
   `git diff --check`: passed.
 - The existing explicit read-only PostgreSQL gate was attempted with
   `POLYBOT_RUN_DB_INTEGRATION=1`. Its profile/identity checks were unchanged,
