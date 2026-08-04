@@ -458,8 +458,8 @@ check:
 - P4.2d roadmap evidence: `e1a0959`; accumulation merge: `7c2269b`.
 
 Current unit: **P8.4 native-first team-house read/edit/clear workflow —
-reviewed and integrated; development deployment, announcement, and beta/role
-smoke remain.**
+reviewed, integrated, deployed, and announced; beta read/assign/clear role
+smoke remains.**
 
 P8.4 implementation/tests checkpoint: `9d72507b2913b7c842224e6ea624fc108404ad28`
 on `codex/p8-4-team-house`, based on the exact clean base
@@ -5325,7 +5325,7 @@ explicit development-guild deployment and beta smoke of `/team image`.
 
 ### P8.4 — Native-first team-house read/edit/clear workflow
 
-Status: **Reviewed and integrated; development deployment/announcement and
+Status: **Reviewed, integrated, development-guild deployed, and announced;
 beta/role smoke pending; real-database validation batched**
 
 Branch/base: `codex/p8-4-team-house` from the exact clean base
@@ -5435,10 +5435,9 @@ Limitations and next action:
   create/archive or tier behavior, create Discord roles/channels, or touch
   API, Bullet, anti-scam, dependencies, schema, production, synchronization,
   or beta lifecycle;
-- next action: deploy the integrated command to the development guild, restart
-  the durable beta at the reviewed checkpoint, publish the bounded release
-  announcement, and smoke-test read/assign/clear plus missing-role warnings.
-  Run the deferred real-database case in the next planned stopped-writer batch.
+- deployment and announcement completed at checkpoint `045a154`; the remaining
+  action is human smoke of read/assign/clear plus missing-role warnings. Run
+  the deferred real-database case in the next planned stopped-writer batch.
 
 ## WB1 — Wider beta operations and structured feedback
 
@@ -6666,6 +6665,19 @@ separate explicit reviewed unit. This preserves the single development beta
 writer and prevents a planning snapshot from becoming an implicit rollout.
 
 ## Progress log
+
+### 2026-08-03 — P8.4 integrated, deployed, and announced
+
+- Tier-3 review found no blocking defect. Integrated P8.4 into the accumulation
+  branch and recorded the risk-proportional database-validation cadence.
+- Stopped only the durable development-beta user service, applied the reviewed
+  guild-scoped command tree to guild `478571892832206869` with no global sync,
+  and confirmed `team` was the only updated root.
+- Restarted the durable beta at checkpoint `045a154`; it authenticated as beta
+  application `479029527553638401` and remained active.
+- Posted minor release `2026-08-03-team-house` to `todo-and-changelog` as
+  message `1534032897407713303` without pinging testers. Human smoke of
+  `/team house` read/assign/clear and missing-role warning behavior remains.
 
 ### 2026-08-03 — P8.4 native team-house workflow implemented locally
 
