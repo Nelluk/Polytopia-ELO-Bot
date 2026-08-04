@@ -609,7 +609,16 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
         )
 
         with self.rollback_scope():
-            result = squad_identity_workers.set_squad_name(request)
+            # This gated case owns the main-thread connection and outer
+            # rollback. Offline tests independently prove that the production
+            # worker opens and closes its own connection; avoid nesting that
+            # lifecycle inside this test-owned transaction.
+            with mock.patch.object(
+                self.models.db,
+                'connection_context',
+                return_value=nullcontext(),
+            ):
+                result = squad_identity_workers.set_squad_name(request)
             self.assertEqual(result.name, marker)
             self.assertEqual(
                 self.models.Squad.get_by_id(squad.id).name,

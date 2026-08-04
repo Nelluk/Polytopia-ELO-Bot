@@ -8076,6 +8076,20 @@ component refinements that do not require command re-registration.
 
 ## Progress log
 
+### 2026-08-04 — P7.12 gated-test connection boundary corrected during deployment
+
+- The stopped-writer integration gate exposed that the P7.12 squad-name
+  real-schema test nested the production worker's connection lifecycle inside
+  the test harness's main-thread rollback transaction. Peewee correctly
+  refused to close that connection while the outer transaction was open.
+- The gated test now follows the repository's established pattern: its outer
+  rollback owns the integration-test connection while offline tests remain
+  authoritative for worker-local connection ownership. Production squad-name
+  code and transaction behavior are unchanged.
+- Deployment remained paused before any Discord command apply or beta restart
+  while the corrected focused and complete development-database gates were
+  rerun.
+
 ### 2026-08-04 — `/game open` standalone publication correction implemented
 
 - Accepted `/staffhelp` report `NH89W6NKgYcScXoIOEzoZrkM` identified public
