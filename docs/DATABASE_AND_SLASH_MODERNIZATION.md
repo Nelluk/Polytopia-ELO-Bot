@@ -365,7 +365,7 @@ would become unavailable if a prefix is retired.
 | C-012 `/squad show` / `$squad` / `$squads` | Native `/squad show squad_id:[optional]` opens an exact card or defaults to squads containing the requester; a requester-only Discord member selector performs one-to-three-member discovery, and multi-match results are paged/selectable. | Legacy recommendation: **retire** — explicit user approval removes `$squad` and `$squads` because the lookup is rarely used. The native workspace replaces ambiguous free-text member lookup with typed guild members while preserving useful ID/member search, record/rank, and recent-game information. P7.11 retained `$squadname` only as a separate mutation until the approved P7.12 `/squad name` unit. | Revisit only through an explicit prefix lifecycle decision or demonstrated native discovery gap; do not restore a redundant prefix adapter. | Intentional P7.11 prefix retirement; integrated and deployed; wider-beta acceptance blocked by the discovered unbounded discovery-query/publish stall pending correction |
 | C-013 `/squad name` / `$squadname` | Native `/squad name squad_id name:[optional] clear:[optional]` reads publicly by default and performs member-or-staff edits/clears through one transactional service. Authorized `/squad show` requesters also receive an Edit Name modal backed by the same service and post-commit card refresh. | Legacy recommendation: **retire** — explicitly approved. The hidden, low-use `$squadname` workflow is completely covered by the typed command and contextual modal; no prefix adapter remains on the beta or intended production surface. | Revisit only through an explicit prefix-lifecycle decision or a demonstrated native access gap; do not restore a separate mutation implementation. | P7.12 integrated and deployed; wider-beta acceptance blocked until the shared `/squad show` discovery/publish stall correction is validated
 
-| C-014 `/leaderboard roles` / `$roleelo` / `$roleeloany` / `$freeagents` | Native `/leaderboard roles` opens the configured Free Agent preset for every permitted role-lookup user; elevated requesters receive a requester-bound 1–5-role selector with All/Any matching, four in-workspace sorts, global/local ELO scope, inactive-role exclusion, paging, and page jump over one immutable bounded snapshot. `$freeagents` remains a broadly accessible shared-worker convenience path. | Legacy recommendation: **retire** `$roleelo` and `$roleeloany` without adapters. CSV/file export is explicitly deferred and is not implemented on the retained convenience path; its ordinary text listing and configured Free Agent access remain. Native validation rejects `@everyone`, managed roles, and cross-guild roles without maintaining an allow-list. | Revisit only through an explicit prefix-lifecycle decision or a demonstrated native access gap; do not restore arbitrary-role prefix adapters or add export without a separate bounded design. | P7.13 implementation/test commit `40fbcf2`; roadmap/taxonomy evidence committed separately; Tier-2 review/integration pending; development-database read gate deferred while durable beta is active |
+| C-014 `/leaderboard roles` / `$roleelo` / `$roleeloany` / `$freeagents` | Native `/leaderboard roles` opens the configured Free Agent preset for every permitted role-lookup user; elevated requesters receive a requester-bound 1–5-role selector with All/Any matching, four in-workspace sorts, global/local ELO scope, inactive-role exclusion, paging, and page jump over one immutable bounded snapshot. `$freeagents` remains a broadly accessible shared-worker convenience path. | Legacy recommendation: **retire** `$roleelo` and `$roleeloany` without adapters. CSV/file export is explicitly deferred and is not implemented on the retained convenience path; its ordinary text listing and configured Free Agent access remain. Native validation rejects `@everyone`, managed roles, and cross-guild roles without maintaining an allow-list. | Revisit only through an explicit prefix-lifecycle decision or a demonstrated native access gap; do not restore arbitrary-role prefix adapters or add export without a separate bounded design. | P7.13 implementation/test commits `40fbcf2` and payload correction `f322c09`; roadmap/taxonomy evidence committed separately; Tier-2 review/integration pending; development-database read gate deferred while durable beta is active |
 
 Every later slash conversion must add a row when parity is intentionally
 reduced. If there is no compromise, its unit evidence should explicitly say
@@ -5763,8 +5763,8 @@ Status: **Implemented locally; Tier-2 review, integration, and beta acceptance
 pending**
 
 Branch/base: `codex/p7-13-role-leaderboard`, based on exact clean base
-`6e38c36e4ca865b952fa5e71a416ccd3fef9609c`. Implementation/test commit:
-`40fbcf2`.
+`6e38c36e4ca865b952fa5e71a416ccd3fef9609c`. Implementation/test commits:
+`40fbcf2`, with payload correction `f322c09`.
 
 Risk tier: **Tier 2**. This is a read-only Discord presentation and bounded
 database-read unit. It does not change player, team, game, stored role, or ELO
@@ -5830,9 +5830,15 @@ Required/local evidence:
   event-loop responsiveness, cancellation draining, prefix retirement, and
   no-requery refinements. Taxonomy registration and the unchanged gated
   development-schema case are also updated.
-- Focused affected suites passed 108 tests with 26 intentional gated skips;
-  complete offline unittest discovery passed 897 tests with 26 intentional
-  gated skips. The touched-Python compile check and `git diff --check` passed.
+- Tier-2 review identified an invalid serialized Action Row that mixed the
+  scope select and Free Agents button. `f322c09` places the scope select in
+  its own row and keeps Free Agents with the buttons-only navigation row. A
+  regression inspects actual `LayoutView.to_components()` dictionaries for
+  both ordinary and elevated views and proves every Action Row is either one
+  select or buttons-only.
+- The focused role/taxonomy suites passed 27 tests; complete offline unittest
+  discovery passed 898 tests with 26 intentional gated skips. The touched-
+  Python compile check and `git diff --check` passed.
 - `tests/test_database_integration.py` contains a read-only P7.13 case behind
   the unchanged `POLYBOT_RUN_DB_INTEGRATION=1`, development,
   `polytopia_dev`, `polybot_dev` identity gate. It was not run because the
@@ -8121,6 +8127,22 @@ component refinements that do not require command re-registration.
   merge, or sudo occurred. Documentation evidence is now committed
   separately; next action is Tier-2 review and the explicit completion
   handoff, with integration deferred.
+
+### 2026-08-04 — P7.13 serialized component payload correction
+
+- Tier-2 review found that the native role workspace constructed an Action Row
+  containing both the scope select and Free Agents button. Although
+  discord.py constructed the local object, the serialized Discord payload did
+  not satisfy the official one-select-or-buttons-only Action Row contract.
+- Correction `f322c09` places the scope select in its own Action Row and keeps
+  Free Agents in the buttons-only navigation row. The regression serializes
+  both ordinary and elevated `LayoutView` instances through
+  `to_components()` and checks every nested Action Row dictionary.
+- Focused role/taxonomy validation passed 27 tests; complete offline discovery
+  passed 898 tests with 26 intentional gated skips. Compile and diff checks
+  passed. The durable beta, PostgreSQL, Discord synchronization, production,
+  and services remained untouched; this correction is ready for a fresh
+  Tier-2 handoff.
 
 ### 2026-08-04 — Discord client-cache recovery evidence refined
 
