@@ -457,14 +457,13 @@ check:
   `f0429536d7ed899eb356794bcd3558baa9be3d45`.
 - P4.2d roadmap evidence: `e1a0959`; accumulation merge: `7c2269b`.
 
-Current unit: **P6.0 player identity and preferences source-of-truth audit —
-decision-ready; implementation approval pending.**
+Current unit: **P6.1 canonical player registration — approved and ready for
+bounded implementation.**
 
 The audit is recorded in
 `docs/PLAYER_IDENTITY_AND_PREFERENCES_AUDIT.md`. It made no command, schema,
-data, runtime, or Discord-registration change. Its recommendations remain
-proposed until the user accepts the compatibility and schema decisions listed
-there.
+data, runtime, or Discord-registration change. The user accepted all six
+recommendations on 2026-08-04.
 
 P8.4 native-first team-house read/edit/clear remains integrated and deployed.
 Its beta read/assign/clear role smoke remains a separate downstream acceptance
@@ -3977,7 +3976,7 @@ branch. Reverify runtime and fixture state before any later beta session.
 
 ## P6 — Registration and player preferences
 
-Status: **In progress; P6.0 audit decision-ready**
+Status: **In progress; P6.0 complete and P6.1 ready for implementation**
 
 Candidate scope:
 
@@ -4008,7 +4007,7 @@ common infrastructure.
 
 ### P6.0 — Player identity and preferences source-of-truth audit
 
-Status: **Decision-ready; implementation approval pending**
+Status: **Complete; all six implementation decisions accepted**
 
 The complete audit is maintained in
 `docs/PLAYER_IDENTITY_AND_PREFERENCES_AUDIT.md`. It inspected the model,
@@ -4054,10 +4053,9 @@ Recommended implementation sequence:
 3. Before P9, run a separately approved aggregate-only production inventory,
    then explicitly review any Steam-only or conflicting-name migration cases.
 
-Proposed compatibility decisions requiring user acceptance are recorded in
-D-038 and in the audit's final section. P6.1 is the next code unit only after
-those decisions are accepted; P6.1 and the P6.2 schema transition must remain
-separate Tier-3 units.
+Accepted compatibility decisions are recorded in D-038 and in the audit's
+final section. P6.1 is the next bounded Tier-3 implementation unit. P6.1 and
+the P6.2 schema transition must remain separate units.
 
 ## P7 — Read-heavy commands and analytics
 
@@ -6916,7 +6914,7 @@ writer and prevents a planning snapshot from becoming an implicit rollout.
 
 ### D-038 — Canonicalize player identity before native registration
 
-Status: **Proposed by P6.0; user decision pending**
+Status: **Accepted**
 
 The P6.0 audit recommends treating `DiscordMember.polytopia_name` as the one
 account-wide canonical Polytopia name while retaining `Player.name` as the
@@ -6934,12 +6932,24 @@ and a single worker-local transaction; `/player timezone` would be a separate
 schema-backed unit using offset minutes rather than reproducing the current
 fractional-value-to-smallint bug.
 
-This entry records a decision proposal, not authorization. The detailed field
-inventory, migration cases, worker boundary, visibility proposal, timezone
-range, and six required decisions are in
+The user accepted all six P6.0 recommendations on 2026-08-04. This authorizes
+bounded P6.1 implementation and, after its review/integration, bounded P6.2
+implementation. It does not authorize production inventory, production data
+mutation, deployment, command synchronization, or combining the two Tier-3
+units. The detailed field inventory, migration cases, worker boundary,
+visibility proposal, timezone range, and accepted decisions are in
 `docs/PLAYER_IDENTITY_AND_PREFERENCES_AUDIT.md`.
 
 ## Progress log
+
+### 2026-08-04 — P6.0 decisions accepted
+
+- Accepted all six identity, prefix-compatibility, visibility, and timezone
+  recommendations from the P6.0 audit.
+- Made P6.1 canonical registration the next bounded Tier-3 implementation
+  unit and kept P6.2's additive timezone-minutes migration separate.
+- Did not authorize production inventory/data access, beta deployment,
+  command synchronization, or schema work in this decision checkpoint.
 
 ### 2026-08-04 — P6.0 identity and preferences audit completed
 

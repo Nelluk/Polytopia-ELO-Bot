@@ -1,6 +1,7 @@
 # Player identity and preferences audit
 
-Status: P6.0 decision-ready audit; no command, schema, or data change
+Status: P6.0 complete; all six recommendations accepted on 2026-08-04; no
+command, schema, or data change
 
 Date: 2026-08-04
 
@@ -245,9 +246,9 @@ adapter initially because it is a simple user preference and existing
 game-organization workflow. Correct its half-hour parsing through the new
 minutes representation rather than preserving the fractional-smallint bug.
 
-## Decisions required before implementation
+## Accepted implementation decisions
 
-The audit recommends, but does not itself approve:
+The user accepted all six recommendations on 2026-08-04:
 
 1. canonical field: reuse `DiscordMember.polytopia_name`;
 2. retain `$setname` through production canary;

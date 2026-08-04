@@ -422,9 +422,11 @@ operator repair commands stay out of the public tree.
 | active job status (slash-only) | `/elo status` | Native now; staff-only |
 
 P6.0 audited the underlying field meanings, mutation boundaries, compatibility
-paths, and aggregate development data. Its detailed, decision-ready proposal
-is in `PLAYER_IDENTITY_AND_PREFERENCES_AUDIT.md`; it does not yet authorize
-command retirement, a schema migration, or a data backfill.
+paths, and aggregate development data. The user accepted all six
+recommendations on 2026-08-04. The detailed implementation contract is in
+`PLAYER_IDENTITY_AND_PREFERENCES_AUDIT.md`; production inventory, production
+data work, final legacy-field retirement, and deployment remain separately
+gated.
 
 `/player register` is preferred over `/player set name` because the common
 flow establishes or updates the user's bot registration, not merely a display
@@ -433,7 +435,7 @@ name. Staff targeting can be an optional typed member rather than a separate
 public command.
 
 The native interface deliberately omits the mobile-name, Steam-name, and
-legacy-code distinction. P6.0 proposes `DiscordMember.polytopia_name` as the
+legacy-code distinction. P6.0 selects `DiscordMember.polytopia_name` as the
 canonical account-wide field while preserving the other fields dormant until
 production inventory and conflict review. `/player show` displays the
 canonical name and can offer an authorized **Edit name** control; `/game
