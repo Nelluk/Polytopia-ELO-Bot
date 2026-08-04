@@ -1173,9 +1173,10 @@ Implementation evidence:
   worker are not invoked until Confirm.
 - The record invocation and parsed preview are private to the requester. Only
   the requester can use its Edit/Confirm/Cancel controls; unauthorized control
-  attempts remain ephemeral. Once the worker commits, the existing
-  post-commit path publishes the competitive result publicly in every allowed
-  channel without inspecting channel-dependent visibility.
+  attempts remain ephemeral. Once the worker commits, native recording passes
+  a true public invoking-channel destination to the post-commit path, which
+  publishes the competitive result publicly in every allowed channel without
+  inheriting the deferred interaction's private visibility.
 - The shared prefix/slash resolver preserves permissions and the one-opponent
   shortcut. Prefix aliases remain registered.
 - All new recorded games use the legacy `is_mobile=True` compatibility value,
@@ -7149,12 +7150,17 @@ evidence; do not run cleanup while the wider beta is using these records.
 
 ### WB1.4 — Interaction lifecycle and retryability hardening
 
-Status: **Complete locally; Tier-3 implementation/tests committed; integration and beta review pending**
+Status: **Complete locally; Tier-3 implementation/tests and visibility correction committed; integration and beta review pending**
 
 Branch/base: `codex/wb1-4-interaction-lifecycle` from exact clean base
 `b7e95b5ee7fe1e1af265655bfef6f3c51efe228f`.
 
-Implementation/tests commit: `4fe39299861496b7e60ae8f5ed009740e179f16f`.
+Implementation/tests commits:
+
+- `4fe39299861496b7e60ae8f5ed009740e179f16f` — initial WB1.4 lifecycle
+  implementation and tests.
+- `be8a9666b8aa5927a937e805f88d9b2d1528a516` — Tier-3 correction for native
+  public post-commit destinations and inheritance-aware regression tests.
 
 Accepted beta evidence IDs:
 
@@ -7180,10 +7186,21 @@ Delivered behavior:
 - The existing prefix `newgame` grammar, aliases, title-casing behavior,
   worker-local connection, synchronous atomic transaction, authoritative
   worker checks, and post-commit Discord boundary remain unchanged. Native
-  `/game record` uses a private draft/failure response and the existing
-  committed post-commit path publishes competitive output publicly in every
-  allowed channel. It does not inspect the invocation channel to choose
-  ephemerality.
+  `/game record` uses a private draft/failure response, then passes the
+  invoking channel explicitly to committed public effects. Warnings, local
+  summaries, cards, channel-creation warnings, and other fallback output use
+  that real channel; a configured game-announcement channel still receives
+  its announcement/card while the invoking channel receives the public local
+  summary. The native path never uses the deferred interaction Context/send
+  for committed public output and does not inspect the invocation channel to
+  choose ephemerality.
+- Tier-3 review corrected the prior local evidence claim that the existing
+  post-commit path alone established public visibility: the initial bridge
+  routed its first post-defer warning/effect through `Context.send`, which can
+  inherit the ephemeral defer. The explicit destination adapter and regression
+  test now prove that warning, summary, and card publication bypass the
+  interaction followup; a missing or failing destination is terminal
+  reconciliation with no retry.
 - `/player register` visibly restates the selected member using escaped
   display text only. Submission still revalidates the captured primitive
   target and the focused test proves a staff-selected target reaches the
@@ -7205,12 +7222,12 @@ a duplicate retry.
 Validation evidence:
 
 - Focused `tests.test_newgame_worker tests.test_player_registration
-  tests.test_player_timezone`: **65 passed**.
+  tests.test_player_timezone`: **68 passed**.
 - Expanded affected registration/taxonomy/presentation focus (including
   `tests.test_slash_taxonomy`, `tests.test_application_command_policy`, and
-  `tests.test_player_workspace`): **99 passed**.
+  `tests.test_player_workspace`): **102 passed**.
 - Complete offline discovery with `POLYBOT_ENV=development` and database
-  integration unset: **920 passed, 26 intentional gated skips**.
+  integration unset: **923 passed, 26 intentional gated skips**.
 - `compileall` and `git diff --check`: passed.
 - PostgreSQL real-schema validation remains behind its unchanged gate and was
   deferred. No development beta inspection, stop, restart, synchronization,
@@ -7223,9 +7240,9 @@ Changed files: `modules/game_record_views.py`, `modules/games.py`,
 `tests/test_newgame_worker.py`, `tests/test_player_registration.py`, and
 `tests/test_player_timezone.py`.
 
-Next action: Tier-3 review and authorized integration of the implementation
-commit, followed by a separate beta smoke decision. Keep the PostgreSQL gate
-deferred until the next approved stopped-writer validation window.
+Next action: authorized integration of the two implementation commits in order,
+followed by a separate beta smoke decision. Keep the PostgreSQL gate deferred
+until the next approved stopped-writer validation window.
 
 ## P9 — Production rollout and prefix lifecycle
 
@@ -8822,6 +8839,25 @@ component refinements that do not require command re-registration.
   26 intentional gated skips**; compileall and diff checks passed.
 - PostgreSQL, the durable beta, Discord synchronization, production, fixtures,
   dependencies, push, PR, merge, and sudo actions remained deferred.
+
+### 2026-08-04 — WB1.4 Tier-3 public-destination correction completed locally
+
+- Tier-3 review found that the initial native `/game record` bridge could send
+  its first committed warning/effect through the interaction-backed
+  `Context.send` after an ephemeral defer. The correction is committed as
+  `be8a9666b8aa5927a937e805f88d9b2d1528a516`.
+- The shared runner now accepts an explicit native public destination. Native
+  warnings and all `post_newgame_messaging` local output use the invoking
+  channel; configured announcement-channel messages remain routed there.
+  Missing/failing post-commit destinations produce terminal reconciliation.
+  Prefix behavior remains on the context-default path.
+- Added inheritance-aware tests for warning, summary/card publication,
+  configured announcement routing, and missing-destination reconciliation.
+  Focused coverage passed **68 tests**; affected coverage passed **102 tests**;
+  complete offline discovery passed **923 with 26 intentional gated skips**;
+  compileall and diff checks passed.
+- The real-schema gate, durable beta, production, synchronization, push, PR,
+  merge, and sudo actions remain deferred.
 
 ### 2026-08-04 — P8.5 Tier-3 validated and integrated
 
