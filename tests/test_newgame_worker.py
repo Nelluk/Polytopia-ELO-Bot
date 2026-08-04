@@ -588,6 +588,141 @@ class GameRecordViewTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(view.finished)
         self.assertIn('Cancelled', view.status)
 
+    async def test_retryable_failure_preserves_exact_draft_and_restores_controls(self):
+        view = self.make_view()
+        original_preview = replace(
+            view.preview,
+            game_name='Exact Title Case Game',
+            roster='<@10> vs <@20> <@30>',
+            ranked=False,
+            sides=(
+                (game_record_views.RosterMember(10, 'Edited One'),),
+                (
+                    game_record_views.RosterMember(20, 'Edited Two'),
+                    game_record_views.RosterMember(30, 'Edited Three'),
+                ),
+            ),
+        )
+        view.preview = original_preview
+        view.confirmer = mock.AsyncMock(
+            return_value=game_record_views.GameRecordConfirmationOutcome.retryable(
+                'The roster is no longer valid.'
+            )
+        )
+        interaction = SimpleNamespace(
+            response=SimpleNamespace(edit_message=mock.AsyncMock()),
+            edit_original_response=mock.AsyncMock(),
+        )
+
+        await view._confirm(interaction)
+
+        self.assertFalse(view.finished)
+        self.assertFalse(view.submission_in_flight)
+        self.assertFalse(view.is_finished())
+        self.assertEqual(view.preview, original_preview)
+        self.assertIn('retry', view.status.lower())
+        confirm = next(
+            child for child in view.walk_children()
+            if isinstance(child, discord.ui.Button)
+            and child.label == 'Confirm record'
+        )
+        self.assertFalse(confirm.disabled)
+        view.confirmer.assert_awaited_once_with(interaction, original_preview)
+
+    async def test_retryable_failure_then_success_can_commit_once(self):
+        view = self.make_view()
+        view.confirmer = mock.AsyncMock(side_effect=[
+            game_record_views.GameRecordConfirmationOutcome.retryable(
+                'Database validation failed.'
+            ),
+            game_record_views.GameRecordConfirmationOutcome.committed(
+                'Game ID 42 was recorded.'
+            ),
+        ])
+
+        first = SimpleNamespace(
+            response=SimpleNamespace(edit_message=mock.AsyncMock()),
+            edit_original_response=mock.AsyncMock(),
+        )
+        second = SimpleNamespace(
+            response=SimpleNamespace(edit_message=mock.AsyncMock()),
+            edit_original_response=mock.AsyncMock(),
+        )
+        await view._confirm(first)
+        self.assertFalse(view.finished)
+
+        await view._confirm(second)
+
+        self.assertTrue(view.finished)
+        self.assertTrue(view.is_finished())
+        self.assertEqual(
+            view.outcome.state,
+            game_record_views.GameRecordConfirmationState.COMMITTED,
+        )
+        self.assertEqual(view.confirmer.await_count, 2)
+
+    async def test_double_submit_is_rejected_while_confirmation_is_running(self):
+        view = self.make_view()
+        started = asyncio.Event()
+        release = asyncio.Event()
+
+        async def pending(_interaction, _preview):
+            started.set()
+            await release.wait()
+            return game_record_views.GameRecordConfirmationOutcome.committed(
+                'Game ID 42 was recorded.'
+            )
+
+        view.confirmer = mock.AsyncMock(side_effect=pending)
+        first = SimpleNamespace(
+            response=SimpleNamespace(edit_message=mock.AsyncMock()),
+            edit_original_response=mock.AsyncMock(),
+        )
+        second = SimpleNamespace(
+            response=SimpleNamespace(
+                edit_message=mock.AsyncMock(),
+                send_message=mock.AsyncMock(),
+            ),
+            edit_original_response=mock.AsyncMock(),
+        )
+
+        first_task = asyncio.create_task(view._confirm(first))
+        await started.wait()
+        await view._confirm(second)
+
+        view.confirmer.assert_awaited_once()
+        second.response.send_message.assert_awaited_once()
+        self.assertTrue(view.submission_in_flight)
+        self.assertFalse(view.finished)
+        release.set()
+        await first_task
+        self.assertTrue(view.finished)
+
+    async def test_reconciliation_state_finishes_without_retry(self):
+        view = self.make_view()
+        view.confirmer = mock.AsyncMock(
+            return_value=game_record_views.GameRecordConfirmationOutcome.reconciliation(
+                'Game ID 42 was committed, but public publication failed. '
+                'Do not retry.'
+            )
+        )
+        interaction = SimpleNamespace(
+            response=SimpleNamespace(
+                edit_message=mock.AsyncMock(),
+                send_message=mock.AsyncMock(),
+            ),
+            edit_original_response=mock.AsyncMock(),
+        )
+
+        await view._confirm(interaction)
+
+        self.assertTrue(view.finished)
+        self.assertTrue(view.is_finished())
+        self.assertIn('Do not retry', view.status)
+        await view._confirm(interaction)
+        view.confirmer.assert_awaited_once()
+        interaction.response.send_message.assert_awaited_once()
+
     async def test_edit_sides_uses_native_user_selector(self):
         view = self.make_view()
         interaction = SimpleNamespace(
@@ -691,7 +826,7 @@ class NewGameCommandTests(unittest.IsolatedAsyncioTestCase):
 
         async def defer(**kwargs):
             events.append('defer')
-            self.assertEqual(kwargs, {})
+            self.assertEqual(kwargs, {'ephemeral': True})
 
         async def can_run(ctx):
             events.append('checks')
@@ -817,7 +952,7 @@ class NewGameCommandTests(unittest.IsolatedAsyncioTestCase):
                 '101 vs 201',
             )
 
-        interaction.response.defer.assert_awaited_once_with()
+        interaction.response.defer.assert_awaited_once_with(ephemeral=True)
         prefix_command.can_run.assert_awaited_once_with(context)
         prefix_command.callback.assert_not_awaited()
 
@@ -924,6 +1059,150 @@ class NewGameCommandTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(
             any('Error creating new game' in message for message in messages)
         )
+
+    async def test_record_precommit_failure_is_private_and_retryable(self):
+        author = SimpleNamespace(
+            id=100,
+            name='host',
+            nick='Host Nick',
+            display_name='Host Display',
+            roles=(SimpleNamespace(name='The Ronin'),),
+        )
+        opponent = SimpleNamespace(
+            id=200,
+            name='opponent',
+            nick=None,
+            display_name='Opponent Display',
+            roles=(SimpleNamespace(name='The Jets'),),
+        )
+        context = SimpleNamespace(
+            guild=SimpleNamespace(id=300),
+            author=author,
+            invoked_with='newgame',
+            prefix='$',
+            interaction=SimpleNamespace(),
+            _game_record_confirmation=True,
+            typing=lambda: SimpleNamespace(
+                __aenter__=mock.AsyncMock(return_value=None),
+                __aexit__=mock.AsyncMock(return_value=False),
+            ),
+            send=mock.AsyncMock(),
+        )
+
+        class Typing:
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, exc_type, exc_value, traceback):
+                return False
+
+        context.typing = lambda: Typing()
+
+        async def fail_worker(request):
+            del request
+            raise peewee.OperationalError('database unavailable')
+
+        command = self.newgame_command()
+        with (
+            mock.patch.object(self.games.settings, 'get_user_level', return_value=3),
+            mock.patch.object(self.games.settings, 'can_user_join_game', return_value=(True, None)),
+            mock.patch.object(self.games.settings, 'is_staff', return_value=False),
+            mock.patch.object(self.games.settings, 'is_mod', return_value=False),
+            mock.patch.object(self.games.utilities, 'is_valid_poly_gamename', return_value=True),
+            mock.patch.object(self.games, 'resolve_newgame_roster', new=mock.AsyncMock(return_value=((author,), (opponent,)))),
+            mock.patch.object(self.games.models.GameLog, 'member_string', return_value='Host'),
+            mock.patch.object(
+                self.games.game_workers,
+                'run_new_game_creation',
+                new=mock.AsyncMock(side_effect=fail_worker),
+            ),
+            mock.patch.object(self.games.Game, 'load_full_game') as load_game,
+            mock.patch.object(self.games, 'post_newgame_messaging', new=mock.AsyncMock()) as post,
+            mock.patch.object(self.games.logger, 'exception'),
+        ):
+            outcome = await command.callback(
+                SimpleNamespace(),
+                context,
+                'Exact Game Name',
+                'host',
+                'vs',
+                'opponent',
+            )
+
+        self.assertEqual(
+            outcome.state,
+            game_record_views.GameRecordConfirmationState.RETRYABLE_FAILURE,
+        )
+        context.send.assert_not_awaited()
+        load_game.assert_not_called()
+        post.assert_not_awaited()
+
+    async def test_record_commit_with_public_effect_failure_is_reconciliation_only(self):
+        author = SimpleNamespace(
+            id=100,
+            name='host',
+            nick='Host Nick',
+            display_name='Host Display',
+            roles=(SimpleNamespace(name='Helper'),),
+        )
+        opponent = SimpleNamespace(
+            id=200,
+            name='opponent',
+            nick=None,
+            display_name='Opponent Display',
+            roles=(),
+        )
+
+        class Typing:
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, exc_type, exc_value, traceback):
+                return False
+
+        context = SimpleNamespace(
+            guild=SimpleNamespace(id=300),
+            author=author,
+            invoked_with='newgame',
+            prefix='$',
+            interaction=SimpleNamespace(),
+            _game_record_confirmation=True,
+            typing=lambda: Typing(),
+            send=mock.AsyncMock(),
+        )
+        committed = self.games.game_workers.NewGameResult(
+            game_id=42,
+            warnings=(),
+        )
+        command = self.newgame_command()
+        with (
+            mock.patch.object(self.games.settings, 'get_user_level', return_value=3),
+            mock.patch.object(self.games.settings, 'can_user_join_game', return_value=(True, None)),
+            mock.patch.object(self.games.settings, 'is_staff', return_value=True),
+            mock.patch.object(self.games.settings, 'is_mod', return_value=True),
+            mock.patch.object(self.games.utilities, 'is_valid_poly_gamename', return_value=True),
+            mock.patch.object(self.games, 'resolve_newgame_roster', new=mock.AsyncMock(return_value=((author,), (opponent,)))),
+            mock.patch.object(self.games.models.GameLog, 'member_string', return_value='Host'),
+            mock.patch.object(self.games.game_workers, 'run_new_game_creation', new=mock.AsyncMock(return_value=committed)),
+            mock.patch.object(self.games.Game, 'load_full_game', return_value=SimpleNamespace(id=42)),
+            mock.patch.object(self.games, 'post_newgame_messaging', new=mock.AsyncMock(side_effect=RuntimeError('public send failed'))) as post,
+            mock.patch.object(self.games.logger, 'exception'),
+        ):
+            outcome = await command.callback(
+                SimpleNamespace(),
+                context,
+                'Exact Game Name',
+                'host',
+                'vs',
+                'opponent',
+            )
+
+        self.assertEqual(
+            outcome.state,
+            game_record_views.GameRecordConfirmationState.RECONCILIATION,
+        )
+        self.assertIn('Do not retry', outcome.message)
+        post.assert_awaited_once()
 
     async def test_staff_override_warning_is_public_after_worker_commit(self):
         events = []

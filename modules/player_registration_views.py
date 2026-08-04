@@ -47,6 +47,18 @@ class PlayerRegistrationModal(
         self.guild_id = int(guild_id)
         self.requester_id = int(requester_id)
         self.target_snapshot = target_snapshot
+        # This is presentation only. Submission still re-resolves the
+        # captured primitive ID and rebuilds the worker request from the
+        # current guild member; display text is never an authority source.
+        selected_name = discord.utils.escape_markdown(
+            discord.utils.escape_mentions(target_snapshot.display_name),
+            as_needed=True,
+        )
+        self.selected_target_text = (
+            f'**Selected member:** {selected_name}\n'
+            'This is the member whose account-wide name will be updated.'
+        )
+        self.add_item(discord.ui.TextDisplay(self.selected_target_text))
         self._submitted = False
 
     async def on_submit(self, interaction: discord.Interaction) -> None:

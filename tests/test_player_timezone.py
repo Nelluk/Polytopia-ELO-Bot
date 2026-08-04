@@ -67,6 +67,13 @@ def request(*, target_id=100, actor_roles=(), offset_minutes=330, clear=False):
     )
 
 
+def unknown_message_not_found():
+    return discord.NotFound(
+        SimpleNamespace(status=404, reason='Not Found'),
+        {'message': 'Unknown Message', 'code': 10008},
+    )
+
+
 class TimezoneValueTests(unittest.TestCase):
     def test_parser_normalizes_supported_quarter_hours_and_bounds(self):
         cases = {
@@ -527,6 +534,64 @@ class TimezoneAdapterAndCommandTests(unittest.IsolatedAsyncioTestCase):
         interaction.delete_original_response.assert_awaited_once()
         interaction.channel.send.assert_awaited_once()
         interaction.followup.send.assert_not_awaited()
+
+    async def test_registration_and_timezone_share_public_cleanup_helper(self):
+        registration = import_offline_runtime('modules.player_registration')
+        self.assertIs(
+            timezone.public_interaction_sender,
+            registration.public_interaction_sender,
+        )
+
+    async def test_unknown_message_timezone_cleanup_is_benign_and_public_once(self):
+        command = self.group().get_command('timezone')
+        request_value = request(offset_minutes=315)
+        result = workers.PlayerTimezoneResult(
+            guild_id=300,
+            requester_id=100,
+            target_id=100,
+            target_name='Target',
+            actor_description='**Actor** (`100`)',
+            target_description='**Target** (`100`)',
+            old_offset_minutes=None,
+            offset_minutes=315,
+            legacy_offset_hours=None,
+            cleared=False,
+            mutated=True,
+        )
+        interaction = SimpleNamespace(
+            user=member(),
+            guild=SimpleNamespace(id=300),
+            response=SimpleNamespace(
+                send_message=mock.AsyncMock(),
+                defer=mock.AsyncMock(),
+            ),
+            followup=SimpleNamespace(send=mock.AsyncMock()),
+            delete_original_response=mock.AsyncMock(
+                side_effect=unknown_message_not_found()
+            ),
+            channel=SimpleNamespace(send=mock.AsyncMock()),
+        )
+        cog = games.polygames.__new__(games.polygames)
+        with (
+            mock.patch.object(
+                games.player_timezone,
+                'build_request',
+                return_value=request_value,
+            ),
+            mock.patch.object(
+                games.player_timezone_workers,
+                'run_timezone_request',
+                new=mock.AsyncMock(return_value=result),
+            ),
+            mock.patch.object(
+                timezone.interaction_lifecycle.logger,
+                'exception',
+            ) as logged,
+        ):
+            await command.callback(cog, interaction, None, 'UTC+05:15', False)
+
+        logged.assert_not_called()
+        interaction.channel.send.assert_awaited_once()
 
     async def test_native_database_failure_has_no_public_effect(self):
         command = self.group().get_command('timezone')

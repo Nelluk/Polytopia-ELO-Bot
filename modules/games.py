@@ -3582,8 +3582,23 @@ class polygames(commands.Cog):
         longer changes game behavior because Polytopia supports cross-play.
         """
 
+        record_confirmation = bool(
+            getattr(ctx, '_game_record_confirmation', False)
+        )
+
+        async def fail_record(message: str):
+            """Keep native confirmation failures in the private draft."""
+
+            if record_confirmation:
+                return game_record_views.GameRecordConfirmationOutcome.retryable(
+                    message,
+                )
+            return await ctx.send(message)
+
         if ctx.guild.id == 814317488418193478 and not settings.is_staff(ctx.author):
-            return await ctx.send('For **The Polympics** only server staff may open games.')
+            return await fail_record(
+                'For **The Polympics** only server staff may open games.'
+            )
 
         ranked_flag = not (ctx.invoked_with in ['newgameunranked', 'newsteamgameunranked'])
         # Mobile and Steam now have full cross-play. Retain the legacy field
@@ -3596,28 +3611,28 @@ class polygames(commands.Cog):
                          f'`{ctx.prefix}newgame "Name of Game" player1 player2 VS player3 player4` - Start a 2v2 game')
 
         if settings.get_user_level(ctx.author) <= 2:
-            return await ctx.send(
+            return await fail_record(
                 'You are not authorized to use this command. Create and '
                 f'join games with `{ctx.prefix}open` / `{ctx.prefix}join`'
             )
         if not game_name:
-            return await ctx.send(f'Invalid format. {example_usage}')
+            return await fail_record(f'Invalid format. {example_usage}')
         if not args:
-            return await ctx.send(f'Invalid format. {example_usage}')
+            return await fail_record(f'Invalid format. {example_usage}')
 
         if len(game_name.split()) < 2 and not requester_is_staff:
             if getattr(ctx, 'interaction', None) is not None:
-                return await ctx.send(
+                return await fail_record(
                     'Invalid game name. Enter the exact multi-word game '
                     'name shown in Polytopia.'
                 )
-            return await ctx.send(
+            return await fail_record(
                 'Invalid game name. Make sure to use "quotation marks" '
                 f'around the full game name.\n{example_usage}'
             )
         if not utilities.is_valid_poly_gamename(input=game_name):
             if not requester_is_staff:
-                return await ctx.send(
+                return await fail_record(
                     'That name looks made up. :thinking: You need to '
                     'manually create the game __in Polytopia__, come back '
                     'and input the name of the new game you made.\n'
@@ -3632,7 +3647,7 @@ class polygames(commands.Cog):
                 ranked_flag=ranked_flag,
             )
         except NewGameRosterError as exc:
-            return await ctx.send(str(exc))
+            return await fail_record(str(exc))
 
         logger.info(
             'All input checks passed. Creating new game records with args: '
@@ -3670,20 +3685,42 @@ class polygames(commands.Cog):
                 result = await game_workers.run_new_game_creation(request)
         except (peewee.PeeweeException, exceptions.CheckFailedError) as exc:
             logger.exception('Error creating new game')
-            return await ctx.send(f'Error creating new game: {exc}')
+            return await fail_record(f'Error creating new game: {exc}')
         except ValueError as exc:
-            return await ctx.send(str(exc))
+            return await fail_record(str(exc))
         except Exception:
             logger.exception('Unexpected error creating new game')
-            return await ctx.send(
+            return await fail_record(
                 'Error creating new game. No Discord announcements or '
                 'channels were created.'
             )
 
-        if result.warnings:
-            await ctx.send('\n'.join(result.warnings))
-        newgame = Game.load_full_game(game_id=result.game_id)
-        await post_newgame_messaging(ctx, game=newgame)
+        if not record_confirmation:
+            if result.warnings:
+                await ctx.send('\n'.join(result.warnings))
+            newgame = Game.load_full_game(game_id=result.game_id)
+            await post_newgame_messaging(ctx, game=newgame)
+            return None
+
+        try:
+            if result.warnings:
+                await ctx.send('\n'.join(result.warnings))
+            newgame = Game.load_full_game(game_id=result.game_id)
+            await post_newgame_messaging(ctx, game=newgame)
+        except Exception:
+            logger.exception(
+                'Game record committed but a public post-commit effect failed'
+            )
+            return game_record_views.GameRecordConfirmationOutcome.reconciliation(
+                f'Game ID **{result.game_id}** was committed, but a later '
+                'public update failed. Do not retry; an operator must '
+                'reconcile the public effects.'
+            )
+
+        return game_record_views.GameRecordConfirmationOutcome.committed(
+            f'Game ID **{result.game_id}** was recorded and the public '
+            'post-commit effects completed.'
+        )
 
     @game_group.command(
         name='record',
@@ -3703,10 +3740,11 @@ class polygames(commands.Cog):
     ):
         """Flexible roster parser with an interaction review gate."""
 
-        # The game roster and its eventual competitive-state mutation are
-        # public server activity. Keep the preview public while the view
-        # itself enforces requester-only controls.
-        await interaction.response.defer()
+        # Keep the draft, validation, permission, and pre-commit failure
+        # states private. The committed game effects are published by the
+        # existing post-commit path and do not depend on the invocation
+        # channel's visibility setting.
+        await interaction.response.defer(ephemeral=True)
         ctx = await commands.Context.from_interaction(interaction)
         ctx.prefix = settings.guild_setting(
             interaction.guild.id,
@@ -3753,22 +3791,40 @@ class polygames(commands.Cog):
 
         async def confirm_record(
             confirmation: discord.Interaction,
-            roster_value: str,
-        ) -> None:
+            draft: game_record_views.GameRecordPreview,
+        ) -> game_record_views.GameRecordConfirmationOutcome:
             # Component interactions do not carry application-command data
             # and therefore cannot create a new commands.Context. Retain the
             # original slash context; its interaction webhook remains valid
             # for this short-lived confirmation flow.
             ctx.invoked_with = (
-                'newgame' if ranked else 'newgameunranked'
+                'newgame' if draft.ranked else 'newgameunranked'
             )
-            parsed_sides = game_record_views.parse_roster_string(roster_value)
-            await self.newgame.callback(
+            ctx._game_record_confirmation = True
+            try:
+                parsed_sides = game_record_views.parse_roster_string(
+                    draft.roster
+                )
+            except ValueError as exc:
+                return game_record_views.GameRecordConfirmationOutcome.retryable(
+                    str(exc),
+                )
+            outcome = await self.newgame.callback(
                 self,
                 ctx,
-                game_name,
+                draft.game_name,
                 *game_record_views.roster_arguments(parsed_sides),
             )
+            if outcome is None:
+                return game_record_views.GameRecordConfirmationOutcome.committed(
+                    'The game was recorded successfully.'
+                )
+            if not isinstance(outcome, game_record_views.GameRecordConfirmationOutcome):
+                raise TypeError(
+                    'The newgame record callback did not return a typed '
+                    'confirmation outcome.'
+                )
+            return outcome
 
         view = game_record_views.GameRecordView(
             requester_id=interaction.user.id,

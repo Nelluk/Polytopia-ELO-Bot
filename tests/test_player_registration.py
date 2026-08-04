@@ -65,6 +65,13 @@ def request(*, target_id=100, actor_roles=(), name='Poly Name'):
     )
 
 
+def unknown_message_not_found():
+    return discord.NotFound(
+        SimpleNamespace(status=404, reason='Not Found'),
+        {'message': 'Unknown Message', 'code': 10008},
+    )
+
+
 class TransactionDatabase:
     def __init__(self, state):
         self.state = state
@@ -523,6 +530,7 @@ class PlayerRegistrationModalTests(unittest.IsolatedAsyncioTestCase):
             await modal.on_submit(interaction)
         self.assertEqual(modal.canonical_name.max_length, 200)
         self.assertIn('account-wide', modal.canonical_name.label.lower())
+        self.assertIn('**Selected member:** Target', modal.selected_target_text)
         interaction.response.defer.assert_awaited_once_with(ephemeral=True)
         interaction.delete_original_response.assert_awaited_once()
         interaction.channel.send.assert_awaited_once()
@@ -530,6 +538,125 @@ class PlayerRegistrationModalTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn('account-wide', public_message)
         self.assertIn('across all Discord servers', public_message)
         self.assertNotIn('Name <@123>', public_message)
+
+    async def test_selected_staff_target_survives_modal_submission_into_worker(self):
+        actor = member()
+        target = member(200, name='ChosenName', display_name='Chosen Display')
+        command = next(
+            command for command in games.polygames.__cog_app_commands__
+            if command.name == 'player'
+        ).get_command('register')
+        cog = games.polygames.__new__(games.polygames)
+        opened = SimpleNamespace(
+            user=actor,
+            guild=SimpleNamespace(id=300),
+            response=SimpleNamespace(
+                send_modal=mock.AsyncMock(),
+                send_message=mock.AsyncMock(),
+                is_done=mock.Mock(return_value=False),
+            ),
+        )
+        with mock.patch.object(games.settings, 'is_staff', return_value=True):
+            await command.callback(cog, opened, target)
+        modal = opened.response.send_modal.await_args.args[0]
+        modal.canonical_name._value = 'Chosen Canonical Name'
+        submitted = self.interaction(user=actor, target=target)
+        result = workers.PlayerRegistrationResult(
+            guild_id=300,
+            requester_id=100,
+            target_id=200,
+            canonical_name='Chosen Canonical Name',
+            player_created=False,
+            member_created=False,
+            team_name=None,
+            duplicate_count=0,
+            warnings=(),
+        )
+        with (
+            mock.patch.object(
+                views.player_registration.settings,
+                'is_staff',
+                return_value=True,
+            ),
+            mock.patch.object(
+                views.workers,
+                'run_player_registration',
+                new=mock.AsyncMock(return_value=result),
+            ) as run,
+        ):
+            await modal.on_submit(submitted)
+
+        request_value = run.await_args.args[0]
+        self.assertEqual(request_value.target.discord_id, 200)
+        self.assertEqual(request_value.target.display_name, 'Chosen Display')
+        self.assertEqual(request_value.canonical_name, 'Chosen Canonical Name')
+        self.assertIn('Chosen Display', modal.selected_target_text)
+
+    async def test_unknown_message_cleanup_is_benign_and_publishes_once(self):
+        modal = self.modal()
+        modal.canonical_name._value = 'Valid Name'
+        interaction = self.interaction()
+        interaction.delete_original_response.side_effect = unknown_message_not_found()
+        result = workers.PlayerRegistrationResult(
+            guild_id=300,
+            requester_id=100,
+            target_id=100,
+            canonical_name='Valid Name',
+            player_created=True,
+            member_created=True,
+            team_name=None,
+            duplicate_count=0,
+            warnings=(),
+        )
+        with (
+            mock.patch.object(
+                views.workers,
+                'run_player_registration',
+                new=mock.AsyncMock(return_value=result),
+            ),
+            mock.patch.object(
+                views.player_registration.interaction_lifecycle.logger,
+                'exception',
+            ) as logged,
+        ):
+            await modal.on_submit(interaction)
+
+        logged.assert_not_called()
+        interaction.channel.send.assert_awaited_once()
+
+    async def test_unexpected_cleanup_failure_is_observable_but_success_remains_public(self):
+        modal = self.modal()
+        modal.canonical_name._value = 'Valid Name'
+        interaction = self.interaction()
+        interaction.delete_original_response.side_effect = RuntimeError(
+            'cleanup unavailable'
+        )
+        result = workers.PlayerRegistrationResult(
+            guild_id=300,
+            requester_id=100,
+            target_id=100,
+            canonical_name='Valid Name',
+            player_created=True,
+            member_created=True,
+            team_name=None,
+            duplicate_count=0,
+            warnings=(),
+        )
+        with (
+            mock.patch.object(
+                views.workers,
+                'run_player_registration',
+                new=mock.AsyncMock(return_value=result),
+            ),
+            mock.patch.object(
+                views.player_registration.interaction_lifecycle.logger,
+                'exception',
+            ) as logged,
+        ):
+            await modal.on_submit(interaction)
+
+        logged.assert_called_once()
+        interaction.channel.send.assert_awaited_once()
 
     async def test_database_failure_stays_private_and_has_no_public_effect(self):
         modal = self.modal()

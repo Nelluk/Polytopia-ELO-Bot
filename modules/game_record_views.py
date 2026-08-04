@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+from enum import Enum
 import logging
 import shlex
 
@@ -16,6 +17,47 @@ logger = logging.getLogger('polybot.' + __name__)
 
 class RosterSyntaxError(ValueError):
     """Raised when a roster string cannot describe complete game sides."""
+
+
+class GameRecordConfirmationState(str, Enum):
+    """Terminal state returned by one record confirmation attempt."""
+
+    RETRYABLE_FAILURE = 'retryable_failure'
+    COMMITTED = 'committed'
+    RECONCILIATION = 'reconciliation'
+
+
+@dataclass(frozen=True)
+class GameRecordConfirmationOutcome:
+    """Typed result crossing the record worker/post-commit boundary."""
+
+    state: GameRecordConfirmationState
+    message: str
+
+    @classmethod
+    def retryable(cls, message: str) -> 'GameRecordConfirmationOutcome':
+        return cls(
+            state=GameRecordConfirmationState.RETRYABLE_FAILURE,
+            message=str(message),
+        )
+
+    @classmethod
+    def committed(cls, message: str) -> 'GameRecordConfirmationOutcome':
+        return cls(
+            state=GameRecordConfirmationState.COMMITTED,
+            message=str(message),
+        )
+
+    @classmethod
+    def reconciliation(cls, message: str) -> 'GameRecordConfirmationOutcome':
+        return cls(
+            state=GameRecordConfirmationState.RECONCILIATION,
+            message=str(message),
+        )
+
+    @property
+    def retryable_failure(self) -> bool:
+        return self.state is GameRecordConfirmationState.RETRYABLE_FAILURE
 
 
 def parse_roster_string(roster: str) -> tuple[tuple[str, ...], ...]:
@@ -98,7 +140,10 @@ class GameRecordView(discord.ui.LayoutView):
         *,
         requester_id: int,
         preview: GameRecordPreview,
-        confirmer: Callable[[discord.Interaction, str], Awaitable[None]],
+        confirmer: Callable[
+            [discord.Interaction, GameRecordPreview],
+            Awaitable[GameRecordConfirmationOutcome | None],
+        ],
         timeout: float = 300.0,
     ):
         super().__init__(timeout=timeout)
@@ -108,6 +153,8 @@ class GameRecordView(discord.ui.LayoutView):
         self.message: discord.Message | None = None
         self.status = 'Review the parsed sides before creating the game.'
         self.finished = False
+        self.submission_in_flight = False
+        self.outcome: GameRecordConfirmationOutcome | None = None
         self.editing = False
         self.selected_side = 0
         self.rebuild()
@@ -159,6 +206,7 @@ class GameRecordView(discord.ui.LayoutView):
             style=discord.ButtonStyle.success,
             disabled=(
                 self.finished
+                or self.submission_in_flight
                 or any(not side for side in self.preview.sides)
             ),
         )
@@ -166,13 +214,13 @@ class GameRecordView(discord.ui.LayoutView):
         edit = discord.ui.Button(
             label='Edit sides',
             style=discord.ButtonStyle.primary,
-            disabled=self.finished,
+            disabled=self.finished or self.submission_in_flight,
         )
         edit.callback = self._edit
         cancel = discord.ui.Button(
             label='Cancel',
             style=discord.ButtonStyle.danger,
-            disabled=self.finished,
+            disabled=self.finished or self.submission_in_flight,
         )
         cancel.callback = self._cancel
         return (discord.ui.ActionRow(confirm, edit, cancel),)
@@ -312,31 +360,84 @@ class GameRecordView(discord.ui.LayoutView):
         await interaction.response.edit_message(view=self)
 
     async def _cancel(self, interaction: discord.Interaction) -> None:
+        if self.finished or self.submission_in_flight:
+            await self._send_private_notice(
+                interaction,
+                'A game-record attempt is already running or finished.',
+            )
+            return
         self.finished = True
         self.status = 'Cancelled. No database or Discord changes were made.'
         self.rebuild()
         self.stop()
         await interaction.response.edit_message(view=self)
 
+    async def _send_private_notice(
+        self,
+        interaction: discord.Interaction,
+        content: str,
+    ) -> None:
+        sender = getattr(
+            getattr(interaction, 'response', None),
+            'send_message',
+            None,
+        )
+        if sender is not None:
+            await sender(content, ephemeral=True)
+
     async def _confirm(self, interaction: discord.Interaction) -> None:
-        self.finished = True
+        if self.finished:
+            await self._send_private_notice(
+                interaction,
+                'This game record has already finished. Run `/game record` '
+                'again if another game needs to be recorded.',
+            )
+            return
+        if self.submission_in_flight:
+            await self._send_private_notice(
+                interaction,
+                'A game record is already being submitted. Please wait for '
+                'that attempt to finish.',
+            )
+            return
+
+        self.submission_in_flight = True
         self.status = 'Creating the game…'
         self.rebuild()
         await interaction.response.edit_message(view=self)
-        self.stop()
         try:
-            await self.confirmer(interaction, self.preview.roster)
+            outcome = await self.confirmer(interaction, self.preview)
+            # Keep compatibility with a caller that completed the old
+            # callback contract, while all in-tree callers return the typed
+            # outcome above.
+            if outcome is None:
+                outcome = GameRecordConfirmationOutcome.committed(
+                    'The game was recorded successfully.',
+                )
+            if not isinstance(outcome, GameRecordConfirmationOutcome):
+                raise TypeError(
+                    'Game-record confirmer returned an invalid outcome.'
+                )
         except Exception:
-            logger.exception('Unexpected error confirming game record')
+            logger.exception('Unknown game-record confirmation outcome')
+            outcome = GameRecordConfirmationOutcome.reconciliation(
+                'The record outcome could not be determined. Do not retry; '
+                'an operator must reconcile the game before another record '
+                'attempt.',
+            )
+
+        self.outcome = outcome
+        self.submission_in_flight = False
+        if outcome.retryable_failure:
+            self.finished = False
             self.status = (
-                'Game creation failed unexpectedly. No confirmation was '
-                'recorded; run `/game record` again.'
+                f'{outcome.message} Fix the draft if needed, then press '
+                '**Confirm record** to retry.'
             )
         else:
-            self.status = (
-                'Creation attempt finished. Review the bot response in this '
-                'channel.'
-            )
+            self.finished = True
+            self.status = outcome.message
+            self.stop()
         self.rebuild()
         try:
             await interaction.edit_original_response(view=self)

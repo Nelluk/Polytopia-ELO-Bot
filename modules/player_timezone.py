@@ -6,6 +6,7 @@ import logging
 
 import discord
 
+from modules import interaction_lifecycle
 from modules import player_registration, player_registration_workers
 from modules import player_timezone_values as values
 from modules import utilities
@@ -232,31 +233,4 @@ async def autocomplete_offsets(
     ]
 
 
-def public_interaction_sender(interaction):
-    """Clear one private defer, then send the committed/read result publicly."""
-
-    cleared = False
-
-    async def send(content, **kwargs):
-        nonlocal cleared
-        if not cleared:
-            cleared = True
-            delete_original = getattr(
-                interaction,
-                'delete_original_response',
-                None,
-            )
-            if delete_original is not None:
-                try:
-                    await delete_original()
-                except Exception:
-                    logger.exception(
-                        'Could not clear private timezone response before public output'
-                    )
-        channel = getattr(interaction, 'channel', None)
-        channel_send = getattr(channel, 'send', None)
-        if channel_send is None:
-            raise RuntimeError('The interaction has no public channel sender.')
-        return await channel_send(content, **kwargs)
-
-    return send
+public_interaction_sender = interaction_lifecycle.public_interaction_sender
