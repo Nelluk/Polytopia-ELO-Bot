@@ -33,6 +33,7 @@ class NewGameRequest:
     is_ranked: bool
     is_mobile: bool
     mod_override: bool
+    requester_is_staff: bool
     requester_id: int
     requester_name: str
     requester_nick: str | None
@@ -2908,6 +2909,30 @@ def _member_view(participant: NewGameParticipant) -> _MemberView:
     )
 
 
+def _validate_new_game_name(request: NewGameRequest) -> tuple[str, ...]:
+    """Keep record-name policy authoritative in the synchronous worker."""
+
+    name = str(request.name or '')
+    if not name.strip():
+        raise ValueError('Game must have a name.')
+    if len(name.split()) < 2 and not request.requester_is_staff:
+        raise ValueError(
+            'Invalid game name. Enter the exact multi-word game name shown '
+            'in Polytopia.'
+        )
+    if utilities.is_valid_poly_gamename(input=name):
+        return ()
+    if not request.requester_is_staff:
+        raise ValueError(
+            'That name looks made up. Create the game in Polytopia first '
+            'and enter its exact name.'
+        )
+    return (
+        ':warning: That game name looks made up - staff permission allowed '
+        'this record to be overridden.',
+    )
+
+
 def create_new_game(request: NewGameRequest) -> NewGameResult:
     """Create a complete tracked game in one worker-local transaction."""
 
@@ -2918,7 +2943,8 @@ def create_new_game(request: NewGameRequest) -> NewGameResult:
 
     with models.db.connection_context():
         with models.db.atomic():
-            game, warnings = models.Game.create_game(
+            name_warnings = _validate_new_game_name(request)
+            game, game_warnings = models.Game.create_game(
                 discord_groups=discord_groups,
                 name=request.name,
                 is_ranked=request.is_ranked,
@@ -2926,6 +2952,7 @@ def create_new_game(request: NewGameRequest) -> NewGameResult:
                 is_mobile=request.is_mobile,
                 mod_override=request.mod_override,
             )
+            warnings = [*name_warnings, *game_warnings]
             host_player, _ = models.Player.get_by_discord_id(
                 discord_id=request.requester_id,
                 guild_id=request.guild_id,

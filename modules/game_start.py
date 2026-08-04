@@ -219,6 +219,7 @@ async def publish_start_result(
     guild,
     prefix: str,
     bot_guilds,
+    presentation: str = 'prefix',
 ) -> None:
     """Run all post-commit effects independently over the classic card.
 
@@ -289,7 +290,11 @@ async def publish_start_result(
             )
 
         try:
-            embed, content = game.embed(guild=guild, prefix=prefix)
+            embed, content = game.embed(
+                guild=guild,
+                prefix=prefix,
+                presentation=presentation,
+            )
             ranked_str = 'unranked ' if not game.is_ranked else ''
             season_str = ''
             if season:

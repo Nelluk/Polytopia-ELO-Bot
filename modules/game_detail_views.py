@@ -53,6 +53,7 @@ class GameDetailDisplay:
     asset: GameDetailAsset | None
     prefix: str = '$'
     join_emoji: str = ''
+    presentation: str = 'prefix'
 
     def player_label(self, discord_id: int, fallback: str) -> str:
         return dict(self.player_labels).get(discord_id, fallback)
@@ -210,6 +211,7 @@ def resolve_display(
     bot=None,
     prefix: str = '$',
     join_emoji: str = '',
+    presentation: str = 'prefix',
 ) -> GameDetailDisplay:
     """Resolve Discord-only labels and media without touching Peewee."""
 
@@ -320,6 +322,7 @@ def resolve_display(
         ),
         prefix=prefix or '$',
         join_emoji=join_emoji,
+        presentation=presentation,
     )
 
 
@@ -472,14 +475,25 @@ def _classic_expiration(snapshot) -> str:
 
 def _classic_pending_content(display: GameDetailDisplay) -> str | None:
     snapshot = display.snapshot
+    native = display.presentation == 'slash'
+    command_prefix = '/game ' if native else display.prefix
     if snapshot.pending_full:
         creator = snapshot.pending_creator_name or 'the creating player'
+        if native:
+            names_guidance = (
+                f'\nPlayer names can be viewed with '
+                f'__`/game show {snapshot.game_id}`__'
+            )
+        else:
+            names_guidance = (
+                f'\nFriend codes can be copied easily with '
+                f'__`{display.prefix}codes {snapshot.game_id}`__'
+            )
         content = (
             f'This match is now full and **{creator}** should create the game '
             'in Polytopia and mark it as started using '
-            f'`{display.prefix}start {snapshot.game_id} Name of Game`'
-            f'\nFriend codes can be copied easily with '
-            f'__`{display.prefix}codes {snapshot.game_id}`__'
+            f'`{command_prefix}start {snapshot.game_id} Name of Game`'
+            f'{names_guidance}'
         )
         if snapshot.pending_draft_order:
             lines = ['\n__**Balanced Draft Order**__']
@@ -491,19 +505,23 @@ def _classic_pending_content(display: GameDetailDisplay) -> str | None:
         return content
     if snapshot.pending_join_available:
         if display.join_emoji:
-            return (
+            content = (
                 f'Join game {snapshot.game_id} by reacting with '
                 f'{display.join_emoji}'
             )
+            if native:
+                content += f' or with `/game join {snapshot.game_id}`'
+            return content
         return (
             f'Join game {snapshot.game_id} with '
-            f'`{display.prefix}join {snapshot.game_id}`'
+            f'`{command_prefix}join {snapshot.game_id}`'
         )
     return None
 
 
 def _classic_pending_embed(display: GameDetailDisplay) -> ClassicGameDetailRender:
     snapshot = display.snapshot
+    command_prefix = '/game ' if display.presentation == 'slash' else display.prefix
     ranked = 'Unranked ' if not snapshot.is_ranked else ''
     platform = '' if snapshot.is_mobile else '🖥'
     title = f'**{ranked}Open Game {snapshot.game_id}** {platform}\n{_classic_size(snapshot)}'
@@ -514,7 +532,7 @@ def _classic_pending_embed(display: GameDetailDisplay) -> ClassicGameDetailRende
     if snapshot.pending_full:
         status = 'Full - Waiting to start'
     elif snapshot.pending_join_available:
-        status = f'Open - `{display.prefix}join {snapshot.game_id}`'
+        status = f'Open - `{command_prefix}join {snapshot.game_id}`'
     else:
         status = 'Expired' if snapshot.status_label == 'Expired open game' else snapshot.status_label
     embed.add_field(name='Status', value=status, inline=True)

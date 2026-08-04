@@ -1,6 +1,7 @@
 """Focused offline coverage for P5.1 atomic open-game creation."""
 
 import asyncio
+import datetime
 from dataclasses import FrozenInstanceError, replace
 import threading
 from types import SimpleNamespace
@@ -17,6 +18,7 @@ from tests.test_newgame_worker import import_offline_runtime
 game_open = import_offline_runtime('modules.game_open')
 game_open_views = import_offline_runtime('modules.game_open_views')
 game_open_workers = import_offline_runtime('modules.game_open_workers')
+models = import_offline_runtime('modules.models')
 games = import_offline_runtime('modules.games')
 matchmaking = import_offline_runtime('modules.matchmaking')
 
@@ -726,6 +728,79 @@ class OpenGameViewTests(unittest.IsolatedAsyncioTestCase):
         confirmation.response.defer.assert_awaited_once_with(ephemeral=True)
         self.assertEqual(confirmation.channel.send.await_count, 2)
         confirmation.followup.send.assert_not_awaited()
+
+    async def test_native_completion_uses_slash_join_guidance(self):
+        result = game_open_workers.OpenGameResult(
+            game_id=42,
+            guild_id=300,
+            requester_id=100,
+            host_name='Host',
+            size=(1, 1),
+            expiration_hours=24,
+            is_ranked=True,
+            is_mobile=True,
+            notes_display='A note',
+            warnings=(),
+            role_locks=(),
+        )
+        send = mock.AsyncMock(return_value=SimpleNamespace())
+
+        await game_open.publish_open_game_result(
+            result,
+            prefix='!',
+            send=send,
+            presentation='slash',
+        )
+
+        message = send.await_args.args[0]
+        self.assertIn('`/game join 42`', message)
+        self.assertNotIn('!join 42', message)
+
+    def test_legacy_model_card_accepts_explicit_native_presentation(self):
+        def pending_game(*, players, capacity):
+            game = SimpleNamespace(
+                id=42,
+                is_ranked=True,
+                is_mobile=True,
+                host=None,
+                notes='',
+                expiration=(
+                    datetime.datetime.now() + datetime.timedelta(hours=2)
+                ),
+                is_pending=True,
+                name=None,
+                capacity=lambda: (players, capacity),
+                reaction_join_string=lambda: (
+                    'Join game 42 by reacting with ⚔️'
+                ),
+                ordered_side_list=lambda: (),
+                platform_emoji=lambda: '',
+                size_string=lambda: '1v1',
+                creating_player=lambda: SimpleNamespace(name='Host'),
+                largest_team=lambda: 1,
+            )
+            return game
+
+        open_embed, open_content = models.Game.embed_pending_game(
+            pending_game(players=0, capacity=2),
+            '!',
+            presentation='slash',
+        )
+        self.assertIn('/game join 42', open_embed.fields[0].value)
+        self.assertIn('/game join 42', open_content)
+        self.assertNotIn('!join 42', open_embed.fields[0].value)
+        self.assertNotIn('!join 42', open_content)
+
+        full_game = pending_game(players=2, capacity=2)
+        full_embed, full_content = models.Game.embed_pending_game(
+            full_game,
+            '!',
+            presentation='slash',
+        )
+        self.assertIn('/game start 42', full_content)
+        self.assertIn('/game show 42', full_content)
+        self.assertNotIn('!start 42', full_content)
+        self.assertNotIn('!codes 42', full_content)
 
     async def test_shared_join_reaction_helper_uses_configured_emoji(self):
         public_message = SimpleNamespace(add_reaction=mock.AsyncMock())

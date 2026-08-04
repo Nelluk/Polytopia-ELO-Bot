@@ -164,13 +164,18 @@ async def publish_kick_result(
     card_destination,
     guild,
     prefix: str,
+    presentation: str = 'prefix',
 ) -> None:
     """Publish committed kick effects while retaining later effects on error."""
 
     card_warning = None
     try:
         committed_game = models.Game.load_full_game(result.game_id)
-        embed, content = committed_game.embed(guild=guild, prefix=prefix)
+        embed, content = committed_game.embed(
+            guild=guild,
+            prefix=prefix,
+            presentation=presentation,
+        )
         try:
             await image_storage.send_game_embed(
                 card_destination,

@@ -241,6 +241,7 @@ async def refresh_game_card(
     destination,
     guild,
     prefix: str,
+    presentation: str = 'prefix',
     load_game=None,
     send_game_embed=None,
 ) -> None:
@@ -251,7 +252,11 @@ async def refresh_game_card(
     if send_game_embed is None:
         send_game_embed = image_storage.send_game_embed
     game = load_game(game_id=result.game_id)
-    embed, content = game.embed(guild=guild, prefix=prefix)
+    embed, content = game.embed(
+        guild=guild,
+        prefix=prefix,
+        presentation=presentation,
+    )
     await send_game_embed(
         destination,
         game,

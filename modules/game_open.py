@@ -25,6 +25,7 @@ async def publish_open_game_result(
     send: Callable[[str], Awaitable[object]],
     broadcast: Callable[[], Awaitable[None]] | None = None,
     add_completion_reaction: Callable[[object], Awaitable[None]] | None = None,
+    presentation: str = 'prefix',
 ) -> None:
     """Publish warnings/result only after the worker transaction commits."""
 
@@ -36,13 +37,18 @@ async def publish_open_game_result(
             'open-game warning',
         )
 
+    join_command = (
+        f'/game join {result.game_id}'
+        if presentation == 'slash'
+        else f'{prefix}join {result.game_id}'
+    )
     completion = (
         f'Starting new {"__Steam__ " if not result.is_mobile else ""}'
         f'{"unranked " if not result.is_ranked else ""}open game ID '
         f'{result.game_id}. Size: {result.size_string}. Expiration: '
         f'{result.expiration_hours} hours.\nNotes: *{result.notes_display}*\n'
-        f'Other players can join this game with `{prefix}join '
-        f'{result.game_id}` or join game {result.game_id} by reacting with '
+        f'Other players can join this game with `{join_command}` or join '
+        f'game {result.game_id} by reacting with '
         f'{settings.emoji_join_game}.')
     sent_completion = await _send_with_reconciliation(
         send,

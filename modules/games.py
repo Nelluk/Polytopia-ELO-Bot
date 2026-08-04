@@ -1530,6 +1530,7 @@ class polygames(commands.Cog):
             bot=self.bot,
             prefix=prefix,
             join_emoji=getattr(settings, 'emoji_join_game', ''),
+            presentation='slash',
         )
         return game_detail_actions.PendingGameCardPayload(
             snapshot=snapshot,
@@ -1914,6 +1915,7 @@ class polygames(commands.Cog):
             guild=guild,
             prefix=prefix,
             bot_guilds=getattr(settings.bot, 'guilds', ()),
+            presentation='slash',
         )
         return True
 
@@ -2047,6 +2049,7 @@ class polygames(commands.Cog):
             bot=self.bot,
             prefix=prefix,
             join_emoji=getattr(settings, 'emoji_join_game', ''),
+            presentation='slash' if slash else 'prefix',
         )
         classic = game_detail_views.render_classic_game_detail(display)
         kwargs = {
@@ -2815,6 +2818,7 @@ class polygames(commands.Cog):
             guild=interaction.guild,
             prefix=prefix,
             bot_guilds=settings.bot.guilds,
+            presentation='slash',
         )
 
     @game_group.command(
@@ -2965,6 +2969,7 @@ class polygames(commands.Cog):
                 prefix=ctx.prefix,
                 send=send_public,
                 add_completion_reaction=game_open.add_join_reaction,
+                presentation='slash',
             )
 
         view = game_open_views.OpenGameView(
@@ -3073,6 +3078,7 @@ class polygames(commands.Cog):
                 embed, content = committed_game.embed(
                     guild=interaction.guild,
                     prefix=prefix,
+                    presentation='slash',
                 )
             except Exception:
                 logger.exception(
@@ -3338,6 +3344,7 @@ class polygames(commands.Cog):
             card_destination=interaction.followup,
             guild=interaction.guild,
             prefix=prefix,
+            presentation='slash',
         )
 
     @game_group.command(
@@ -3583,6 +3590,7 @@ class polygames(commands.Cog):
         # with its canonical compatibility value until the schema and all
         # historical filters are retired in a separate migration.
         is_mobile = True
+        requester_is_staff = bool(settings.is_staff(ctx.author))
 
         example_usage = (f'Example usage:\n`{ctx.prefix}newgame "Name of Game" player1 VS player2` - Start a 1v1 game\n'
                          f'`{ctx.prefix}newgame "Name of Game" player1 player2 VS player3 player4` - Start a 2v2 game')
@@ -3597,7 +3605,7 @@ class polygames(commands.Cog):
         if not args:
             return await ctx.send(f'Invalid format. {example_usage}')
 
-        if len(game_name.split(' ')) < 2 and ctx.author.id != settings.owner_id:
+        if len(game_name.split()) < 2 and not requester_is_staff:
             if getattr(ctx, 'interaction', None) is not None:
                 return await ctx.send(
                     'Invalid game name. Enter the exact multi-word game '
@@ -3608,7 +3616,7 @@ class polygames(commands.Cog):
                 f'around the full game name.\n{example_usage}'
             )
         if not utilities.is_valid_poly_gamename(input=game_name):
-            if settings.get_user_level(ctx.author) <= 2:
+            if not requester_is_staff:
                 return await ctx.send(
                     'That name looks made up. :thinking: You need to '
                     'manually create the game __in Polytopia__, come back '
@@ -3616,10 +3624,6 @@ class polygames(commands.Cog):
                     f'You can use `{ctx.prefix}code NAME` to get the code '
                     'of each player in this game.'
                 )
-            await ctx.send(
-                ':warning: That game name looks made up - you are allowed '
-                'to override due to your user level.'
-            )
 
         try:
             discord_groups = await resolve_newgame_roster(
@@ -3640,6 +3644,7 @@ class polygames(commands.Cog):
             is_ranked=ranked_flag,
             is_mobile=is_mobile,
             mod_override=settings.is_mod(ctx.author),
+            requester_is_staff=requester_is_staff,
             requester_id=ctx.author.id,
             requester_name=ctx.author.name,
             requester_nick=ctx.author.nick,
@@ -4482,6 +4487,7 @@ class polygames(commands.Cog):
                     interaction.guild.id,
                     'command_prefix',
                 ),
+                presentation='slash',
             )
 
         try:
@@ -4634,6 +4640,7 @@ class polygames(commands.Cog):
                 destination=interaction.channel,
                 guild=interaction.guild,
                 prefix=prefix,
+                presentation='slash',
                 actor=actor,
             )
 
@@ -4792,6 +4799,7 @@ class polygames(commands.Cog):
                         destination=native_interaction.channel,
                         guild=native_interaction.guild,
                         prefix=prefix,
+                        presentation='slash',
                     ),
                 )
 
@@ -4994,6 +5002,7 @@ class polygames(commands.Cog):
                     guild=native_interaction.guild,
                     guild_list=guild_list,
                     prefix=prefix,
+                    presentation='slash',
                     actor=actor,
                 )
 
@@ -5166,6 +5175,7 @@ class polygames(commands.Cog):
                     ),
                     guild=native_interaction.guild,
                     prefix=prefix,
+                    presentation='slash',
                     actor=submitter,
                 )
 

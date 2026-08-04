@@ -2,7 +2,7 @@
 
 import asyncio
 from contextlib import AbstractContextManager
-from dataclasses import FrozenInstanceError
+from dataclasses import FrozenInstanceError, replace
 import threading
 import time
 from types import SimpleNamespace
@@ -249,6 +249,59 @@ class WorkerBoundaryTests(unittest.TestCase):
         self.assertEqual(loaded, tuple(range(7)))
         self.assertEqual(query.limit_calls, [7])
 
+    def test_recent_games_query_orders_date_then_id_descending(self):
+        class OrderedField:
+            def __init__(self, name):
+                self.name = name
+
+            def __eq__(self, other):
+                return True
+
+            def __neg__(self):
+                return ('descending', self.name)
+
+        class Query:
+            def __init__(self):
+                self.ordering = None
+
+            def join(self, _model):
+                return self
+
+            def where(self, _predicate):
+                return self
+
+            def order_by(self, *ordering):
+                self.ordering = ordering
+                return self
+
+            def __getitem__(self, _item):
+                return self
+
+        query = Query()
+        game_side = SimpleNamespace(
+            squad=OrderedField('squad'),
+            select=lambda _game: query,
+        )
+        game_model = SimpleNamespace(
+            date=OrderedField('date'),
+            id=OrderedField('id'),
+        )
+        with (
+            mock.patch.object(workers.models, 'GameSide', game_side),
+            mock.patch.object(workers.models, 'Game', game_model),
+            mock.patch.object(
+                workers.utilities,
+                'summarize_game_list',
+                return_value=(),
+            ),
+        ):
+            self.assertEqual(workers._recent_games(SimpleNamespace(id=1)), ())
+
+        self.assertEqual(
+            query.ordering,
+            (('descending', 'date'), ('descending', 'id')),
+        )
+
     def test_permission_and_member_validation_happen_at_worker_boundary(self):
         with self.assertRaises(workers.SquadShowPermissionError):
             workers.load_squad_show(self.request(team_enabled=False))
@@ -424,6 +477,42 @@ class ServiceAndViewTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn('Confirmed ranked record', text)
         self.assertIn('Current leaderboard', text)
         self.assertIn('Most recent games', text)
+
+    def test_rendered_recent_games_keep_newest_first_with_id_tiebreak(self):
+        ordered_card = replace(
+            card(1),
+            recent_games=(
+                workers.SquadShowRecentGame(
+                    headline='Newest date',
+                    summary='2026-08-04 - game 9',
+                ),
+                workers.SquadShowRecentGame(
+                    headline='Same day newer ID',
+                    summary='2026-08-03 - game 8',
+                ),
+                workers.SquadShowRecentGame(
+                    headline='Same day older ID',
+                    summary='2026-08-03 - game 7',
+                ),
+                workers.SquadShowRecentGame(
+                    headline='Older date',
+                    summary='2026-08-02 - game 6',
+                ),
+            ),
+        )
+        loaded = replace(
+            result(1, selected=1001),
+            cards=(ordered_card,),
+        )
+        view = views.SquadShowWorkspace(requester_id=999, result=loaded)
+        body = view._card_body(ordered_card)
+
+        self.assertLess(body.index('Newest date'), body.index('Same day newer ID'))
+        self.assertLess(
+            body.index('Same day newer ID'),
+            body.index('Same day older ID'),
+        )
+        self.assertLess(body.index('Same day older ID'), body.index('Older date'))
 
     async def test_paging_and_result_selection_use_loaded_snapshot_only(self):
         loader = mock.AsyncMock()

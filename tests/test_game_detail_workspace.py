@@ -509,6 +509,38 @@ class GameDetailViewTests(unittest.TestCase):
         self.assertIn('Balanced Draft Order', full_rendered.content)
         self.assertIn('Side Home', full_rendered.content)
 
+    def test_native_pending_renderer_uses_slash_guidance_only(self):
+        guild = SimpleNamespace(
+            id=10,
+            name='Test Guild',
+            get_member=lambda member_id: None,
+            get_role=lambda role_id: None,
+        )
+        open_display = views.resolve_display(
+            snapshot(pending=True, completed=False, pending_full=False),
+            guild=guild,
+            prefix='!',
+            join_emoji='✅',
+            presentation='slash',
+        )
+        open_rendered = views.render_classic_game_detail(open_display)
+        self.assertIn('Open - `/game join 7`', open_rendered.embed.fields[0].value)
+        self.assertIn('/game join 7', open_rendered.content)
+        self.assertNotIn('!join 7', open_rendered.embed.fields[0].value)
+        self.assertNotIn('!join 7', open_rendered.content)
+
+        full_display = views.resolve_display(
+            snapshot(pending=True, completed=False, draft=True),
+            guild=guild,
+            prefix='!',
+            presentation='slash',
+        )
+        full_rendered = views.render_classic_game_detail(full_display)
+        self.assertIn('`/game start 7 Name of Game`', full_rendered.content)
+        self.assertIn('__`/game show 7`__', full_rendered.content)
+        self.assertNotIn('!start 7', full_rendered.content)
+        self.assertNotIn('!codes 7', full_rendered.content)
+
     def test_cross_guild_display_hides_source_discord_identifiers(self):
         source_member = SimpleNamespace(
             id=101,

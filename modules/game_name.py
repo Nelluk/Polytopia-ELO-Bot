@@ -302,6 +302,7 @@ async def refresh_game_card(
     destination,
     guild,
     prefix: str,
+    presentation: str = 'prefix',
     load_game=None,
     send_game_embed=None,
 ) -> None:
@@ -312,7 +313,11 @@ async def refresh_game_card(
     if send_game_embed is None:
         send_game_embed = image_storage.send_game_embed
     game = load_game(game_id=result.game_id)
-    embed, content = game.embed(guild=guild, prefix=prefix)
+    embed, content = game.embed(
+        guild=guild,
+        prefix=prefix,
+        presentation=presentation,
+    )
     await send_game_embed(
         destination,
         game,
@@ -329,6 +334,7 @@ async def publish_mutation_result(
     guild,
     guild_list=None,
     prefix: str,
+    presentation: str = 'prefix',
     actor: GameNameActor | None = None,
     load_game=None,
     send_game_embed=None,
@@ -419,10 +425,13 @@ async def publish_mutation_result(
             None,
         )
         if callable(update_announcement):
-            refreshed = await update_announcement(
-                guild=guild,
-                prefix=prefix,
-            )
+            announcement_kwargs = {
+                'guild': guild,
+                'prefix': prefix,
+            }
+            if presentation != 'prefix':
+                announcement_kwargs['presentation'] = presentation
+            refreshed = await update_announcement(**announcement_kwargs)
             if (
                 refreshed is False
                 and result.announcement_channel_id is not None
@@ -448,6 +457,7 @@ async def publish_mutation_result(
             destination=destination,
             guild=guild,
             prefix=prefix,
+            presentation=presentation,
             load_game=lambda **_kwargs: committed_game,
             send_game_embed=send_game_embed,
         )

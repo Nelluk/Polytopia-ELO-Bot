@@ -1103,7 +1103,7 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
     def test_newgame_worker_creates_complete_graph_and_rolls_back(self):
         from modules import game_workers
 
-        marker = f'P2.1 integration {uuid.uuid4().hex}'
+        marker = f'P2.1 War integration {uuid.uuid4().hex}'
         id_base = 800_000_000_000_000_000
         host_id = id_base + (uuid.uuid4().int % 10_000_000)
         opponent_id = id_base + (uuid.uuid4().int % 10_000_000)
@@ -1114,6 +1114,7 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
             is_ranked=False,
             is_mobile=True,
             mod_override=False,
+            requester_is_staff=False,
             requester_id=host_id,
             requester_name='p21-host',
             requester_nick=None,
@@ -1207,7 +1208,7 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
     def test_newgame_executor_failure_rolls_back_worker_connection(self):
         from modules import exceptions, game_workers
 
-        marker = f'P2.1 worker rollback {uuid.uuid4().hex}'
+        marker = f'P2.1 War worker rollback {uuid.uuid4().hex}'
         id_base = 810_000_000_000_000_000
         participant_one_id = id_base + (uuid.uuid4().int % 10_000_000)
         participant_two_id = id_base + (uuid.uuid4().int % 10_000_000)
@@ -1218,6 +1219,7 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
             is_ranked=False,
             is_mobile=True,
             mod_override=False,
+            requester_is_staff=False,
             requester_id=missing_requester_id,
             requester_name='missing-host',
             requester_nick=None,

@@ -1412,7 +1412,7 @@ class Game(BaseModel):
             else:
                 await channels.update_game_channel_name(guild, channel_id=self.game_chan, game=self, team_name=None)
 
-    async def update_announcement(self, guild, prefix):
+    async def update_announcement(self, guild, prefix, *, presentation='prefix'):
         # Updates contents of new game announcement with updated game_embed card
 
         if self.announcement_channel is None or self.announcement_message is None:
@@ -1429,7 +1429,11 @@ class Game(BaseModel):
             return False
 
         try:
-            embed, content = self.embed(guild=guild, prefix=prefix)
+            embed, content = self.embed(
+                guild=guild,
+                prefix=prefix,
+                presentation=presentation,
+            )
             await image_storage.edit_game_embed(
                 message, self, embed=embed, content=content
             )
@@ -1544,9 +1548,12 @@ class Game(BaseModel):
     def platform_emoji(self):
         return '' if self.is_mobile else '🖥'
 
-    def embed(self, prefix, guild=None):
+    def embed(self, prefix, guild=None, *, presentation='prefix'):
         if self.is_pending:
-            return self.embed_pending_game(prefix)
+            return self.embed_pending_game(
+                prefix,
+                presentation=presentation,
+            )
         ranked_str = '' if self.is_ranked else 'Unranked — '
         embed = discord.Embed(title=f'{self.get_headline()} — {ranked_str}*{self.size_string()}*'[:255])
 
@@ -1653,7 +1660,9 @@ class Game(BaseModel):
 
         return embed, embed_content
 
-    def embed_pending_game(self, prefix):
+    def embed_pending_game(self, prefix, *, presentation='prefix'):
+        native = presentation == 'slash'
+        command_prefix = '/game ' if native else prefix
         ranked_str = 'Unranked ' if not self.is_ranked else ''
         title_str = f'**{ranked_str}Open Game {self.id}** {self.platform_emoji()}\n{self.size_string()}'
         if self.host:
@@ -1668,7 +1677,7 @@ class Game(BaseModel):
             status_str = 'Expired'
         else:
             expiration_str = f'{int((self.expiration - datetime.datetime.now()).total_seconds() / 3600.0)} hours'
-            status_str = f'Open - `{prefix}join {self.id}`'
+            status_str = f'Open - `{command_prefix}join {self.id}`'
 
         players, capacity = self.capacity()
         if players >= capacity:
@@ -1683,12 +1692,30 @@ class Game(BaseModel):
                     draft_order_str = '\n'.join(draft_order)
                 else:
                     draft_order_str = ''
-                content_str = (f'This match is now full and **{creating_player.name}** should create the game in Polytopia and mark it as started using `{prefix}start {self.id} Name of Game`'
-                        f'\nFriend codes can be copied easily with the command __`{prefix}codes {self.id}`__'
-                        f'{draft_order_str}')
+                if native:
+                    names_guidance = (
+                        f'\nPlayer names can be viewed with '
+                        f'__`/game show {self.id}`__'
+                    )
+                else:
+                    names_guidance = (
+                        f'\nFriend codes can be copied easily with the '
+                        f'command __`{prefix}codes {self.id}`__'
+                    )
+                content_str = (
+                    f'This match is now full and **{creating_player.name}** '
+                    'should create the game in Polytopia and mark it as '
+                    f'started using `{command_prefix}start {self.id} Name of '
+                    f'Game`{names_guidance}{draft_order_str}'
+                )
                 status_str = 'Full - Waiting to start'
         else:
             content_str = self.reaction_join_string()
+            if native:
+                content_str = (
+                    f'{content_str} or join with '
+                    f'`/game join {self.id}`'
+                )
 
         embed.add_field(name='Status', value=status_str, inline=True)
         embed.add_field(name='Expires in', value=f'{expiration_str}', inline=True)
@@ -1914,10 +1941,16 @@ class Game(BaseModel):
                 raise ValueError('This server does not allow uneven teams.')
         max_team_size = settings.guild_setting(guild_id, 'max_team_size')
         if max(shape) > max_team_size:
-            raise ValueError(
-                'This server does not allow teams with over '
-                f'{max_team_size} members.'
-            )
+            if mod_override:
+                warnings.append(
+                    'Warning: maximum team size on this server is '
+                    f'{max_team_size}, but you have overriden this.'
+                )
+            else:
+                raise ValueError(
+                    'This server does not allow teams with over '
+                    f'{max_team_size} members.'
+                )
         teams_for_each_discord_member, list_of_final_teams = Game.pregame_check(
             discord_groups, guild_id,
             settings.guild_setting(guild_id, 'require_teams')

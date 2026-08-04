@@ -360,6 +360,7 @@ async def reconcile_game_presentation(
     destination,
     guild,
     prefix: str,
+    presentation: str = 'prefix',
     load_game=None,
     send_game_embed=None,
 ) -> None:
@@ -387,10 +388,13 @@ async def reconcile_game_presentation(
         return
 
     try:
-        refreshed = await game.update_announcement(
-            guild=guild,
-            prefix=prefix,
-        )
+        announcement_kwargs = {
+            'guild': guild,
+            'prefix': prefix,
+        }
+        if presentation != 'prefix':
+            announcement_kwargs['presentation'] = presentation
+        refreshed = await game.update_announcement(**announcement_kwargs)
         if (
             refreshed is False
             and result.announcement_channel_id is not None
@@ -411,7 +415,11 @@ async def reconcile_game_presentation(
         )
 
     try:
-        embed, content = game.embed(guild=guild, prefix=prefix)
+        embed, content = game.embed(
+            guild=guild,
+            prefix=prefix,
+            presentation=presentation,
+        )
         await send_game_embed(
             destination,
             game,
@@ -440,6 +448,7 @@ async def publish_mutation_result(
     guild,
     prefix: str,
     actor: GameTribeActor,
+    presentation: str = 'prefix',
     load_game=None,
     send_game_embed=None,
 ) -> None:
@@ -465,6 +474,7 @@ async def publish_mutation_result(
         destination=destination,
         guild=guild,
         prefix=prefix,
+        presentation=presentation,
         load_game=load_game,
         send_game_embed=send_game_embed,
     )

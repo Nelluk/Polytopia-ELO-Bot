@@ -155,6 +155,7 @@ async def publish_mutation_result(
     send,
     guild,
     prefix: str,
+    presentation: str = 'prefix',
     load_game=None,
 ) -> None:
     """Publish committed output and refresh the legacy announcement card.
@@ -189,10 +190,13 @@ async def publish_mutation_result(
 
     try:
         game = load_game(game_id=result.game_id)
-        refreshed = await game.update_announcement(
-            guild=guild,
-            prefix=prefix,
-        )
+        announcement_kwargs = {
+            'guild': guild,
+            'prefix': prefix,
+        }
+        if presentation != 'prefix':
+            announcement_kwargs['presentation'] = presentation
+        refreshed = await game.update_announcement(**announcement_kwargs)
         if (
             refreshed is False
             and result.announcement_channel_id is not None

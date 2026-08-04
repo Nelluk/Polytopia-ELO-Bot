@@ -281,7 +281,7 @@ def _recent_games(squad) -> tuple[SquadShowRecentGame, ...]:
         .select(models.Game)
         .join(models.Game)
         .where(models.GameSide.squad == squad)
-        .order_by(-models.Game.date)
+        .order_by(-models.Game.date, -models.Game.id)
     )
     # ``summarize_game_list`` is the established legacy renderer.  It is
     # intentionally called inside the worker, where any lazy Peewee reads it
