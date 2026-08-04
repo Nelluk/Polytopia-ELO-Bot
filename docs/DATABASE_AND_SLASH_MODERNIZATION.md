@@ -365,7 +365,7 @@ would become unavailable if a prefix is retired.
 | C-012 `/squad show` / `$squad` / `$squads` | Native `/squad show squad_id:[optional]` opens an exact card or defaults to squads containing the requester; a requester-only Discord member selector performs one-to-three-member discovery, and multi-match results are paged/selectable. | Legacy recommendation: **retire** — explicit user approval removes `$squad` and `$squads` because the lookup is rarely used. The native workspace replaces ambiguous free-text member lookup with typed guild members while preserving useful ID/member search, record/rank, and recent-game information. P7.11 retained `$squadname` only as a separate mutation until the approved P7.12 `/squad name` unit. | Revisit only through an explicit prefix lifecycle decision or demonstrated native discovery gap; do not restore a redundant prefix adapter. | Intentional P7.11 prefix retirement; integrated and deployed; wider-beta acceptance blocked by the discovered unbounded discovery-query/publish stall pending correction |
 | C-013 `/squad name` / `$squadname` | Native `/squad name squad_id name:[optional] clear:[optional]` reads publicly by default and performs member-or-staff edits/clears through one transactional service. Authorized `/squad show` requesters also receive an Edit Name modal backed by the same service and post-commit card refresh. | Legacy recommendation: **retire** — explicitly approved. The hidden, low-use `$squadname` workflow is completely covered by the typed command and contextual modal; no prefix adapter remains on the beta or intended production surface. | Revisit only through an explicit prefix-lifecycle decision or a demonstrated native access gap; do not restore a separate mutation implementation. | P7.12 integrated and deployed; wider-beta acceptance blocked until the shared `/squad show` discovery/publish stall correction is validated
 
-| C-014 `/leaderboard roles` / `$roleelo` / `$roleeloany` / `$freeagents` | Native `/leaderboard roles` opens the configured Free Agent preset for every permitted role-lookup user; elevated requesters receive a requester-bound 1–5-role selector with All/Any matching, four in-workspace sorts, global/local ELO scope, inactive-role exclusion, paging, and page jump over one immutable bounded snapshot. `$freeagents` remains a broadly accessible shared-worker convenience path. | Legacy recommendation: **retire** `$roleelo` and `$roleeloany` without adapters. CSV/file export is explicitly deferred and is not implemented on the retained convenience path; its ordinary text listing and configured Free Agent access remain. Native validation rejects `@everyone`, managed roles, and cross-guild roles without maintaining an allow-list. | Revisit only through an explicit prefix-lifecycle decision or a demonstrated native access gap; do not restore arbitrary-role prefix adapters or add export without a separate bounded design. | P7.13 implementation/test commits `40fbcf2` and payload correction `f322c09`; roadmap/taxonomy evidence committed separately; Tier-2 review/integration pending; development-database read gate deferred while durable beta is active |
+| C-014 `/leaderboard roles` / `$roleelo` / `$roleeloany` / `$freeagents` | Native `/leaderboard roles` opens the configured Free Agent preset for every permitted role-lookup user; elevated requesters receive a requester-bound 1–5-role selector with All/Any matching, four in-workspace sorts, global/local ELO scope, inactive-role exclusion, paging, and page jump over one immutable bounded snapshot. `$freeagents` remains a broadly accessible shared-worker convenience path. | Legacy recommendation: **retire** `$roleelo` and `$roleeloany` without adapters. CSV/file export is explicitly deferred and is not implemented on the retained convenience path; its ordinary text listing and configured Free Agent access remain. Native validation rejects `@everyone`, managed roles, and cross-guild roles without maintaining an allow-list. | Revisit only through an explicit prefix-lifecycle decision or a demonstrated native access gap; do not restore arbitrary-role prefix adapters or add export without a separate bounded design. | P7.13 implementation/test commits `40fbcf2` and payload correction `f322c09`; integrated as accumulation merge `cddf636`; development-database read gate and beta acceptance remain deferred |
 
 Every later slash conversion must add a row when parity is intentionally
 reduced. If there is no compromise, its unit evidence should explicitly say
@@ -464,12 +464,14 @@ check:
   `f0429536d7ed899eb356794bcd3558baa9be3d45`.
 - P4.2d roadmap evidence: `e1a0959`; accumulation merge: `7c2269b`.
 
-Current unit: **P7.13 native role leaderboard implemented locally; Tier-2
-review and integration are pending.**
+Current unit: **P7.13 native role leaderboard integrated; development-schema
+and wider-beta acceptance are pending.**
 
-The durable beta remains untouched while the P7.13 branch completes its local
-review and handoff. The earlier P7.11/P7.12 squad workspace still has a
-fixture-dependent wider-beta acceptance path; this unit does not reopen it.
+Tier-2 review accepted P7.13 after its serialized Action Row correction and
+integrated it as accumulation merge `cddf636`. The durable beta remains on its
+earlier dispatch checkpoint; no command synchronization, restart, database
+gate, or announcement has yet occurred for P7.13. The earlier P7.11/P7.12
+squad workspace still has a fixture-dependent wider-beta acceptance path.
 
 The durable beta is running dispatch checkpoint `e834afe`; it authenticated
 as beta application `479029527553638401`. Its guild-only command tree already
@@ -5759,8 +5761,7 @@ Implementation evidence (local only):
 
 ### P7.13 — Native role leaderboard workspace
 
-Status: **Implemented locally; Tier-2 review, integration, and beta acceptance
-pending**
+Status: **Integrated; development-schema and beta acceptance pending**
 
 Branch/base: `codex/p7-13-role-leaderboard`, based on exact clean base
 `6e38c36e4ca865b952fa5e71a416ccd3fef9609c`. Implementation/test commits:
@@ -5853,9 +5854,10 @@ push; pull request; merge; and sudo.
 
 Exit: separate implementation/test and roadmap/taxonomy documentation
 commits, a clean isolated branch, complete self-review, and a full handoff to
-the originating Sol task. Integration, development capability assignment,
-command synchronization, beta testing, and wider acceptance remain later
-reviewed actions.
+the originating Sol task. Tier-2 review accepted the corrected serialized
+payload and accumulation merge `cddf636` integrated the unit. Development
+capability assignment, command synchronization, beta testing, and wider
+acceptance remain later reviewed actions.
 
 ## P8.0 — Guild application-command capability policy and explicit deployment tooling
 
@@ -8073,6 +8075,29 @@ changes, preserve stable command identities where practical, and prefer
 component refinements that do not require command re-registration.
 
 ## Progress log
+
+### 2026-08-04 — P7.13 accepted and integrated; beta feedback queue reviewed
+
+- Tier-2 review accepted the complete P7.13 branch after correction
+  `f322c09` separated select and button Action Rows and added a regression over
+  the serialized Components payload. Independent focused role/taxonomy
+  validation passed 27 tests; the worker's complete offline suite passed 898
+  tests with 26 intentional gated skips.
+- Integrated implementation `40fbcf2`, evidence `e7ce397`, correction
+  `f322c09`, and correction evidence `8df820e` as accumulation merge
+  `cddf636`. The worktree is clean. The read-only development-schema case,
+  capability assignment, guild command apply, restart, checklist, and wider-
+  beta announcement remain separate actions.
+- Reviewed the latest automated `/staffhelp` triage through cursor
+  `DG3fRtIUYGN9p6Mo6tz0w6k_`. One medium `/game open` public-follow-up
+  presentation report is ready for a bounded reproduction/correction unit.
+  Five reports remain clarification/reproduction work: legacy join guidance,
+  game-start capitalization, two `/game record` staff-override parity reports,
+  and `/squad show` recent-game ordering.
+- Recommended next selectable work: reproduce and correct the `/game open`
+  public response appearing attached to the deleted/private draft interaction.
+  Do not combine the unresolved override or ordering reports until their
+  missing runtime evidence and intended policy are settled.
 
 ### 2026-08-04 — P7.13 role leaderboard decisions accepted and selected
 
