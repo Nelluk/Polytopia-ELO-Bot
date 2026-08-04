@@ -458,17 +458,17 @@ check:
 - P4.2d roadmap evidence: `e1a0959`; accumulation merge: `7c2269b`.
 
 Current unit: **P7.6b global player leaderboard record consistency —
-implemented locally; Tier-2 review pending.**
+complete, integrated, and deployed to the development beta.**
 
-The latest integrated and deployed milestone remains P8.4 native-first
-team-house read/edit/clear. Its beta read/assign/clear role smoke remains a
-separate downstream acceptance item; P7.6b is the active bounded unit in this
-worktree.
+P8.4 native-first team-house read/edit/clear remains integrated and deployed.
+Its beta read/assign/clear role smoke remains a separate downstream acceptance
+item.
 
 P7.6b implementation/tests checkpoint: `3806d0e` on
 `codex/p7-global-leaderboard-records`, based on exact accumulation commit
 `3c9c43e5604bd26a68b1b45e34e35bc8f6316850`. Its separate roadmap-evidence
-commit records the validation and deployment boundary below.
+commit records the validation and deployment boundary below. Tier-2 review
+passed and the branch was integrated as `993d079`.
 
 P8.4 implementation/tests checkpoint: `9d72507b2913b7c842224e6ea624fc108404ad28`
 on `codex/p8-4-team-house`, based on the exact clean base
@@ -4587,7 +4587,7 @@ the active-dimension summary, and Jump to page. Address global showcase
 
 ### P7.6b — Global player leaderboard record consistency
 
-Status: **Implemented locally; Tier-2 review pending**
+Status: **Complete; Tier-2 reviewed, integrated, and deployed to development**
 
 Risk tier: **Tier 2 bounded read/eligibility correction**. This unit aligns
 global leaderboard membership with the existing global W–L record scope. It
@@ -4662,9 +4662,22 @@ Limitations and deployment note:
   review, rerun the existing read-only development validation; do not weaken
   its safety gates.
 
-Next action: Tier-2 review and parent-task integration. If deployment review
-approves a development global guild, apply only that ignored development flag
-in the separate deployment task and rerun the gated read-only validation.
+Integration/deployment result:
+
+- Independent Tier-2 review found no defects.
+- Focused leaderboard/taxonomy validation passed **48/48** tests.
+- Independent complete offline discovery passed **734** tests with **19**
+  intentional gated skips; Python compilation and branch diff checks passed.
+- The branch was merged into `codex/database-slash-modernization` as
+  `993d079`.
+- Only the ignored development-guild override now sets
+  `include_in_global_lb: True`; the default and production configuration
+  remain unchanged.
+- The safety-gated real-schema leaderboard test passed against
+  `polytopia_dev` as `polybot_dev`.
+- The durable development beta restarted cleanly and authenticated as
+  PolyELO Bot Beta (`479029527553638401`). No command synchronization was
+  needed because the application-command surface did not change.
 
 ### P7.7 — Unified player profile and game-history workspace
 
@@ -6843,6 +6856,21 @@ separate explicit reviewed unit. This preserves the single development beta
 writer and prevents a planning snapshot from becoming an implicit rollout.
 
 ## Progress log
+
+### 2026-08-04 — P7.6b reviewed, integrated, and deployed
+
+- Completed the independent Tier-2 review with no findings.
+- Reproduced the focused **48/48** result and complete **734 passed / 19
+  intentional skips** offline result in a writable isolated review checkout;
+  compilation and diff checks also passed.
+- Integrated `codex/p7-global-leaderboard-records` as merge `993d079`.
+- Enabled `include_in_global_lb` only for development guild
+  `478571892832206869` in ignored development configuration.
+- Ran the explicit safety-gated real-schema leaderboard test successfully
+  against `polytopia_dev` as `polybot_dev`.
+- Restarted only `polybot-development-beta@main.service`; it authenticated
+  as beta application `479029527553638401`. No application-command sync,
+  fixture mutation, production access, push, or PR occurred.
 
 ### 2026-08-03 — P7.6b global leaderboard record consistency implemented locally
 
