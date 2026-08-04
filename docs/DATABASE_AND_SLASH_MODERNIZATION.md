@@ -459,9 +459,9 @@ check:
   `f0429536d7ed899eb356794bcd3558baa9be3d45`.
 - P4.2d roadmap evidence: `e1a0959`; accumulation merge: `7c2269b`.
 
-Current unit: **P6.2 canonical player timezone — reviewed, integrated,
-development schema applied, and opened to the wider tester pool; feedback
-acceptance remains pending.**
+Current unit: **P8.5 native team creation — selected as a Tier-3 unit;
+implementation pending in an isolated Luna worktree while P6.2 wider-beta
+feedback continues.**
 
 The audit is recorded in
 `docs/PLAYER_IDENTITY_AND_PREFERENCES_AUDIT.md`. It made no command, schema,
@@ -5882,6 +5882,44 @@ Limitations and next action:
   action is human smoke of read/assign/clear plus missing-role warnings. Run
   the deferred real-database case in the next planned stopped-writer batch.
 
+### P8.5 — Native-first team creation
+
+Status: **Selected; implementation pending**
+
+Risk tier: **Tier 3**. This creates a persistent team identity and audit row
+and introduces a new transactional graph, even though it does not alter ELO or
+Discord roles.
+
+Approved interface and compatibility boundary:
+
+- add staff-only `/team create name:<required>` under the existing
+  development-guild `team` capability;
+- retire `$team_add` and its `$team_add_junior` alias in the same unit. The
+  alias currently has no distinct junior-team behavior, so no native `junior`
+  option is required;
+- preserve the effective mod plus `allow_teams` scope, reject empty/unsafe or
+  duplicate names privately, and publish committed success with actor/team
+  attribution;
+- create no Discord role, channel, House assignment, tier, emoji, image, or
+  server binding. The success result should explain that an exact matching
+  Discord role is the membership convention and direct staff toward the
+  existing focused team-attribute commands.
+
+Implementation boundary: use a frozen primitive request/result and the shared
+bounded team executor. A worker-local Peewee connection and one synchronous
+transaction must cover the visible Team row plus actual-guild actor-attributed
+`GameLog`; duplicate/racing inserts fail cleanly and database/audit failure
+rolls back the team. No Discord await occurs in the transaction and no public
+success occurs before commit.
+
+Required evidence: exact slash shape and prefix retirement, permission/scope
+parity, name/duplicate/race validation, primitive worker boundary,
+worker-local connection, atomic audit rollback, cancellation/event-loop
+responsiveness, public attribution/private failures, capability isolation,
+complete offline discovery, and a stopped-writer gated real-schema case before
+integration because this is a new transactional graph. Implementation and
+review do not stop or redeploy the active wider beta.
+
 ## WB1 — Wider beta operations and structured feedback
 
 Status: **In progress; WB1.1 and WB1.2 integrated; WB1.3 planned**
@@ -7176,6 +7214,20 @@ authority, and the roadmap records the result at the next appropriate
 checkpoint.
 
 ## Progress log
+
+### 2026-08-04 — P8.5 native team creation selected
+
+- Selected `/team create name:<required>` as the next independent Tier-3 unit
+  while P6.2 remains open to wider-beta feedback.
+- Approved immediate retirement of `$team_add` and `$team_add_junior`; the
+  legacy alias has no distinct junior behavior and receives no native option.
+- Kept Discord-role creation and every team attribute outside this unit. The
+  new worker transaction is limited to one visible Team plus actor-attributed
+  audit, with the stopped-writer real-schema case deferred to its integration
+  gate so the current beta can continue running during implementation/review.
+- Next action: dispatch the bounded implementation from this exact roadmap
+  checkpoint and wait for its explicit completion/blocker handoff without
+  active Sol monitoring.
 
 ### 2026-08-04 — P6.2 opened to wider testers and rollout process tightened
 
