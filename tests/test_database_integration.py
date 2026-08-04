@@ -422,6 +422,107 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
         for row in result.games:
             self.assertIsInstance(row, player_workers.PlayerGameRow)
 
+    def test_player_registration_worker_commits_and_rolls_back_real_graph(self):
+        from modules import player_registration_workers
+
+        guild_id = self.profile.allowed_guild_ids[0]
+        suffix = uuid.uuid4().hex
+        actor_id = self.settings.owner_id
+        target_id = 8_900_000_000_000_000 + uuid.uuid4().int % 1_000_000
+        rollback_target_id = target_id + 1
+        canonical_name = f'P61 Canonical {suffix}'
+        rollback_name = f'P61 Rollback {suffix}'
+
+        actor = player_registration_workers.MemberSnapshot(
+            discord_id=actor_id,
+            discord_name='P61 Integration Actor',
+            discord_nick=None,
+            display_name='P61 Integration Actor',
+            role_names=(),
+        )
+
+        def make_request(discord_id, name):
+            target = player_registration_workers.MemberSnapshot(
+                discord_id=discord_id,
+                discord_name=f'P61 Target {suffix}',
+                discord_nick='P61 Nick',
+                display_name=f'P61 Target {suffix}',
+                role_names=(),
+            )
+            return player_registration_workers.PlayerRegistrationRequest(
+                guild_id=guild_id,
+                requester_id=actor_id,
+                actor=actor,
+                target=target,
+                canonical_name=name,
+                requester_is_staff=True,
+                invoked_with='integration',
+            )
+
+        def cleanup(discord_ids):
+            with self.models.db.atomic():
+                for discord_id in discord_ids:
+                    member = self.models.DiscordMember.get_or_none(
+                        discord_id=discord_id,
+                    )
+                    if member is not None:
+                        self.models.Player.delete().where(
+                            self.models.Player.discord_member == member,
+                        ).execute()
+                        self.models.DiscordMember.delete().where(
+                            self.models.DiscordMember.discord_id == discord_id,
+                        ).execute()
+                self.models.GameLog.delete().where(
+                    self.models.GameLog.message.contains(suffix),
+                ).execute()
+
+        try:
+            result = asyncio.run(
+                player_registration_workers.run_player_registration(
+                    make_request(target_id, canonical_name),
+                )
+            )
+            self.assertEqual(result.guild_id, guild_id)
+            self.assertEqual(result.target_id, target_id)
+            saved = self.models.DiscordMember.get(
+                self.models.DiscordMember.discord_id == target_id,
+            )
+            self.assertEqual(saved.polytopia_name, canonical_name)
+            self.assertIsNone(saved.name_steam)
+            self.assertIsNone(saved.polytopia_id)
+            self.assertEqual(
+                self.models.GameLog.select().where(
+                    self.models.GameLog.message.contains(canonical_name),
+                    self.models.GameLog.guild_id == guild_id,
+                ).count(),
+                1,
+            )
+
+            with mock.patch.object(
+                self.models.GameLog,
+                'write',
+                side_effect=peewee.OperationalError('P61 audit failure'),
+            ):
+                with self.assertRaises(peewee.OperationalError):
+                    asyncio.run(
+                        player_registration_workers.run_player_registration(
+                            make_request(rollback_target_id, rollback_name),
+                        )
+                    )
+            self.assertIsNone(
+                self.models.DiscordMember.get_or_none(
+                    discord_id=rollback_target_id,
+                )
+            )
+            self.assertEqual(
+                self.models.Player.select().join(self.models.DiscordMember).where(
+                    self.models.DiscordMember.discord_id == rollback_target_id,
+                ).count(),
+                0,
+            )
+        finally:
+            cleanup((target_id, rollback_target_id))
+
     def test_game_search_workspace_reads_real_schema(self):
         from modules import game_search_workers
 

@@ -11,6 +11,9 @@ from modules import leaderboard_workers
 from modules import leaderboard_v2
 from modules import player_views
 from modules import player_workers
+from modules import player_registration
+from modules import player_registration_views
+from modules import player_registration_workers
 from modules import elo_workers
 from modules import game_win
 from modules import game_map
@@ -1901,6 +1904,48 @@ class polygames(commands.Cog):
         )
         view.message = await interaction.edit_original_response(view=view)
 
+    @player_group.command(
+        name='register',
+        description='Register an account-wide canonical Polytopia name.',
+    )
+    @discord.app_commands.describe(
+        member='Member to register; defaults to you. Staff only for others.',
+    )
+    async def player_register_slash(
+        self,
+        interaction: discord.Interaction,
+        member: discord.Member | None = None,
+    ):
+        target = member or interaction.user
+        if int(target.id) != int(interaction.user.id):
+            try:
+                allowed = bool(settings.is_staff(interaction.user))
+            except Exception:
+                allowed = False
+            if not allowed:
+                return await interaction.response.send_message(
+                    'Only server staff can register another member.',
+                    ephemeral=True,
+                )
+        try:
+            target_snapshot = player_registration.capture_member_snapshot(
+                target,
+            )
+            modal = player_registration_views.PlayerRegistrationModal(
+                guild_id=interaction.guild.id,
+                requester_id=interaction.user.id,
+                target_snapshot=target_snapshot,
+            )
+            await interaction.response.send_modal(modal)
+        except Exception:
+            logger.exception('Could not open player registration modal')
+            is_done = getattr(interaction.response, 'is_done', None)
+            if not callable(is_done) or not is_done():
+                await interaction.response.send_message(
+                    'The registration form could not be opened.',
+                    ephemeral=True,
+                )
+
     @settings.in_bot_channel()
     @commands.command(brief='See details on a player', usage='player_name', aliases=['elo', 'rank'])
     async def player(self, ctx, *, args=None):
@@ -2086,112 +2131,98 @@ class polygames(commands.Cog):
         else:
             await ctx.send(embed=embed)
 
-    @commands.command(brief='Sets a Polytopia account name and registers user with the bot', usage='[user] polytopia_code', aliases=['steamname', 'setcode'])
+    @commands.command(
+        brief='Register an account-wide canonical Polytopia name.',
+        usage='[user] canonical_polytopia_name',
+        aliases=['steamname', 'setcode'],
+    )
     async def setname(self, ctx, *, args=None):
-        """
-        Sets your own Polytopia code, or allows a staff member to set a player's code. This also will register the player with the bot if not already.
-        **Examples:**
-        `[p]setname <Your In-Game Name Here>`
-        `[p]steamname <Your Steam Name Here>`
-        `[p]setname @Nelluk Nelluk` *Staff usage*
-        `[p]setcode @Nelluk none` - Server staff can delete a code if it is invalid for some reason
+        """Compatibility adapter for the canonical registration service."""
 
-        Also use `[p]steamname` and `[p]setcode` for setting Steam name or old-style friend code
-        """
-        args = args.split() if args else []
-        if ctx.invoked_with == 'setcode':
-            code_type = 'Polytopia Player ID'
-            code_example = 'YOURCODEHERE'
-            db_field = DiscordMember.polytopia_id
-        elif ctx.invoked_with == 'steamname':
-            code_type = 'Steam username'
-            code_example = 'Your Steam Name'
-            db_field = DiscordMember.name_steam
-        elif ctx.invoked_with == 'setname':
-            code_type = 'mobile username'
-            code_example = 'Your Mobile Name'
-            db_field = DiscordMember.polytopia_name
-        if not args:
-            return await ctx.send(f'**Usage:** `{ctx.prefix}{ctx.invoked_with} {code_example}`\nUse `{ctx.prefix}code` to quickly display your own code and in-game name.')
+        invoked_with = str(ctx.invoked_with or 'setname').lower()
+        if invoked_with in ('steamname', 'setcode'):
+            return await ctx.send(
+                player_registration.deprecation_message(
+                    invoked_with,
+                    ctx.prefix,
+                )
+            )
 
-        m = utilities.string_to_user_id(args[0])
-        if m:
-            logger.debug(f'Third party use of {ctx.invoked_with}')
-            # Staff member using command on third party
-            if settings.is_staff(ctx.author) is False:
-                logger.debug('insufficient user level')
-                return await ctx.send('You do not have permission to set another player\'s name or code.')
-            new_id = ' '.join(args[1:])
-            target_string = str(m)
-            log_by_str = f' by {models.GameLog.member_string(ctx.author)}'
+        raw_args = str(args or '').strip()
+        if not raw_args:
+            return await ctx.send(
+                f'**Usage:** `{ctx.prefix}setname YOUR POLYTOPIA NAME`\n'
+                'This is the account-wide canonical Polytopia name. You can '
+                'also use `/player register`.'
+            )
+
+        parts = raw_args.split(maxsplit=1)
+        target_id = utilities.string_to_user_id(parts[0])
+        if target_id is not None:
+            try:
+                is_staff = bool(settings.is_staff(ctx.author))
+            except Exception:
+                is_staff = False
+            if not is_staff:
+                return await ctx.send(
+                    'You do not have permission to register another player.'
+                )
+            target_string = str(target_id)
+            canonical_name = parts[1] if len(parts) == 2 else ''
         else:
-            # Player using command on their own games
-            new_id = ' '.join(args)
             target_string = str(ctx.author.id)
-            log_by_str = ''
+            canonical_name = raw_args
 
-        # Try to find matching guild/server member
-        # TODO: It would be good to be able to change the code of a player who is no longer a server member
         guild_matches = await utilities.get_guild_member(ctx, target_string)
         if len(guild_matches) == 0:
-            return await ctx.send(f'Could not find any server member matching *{args[0]}*. Try specifying with an @Mention')
-        elif len(guild_matches) > 1:
-            return await ctx.send(f'Found {len(guild_matches)} server members matching *{args[0]}*. Try specifying with an @Mention')
-        target_discord_member = guild_matches[0]
+            return await ctx.send(
+                f'Could not find any server member matching *{parts[0]}*. '
+                'Try specifying with an @Mention.'
+            )
+        if len(guild_matches) > 1:
+            return await ctx.send(
+                f'Found {len(guild_matches)} server members matching '
+                f'*{parts[0]}*. Try specifying with an @Mention.'
+            )
 
-        if new_id.lower() == 'none' and settings.is_staff(ctx.author):
-            new_id = None
-        elif (len(new_id) != 16 or new_id.isalnum() is False) and ctx.invoked_with == 'setcode':
-            # Very basic polytopia code sanity checking. Making sure it is 16-character alphanumeric.
-            return await ctx.send(f'Polytopia code `{new_id}` does not appear to be a valid code. Copy your unique code from the **Profile** tab of the **Polytopia app**.')
-        elif ctx.invoked_with == 'setname' and (new_id.upper().strip() == 'YOUR MOBILE NAME' or ('YOUR' in new_id.upper() and 'GAME' in new_id.upper() and 'NAME' in new_id.upper())):
-            return await ctx.send(':warning: This name doesn\'t look right. You need to use *your* in-game name (`Multiplayer > Profile > Alias` in the Polytopia app)')
-        elif ctx.invoked_with == 'steamname' and 'STEAM' in new_id.upper() and 'NAME' in new_id.upper():
-            await ctx.send(':warning: This name doesn\'t look right. You need to use *your* Steam name.')
+        try:
+            request = player_registration.build_request(
+                actor=ctx.author,
+                target=guild_matches[0],
+                guild_id=ctx.guild.id,
+                canonical_name=canonical_name,
+                invoked_with='setname',
+            )
+            result = await player_registration_workers.run_player_registration(
+                request
+            )
+        except (
+            player_registration_workers.PlayerRegistrationValidationError,
+            player_registration_workers.PlayerRegistrationPermissionError,
+            peewee.PeeweeException,
+            ValueError,
+        ) as exc:
+            logger.warning('Prefix canonical player registration failed: %s', exc)
+            return await ctx.send(str(exc))
+        except Exception:
+            logger.exception('Unexpected prefix canonical player registration failure')
+            return await ctx.send(
+                'Registration failed before it could be confirmed. Please try '
+                'again later.'
+            )
 
-        _, team_list = Player.get_teams_of_players(guild_id=ctx.guild.id, list_of_players=[target_discord_member])
-
-        player, created = Player.upsert(discord_id=target_discord_member.id,
-                                        discord_name=target_discord_member.name,
-                                        discord_nick=target_discord_member.nick,
-                                        guild_id=ctx.guild.id,
-                                        team=team_list[0])
-        if ctx.invoked_with == 'setcode':
-            player.discord_member.polytopia_id = new_id
-            register_str = f'{code_type} `{player.discord_member.polytopia_id}`'
-            warning_str = f':warning: Also set your mobile in-game name with `{ctx.prefix}setname Your Mobile Name` - This will be required soon.\n'
-        elif ctx.invoked_with == 'steamname':
-            player.discord_member.name_steam = discord.utils.escape_mentions(new_id[:200]) if new_id else None
-            register_str = f'{code_type} `{player.discord_member.name_steam}`'
-            warning_str = ''
-        elif ctx.invoked_with == 'setname':
-            player.discord_member.polytopia_name = discord.utils.escape_mentions(new_id[:200]) if new_id else None
-            register_str = f'{code_type} `{player.discord_member.polytopia_name}`'
-            warning_str = ''
-
-        player.discord_member.save()
-
-        models.GameLog.write(game_id=0, guild_id=0, message=f'{models.GameLog.member_string(player.discord_member)} {code_type} {"set" if created else "updated"} to `{new_id}` {log_by_str}')
-
-        if created:
-            await ctx.send(f'Player **{player.name}** added to system with {register_str} and ELO **{player.elo_moonrise}**\n{warning_str}'
-                f'To find games to join use the `{ctx.prefix}games` command.')
-        else:
-            await ctx.send(f'Player **{player.name}** updated in system with {register_str}.')
-
-        players_with_id = DiscordMember.select().where(db_field ** new_id)
-        if players_with_id.count() > 1 and new_id:
-            helper_role_name = settings.guild_setting(ctx.guild.id, 'helper_roles')[0]
-            helper_role = discord.utils.get(ctx.guild.roles, name=helper_role_name)
-            helper_role_str = f'someone with the {helper_role.mention} role' if helper_role else 'server staff'
-            p_names = [f'<@{p.discord_id}> ({p.name})' for p in players_with_id]
-            await ctx.send(':warning: This polytopia code is already entered in the database. '
-                f'If you need help using this bot please contact {helper_role_str} or <@{settings.owner_id}>.\nDuplicated players: {", ".join(p_names)}')
+        await ctx.send(player_registration.success_message(request, result))
 
     @commands.command(aliases=['code', 'getcode', 'name'], usage='player_name')
     async def getname(self, ctx, *, player_string: str = None):
-        """Get game ID of a player
-        Just returns the code and nothing else so it can easily be copied."""
+        """Return the transitional canonical account-name read."""
+
+        if str(ctx.invoked_with or '').lower() in ('code', 'getcode'):
+            await ctx.send(
+                ':warning: This legacy code lookup is deprecated. The value '
+                'below is the transitional account-wide Polytopia name; '
+                'stored legacy codes are preserved.'
+            )
 
         if not player_string:
             player_string = str(ctx.author.id)
@@ -2211,14 +2242,19 @@ class polygames(commands.Cog):
         elif len(guild_matches) > 1:
             player_matches = Player.string_matches(player_string=player_string, guild_id=ctx.guild.id)
             if len(player_matches) == 1:
-                if player_matches[0].discord_member.polytopia_name:
-                    in_game_name_str = f' (In-game name: **{player_matches[0].discord_member.polytopia_name}**)'
-                else:
-                    in_game_name_str = ''
-                if player_matches[0].discord_member.name_steam:
-                    in_game_name_str += f' (Steam name: **{player_matches[0].discord_member.name_steam}**)'
-                await ctx.send(f'Found {len(guild_matches)} server members matching *{player_string_safe}*, but only **{player_matches[0].name}** {in_game_name_str} is registered.')
-                return await ctx.send(player_matches[0].discord_member.polytopia_id or 'No mobile code set')
+                account_name = (
+                    player_matches[0].discord_member.polytopia_name
+                    or player_matches[0].discord_member.name_steam
+                )
+                await ctx.send(
+                    f'Found {len(guild_matches)} server members matching '
+                    f'*{player_string_safe}*, but only '
+                    f'**{player_matches[0].name}** is registered.'
+                )
+                return await ctx.send(
+                    player_registration.safe_public_name(account_name)
+                    if account_name else 'No account-wide canonical name set'
+                )
 
             return await ctx.send(f'Found {len(guild_matches)} server members matching *{player_string_safe}*. Try specifying with an @Mention or more characters.')
         target_discord_member = guild_matches[0]
@@ -2226,17 +2262,23 @@ class polygames(commands.Cog):
         discord_member = DiscordMember.get_or_none(discord_id=target_discord_member.id)
 
         if discord_member:
-            if discord_member.name_steam:
-                in_game_name_str = f' (Steam name: **{discord_member.name_steam}**)'
-            else:
-                in_game_name_str = ''
-            if discord_member.polytopia_id:
-                in_game_name_str += f' (Old-style code: `{discord_member.polytopia_id}`)'
-            await ctx.send(f'Mobile name for **{discord_member.name}**{in_game_name_str}:')
-            return await ctx.send(discord_member.polytopia_name or 'None set')
+            account_name = (
+                discord_member.polytopia_name
+                or discord_member.name_steam
+            )
+            await ctx.send(
+                f'Account-wide Polytopia name for **{discord_member.name}**:'
+            )
+            return await ctx.send(
+                player_registration.safe_public_name(account_name)
+                if account_name else 'No account-wide canonical name set'
+            )
         else:
-            return await ctx.send(f'Member **{target_discord_member.name}** is not registered.\n'
-                f'Register your own or in-game name with `{ctx.prefix}setname MOBILE NAME HERE` or `{ctx.prefix}steamname STEAM NAME HERE`')
+            return await ctx.send(
+                f'Member **{target_discord_member.name}** is not registered.\n'
+                f'Register with `{ctx.prefix}setname YOUR POLYTOPIA NAME` or '
+                '`/player register`.'
+            )
 
     @commands.command(aliases=['names', 'codes', 'getcodes'], usage='game_id')
     @models.is_registered_member()
@@ -2276,26 +2318,26 @@ class polygames(commands.Cog):
             return await ctx.send(f'**Error:** {e}')
 
         warn_str = '\n*(List may take a few seconds to print due to discord anti-spam measures.)*' if len(ordered_player_list) > 2 else ''
-        header_str = f'In-game names for **game {game.id}**, in draft order:{warn_str}'
+        header_str = (
+            f'Polytopia account names for **game {game.id}**, in draft order:'
+            f'{warn_str}'
+        )
 
         first_loop = True
         async with ctx.typing():
             for p in ordered_player_list:
                 dm_obj = p['player'].discord_member
-                if game.is_mobile:
-                    # if dm_obj.polytopia_name and dm_obj.polytopia_name.lower() != p['player'].name.lower():
-                    #     in_game_name_str = f' (In-game name: **{dm_obj.polytopia_name}**)'
-                    # else:
-                    #     in_game_name_str = ''
-                    if dm_obj.polytopia_id:
-                        in_game_name_str = f' (Old-style code: `{dm_obj.polytopia_id}`)'
-                    else:
-                        in_game_name_str = ''
-                else:
-                    if dm_obj.name_steam:
-                        in_game_name_str = f'\nSteam name: **{dm_obj.name_steam}**'
-                    else:
-                        in_game_name_str = '\n *Steam name not set*'
+                account_name = (
+                    dm_obj.polytopia_name
+                    or dm_obj.name_steam
+                )
+                account_name_display = (
+                    f'**{player_registration.safe_public_name(account_name)}**'
+                    if account_name else '*No account-wide name set*'
+                )
+                in_game_name_str = (
+                    f' (Polytopia account name: {account_name_display})'
+                )
 
                 if first_loop:
                     # header_str combined with first player's name in order to reduce number of ctx.send() that are done.
@@ -2308,8 +2350,10 @@ class polygames(commands.Cog):
                     else:
                         tz_str = ''
                     await ctx.send(f'**{p["player"].name}**{in_game_name_str} {tz_str}')
-                if game.is_mobile:
-                    await ctx.send(dm_obj.polytopia_name or 'No name set')
+                await ctx.send(
+                    player_registration.safe_public_name(account_name)
+                    if account_name else 'No account-wide name set'
+                )
 
     @commands.command(brief='Set player time zone', usage='UTC±#')
     @models.is_registered_member()
