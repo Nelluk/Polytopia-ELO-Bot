@@ -412,7 +412,7 @@ operator repair commands stay out of the public tree.
 | `team_name` | `/team name` | Implemented locally in P8.2: public read/actor-attributed edit, legacy five-character and unique-name boundary, and an explicit exact-role rename warning |
 | `team_server` | `/team server` | Implemented locally in P8.2: raw integer read/edit and explicit nullable clear without requiring external-guild membership |
 | `team_edit` aliases | `/team house`, `/team tier` | `/team tier` remains implemented with the effective legacy mod plus PolyChampions/test scope, configured choices, mutation-only house/archive/exact-role gates, worker-owned Player/preference reconciliation, and post-commit role reconciliation. P8.4 implements native `/team house` read/assign/clear and intentionally retires the `$team_house` alias/branch; `$team_edit ... ARCHIVE` remains retained. |
-| `squad` | `/squad show` | Redesign one-to-three member search |
+| `squad`, `squads` | `/squad show` | P7.11 selected: optional exact squad ID; omission defaults to requester membership; requester-only one-to-three Discord member selector, paged/selectable multi-match results, and dense card; retire both prefix registrations under C-012 |
 | `squadname` | `/squad name` | View by default; optional name edits |
 | `lb` | `/leaderboard players` | Components v2 workspace defaults to local/current/active and exposes common views, population, paging, and requester-rank controls in-message; preserve the full prefix matrix |
 | `lbrecent` | `/leaderboard activity` | Native now with explicit server-30-days and global-all-time views |

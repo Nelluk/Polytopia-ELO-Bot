@@ -362,6 +362,7 @@ would become unavailable if a prefix is retired.
 | C-009 `/player register` / `$setname` / `$steamname` / `$setcode` / `$getnames` aliases | Native `/player register member:[optional]` uses one account-wide canonical-name modal; `$setname` delegates to the same bounded worker, and the useful name-list aliases remain available for game setup. | Legacy recommendation: **retain** `$setname` through the production canary. `$steamname` and `$setcode` remain registered as non-writing deprecation adapters; `$code`/`$getcode` warn and return the transitional canonical read. Existing `name_steam` and `polytopia_id` values are preserved and are never cleared or backfilled by P6.1. If message content is later retired, the native registration path covers the ordinary workflow while the compact compatibility reads remain a deliberate seam. | Revisit retirement after usage evidence and an explicit compatibility decision; do not delete or migrate stored legacy values in this unit. | Tier-3 reviewed and integrated; beta sync/smoke pending |
 | C-010 `/player timezone` / `$settime` | Native `/player timezone member:[optional] offset:[optional] clear:[optional]` covers effective reads, normalized fixed-offset writes, explicit clear, and staff-targeting. `$settime` delegates to the same bounded worker and retains compatible self/staff-target grammar, including compact UTC/GMT forms. | Legacy recommendation: **retain** `$settime` initially because timezone preference is a day-to-day workflow and the prefix path remains useful while native commands are not synchronized. Native input deliberately requires normalized `UTC±HH:MM`; the shared service corrects legacy half/quarter-hour storage through minutes and never writes the old whole-hour field. | Revisit prefix retirement only after beta usage evidence and a separately approved command/message-intent lifecycle decision; do not remove the legacy column or clear legacy values in this unit. | Implemented locally; Tier-3 review, schema gate, and beta sync/smoke pending |
 | C-011 `/team create` / `$team_add` / `$team_add_junior` | Native `/team create name:<required>` creates one visible guild-scoped Team plus an actual-guild actor-attributed GameLog in one worker transaction. It validates a trimmed 1–100-character exact-role-compatible name, reports duplicate/racing inserts privately, and directs staff to the focused team-attribute commands. It intentionally creates no Discord role or other team attributes. | Legacy recommendation: **retire** — explicit approval removes both prefix registrations. `$team_add_junior` had no distinct junior behavior, so native creation has no `junior` option. The former one-line message-command workflow is unavailable, but ordinary staff team creation and follow-up configuration are covered natively; the existing exact Discord-role membership convention is explained publicly after commit. | Revisit only through a separately approved prefix lifecycle decision; do not restore a compatibility adapter or add junior behavior without a distinct product and data contract. | Intentional P8.5 prefix retirement; Tier-3 reviewed, real-schema validated, and integrated; beta sync/smoke pending |
+| C-012 `/squad show` / `$squad` / `$squads` | Native `/squad show squad_id:[optional]` opens an exact card or defaults to squads containing the requester; a requester-only Discord member selector performs one-to-three-member discovery, and multi-match results are paged/selectable. | Legacy recommendation: **retire** — explicit user approval removes `$squad` and `$squads` because the lookup is rarely used. The native workspace replaces ambiguous free-text member lookup with typed guild members while preserving useful ID/member search, record/rank, and recent-game information. `$squadname` remains a separate mutation until `/squad name`. | Revisit only through an explicit prefix lifecycle decision or demonstrated native discovery gap; do not restore a redundant prefix adapter. | Intentional P7.11 prefix retirement; implementation pending |
 
 Every later slash conversion must add a row when parity is intentionally
 reduced. If there is no compromise, its unit evidence should explicitly say
@@ -460,8 +461,12 @@ check:
   `f0429536d7ed899eb356794bcd3558baa9be3d45`.
 - P4.2d roadmap evidence: `e1a0959`; accumulation merge: `7c2269b`.
 
-Current unit: **P7.10 native team leaderboard — Tier-2 reviewed, integrated,
-and deployed for wider-beta acceptance.**
+Current unit: **P7.11 native squad-show workspace and prefix retirement —
+selected for isolated Luna implementation.**
+
+P7.10 remains Tier-2 reviewed, integrated, deployed, and open for wider-beta
+acceptance. The durable beta continues running checkpoint `a91b278`; P7.11
+implementation must not inspect, stop, restart, or otherwise disturb it.
 
 P7.10 implementation/test checkpoints: `549bd41` and Tier-2 parity correction
 `b8abcd8`, from exact clean base `026c36cff69d131b43db97acd887debfb8ef499c`.
@@ -5458,6 +5463,106 @@ durable beta restarted cleanly at `a91b278`, authenticated as application
 `1534250663050088601` with the testers-role ping. Wider-beta acceptance remains
 open.
 
+### P7.11 — Native squad-show workspace and prefix retirement
+
+Status: **Selected; implementation pending**
+
+Risk tier: **Tier 2**. This is a guild-scoped read/presentation conversion and
+intentional retirement of a low-use prefix lookup. It does not change squad
+eligibility, ranking, ELO, stored data, or the separate squad-name mutation.
+
+Objective: add public `/squad show squad_id:[optional integer]` with a dense,
+requester-controlled discovery/detail workspace; move all Peewee reads off the
+event loop; and retire `$squad` plus `$squads` without a compatibility adapter.
+
+Accepted interface:
+
+- With `squad_id`, load that exact guild-affiliated squad and open its card.
+- Without `squad_id`, search for eligible squads containing the requester.
+- The public workspace includes a requester-only Discord member selector for
+  one to three members. Selecting members runs a new bounded search for squads
+  containing all selected members; this replaces the legacy free-text
+  `$squad Nelluk jd` grammar without three rarely used slash options.
+- Multi-match search results are paginated and selectable. Selecting a result
+  opens its already-loaded dense squad card without another database read.
+- The card preserves squad ID/name, member names and team emoji, current squad
+  ELO, confirmed ranked W/L, current leaderboard rank/length, and up to ten
+  recent games with their established useful summary information.
+- Successful initial results, searches, selections, and page changes are
+  public. Controls belong to the requester. Authorization, invalid ID,
+  wrong-guild, missing player/squad, database, expired-control, and component
+  validation failures are private and point to a rerun where appropriate.
+- Defer privately before slow work, remove the placeholder, then publish the
+  successful workspace publicly through the established transparency helper
+  pattern.
+
+Compatibility decision:
+
+- Remove the `$squad` prefix registration and `$squads` alias in this unit.
+  The user explicitly approved retirement because this lookup is rarely used.
+- Do not remove `$squadname`; it is a separate write path pending `/squad
+  name`. Update its stale lookup guidance to `/squad show` and/or
+  `/leaderboard squads` without changing its mutation semantics.
+- Add C-012 to the compatibility ledger. No slash alias such as `/squads` is
+  added.
+
+Database/event-loop boundaries:
+
+- Use a bounded read executor separate from ELO/write workers, reusing the
+  existing leaderboard read infrastructure only where that remains cohesive.
+- Each read opens/closes its worker-local Peewee connection and returns frozen
+  primitive request/result/card/member/game-summary DTOs. No live Peewee or
+  Discord object, lazy query, or mutable view state crosses the worker.
+- Preserve the current `Squad.get_all_matching_squads` eligibility thresholds,
+  exact squad-ID behavior, guild boundary, current leaderboard cutoff/rank,
+  record definition, ordering, and 50-result bound unless a tested equivalent
+  query is required for batching.
+- A member-select search may perform one new worker read because it changes the
+  target. Paging and selecting a squad from the loaded result must not query.
+- Keep the existing `allow_teams` plus non-strict bot-channel permission parity
+  in both preflight and frozen worker authorization inputs.
+
+Presentation boundaries:
+
+- Components v2 is justified by typed multi-member discovery, multi-result
+  pagination/selection, and card navigation. Preserve or improve the legacy
+  information density; do not add speculative rename/edit/game-mutation
+  buttons.
+- Use bounded result/page sizes and Discord-safe select options. Clearly label
+  truncation if the retained 50-result ceiling is reached.
+- The new `/squad` root uses the existing reserved `squad` capability and
+  remains default-deny until a separately approved development policy/apply
+  step. Do not modify ignored guild configuration during implementation.
+
+Required evidence:
+
+- slash registration and exact optional-integer shape; no `$squad`/`$squads`
+  registration; `$squadname` retained with corrected guidance;
+- direct ID, no-option requester default, one/two/three-member typed search,
+  duplicate/invalid member handling, no/multiple/exact result flows, wrong
+  guild, unregistered member, and eligibility/ordering parity;
+- dense-card field and recent-game parity, result pagination/selection without
+  requery, member-select bounded reload, requester-only controls, expiry,
+  private errors, public success, and mobile-safe component limits;
+- worker-local connection and immutable primitives, cancellation cleanup,
+  bounded concurrency, and simulated slow-read event-loop responsiveness;
+- focused tests, complete offline discovery, compileall, and diff checks;
+- add a read-only real-schema integration test behind the unchanged
+  development/`polytopia_dev`/`polybot_dev` gate, but do not run PostgreSQL
+  while the durable beta is active. Defer it to a later approved stopped-writer
+  window.
+
+Out of scope: `/squad name` implementation or `$squadname` retirement; squad
+ELO/eligibility/rank changes; `/leaderboard squads`; schema/fixture writes;
+game/team/player mutations; dependency work; guild capability configuration;
+Discord inspect/apply/sync; beta lifecycle actions; production; push; merge;
+or sudo.
+
+Exit: clean implementation/test and separate roadmap-evidence commits plus an
+explicit completion/blocker handoff to the originating Sol task. Integration,
+capability assignment, deployment, checklist update, and acceptance remain
+later reviewed actions.
+
 ## P8.0 — Guild application-command capability policy and explicit deployment tooling
 
 Status: **Complete**
@@ -7654,6 +7759,23 @@ database-free, split safely below Discord message limits, and updated as
 features are deployed or receive sufficiently broad acceptance.
 
 ## Progress log
+
+### 2026-08-04 — P7.11 squad-show workspace selected
+
+- Selected native-first `/squad show squad_id:[optional]` as the next bounded
+  Tier-2 read unit from clean accumulation checkpoint `93aba89`.
+- Accepted no-argument requester discovery plus a requester-bound one-to-three
+  Discord member selector, paginated/selectable multi-match results, and dense
+  cards preserving ID/name/members/ELO/W-L/rank/recent-game information.
+- Explicitly approved retirement of `$squad` and `$squads`; retained
+  `$squadname` as a separate write until `/squad name` and recorded C-012.
+- Required worker-local frozen reads, non-strict bot-channel/`allow_teams`
+  parity, public results, private failures, and no database reads for paging or
+  selecting an already-loaded result.
+- Kept the new reserved `squad` capability default-deny during implementation;
+  guild assignment/apply and beta deployment remain separate later gates.
+- Next action: dispatch the isolated Luna-Max unit and wait for its explicit
+  completion/blocker handoff without active Sol monitoring.
 
 ### 2026-08-04 — P7.10 deployed for wider-beta testing
 
