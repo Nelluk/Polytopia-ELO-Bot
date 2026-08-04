@@ -6728,7 +6728,7 @@ Limitations and next action:
 
 ## WB1 — Wider beta operations and structured feedback
 
-Status: **In progress; WB1.1, WB1.2, and WB1.3 integrated; WB1.4 complete locally**
+Status: **In progress; WB1.1–WB1.4 integrated; WB1.4 wider-beta acceptance pending**
 
 ### WB1.1 — Structured `/staffhelp` feedback intake
 
@@ -7150,7 +7150,7 @@ evidence; do not run cleanup while the wider beta is using these records.
 
 ### WB1.4 — Interaction lifecycle and retryability hardening
 
-Status: **Complete locally; Tier-3 implementation/tests and visibility correction committed; integration and beta review pending**
+Status: **Tier-3 reviewed, integrated, and development-schema validated; wider-beta acceptance pending**
 
 Branch/base: `codex/wb1-4-interaction-lifecycle` from exact clean base
 `b7e95b5ee7fe1e1af265655bfef6f3c51efe228f`.
@@ -7229,10 +7229,17 @@ Validation evidence:
 - Complete offline discovery with `POLYBOT_ENV=development` and database
   integration unset: **923 passed, 26 intentional gated skips**.
 - `compileall` and `git diff --check`: passed.
-- PostgreSQL real-schema validation remains behind its unchanged gate and was
-  deferred. No development beta inspection, stop, restart, synchronization,
-  production access, dependency action, fixture action, push, PR, merge, or
-  database access occurred.
+- Independent Tier-3 review repeated the focused **68-test** set and complete
+  **923-test** offline discovery with the same results. The four-commit branch
+  was fast-forwarded into `codex/database-slash-modernization` through
+  `d0c04e3`.
+- Only the guarded development beta service was stopped, and the host-wide
+  writer audit then reported no development beta writer. The unchanged gate
+  verified `POLYBOT_ENV=development`, `polytopia_dev`, `polybot_dev`, and
+  disabled background/API services before running **26 real-schema tests: 25
+  passed and 1 operator-managed fixture round trip skipped intentionally**.
+  No production, global synchronization, dependency, fixture cleanup, push,
+  PR, or sudo action occurred.
 
 Changed files: `modules/game_record_views.py`, `modules/games.py`,
 `modules/interaction_lifecycle.py`, `modules/player_registration.py`,
@@ -7240,9 +7247,11 @@ Changed files: `modules/game_record_views.py`, `modules/games.py`,
 `tests/test_newgame_worker.py`, `tests/test_player_registration.py`, and
 `tests/test_player_timezone.py`.
 
-Next action: authorized integration of the two implementation commits in order,
-followed by a separate beta smoke decision. Keep the PostgreSQL gate deferred
-until the next approved stopped-writer validation window.
+Next action: restart the guarded beta from the clean integrated checkpoint and
+publish the approved targeted **WHAT TO TEST** announcement. Wider-beta users
+should verify retryable `/game record` confirmation, visible
+`/player register member` targeting, and clean public registration/timezone
+success without `Unknown Message` noise.
 
 ## P9 — Production rollout and prefix lifecycle
 
@@ -8182,6 +8191,22 @@ changes, preserve stable command identities where practical, and prefer
 component refinements that do not require command re-registration.
 
 ## Progress log
+
+### 2026-08-04 — WB1.4 Tier-3 reviewed, integrated, and schema-validated
+
+- Independently reviewed the full four-commit WB1.4 branch, including the
+  corrected explicit public-channel routing for native `/game record` after an
+  ephemeral draft defer. No remaining Tier-3 blocker was found.
+- Repeated the focused lifecycle set (**68 passed**) and complete offline
+  discovery (**923 passed, 26 intentional gated skips**), then fast-forwarded
+  the accumulation branch through `d0c04e3`.
+- Stopped only the guarded development beta, confirmed no remaining beta
+  writer, and ran the unchanged `development` / `polytopia_dev` /
+  `polybot_dev` gate: **25 passed and 1 operator-fixture preservation skip**.
+- Next action: commit this reviewed checkpoint, restart the durable beta, and
+  finish the release with one targeted **WHAT TO TEST** announcement to the
+  reporter. No application-command schema changed, so no guild sync is
+  required.
 
 ### 2026-08-04 — Beta-report parity corrections accepted and integrated
 
