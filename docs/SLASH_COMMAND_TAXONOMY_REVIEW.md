@@ -406,7 +406,7 @@ operator repair commands stay out of the public tree.
 | `getname` | `/player show` | Fold the useful canonical name into the normal profile workspace rather than preserving a name/code-specific lookup |
 | `settime` | `/player timezone` | P6.2 implemented locally: native normalized UTC±HH:MM input, bounded 15-minute autocomplete, explicit clear, and a shared worker-backed prefix adapter retaining self/staff-target grammar; schema gate and beta smoke remain pending |
 | `team` | `/team show` | Strong candidate |
-| `team_add` | `/team create` | P8.5 Tier-3 reviewed, real-schema validated, and integrated with one required name option, the effective mod plus `allow_teams` boundary, a worker-local Team+GameLog transaction, exact-role membership guidance, and private validation/conflict failures; `$team_add` and `$team_add_junior` are intentionally retired because the alias has no distinct junior behavior; beta deployment remains pending |
+| `team_add` | `/team create` | P8.5 Tier-3 reviewed, real-schema validated, integrated, and development-beta deployed with one required name option, the effective mod plus `allow_teams` boundary, a worker-local Team+GameLog transaction, exact-role membership guidance, and private validation/conflict failures; `$team_add` and `$team_add_junior` are intentionally retired because the alias has no distinct junior behavior; wider-beta acceptance remains pending |
 | `team_emoji` | `/team emoji` | Implemented locally in P8.1: view by default; optional emoji/clear edits with the preserved team-enabled and mod boundary; beta not run |
 | `team_image` | `/team image` | Implemented locally in P8.3: public effective-image read, typed attachment replacement, and explicit clear; direct URL replacement remains on the retained prefix path |
 | `team_name` | `/team name` | Implemented locally in P8.2: public read/actor-attributed edit, legacy five-character and unique-name boundary, and an explicit exact-role rename warning |
@@ -696,8 +696,9 @@ merge `37f2a47`. Independent affected validation passed 109 tests and complete
 offline discovery passed 789 tests with 21 intentional gated skips. With the
 guarded beta stopped and the writer audit clear, the unchanged gated suite
 passed 20 real-schema tests with one intentional operator-fixture skip,
-including the Team+GameLog commit/rollback case. The beta remains stopped;
-command synchronization/restart and native acceptance are still pending.
+including the Team+GameLog commit/rollback case. The exact development-guild
+`team` update was subsequently applied, the guarded beta restarted
+successfully, and native acceptance remains open.
 
 This is compatibility ledger C-011: the prefix retirement is intentional and
 requires no native junior replacement. The stopped-writer schema gate and

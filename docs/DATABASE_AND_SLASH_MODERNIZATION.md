@@ -461,9 +461,8 @@ check:
 - P4.2d roadmap evidence: `e1a0959`; accumulation merge: `7c2269b`.
 
 Current unit: **P8.5 native team creation — Tier-3 reviewed, real-schema
-validated, and integrated; development-guild synchronization/restart and beta
-acceptance remain separate downstream operations while P6.2 wider-beta
-feedback continues.**
+validated, integrated, and deployed to the development guild; wider-beta
+acceptance remains open while P6.2 feedback continues.**
 
 The audit is recorded in
 `docs/PLAYER_IDENTITY_AND_PREFERENCES_AUDIT.md`. It made no command, schema,
@@ -5894,8 +5893,8 @@ Limitations and next action:
 
 ### P8.5 — Native-first team creation
 
-Status: **Complete on the accumulation branch; Tier-3 reviewed and
-real-schema validated; beta deployment/acceptance pending**
+Status: **Complete on the accumulation branch; Tier-3 reviewed,
+real-schema validated, and development-beta deployed; acceptance pending**
 
 Branch/base: `codex/p8-5-team-create` from exact clean accumulation checkpoint
 `d406dee5478360a097e381b5aff20e24d9b5fb9b` on
@@ -6006,10 +6005,20 @@ Limitations and next action:
 - The native `team` capability remains subject to the existing default-deny
   explicit guild deployment policy; this code-only unit did not synchronize
   commands or alter capability assignments.
-- Prepare the exact guild-scoped command plan for `/team create`, then obtain
-  separate approval for command apply, durable-beta restart, and a short
-  native create/duplicate/attribute-followup smoke test. The beta is currently
-  stopped and must not be restarted implicitly by integration.
+- Wider-beta staff should now smoke `/team create` success, private duplicate
+  rejection, and the focused attribute guidance. Record acceptance or a
+  bounded correction from that evidence; do not create disposable teams that
+  lack an approved cleanup owner.
+
+Deployment evidence: the remote plan named only development guild
+`478571892832206869` and only the `team` root as an update; `elo`, `game`,
+`leaderboard`, `player`, and `staffhelp` were unchanged, with no creates or
+removals. The exact guild-only apply succeeded. The guarded beta restarted at
+checkpoint `6ea53aa6e8563ff6deeed9e3b86d7bd157aeb8c0`, authenticated as beta
+application `479029527553638401`, and passed the mandatory release-control
+status check. Minor release `2026-08-04-team-create` was posted once as message
+`1534217471635226765` without a testers-role or reporter ping. Wider-beta
+staff smoke remains open.
 
 ## WB1 — Wider beta operations and structured feedback
 
@@ -7327,6 +7336,26 @@ or over-limit cases require an explicit recorded disposition rather than a
 silent mention or omission.
 
 ## Progress log
+
+### 2026-08-04 — P8.5 deployed for wider-beta staff testing
+
+- Reviewed the offline desired-state plan and remote state, then applied only
+  the `team` root update to development guild `478571892832206869`; the other
+  five loaded roots were unchanged and no global/other-guild sync path ran.
+- Restarted the guarded durable beta at clean checkpoint
+  `6ea53aa6e8563ff6deeed9e3b86d7bd157aeb8c0`. Startup verified the clear writer
+  gate and authenticated PolyELO Bot Beta application `479029527553638401`;
+  the mandatory release-control status request succeeded.
+- Posted minor release `2026-08-04-team-create` once to
+  `todo-and-changelog` as message `1534217471635226765`, without pinging the
+  testers role or an unrelated feedback reporter. The checklist asks staff to
+  create only a development team intended for retention, test private
+  duplicate rejection, and verify exact-role/attribute guidance.
+- No production, global sync, dependency, fixture cleanup, push, or sudo
+  action occurred. `/team create` wider-beta acceptance remains pending.
+- Next candidate: scope P8.6 as a bounded `/team show` dense-card/read-worker
+  unit, preserving or explicitly deciding the common `$team` compatibility
+  path before implementation.
 
 ### 2026-08-04 — P8.5 Tier-3 validated and integrated
 
