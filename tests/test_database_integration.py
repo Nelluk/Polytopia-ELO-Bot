@@ -421,6 +421,91 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
             ),
         )
 
+    def test_role_leaderboard_worker_reads_real_schema_without_writes(self):
+        """Read-only P7.13 gate for the next approved stopped-writer window."""
+
+        from modules import role_leaderboard_workers
+
+        guild_id = self.settings.server_ids['test']
+        member_ids = tuple(
+            discord_id
+            for _player_id, discord_id in (
+                self.models.Player
+                .select(
+                    self.models.Player.id,
+                    self.models.DiscordMember.discord_id,
+                )
+                .join(self.models.DiscordMember)
+                .where(self.models.Player.guild_id == guild_id)
+                .order_by(self.models.Player.id)
+                .limit(role_leaderboard_workers.MAX_ROLE_MEMBER_SNAPSHOTS)
+                .tuples()
+            )
+        )
+        if not member_ids:
+            self.skipTest('development guild has no registered player fixture')
+        request = role_leaderboard_workers.RoleLeaderboardRequest(
+            guild_id=guild_id,
+            selected_role_ids=(1,),
+            selected_role_names=('Integration role',),
+            member_snapshots=tuple(
+                role_leaderboard_workers.RoleLeaderboardMemberSnapshot(
+                    discord_id=int(discord_id),
+                    name=f'Integration {discord_id}',
+                    role_ids=(1,),
+                )
+                for discord_id in member_ids
+            ),
+            role_snapshots=(
+                role_leaderboard_workers.RoleLeaderboardRoleSnapshot(
+                    role_id=1,
+                    name='Integration role',
+                ),
+            ),
+            inactive_role_id=None,
+            global_guild_ids=tuple(
+                self.settings.servers_included_in_global_lb()
+            ),
+            recent_cutoff=(
+                datetime.datetime.now()
+                - datetime.timedelta(days=14)
+            ),
+        )
+        before = (
+            self.models.Game.select().count(),
+            self.models.Lineup.select().count(),
+        )
+        result = asyncio.run(
+            role_leaderboard_workers.run_role_leaderboard(request)
+        )
+        self.assertIsInstance(result, role_leaderboard_workers.RoleLeaderboardResult)
+        self.assertIsInstance(result.rows, tuple)
+        page = role_leaderboard_workers.role_leaderboard_page(
+            result,
+            selected_role_ids=(1,),
+            selected_role_names=('Integration role',),
+            match_mode='all',
+            sort_key='global_elo',
+            scope='global',
+        )
+        self.assertEqual(
+            [row.rank for row in page.rows],
+            list(range(1, len(page.rows) + 1)),
+        )
+        for row in page.rows:
+            self.assertIsInstance(row, role_leaderboard_workers.RoleLeaderboardRow)
+            self.assertIsInstance(row.global_elo, int)
+            self.assertIsInstance(row.local_elo, int)
+            self.assertIsInstance(row.global_wins, int)
+            self.assertIsInstance(row.local_wins, int)
+        self.assertEqual(
+            before,
+            (
+                self.models.Game.select().count(),
+                self.models.Lineup.select().count(),
+            ),
+        )
+
     def test_squad_show_worker_reads_real_schema_without_writes(self):
         """Read-only P7.11 exact and requester-discovery regression gate."""
 

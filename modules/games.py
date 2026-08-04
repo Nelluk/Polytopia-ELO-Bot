@@ -12,6 +12,9 @@ from modules import leaderboard_v2
 from modules import team_leaderboard as team_leaderboard_service
 from modules import team_leaderboard_views
 from modules import team_leaderboard_workers
+from modules import role_leaderboard as role_leaderboard_service
+from modules import role_leaderboard_views
+from modules import role_leaderboard_workers
 from modules import player_views
 from modules import player_workers
 from modules import player_registration
@@ -770,6 +773,89 @@ class polygames(commands.Cog):
             logger.exception('Could not publish slash team leaderboard')
             return await interaction.followup.send(
                 'Could not publish the team leaderboard. Please try again.',
+                ephemeral=True,
+            )
+
+    @leaderboard_group.command(
+        name='roles',
+        description='Explore player ELO rankings by Discord role.',
+    )
+    @discord.app_commands.checks.cooldown(
+        2,
+        30.0,
+        key=lambda interaction: interaction.channel_id,
+    )
+    async def role_leaderboard_slash(
+        self,
+        interaction: discord.Interaction,
+    ):
+        """Publish a public, requester-controlled role snapshot."""
+
+        await interaction.response.defer(ephemeral=True)
+        guild = getattr(interaction, 'guild', None)
+        if guild is None:
+            return await interaction.followup.send(
+                'This command can only be used in a server.',
+                ephemeral=True,
+            )
+        access_error = role_leaderboard_service.native_access_error(
+            interaction.user,
+            guild.id,
+            interaction.channel_id,
+        )
+        if access_error is not None:
+            return await interaction.followup.send(
+                access_error,
+                ephemeral=True,
+            )
+
+        try:
+            request = role_leaderboard_service.request_for_native(
+                guild=guild,
+            )
+            result = await role_leaderboard_workers.run_role_leaderboard(
+                request,
+            )
+        except (
+            peewee.PeeweeException,
+            role_leaderboard_workers.RoleLeaderboardValidationError,
+            ValueError,
+        ) as exc:
+            logger.exception('Could not load slash role leaderboard')
+            return await interaction.followup.send(
+                f'Could not load the role leaderboard: {exc}',
+                ephemeral=True,
+            )
+        except Exception:
+            logger.exception('Unexpected slash role leaderboard failure')
+            return await interaction.followup.send(
+                'Could not load the role leaderboard. Please try again.',
+                ephemeral=True,
+            )
+
+        view = role_leaderboard_views.RoleLeaderboardWorkspace(
+            guild_id=guild.id,
+            requester_id=interaction.user.id,
+            result=result,
+            role_snapshots=request.role_snapshots,
+            selected_role_ids=request.selected_role_ids,
+            selected_role_names=request.selected_role_names,
+            match_mode=request.match_mode,
+            sort_key=request.sort_key,
+            scope=request.scope,
+            can_select_roles=(
+                role_leaderboard_service.requester_can_select_roles(
+                    interaction.user,
+                )
+            ),
+            timeout=role_leaderboard_service.ROLE_LEADERBOARD_CONTROL_TIMEOUT,
+        )
+        try:
+            await squad_show_service.publish_native(interaction, view)
+        except Exception:
+            logger.exception('Could not publish slash role leaderboard')
+            return await interaction.followup.send(
+                'Could not publish the role leaderboard. Please try again.',
                 ephemeral=True,
             )
 

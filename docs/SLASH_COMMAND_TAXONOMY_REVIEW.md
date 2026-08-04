@@ -418,7 +418,7 @@ operator repair commands stay out of the public tree.
 | `lbrecent` | `/leaderboard activity` | Native now with explicit server-30-days and global-all-time views |
 | `lbteam`, `teamlb` | `/leaderboard teams` | P7.10 implemented locally: no required slash options; current active all-tier results by default, with one common tier/population control, public requester-controlled pagination/page jump, bounded graph exploration, and the preserved prefix matrix |
 | `lbsquad` | `/leaderboard squads` | Native now with current/all-time eligibility choices |
-| `roleelo` | `/leaderboard roles` | Redesign role filters, sorting, and export |
+| `roleelo`, `roleeloany`, `freeagents` | `/leaderboard roles` | P7.13 implemented locally: no required slash options; the configured Free Agent preset is broadly accessible, while staff and House Leader/Co-Leader requesters receive a requester-bound 1–5-role All/Any Components selector with four sorts, global/local ELO scope, inactive exclusion, paging, and page jump. Retire `$roleelo`/`$roleeloany` without adapters; retain `$freeagents` through the shared bounded read service. CSV/file export is explicitly deferred |
 | `recalc_games_from` | `/elo recalculate` | Native now; owner-only and confirmed |
 | active job status (slash-only) | `/elo status` | Native now; staff-only |
 
@@ -858,8 +858,11 @@ pagination foundation as `/leaderboard players`. The shared **Page X/Y**
 button opens a numeric jump modal, so large results do not require stepping
 through every intermediate page.
 
-`$lbteam` and `$roleelo` remain separate later units because their Discord-role
-dependencies, graph/export behavior, filters, and permissions differ.
+`$lbteam` and the now-implemented P7.13 role workspace remain separate native
+surfaces because their Discord-role dependencies, graph/export behavior,
+filters, and permissions differ. P7.13 uses every ordinary current-guild role
+without a maintained allow-list, rejects `@everyone` and managed/cross-guild
+roles at the interaction boundary, and leaves CSV/file export deferred.
 
 `$lbteamjr` is legacy. It remains prefix-only until a later prefix-retirement
 decision and receives no slash conversion; its documented junior-team
@@ -880,6 +883,43 @@ control changes tier and active/archive population; pagination and page jump
 remain in-message. The removed pre-reset/all-time path stays removed.
 `$lbteamjr` remains an unchanged legacy prefix alias and receives no native
 state or filter.
+
+#### P7.13 Role leaderboard workspace
+
+P7.13 implements the accepted native role-leaderboard taxonomy on isolated
+branch `codex/p7-13-role-leaderboard` from exact base
+`6e38c36e4ca865b952fa5e71a416ccd3fef9609c` (implementation/test commit
+`40fbcf2`). The canonical invocation is exactly `/leaderboard roles` with no
+required options. Its initial state is the configured Free Agent preset, so
+ordinary users retain the broadly accessible convenience flow; staff and
+configured House Leader/House Co-Leader requesters additionally receive a
+requester-bound native RoleSelect for one to five roles and an All/Any matcher.
+
+The workspace moves exploration into Components rather than creating a slash
+option matrix. It exposes global ELO, local ELO, total games, and recent games
+over the last 14 days as sort choices, plus global/local ELO-and-W/L display
+scope, deterministic descending rows with stable Discord-ID ties, pagination,
+and page jump. Only the selected scope's ELO and W/L appear in a row. The
+configured Inactive role is excluded unless explicitly selected. Successful
+initial and loaded-snapshot refinements are public; unauthorized, expired,
+invalid, permission, and load failures are private.
+
+Role eligibility is intentionally data-driven from the current guild rather
+than a maintained allow-list. At the interaction boundary the selector
+rejects `@everyone`, managed bot/integration roles, cross-guild roles,
+duplicates, and more than five roles; ordinary current-guild roles remain
+eligible. The event loop freezes primitive role/member data before a dedicated
+bounded worker performs batched read-only Peewee aggregates, and all component
+refinements reuse the immutable result without a database requery. The
+existing role-lookup server/channel policy remains in force.
+
+Compatibility is explicit: `$roleelo` and `$roleeloany` are retired without
+adapters, `$freeagents` remains as a broadly accessible shared-service
+convenience command, and CSV/file export is deferred. Other leaderboard roots,
+player/team/squad workspaces, ELO semantics, and stored data are unchanged.
+The gated real-schema read case is present but deferred to the next approved
+stopped-writer window while the durable beta is active; no command sync or
+beta lifecycle action is part of this unit.
 
 ### League and house workflows
 
