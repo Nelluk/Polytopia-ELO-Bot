@@ -470,11 +470,11 @@ an eligible workspace or a prompt “no eligible squads” result. P7.13
 `/leaderboard roles` remains the next proposed feature unit but must not start
 before that smoke result is accepted.
 
-The durable beta is stopped for the single correction validation/restart
-window. Its guild-only command tree already includes the `squad` root; no
-command synchronization is required for this code-only correction. P7.10,
-P8.6, and P7.12 remain open for wider-beta acceptance; no new worker is being
-actively monitored after its handoff.
+The durable beta is running correction checkpoint `4e35114`; it authenticated
+as beta application `479029527553638401`. Its guild-only command tree already
+includes the `squad` root, so no command synchronization was performed for
+this code-only correction. P7.10, P8.6, and P7.12 remain open for wider-beta
+acceptance; no new worker is being actively monitored after its handoff.
 
 P7.10 implementation/test checkpoints: `549bd41` and Tier-2 parity correction
 `b8abcd8`, from exact clean base `026c36cff69d131b43db97acd887debfb8ef499c`.
@@ -7982,8 +7982,11 @@ features are deployed or receive sufficiently broad acceptance.
   after compaction or a visible model correction.
 - Next action: commit this final gate evidence, restart once from the clean
   correction checkpoint, and have the original reporter retry `/squad show`.
-  Only after that result resolves should squad testing return to
-  `/whattotest` or a corrective tester notice be sent.
+  The beta was restarted once at 15:27 EDT from `4e35114`, authenticated as
+  the expected beta application, and passed its local control-path health
+  check without a command sync or announcement. Only after the retry resolves
+  should squad testing return to `/whattotest` or a corrective tester notice
+  be sent.
 
 ### 2026-08-04 — P7.12 reviewed, integrated, and deployed to development beta
 
