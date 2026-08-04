@@ -163,4 +163,3 @@ async def publish_native(interaction, view) -> object:
     message = await sender(view=view)
     view.message = message
     return message
-
