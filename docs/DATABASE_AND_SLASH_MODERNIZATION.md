@@ -460,9 +460,8 @@ check:
   `f0429536d7ed899eb356794bcd3558baa9be3d45`.
 - P4.2d roadmap evidence: `e1a0959`; accumulation merge: `7c2269b`.
 
-Current unit: **P8.5 native team creation — Tier-3 reviewed, real-schema
-validated, integrated, and deployed to the development guild; wider-beta
-acceptance remains open while P6.2 feedback continues.**
+Current unit: **P8.6 native team show and asynchronous dense-card rendering —
+selected as a Tier-2 unit while P8.5 and P6.2 wider-beta feedback continues.**
 
 The audit is recorded in
 `docs/PLAYER_IDENTITY_AND_PREFERENCES_AUDIT.md`. It made no command, schema,
@@ -6020,6 +6019,66 @@ status check. Minor release `2026-08-04-team-create` was posted once as message
 `1534217471635226765` without a testers-role or reporter ping. Wider-beta
 staff smoke remains open.
 
+### P8.6 — Native team show and asynchronous dense-card rendering
+
+Status: **Selected; implementation pending in an isolated Luna worktree**
+
+Risk tier: **Tier 2**. This is a public read/presentation unit with bounded
+worker and requester-bound component behavior. It performs no database or
+Discord mutation, but it replaces an event-loop-blocking legacy query/plot
+path used by a common team lookup.
+
+Accepted interface and compatibility decisions:
+
+- add public `/team show team:[optional]` under the existing default-deny
+  `team` capability and `allow_teams` scope;
+- retain `$team TEAM` through the production transition because team lookup
+  is a common day-to-day command;
+- retain `$team TEAM completed` and deep-link it to the completed-games roster
+  metric rather than preserving a second query/render implementation;
+- infer an omitted native team only when the requester has exactly one
+  unambiguous persisted team; otherwise return a private selection prompt;
+- preserve the complete, information-dense production team card and ELO graph
+  as the initial output; do not replace it with a lower-density Components
+  workspace;
+- add only one requester-bound activity control to switch roster activity
+  between recent games in 30 days and all completed games; do not add mutation
+  or team-attribute edit buttons in this unit.
+
+Implementation boundary:
+
+- capture Discord guild/role/member information into immutable primitive
+  snapshots on the event-loop thread; no Discord objects cross the worker
+  boundary;
+- resolve the guild-scoped Team and load its ratings, record, roster/player
+  metrics, leadership inputs, recent-game summaries, House/tier/attribute
+  information, and ELO history on a worker-local Peewee connection;
+- avoid per-member event-loop queries and use bounded/batched worker reads
+  where the current implementation loops synchronously;
+- render Matplotlib output off the event loop into immutable in-memory bytes
+  or a uniquely owned temporary artifact; remove the shared repository-level
+  `graph.png` race;
+- return frozen primitive DTOs and build the established dense embed/file
+  presentation only after the worker finishes;
+- preserve the exact-role membership convention, inactive-member exclusion,
+  leadership fields, team image, recent games, and clear missing-role warning;
+- make the public activity control requester-bound, reset/replace the same
+  card deterministically, handle expiry safely, and reuse the loaded immutable
+  snapshot when possible rather than repeating database work for presentation
+  alone.
+
+Required offline evidence includes exact slash shape/autocomplete, omitted-team
+inference and ambiguity, retained prefix grammar/deep-link, guild/role/member
+primitive snapshots, worker-local connection, event-loop responsiveness,
+batched roster queries, current/completed roster sorting, dense-card parity,
+leadership/House/image/recent-game and missing-role cases, graph bytes without
+shared files, requester-only controls, expiry, public output/private failures,
+capability isolation, compilation, diff checks, and complete offline discovery.
+Add a rollback/read-isolated gated real-schema case for a known Team but defer
+its run under the normal validation cadence while the durable beta remains
+active. Do not inspect, stop, restart, synchronize, or otherwise disturb the
+running beta during implementation/review.
+
 ## WB1 — Wider beta operations and structured feedback
 
 Status: **In progress; WB1.1 and WB1.2 integrated; WB1.3 planned**
@@ -7336,6 +7395,23 @@ or over-limit cases require an explicit recorded disposition rather than a
 silent mention or omission.
 
 ## Progress log
+
+### 2026-08-04 — P8.6 team-show decisions accepted and selected
+
+- Accepted retention of `$team` and its `completed` deep-link because this is
+  a common lookup, while selecting public `/team show team:[optional]` with
+  unambiguous requester-team inference.
+- Required the complete dense production card and ELO graph as the default;
+  Components are limited to one useful recent/completed roster-activity
+  control, with no speculative mutation/edit buttons.
+- Selected a bounded worker-local read and off-loop in-memory graph pipeline
+  to remove synchronous Peewee/member loops, Matplotlib blocking, and the
+  shared `graph.png` race without changing stored data.
+- Classified the unit as Tier 2. Implementation, tests, and evidence will be
+  isolated from the running durable beta and will defer real-schema execution
+  to the next approved validation window.
+- Next action: dispatch P8.6 from this exact documentation checkpoint and wait
+  for its explicit completion/blocker handoff without active Sol monitoring.
 
 ### 2026-08-04 — P8.5 deployed for wider-beta staff testing
 
