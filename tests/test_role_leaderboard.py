@@ -650,6 +650,34 @@ class RoleWorkspaceTests(unittest.IsolatedAsyncioTestCase):
         await modal.on_submit(submit)
         submit.response.edit_message.assert_awaited_once_with(view=view)
 
+    def test_serialized_layout_action_rows_match_discord_contract(self):
+        """Every emitted Action Row is one select or buttons-only."""
+
+        def action_rows(components):
+            for component in components:
+                if component.get('type') == 1:
+                    yield component
+                yield from action_rows(component.get('components', ()))
+
+        for can_select_roles in (False, True):
+            with self.subTest(can_select_roles=can_select_roles):
+                serialized = self.make_view(
+                    can_select_roles=can_select_roles,
+                ).to_components()
+                rows = tuple(action_rows(serialized))
+                self.assertTrue(rows)
+                for action_row in rows:
+                    children = tuple(action_row.get('components', ()))
+                    self.assertTrue(children)
+                    child_types = tuple(
+                        child.get('type') for child in children
+                    )
+                    if any(child_type != 2 for child_type in child_types):
+                        self.assertEqual(len(children), 1)
+                        self.assertIn(child_types[0], {3, 5, 6, 7, 8})
+                    else:
+                        self.assertTrue(all(child_type == 2 for child_type in child_types))
+
 
 class RegistrationAndCompatibilityTests(unittest.IsolatedAsyncioTestCase):
     def test_registration_shape_and_prefix_retirement(self):

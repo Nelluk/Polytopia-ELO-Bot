@@ -391,7 +391,7 @@ class RoleLeaderboardWorkspace(components_v2.RequesterLayoutView):
             discord.ui.TextDisplay(footer),
             discord.ui.TextDisplay('**Common filters**'),
             discord.ui.ActionRow(self.sort_select),
-            discord.ui.ActionRow(self.scope_select, free_agents),
+            discord.ui.ActionRow(self.scope_select),
         ]
         if self.can_select_roles:
             self.match_select = discord.ui.Select(
@@ -421,6 +421,6 @@ class RoleLeaderboardWorkspace(components_v2.RequesterLayoutView):
                 discord.ui.ActionRow(self.role_select),
             ))
         children.append(
-            discord.ui.ActionRow(previous, jump, next_page)
+            discord.ui.ActionRow(free_agents, previous, jump, next_page)
         )
         self.add_item(discord.ui.Container(*children))
