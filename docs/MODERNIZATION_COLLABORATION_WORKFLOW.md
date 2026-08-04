@@ -64,6 +64,19 @@ If this gate fails after work begins, interrupt the task and inspect its Git
 state. Uncommitted interrupted work is non-authoritative and should normally
 be discarded rather than incorporated without a fresh compliant review.
 
+### Planning-task model and context continuity
+
+The primary planning/integration task remains the designated Sol oversight
+task. If the app visibly changes it to Luna or another unapproved model or
+effort, stop integration, deployment, and worker-dispatch actions until
+Nelluk restores the intended setting.
+
+After context compaction or a visible model correction, reread `AGENTS.md`,
+this workflow, and the current-unit, decision, and progress sections of
+`DATABASE_AND_SLASH_MODERNIZATION.md`; then verify the primary branch and
+working tree before acting. Chat promises are not process authority. These
+tracked files and their tests are the durable authority.
+
 ## Handoff-driven worker supervision
 
 Sol verifies a worker once at dispatch: the visible Luna/Max setting, exact
@@ -238,6 +251,12 @@ This section belongs in the Sol/operator handoff, not automatically in the
 public Discord release announcement. Public announcements retain the bounded
 release summary and prominently labelled **WHAT TO TEST** checklist defined by
 the beta-operations runbook.
+
+For a tester-pinged release, Sol must verify that every announced workflow has
+usable development data and permissions. Successful announcement delivery is
+the terminal deployment action: no planned command sync, database operation,
+or service restart follows it. Later documentation-only evidence is committed
+without restarting an unchanged bot.
 
 ## Risk-tiered review
 

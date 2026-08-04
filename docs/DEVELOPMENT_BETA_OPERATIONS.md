@@ -190,22 +190,41 @@ the deployment is not handed off until the announcement is posted or a clear
 delivery blocker is reported. Set `ping_testers` according to that reviewed
 disposition; minor background updates normally omit the ping.
 
+For a tester-pinged release, every command or interaction named in **WHAT TO
+TEST** must be usable against the current development state. Confirm the
+required roles, channels, permissions, and database fixtures before preparing
+the release. If a required fixture is absent, seed an owned development
+fixture through its guarded harness, choose another immediately testable
+workflow, or omit the tester ping and record the blocker.
+
 Use this checkpoint-safe order:
 
 1. integrate reviewed code and commit tracked roadmap/schema evidence;
-2. require a clean checkout and record its exact full checkpoint;
-3. stop the beta for any required command sync or database writer gate;
-4. apply only the separately approved guild/schema operations;
-5. start the durable beta at that exact checkpoint and verify identity;
-6. prepare the ignored release manifest against the same clean checkpoint;
-7. validate and deliver it through the running beta; and
-8. fold runtime acceptance evidence into the next appropriate tracked
-   documentation checkpoint.
+2. confirm the announced workflows have usable development data and
+   permissions;
+3. require a clean checkout and record its exact full checkpoint;
+4. stop the beta for any required command sync or database writer gate;
+5. apply only the separately approved guild/schema operations;
+6. start the durable beta at that exact checkpoint and verify identity;
+7. prepare the ignored release manifest against the same clean checkpoint;
+8. validate and deliver it through the running beta as the terminal deployment
+   action; and
+9. fold runtime acceptance evidence into the next appropriate tracked
+   documentation checkpoint without restarting the service.
 
 Do not change tracked HEAD between manifest preparation and delivery. The
 ignored prepared manifest and release state are the immediate operational
 record. If a tracked correction is necessary before delivery, prepare a new
 manifest only after the corrected clean checkpoint is running.
+
+Successful announcement delivery is the terminal action for a planned beta
+deployment. After delivery, do not perform a planned command apply/sync,
+database operation, service stop/restart, or another release operation in the
+same deployment sequence. Documentation-only evidence may be committed
+afterward, but it does not justify restarting an unchanged bot. If an
+emergency restart is required, report the interruption explicitly and decide
+whether a corrective announcement is needed before treating the release as
+handed off.
 
 ### Required post-push operator handoff
 

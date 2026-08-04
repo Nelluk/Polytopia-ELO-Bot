@@ -30,15 +30,10 @@ This is the running wider-beta checklist—not just the newest release. Please u
 
 ## Squads
 
-- `/squad show` with an exact squad ID and with no ID (requester discovery)
-- Member-select searches for one, two, and three members; result paging and
-  opening a loaded squad card without a second read
-- Dense squad card: name, members/team emoji, ELO, W-L, rank, and recent games
-- `/squad name` public read, member/staff edit, explicit clear, normalization,
-  and the **Edit name** modal from `/squad show`
-- Verify successful name changes identify who made them, while unauthorized,
-  stale, expired, and invalid interactions remain private
-- Check squad cards and controls on desktop and mobile
+- **Temporarily blocked:** requester/member discovery in `/squad show` has a
+  known long-running query regression on the current development data. Do not
+  spend time testing `/squad show` or `/squad name` until a correction is
+  announced.
 
 ## Maintenance and feedback
 

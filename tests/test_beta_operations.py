@@ -305,6 +305,22 @@ class BetaRuntimeGuardTests(unittest.TestCase):
         self.assertNotIn('pkill', service)
         self.assertNotIn('killall', service)
 
+    def test_release_process_makes_testability_and_terminal_action_durable(self):
+        root = Path(__file__).resolve().parents[1]
+        runbook = (root / 'docs/DEVELOPMENT_BETA_OPERATIONS.md').read_text()
+        workflow = (
+            root / 'docs/MODERNIZATION_COLLABORATION_WORKFLOW.md'
+        ).read_text()
+        checklist = (root / 'docs/BETA_WHAT_TO_TEST.md').read_text()
+
+        self.assertIn('must be usable against the current development state', runbook)
+        self.assertIn('terminal deployment\n   action', runbook)
+        self.assertIn('does not justify restarting an unchanged bot', runbook)
+        self.assertIn('Chat promises are not process authority', workflow)
+        self.assertIn('Successful announcement delivery is', workflow)
+        self.assertIn('**Temporarily blocked:**', checklist)
+        self.assertIn('long-running query regression', checklist)
+
 
 class ReleaseManifestTests(unittest.TestCase):
     def setUp(self):
