@@ -362,8 +362,8 @@ would become unavailable if a prefix is retired.
 | C-009 `/player register` / `$setname` / `$steamname` / `$setcode` / `$getnames` aliases | Native `/player register member:[optional]` uses one account-wide canonical-name modal; `$setname` delegates to the same bounded worker, and the useful name-list aliases remain available for game setup. | Legacy recommendation: **retain** `$setname` through the production canary. `$steamname` and `$setcode` remain registered as non-writing deprecation adapters; `$code`/`$getcode` warn and return the transitional canonical read. Existing `name_steam` and `polytopia_id` values are preserved and are never cleared or backfilled by P6.1. If message content is later retired, the native registration path covers the ordinary workflow while the compact compatibility reads remain a deliberate seam. | Revisit retirement after usage evidence and an explicit compatibility decision; do not delete or migrate stored legacy values in this unit. | Tier-3 reviewed and integrated; beta sync/smoke pending |
 | C-010 `/player timezone` / `$settime` | Native `/player timezone member:[optional] offset:[optional] clear:[optional]` covers effective reads, normalized fixed-offset writes, explicit clear, and staff-targeting. `$settime` delegates to the same bounded worker and retains compatible self/staff-target grammar, including compact UTC/GMT forms. | Legacy recommendation: **retain** `$settime` initially because timezone preference is a day-to-day workflow and the prefix path remains useful while native commands are not synchronized. Native input deliberately requires normalized `UTC±HH:MM`; the shared service corrects legacy half/quarter-hour storage through minutes and never writes the old whole-hour field. | Revisit prefix retirement only after beta usage evidence and a separately approved command/message-intent lifecycle decision; do not remove the legacy column or clear legacy values in this unit. | Implemented locally; Tier-3 review, schema gate, and beta sync/smoke pending |
 | C-011 `/team create` / `$team_add` / `$team_add_junior` | Native `/team create name:<required>` creates one visible guild-scoped Team plus an actual-guild actor-attributed GameLog in one worker transaction. It validates a trimmed 1–100-character exact-role-compatible name, reports duplicate/racing inserts privately, and directs staff to the focused team-attribute commands. It intentionally creates no Discord role or other team attributes. | Legacy recommendation: **retire** — explicit approval removes both prefix registrations. `$team_add_junior` had no distinct junior behavior, so native creation has no `junior` option. The former one-line message-command workflow is unavailable, but ordinary staff team creation and follow-up configuration are covered natively; the existing exact Discord-role membership convention is explained publicly after commit. | Revisit only through a separately approved prefix lifecycle decision; do not restore a compatibility adapter or add junior behavior without a distinct product and data contract. | Intentional P8.5 prefix retirement; Tier-3 reviewed, real-schema validated, and integrated; beta sync/smoke pending |
-| C-012 `/squad show` / `$squad` / `$squads` | Native `/squad show squad_id:[optional]` opens an exact card or defaults to squads containing the requester; a requester-only Discord member selector performs one-to-three-member discovery, and multi-match results are paged/selectable. | Legacy recommendation: **retire** — explicit user approval removes `$squad` and `$squads` because the lookup is rarely used. The native workspace replaces ambiguous free-text member lookup with typed guild members while preserving useful ID/member search, record/rank, and recent-game information. `$squadname` remains a separate mutation until `/squad name`. | Revisit only through an explicit prefix lifecycle decision or demonstrated native discovery gap; do not restore a redundant prefix adapter. | Intentional P7.11 prefix retirement; Tier-2 reviewed and integrated; schema gate, deployment, and beta acceptance deferred |
-| C-013 `/squad name` / `$squadname` | Native `/squad name squad_id name:[optional] clear:[optional]` reads publicly by default and performs member-or-staff edits/clears through one transactional service. Authorized `/squad show` requesters also receive an Edit Name modal backed by the same service and post-commit card refresh. | Legacy recommendation: **retire** — explicitly approved. The hidden, low-use `$squadname` workflow is completely covered by the typed command and contextual modal; no prefix adapter remains on the beta or intended production surface. | Revisit only through an explicit prefix-lifecycle decision or a demonstrated native access gap; do not restore a separate mutation implementation. | P7.12 selected; implementation pending |
+| C-012 `/squad show` / `$squad` / `$squads` | Native `/squad show squad_id:[optional]` opens an exact card or defaults to squads containing the requester; a requester-only Discord member selector performs one-to-three-member discovery, and multi-match results are paged/selectable. | Legacy recommendation: **retire** — explicit user approval removes `$squad` and `$squads` because the lookup is rarely used. The native workspace replaces ambiguous free-text member lookup with typed guild members while preserving useful ID/member search, record/rank, and recent-game information. P7.11 retained `$squadname` only as a separate mutation until the approved P7.12 `/squad name` unit. | Revisit only through an explicit prefix lifecycle decision or demonstrated native discovery gap; do not restore a redundant prefix adapter. | Intentional P7.11 prefix retirement; Tier-2 reviewed and integrated; schema gate, deployment, and beta acceptance deferred |
+| C-013 `/squad name` / `$squadname` | Native `/squad name squad_id name:[optional] clear:[optional]` reads publicly by default and performs member-or-staff edits/clears through one transactional service. Authorized `/squad show` requesters also receive an Edit Name modal backed by the same service and post-commit card refresh. | Legacy recommendation: **retire** — explicitly approved. The hidden, low-use `$squadname` workflow is completely covered by the typed command and contextual modal; no prefix adapter remains on the beta or intended production surface. | Revisit only through an explicit prefix-lifecycle decision or a demonstrated native access gap; do not restore a separate mutation implementation. | P7.12 implemented locally in `f04d017`; Tier-3 review, schema gate, capability assignment, deployment, and beta acceptance deferred |
 
 Every later slash conversion must add a row when parity is intentionally
 reduced. If there is no compromise, its unit evidence should explicitly say
@@ -5516,9 +5516,8 @@ Compatibility decision:
 
 - Remove the `$squad` prefix registration and `$squads` alias in this unit.
   The user explicitly approved retirement because this lookup is rarely used.
-- Do not remove `$squadname`; it is a separate write path pending `/squad
-  name`. Update its stale lookup guidance to `/squad show` and/or
-  `/leaderboard squads` without changing its mutation semantics.
+- P7.11 intentionally retained `$squadname` as a separate write path; P7.12
+  now replaces and retires it through `/squad name` without an adapter.
 - Add C-012 to the compatibility ledger. No slash alias such as `/squads` is
   added.
 
@@ -5568,9 +5567,9 @@ Implementation evidence (local only):
   selection and paging, bounded one-call member reloads, truncation labeling,
   private deferred failures, and public successful workspaces. Component
   serialization stays within Discord select/action-row limits.
-- `$squad` and `$squads` registrations are removed without an adapter;
-  `$squadname` remains registered with `/squad show`/`$lbsquad` guidance, and
-  `$lbsquad`/`$squadlb` remain unchanged.
+- `$squad` and `$squads` registrations were removed without an adapter;
+  `$squadname` was retained for the P7.11 checkpoint and is now retired by
+  P7.12 without an adapter. `$lbsquad`/`$squadlb` remain unchanged.
 - Focused squad-show tests passed 18 tests; the affected focused suites
   passed 55 tests; complete offline unittest discovery passed 854 tests with
   24 intentional gated skips. `compileall` and `git diff --check` passed.
@@ -5598,7 +5597,8 @@ Review and integration evidence:
 Required evidence:
 
 - slash registration and exact optional-integer shape; no `$squad`/`$squads`
-  registration; `$squadname` retained with corrected guidance;
+  registration; `$squadname` was retained at the P7.11 checkpoint and later
+  retired by P7.12;
 - direct ID, no-option requester default, one/two/three-member typed search,
   duplicate/invalid member handling, no/multiple/exact result flows, wrong
   guild, unregistered member, and eligibility/ordering parity;
@@ -5626,11 +5626,15 @@ later reviewed actions.
 
 ### P7.12 — Squad identity read/edit workspace
 
-Status: **Selected; implementation pending**
+Status: **Implemented locally; Tier-3 review pending**
 
 Risk tier: **Tier 3**. The stored mutation is small, but it changes a
 guild-scoped squad identity and audit record and adds a contextual mutation
 control to a public Components workspace.
+
+Branch/base: `codex/p7-12-squad-identity`, based on exact clean base
+`ec347cad25f8bcaa059ee6c1d54e7744b63ef8f8`; implementation/test checkpoint
+`f04d017`.
 
 Objective: complete the native squad surface with a focused name read/edit/
 clear command and an authorized Edit Name modal on `/squad show`, backed by
@@ -5698,6 +5702,34 @@ merge, or sudo.
 Exit: separate implementation/test and roadmap-evidence commits plus an
 explicit completion/blocker handoff to the originating Sol task. Tier-3
 review, integration, deployment, and beta acceptance remain later actions.
+
+Implementation evidence (local only):
+
+- `modules/squad_identity_workers.py` owns a bounded one-worker ordinary
+  write executor, worker-local connection, guild/membership/role-snapshot
+  revalidation, explicit whitespace/control validation, the effective
+  50-character ceiling, and one synchronous name-plus-`GameLog` atomic
+  boundary. `modules/squad_identity.py` is the shared service used by both
+  direct `/squad name` mutation and the contextual modal.
+- `modules/squad_show_workers.py` adds only frozen requester edit eligibility;
+  `modules/squad_show_views.py` and `modules/squad_identity_views.py` render
+  the requester-only, expiring Edit name modal. Modal success reloads the
+  dense card through the existing bounded squad-show worker and reports a
+  committed-but-needs-reconciliation warning if that refresh fails.
+- `modules/games.py` registers the exact `/squad name` shape and removes
+  `$squadname` completely. `/leaderboard squads` and the P7.11 squad-show
+  eligibility, ordering, paging, record/rank, recent-game, channel, and
+  `allow_teams` behavior remain unchanged.
+- Focused `tests.test_squad_identity` passed 20 tests; the affected
+  `tests.test_squad_show` and `tests.test_slash_taxonomy` suites passed 18 and
+  8 tests; complete offline discovery passed 875 tests with 25 intentional
+  gated skips. `compileall` and `git diff --check` passed.
+- The real-schema commit/rollback test is present behind the unchanged
+  `POLYBOT_ENV=development`, `polytopia_dev`, `polybot_dev` integration gate
+  and was not run while the durable beta is active. No capability assignment,
+  command synchronization, beta action, production action, dependency
+  install, database access, fixture access, or `docs/BETA_WHAT_TO_TEST.md`
+  edit occurred.
 
 ## P8.0 — Guild application-command capability policy and explicit deployment tooling
 
@@ -7895,6 +7927,33 @@ database-free, split safely below Discord message limits, and updated as
 features are deployed or receive sufficiently broad acceptance.
 
 ## Progress log
+
+### 2026-08-04 — P7.12 squad identity implemented locally
+
+- Implemented exact `/squad name squad_id name:[optional] clear:[optional]`
+  public reads and member-or-staff edits/clears on isolated branch
+  `codex/p7-12-squad-identity`, based on
+  `ec347cad25f8bcaa059ee6c1d54e7744b63ef8f8`; code/test commit is `f04d017`.
+- Added the shared frozen-DTO identity service and bounded worker-local
+  name-plus-audit transaction, including guild/membership/staff revalidation,
+  rollback coverage, explicit normalization/clear semantics, actor
+  attribution, and cancellation/concurrency responsiveness evidence.
+- Added captured member/staff Edit name visibility to `/squad show`; modal and
+  direct slash mutation use the same service, and modal commits refresh the
+  dense card through the bounded squad-show path with committed-warning
+  reconciliation when refresh fails.
+- Retired `$squadname` completely without an adapter and recorded C-013. The
+  existing squad-show and squad-leaderboard eligibility, ordering, paging,
+  record/rank, recent-game, channel, and `allow_teams` behavior remains
+  unchanged.
+- Focused identity/show/taxonomy suites passed 20/18/8 tests; complete
+  offline discovery passed 875 tests with 25 intentional gated skips;
+  compileall and diff checks passed. The gated real-schema commit/rollback
+  test was added but not run while the durable beta is active. Capability
+  assignment, command sync, beta, production, database/fixture access, and
+  `docs/BETA_WHAT_TO_TEST.md` changes remain deferred.
+- Next action: Tier-3 review and later accumulation integration in a separate
+  reviewed step; no active beta monitoring is expected from this unit.
 
 ### 2026-08-04 — P7.12 squad identity unit selected
 
