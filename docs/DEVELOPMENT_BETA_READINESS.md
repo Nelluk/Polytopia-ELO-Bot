@@ -53,7 +53,11 @@ staffhelp details. Member-specific permission overwrites retain only their
 permission shape and not the member identity. A missing/wrong bot, guild,
 fixed channel, duplicate/missing tester role, pinned-ID mismatch, oversized
 response, or unsafe socket fails closed. The request and response are both
-bounded; the operation has no Discord mutation method.
+bounded; the operation has no Discord mutation method. The inventory payload
+and saved snapshot are limited to 256 KiB. The successful socket response is
+limited to 257 KiB, leaving a strict 1 KiB envelope for the control response;
+the client uses that same response limit. The documented `--json` output does
+not add a trailing byte, so an exact-bound payload remains loadable.
 
 The inventory is cache-based. A missing cached fixed channel is a refusal, not
 a reason to perform an unbounded fetch. A role member count or permission bit
@@ -90,11 +94,16 @@ owned fixture summaries. It recognizes the existing marked game fixtures
 showcase (24 players and 48 games, currently IDs `200`–`247` when unchanged).
 It does not return arbitrary game notes, member lists, report text, tokens, or
 fixture write authority. Profile, live database, connection, and query-shape
-failures refuse the operation.
+failures refuse the operation. Team and house counts are exact, so their
+truncation flags mean `count > limit`; fixture queries fetch one extra row,
+return at most the fixed limit, and set `truncated` only when that extra row
+is observed.
 
-No gated real-database query was run for WB1.3a. If one is later needed, it
-must use the existing explicit development-database gate and must not seed,
-clean, recalculate, or change schema/data.
+A focused gated real-database inventory test passed after an independent
+preflight confirmed `POLYBOT_ENV=development`, `polytopia_dev`, and
+`polybot_dev`. It performed only the inventory's read-only transaction and
+representative shape assertions; no fixture, schema, recalculation, or other
+database mutation was run.
 
 ## Desired-state manifest and offline planning
 
@@ -137,7 +146,8 @@ and removals, channel/role mismatches, proposed team/house and role-binding
 differences, fixture retention differences, and cleanup/rollback/smoke plans.
 It always reports `ready_for_live_apply: false`; it has no apply or remote
 mutation path. Input files must be repository-backed relative JSON files with
-no traversal or symlink path components and within the fixed size bound.
+no traversal or symlink path components. Manifest files are limited to 128 KiB;
+inventory snapshots are limited to 256 KiB.
 
 The template intentionally leaves policy choices unresolved. A valid plan is
 not approval to choose names, add `tools_support`, create database records,
@@ -214,11 +224,14 @@ it is not itself a live readiness approval.
 
 ## Validation boundary
 
-WB1.3a validation is offline. Focused readiness tests cover deterministic and
+Readiness planning and transport validation are offline. Focused readiness
+tests cover deterministic and
 bounded DTOs, privacy redaction, identity/channel/role refusal, protected
 socket dispatch, request/response bounds, database identity and connection
 lifecycle, manifest schema/path safety, deterministic diffs, capability
 changes, and the absence of apply behavior. The full offline suite remains
-the authoritative regression check. No Discord smoke, tester invitation,
-command synchronization, fixture mutation, production action, dependency
-installation, push, or merge is implied by this document.
+the authoritative regression check. The separately gated real-database
+inventory test also passed under the exact development identity gate. No
+Discord smoke, tester invitation, command synchronization, fixture mutation,
+production action, dependency installation, push, or merge is implied by this
+document.

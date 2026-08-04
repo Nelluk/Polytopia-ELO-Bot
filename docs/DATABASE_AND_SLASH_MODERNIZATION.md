@@ -459,13 +459,15 @@ check:
 Current unit: **WB1.3a read-only wider-beta readiness inventory and desired-state
 planning — implemented locally; Tier-3 oversight review pending.**
 
-WB1.3a implementation/tests checkpoint: `200310c` on branch
+WB1.3a implementation/tests correction checkpoint: `b19a71c` on branch
 `codex/wb1-3a-beta-readiness-inventory`, based on the exact clean
 `codex/database-slash-modernization` checkpoint
 `10f57eac38a4845d8b776880a3e7fdf3ad2953d7`. Its separate documentation and
-roadmap checkpoint is pending. No live Discord inventory, database inventory,
-service lifecycle action, command synchronization, invitation, fixture
-mutation, production action, dependency installation, push, or merge occurred.
+roadmap checkpoint is pending. No live Discord inventory, service lifecycle
+action, command synchronization, invitation, fixture mutation, production
+action, dependency installation, push, or merge occurred. A separately gated
+read-only database inventory test was run against `polytopia_dev` as
+`polybot_dev` after independent profile confirmation.
 
 WB1.1 was integrated into `codex/database-slash-modernization` as merge
 `1c8ffe0`. Its implementation branch was
@@ -5555,17 +5557,25 @@ Delivered:
 - `docs/DEVELOPMENT_BETA_READINESS.md` defines the exact later inventory and
   review procedure. The tracked template is unignored explicitly; generated
   snapshots remain local review artifacts.
+- Inventory bounds are coherent end-to-end: a 256 KiB payload, a 257 KiB
+  socket success response including its fixed envelope, and the explicit
+  256 KiB snapshot loader bound. JSON CLI output does not add a trailing byte.
+- Team/house truncation uses exact counts (`count > limit`); marker fixture
+  queries fetch `limit + 1`, slice to the fixed bound, and report overflow only
+  when the extra row is observed.
 
 Validation evidence:
 
 - Focused `tests.test_beta_operations` plus `tests.test_beta_readiness`:
-  **42 passed**.
-- Complete offline discovery: **682 passed**, with **17 intentional gated
+  **44 passed**.
+- Complete offline discovery: **685 passed**, with **18 intentional gated
   database-integration skips**. The launcher test also verifies the mandated
   shared interpreter `/home/nelluk/PolyBot39-dev/.venv/bin/python` from an
   app-managed worktree.
-- Compilation and `git diff --check`: passed. No live beta/Discord smoke or
-  gated real-database inventory was run.
+- Focused gated real-database inventory test: **1 passed** after independent
+  confirmation of `POLYBOT_ENV=development`, `polytopia_dev`, and
+  `polybot_dev`; it performed no writes. Compilation and `git diff --check`:
+  passed. No live beta/Discord smoke was run.
 
 Privacy and safety boundaries:
 
@@ -5584,7 +5594,8 @@ Known limitations and next action:
   than fetching unbounded state. Counts/permission values can be unavailable
   when the authenticated cache cannot safely provide them.
 - The database inventory assumes the current reviewed schema and reports only
-  bounded rows; a `truncated` result requires review rather than inference.
+  bounded rows; truthful overflow flags still require review rather than
+  inference.
 - The current local template intentionally contains unresolved decisions for
   `tools_support`, team/house names and bindings, cleanup/rollback ownership,
   and invitation approval.
@@ -6398,12 +6409,33 @@ writer and prevents a planning snapshot from becoming an implicit rollout.
 
 ## Progress log
 
+### 2026-08-03 — WB1.3a readiness correction
+
+- Tier-3 review correction checkpoint: `b19a71c`, with implementation/tests
+  kept separate from this documentation checkpoint.
+- Added the focused gated test
+  `DevelopmentDatabaseIntegrationTests.test_readiness_inventory_reads_real_development_database_without_writes`.
+  The independent preflight confirmed `POLYBOT_ENV=development`,
+  `polytopia_dev`, and `polybot_dev`; the gated test passed once and performed
+  only the read-only inventory transaction.
+- Corrected team/house exact-bound flags and fixture `limit + 1` overflow
+  detection, with offline exact-bound and overflow coverage.
+- Raised the protected socket success response to the 256 KiB inventory bound
+  plus a strict 1 KiB envelope, set the asyncio client read limit explicitly,
+  and made manifest/snapshot loader limits explicit. The JSON CLI output is
+  byte-coherent with the saved snapshot limit.
+- Focused validation passed **44 tests**; complete offline discovery passed
+  **685 tests with 18 intentional gated database skips**. No Discord smoke,
+  service lifecycle action, fixture mutation, command synchronization,
+  invitation, production action, push, or merge occurred.
+
 ### 2026-08-03 — WB1.3a readiness inventory and desired-state planning
 
 - Implemented WB1.3a on
   `codex/wb1-3a-beta-readiness-inventory` from exact clean base
-  `10f57eac38a4845d8b776880a3e7fdf3ad2953d7`; implementation/tests checkpoint
-  `200310c`. The documentation/roadmap checkpoint is intentionally separate.
+  `10f57eac38a4845d8b776880a3e7fdf3ad2953d7`; initial implementation/tests
+  checkpoint `200310c`, corrected by `b19a71c`. The documentation/roadmap
+  checkpoint is intentionally separate.
 - Added the bounded `readiness-inventory` local beta-control operation and
   `scripts/manage_beta_readiness.py discord-inventory`; it uses the existing
   authenticated beta socket and verifies application `479029527553638401`,
@@ -6412,14 +6444,14 @@ writer and prevents a planning snapshot from becoming an implicit rollout.
 - Added the separate `database-inventory` CLI with exact development-only
   identity gates, live PostgreSQL identity verification, a read-only
   transaction, worker-local connection lifecycle, bounded team/house/role
-  identifiers and owned fixture summaries. No real gated database inventory
-  was run.
+  identifiers and owned fixture summaries. The later correction added the
+  separately gated real-database inventory validation.
 - Added the repository-backed readiness template, strict offline validator,
   deterministic diff planner, path safety checks, and
   `docs/DEVELOPMENT_BETA_READINESS.md`. Unresolved choices remain explicit;
   no team/house names or `tools_support` assignment was selected.
-- Focused validation passed **42 tests**; complete offline discovery passed
-  **682 tests with 17 intentional gated database skips**. Compilation and
+- Focused validation passed **44 tests**; complete offline discovery passed
+  **685 tests with 18 intentional gated database skips**. Compilation and
   `git diff --check` passed. No live beta/Discord smoke, service lifecycle,
   command sync, fixture mutation, invitation, production, sudo, dependency,
   push, or merge action occurred.
