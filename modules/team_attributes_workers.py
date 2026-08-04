@@ -15,10 +15,12 @@ logger = logging.getLogger('polybot.' + __name__)
 TEAM_ATTRIBUTE_NAME = 'name'
 TEAM_ATTRIBUTE_SERVER = 'server'
 TEAM_ATTRIBUTE_TIER = 'tier'
+TEAM_ATTRIBUTE_HOUSE = 'house'
 TEAM_ATTRIBUTES = frozenset({
     TEAM_ATTRIBUTE_NAME,
     TEAM_ATTRIBUTE_SERVER,
     TEAM_ATTRIBUTE_TIER,
+    TEAM_ATTRIBUTE_HOUSE,
 })
 
 
@@ -76,6 +78,7 @@ class TeamAttributeMutationRequest:
     name: str | None = None
     server_id: int | None = None
     tier: str | None = None
+    house: str | None = None
     clear: bool = False
     requester_description: str = ''
     include_hidden: bool = True
@@ -145,15 +148,36 @@ def _validate_attribute(attribute: str) -> str:
 
 def _validate_access(request) -> str:
     attribute = _validate_attribute(request.attribute)
-    if attribute != TEAM_ATTRIBUTE_TIER and not bool(request.team_enabled):
+    if (
+        attribute != TEAM_ATTRIBUTE_TIER
+        and not bool(request.team_enabled)
+    ):
         raise TeamAttributePermissionError('Teams are not enabled on this server.')
-    if not bool(request.requester_is_mod):
+    if attribute in {TEAM_ATTRIBUTE_TIER, TEAM_ATTRIBUTE_HOUSE} and not bool(
+        request.league_scope
+    ):
+        if attribute == TEAM_ATTRIBUTE_TIER:
+            raise TeamAttributePermissionError(
+                'Team tiers can only be managed in the PolyChampions league server.'
+            )
+        raise TeamAttributePermissionError(
+            'Team houses can only be viewed or managed in the PolyChampions '
+            'league server.'
+        )
+    if (
+        isinstance(request, TeamAttributeMutationRequest)
+        and not bool(request.requester_is_mod)
+    ):
         raise TeamAttributePermissionError(
             'You do not have permission to manage team attributes.'
         )
-    if attribute == TEAM_ATTRIBUTE_TIER and not bool(request.league_scope):
+    if (
+        isinstance(request, TeamAttributeReadRequest)
+        and attribute not in {TEAM_ATTRIBUTE_HOUSE}
+        and not bool(request.requester_is_mod)
+    ):
         raise TeamAttributePermissionError(
-            'Team tiers can only be managed in the PolyChampions league server.'
+            'You do not have permission to manage team attributes.'
         )
     if (
         isinstance(request, TeamAttributeMutationRequest)
@@ -225,6 +249,8 @@ def _snapshot(
         value: str | int | None = team_name
     elif attribute == TEAM_ATTRIBUTE_SERVER:
         value = external_server
+    elif attribute == TEAM_ATTRIBUTE_HOUSE:
+        value = house_name
     else:
         value = league_tier
     return TeamAttributeReadResult(
@@ -241,7 +267,7 @@ def _snapshot(
         is_archived=bool(getattr(team, 'is_archived', False)),
         house_role_names=(
             _house_role_names()
-            if attribute == TEAM_ATTRIBUTE_TIER
+            if attribute in {TEAM_ATTRIBUTE_TIER, TEAM_ATTRIBUTE_HOUSE}
             else ()
         ),
     )
@@ -257,7 +283,49 @@ def _validate_tier_preconditions(request, team) -> None:
     if getattr(team, 'house', None) is None:
         raise TeamAttributeValidationError(
             f'Team **{team_name}** does not have a House affiliation. '
-            f'Set one with `{request.prefix}team_house` first.'
+            'Set one with `/team house` first.'
+        )
+    if (
+        request.team_role_id is None
+        or request.team_role_name is None
+        or str(request.team_role_name) != team_name
+    ):
+        raise TeamTierRoleError(
+            f':warning: No role matching **{team_name}**. It must have a role '
+            'to edit team properties.'
+        )
+    if (
+        request.expected_team_id is not None
+        and int(request.expected_team_id) != int(team.id)
+    ):
+        raise TeamAttributeConflictError(
+            f'Team {team_name} changed before this update was applied.'
+        )
+
+
+def _resolve_house(request: TeamAttributeMutationRequest):
+    """Resolve the selected global House inside the worker transaction."""
+
+    if request.house is None or not str(request.house).strip():
+        raise TeamAttributeValidationError(
+            'A House name is required, or use `clear` to remove the affiliation.'
+        )
+    try:
+        return models.House.get_or_except(house_name=str(request.house).strip())
+    except exceptions.TooManyMatches as exc:
+        raise TeamAttributeLookupError(str(exc)) from exc
+    except exceptions.NoMatches as exc:
+        raise TeamAttributeLookupError(str(exc)) from exc
+
+
+def _validate_house_preconditions(request, team) -> None:
+    """Preserve legacy house-edit archive and exact-team-role gates."""
+
+    team_name = str(team.name)
+    if bool(getattr(team, 'is_archived', False)):
+        raise TeamAttributeValidationError(
+            f'Team **{team_name}** is **archived**. If it really needs to be '
+            'unarchived, ask the bot owner.'
         )
     if (
         request.team_role_id is None
@@ -304,9 +372,10 @@ def _reconcile_persisted_team_members(
             )
         except exceptions.NoSingleMatch as exc:
             logger.warning(
-                'Could not load Player %s for team %s tier reconciliation: %s',
+                'Could not load Player %s for team %s %s reconciliation: %s',
                 member_id,
                 team.id,
+                'house' if request.attribute == TEAM_ATTRIBUTE_HOUSE else 'tier',
                 exc,
             )
             failed_member_ids.append(member_id)
@@ -413,6 +482,12 @@ def _audit_message(request, *, result: TeamAttributeMutationResult) -> str:
             f'set the external server of Team {result.team_name} to '
             f'{result.value!r} from {result.old_value!r}'
         )
+    elif result.attribute == TEAM_ATTRIBUTE_HOUSE:
+        change = (
+            f'set the House affiliation of Team {result.team_name} to '
+            f'{result.house_name or "None"} from '
+            f'{result.old_house_name or "None"}'
+        )
     else:
         change = (
             f'set the league tier of Team {result.team_name} to '
@@ -429,7 +504,14 @@ def set_team_attribute(
     with models.db.connection_context():
         with models.db.atomic():
             attribute = _validate_access(request)
-            team = _resolve_team(request, include_hidden=request.include_hidden)
+            team = _resolve_team(
+                request,
+                include_hidden=(
+                    False
+                    if attribute == TEAM_ATTRIBUTE_HOUSE
+                    else request.include_hidden
+                ),
+            )
             if (
                 request.expected_team_id is not None
                 and int(request.expected_team_id) != int(team.id)
@@ -439,6 +521,8 @@ def set_team_attribute(
                 )
             if attribute == TEAM_ATTRIBUTE_TIER:
                 _validate_tier_preconditions(request, team)
+            elif attribute == TEAM_ATTRIBUTE_HOUSE:
+                _validate_house_preconditions(request, team)
 
             before = _snapshot(
                 team,
@@ -469,6 +553,18 @@ def set_team_attribute(
             elif attribute == TEAM_ATTRIBUTE_SERVER:
                 new_value = _validate_server(request)
                 team.external_server = new_value
+            elif attribute == TEAM_ATTRIBUTE_HOUSE:
+                if request.clear and request.house is not None:
+                    raise TeamAttributeValidationError(
+                        'Choose either a House or `clear`, not both.'
+                    )
+                selected_house = None if request.clear else _resolve_house(request)
+                new_value = (
+                    None
+                    if selected_house is None
+                    else str(selected_house.name)
+                )
+                team.house = selected_house
             else:
                 new_tier, _ = _validate_tier(request.tier)
                 new_value = new_tier
@@ -477,7 +573,7 @@ def set_team_attribute(
             team.save()
             persisted_member_ids = ()
             persisted_member_failures = ()
-            if attribute == TEAM_ATTRIBUTE_TIER:
+            if attribute in {TEAM_ATTRIBUTE_TIER, TEAM_ATTRIBUTE_HOUSE}:
                 (
                     persisted_member_ids,
                     persisted_member_failures,

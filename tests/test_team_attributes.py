@@ -117,9 +117,10 @@ class FakeDatabase:
                 self.snapshot = (
                     database.team.name,
                     database.team.external_server,
-                database.team.league_tier,
-                list(database.logs),
-            )
+                    database.team.league_tier,
+                    database.team.house,
+                    list(database.logs),
+                )
                 self.player_snapshot = [
                     (player, player.team)
                     for player in database.players
@@ -138,6 +139,7 @@ class FakeDatabase:
                     database.team.name,
                     database.team.external_server,
                     database.team.league_tier,
+                    database.team.house,
                     logs,
                 ) = self.snapshot
                 database.logs = list(logs)
@@ -151,17 +153,35 @@ class FakeDatabase:
 
 
 class HouseRecord:
-    def __init__(self, name):
+    def __init__(self, name, house_id=601):
+        self.id = house_id
         self.name = name
 
 
 class FakeHouseModel:
+    id = Field('id')
     name = Field('name')
     records = []
 
     @classmethod
     def select(cls, *fields):
         return Query(cls.records)
+
+    @classmethod
+    def get_or_except(cls, *, house_name):
+        matches = [
+            house for house in cls.records
+            if str(house_name).lower() in str(house.name).lower()
+        ]
+        if not matches:
+            raise workers.exceptions.NoMatches(
+                f'No matching house was found for "{house_name}"'
+            )
+        if len(matches) > 1:
+            raise workers.exceptions.TooManyMatches(
+                f'More than one matching house was found for "{house_name}"'
+            )
+        return matches[0]
 
 
 class TeamRecord:
@@ -293,6 +313,47 @@ def mutation_request(**overrides):
         include_hidden=True,
         invoked_with='/team server',
         native=False,
+    )
+    values.update(overrides)
+    return workers.TeamAttributeMutationRequest(**values)
+
+
+def house_read_request(**overrides):
+    values = dict(
+        guild_id=300,
+        requester_id=100,
+        requester_is_mod=False,
+        team_enabled=True,
+        league_scope=True,
+        team_lookup='Ronin',
+        attribute=workers.TEAM_ATTRIBUTE_HOUSE,
+        requester_description='**Member** (`100`)',
+        include_hidden=False,
+        invoked_with='/team house',
+    )
+    values.update(overrides)
+    return workers.TeamAttributeReadRequest(**values)
+
+
+def house_mutation_request(**overrides):
+    values = dict(
+        guild_id=300,
+        requester_id=100,
+        requester_is_mod=True,
+        team_enabled=True,
+        league_scope=True,
+        team_lookup='Ronin',
+        attribute=workers.TEAM_ATTRIBUTE_HOUSE,
+        house='Ninjas',
+        requester_description='**Mod** (`100`)',
+        include_hidden=False,
+        expected_team_id=42,
+        expected_value='Ninjas',
+        expected_value_present=True,
+        team_role_id=700,
+        team_role_name='Ronin',
+        invoked_with='/team house',
+        native=True,
     )
     values.update(overrides)
     return workers.TeamAttributeMutationRequest(**values)
@@ -441,6 +502,186 @@ class TeamAttributeWorkerTests(unittest.TestCase):
         self.assertEqual(len(self.database.logs), 4)
         self.assertEqual(self.database.connection_opened, 4)
         self.assertEqual(self.database.connection_closed, 4)
+
+    def test_house_read_is_public_in_scoped_guild_and_skips_mutation_checks(self):
+        result = workers.read_team_attribute(house_read_request())
+        self.assertEqual(result.house_name, 'Ninjas')
+        self.assertEqual(result.value, 'Ninjas')
+        self.team.is_archived = True
+        archived = workers.read_team_attribute(house_read_request())
+        self.assertTrue(archived.is_archived)
+
+        with self.assertRaises(workers.TeamAttributePermissionError):
+            workers.read_team_attribute(
+                house_read_request(team_enabled=False)
+            )
+        with self.assertRaises(workers.TeamAttributePermissionError):
+            workers.read_team_attribute(
+                house_read_request(league_scope=False)
+            )
+        self.assertEqual(self.database.connection_opened, 4)
+        self.assertEqual(self.database.connection_closed, 4)
+
+    def test_house_lookup_rejects_ambiguous_and_infers_only_one_target(self):
+        FakeTeamModel.responses['R'] = (
+            self.team,
+            TeamRecord(self.database, team_id=43, name='Ravens'),
+        )
+        with self.assertRaises(workers.TeamAttributeLookupError):
+            workers.read_team_attribute(house_read_request(team_lookup='R'))
+
+        with mock.patch.object(
+            workers.team_emoji_workers,
+            '_inferred_team_matches',
+            return_value=(self.team,),
+        ):
+            inferred = workers.read_team_attribute(
+                house_read_request(team_lookup=None)
+            )
+        self.assertEqual(inferred.team_id, 42)
+        self.assertEqual(inferred.house_name, 'Ninjas')
+
+        with mock.patch.object(
+            workers.team_emoji_workers,
+            '_inferred_team_matches',
+            return_value=(self.team, TeamRecord(self.database, team_id=43)),
+        ), self.assertRaises(workers.TeamAttributeLookupError):
+            workers.read_team_attribute(house_read_request(team_lookup=None))
+
+    def test_house_autocomplete_is_bounded_and_scope_gated(self):
+        FakeHouseModel.records = [
+            HouseRecord(f'House {index:02}', 700 + index)
+            for index in range(30)
+        ]
+        results = workers.team_emoji_workers.list_house_autocomplete(
+            workers.team_emoji_workers.HouseAutocompleteRequest(
+                guild_id=300,
+                current='House',
+                team_enabled=True,
+                league_scope=True,
+                limit=50,
+            )
+        )
+        self.assertEqual(len(results), 25)
+        self.assertEqual(results[0].house_name, 'House 00')
+        self.assertEqual(
+            workers.team_emoji_workers.list_house_autocomplete(
+                workers.team_emoji_workers.HouseAutocompleteRequest(
+                    guild_id=999,
+                    current='',
+                    team_enabled=True,
+                    league_scope=False,
+                    limit=25,
+                )
+            ),
+            (),
+        )
+
+    def test_house_assignment_clear_persists_team_and_preferences_atomically(self):
+        new_house = HouseRecord('Valkyries', 602)
+        FakeHouseModel.records = [self.team.house, new_house]
+        player = PlayerRecord(self.database, team=None)
+        self.database.players = [player]
+        FakePlayerModel.records = {player.id: player}
+
+        assigned = workers.set_team_attribute(
+            house_mutation_request(
+                house='Valkyries',
+                team_member_ids=(player.id,),
+            )
+        )
+        self.assertIs(self.team.house, new_house)
+        self.assertEqual(assigned.old_house_name, 'Ninjas')
+        self.assertEqual(assigned.house_name, 'Valkyries')
+        self.assertEqual(assigned.value, 'Valkyries')
+        self.assertEqual(assigned.persisted_member_ids, (player.id,))
+        self.assertIs(player.team, self.team)
+        self.assertEqual(FakePlayerHousePreference.calls, [player.id])
+        self.assertIn('audit', self.database.events)
+
+        cleared = workers.set_team_attribute(
+            house_mutation_request(
+                house=None,
+                clear=True,
+                expected_value='Valkyries',
+                team_member_ids=(player.id,),
+            )
+        )
+        self.assertIsNone(self.team.house)
+        self.assertTrue(cleared.cleared)
+        self.assertIsNone(cleared.house_name)
+        self.assertIsNone(cleared.value)
+        self.assertEqual(self.database.commits, 2)
+        self.assertEqual(len(self.database.logs), 2)
+
+    def test_house_stale_missing_and_archived_mutations_fail_without_change(self):
+        with self.assertRaises(workers.TeamAttributeConflictError):
+            workers.set_team_attribute(
+                house_mutation_request(expected_value='Different')
+            )
+        self.assertEqual(self.team.house.name, 'Ninjas')
+
+        FakeHouseModel.records = [self.team.house]
+        with self.assertRaises(workers.TeamAttributeLookupError):
+            workers.set_team_attribute(
+                house_mutation_request(house='Missing')
+            )
+        self.assertEqual(self.team.house.name, 'Ninjas')
+
+        self.team.is_archived = True
+        with self.assertRaises(workers.TeamAttributeValidationError):
+            workers.set_team_attribute(house_mutation_request())
+        self.assertEqual(self.team.house.name, 'Ninjas')
+
+        FakeTeamModel.responses['Missing Team'] = ()
+        with self.assertRaises(workers.TeamAttributeLookupError):
+            workers.set_team_attribute(
+                house_mutation_request(team_lookup='Missing Team')
+            )
+
+    def test_house_audit_failure_rolls_back_team_member_and_preference_state(self):
+        new_house = HouseRecord('Valkyries', 602)
+        FakeHouseModel.records = [self.team.house, new_house]
+        player = PlayerRecord(self.database, team=None)
+        self.database.players = [player]
+        FakePlayerModel.records = {player.id: player}
+        self.database.fail_audit = True
+
+        with self.assertRaises(peewee.PeeweeException):
+            workers.set_team_attribute(
+                house_mutation_request(
+                    house='Valkyries',
+                    team_member_ids=(player.id,),
+                )
+            )
+        self.assertEqual(self.team.house.name, 'Ninjas')
+        self.assertIsNone(player.team)
+        self.assertEqual(FakePlayerHousePreference.calls, [])
+        self.assertEqual(self.database.connection_opened, 1)
+        self.assertEqual(self.database.connection_closed, 1)
+
+    def test_house_player_or_preference_failure_rolls_back_everything(self):
+        for failure_flag in ('fail_player_save', 'fail_preference_clear'):
+            with self.subTest(failure_flag=failure_flag):
+                new_house = HouseRecord('Valkyries', 602)
+                FakeHouseModel.records = [self.team.house, new_house]
+                player = PlayerRecord(self.database, team=None)
+                self.database.players = [player]
+                FakePlayerModel.records = {player.id: player}
+                setattr(self.database, failure_flag, True)
+
+                with self.assertRaises(peewee.PeeweeException):
+                    workers.set_team_attribute(
+                        house_mutation_request(
+                            house='Valkyries',
+                            team_member_ids=(player.id,),
+                        )
+                    )
+
+                self.assertEqual(self.team.house.name, 'Ninjas')
+                self.assertIsNone(player.team)
+                self.assertEqual(FakePlayerHousePreference.calls, [])
+                setattr(self.database, failure_flag, False)
 
     def test_real_worker_reads_all_attributes_without_mutation_only_fields(self):
         expected = {
@@ -688,6 +929,49 @@ class TeamAttributeServiceTests(unittest.IsolatedAsyncioTestCase):
             mention='<@100>',
         )
 
+    def test_house_access_is_public_for_reads_but_mod_only_for_mutations(self):
+        with mock.patch.object(
+            service,
+            '_team_enabled',
+            return_value=True,
+        ), mock.patch.object(
+            service,
+            '_league_scope',
+            return_value=True,
+        ), mock.patch.object(
+            service,
+            '_requester_is_mod',
+            return_value=False,
+        ):
+            self.assertIsNone(
+                service.native_access_error(
+                    self.member,
+                    300,
+                    workers.TEAM_ATTRIBUTE_HOUSE,
+                )
+            )
+            self.assertEqual(
+                service.native_access_error(
+                    self.member,
+                    300,
+                    workers.TEAM_ATTRIBUTE_HOUSE,
+                    mutation=True,
+                ),
+                'You do not have permission to manage team houses.',
+            )
+
+        with mock.patch.object(service, '_team_enabled', return_value=True), \
+                mock.patch.object(service, '_league_scope', return_value=False):
+            self.assertEqual(
+                service.native_access_error(
+                    self.member,
+                    300,
+                    workers.TEAM_ATTRIBUTE_HOUSE,
+                ),
+                'Team houses can only be viewed or managed in the '
+                'PolyChampions league server.',
+            )
+
     async def test_messages_are_public_actor_attributed_and_name_warns_about_role(self):
         actor = service.capture_actor(self.member)
         read = workers.TeamAttributeReadResult(
@@ -792,6 +1076,250 @@ class TeamAttributeServiceTests(unittest.IsolatedAsyncioTestCase):
         interaction.channel.send.assert_awaited_once()
         self.assertIn('<@100>', interaction.channel.send.await_args.args[0])
 
+    def _house_interaction(self):
+        return SimpleNamespace(
+            guild=SimpleNamespace(id=300),
+            user=self.member,
+            response=SimpleNamespace(
+                send_message=mock.AsyncMock(),
+                defer=mock.AsyncMock(),
+            ),
+            followup=SimpleNamespace(send=mock.AsyncMock()),
+            delete_original_response=mock.AsyncMock(),
+            channel=SimpleNamespace(send=mock.AsyncMock()),
+        )
+
+    def _house_command(self):
+        return next(
+            command
+            for command in administration.administration.__cog_app_commands__
+            if command.name == 'team'
+        ).get_command('house')
+
+    def _house_result(self):
+        return workers.TeamAttributeMutationResult(
+            guild_id=300,
+            team_id=42,
+            attribute=workers.TEAM_ATTRIBUTE_HOUSE,
+            team_name='Ronin',
+            old_team_name='Ronin',
+            new_team_name='Ronin',
+            old_value='Ninjas',
+            value='Valkyries',
+            old_tier=2,
+            new_tier=2,
+            old_tier_name='Gold',
+            new_tier_name='Gold',
+            old_house_name='Ninjas',
+            house_name='Valkyries',
+            team_role_id=700,
+            house_role_names=('Ninjas', 'Valkyries'),
+            cleared=False,
+            native=True,
+        )
+
+    async def test_house_read_is_public_and_actor_attributed(self):
+        interaction = self._house_interaction()
+        command = self._house_command()
+        result = workers.TeamAttributeReadResult(
+            guild_id=300,
+            team_id=42,
+            team_name='Ronin',
+            attribute=workers.TEAM_ATTRIBUTE_HOUSE,
+            value='Ninjas',
+            external_server=None,
+            league_tier=2,
+            tier_name='Gold',
+            house_name='Ninjas',
+            is_hidden=False,
+            is_archived=True,
+            house_role_names=('Ninjas',),
+        )
+        cog = administration.administration.__new__(administration.administration)
+        with mock.patch.object(
+            administration.team_attributes_service,
+            'native_access_error',
+            return_value=None,
+        ) as access, mock.patch.object(
+            administration.team_attributes_service,
+            'build_read_request',
+            return_value=SimpleNamespace(),
+        ) as build, mock.patch.object(
+            administration.team_attributes_service,
+            'run_read',
+            new=mock.AsyncMock(return_value=result),
+        ) as run_read:
+            await command.callback(cog, interaction, None, None, False)
+
+        access.assert_called_once_with(
+            interaction.user,
+            300,
+            workers.TEAM_ATTRIBUTE_HOUSE,
+            mutation=False,
+        )
+        build.assert_called_once_with(
+            member=interaction.user,
+            guild_id=300,
+            attribute=workers.TEAM_ATTRIBUTE_HOUSE,
+            team_lookup=None,
+            invoked_with='/team house',
+        )
+        run_read.assert_awaited_once()
+        interaction.response.defer.assert_awaited_once_with(ephemeral=True)
+        interaction.delete_original_response.assert_awaited_once()
+        interaction.channel.send.assert_awaited_once()
+        self.assertIn('Ninjas', interaction.channel.send.await_args.args[0])
+        self.assertIn('<@100>', interaction.channel.send.await_args.args[0])
+
+    async def test_house_mutation_conflict_and_mod_denial_stay_private(self):
+        command = self._house_command()
+        cog = administration.administration.__new__(administration.administration)
+
+        denied = self._house_interaction()
+        with mock.patch.object(
+            administration.team_attributes_service,
+            'native_access_error',
+            return_value='private denial',
+        ):
+            await command.callback(cog, denied, None, 'Valkyries', False)
+        denied.response.send_message.assert_awaited_once_with(
+            'private denial',
+            ephemeral=True,
+        )
+        denied.response.defer.assert_not_awaited()
+        denied.channel.send.assert_not_awaited()
+
+        conflicting = self._house_interaction()
+        with mock.patch.object(
+            administration.team_attributes_service,
+            'native_access_error',
+            return_value=None,
+        ):
+            await command.callback(cog, conflicting, None, 'Valkyries', True)
+        conflicting.response.send_message.assert_awaited_once_with(
+            'Choose either a House or `clear`, not both.',
+            ephemeral=True,
+        )
+        conflicting.response.defer.assert_not_awaited()
+        conflicting.channel.send.assert_not_awaited()
+
+    async def test_house_reconciles_only_after_commit_and_publishes_actor(self):
+        interaction = self._house_interaction()
+        command = self._house_command()
+        cog = administration.administration.__new__(administration.administration)
+        result = self._house_result()
+        events = []
+        preflight = SimpleNamespace(
+            current=SimpleNamespace(team_id=42, value='Ninjas'),
+            team_role_id=700,
+            team_role_name='Ronin',
+            member_ids=(101, 102),
+        )
+
+        async def commit(_request):
+            events.append('commit')
+            return result
+
+        async def reconcile(_guild, _result):
+            events.append('reconcile')
+            return SimpleNamespace(warning=None)
+
+        async def publish(*_args, **_kwargs):
+            events.append('publish')
+
+        with mock.patch.object(
+            administration.team_attributes_service,
+            'native_access_error',
+            return_value=None,
+        ), mock.patch.object(
+            administration.team_attributes_service,
+            'run_house_preflight',
+            new=mock.AsyncMock(return_value=preflight),
+        ), mock.patch.object(
+            administration.team_attributes_service,
+            'build_mutation_request',
+            side_effect=lambda **kwargs: events.append('build') or SimpleNamespace(**kwargs),
+        ) as build, mock.patch.object(
+            administration.team_attributes_service,
+            'run_mutation',
+            new=mock.AsyncMock(side_effect=commit),
+        ), mock.patch.object(
+            administration.team_attributes_service,
+            'reconcile_tier_roles',
+            new=mock.AsyncMock(side_effect=reconcile),
+        ), mock.patch.object(
+            administration.team_attributes_service,
+            'publish_mutation_result',
+            new=mock.AsyncMock(side_effect=publish),
+        ):
+            await command.callback(cog, interaction, 'Ronin', 'Valkyries', False)
+
+        build.assert_called_once_with(
+            member=interaction.user,
+            guild_id=300,
+            attribute=workers.TEAM_ATTRIBUTE_HOUSE,
+            team_lookup='Ronin',
+            house='Valkyries',
+            clear=False,
+            expected_team_id=42,
+            expected_value='Ninjas',
+            expected_value_present=True,
+            team_role_id=700,
+            team_role_name='Ronin',
+            team_member_ids=(101, 102),
+            native=True,
+            invoked_with='/team house',
+        )
+        self.assertEqual(events, ['build', 'commit', 'reconcile', 'publish'])
+
+    async def test_house_database_failure_has_no_public_discord_effect(self):
+        interaction = self._house_interaction()
+        command = self._house_command()
+        cog = administration.administration.__new__(administration.administration)
+        preflight = SimpleNamespace(
+            current=SimpleNamespace(team_id=42, value='Ninjas'),
+            team_role_id=700,
+            team_role_name='Ronin',
+            member_ids=(101,),
+        )
+        with mock.patch.object(
+            administration.team_attributes_service,
+            'native_access_error',
+            return_value=None,
+        ), mock.patch.object(
+            administration.team_attributes_service,
+            'run_house_preflight',
+            new=mock.AsyncMock(return_value=preflight),
+        ), mock.patch.object(
+            administration.team_attributes_service,
+            'build_mutation_request',
+            return_value=SimpleNamespace(),
+        ), mock.patch.object(
+            administration.team_attributes_service,
+            'run_mutation',
+            new=mock.AsyncMock(side_effect=peewee.OperationalError('failed')),
+        ) as run_mutation, mock.patch.object(
+            administration.team_attributes_service,
+            'reconcile_tier_roles',
+            new=mock.AsyncMock(),
+        ) as reconcile, mock.patch.object(
+            administration.team_attributes_service,
+            'publish_mutation_result',
+            new=mock.AsyncMock(),
+        ) as publish:
+            await command.callback(cog, interaction, 'Ronin', 'Valkyries', False)
+
+        run_mutation.assert_awaited_once()
+        reconcile.assert_not_awaited()
+        publish.assert_not_awaited()
+        interaction.response.defer.assert_awaited_once_with(ephemeral=True)
+        interaction.followup.send.assert_awaited_once_with(
+            'Team House operation failed and rolled back.',
+            ephemeral=True,
+        )
+        interaction.channel.send.assert_not_awaited()
+        interaction.delete_original_response.assert_not_awaited()
+
     async def test_tier_reconciliation_is_post_commit_and_reports_partial_failures(self):
         old_tier = Role(10, 'Silver Player')
         team_role = Role(20, 'Ronin')
@@ -848,6 +1376,64 @@ class TeamAttributeServiceTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn(next(role for role in tier_roles if role.name == 'Gold Player'), edited_roles)
         self.assertIn(league_role, edited_roles)
         self.assertNotIn(old_tier, edited_roles)
+
+    async def test_house_reconciliation_survives_missing_house_roles_and_warns_publicly(self):
+        team_role = Role(20, 'Ronin')
+        old_house = Role(30, 'Ninjas')
+        league_role = Role(40, 'League Member')
+        tier_roles = [
+            Role(50 + number, f'{name} Player')
+            for number, name in service.settings.league_tiers
+        ]
+        member = SimpleNamespace(
+            id=101,
+            roles=[team_role, old_house],
+            edit=mock.AsyncMock(),
+        )
+        team_role.members = [member]
+        guild = SimpleNamespace(
+            roles=[team_role, league_role, *tier_roles],
+            get_role=lambda role_id: team_role if role_id == team_role.id else None,
+        )
+        result = self._house_result()
+
+        reconciliation = await service.reconcile_tier_roles(guild, result)
+
+        self.assertEqual(reconciliation.attribute, workers.TEAM_ATTRIBUTE_HOUSE)
+        self.assertEqual(reconciliation.attempted, 1)
+        self.assertEqual(reconciliation.updated, 1)
+        self.assertIn('Ninjas', reconciliation.missing_role_names)
+        self.assertIn('Valkyries', reconciliation.missing_role_names)
+        self.assertIn('team house affiliation', reconciliation.warning)
+        edited_roles = member.edit.await_args.kwargs['roles']
+        self.assertNotIn(old_house, edited_roles)
+        self.assertIn(league_role, edited_roles)
+        self.assertNotIn('Valkyries', [role.name for role in edited_roles])
+
+        send = mock.AsyncMock()
+        await service.publish_mutation_result(
+            result,
+            send=send,
+            actor=service.capture_actor(self.member),
+            reconciliation=reconciliation,
+        )
+        self.assertEqual(send.await_count, 2)
+        self.assertIn('<@100>', send.await_args_list[1].args[0])
+
+    def test_reconciliation_warning_is_bounded_for_house_role_and_member_lists(self):
+        warning = service.TierRoleReconciliation(
+            team_id=42,
+            attempted=20,
+            updated=0,
+            failed_member_ids=tuple(range(100, 120)),
+            missing_role_names=tuple(f'House {index}' for index in range(20)),
+            attribute=workers.TEAM_ATTRIBUTE_HOUSE,
+        ).warning
+        self.assertIn('House 0', warning)
+        self.assertIn('House 9', warning)
+        self.assertNotIn('House 10', warning)
+        self.assertIn('and 10 more', warning)
+        self.assertIn('team house affiliation', warning)
 
     async def test_tier_read_keeps_scope_and_skips_mutation_preconditions(self):
         with mock.patch.object(
@@ -960,6 +1546,59 @@ class TeamAttributeServiceTests(unittest.IsolatedAsyncioTestCase):
             )
         self.assertEqual(preflight.member_ids, (101, 102))
 
+    async def test_house_mutation_preflight_captures_only_role_member_ids(self):
+        current = workers.TeamAttributeReadResult(
+            guild_id=300,
+            team_id=42,
+            team_name='Ronin',
+            attribute=workers.TEAM_ATTRIBUTE_HOUSE,
+            value='Ninjas',
+            external_server=None,
+            league_tier=2,
+            tier_name='Gold',
+            house_name='Ninjas',
+            is_hidden=False,
+            is_archived=False,
+            house_role_names=('Ninjas',),
+        )
+        role = SimpleNamespace(
+            id=700,
+            name='Ronin',
+            members=[SimpleNamespace(id=101), SimpleNamespace(id=102)],
+        )
+        with mock.patch.object(
+            service,
+            'run_read',
+            new=mock.AsyncMock(return_value=current),
+        ), mock.patch.object(
+            service,
+            '_exact_team_role',
+            return_value=role,
+        ):
+            preflight = await service.run_house_preflight(
+                member=self.member,
+                guild=SimpleNamespace(id=300),
+                team_lookup='Ronin',
+                invoked_with='/team house',
+            )
+        self.assertEqual(preflight.member_ids, (101, 102))
+
+        with mock.patch.object(
+            service,
+            'run_read',
+            new=mock.AsyncMock(return_value=current),
+        ), mock.patch.object(
+            service,
+            '_exact_team_role',
+            side_effect=workers.TeamTierRoleError('missing role'),
+        ), self.assertRaises(workers.TeamTierRoleError):
+            await service.run_house_preflight(
+                member=self.member,
+                guild=SimpleNamespace(id=300),
+                team_lookup='Ronin',
+                invoked_with='/team house',
+            )
+
 
 class TeamAttributePrefixTests(unittest.IsolatedAsyncioTestCase):
     def test_prefix_commands_remain_registered(self):
@@ -974,8 +1613,9 @@ class TeamAttributePrefixTests(unittest.IsolatedAsyncioTestCase):
         }
         self.assertEqual(
             league_commands['team_edit'].aliases,
-            ['team_house', 'team_tier'],
+            ['team_tier'],
         )
+        self.assertNotIn('team_house', league_commands)
 
     async def test_prefix_tier_preserves_legacy_league_cog_scope(self):
         cog = league.league.__new__(league.league)
@@ -991,6 +1631,76 @@ class TeamAttributePrefixTests(unittest.IsolatedAsyncioTestCase):
             invoked_with='team_tier',
         )
         self.assertTrue(await cog.cog_check(in_scope))
+
+    async def test_team_edit_no_longer_accepts_house_changes(self):
+        command = next(
+            command
+            for command in league.league.__cog_commands__
+            if command.name == 'team_edit'
+        )
+        ctx = SimpleNamespace(
+            guild=SimpleNamespace(id=300),
+            author=SimpleNamespace(id=100),
+            prefix='$',
+            invoked_with='team_edit',
+            send=mock.AsyncMock(),
+        )
+        cog = league.league.__new__(league.league)
+        with mock.patch.object(league.models.Team, 'get_or_except') as lookup:
+            await command.callback(cog, ctx, arg='Ronin Ninjas')
+        lookup.assert_not_called()
+        ctx.send.assert_awaited_once_with(
+            'House changes now use `/team house`. Use `/team house '
+            'team:Ronin house:Ninjas` to assign a House or `clear:true` to '
+            'remove the affiliation.'
+        )
+
+    async def test_team_edit_archive_path_remains_registered_and_operational(self):
+        command = next(
+            command
+            for command in league.league.__cog_commands__
+            if command.name == 'team_edit'
+        )
+        ctx = SimpleNamespace(
+            guild=SimpleNamespace(id=300),
+            author=SimpleNamespace(id=100),
+            prefix='$',
+            invoked_with='team_edit',
+            send=mock.AsyncMock(),
+        )
+        team = SimpleNamespace(
+            id=42,
+            name='Ronin',
+            house=None,
+            is_archived=False,
+            save=mock.Mock(),
+        )
+        role = SimpleNamespace(id=700, name='Ronin')
+        cog = league.league.__new__(league.league)
+        with mock.patch.object(
+            league.models.Team,
+            'get_or_except',
+            return_value=team,
+        ), mock.patch.object(
+            league.utilities,
+            'guild_role_by_name',
+            return_value=role,
+        ), mock.patch.object(
+            league.models.Game,
+            'search',
+            return_value=SimpleNamespace(count=lambda: 0),
+        ), mock.patch.object(
+            league.models.GameLog,
+            'member_string',
+            return_value='**Mod**',
+        ), mock.patch.object(
+            league.models.GameLog,
+            'write',
+        ):
+            await command.callback(cog, ctx, arg='Ronin ARCHIVE')
+        self.assertTrue(team.is_archived)
+        team.save.assert_called_once_with()
+        self.assertIn('successfully **archived**', ctx.send.await_args.args[0])
 
     async def test_prefix_name_routes_through_shared_mutation_service(self):
         command = next(

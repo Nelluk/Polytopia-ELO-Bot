@@ -125,6 +125,25 @@ class TeamAutocompleteResult:
     team_name: str
 
 
+@dataclass(frozen=True)
+class HouseAutocompleteRequest:
+    """Immutable, scope-gated input for house-name suggestions."""
+
+    guild_id: int
+    current: str
+    team_enabled: bool
+    league_scope: bool
+    limit: int = 25
+
+
+@dataclass(frozen=True)
+class HouseAutocompleteResult:
+    """One bounded house suggestion."""
+
+    house_id: int
+    house_name: str
+
+
 def _is_in_range(codepoint: int, ranges: tuple[tuple[int, int], ...]) -> bool:
     return any(start <= codepoint <= end for start, end in ranges)
 
@@ -311,6 +330,37 @@ def list_team_autocomplete(
         )
 
 
+def list_house_autocomplete(
+    request: HouseAutocompleteRequest,
+) -> tuple[HouseAutocompleteResult, ...]:
+    """Return at most 25 houses for an allowed league guild.
+
+    Houses are global model rows rather than guild-owned rows.  The captured
+    team-enabled and PolyChampions/test-scope flags therefore form the
+    isolation boundary before any names are loaded.
+    """
+
+    if not bool(request.team_enabled) or not bool(request.league_scope):
+        return ()
+    with models.db.connection_context():
+        limit = min(max(int(request.limit), 1), 25)
+        current = str(request.current or '').strip()
+        query = models.House.select(
+            models.House.id,
+            models.House.name,
+        )
+        if current:
+            query = query.where(models.House.name.contains(current))
+        query = query.order_by(models.House.name, models.House.id).limit(limit)
+        return tuple(
+            HouseAutocompleteResult(
+                house_id=int(house.id),
+                house_name=str(house.name),
+            )
+            for house in query
+        )
+
+
 def _read_values(team) -> tuple[int, int, str, str]:
     return (
         _team_id(team),
@@ -448,6 +498,18 @@ async def run_team_autocomplete(
 
     return await run_bounded_team_worker(
         list_team_autocomplete,
+        request,
+        drain_on_cancel=False,
+    )
+
+
+async def run_house_autocomplete(
+    request: HouseAutocompleteRequest,
+) -> tuple[HouseAutocompleteResult, ...]:
+    """Run scope-gated house autocomplete on the bounded team executor."""
+
+    return await run_bounded_team_worker(
+        list_house_autocomplete,
         request,
         drain_on_cancel=False,
     )

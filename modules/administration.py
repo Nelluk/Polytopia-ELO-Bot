@@ -1608,6 +1608,138 @@ class administration(commands.Cog):
             )
 
     @team_group.command(
+        name='house',
+        description='View or update a team House affiliation.',
+    )
+    @discord.app_commands.autocomplete(
+        team=team_attributes_service.autocomplete_house_teams,
+        house=team_attributes_service.autocomplete_houses,
+    )
+    @discord.app_commands.describe(
+        team='Team name; omit this to infer your only team.',
+        house='House name to assign; omit this to view the current House.',
+        clear='Explicitly remove the team House affiliation.',
+    )
+    async def team_house_slash(
+        self,
+        interaction: discord.Interaction,
+        team: str | None = None,
+        house: str | None = None,
+        clear: bool = False,
+    ):
+        """Read or mod-edit one team House affiliation after commit."""
+
+        guild_id = getattr(interaction.guild, 'id', None)
+        if guild_id is None:
+            return await interaction.response.send_message(
+                'This command can only be used in a server.',
+                ephemeral=True,
+            )
+        mutation = house is not None or clear
+        access_error = team_attributes_service.native_access_error(
+            interaction.user,
+            guild_id,
+            team_attributes_workers.TEAM_ATTRIBUTE_HOUSE,
+            mutation=mutation,
+        )
+        if access_error:
+            return await interaction.response.send_message(
+                access_error,
+                ephemeral=True,
+            )
+        if clear and house is not None:
+            return await interaction.response.send_message(
+                'Choose either a House or `clear`, not both.',
+                ephemeral=True,
+            )
+
+        actor = team_attributes_service.capture_actor(interaction.user)
+        await interaction.response.defer(ephemeral=True)
+        try:
+            if not mutation:
+                result = await team_attributes_service.run_read(
+                    team_attributes_service.build_read_request(
+                        member=interaction.user,
+                        guild_id=guild_id,
+                        attribute=team_attributes_workers.TEAM_ATTRIBUTE_HOUSE,
+                        team_lookup=team,
+                        invoked_with='/team house',
+                    )
+                )
+                await team_emoji_service.public_interaction_sender(interaction)(
+                    team_attributes_service.read_message(result, actor=actor)
+                )
+                return result
+
+            preflight = await team_attributes_service.run_house_preflight(
+                member=interaction.user,
+                guild=interaction.guild,
+                team_lookup=team,
+                invoked_with='/team house',
+            )
+            request = team_attributes_service.build_mutation_request(
+                member=interaction.user,
+                guild_id=guild_id,
+                attribute=team_attributes_workers.TEAM_ATTRIBUTE_HOUSE,
+                team_lookup=team,
+                house=house,
+                clear=clear,
+                expected_team_id=preflight.current.team_id,
+                expected_value=preflight.current.value,
+                expected_value_present=True,
+                team_role_id=preflight.team_role_id,
+                team_role_name=preflight.team_role_name,
+                team_member_ids=preflight.member_ids,
+                native=True,
+                invoked_with='/team house',
+            )
+            result = await team_attributes_service.run_mutation(request)
+            try:
+                reconciliation = await team_attributes_service.reconcile_tier_roles(
+                    interaction.guild,
+                    result,
+                )
+            except Exception:
+                logger.exception(
+                    'Committed team house %s could not reconcile roles',
+                    result.team_id,
+                )
+                reconciliation = team_attributes_service.TierRoleReconciliation(
+                    team_id=result.team_id,
+                    attempted=0,
+                    updated=0,
+                    team_role_missing=True,
+                    attribute=team_attributes_workers.TEAM_ATTRIBUTE_HOUSE,
+                )
+            await team_attributes_service.publish_mutation_result(
+                result,
+                send=team_emoji_service.public_interaction_sender(interaction),
+                actor=actor,
+                reconciliation=reconciliation,
+            )
+            return result
+        except team_attributes_workers.TeamAttributeValidationError as exc:
+            return await interaction.followup.send(str(exc), ephemeral=True)
+        except peewee.PeeweeException:
+            logger.exception(
+                'Database failure in native team house command for guild %s',
+                guild_id,
+            )
+            return await interaction.followup.send(
+                'Team House operation failed and rolled back.',
+                ephemeral=True,
+            )
+        except Exception:
+            logger.exception(
+                'Unexpected native team house failure for guild %s',
+                guild_id,
+            )
+            return await interaction.followup.send(
+                'Team House operation failed and rolled back.',
+                ephemeral=True,
+            )
+
+    @team_group.command(
         name='image',
         description='View or update a team image.',
     )

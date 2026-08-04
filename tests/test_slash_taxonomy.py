@@ -98,7 +98,7 @@ class SlashTaxonomyRegistrationTests(unittest.TestCase):
         )
         self.assertEqual(
             {command.name for command in team_group.commands},
-            {'emoji', 'image', 'name', 'server', 'tier'},
+            {'emoji', 'image', 'name', 'server', 'tier', 'house'},
         )
         self.assertEqual(
             {command.name for command in leaderboard_group.commands},
@@ -285,6 +285,18 @@ class SlashTaxonomyRegistrationTests(unittest.TestCase):
             [
                 (parameter.name, parameter.type, parameter.required)
                 for parameter
+                in team_group.get_command('house').parameters
+            ],
+            [
+                ('team', discord.AppCommandOptionType.string, False),
+                ('house', discord.AppCommandOptionType.string, False),
+                ('clear', discord.AppCommandOptionType.boolean, False),
+            ],
+        )
+        self.assertEqual(
+            [
+                (parameter.name, parameter.type, parameter.required)
+                for parameter
                 in team_group.get_command('image').parameters
             ],
             [
@@ -299,11 +311,22 @@ class SlashTaxonomyRegistrationTests(unittest.TestCase):
         }
         self.assertEqual(
             set(autocomplete_callbacks),
-            {'emoji', 'image', 'name', 'server', 'tier'},
+            {'emoji', 'image', 'name', 'server', 'tier', 'house'},
         )
         self.assertEqual(
-            set(autocomplete_callbacks.values()),
+            {
+                autocomplete_callbacks[name]
+                for name in {'emoji', 'image', 'name', 'server', 'tier'}
+            },
             {administration.team_attributes_service.autocomplete_teams},
+        )
+        self.assertIs(
+            autocomplete_callbacks['house'],
+            administration.team_attributes_service.autocomplete_house_teams,
+        )
+        self.assertIs(
+            team_group.get_command('house')._params['house'].autocomplete,
+            administration.team_attributes_service.autocomplete_houses,
         )
 
         prefix = {
@@ -328,6 +351,12 @@ class SlashTaxonomyRegistrationTests(unittest.TestCase):
             administration_prefix['team_image'].clean_params['team_name'].annotation,
             str,
         )
+        league = import_offline_runtime('modules.league')
+        league_prefix = {
+            command.name: command for command in league.league.__cog_commands__
+        }
+        self.assertNotIn('team_house', league_prefix)
+        self.assertEqual(league_prefix['team_edit'].aliases, ['team_tier'])
 
 
 class SlashTaxonomyAdapterTests(unittest.IsolatedAsyncioTestCase):

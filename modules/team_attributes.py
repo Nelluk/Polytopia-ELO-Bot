@@ -15,6 +15,8 @@ from modules import utilities
 
 logger = logging.getLogger('polybot.' + __name__)
 
+MAX_RECONCILIATION_WARNING_ITEMS = 10
+
 TeamAttributeActor = team_emoji.TeamEmojiActor
 capture_actor = team_emoji.capture_actor
 
@@ -38,6 +40,16 @@ class TierPreflight:
 
 
 @dataclass(frozen=True)
+class HousePreflight:
+    """Primitive result of a house mutation preflight."""
+
+    current: workers.TeamAttributeReadResult
+    team_role_id: int
+    team_role_name: str
+    member_ids: tuple[int, ...] = ()
+
+
+@dataclass(frozen=True)
 class TierRoleReconciliation:
     """Post-commit Discord role reconciliation outcome."""
 
@@ -47,6 +59,7 @@ class TierRoleReconciliation:
     failed_member_ids: tuple[int, ...] = ()
     missing_role_names: tuple[str, ...] = ()
     team_role_missing: bool = False
+    attribute: str = workers.TEAM_ATTRIBUTE_TIER
 
     @property
     def warning(self) -> str | None:
@@ -54,18 +67,36 @@ class TierRoleReconciliation:
         if self.team_role_missing:
             details.append('the exact team role was no longer available')
         if self.missing_role_names:
+            missing_roles = self.missing_role_names[
+                :MAX_RECONCILIATION_WARNING_ITEMS
+            ]
+            omitted = len(self.missing_role_names) - len(missing_roles)
+            missing_text = ', '.join(missing_roles)
+            if omitted:
+                missing_text += f', and {omitted} more'
             details.append(
-                'missing managed role(s): ' + ', '.join(self.missing_role_names)
+                'missing managed role(s): ' + missing_text
             )
         if self.failed_member_ids:
+            failed_ids = self.failed_member_ids[
+                :MAX_RECONCILIATION_WARNING_ITEMS
+            ]
+            omitted = len(self.failed_member_ids) - len(failed_ids)
+            failed_text = ', '.join(str(member_id) for member_id in failed_ids)
+            if omitted:
+                failed_text += f', and {omitted} more'
             details.append(
-                'failed member IDs: '
-                + ', '.join(str(member_id) for member_id in self.failed_member_ids)
+                'failed member IDs: ' + failed_text
             )
         if not details:
             return None
+        saved_attribute = (
+            'team house affiliation'
+            if self.attribute == workers.TEAM_ATTRIBUTE_HOUSE
+            else 'team tier'
+        )
         return (
-            ':warning: The team tier was saved, but league-role '
+            f':warning: The {saved_attribute} was saved, but league-role '
             'reconciliation was partial: ' + '; '.join(details) + '.'
         )
 
@@ -134,6 +165,7 @@ def build_mutation_request(
     name: str | None = None,
     server_id: int | None = None,
     tier: str | None = None,
+    house: str | None = None,
     clear: bool = False,
     expected_team_id: int | None = None,
     expected_value: str | int | None = None,
@@ -158,6 +190,7 @@ def build_mutation_request(
         name=(str(name) if name is not None else None),
         server_id=(int(server_id) if server_id is not None else None),
         tier=(str(tier) if tier is not None else None),
+        house=(str(house) if house is not None else None),
         clear=bool(clear),
         requester_description=team_emoji.capture_actor(member).identity,
         include_hidden=_include_hidden(str(attribute)),
@@ -177,12 +210,27 @@ def build_mutation_request(
     )
 
 
-def native_access_error(member, guild_id: int, attribute: str) -> str | None:
+def native_access_error(
+    member,
+    guild_id: int,
+    attribute: str,
+    *,
+    mutation: bool = False,
+) -> str | None:
     """Return a private pre-defer denial while retaining legacy gates."""
 
     attribute = str(attribute)
     if attribute != workers.TEAM_ATTRIBUTE_TIER and not _team_enabled(guild_id):
         return 'Teams are not enabled on this server.'
+    if attribute == workers.TEAM_ATTRIBUTE_HOUSE:
+        if not _league_scope(guild_id):
+            return (
+                'Team houses can only be viewed or managed in the '
+                'PolyChampions league server.'
+            )
+        if mutation and not _requester_is_mod(member):
+            return 'You do not have permission to manage team houses.'
+        return None
     if not _requester_is_mod(member):
         return 'You do not have permission to manage team attributes.'
     if attribute == workers.TEAM_ATTRIBUTE_TIER and not _league_scope(guild_id):
@@ -231,10 +279,44 @@ async def run_tier_preflight(
     if current.house_name is None:
         raise workers.TeamAttributeValidationError(
             f'Team **{current.team_name}** does not have a House affiliation. '
-            'Set one with `$team_house` first.'
+            'Set one with `/team house` first.'
         )
     role = _exact_team_role(guild, current.team_name)
     return TierPreflight(
+        current=current,
+        team_role_id=int(role.id),
+        team_role_name=str(role.name),
+        member_ids=tuple(
+            int(member.id)
+            for member in (getattr(role, 'members', ()) or ())
+        ),
+    )
+
+
+async def run_house_preflight(
+    *,
+    member,
+    guild,
+    team_lookup: str | None,
+    invoked_with: str,
+) -> HousePreflight:
+    """Run house mutation-only checks before capturing role member IDs."""
+
+    request = build_read_request(
+        member=member,
+        guild_id=guild.id,
+        attribute=workers.TEAM_ATTRIBUTE_HOUSE,
+        team_lookup=team_lookup,
+        invoked_with=invoked_with,
+    )
+    current = await run_read(request)
+    if current.is_archived:
+        raise workers.TeamAttributeValidationError(
+            f'Team **{current.team_name}** is **archived**. If it really '
+            'needs to be unarchived, ask the bot owner.'
+        )
+    role = _exact_team_role(guild, current.team_name)
+    return HousePreflight(
         current=current,
         team_role_id=int(role.id),
         team_role_name=str(role.name),
@@ -273,6 +355,50 @@ async def autocomplete_teams(
     ]
 
 
+async def autocomplete_house_teams(
+    interaction: discord.Interaction,
+    current: str,
+) -> list[discord.app_commands.Choice[str]]:
+    """Scope the shared team suggestions to league-enabled guilds."""
+
+    guild_id = getattr(getattr(interaction, 'guild', None), 'id', None)
+    if guild_id is None or not _team_enabled(guild_id) or not _league_scope(
+        guild_id
+    ):
+        return []
+    return await autocomplete_teams(interaction, current)
+
+
+async def autocomplete_houses(
+    interaction: discord.Interaction,
+    current: str,
+) -> list[discord.app_commands.Choice[str]]:
+    """Return bounded house choices only in the approved league scope."""
+
+    guild_id = getattr(getattr(interaction, 'guild', None), 'id', None)
+    if guild_id is None:
+        return []
+    request = team_emoji_workers.HouseAutocompleteRequest(
+        guild_id=int(guild_id),
+        current=str(current or ''),
+        team_enabled=_team_enabled(guild_id),
+        league_scope=_league_scope(guild_id),
+        limit=25,
+    )
+    try:
+        results = await team_emoji_workers.run_house_autocomplete(request)
+    except Exception:
+        logger.exception('House autocomplete failed for guild %s', guild_id)
+        return []
+    return [
+        discord.app_commands.Choice(
+            name=result.house_name[:100],
+            value=result.house_name[:100],
+        )
+        for result in results[:25]
+    ]
+
+
 def _display(value) -> str:
     if value is None or value == '':
         return 'None'
@@ -300,6 +426,9 @@ def read_message(
     elif result.attribute == workers.TEAM_ATTRIBUTE_SERVER:
         value = f'`{_display(result.external_server)}`'
         label = 'external server ID'
+    elif result.attribute == workers.TEAM_ATTRIBUTE_HOUSE:
+        value = f'**{_display(result.house_name)}**'
+        label = 'House affiliation'
     else:
         value = _tier_display(result)
         label = 'tier'
@@ -330,6 +459,13 @@ def legacy_mutation_message(result: workers.TeamAttributeMutationResult) -> str:
         return (
             f'Team **{result.team_name}** has been assigned an external server '
             f'of `{new_server}`. Previous value was `{old_server}`.'
+        )
+    if result.attribute == workers.TEAM_ATTRIBUTE_HOUSE:
+        old_house = result.old_house_name or 'None'
+        new_house = result.house_name or 'None'
+        return (
+            f'Changed House affiliation of team **{result.team_name}** to '
+            f'{new_house}. Previous affiliation was "{old_house}".'
         )
     old_tier = (
         str(result.old_tier) if result.old_tier is not None else 'NONE'
@@ -366,6 +502,19 @@ def native_mutation_message(
             f'{actor.label} set the external server for Team '
             f'**{_display(result.team_name)}** to `{result.value}`. Previous '
             f'value was `{_display(result.old_value)}`.'
+        )
+    if result.attribute == workers.TEAM_ATTRIBUTE_HOUSE:
+        old_house = _display(result.old_house_name)
+        if result.cleared:
+            return (
+                f'{actor.label} cleared the House affiliation for Team '
+                f'**{_display(result.team_name)}**. Previous House was '
+                f'**{old_house}**.'
+            )
+        return (
+            f'{actor.label} assigned Team **{_display(result.team_name)}** to '
+            f'House **{_display(result.house_name)}**. Previous House was '
+            f'**{old_house}**.'
         )
     old_tier = _display(result.old_tier_name or result.old_tier or 'None')
     new_tier = _display(result.new_tier_name or result.new_tier)
@@ -405,11 +554,15 @@ async def publish_mutation_result(
         except Exception:
             logger.exception('Committed team mutation warning could not be sent')
     if reconciliation is not None and reconciliation.warning:
+        warning = reconciliation.warning
+        if actor is not None:
+            warning += f' Requested by {actor.label}.'
         try:
-            await send(reconciliation.warning)
+            await send(warning)
         except Exception:
             logger.exception(
-                'Team tier reconciliation warning could not be sent for %s',
+                'Team %s reconciliation warning could not be sent for %s',
+                result.attribute,
                 result.team_id,
             )
 
@@ -422,11 +575,11 @@ async def reconcile_tier_roles(
     guild,
     result: workers.TeamAttributeMutationResult,
 ) -> TierRoleReconciliation:
-    """Refresh legacy managed roles after a committed tier transaction.
+    """Refresh legacy managed roles after a committed tier/house transaction.
 
     This function intentionally accepts/uses Discord objects only on the
     event-loop side.  It never opens a database connection and never changes
-    the already-committed team tier when an individual Discord edit fails.
+    the already-committed team attribute when an individual Discord edit fails.
     """
 
     team_role = None
@@ -445,6 +598,7 @@ async def reconcile_tier_roles(
             attempted=0,
             updated=0,
             team_role_missing=True,
+            attribute=result.attribute,
         )
 
     roles = tuple(getattr(guild, 'roles', ()) or ())
@@ -509,8 +663,9 @@ async def reconcile_tier_roles(
         for role in managed_roles
     }
     managed_role_names = {
-        str(getattr(role, 'name', ''))
-        for role in managed_roles
+        *(f'{tier_name} Player' for _, tier_name in settings.league_tiers),
+        *result.house_role_names,
+        'League Member',
     }
 
     failed_member_ids = []
@@ -564,4 +719,5 @@ async def reconcile_tier_roles(
         updated=updated,
         failed_member_ids=tuple(failed_member_ids),
         missing_role_names=missing_names,
+        attribute=result.attribute,
     )

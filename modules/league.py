@@ -878,7 +878,10 @@ class league(commands.Cog):
             except peewee.IntegrityError:
                 return await ctx.send(f':warning: There is already a House with the name "{house_name}". No changes saved.')
             models.GameLog.write(guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} created a new House with name "{house.name}"')
-            return await ctx.send(f'New league House created with name "{house.name}". You can add a team to it using `{ctx.prefix}team_house`.')
+            return await ctx.send(
+                f'New league House created with name "{house.name}". You can '
+                'add a team to it using `/team house`.'
+            )
         
         if ctx.invoked_with == 'house_rename':
             example_string = f'**Example**: `{ctx.prefix}{ctx.invoked_with} ronin New Team Name`'
@@ -930,17 +933,17 @@ class league(commands.Cog):
         for record in records:
             print(record.name, record.id, record.emoji, record.regular_season_wins, record.regular_season_losses, record.regular_season_incomplete, record.post_season_wins, record.post_season_losses, record.post_season_incomplete)
     
-    @commands.command(aliases=['team_house', 'team_tier'], usage='team_name arguments')
+    @commands.command(aliases=['team_tier'], usage='team_name arguments')
     @settings.is_mod_check()
     async def team_edit(self, ctx, *, arg=None):
-        """*Mod*: Edit a team's house affiliation or league tier
+        """*Mod*: Edit a team's league tier or archive it
         **Example:**
-        `[p]team_house ronin Ninjas` - Put team Ronin into house Ninjas
-        `[p]team_house ronin NONE` - Remove team Ronin from any house affiliation. NONE must be in all caps.
+        `/team house team:ronin house:Ninjas` - Put team Ronin into a House
+        `/team house team:ronin clear:true` - Remove team Ronin from its House affiliation
         `[p]team_edit ronin ARCHIVE` - Mark a defunct team as archived. This cannot be undone via the bot. Team must first have no house affiliation and no incomplete games.
         `[p]team_tier ronin gold` - Change league tier of team. Does not impact current or past games from this team.
         
-        See also: `team_add`, `team_name`, `team_server`, `team_image`, `team_emoji`, `house_add`, `house_rename`
+        See also: `/team house`, `team_add`, `team_name`, `team_server`, `team_image`, `team_emoji`, `house_add`, `house_rename`
         """
         args = arg.split() if arg else []
         if not args or len(args) != 2:
@@ -1009,6 +1012,13 @@ class league(commands.Cog):
             )
             return result
 
+        if ctx.invoked_with == 'team_edit' and args[1] != 'ARCHIVE':
+            return await ctx.send(
+                f'House changes now use `/team house`. Use '
+                f'`/team house team:{args[0]} house:{args[1]}` to assign a '
+                'House or `clear:true` to remove the affiliation.'
+            )
+
         try:
             team = models.Team.get_or_except(team_name = args[0], guild_id=ctx.guild.id)
         except (exceptions.TooManyMatches, exceptions.NoMatches) as e:
@@ -1023,36 +1033,15 @@ class league(commands.Cog):
             logger.warn('Team is_archive is True')
             return await ctx.send(f'Team **{team.name}** is **archived**. If it *really* needs to be unarchived, ask the bot owner.')
 
-        if ctx.invoked_with == 'team_house':
-            old_house_name = team.house.name if team.house else 'NONE'
-            if args[1] == 'NONE':
-                logger.info(f'Processing house removal')
-                new_house, new_house_name = None, 'NONE'
-            else:
-                logger.info(f'Processing house affiliation change')
-                try:
-                    new_house = models.House.get_or_except(house_name=args[1])
-                    new_house_name = new_house.name
-                except (exceptions.TooManyMatches, exceptions.NoMatches) as e:
-                    return await ctx.send(e)
-
-            team.house = new_house
-            team.save()
-            models.GameLog.write(guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} set the House affiliation of Team {team.name} to {new_house_name} from {old_house_name}')
-            tier_warning = '' if team.league_tier else f'\n:warning:Team tier not set. You probably want to set one with `{ctx.prefix}team_tier`'
-
-            async with ctx.typing():
-                for member in team_role.members:
-                    logger.debug(f'team_edit updating league roles for member {member.display_name}')
-                    await update_member_league_roles(member)
-
-                return await ctx.send(f'Changed House affiliation of team  **{team.name}** to {new_house_name}. Previous affiliation was "{old_house_name}".{tier_warning}. Team members have had their House roles refreshed.')
-
         if ctx.invoked_with == 'team_edit' and args[1] == 'ARCHIVE':
             logger.debug(f'Attempting to archive team {team.name}')
             if team.house:
                logger.warn(f'Cannot archive due to house affiliation')
-               return await ctx.send(f'Remove the house affiliation of team **{team.name}** first with `{ctx.prefix}team_house {args[0]} NONE`. Currently in {team.house.name}.')
+               return await ctx.send(
+                   f'Remove the House affiliation of team **{team.name}** '
+                   f'first with `/team house team:{args[0]} clear:true`. '
+                   f'Currently in {team.house.name}.'
+               )
             incomplete_game_count = models.Game.search(team_filter=[team], status_filter=2).count()
             if incomplete_game_count > 0:
                 logger.warn(f'Cannot archive due to {incomplete_game_count} incomplete games')
