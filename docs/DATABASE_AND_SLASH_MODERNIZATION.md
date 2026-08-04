@@ -365,6 +365,8 @@ would become unavailable if a prefix is retired.
 | C-012 `/squad show` / `$squad` / `$squads` | Native `/squad show squad_id:[optional]` opens an exact card or defaults to squads containing the requester; a requester-only Discord member selector performs one-to-three-member discovery, and multi-match results are paged/selectable. | Legacy recommendation: **retire** — explicit user approval removes `$squad` and `$squads` because the lookup is rarely used. The native workspace replaces ambiguous free-text member lookup with typed guild members while preserving useful ID/member search, record/rank, and recent-game information. P7.11 retained `$squadname` only as a separate mutation until the approved P7.12 `/squad name` unit. | Revisit only through an explicit prefix lifecycle decision or demonstrated native discovery gap; do not restore a redundant prefix adapter. | Intentional P7.11 prefix retirement; integrated and deployed; wider-beta acceptance blocked by the discovered unbounded discovery-query/publish stall pending correction |
 | C-013 `/squad name` / `$squadname` | Native `/squad name squad_id name:[optional] clear:[optional]` reads publicly by default and performs member-or-staff edits/clears through one transactional service. Authorized `/squad show` requesters also receive an Edit Name modal backed by the same service and post-commit card refresh. | Legacy recommendation: **retire** — explicitly approved. The hidden, low-use `$squadname` workflow is completely covered by the typed command and contextual modal; no prefix adapter remains on the beta or intended production surface. | Revisit only through an explicit prefix-lifecycle decision or a demonstrated native access gap; do not restore a separate mutation implementation. | P7.12 integrated and deployed; wider-beta acceptance blocked until the shared `/squad show` discovery/publish stall correction is validated
 
+| C-014 `/leaderboard roles` / `$roleelo` / `$roleeloany` / `$freeagents` | Native `/leaderboard roles` opens the configured Free Agent preset for every permitted role-lookup user; elevated requesters receive a requester-bound 1–5-role selector with All/Any matching, four in-workspace sorts, global/local ELO scope, inactive-role exclusion, paging, and page jump over one immutable bounded snapshot. `$freeagents` remains a broadly accessible shared-worker convenience path. | Legacy recommendation: **retire** `$roleelo` and `$roleeloany` without adapters. CSV/file export is explicitly deferred and is not implemented on the retained convenience path; its ordinary text listing and configured Free Agent access remain. Native validation rejects `@everyone`, managed roles, and cross-guild roles without maintaining an allow-list. | Revisit only through an explicit prefix-lifecycle decision or a demonstrated native access gap; do not restore arbitrary-role prefix adapters or add export without a separate bounded design. | P7.13 implementation/test commit `40fbcf2`; roadmap/taxonomy evidence committed separately; Tier-2 review/integration pending; development-database read gate deferred while durable beta is active |
+
 Every later slash conversion must add a row when parity is intentionally
 reduced. If there is no compromise, its unit evidence should explicitly say
 so rather than adding an empty ledger row.
@@ -462,12 +464,12 @@ check:
   `f0429536d7ed899eb356794bcd3558baa9be3d45`.
 - P4.2d roadmap evidence: `e1a0959`; accumulation merge: `7c2269b`.
 
-Current unit: **P7.12/P7.11 squad workspace beta correction accepted for the
-currently testable no-match path; full card/name acceptance awaits a fixture.**
+Current unit: **P7.13 native role leaderboard implemented locally; Tier-2
+review and integration are pending.**
 
-The corrected no-match path returns “No eligible squads” promptly. Exact card,
-member-search, and name-edit acceptance still require an owned squad fixture.
-P7.13 `/leaderboard roles` is unblocked as the next proposed feature unit.
+The durable beta remains untouched while the P7.13 branch completes its local
+review and handoff. The earlier P7.11/P7.12 squad workspace still has a
+fixture-dependent wider-beta acceptance path; this unit does not reopen it.
 
 The durable beta is running dispatch checkpoint `e834afe`; it authenticated
 as beta application `479029527553638401`. Its guild-only command tree already
@@ -5755,6 +5757,100 @@ Implementation evidence (local only):
   database-side limit, deferred-response clearing is bounded, and the
   correction is validated against development data.
 
+### P7.13 — Native role leaderboard workspace
+
+Status: **Implemented locally; Tier-2 review, integration, and beta acceptance
+pending**
+
+Branch/base: `codex/p7-13-role-leaderboard`, based on exact clean base
+`6e38c36e4ca865b952fa5e71a416ccd3fef9609c`. Implementation/test commit:
+`40fbcf2`.
+
+Risk tier: **Tier 2**. This is a read-only Discord presentation and bounded
+database-read unit. It does not change player, team, game, stored role, or ELO
+calculation semantics.
+
+Objective: add public `/leaderboard roles` as a Components v2 workspace,
+preserve `$freeagents` through the shared read service, and retire
+`$roleelo`/`$roleeloany` without compatibility adapters.
+
+Accepted interface and compatibility:
+
+- `/leaderboard roles` has no required slash arguments. It immediately defers
+  privately, then loads the configured Free Agent preset and publishes a
+  successful immutable result publicly through the established transparency
+  helper. Load, permission, validation, and publication failures remain
+  private.
+- Every permitted role-lookup user receives the Free Agent preset. Staff and
+  users with the configured House Leader or House Co-Leader role additionally
+  receive a requester-bound Discord RoleSelect accepting one to five roles and
+  an All/Any matching control. Ordinary users cannot perform arbitrary role
+  lookup.
+- The interaction boundary accepts every ordinary current-guild role but
+  rejects `@everyone`, managed bot/integration roles, cross-guild roles,
+  duplicates, and selections above five. No maintained role allow-list was
+  added.
+- Native controls expose global ELO, local ELO, total games, recent games in
+  the last 14 days, global/local ELO scope, All/Any matching, requester-only
+  pagination, and a page-jump modal. Rows are dense and mobile-oriented;
+  native ordering is deterministic descending with Discord-ID tie breaks, and
+  only the selected scope's ELO and W/L are displayed at once.
+- Members with the configured Inactive role are excluded unless Inactive is
+  explicitly selected. All refinements operate on the loaded immutable result
+  and do not requery PostgreSQL. Successful refinements remain public.
+- `$freeagents` remains broadly accessible with its existing server/channel
+  policy, configured Free Agent preset, text presentation, and sort shortcuts,
+  but now uses the shared bounded worker. `$roleelo` and `$roleeloany` are
+  fully retired. CSV/file export is explicitly deferred and is not re-added.
+
+Database and event-loop boundaries:
+
+- The event loop captures frozen primitive guild role/member snapshots,
+  selected role IDs/names, inactive-role ID, global-guild IDs, and the recent
+  cutoff. No live Discord, Peewee, context, lazy query, or mutable plotting
+  object crosses into the worker.
+- A dedicated two-thread read executor owns one worker-local Peewee connection
+  per load. The worker uses bounded current-guild player loading and batched
+  aggregate queries for global W/L, local W/L, and all-time/recent lineup
+  counts; it performs no N+1 per-player model reads and no writes.
+- Cancellation drains the submitted worker before returning cancellation to
+  the interaction. Pagination, sorting, role matching, inactive filtering,
+  and page jumps are pure DTO operations after the initial read.
+
+Required/local evidence:
+
+- `modules/role_leaderboard_workers.py`, `modules/role_leaderboard.py`, and
+  `modules/role_leaderboard_views.py` implement the frozen DTO, bounded read,
+  policy, presentation, and snapshot-only control layers. Existing player,
+  team, squad, activity, and other leaderboard workspaces are unchanged.
+- `tests/test_role_leaderboard.py` covers registration and no-option shape,
+  Free Agent and elevated access, policy parity, role validation, All/Any and
+  inactive semantics, all four sorts/scopes, stable paging, visibility,
+  requester/expiry controls, bounded worker behavior, connection cleanup,
+  event-loop responsiveness, cancellation draining, prefix retirement, and
+  no-requery refinements. Taxonomy registration and the unchanged gated
+  development-schema case are also updated.
+- Focused affected suites passed 108 tests with 26 intentional gated skips;
+  complete offline unittest discovery passed 897 tests with 26 intentional
+  gated skips. The touched-Python compile check and `git diff --check` passed.
+- `tests/test_database_integration.py` contains a read-only P7.13 case behind
+  the unchanged `POLYBOT_RUN_DB_INTEGRATION=1`, development,
+  `polytopia_dev`, `polybot_dev` identity gate. It was not run because the
+  durable beta is active; defer it to the next separately approved stopped-
+  writer window. No PostgreSQL, beta, production, Discord sync, dependency,
+  or service operation was performed by this unit.
+
+Out of scope: CSV/file export; player/team/game data or ELO changes; other
+leaderboard workspaces; role allow-list maintenance; database/fixture writes;
+capability assignment; Discord command apply/sync; beta lifecycle; production;
+push; pull request; merge; and sudo.
+
+Exit: separate implementation/test and roadmap/taxonomy documentation
+commits, a clean isolated branch, complete self-review, and a full handoff to
+the originating Sol task. Integration, development capability assignment,
+command synchronization, beta testing, and wider acceptance remain later
+reviewed actions.
+
 ## P8.0 — Guild application-command capability policy and explicit deployment tooling
 
 Status: **Complete**
@@ -7992,6 +8088,39 @@ component refinements that do not require command re-registration.
 - Next action: dispatch from this exact clean accumulation checkpoint and wait
   for the worker's explicit completion or blocker handoff without active Sol
   monitoring.
+
+### 2026-08-04 — P7.13 role leaderboard implemented locally
+
+- Implemented `/leaderboard roles` on isolated branch
+  `codex/p7-13-role-leaderboard`, based on exact clean base
+  `6e38c36e4ca865b952fa5e71a416ccd3fef9609c`; implementation/test commit is
+  `40fbcf2`.
+- Added a no-option native command that privately defers, reads a frozen
+  current-guild role/member snapshot through a dedicated bounded worker, and
+  publishes successful results publicly through the established transparency
+  helper. Staff and configured House leaders/co-leaders receive the requester-
+  bound 1–5-role All/Any selector; everyone on the retained role-lookup
+  surface receives the Free Agent preset.
+- Native Components provide global/local ELO scope, global ELO/local ELO/total
+  games/recent-14-day sorts, inactive-role exclusion unless explicitly
+  selected, deterministic descending ranks, requester-only paging/page jump,
+  private failures, and public loaded-state refinements without requerying.
+  The interaction boundary rejects `@everyone`, managed roles, cross-guild
+  roles, duplicates, and more than five roles without a maintained allow-list.
+- Retired `$roleelo` and `$roleeloany` completely without adapters. `$freeagents`
+  remains broadly accessible and uses the shared read service; CSV/file export
+  stays explicitly deferred. No other leaderboard surface or ELO/data meaning
+  changed.
+- Focused affected validation passed 108 tests with 26 intentional gated
+  skips; complete offline discovery passed 897 tests with 26 intentional gated
+  skips. Compile and diff checks passed. The read-only real-schema case is
+  present behind the unchanged development/`polytopia_dev`/`polybot_dev` gate
+  but was deliberately not run while the durable beta is active.
+- No beta inspection or lifecycle action, PostgreSQL/fixture access, Discord
+  synchronization, production operation, dependency installation, push, PR,
+  merge, or sudo occurred. Documentation evidence is now committed
+  separately; next action is Tier-2 review and the explicit completion
+  handoff, with integration deferred.
 
 ### 2026-08-04 — Discord client-cache recovery evidence refined
 
