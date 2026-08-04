@@ -457,9 +457,18 @@ check:
   `f0429536d7ed899eb356794bcd3558baa9be3d45`.
 - P4.2d roadmap evidence: `e1a0959`; accumulation merge: `7c2269b`.
 
-Current unit: **P8.4 native-first team-house read/edit/clear workflow —
-reviewed, integrated, deployed, and announced; beta read/assign/clear role
-smoke remains.**
+Current unit: **P7.6b global player leaderboard record consistency —
+implemented locally; Tier-2 review pending.**
+
+The latest integrated and deployed milestone remains P8.4 native-first
+team-house read/edit/clear. Its beta read/assign/clear role smoke remains a
+separate downstream acceptance item; P7.6b is the active bounded unit in this
+worktree.
+
+P7.6b implementation/tests checkpoint: `3806d0e` on
+`codex/p7-global-leaderboard-records`, based on exact accumulation commit
+`3c9c43e5604bd26a68b1b45e34e35bc8f6316850`. Its separate roadmap-evidence
+commit records the validation and deployment boundary below.
 
 P8.4 implementation/tests checkpoint: `9d72507b2913b7c842224e6ea624fc108404ad28`
 on `codex/p8-4-team-house`, based on the exact clean base
@@ -4576,6 +4585,87 @@ Next action: human desktop/mobile smoke of Common filters, Advanced filters,
 the active-dimension summary, and Jump to page. Address global showcase
 `0–0` records in a separate query/fixture unit.
 
+### P7.6b — Global player leaderboard record consistency
+
+Status: **Implemented locally; Tier-2 review pending**
+
+Risk tier: **Tier 2 bounded read/eligibility correction**. This unit aligns
+global leaderboard membership with the existing global W–L record scope. It
+does not redesign the Components v2 UI, command taxonomy, permissions,
+worker boundary, schema, fixtures, or deployment configuration.
+
+Branch/base: `codex/p7-global-leaderboard-records` from exact accumulation
+commit `3c9c43e5604bd26a68b1b45e34e35bc8f6316850` in the app-created worktree
+`/home/nelluk/.codex/worktrees/e55b/PolyBot39-dev`.
+
+Objective and authoritative semantics:
+
+- Local scope uses `Player` rating fields and a guild-only record.
+- Global scope uses `DiscordMember` rating fields and records from only the
+  configured guilds returned by `settings.servers_included_in_global_lb()`.
+- Era (`current`/`all-time`) changes both the rating era field and W–L record
+  era.
+- Rating (`current`/`peak`) changes rating only; it never changes that
+  player's W–L record.
+- Population (`active`/`all`) changes eligibility only; it never changes the
+  selected player's rating or W–L record.
+- All 16 scope/rating/era/population combinations remain available through
+  the existing Components v2 UI and the existing prefix interfaces.
+
+Implementation evidence:
+
+- `DiscordMember.leaderboard()` now applies the configured global guild IDs
+  to its completed/ranked game candidate query with `Game.guild_id`; its
+  fewer-than-ten fallback is also restricted to `Player.guild_id` in that
+  same configured set. This matches the already-existing
+  `DiscordMember.get_record()` game filter.
+- An empty configured global-server set returns an explicit empty candidate
+  query and does not enter the broad registered-member fallback. The global
+  worker therefore produces no ranked rows instead of publishing misleading
+  globally ranked `0–0` users. A nonempty small configured population retains
+  the legitimate registered-player fallback, scoped to included guilds.
+- The worker-local read path, DTO/result shape, pagination, permissions,
+  `/leaderboard players` no-option behavior, `$leaderboard`/`$lb` aliases,
+  and Components v2 controls were preserved. No ignored runtime config,
+  fixture, Discord state, service, production database, or schema was
+  changed. No compatibility-ledger entry is required.
+
+Validation evidence for implementation/tests checkpoint `3806d0e`:
+
+- Focused command and adjacent leaderboard/taxonomy suite: **48 passed**.
+  The 12 player-leaderboard tests include the excluded-guild mismatch,
+  empty-global-scope/no-fallback behavior, and the complete 16-combination
+  option-matrix invariants.
+- Complete offline discovery:
+  `POLYBOT_ENV=development MPLCONFIGDIR=/tmp/polybot-matplotlib /home/nelluk/PolyBot39-dev/.venv/bin/python -m unittest discover -s tests -p 'test*.py' -v`
+  — **734 passed, 19 intentional gated database skips**.
+- Python 3.12 `compileall` for `modules` and `tests`, plus
+  `git diff --check`: passed.
+- The existing explicit read-only PostgreSQL gate was attempted with
+  `POLYBOT_RUN_DB_INTEGRATION=1`. Its profile/identity checks were unchanged,
+  but `setUpClass` could not connect to PostgreSQL at `localhost:5432`; **0
+  tests ran**. No database, fixture, or service mutation occurred.
+
+Limitations and deployment note:
+
+- The current ignored development configuration has no globally included
+  guild, so global leaderboard views correctly return empty until deployment
+  review sets an eligible guild.
+- For a nonempty included set, the existing small-population fallback can
+  legitimately show `0–0` for registered members with no counted games; it is
+  now limited to members registered in included guilds.
+- Live PostgreSQL validation was unavailable in this run. No beta/UI smoke
+  was performed because presentation and command registration are unchanged.
+- The oversight/deployment task may set only the development guild's ignored
+  `include_in_global_lb` flag after review and separate approval. This unit
+  does not change that flag or any production/global setting. After that
+  review, rerun the existing read-only development validation; do not weaken
+  its safety gates.
+
+Next action: Tier-2 review and parent-task integration. If deployment review
+approves a development global guild, apply only that ignored development flag
+in the separate deployment task and rerun the gated read-only validation.
+
 ### P7.7 — Unified player profile and game-history workspace
 
 Status: **Complete; integrated into the accumulation branch**
@@ -6753,6 +6843,25 @@ separate explicit reviewed unit. This preserves the single development beta
 writer and prevents a planning snapshot from becoming an implicit rollout.
 
 ## Progress log
+
+### 2026-08-03 — P7.6b global leaderboard record consistency implemented locally
+
+- Implemented P7.6b on `codex/p7-global-leaderboard-records` from exact base
+  `3c9c43e5604bd26a68b1b45e34e35bc8f6316850`; implementation/tests commit:
+  `3806d0e`.
+- Aligned global candidate and small-population fallback membership with the
+  configured `include_in_global_lb` guild set already used by global record
+  calculation. An empty set now yields no global rows, avoiding misleading
+  ranked `0–0` fallback users; local behavior and legitimate nonempty small
+  populations remain intact.
+- Added excluded-guild, empty-scope, and all-16-option invariant coverage.
+  Focused adjacent suite passed **48** tests; complete offline discovery
+  passed **734** tests with **19** intentional gated skips. Compilation and
+  diff checks passed.
+- The explicit read-only PostgreSQL case was attempted but could not connect
+  to `localhost:5432`, so **0** gated DB tests ran. No ignored config, live
+  beta, Discord state, fixture, production service/database, schema,
+  dependency, push, or merge operation occurred.
 
 ### 2026-08-03 — P8.4 integrated, deployed, and announced
 

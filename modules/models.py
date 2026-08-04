@@ -625,13 +625,39 @@ class DiscordMember(BaseModel):
         elif version == 'ALLTIME':
             elo_field = DiscordMember.elo_max_alltime if max_flag else DiscordMember.elo_alltime
 
+        global_server_ids = tuple(settings.servers_included_in_global_lb())
+        if not global_server_ids:
+            # Do not fall back to every registered DiscordMember when the
+            # configured global population is empty.  That would publish
+            # globally ranked 0-0 rows even though get_record() has no
+            # eligible games to count.
+            return (
+                DiscordMember
+                .select(DiscordMember, elo_field.alias('elo_field'))
+                .where(DiscordMember.id.in_([]))
+                .order_by(-elo_field, DiscordMember.id)
+            )
+
         query = DiscordMember.select(DiscordMember, elo_field.alias('elo_field')).join(Player).join(Lineup).join(Game).where(
-            (Game.is_completed == 1) & (Game.completed_ts > date_cutoff) & (Game.is_ranked == 1) & (DiscordMember.is_banned == 0)
+            (Game.is_completed == 1) &
+            (Game.completed_ts > date_cutoff) &
+            (Game.is_ranked == 1) &
+            (DiscordMember.is_banned == 0) &
+            (Game.guild_id.in_(global_server_ids))
         ).distinct().order_by(-elo_field, DiscordMember.id)
 
         if query.count() < 10:
-            # Include all registered players on leaderboard if not many games played
-            query = DiscordMember.select(DiscordMember, elo_field.alias('elo_field')).order_by(-elo_field, DiscordMember.id)
+            # Include all registered players from eligible global servers if
+            # not many games have been played.  The local leaderboard keeps
+            # its own guild-scoped fallback in Player.leaderboard().
+            query = (
+                DiscordMember
+                .select(DiscordMember, elo_field.alias('elo_field'))
+                .join(Player)
+                .where(Player.guild_id.in_(global_server_ids))
+                .distinct()
+                .order_by(-elo_field, DiscordMember.id)
+            )
 
         return query
 
