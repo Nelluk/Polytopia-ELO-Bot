@@ -1,5 +1,4 @@
 import discord
-import peewee
 from discord.ext import commands
 import modules.models as models
 import modules.utilities as utilities
@@ -10,7 +9,8 @@ import modules.exceptions as exceptions
 import datetime
 import random
 from modules.games import PolyGame
-from modules.league import free_agent_role_name, leader_role_name, coleader_role_name
+from modules import role_leaderboard as role_leaderboard_service
+from modules import role_leaderboard_workers
 from modules import beta_feedback_views
 from modules import beta_testing_guide
 # import modules.imgen as imgen
@@ -19,7 +19,7 @@ from modules import beta_testing_guide
 logger = logging.getLogger('polybot.' + __name__)
 
 
-def roleelo_server_check():
+def role_lookup_server_check():
     def predicate(ctx):
         if ctx.guild.id == settings.server_ids['polychampions']:
             return True
@@ -590,164 +590,31 @@ class misc(commands.Cog):
                 emojis.append(tribe_name)
         return await ctx.send(''.join(emojis))
 
-
-    @commands.command(aliases=['freeagents', 'roleeloany'], usage='[sort] [role name list]')
-    @roleelo_server_check()
+    @commands.command(name='freeagents', usage='[sort]')
+    @role_lookup_server_check()
     @settings.in_bot_channel_strict()
     @commands.cooldown(1, 5, commands.BucketType.channel)
-    async def roleelo(self, ctx: commands.Context, *, arg=None):
-        """Prints list of players with a given role and their ELO stats
+    async def freeagents(self, ctx: commands.Context, *, arg=None):
+        """List registered members with the configured Free Agent role."""
 
-        You can check more than one role at a time by separating them with a comma.
-        By default, will return members with ALL the specified roles.
-        Use `[p]roleeloany` to list members with ANY of the roles.
-
-        Use one of the following options as the first argument to change the sorting:
-        **g_elo** - Global ELO (default)
-        **elo** - Local ELO
-        **games** - Total number of games played
-        **recent** - Recent games played (14 days)
-
-        Members with the Inactive role will be skipped unless it is explicitly listed.
-        Include `-file` in the argument for a CSV attachment.
-
-        This command has some shortcuts:
-        `[p]freeagents` - List members with the Free Agent role
-
-        **Examples**
-        `[p]roleelo novas` - List all members with a role matching 'novas'
-        `[p]roleelo novas -file` - Load all 'nova' members into a CSV file
-        `[p]roleelo elo novas` - List all members with a role matching 'novas', sorted by local elo
-        `[p]roleeloany g_elo crawfish, ronin` - List all members with any of two roles, sorted by global elo
-        """
-        args = arg.split() if arg else []
-        usage = (f'**Example usage:** `{ctx.prefix}roleelo Ronin`\n'
-                 f'See `{ctx.prefix}help roleelo` for sorting options and more examples.')
-
-        if args and '-file' in args:
-            args.remove('-file')
-            file_export = True
-        else:
-            file_export = False
-
-        if args and args[0].upper() == 'G_ELO':
-            sort_key = 1
-            args = args[1:]
-            sort_str = 'Global ELO'
-        elif args and args[0].upper() == 'ELO':
-            sort_key = 2
-            args = args[1:]
-            sort_str = 'Local ELO'
-        elif args and args[0].upper() == 'GAMES':
-            sort_key = 3
-            args = args[1:]
-            sort_str = 'total games played'
-        elif args and args[0].upper() == 'RECENT':
-            sort_key = 4
-            args = args[1:]
-            sort_str = 'recent games played'
-        else:
-            sort_key = 1  # No argument supplied, use g_elo default
-            # args = ' '.join(args)
-            sort_str = 'Global ELO'
-
-        if ctx.invoked_with == 'freeagents':
-            args = [free_agent_role_name]
-        else:
-            is_house_lead = utilities.get_matching_roles(ctx.author, [leader_role_name, coleader_role_name])
-            if not settings.is_staff(ctx.author) and not is_house_lead:
-                return await ctx.send(
-                    f'You\'re not permitted to use this command. Only staff & House Leaders/Co-Leaders may use this command.')
-            if ctx.invoked_with == 'roleelo':
-                if not args:
-                    return await ctx.send(f'No role name was supplied.\n{usage}')
-
-        player_list = []
-        player_obj_list, member_obj_list = [], []
-
-        args = [a.strip().title() for a in ' '.join(args).split(',')]  # split arguments by comma
-
-        roles = [discord.utils.find(lambda r: arg.upper() in r.name.upper(), ctx.guild.roles) for arg in args]
-        roles = [r for r in roles if r]  # remove Nones
-
-        if ctx.invoked_with == 'roleeloany':
-            members = list(set(member for role in roles if role for member in role.members))
-            method = 'any'
-        else:
-            members = [member for member in ctx.guild.members if all(role in member.roles for role in roles)]
-            method = 'all'
-
-        if not roles:
+        try:
+            request = role_leaderboard_service.request_for_prefix(ctx, arg)
+            async with ctx.typing():
+                result = await role_leaderboard_workers.run_role_leaderboard(
+                    request,
+                )
+        except (
+            role_leaderboard_workers.RoleLeaderboardValidationError,
+            ValueError,
+        ) as exc:
+            return await ctx.send(str(exc))
+        except Exception:
+            logger.exception('Could not load Free Agent role leaderboard')
             return await ctx.send(
-                f'Could not load roles from the guild matching **{"/".join(args)}**. Multiple roles should be separated by a comma.',
-                allowed_mentions=discord.AllowedMentions.none()
+                'Could not load the Free Agent leaderboard. Please try again.'
             )
+        await role_leaderboard_service.publish_prefix(ctx, result, request)
 
-        inactive_role = discord.utils.get(ctx.guild.roles, name=settings.guild_setting(ctx.guild.id, 'inactive_role'))
-        for member in members:
-            if inactive_role and inactive_role in member.roles and inactive_role not in roles:
-                logger.debug(f'Skipping {member.name} since they have Inactive role')
-                continue
-
-            try:
-                dm = models.DiscordMember.get(discord_id=member.id)
-                player = models.Player.get(discord_member=dm, guild_id=ctx.guild.id)
-                player_obj_list.append(player)
-                member_obj_list.append(member)
-            except peewee.DoesNotExist:
-                logger.debug(f'Player {member.name} not registered.')
-                continue
-
-            g_wins, g_losses = dm.get_record()
-            wins, losses = player.get_record()
-            recent_games = dm.games_played(in_days=14).count()
-            all_games = dm.games_played().count()
-            message = (f' {dm.mention()} **{player.name}**'
-                       f'\n\u00A0\u00A0 \u00A0\u00A0 \u00A0\u00A0 {recent_games} games played in last 14 days, {all_games} all-time'
-                       f'\n\u00A0\u00A0 \u00A0\u00A0 \u00A0\u00A0 ELO:  {dm.elo_moonrise} *global* / {player.elo_moonrise} *local*\n'
-                       f'\u00A0\u00A0 \u00A0\u00A0 \u00A0\u00A0 __W {g_wins} / L {g_losses}__ *global* \u00A0\u00A0 - \u00A0\u00A0 __W {wins} / L {losses}__ *local*\n')
-
-            player_list.append((message, dm.elo_moonrise, player.elo_moonrise, all_games, recent_games, member, player))
-
-        player_list.sort(key=lambda tup: tup[sort_key], reverse=False)  # sort the list by argument supplied
-
-        message = []
-        for player in player_list:
-            message.append(player[0])
-
-        if not player_list:
-            await ctx.send('No matching players found.')
-        elif file_export:
-            import io
-
-            player_obj_list = [p[6] for p in player_list]
-            member_obj_list = [p[5] for p in player_list]
-
-            def async_call_export_func():
-
-                filename = utilities.export_player_data(player_list=player_obj_list, member_list=member_obj_list)
-                return filename
-
-            async with ctx.typing():
-                filename = await asyncio.get_running_loop().run_in_executor(None, async_call_export_func)
-                with open(filename, 'rb') as f:
-                    file = io.BytesIO(f.read())
-                file = discord.File(file, filename=filename)
-                await ctx.send(
-                    f'Exporting {len(player_list)} active players with {method} of the following roles: **{"/".join([r.name for r in roles])}**\nLoaded into a file `{filename}`, sorted by {sort_str}',
-                    file=file)
-        else:
-            await ctx.send(
-                f'Listing {len(player_list)} active members with {method} of the following roles: **{"/".join([r.name for r in roles])}** (sorted by {sort_str})...')
-
-            message = []
-            am = discord.AllowedMentions(everyone=False, users=False, roles=False)
-            for player in player_list:
-                message.append(player[0])
-            async with ctx.typing():
-
-                await utilities.buffered_send(destination=ctx, content=''.join(message).replace(".", "\u200b "),
-                                              allowed_mentions=am)
 
     async def task_broadcast_newbie_message(self):
         await self.bot.wait_until_ready()
