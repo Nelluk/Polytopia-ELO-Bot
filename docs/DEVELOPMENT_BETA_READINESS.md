@@ -209,16 +209,38 @@ one transaction, assigns the approved house relationships, preserves a
 compatible existing row, and refuses incompatible guild/name/house/visibility
 state. It never creates Discord roles, changes capability settings, registers
 commands, touches `Phase7Test`/`Home`/`Away`, or mutates game/ELO/fixture rows.
-The stopped-writer check is performed before the worker connection is opened.
+Before opening the worker connection, seed and cleanup acquire the same
+exclusive guarded `beta-writer.lock` used by the durable launcher. That lock is
+held continuously through the complete synchronous database transaction and
+the ownership-evidence write, commit, authoritative publication, or removal.
+An active writer or unsafe lock path therefore refuses promptly before any
+database mutation; `status` and `plan` remain read-only and do not need the
+mutation lock.
 
-The seed records a private mode-0600 ownership file at
-`logs/development/beta-operations/wb1-3b-setup.json`. It contains the exact
+The seed first writes prepared, non-authoritative evidence to the private
+mode-0600 file
+`logs/development/beta-operations/wb1-3b-setup.pending.json` while its database
+transaction is still open. A write/publication-preparation failure therefore
+rolls back all newly inserted houses and teams. A database commit failure or
+process interruption leaves recoverable pending evidence and no authoritative
+ownership file; later seed and cleanup refuse to overwrite or act on that
+evidence until it is reviewed. Only after a successful commit is the pending
+file atomically promoted to
+`logs/development/beta-operations/wb1-3b-setup.json`, which contains the exact
 manifest fingerprint, database IDs, immutable baselines, and pinned team-role
-bindings. Pre-existing compatible rows are recorded unowned. Cleanup can
-remove only rows marked owned by that evidence, after rechecking IDs,
-identities, baseline values, player/game-side use, house preferences/bids, and
-unowned sharing. It requires the exact confirmation token and the durable beta
-to be stopped:
+bindings. A promotion failure is surfaced as a fail-closed error and never
+authorizes cleanup from pending evidence.
+
+Pre-existing compatible rows are recorded unowned. Cleanup can remove only
+rows marked owned by authoritative evidence, after rechecking IDs, identities,
+baseline values, player/game-side use, house preferences/bids, and unowned
+sharing. The database delete commits before state removal, but the same writer
+lock remains held while the state file is removed. If removal fails, cleanup
+raises and retains stale fail-closed evidence rather than claiming success.
+After a read-only absence/identity check, an explicitly reviewed operator may
+reconcile only that stale cleanup evidence with the separate exact command
+below; it cannot reconcile pending seed evidence automatically. Cleanup
+requires the exact confirmation token and the durable beta to be stopped:
 
 ```bash
 POLYBOT_ENV=development \
@@ -227,9 +249,27 @@ scripts/manage_beta_wider_setup.py --json cleanup \
   --confirm WB1.3B-CLEANUP
 ```
 
+If cleanup committed its deletes but could not remove the state file, use this
+read-only database verification plus evidence-removal operation after review:
+
+```bash
+POLYBOT_ENV=development \
+/home/nelluk/PolyBot39-dev/.venv/bin/python \
+scripts/manage_beta_wider_setup.py --json reconcile-cleanup \
+  --confirm WB1.3B-RECONCILE
+```
+
+Reconciliation succeeds only when all state-owned rows are absent and every
+unowned row still matches its recorded ID and immutable baseline. It performs
+no database mutation; it removes only the stale authoritative evidence after
+that read-only check, under the same exclusive writer lock.
+
 No setup command has a generic remote apply mechanism. The implementation and
 its transaction are synchronous so a worker-local connection cannot leak into
-the bot event loop; a failed transaction rolls back all house/team inserts.
+the bot event loop. A failed pending-evidence write or database transaction
+rolls back all newly inserted house/team rows; commit/publication uncertainty
+leaves bounded evidence and refuses cleanup rather than risking an unowned
+delete.
 
 ### Precise later reviewed live sequence
 
@@ -237,9 +277,13 @@ WB1.3b itself performs none of this sequence. A later approved unit must keep
 the steps separate and record their output:
 
 1. Stop the one durable beta and confirm its identity/checkpoint. Do not run
-   setup seed or cleanup while its writer lock is active.
-2. Run setup `status`/`plan`, review the exact diff, then run `seed` only with
-   explicit approval for the reviewed manifest. Keep the ownership evidence.
+   setup seed or cleanup while its writer lock is active; the setup command
+   must acquire and retain that same lock for its full operation.
+2. Run setup `status`/`plan`, review the exact diff, and resolve any pending
+   or stale ownership evidence before proceeding. If a prior cleanup stopped
+   after its database commit, use `reconcile-cleanup` only after its read-only
+   absence and unowned-baseline checks pass. Then run `seed` only with explicit
+   approval for the reviewed manifest. Keep the ownership evidence.
 3. Through a separately reviewed local operator edit, update only the ignored
    development capability assignment if `tools_support` is approved. This
    task does not edit that ignored setting.

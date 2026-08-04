@@ -457,7 +457,8 @@ check:
 - P4.2d roadmap evidence: `e1a0959`; accumulation merge: `7c2269b`.
 
 Current unit: **WB1.3b reviewed wider-beta desired state and gated development
-setup — implemented locally; live apply remains separately gated.**
+setup — Tier-3 mutation-safety correction implemented locally; live apply
+remains separately gated.**
 
 WB1.3a implementation/tests correction checkpoint: `b19a71c` on branch
 `codex/wb1-3a-beta-readiness-inventory`, based on the exact clean
@@ -469,10 +470,10 @@ fixture mutation, production action, dependency installation, or push
 occurred. A separately gated read-only database inventory test was run against
 `polytopia_dev` as `polybot_dev` after independent profile confirmation.
 
-WB1.3b implementation/tests checkpoint: `148839f` on branch
-`codex/wb1-3b-wider-beta-setup`, based on exact integrated accumulation base
-`40b27104f7173c31e2b10e6369f7f19e9dd992b5`. It adds the tracked reviewed
-manifest `readiness-manifests/wb1-3b-reviewed.json`, explicit
+WB1.3b implementation/tests checkpoints: `148839f` and Tier-3 correction
+`19f50a9` on branch `codex/wb1-3b-wider-beta-setup`, based on exact integrated
+accumulation base `40b27104f7173c31e2b10e6369f7f19e9dd992b5`. It adds the
+tracked reviewed manifest `readiness-manifests/wb1-3b-reviewed.json`, explicit
 `tools_support` root reporting (`/staffhelp` only; `/about`, `/guide`,
 `/help`, `/support`, and `/tools` remain unloaded), and the exact-scope
 development DB setup CLI/module. The setup is synchronous, worker-connection
@@ -5627,11 +5628,11 @@ Known limitations and next action:
 
 #### WB1.3b — Reviewed wider-beta desired state and gated development setup
 
-Status: **Implemented locally; live setup/apply and tester invitation remain separately gated**
+Status: **Tier-3 mutation-safety correction implemented locally; live setup/apply and tester invitation remain separately gated**
 
 Branch/base: `codex/wb1-3b-wider-beta-setup` from exact integrated base
-`40b27104f7173c31e2b10e6369f7f19e9dd992b5`; implementation/tests checkpoint
-`148839f`.
+`40b27104f7173c31e2b10e6369f7f19e9dd992b5`; implementation/tests checkpoints
+`148839f` and correction `19f50a9`.
 
 The reviewed desired state is tracked at
 `readiness-manifests/wb1-3b-reviewed.json`. It resolves only the approved
@@ -5652,23 +5653,43 @@ prefix change.
 
 `modules/beta_wider_setup.py` and
 `scripts/manage_beta_wider_setup.py` provide synchronous `status`, `plan`,
-`seed`, and exact-confirmation `cleanup` operations. Status/plan open a
-worker-local read-only Peewee transaction. Seed/cleanup require all existing
-development profile/live identity/guild gates and probe the durable beta lock
-before opening the connection. Seed inserts houses before teams in one
-transaction, explicitly supplies schema defaults, assigns the reviewed house
-relationships, preserves only compatible exact rows, and fails closed on
-conflict. It never imports Discord/model/command/game/ELO code or touches
-fixtures. A private mode-0600 state file records the reviewed manifest
-fingerprint, IDs, immutable baselines, and team role bindings. Existing rows
-are unowned; cleanup can delete only state-owned rows after rechecking identity,
-baseline, IDs, player/game-side use, house preferences/bids, and unowned
-sharing. It requires `--confirm WB1.3B-CLEANUP` and never deletes games or
-ELO data.
+`seed`, exact-confirmation `cleanup`, and explicit `reconcile-cleanup`
+operations. Status/plan open a worker-local read-only Peewee transaction.
+Seed/cleanup/reconciliation require all existing development profile/live
+identity/guild gates. Seed and cleanup acquire the exact guarded
+`beta-writer.lock` used by the durable launcher before opening the connection
+and hold it through the complete synchronous database transaction, ownership
+publication, and state removal; an active writer refuses before database
+mutation. Seed inserts houses before teams in one transaction, explicitly
+supplies schema defaults, assigns the reviewed house relationships, preserves
+only compatible exact rows, and fails closed on conflict. It never imports
+Discord/model/command/game/ELO code or touches fixtures.
+
+Seed writes bounded mode-0600 prepared evidence to
+`wb1-3b-setup.pending.json` inside the open transaction. A pending-evidence
+write failure rolls back all newly inserted rows. Commit failure or process
+interruption leaves pending non-authoritative evidence, no false authoritative
+ownership claim, and a refusal on later seed/cleanup until reviewed. A
+successful commit promotes the pending file atomically to
+`wb1-3b-setup.json`; promotion failure is surfaced fail closed and does not
+authorize cleanup from pending evidence. The authoritative state records the
+reviewed manifest fingerprint, IDs, immutable baselines, and team role
+bindings. Existing rows are unowned; cleanup can delete only state-owned rows
+after rechecking identity, baseline, IDs, player/game-side use, house
+preferences/bids, and unowned sharing. Cleanup requires
+`--confirm WB1.3B-CLEANUP` and never deletes games or ELO data. If its
+post-commit state removal fails, it reports failure and retains stale evidence;
+`reconcile-cleanup --confirm WB1.3B-RECONCILE` removes that evidence only after
+a read-only check proves owned rows are absent and unowned rows are unchanged.
 
 Validation evidence:
 
-- Focused offline WB1.3b/readiness/policy tests: **45 passed**.
+- The correction-focused WB1.3b suite passed **18 tests**, including lock
+  contention during database work, pending-state write/publication/removal,
+  active-writer refusal before connection/mutation, transaction rollback on
+  ownership-write failure, commit-failure pending evidence, and cleanup
+  reconciliation after state-removal failure. The prior WB1.3b/readiness/policy
+  focus passed 45 tests.
 - Independent read-only preflight confirmed `POLYBOT_ENV=development`,
   `polytopia_dev`, and `polybot_dev`; the existing gated
   `test_wb13b_setup_is_rollback_isolated_and_preserves_retained_fixtures`
@@ -5683,7 +5704,11 @@ invited; no command sync, capability assignment edit, fixture operation,
 production action, dependency installation, push, or merge occurred.
 
 Precise later sequence: stop the one durable beta; run setup `status`/`plan`
-and, after explicit review, `seed` through the exact gate; update the ignored
+and review any pending evidence. A stale authoritative state may deliberately
+make those commands fail closed; if cleanup previously committed but state
+removal failed, run the exact-confirmation `reconcile-cleanup` operation only
+after its read-only absence and unowned-baseline checks pass. Then, after
+explicit review, run `seed` through the exact gate. Update the ignored
 development capability assignment only through a separately reviewed local
 operator step; run the existing offline command plan and separately approved
 guild-only inspect/apply for the fixed development guild with no global sync;
@@ -6627,6 +6652,37 @@ writer and prevents a planning snapshot from becoming an implicit rollout.
   approved, run offline plan plus separately approved guild-only inspect/apply,
   restart one beta from `d895718`, verify/smoke, then separately announce and
   invite.
+
+### 2026-08-03 — WB1.3b Tier-3 mutation-safety correction
+
+- Corrected the mutation boundary in implementation/tests checkpoint `19f50a9`.
+  Seed, cleanup, and evidence reconciliation now acquire the exact guarded
+  `beta-writer.lock` used by the durable launcher before opening a worker
+  connection and retain it through the synchronous transaction and filesystem
+  ownership-evidence publication/removal. The focused lock regression probes
+  contention during database work, pending-state write, state promotion, and
+  state removal; active-writer refusal is verified before database connection
+  or mutation.
+- Seed writes bounded mode-0600 pending evidence inside the open transaction.
+  Pending-state write failure rolls back all inserted rows. Commit failure or
+  process interruption leaves non-authoritative recoverable evidence and
+  refuses later seed/cleanup; a successful commit promotes it to authoritative
+  state. Promotion uncertainty never authorizes deletion. Cleanup retains the
+  lock through post-commit state removal; removal failure reports failure and
+  leaves stale fail-closed evidence. The exact-confirmation
+  `reconcile-cleanup` operation performs a read-only identity/absence/baseline
+  check before removing only reconciled stale evidence.
+- The independently confirmed `development` / `polytopia_dev` /
+  `polybot_dev` preflight passed, and the existing rollback-isolated real-schema
+  WB1.3b test passed **1 test** without committing setup rows or interacting
+  with the durable beta. The correction-focused suite passed **18 tests**;
+  complete offline discovery passed **704 tests with 19 intentional gated
+  skips**. Compilation and `git diff --check` passed.
+- Documentation/runbook evidence is kept separate from the implementation
+  commit. No beta inspection, stop/restart, Discord mutation, command sync,
+  capability edit, fixture mutation, tester invitation, production action,
+  dependency installation, push, or merge occurred. No new compatibility
+  compromise or prefix change was made.
 
 ### 2026-08-03 — WB1.2 activation launcher correction
 
