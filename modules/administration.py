@@ -18,6 +18,8 @@ from modules import elo_workers, game_workers
 from modules.elo_jobs import EloJobConflict
 from modules import team_emoji as team_emoji_service
 from modules import team_emoji_workers
+from modules import team_creation as team_creation_service
+from modules import team_creation_workers
 from modules import team_attributes as team_attributes_service
 from modules import team_attributes_workers
 from modules import team_image as team_image_service
@@ -1085,23 +1087,73 @@ class administration(commands.Cog):
 
         await ctx.send(f'Tribe {tribe.name} updated with new emoji: {tribe.emoji}')
 
-    @commands.command(aliases=['team_add_junior'], usage='new_team_name')
-    @settings.is_mod_check()
-    @settings.guild_has_setting(setting_name='allow_teams')
-    async def team_add(self, ctx, *, team_name: str):
-        """*Mod*: Create new server Team
-        The team should have a Role with an identical name.
-        **Example:**
-        `[p]team_add The Amazeballs`
-        """
-        try:
-            logger.debug(f'team_add with name {team_name}')
-            team = models.Team.create(name=team_name, guild_id=ctx.guild.id, is_hidden=False)
-        except peewee.IntegrityError:
-            return await ctx.send('That team already exists!')
+    @team_group.command(
+        name='create',
+        description='Create a competitive team.',
+    )
+    @discord.app_commands.describe(
+        name='Team name; this becomes the exact Discord membership role name.',
+    )
+    async def team_create_slash(
+        self,
+        interaction: discord.Interaction,
+        name: str,
+    ):
+        """Create one team and its actor-attributed audit entry after commit."""
 
-        await ctx.send(f'Team **{team_name}** created! Starting ELO: {team.elo}. Players with a Discord Role exactly matching \"*{team_name}*\" will be considered team members. '
-                f'See `{ctx.prefix}help team_edit` for other commands to set up a new team.')
+        guild_id = getattr(interaction.guild, 'id', None)
+        if guild_id is None:
+            return await interaction.response.send_message(
+                'This command can only be used in a server.',
+                ephemeral=True,
+            )
+        access_error = team_creation_service.native_access_error(
+            interaction.user,
+            guild_id,
+        )
+        if access_error:
+            return await interaction.response.send_message(
+                access_error,
+                ephemeral=True,
+            )
+
+        actor = team_creation_service.capture_actor(interaction.user)
+        await interaction.response.defer(ephemeral=True)
+        try:
+            request = team_creation_service.build_request(
+                member=interaction.user,
+                guild_id=guild_id,
+                name=name,
+                native=True,
+                invoked_with='/team create',
+            )
+            result = await team_creation_service.run_create(request)
+            await team_creation_service.publish_success(
+                result,
+                send=team_emoji_service.public_interaction_sender(interaction),
+                actor=actor,
+            )
+            return result
+        except team_creation_workers.TeamCreationValidationError as exc:
+            return await interaction.followup.send(str(exc), ephemeral=True)
+        except peewee.PeeweeException:
+            logger.exception(
+                'Database failure in native team create command for guild %s',
+                guild_id,
+            )
+            return await interaction.followup.send(
+                'Team creation failed and rolled back.',
+                ephemeral=True,
+            )
+        except Exception:
+            logger.exception(
+                'Unexpected native team create failure for guild %s',
+                guild_id,
+            )
+            return await interaction.followup.send(
+                'Team creation failed and rolled back.',
+                ephemeral=True,
+            )
 
     @commands.command(usage='team_name new_emoji')
     @settings.is_mod_check()

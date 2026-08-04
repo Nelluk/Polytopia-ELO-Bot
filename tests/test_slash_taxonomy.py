@@ -98,7 +98,7 @@ class SlashTaxonomyRegistrationTests(unittest.TestCase):
         )
         self.assertEqual(
             {command.name for command in team_group.commands},
-            {'emoji', 'image', 'name', 'server', 'tier', 'house'},
+            {'create', 'emoji', 'image', 'name', 'server', 'tier', 'house'},
         )
         self.assertEqual(
             {command.name for command in leaderboard_group.commands},
@@ -252,6 +252,16 @@ class SlashTaxonomyRegistrationTests(unittest.TestCase):
             [
                 (parameter.name, parameter.type, parameter.required)
                 for parameter
+                in team_group.get_command('create').parameters
+            ],
+            [
+                ('name', discord.AppCommandOptionType.string, True),
+            ],
+        )
+        self.assertEqual(
+            [
+                (parameter.name, parameter.type, parameter.required)
+                for parameter
                 in team_group.get_command('name').parameters
             ],
             [
@@ -321,6 +331,7 @@ class SlashTaxonomyRegistrationTests(unittest.TestCase):
         autocomplete_callbacks = {
             command.name: command._params['team'].autocomplete
             for command in team_group.commands
+            if 'team' in command._params
         }
         self.assertEqual(
             set(autocomplete_callbacks),
@@ -359,6 +370,11 @@ class SlashTaxonomyRegistrationTests(unittest.TestCase):
             command.name: command
             for command in administration.administration.__cog_commands__
         }
+        self.assertNotIn('team_add', administration_prefix)
+        self.assertFalse(any(
+            'team_add_junior' in command.aliases
+            for command in administration_prefix.values()
+        ))
         self.assertIn('team_image', administration_prefix)
         self.assertEqual(
             administration_prefix['team_image'].clean_params['team_name'].annotation,
