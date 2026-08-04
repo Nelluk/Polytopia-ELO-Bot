@@ -2,7 +2,8 @@
 
 import asyncio
 from contextlib import AbstractAsyncContextManager, AbstractContextManager, ExitStack
-from dataclasses import FrozenInstanceError
+from dataclasses import FrozenInstanceError, replace
+import inspect
 from types import SimpleNamespace
 import time
 import unittest
@@ -326,7 +327,7 @@ class TeamShowWorkerTests(unittest.TestCase):
         self.assertEqual(loaded.external_server, 987654)
         self.assertEqual(
             [row.name for row in loaded.roster_rows],
-            ['Beta DB', 'Alpha DB'],
+            ['Alpha DB', 'Beta DB'],
         )
         self.assertEqual(loaded.leaders, ('<@101>',))
         self.assertEqual(loaded.coleaders, ('<@202>',))
@@ -342,17 +343,17 @@ class TeamShowWorkerTests(unittest.TestCase):
         )
         self.assertEqual(
             [row.discord_id for row in loaded.roster_rows],
-            [202, 101],
+            [101, 202],
         )
         self.assertNotIn(303, [row.discord_id for row in loaded.roster_rows])
 
-    def test_completed_mode_sorts_by_completed_metric(self):
+    def test_worker_preserves_role_order_for_presentation_sorting(self):
         loaded = workers.load_team_show(
             request(activity_mode=workers.TEAM_ACTIVITY_COMPLETED)
         )
         self.assertEqual(
             [row.discord_id for row in loaded.roster_rows],
-            [202, 101],
+            [101, 202],
         )
         self.assertEqual(loaded.activity_mode, workers.TEAM_ACTIVITY_COMPLETED)
 
@@ -438,6 +439,30 @@ class TeamShowWorkerTests(unittest.TestCase):
 
 
 class TeamShowPresentationTests(unittest.TestCase):
+    @staticmethod
+    def _cross_metric_result():
+        card = result()
+        alpha = replace(
+            card.roster_rows[1],
+            recent_games=9,
+            completed_games=1,
+        )
+        beta = replace(
+            card.roster_rows[0],
+            recent_games=2,
+            completed_games=10,
+        )
+        return replace(card, roster_rows=(alpha, beta))
+
+    @staticmethod
+    def _assert_order(description, first, second):
+        self_index = description.index(first)
+        other_index = description.index(second)
+        if self_index >= other_index:
+            raise AssertionError(
+                f'expected {first!r} before {second!r}: {description!r}'
+            )
+
     def test_dense_card_has_legacy_fields_and_both_roster_modes(self):
         card = result()
         recent = service.render_embed(card)
@@ -456,6 +481,97 @@ class TeamShowPresentationTests(unittest.TestCase):
             recent.thumbnail.url,
             'attachment://team-logo-42.png',
         )
+
+    def test_each_roster_view_sorts_its_metric_and_keeps_stable_ties(self):
+        card = self._cross_metric_result()
+        recent = service.render_embed(card)
+        completed = service.render_embed(
+            replace(
+                card,
+                activity_mode=workers.TEAM_ACTIVITY_COMPLETED,
+            )
+        )
+        self._assert_order(recent.description, 'Alpha', 'Beta')
+        self._assert_order(completed.description, 'Beta', 'Alpha')
+
+        tied = replace(
+            card,
+            roster_rows=tuple(
+                replace(row, recent_games=5, completed_games=5)
+                for row in card.roster_rows
+            ),
+        )
+        self._assert_order(
+            service.render_embed(tied).description,
+            'Alpha',
+            'Beta',
+        )
+
+        class Response:
+            def __init__(self):
+                self.edit_message = mock.AsyncMock()
+
+            def is_done(self):
+                return False
+
+        interaction = SimpleNamespace(
+            user=SimpleNamespace(id=101),
+            response=Response(),
+            followup=SimpleNamespace(send=mock.AsyncMock()),
+        )
+        view = service.TeamShowView(card, requester_id=101)
+        asyncio.run(view._activity_clicked(interaction))
+        refreshed_completed = interaction.response.edit_message.await_args.kwargs[
+            'embed'
+        ]
+        self._assert_order(refreshed_completed.description, 'Beta', 'Alpha')
+
+        interaction.response.edit_message.reset_mock()
+        asyncio.run(view._activity_clicked(interaction))
+        refreshed_recent = interaction.response.edit_message.await_args.kwargs[
+            'embed'
+        ]
+        self._assert_order(refreshed_recent.description, 'Alpha', 'Beta')
+
+        interaction.response.edit_message.reset_mock()
+        completed_view = service.TeamShowView(
+            replace(
+                card,
+                activity_mode=workers.TEAM_ACTIVITY_COMPLETED,
+            ),
+            requester_id=101,
+        )
+        self.assertTrue(completed_view.completed)
+        asyncio.run(completed_view._activity_clicked(interaction))
+        refreshed_from_completed = interaction.response.edit_message.await_args.kwargs[
+            'embed'
+        ]
+        self._assert_order(refreshed_from_completed.description, 'Alpha', 'Beta')
+
+    def test_graph_renderer_uses_object_owned_agg_without_pyplot(self):
+        source = inspect.getsource(workers._render_graph)
+        self.assertIn('FigureCanvasAgg', source)
+        self.assertIn('Figure', source)
+        self.assertNotIn('pyplot', source)
+        self.assertNotIn('plt', source)
+        self.assertNotIn('style.use', source)
+        self.assertNotIn('plt', workers.__dict__)
+
+        data = SimpleNamespace(
+            team_name='Ronin',
+            team_elo_reset_label='01/01/2020',
+            current_history=(
+                ('2026-01-01', 1110),
+                ('2026-02-01', 1120),
+            ),
+            alltime_history=(
+                ('2026-01-01', 1100),
+                ('2026-02-01', 1120),
+            ),
+        )
+        graph = workers._render_graph(data)
+        self.assertGreater(len(graph), 0)
+        self.assertTrue(graph.startswith(b'\x89PNG\r\n\x1a\n'))
 
     def test_missing_role_warning_and_image_files_are_preserved_without_graph_png(self):
         card = result(missing=True)

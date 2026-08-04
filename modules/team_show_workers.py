@@ -549,17 +549,6 @@ def _load_team_show_data(request: TeamShowRequest) -> _TeamShowLoadedData:
                 )
             )
 
-        roster_rows.sort(
-            key=(
-                lambda row: (
-                    row.completed_games
-                    if request.activity_mode == TEAM_ACTIVITY_COMPLETED
-                    else row.recent_games
-                )
-            ),
-            reverse=True,
-        )
-
         if hasattr(team, 'get_record'):
             wins, losses = team.get_record(alltime=False)
         else:
@@ -630,38 +619,40 @@ def _render_graph(data: _TeamShowLoadedData) -> bytes:
 
     if not data.alltime_history:
         return b''
-    from matplotlib import pyplot as plt
+    from matplotlib.backends.backend_agg import FigureCanvasAgg
+    from matplotlib.figure import Figure
 
-    plt.style.use('default')
-    fig, ax = plt.subplots()
+    figure = Figure()
+    canvas = FigureCanvasAgg(figure)
+    axis = figure.add_subplot()
     try:
-        fig.suptitle(f'ELO History ({data.team_name})', fontsize=16)
-        fig.autofmt_xdate()
+        figure.suptitle(f'ELO History ({data.team_name})', fontsize=16)
+        figure.autofmt_xdate()
         if data.current_history:
-            ax.plot(
+            axis.plot(
                 [point[0] for point in data.current_history],
                 [point[1] for point in data.current_history],
                 'o',
                 markersize=3,
                 label=f'Since {data.team_elo_reset_label}',
             )
-        ax.plot(
+        axis.plot(
             [point[0] for point in data.alltime_history],
             [point[1] for point in data.alltime_history],
             'o',
             markersize=3,
             label='Alltime',
         )
-        ax.yaxis.grid()
-        ax.spines['top'].set_visible(False)
-        ax.spines['right'].set_visible(False)
-        ax.spines['left'].set_visible(False)
-        ax.legend(loc='best')
+        axis.yaxis.grid()
+        axis.spines['top'].set_visible(False)
+        axis.spines['right'].set_visible(False)
+        axis.spines['left'].set_visible(False)
+        axis.legend(loc='best')
         output = BytesIO()
-        fig.savefig(output, format='png', transparent=False)
+        canvas.print_png(output)
         return output.getvalue()
     finally:
-        plt.close(fig)
+        figure.clear()
 
 
 def _finalise_team_show(data: _TeamShowLoadedData) -> TeamShowResult:

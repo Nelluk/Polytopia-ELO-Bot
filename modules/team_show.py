@@ -212,6 +212,26 @@ def _roster_line(row: team_show_workers.TeamShowRosterRow, *, completed: bool) -
     return line.replace('.', '\u200b ')
 
 
+def _sorted_roster_rows(
+    result: team_show_workers.TeamShowResult,
+    *,
+    completed: bool,
+) -> tuple[team_show_workers.TeamShowRosterRow, ...]:
+    """Sort each presentation by its visible metric, keeping stable ties."""
+
+    return tuple(
+        sorted(
+            result.roster_rows,
+            key=(
+                lambda row: (
+                    row.completed_games if completed else row.recent_games
+                )
+            ),
+            reverse=True,
+        )
+    )
+
+
 def render_embed(
     result: team_show_workers.TeamShowResult,
     *,
@@ -240,6 +260,7 @@ def render_embed(
     )
 
     if result.team_role_found:
+        roster_rows = _sorted_roster_rows(result, completed=bool(completed))
         header = (
             '__Player - ELO - Ranking - Completed Games__'
             if completed
@@ -247,7 +268,7 @@ def render_embed(
         )
         members = '\n'.join(
             _roster_line(row, completed=bool(completed))
-            for row in result.roster_rows[:50]
+            for row in roster_rows[:50]
         ) or '\u200b'
         embed.description = (
             f'**Members({len(result.roster_rows)})**\n'
