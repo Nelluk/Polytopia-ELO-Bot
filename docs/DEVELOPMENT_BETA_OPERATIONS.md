@@ -215,7 +215,8 @@ The prepared manifest uses this exact schema:
   "changed_commands": ["/game show"],
   "known_limitations": ["One bounded limitation."],
   "smoke_test_checklist": ["Run the reviewed smoke test."],
-  "ping_testers": false
+  "ping_testers": false,
+  "notify_user_ids": []
 }
 ```
 
@@ -228,6 +229,11 @@ Discord content limit. `ping_testers` must be a JSON boolean.
 
 Minor releases set `ping_testers` to `false`. A major/tester-facing release
 may set it to `true`, but the role gate below must already be complete.
+An update may additionally list up to five explicitly reviewed Discord user
+IDs in `notify_user_ids`. Only those exact users are mention-enabled for that
+one post; other user mentions, all unlisted roles, `@everyone`, and `@here`
+remain blocked. Keep the list empty unless the operator has explicitly
+approved notifying the named users for that release.
 
 Prepare a reviewed release without Discord or PostgreSQL:
 

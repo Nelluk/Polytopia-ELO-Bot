@@ -13,5 +13,6 @@
   "smoke_test_checklist": [
     "Run the reviewed command smoke test and confirm the public result."
   ],
-  "ping_testers": false
+  "ping_testers": false,
+  "notify_user_ids": []
 }

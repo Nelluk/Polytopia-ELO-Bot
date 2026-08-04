@@ -64,6 +64,7 @@ MAX_LIMITATIONS = 8
 MAX_LIMITATION_LENGTH = 240
 MAX_SMOKE_TESTS = 12
 MAX_SMOKE_TEST_LENGTH = 200
+MAX_NOTIFY_USERS = 5
 MAX_ANNOUNCEMENT_LENGTH = 1900
 MAX_HISTORY_SCAN = 100
 MAX_SOCKET_REQUEST_BYTES = 64 * 1024
@@ -137,9 +138,10 @@ class ReleaseManifest:
     known_limitations: tuple[str, ...]
     smoke_test_checklist: tuple[str, ...]
     ping_testers: bool
+    notify_user_ids: tuple[int, ...] = ()
 
     def as_dict(self) -> dict[str, Any]:
-        return {
+        value = {
             'schema_version': self.schema_version,
             'release_id': self.release_id,
             'expected_checkpoint': self.expected_checkpoint,
@@ -150,6 +152,9 @@ class ReleaseManifest:
             'smoke_test_checklist': list(self.smoke_test_checklist),
             'ping_testers': self.ping_testers,
         }
+        if self.notify_user_ids:
+            value['notify_user_ids'] = list(self.notify_user_ids)
+        return value
 
 
 @dataclass(frozen=True, slots=True)
@@ -554,14 +559,15 @@ def validate_release_manifest(
         current_checkpoint: str | None = None) -> ReleaseManifest:
     if not isinstance(value, Mapping):
         raise ReleaseManifestError('The release manifest must be a JSON object.')
-    expected_keys = {
+    required_keys = {
         'schema_version', 'release_id', 'expected_checkpoint', 'title',
         'bounded_summary', 'changed_commands', 'known_limitations',
         'smoke_test_checklist', 'ping_testers',
     }
+    allowed_keys = required_keys | {'notify_user_ids'}
     keys = set(value)
-    missing = expected_keys - keys
-    extra = keys - expected_keys
+    missing = required_keys - keys
+    extra = keys - allowed_keys
     if missing or extra:
         detail = []
         if missing:
@@ -613,6 +619,26 @@ def validate_release_manifest(
         raise ReleaseManifestError('smoke_test_checklist must contain at least one item.')
     if type(value['ping_testers']) is not bool:
         raise ReleaseManifestError('ping_testers must be a JSON boolean.')
+    raw_notify_users = value.get('notify_user_ids', [])
+    if not isinstance(raw_notify_users, list):
+        raise ReleaseManifestError('notify_user_ids must be a JSON array.')
+    if len(raw_notify_users) > MAX_NOTIFY_USERS:
+        raise ReleaseManifestError(
+            f'notify_user_ids may contain at most {MAX_NOTIFY_USERS} users.'
+        )
+    notify_user_ids = []
+    for index, user_id in enumerate(raw_notify_users):
+        if (
+            type(user_id) is not int
+            or user_id < 100000000000000
+            or user_id > 999999999999999999999
+        ):
+            raise ReleaseManifestError(
+                f'notify_user_ids[{index}] must be a Discord user ID.'
+            )
+        if user_id in notify_user_ids:
+            raise ReleaseManifestError('notify_user_ids must not contain duplicates.')
+        notify_user_ids.append(user_id)
     manifest = ReleaseManifest(
         schema_version=MANIFEST_SCHEMA_VERSION,
         release_id=release_id,
@@ -623,6 +649,7 @@ def validate_release_manifest(
         known_limitations=limitations,
         smoke_test_checklist=smoke_tests,
         ping_testers=value['ping_testers'],
+        notify_user_ids=tuple(notify_user_ids),
     )
     # Render with a placeholder role to enforce the one-message Discord bound
     # before any live channel/role lookup or post attempt.
@@ -917,6 +944,11 @@ def build_release_announcement(
     ]
     if manifest.ping_testers:
         lines.append(f'Tester ping: <@&{int(tester_role_id)}>')
+    if manifest.notify_user_ids:
+        lines.append(
+            'Requested reviewer notification: '
+            + ' '.join(f'<@{user_id}>' for user_id in manifest.notify_user_ids)
+        )
     if manifest.changed_commands:
         lines.append('**Changed commands:** ' + ', '.join(
             f'`{escape(command)}`' for command in manifest.changed_commands
@@ -1200,15 +1232,18 @@ class BetaReleaseService:
                 manifest,
                 tester_role_id=(int(getattr(tester_role, 'id')) if tester_role else None),
             )
-            allowed_mentions = (
-                discord.AllowedMentions(
-                    everyone=False,
-                    users=False,
-                    roles=[discord.Object(id=int(getattr(tester_role, 'id')))],
-                    replied_user=False,
-                )
-                if tester_role is not None
-                else discord.AllowedMentions.none()
+            allowed_mentions = discord.AllowedMentions(
+                everyone=False,
+                users=[
+                    discord.Object(id=user_id)
+                    for user_id in manifest.notify_user_ids
+                ],
+                roles=(
+                    [discord.Object(id=int(getattr(tester_role, 'id')))]
+                    if tester_role is not None
+                    else []
+                ),
+                replied_user=False,
             )
             try:
                 message = await channel.send(

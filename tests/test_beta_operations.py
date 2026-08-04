@@ -42,8 +42,8 @@ def profile(root: Path, **overrides):
     return SimpleNamespace(**values)
 
 
-def manifest(*, ping=False, checkpoint=CHECKPOINT, release_id='wb1-2-test'):
-    return {
+def manifest(*, ping=False, checkpoint=CHECKPOINT, release_id='wb1-2-test', notify_users=None):
+    value = {
         'schema_version': 1,
         'release_id': release_id,
         'expected_checkpoint': checkpoint,
@@ -54,6 +54,9 @@ def manifest(*, ping=False, checkpoint=CHECKPOINT, release_id='wb1-2-test'):
         'smoke_test_checklist': ['Run the command and verify the public result.'],
         'ping_testers': ping,
     }
+    if notify_users is not None:
+        value['notify_user_ids'] = notify_users
+    return value
 
 
 class FakeMessage:
@@ -491,6 +494,43 @@ class ReleaseDeliveryTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([int(role.id) for role in allowed_roles], [901])
         self.assertFalse(kwargs['allowed_mentions'].users)
         self.assertFalse(kwargs['allowed_mentions'].everyone)
+
+    async def test_explicit_user_notification_allows_only_reviewed_users(self):
+        user_id = 339773948537470976
+        value = manifest(notify_users=[user_id])
+        self._archive_for_delivery(value)
+
+        result = await self.service.deliver(value)
+
+        self.assertEqual(result.status, 'posted')
+        content, kwargs = self.guild.channel.send_calls[0]
+        self.assertIn(f'<@{user_id}>', content)
+        self.assertEqual(
+            [int(user.id) for user in kwargs['allowed_mentions'].users],
+            [user_id],
+        )
+        self.assertFalse(kwargs['allowed_mentions'].roles)
+        self.assertFalse(kwargs['allowed_mentions'].everyone)
+
+    def test_explicit_user_notifications_are_bounded_and_validated(self):
+        parsed = beta_operations.validate_release_manifest(
+            manifest(notify_users=[339773948537470976]),
+            current_checkpoint=CHECKPOINT,
+        )
+        self.assertEqual(parsed.notify_user_ids, (339773948537470976,))
+        for invalid in (
+            ['339773948537470976'],
+            [True],
+            [123],
+            [339773948537470976, 339773948537470976],
+            [339773948537470976] * (beta_operations.MAX_NOTIFY_USERS + 1),
+        ):
+            with self.subTest(invalid=invalid):
+                with self.assertRaises(beta_operations.ReleaseManifestError):
+                    beta_operations.validate_release_manifest(
+                        manifest(notify_users=invalid),
+                        current_checkpoint=CHECKPOINT,
+                    )
 
     async def test_missing_or_ambiguous_or_changed_role_fails_before_post(self):
         self._archive_for_delivery(manifest(ping=True))
