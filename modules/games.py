@@ -37,6 +37,8 @@ from modules import game_search_workers
 from modules import game_detail_views
 from modules import game_detail_workers
 from modules import game_detail_actions
+from modules import team_show as team_show_service
+from modules import team_show_workers
 from modules import game_deletion
 from modules import game_join_leave
 from modules import game_join_workers
@@ -2079,149 +2081,53 @@ class polygames(commands.Cog):
         """
 
         if not team_string:
-            return await ctx.send(f'No team name supplied. Use `{ctx.prefix}lbteam` for the team leaderboard. **Example:** `{ctx.prefix}team Ronin`')
+            return await ctx.send(
+                team_show_service.legacy_no_team_message(prefix=ctx.prefix)
+            )
 
-        if 'completed' in team_string:
-            team_string = team_string.replace('completed', '').strip()
-            completed_flag = True
-        else:
-            completed_flag = False
+        tokens = str(team_string).split()
+        completed_flag = any(token.lower() == 'completed' for token in tokens)
+        team_lookup = ' '.join(
+            token for token in tokens if token.lower() != 'completed'
+        ).strip()
+        if not team_lookup:
+            return await ctx.send(
+                team_show_service.legacy_no_team_message(prefix=ctx.prefix)
+            )
 
+        request = team_show_service.build_request(
+            member=ctx.author,
+            guild=ctx.guild,
+            team_lookup=team_lookup,
+            activity_mode=(
+                team_show_workers.TEAM_ACTIVITY_COMPLETED
+                if completed_flag
+                else team_show_workers.TEAM_ACTIVITY_RECENT
+            ),
+            native=False,
+            invoked_with=str(ctx.invoked_with or 'team'),
+            prefix=str(ctx.prefix),
+            channel_id=getattr(getattr(ctx, 'channel', None), 'id', None),
+        )
         try:
-            team = Team.get_or_except(team_string, ctx.guild.id)
-        except exceptions.NoSingleMatch:
-            return await ctx.send(f'Couldn\'t find a team name matching *{discord.utils.escape_mentions(team_string)}*. Check spelling or be more specific. **Example:** `{ctx.prefix}team Ronin`')
-
-        house_str = f'\nHouse {team.house.name} {team.house.emoji}' if team.house and team.house.name else ''
-        embed = discord.Embed(title=f'Team card for **{team.name}** {team.emoji}{house_str}')
-        team_role = discord.utils.get(ctx.guild.roles, name=team.name)
-        mia_role = discord.utils.get(ctx.guild.roles, name=settings.guild_setting(ctx.guild.id, 'inactive_role'))
-        # leader_role = discord.utils.get(ctx.guild.roles, name='Team Leader')
-        # coleader_role = discord.utils.get(ctx.guild.roles, name='Team Co-Leader')
-        member_stats = []
-        leaders_list, coleaders_list, recruiters_list, captains_list = [], [], [], []
-        image = None
-
-        wins, losses = team.get_record(alltime=False)
-        embed.add_field(name='Results', value=f'ELO: {team.elo}   Wins {wins} / Losses {losses}', inline=False)
-
-        if team_role:
             async with ctx.typing():
-                if ctx.guild.id == settings.server_ids['polychampions'] or ctx.guild.id == settings.server_ids['test']:
-                    leaders_list, coleaders_list, recruiters_list, captains_list = get_team_leadership(team)
-                    leaders_list = [member.mention for member in leaders_list]
-                    coleaders_list = [member.mention for member in coleaders_list]
-                    recruiters_list = [member.mention for member in recruiters_list]
-                    captains_list = [member.mention for member in captains_list]
-
-                if completed_flag:
-                    header_str = '__Player - ELO - Ranking - Completed Games__'
-                else:
-                    header_str = '__Player - ELO - Ranking - Recent Games__'
-                for member in team_role.members:
-                    if mia_role and mia_role in member.roles:
-                        continue
-                        # skip members tagged @MIA
-
-                    # Create a list of members - pull ELO score from database if they are registered, or with 0 ELO if they are not
-                    p = Player.string_matches(player_string=str(member.id), guild_id=ctx.guild.id)
-                    if len(p) == 0:
-                        member_stats.append((member.name, 0, f'`{member.name[:23]:.<25}{"-":.<8}{"-":.<6}{"-":.<4}`'))
-                    else:
-                        wins, losses = p[0].get_record()
-                        lb_rank = p[0].leaderboard_rank(date_cutoff=settings.date_cutoff)[0]
-                        rank_str = f'#{lb_rank}' if lb_rank else '-'
-                        if completed_flag:
-                            games_played = p[0].completed_game_count()
-                        else:
-                            games_played = p[0].games_played(in_days=30).count()
-                        member_stats.append(({p[0].discord_member.name}, games_played, f'`{p[0].discord_member.name[:23]:.<25}{p[0].elo_moonrise:.<8}{rank_str:.<6}{games_played:.<4}`'))
-
-                member_stats.sort(key=lambda tup: tup[1], reverse=True)     # sort the list descending by recent games played
-                members_sorted = [str(x[2].replace(".", "\u200b ")) for x in member_stats[:50]]    # create list of strings like 'Nelluk  1277 #3  21'.
-                # replacing '.' with "\u200b " (alternated zero width space with a normal space) so discord wont strip spaces
-
-                members_str = "\n".join(members_sorted) if len(members_sorted) > 0 else '\u200b'
-                embed.description = f'**Members({len(member_stats)})**\n{header_str}\n{members_str}'[:4000]
-        else:
-            await ctx.send(f':no_entry_sign: No matching discord role "{team.name}" could be found. Player membership cannot be detected.')
-
-        if leaders_list:
-            embed.add_field(name='**House Leader**', value=', '.join(leaders_list), inline=True)
-        if coleaders_list:
-            embed.add_field(name='**House Co-Leaders**', value=', '.join(coleaders_list), inline=True)
-        if recruiters_list:
-            embed.add_field(name='**Team Recruiters**', value=', '.join(recruiters_list), inline=True)
-        if captains_list:
-            embed.add_field(name='**Team Captains**', value=', '.join(captains_list), inline=True)
-        team_logo = image_storage.set_entity_thumbnail(embed, 'team', team)
-
-        embed.add_field(name='**Recent games**', value='\u200b', inline=False)
-
-        recent_games = Game.search(team_filter=[team])
-
-        game_list = utilities.summarize_game_list(recent_games[:5])
-
-        for game, result in game_list:
-            embed.add_field(name=game, value=result)
-
-        alltime_team_elo_history_query = (GameSide
-                .select(Game.completed_ts, GameSide.team_elo_after_game_alltime)
-                .join(Game)
-                .where((GameSide.team_id == team.id) & (GameSide.team_elo_after_game_alltime.is_null(False)))
-                .order_by(Game.completed_ts))
-
-        alltime_team_elo_history_dates = [l.completed_ts for l in alltime_team_elo_history_query.objects()]
-
-        if alltime_team_elo_history_dates:
-            alltime_team_elo_history_elos = [l.team_elo_after_game_alltime for l in alltime_team_elo_history_query.objects()]
-
-            team_elo_history_query = (GameSide
-                .select(Game.completed_ts, GameSide.team_elo_after_game)
-                .join(Game)
-                .where((GameSide.team_id == team.id) & (GameSide.team_elo_after_game.is_null(False)))
-                .order_by(Game.completed_ts))
-
-            team_elo_history_dates = [l.completed_ts for l in team_elo_history_query.objects()]
-            team_elo_history_elos = [l.team_elo_after_game for l in team_elo_history_query.objects()]
-
-            plt.style.use('default')
-
-            plt.switch_backend('Agg')
-
-            fig, ax = plt.subplots()
-            fig.suptitle('ELO History (' + team.name + ')', fontsize=16)
-            fig.autofmt_xdate()
-
-            plt.plot(team_elo_history_dates, team_elo_history_elos, 'o', markersize=3, label=f'Since {settings.team_elo_reset_date}')
-            plt.plot(alltime_team_elo_history_dates, alltime_team_elo_history_elos, 'o', markersize=3, label='Alltime')
-
-            ax.yaxis.grid()
-            ax.spines['top'].set_visible(False)
-            ax.spines['right'].set_visible(False)
-            ax.spines['left'].set_visible(False)
-
-            plt.legend(loc="best")
-
-            plt.savefig('graph.png', transparent=False)
-            plt.close(fig)
-
-            embed.set_image(url='attachment://graph.png')
-
-            with open('graph.png', 'rb') as f:
-                file = io.BytesIO(f.read())
-
-            image = discord.File(file, filename='graph.png')
-
-        files = []
-        if image:
-            files.append(image)
-        if team_logo:
-            files.append(team_logo.to_discord_file())
-        if files:
-            await ctx.send(files=files, embed=embed)
-        else:
-            await ctx.send(embed=embed)
+                result = await team_show_service.run(request)
+        except team_show_workers.TeamShowLookupError:
+            return await ctx.send(
+                team_show_service.legacy_lookup_message(
+                    team_lookup,
+                    prefix=ctx.prefix,
+                )
+            )
+        except team_show_workers.TeamShowPermissionError as exc:
+            return await ctx.send(str(exc))
+        except peewee.PeeweeException:
+            logger.exception('Database failure loading legacy team card')
+            return await ctx.send('The team card could not be loaded.')
+        except Exception:
+            logger.exception('Unexpected failure loading legacy team card')
+            return await ctx.send('The team card could not be loaded.')
+        return await team_show_service.publish_prefix(ctx, result)
 
     @commands.command(
         brief='Register an account-wide canonical Polytopia name.',

@@ -480,6 +480,14 @@ gated schema test. Tier-3 review passed and the branch was integrated as merge
 `37f2a47` after the stopped-writer database gate passed. Command
 synchronization and beta restart/acceptance remain pending.
 
+P8.6 implementation/tests checkpoints: `7716398` and Tier-2 correction
+`644ff95` on `codex/p8-6-team-show`, based on exact clean base
+`8d6d469787475210002098697f0395af0bed5f4a`. The branch is isolated from the
+accumulation and production checkouts; correction documentation/evidence is
+intentionally kept in a separate follow-up commit. Offline validation is
+complete after the correction, while the stopped-writer real-schema gate,
+integration, command synchronization, and beta smoke remain pending.
+
 P7.6b implementation/tests checkpoint: `3806d0e` on
 `codex/p7-global-leaderboard-records`, based on exact accumulation commit
 `3c9c43e5604bd26a68b1b45e34e35bc8f6316850`. Its separate roadmap-evidence
@@ -6021,7 +6029,13 @@ staff smoke remains open.
 
 ### P8.6 — Native team show and asynchronous dense-card rendering
 
-Status: **Selected; implementation pending in an isolated Luna worktree**
+Status: **Implemented locally; Tier-2 corrections complete; validation-gate follow-up pending**
+
+Branch/base: `codex/p8-6-team-show` in the isolated worktree
+`/home/nelluk/.codex/worktrees/4837/PolyBot39-dev`, from exact clean base
+`8d6d469787475210002098697f0395af0bed5f4a`. Implementation/tests checkpoint:
+`7716398`; Tier-2 correction checkpoint: `644ff95`. Documentation/evidence is
+intentionally separate.
 
 Risk tier: **Tier 2**. This is a public read/presentation unit with bounded
 worker and requester-bound component behavior. It performs no database or
@@ -6078,6 +6092,67 @@ Add a rollback/read-isolated gated real-schema case for a known Team but defer
 its run under the normal validation cadence while the durable beta remains
 active. Do not inspect, stop, restart, synchronize, or otherwise disturb the
 running beta during implementation/review.
+
+Implementation and validation evidence:
+
+- `modules/team_show_workers.py` defines frozen primitive request, guild/role/
+  member snapshot, roster-row, loaded-data, and result DTOs. It resolves
+  explicit or exactly-one persisted requester teams in the worker, uses a
+  bounded dedicated executor with cooperative polling, owns a worker-local
+  Peewee connection, batches player/metric/rank reads, and drains cancellation
+  until the synchronous read/render worker finishes.
+- `modules/team_show.py` captures Discord state before worker submission and
+  renders the established dense card from the immutable result. It preserves
+  exact-role membership, inactive-role exclusion, leadership fields, House,
+  local/URL team thumbnails, missing-role warning, recent games, W/L/ELO, and
+  both roster metrics. The one requester-bound button switches the loaded card
+  between recent 30-day and all-completed metrics; successful native cards and
+  refreshes are public, while native lookup/permission/ambiguity/database and
+  expired-control failures are private. Prefix failure/output behavior remains
+  the retained compatibility path.
+- `modules/administration.py` registers `/team show team:[optional]` with the
+  existing team autocomplete and default-deny/`allow_teams` boundary;
+  `modules/games.py` routes `$team TEAM` and `$team TEAM completed` through the
+  same request/worker/presentation path.
+- `tests/test_team_show.py` and the taxonomy assertions cover registration,
+  autocomplete, inference/ambiguity, prefix completion, dense presentation,
+  role and inactive filtering, leadership/House/image/recent games, primitive
+  snapshots, worker connection closure, batching, responsiveness,
+  cancellation, requester-only expiry-safe control behavior, public success,
+  and private failures. The gated
+  `test_team_show_worker_reads_real_schema_without_writes` case is present in
+  `tests/test_database_integration.py`.
+- Tier-2 correction `644ff95` keeps the worker DTO in captured role-member
+  order and sorts every rendered roster by the metric it displays, with stable
+  ties; the regression covers both initial modes and both requester-button
+  refresh directions. `_render_graph` now owns a Matplotlib `Figure` and
+  `FigureCanvasAgg`, preserving the dense labels and PNG bytes without
+  `pyplot`, `plt.style`, or global plotting-state calls.
+- Focused P8.6 plus taxonomy validation passed **27 tests**. Complete offline
+  discovery passed **810 tests with 22 intentional gated database skips**.
+  Compileall for touched Python and `git diff --check` passed. The required
+  development-worktree setup passed; because its shared development settings
+  currently name a newer `beta_testing` capability absent from this branch's
+  policy vocabulary, offline discovery used a non-writing in-memory settings
+  load scoped to this worktree. It did not connect to PostgreSQL or access
+  fixtures.
+- The gated PostgreSQL suite was **not run** because the durable beta is
+  active. The P8.6 real-schema result is therefore deferred; this checkpoint
+  claims no successful database evidence and performs no database or fixture
+  access.
+
+Compatibility decision: no new ledger row is required. `$team` and its
+`completed` form remain registered and share the native worker/presentation
+path, so no intentional prefix capability or message-intent gap was added.
+
+Limitations and next action:
+
+- This is a read/presentation unit only. It does not mutate Teams, roles,
+  Houses, tiers, images, players, ELO, fixtures, or command deployment state.
+- The exact development-guild capability assignment and command
+  synchronization remain unchanged. Run the gated read-only schema case only
+  in the next approved stopped-writer validation window, then perform Tier-2
+  review and separately decide integration/beta smoke.
 
 ## WB1 — Wider beta operations and structured feedback
 
@@ -7445,6 +7520,49 @@ features are deployed or receive sufficiently broad acceptance.
   to the next approved validation window.
 - Next action: dispatch P8.6 from this exact documentation checkpoint and wait
   for its explicit completion/blocker handoff without active Sol monitoring.
+
+### 2026-08-04 — P8.6 implementation/tests completed locally
+
+- Implemented `codex/p8-6-team-show` from exact clean base
+  `8d6d469787475210002098697f0395af0bed5f4a`; implementation/tests checkpoint
+  is `7716398`.
+- Added native `/team show team:[optional]`, retained `$team` and
+  `$team TEAM completed`, and routed both through one bounded worker and dense
+  renderer. The renderer uses owned graph bytes named per team instead of the
+  shared `graph.png`, preserves the team thumbnail, and adds only the
+  requester-bound recent/completed roster control.
+- Focused P8.6/taxonomy validation passed **25 tests**; complete offline
+  discovery passed **808 tests with 22 intentional gated skips**. Compileall
+  and diff checks passed.
+- Added the read-isolated real-schema test shape but did not run it. The gated
+  PostgreSQL suite is deferred while the durable beta is active; no database,
+  fixture, beta, synchronization, production, dependency, push, merge, or
+  sudo action occurred.
+- Prefix retention means no new compatibility-ledger row is needed. Next action
+  is Tier-2 review followed by the separately approved stopped-writer schema
+  gate and later integration/smoke decisions.
+
+### 2026-08-04 — P8.6 Tier-2 corrections completed locally
+
+- Addressed review checkpoint `644ff95` on `codex/p8-6-team-show`: each dense
+  card render now stably sorts by its displayed recent/completed metric, so
+  initial recent/completed cards and requester-bound refreshes reorder correctly;
+  the worker preserves captured role order as the stable tie basis.
+- Replaced the remaining pyplot/global-style graph path with an object-owned
+  `FigureCanvasAgg` renderer that returns immutable PNG bytes and preserves the
+  dense ELO labels/appearance; no shared `graph.png` or plotting-global call is
+  used.
+- Fresh focused P8.6/taxonomy validation passed **27 tests** and complete
+  offline discovery passed **810 tests with 22 intentional gated database
+  skips**. Compileall and diff checks passed. The required setup passed; the
+  non-writing in-memory settings load described above was used only to bridge
+  the shared profile's newer capability name during offline imports.
+- The gated read-isolated PostgreSQL case remains deferred until the durable
+  beta is stopped under the approved integration gate; no database or fixture
+  evidence is claimed. No beta/Discord/production/dependency/push/merge/sudo
+  action occurred.
+- Next action: fresh Tier-2 review, then the separately approved stopped-writer
+  schema gate and later integration/smoke decisions.
 
 ### 2026-08-04 — P8.5 deployed for wider-beta staff testing
 

@@ -648,6 +648,53 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
             self.assertIsInstance(side, game_detail_workers.GameDetailSide)
             self.assertIsInstance(side.lineups, tuple)
 
+    def test_team_show_worker_reads_real_schema_without_writes(self):
+        """Read one known development Team through the P8.6 worker gate."""
+
+        from modules import team_show_workers
+
+        guild_id = self.profile.allowed_guild_ids[0]
+        team = (
+            self.models.Team.select()
+            .where(
+                (self.models.Team.guild_id == guild_id)
+                & (self.models.Team.is_hidden == 0)
+            )
+            .order_by(self.models.Team.id)
+            .first()
+        )
+        if team is None:
+            self.skipTest('development guild has no visible team to inspect')
+
+        request = team_show_workers.TeamShowRequest(
+            guild_id=guild_id,
+            requester_id=self.settings.owner_id,
+            team_lookup=team.name,
+            activity_mode=team_show_workers.TEAM_ACTIVITY_RECENT,
+            team_enabled=bool(
+                self.settings.guild_setting(guild_id, 'allow_teams')
+            ),
+            channel_allowed=True,
+            leadership_enabled=False,
+            inactive_role_name=None,
+            guild_snapshot=team_show_workers.TeamShowGuildSnapshot(
+                guild_id=guild_id,
+                roles=(),
+                members=(),
+            ),
+            team_elo_reset_label=str(self.settings.team_elo_reset_date),
+            requester_description='integration read',
+            native=True,
+            invoked_with='integration',
+            prefix='$',
+        )
+        result = asyncio.run(team_show_workers.run_team_show(request))
+        self.assertEqual(result.team_id, team.id)
+        self.assertEqual(result.guild_id, guild_id)
+        self.assertIsInstance(result.roster_rows, tuple)
+        self.assertIsInstance(result.recent_games, tuple)
+        self.assertIsInstance(result.graph_bytes, bytes)
+
     def test_development_fixture_seed_status_cleanup_round_trip(self):
         from modules import dev_fixtures
 

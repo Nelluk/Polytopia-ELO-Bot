@@ -24,6 +24,8 @@ from modules import team_attributes as team_attributes_service
 from modules import team_attributes_workers
 from modules import team_image as team_image_service
 from modules import team_image_workers
+from modules import team_show as team_show_service
+from modules import team_show_workers
 
 logger = logging.getLogger('polybot.' + __name__)
 elo_logger = logging.getLogger('polybot.elo')
@@ -1152,6 +1154,83 @@ class administration(commands.Cog):
             )
             return await interaction.followup.send(
                 'Team creation failed and rolled back.',
+                ephemeral=True,
+            )
+
+    @team_group.command(
+        name='show',
+        description='View a competitive team card and roster history.',
+    )
+    @discord.app_commands.autocomplete(
+        team=team_attributes_service.autocomplete_teams,
+    )
+    @discord.app_commands.describe(
+        team='Team name; omit this to infer your only team.',
+    )
+    async def team_show_slash(
+        self,
+        interaction: discord.Interaction,
+        team: str | None = None,
+    ):
+        """Publish the shared dense team card from a bounded read worker."""
+
+        guild_id = getattr(interaction.guild, 'id', None)
+        if guild_id is None:
+            return await interaction.response.send_message(
+                'This command can only be used in a server.',
+                ephemeral=True,
+            )
+        channel_id = getattr(interaction, 'channel_id', None)
+        if channel_id is None:
+            channel_id = getattr(getattr(interaction, 'channel', None), 'id', None)
+        access_error = team_show_service.native_access_error(
+            interaction.user,
+            int(guild_id),
+            channel_id,
+        )
+        if access_error:
+            return await interaction.response.send_message(
+                access_error,
+                ephemeral=True,
+            )
+
+        await interaction.response.defer(ephemeral=True)
+        try:
+            request = team_show_service.build_request(
+                member=interaction.user,
+                guild=interaction.guild,
+                team_lookup=team,
+                activity_mode=team_show_workers.TEAM_ACTIVITY_RECENT,
+                native=True,
+                invoked_with='/team show',
+                prefix=str(
+                    settings.guild_setting(int(guild_id), 'command_prefix')
+                ),
+                channel_id=channel_id,
+            )
+            result = await team_show_service.run(request)
+            return await team_show_service.publish_native(interaction, result)
+        except team_show_workers.TeamShowLookupError as exc:
+            return await interaction.followup.send(str(exc), ephemeral=True)
+        except team_show_workers.TeamShowPermissionError as exc:
+            return await interaction.followup.send(str(exc), ephemeral=True)
+        except peewee.PeeweeException:
+            logger.exception(
+                'Database failure in native team show command for guild %s',
+                guild_id,
+            )
+            return await interaction.followup.send(
+                'The team card could not be loaded because the database read '
+                'failed.',
+                ephemeral=True,
+            )
+        except Exception:
+            logger.exception(
+                'Unexpected native team show failure for guild %s',
+                guild_id,
+            )
+            return await interaction.followup.send(
+                'The team card could not be loaded. Please try again.',
                 ephemeral=True,
             )
 

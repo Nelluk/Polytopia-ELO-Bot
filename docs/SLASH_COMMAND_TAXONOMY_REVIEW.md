@@ -405,7 +405,7 @@ operator repair commands stay out of the public tree.
 | `setname`, `steamname`, `setcode` alias behavior | `/player register` | Tier-3 reviewed and integrated with one canonical Polytopia name; requester by default, optional staff target; do not expose platform/name/code type. `$setname` shares the worker; `$steamname`/`$setcode` are non-writing deprecation adapters. Beta command deployment remains pending. |
 | `getname` | `/player show` | Fold the useful canonical name into the normal profile workspace rather than preserving a name/code-specific lookup |
 | `settime` | `/player timezone` | P6.2 implemented locally: native normalized UTC±HH:MM input, bounded 15-minute autocomplete, explicit clear, and a shared worker-backed prefix adapter retaining self/staff-target grammar; schema gate and beta smoke remain pending |
-| `team` | `/team show` | P8.6 selected: optional team with unambiguous requester-team inference; preserve the complete dense card/ELO graph, retain `$team` and `$team TEAM completed`, move database/plot work off-loop, and add only a requester-bound recent/completed roster-activity control |
+| `team` | `/team show` | P8.6 implemented locally in `7716398`, with Tier-2 correction `644ff95`: optional team with unambiguous requester-team inference; preserve the complete dense card/ELO graph, retain `$team` and `$team TEAM completed`, move database/plot work off-loop, sort each rendered roster by its displayed metric with stable ties, use an object-owned pyplot-free Agg renderer, and add only a requester-bound recent/completed roster-activity control; focused 27 and offline 810/22 gated skips; gated schema validation and integration remain pending |
 | `team_add` | `/team create` | P8.5 Tier-3 reviewed, real-schema validated, integrated, and development-beta deployed with one required name option, the effective mod plus `allow_teams` boundary, a worker-local Team+GameLog transaction, exact-role membership guidance, and private validation/conflict failures; `$team_add` and `$team_add_junior` are intentionally retired because the alias has no distinct junior behavior; wider-beta acceptance remains pending |
 | `team_emoji` | `/team emoji` | Implemented locally in P8.1: view by default; optional emoji/clear edits with the preserved team-enabled and mod boundary; beta not run |
 | `team_image` | `/team image` | Implemented locally in P8.3: public effective-image read, typed attachment replacement, and explicit clear; direct URL replacement remains on the retained prefix path |
@@ -704,6 +704,43 @@ This is compatibility ledger C-011: the prefix retirement is intentional and
 requires no native junior replacement. The stopped-writer schema gate and
 Tier-3 review passed; native beta sync/smoke remains a separate deployment
 action.
+
+#### P8.6 `/team show` implementation state
+
+The local implementation registers `/team show team:[optional string]` under
+the existing default-deny `team` root and reuses the bounded team autocomplete.
+An omitted target is resolved only from exactly one persisted requester team;
+zero or multiple matches remain private. The retained `$team TEAM` and
+`$team TEAM completed` adapters use the same frozen primitive request, worker
+read, graph-byte renderer, and dense-card presentation path. The completed
+prefix form starts on the all-completed roster metric.
+
+The card preserves the production title/House/ELO/W-L layout, roster columns,
+exact team-role membership, inactive-role exclusion, leadership fields,
+recent-game summaries, local/URL team thumbnail, missing-role warning, and
+ELO history graph. Each render stably sorts the roster by the metric it shows;
+the worker preserves captured role-member order as the tie basis. The graph is
+an owned `team-elo-<id>.png` attachment backed by in-memory bytes; the shared
+`graph.png` path is not used, and the corrected renderer uses an object-owned
+`FigureCanvasAgg` path without pyplot, style mutation, or global plotting calls.
+One button only switches the already-loaded roster display between recent
+30-day and all completed metrics. It is requester-bound and expiry-safe; native
+success and refreshes are public, and native lookup/permission/ambiguity/
+database or expired-control failures are private.
+
+Implementation/tests checkpoint: `7716398`; Tier-2 correction checkpoint:
+`644ff95` on
+`codex/p8-6-team-show`, based on exact clean base
+`8d6d469787475210002098697f0395af0bed5f4a`. Focused P8.6/taxonomy validation
+passed 27 tests and complete offline discovery passed 810 tests with 22
+intentional gated database skips. Compileall and diff checks passed after the
+correction. The required development-worktree setup passed; the offline run
+used a non-writing in-memory settings load scoped to this worktree because the
+shared development settings name a newer `beta_testing` capability absent from
+this branch's policy vocabulary. The read-isolated real-schema case exists but
+was not run while the durable beta is active; no successful database evidence
+is claimed. Prefix retention introduced no compatibility compromise and
+therefore no new ledger row.
 
 #### Player leaderboard interaction matrix
 
