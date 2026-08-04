@@ -133,7 +133,10 @@ class RegistrationAndCompatibilityTests(unittest.TestCase):
             for command in games.polygames.__cog_app_commands__
             if command.name == 'squad'
         )
-        self.assertEqual([command.name for command in root.commands], ['show'])
+        self.assertEqual(
+            [command.name for command in root.commands],
+            ['show', 'name'],
+        )
         show = root.get_command('show')
         self.assertEqual(
             [
@@ -142,18 +145,28 @@ class RegistrationAndCompatibilityTests(unittest.TestCase):
             ],
             [('squad_id', discord.AppCommandOptionType.integer, False)],
         )
+        name = root.get_command('name')
+        self.assertEqual(
+            [
+                (parameter.name, parameter.type, parameter.required)
+                for parameter in name.parameters
+            ],
+            [
+                ('squad_id', discord.AppCommandOptionType.integer, True),
+                ('name', discord.AppCommandOptionType.string, False),
+                ('clear', discord.AppCommandOptionType.boolean, False),
+            ],
+        )
         prefix_names = {command.name for command in games.polygames.__cog_commands__}
         self.assertNotIn('squad', prefix_names)
         self.assertNotIn(
             'squads',
             {alias for command in games.polygames.__cog_commands__ for alias in command.aliases},
         )
-        squadname = next(
-            command
-            for command in games.polygames.__cog_commands__
-            if command.name == 'squadname'
+        self.assertNotIn(
+            'squadname',
+            {command.name for command in games.polygames.__cog_commands__},
         )
-        self.assertIn('squadname', squadname.name)
         lbsquad = next(
             command
             for command in games.polygames.__cog_commands__
@@ -592,19 +605,8 @@ class CommandTests(unittest.IsolatedAsyncioTestCase):
         )
         interaction_value.channel.send.assert_not_awaited()
 
-    async def test_squadname_guidance_uses_native_show(self):
-        command = next(
-            command
-            for command in games.polygames.__cog_commands__
-            if command.name == 'squadname'
+    async def test_squadname_prefix_is_completely_retired(self):
+        self.assertNotIn(
+            'squadname',
+            {command.name for command in games.polygames.__cog_commands__},
         )
-        ctx = SimpleNamespace(
-            prefix='$',
-            invoked_with='squadname',
-            send=mock.AsyncMock(),
-        )
-        cog = object.__new__(games.polygames)
-        await command.callback(cog, ctx)
-        message = ctx.send.await_args.args[0]
-        self.assertIn('/squad show', message)
-        self.assertNotIn('$squad`', message)

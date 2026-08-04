@@ -45,6 +45,8 @@ from modules import team_show_workers
 from modules import squad_show as squad_show_service
 from modules import squad_show_views
 from modules import squad_show_workers
+from modules import squad_identity
+from modules import squad_identity_workers
 from modules import game_deletion
 from modules import game_join_leave
 from modules import game_join_workers
@@ -943,7 +945,7 @@ class polygames(commands.Cog):
         """Display squad leaderboard
 
         A squad is any combination of players that have completed at least two games together.
-        To set a squad name see `[p]help squadname`
+        To set a squad name use `/squad name`.
 
         **Examples:**
         `[p]lbsquad` - Current leaderboard. Squads who have not played a game in 365 days are not included.
@@ -1113,10 +1115,22 @@ class polygames(commands.Cog):
             )
             return await squad_show_workers.run_squad_show(member_request)
 
+        async def mutate_name(modal_interaction, card, name, clear):
+            await self._execute_squad_name_mutation(
+                modal_interaction,
+                squad_id=card.squad_id,
+                name=name,
+                clear=clear,
+                expected_name=card.squad_name,
+                captured_can_edit=card.can_edit_name,
+                workspace=view,
+            )
+
         view = squad_show_views.SquadShowWorkspace(
             requester_id=interaction.user.id,
             result=result,
             member_loader=load_members,
+            name_mutator=mutate_name,
             timeout=squad_show_service.SQUAD_SHOW_CONTROL_TIMEOUT,
         )
         try:
@@ -1129,55 +1143,201 @@ class polygames(commands.Cog):
                 ephemeral=True,
             )
 
-    @settings.in_bot_channel()
-    @settings.guild_has_setting(setting_name='allow_teams')
-    @commands.command(brief='Set a squad name', usage='squad_id New Squad Name', hidden=True)
-    async def squadname(self, ctx, *, args=None):
-        """Set a name for your squad
+    async def _execute_squad_name_mutation(
+        self,
+        interaction: discord.Interaction,
+        *,
+        squad_id: int,
+        name: str | None,
+        clear: bool,
+        expected_name: str | None = None,
+        captured_can_edit: bool = False,
+        workspace=None,
+    ):
+        """Run one shared worker write and all post-commit publication."""
 
-        **Examples:**
-        `[p]squadname 5 The Desperados` - Set a name for squad 5
-        `[p]squadname 5 None` - Delete an existing name
-        """
-
-        args = args.split() if args else []
-        usage = f'**Example**: `{ctx.prefix}{ctx.invoked_with} 500 The Super Cool Squad`'
-        if not args:
-            return await ctx.send(f'No squad ID number supplied. You can use `/squad show` or `{ctx.prefix}lbsquad` to look up squad IDs.\n{usage}')
+        access_error = squad_show_service.native_access_error(
+            interaction.user,
+            interaction.guild.id,
+            interaction.channel_id,
+        )
+        if access_error is not None:
+            await interaction.followup.send(access_error, ephemeral=True)
+            return None
 
         try:
-            # Argument is an int, so show squad by ID
-            squad_id = int(args[0])
-            squad = Squad.get(id=squad_id)
-            new_squad_name = discord.utils.escape_markdown(' '.join(args[1:])[:50])
-        except ValueError:
-            return await ctx.send(f'No squad ID number supplied. You can use `/squad show` or `{ctx.prefix}lbsquad` to look up squad IDs.\n{usage}')
-        except peewee.DoesNotExist:
-            return await ctx.send(f'Squad with ID {squad_id} cannot be found.')
+            request = squad_identity.build_mutation_request(
+                member=interaction.user,
+                guild_id=interaction.guild.id,
+                squad_id=squad_id,
+                name=name,
+                clear=clear,
+                expected_name=expected_name,
+                captured_can_edit=captured_can_edit,
+            )
+            result = await squad_identity.run_mutation(request)
+        except (
+            squad_identity_workers.SquadNameValidationError,
+            squad_identity_workers.SquadNameLookupError,
+            peewee.PeeweeException,
+            ValueError,
+        ) as exc:
+            logger.exception('Could not mutate slash squad identity')
+            await interaction.followup.send(str(exc), ephemeral=True)
+            return None
+        except Exception:
+            logger.exception('Unexpected slash squad identity mutation failure')
+            await interaction.followup.send(
+                'Could not update the squad name. No public change was made; '
+                'run `/squad name` again if the problem persists.',
+                ephemeral=True,
+            )
+            return None
 
-        logger.debug(f'Loaded squad {squad.id} for squadname command')
+        refresh_failed = False
+        if workspace is not None:
+            try:
+                refreshed_request = squad_show_service.build_request(
+                    member=interaction.user,
+                    guild=interaction.guild,
+                    squad_id=squad_id,
+                    channel_id=interaction.channel_id,
+                )
+                refreshed = await squad_show_workers.run_squad_show(
+                    refreshed_request
+                )
+                if not refreshed.cards:
+                    raise squad_show_workers.SquadShowLookupError(
+                        'The committed squad card could not be reloaded.'
+                    )
+                await workspace.apply_refreshed_result(refreshed)
+            except Exception:
+                refresh_failed = True
+                logger.exception(
+                    'Committed squad name %s could not refresh its public card',
+                    result.squad_id,
+                )
 
-        if squad.guild_id != ctx.guild.id:
-            return await ctx.send(f'Squad with ID {squad_id} is affiliated with a different Discord server.')
+        actor = squad_identity.capture_actor(interaction.user)
+        message = squad_identity.mutation_message(result, actor=actor)
+        if refresh_failed:
+            message += '\n' + squad_identity.committed_refresh_warning(result)
+        sender = squad_show_service.public_interaction_sender(interaction)
+        try:
+            await sender(message)
+        except Exception:
+            logger.exception(
+                'Committed squad name %s could not publish public output',
+                result.squad_id,
+            )
+            try:
+                await interaction.followup.send(
+                    squad_identity.committed_public_warning(result),
+                    ephemeral=True,
+                )
+            except Exception:
+                logger.exception(
+                    'Could not send squad-name committed warning for %s',
+                    result.squad_id,
+                )
+        return result
 
-        if not squad.has_player(discord_id=ctx.author.id) and not settings.is_staff(ctx.author):
-            return await ctx.send('A squad name can only be set by server staff or a member of that squad.')
+    @squad_group.command(
+        name='name',
+        description='Read or update a squad name.',
+    )
+    @discord.app_commands.describe(
+        squad_id='Exact squad ID to read or update.',
+        name='New squad name; omit when explicitly clearing.',
+        clear='Explicitly remove the current squad name.',
+    )
+    @discord.app_commands.checks.cooldown(
+        2,
+        20.0,
+        key=lambda interaction: interaction.channel_id,
+    )
+    async def squad_name_slash(
+        self,
+        interaction: discord.Interaction,
+        squad_id: int,
+        name: str | None = None,
+        clear: bool = False,
+    ):
+        """Read or mutate one guild-scoped squad identity publicly."""
 
-        old_squad_name = squad.name if squad.name else '`None`'
-        if not new_squad_name:
-            return await ctx.send(f'No name given. The current name is *{old_squad_name}*\n{usage}')
+        await interaction.response.defer(ephemeral=True)
+        access_error = squad_show_service.native_access_error(
+            interaction.user,
+            interaction.guild.id,
+            interaction.channel_id,
+        )
+        if access_error is not None:
+            return await interaction.followup.send(
+                access_error,
+                ephemeral=True,
+            )
 
-        if new_squad_name.upper() == 'NONE':
-            new_squad_name = ''
-            new_squad_name_str = '`None`'
-        else:
-            new_squad_name_str = f'*{new_squad_name}*'
+        if name is not None and clear:
+            return await interaction.followup.send(
+                'Choose either name or clear=true, not both.',
+                ephemeral=True,
+            )
 
-        squad.name = new_squad_name
-        squad.save()
+        if name is None and not clear:
+            try:
+                request = squad_show_service.build_request(
+                    member=interaction.user,
+                    guild=interaction.guild,
+                    squad_id=squad_id,
+                    channel_id=interaction.channel_id,
+                )
+                result = await squad_show_workers.run_squad_show(request)
+            except (
+                squad_show_workers.SquadShowValidationError,
+                squad_show_workers.SquadShowLookupError,
+                peewee.PeeweeException,
+                ValueError,
+            ) as exc:
+                logger.exception('Could not read slash squad identity')
+                return await interaction.followup.send(
+                    str(exc),
+                    ephemeral=True,
+                )
+            except Exception:
+                logger.exception('Unexpected slash squad identity read failure')
+                return await interaction.followup.send(
+                    'Could not load the squad name. Please run `/squad name` '
+                    'again.',
+                    ephemeral=True,
+                )
 
-        models.GameLog.write(game_id=0, guild_id=ctx.guild.id, message=f'{models.GameLog.member_string(ctx.author)} set squadname of squad {squad.id} to {new_squad_name}')
-        await ctx.send(f'Squad name for {squad.id} set to {new_squad_name_str}.')
+            if not result.cards:
+                return await interaction.followup.send(
+                    'The requested squad could not be loaded.',
+                    ephemeral=True,
+                )
+            actor = squad_identity.capture_actor(interaction.user)
+            sender = squad_show_service.public_interaction_sender(interaction)
+            try:
+                await sender(squad_identity.read_message(result.cards[0], actor=actor))
+            except Exception:
+                logger.exception(
+                    'Could not publish public squad-name read for %s',
+                    squad_id,
+                )
+                await interaction.followup.send(
+                    'The squad name was loaded, but the public read could not '
+                    'be sent. Run `/squad name` again.',
+                    ephemeral=True,
+                )
+            return
+
+        await self._execute_squad_name_mutation(
+            interaction,
+            squad_id=squad_id,
+            name=name,
+            clear=clear,
+        )
 
     async def _load_player_workspace(
         self,

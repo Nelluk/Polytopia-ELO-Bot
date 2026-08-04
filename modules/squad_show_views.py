@@ -7,7 +7,7 @@ import math
 
 import discord
 
-from modules import components_v2, squad_show_workers
+from modules import components_v2, squad_identity_views, squad_show_workers
 
 
 PAGE_SIZE = squad_show_workers.SQUAD_SHOW_PAGE_SIZE
@@ -55,13 +55,16 @@ class SquadShowWorkspace(components_v2.RequesterLayoutView):
             [tuple[int, ...]],
             Awaitable[squad_show_workers.SquadShowResult],
         ] | None = None,
+        name_mutator: squad_identity_views.SquadNameMutationCallback | None = None,
         timeout: float = 300.0,
     ):
         super().__init__(requester_id=requester_id, timeout=timeout)
         self.result = result
         self.member_loader = member_loader
+        self.name_mutator = name_mutator
         self.selected_squad_id = result.selected_squad_id
         self.message: discord.Message | None = None
+        self._busy = False
         self.rebuild()
 
     @property
@@ -108,6 +111,60 @@ class SquadShowWorkspace(components_v2.RequesterLayoutView):
             await self._private_error(interaction, self.expired_message)
             return False
         return await super().authorize(interaction)
+
+    def _claim_action(self) -> bool:
+        if self.is_finished() or self._busy:
+            return False
+        self._busy = True
+        return True
+
+    def _release_action(self) -> None:
+        self._busy = False
+
+    async def _open_edit_name(self, interaction: discord.Interaction) -> None:
+        if not await self.authorize(interaction):
+            return
+        card = self.selected_card
+        if card is None or not card.can_edit_name:
+            await self._private_error(
+                interaction,
+                'Only a member of this squad or server staff can edit its name.',
+            )
+            return
+        if self.name_mutator is None:
+            await self._private_error(
+                interaction,
+                'Squad-name editing is unavailable. Run `/squad show` again.',
+            )
+            return
+        try:
+            await interaction.response.send_modal(
+                squad_identity_views.SquadNameEditModal(self, card)
+            )
+        except Exception:
+            await self._private_error(
+                interaction,
+                'The squad-name editor could not be opened. Run `/squad show` '
+                'again.',
+            )
+
+    async def apply_refreshed_result(
+        self,
+        result: squad_show_workers.SquadShowResult,
+    ) -> None:
+        """Replace the public dense card with a post-commit bounded reload."""
+
+        selected_squad_id = self.selected_squad_id
+        self.result = result
+        self.selected_squad_id = (
+            result.selected_squad_id
+            if result.selected_squad_id is not None
+            else selected_squad_id
+        )
+        self.page_index = 0
+        self.rebuild()
+        if self.message is not None:
+            await self.message.edit(view=self)
 
     async def _publish_member_search(
         self,
@@ -378,6 +435,15 @@ class SquadShowWorkspace(components_v2.RequesterLayoutView):
                 return
             body = self._card_body(card)
             controls = [discord.ui.ActionRow(self.member_select)]
+            self.edit_name_button = None
+            if card.can_edit_name and self.name_mutator is not None:
+                self.edit_name_button = discord.ui.Button(
+                    label='Edit name',
+                    style=discord.ButtonStyle.primary,
+                    custom_id=f'squad-show:{int(card.squad_id)}:edit-name',
+                )
+                self.edit_name_button.callback = self._open_edit_name
+                controls.append(discord.ui.ActionRow(self.edit_name_button))
             if len(self.result.cards) > 1:
                 back = discord.ui.Button(
                     label='Back to matches',

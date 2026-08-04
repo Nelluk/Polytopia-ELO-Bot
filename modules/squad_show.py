@@ -29,6 +29,13 @@ def _is_mod(member) -> bool:
         return False
 
 
+def _is_staff(member) -> bool:
+    try:
+        return bool(settings.is_staff(member))
+    except (AttributeError, TypeError, exceptions.CheckFailedError):
+        return False
+
+
 def _member_id(member) -> int | None:
     value = getattr(member, 'id', member)
     try:
@@ -120,6 +127,7 @@ def build_request(
         squad_id=(int(squad_id) if squad_id is not None else None),
         team_enabled=bool(_setting(guild_id, 'allow_teams', False)),
         channel_allowed=_channel_allowed(member, guild_id, channel_id),
+        requester_is_staff=_is_staff(member),
     )
 
 

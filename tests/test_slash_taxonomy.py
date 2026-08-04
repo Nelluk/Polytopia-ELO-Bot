@@ -130,7 +130,7 @@ class SlashTaxonomyRegistrationTests(unittest.TestCase):
         )
         self.assertEqual(
             {command.name for command in squad_group.commands},
-            {'show'},
+            {'show', 'name'},
         )
 
     def test_typed_shapes_and_prefix_aliases_are_preserved(self):
