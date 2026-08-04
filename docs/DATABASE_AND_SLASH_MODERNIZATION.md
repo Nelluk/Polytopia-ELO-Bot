@@ -361,6 +361,7 @@ would become unavailable if a prefix is retired.
 | C-008 `/team house` / `$team_house` / `$team_edit` house branch | Native `/team house` provides public current-house reads and actor-attributed mod assignment/clear with bounded team/House autocomplete, unambiguous requester-team inference, worker-local atomic Team/Player/preference/GameLog state, and post-commit managed-role reconciliation. | Legacy recommendation: **retire** — explicit user approval retires `$team_house` and removes the house branch from `$team_edit`; the old message-only House mutation path and its message-intent-dependent syntax are no longer available. `$team_tier` and `$team_edit ... ARCHIVE` remain retained. The native path covers the ordinary House workflow within the existing team-enabled PolyChampions/test scope; validation, ambiguity, permission, conflict, and database failures remain private, while committed changes are public and identify the actor. | Revisit only with a separately approved prefix lifecycle decision or if beta evidence shows a material native usability gap; do not restore a compatibility wrapper. | Intentional P8.4 prefix retirement; implementation ready for review |
 | C-009 `/player register` / `$setname` / `$steamname` / `$setcode` / `$getnames` aliases | Native `/player register member:[optional]` uses one account-wide canonical-name modal; `$setname` delegates to the same bounded worker, and the useful name-list aliases remain available for game setup. | Legacy recommendation: **retain** `$setname` through the production canary. `$steamname` and `$setcode` remain registered as non-writing deprecation adapters; `$code`/`$getcode` warn and return the transitional canonical read. Existing `name_steam` and `polytopia_id` values are preserved and are never cleared or backfilled by P6.1. If message content is later retired, the native registration path covers the ordinary workflow while the compact compatibility reads remain a deliberate seam. | Revisit retirement after usage evidence and an explicit compatibility decision; do not delete or migrate stored legacy values in this unit. | Tier-3 reviewed and integrated; beta sync/smoke pending |
 | C-010 `/player timezone` / `$settime` | Native `/player timezone member:[optional] offset:[optional] clear:[optional]` covers effective reads, normalized fixed-offset writes, explicit clear, and staff-targeting. `$settime` delegates to the same bounded worker and retains compatible self/staff-target grammar, including compact UTC/GMT forms. | Legacy recommendation: **retain** `$settime` initially because timezone preference is a day-to-day workflow and the prefix path remains useful while native commands are not synchronized. Native input deliberately requires normalized `UTC±HH:MM`; the shared service corrects legacy half/quarter-hour storage through minutes and never writes the old whole-hour field. | Revisit prefix retirement only after beta usage evidence and a separately approved command/message-intent lifecycle decision; do not remove the legacy column or clear legacy values in this unit. | Implemented locally; Tier-3 review, schema gate, and beta sync/smoke pending |
+| C-011 `/team create` / `$team_add` / `$team_add_junior` | Native `/team create name:<required>` creates one visible guild-scoped Team plus an actual-guild actor-attributed GameLog in one worker transaction. It validates a trimmed 1–100-character exact-role-compatible name, reports duplicate/racing inserts privately, and directs staff to the focused team-attribute commands. It intentionally creates no Discord role or other team attributes. | Legacy recommendation: **retire** — explicit approval removes both prefix registrations. `$team_add_junior` had no distinct junior behavior, so native creation has no `junior` option. The former one-line message-command workflow is unavailable, but ordinary staff team creation and follow-up configuration are covered natively; the existing exact Discord-role membership convention is explained publicly after commit. | Revisit only through a separately approved prefix lifecycle decision; do not restore a compatibility adapter or add junior behavior without a distinct product and data contract. | Intentional P8.5 prefix retirement; implementation ready for Tier-3 review; schema gate and beta sync/smoke pending |
 
 Every later slash conversion must add a row when parity is intentionally
 reduced. If there is no compromise, its unit evidence should explicitly say
@@ -459,9 +460,9 @@ check:
   `f0429536d7ed899eb356794bcd3558baa9be3d45`.
 - P4.2d roadmap evidence: `e1a0959`; accumulation merge: `7c2269b`.
 
-Current unit: **P8.5 native team creation — selected as a Tier-3 unit;
-implementation pending in an isolated Luna worktree while P6.2 wider-beta
-feedback continues.**
+Current unit: **P8.5 native team creation — implemented locally as a Tier-3
+unit; review and the deferred stopped-writer schema gate remain pending while
+P6.2 wider-beta feedback continues.**
 
 The audit is recorded in
 `docs/PLAYER_IDENTITY_AND_PREFERENCES_AUDIT.md`. It made no command, schema,
@@ -471,6 +472,14 @@ recommendations on 2026-08-04.
 P8.4 native-first team-house read/edit/clear remains integrated and deployed.
 Its beta read/assign/clear role smoke remains a separate downstream acceptance
 item.
+
+P8.5 implementation/tests checkpoint: `eafe219` on
+`codex/p8-5-team-create`, based on exact clean base
+`d406dee5478360a097e381b5aff20e24d9b5fb9b`. It adds native `/team create`,
+retires `$team_add` and `$team_add_junior`, and adds the rollback-isolated
+gated schema test without running it. No command synchronization, beta
+inspection/lifecycle action, PostgreSQL connection, production action,
+dependency installation, push, or merge occurred.
 
 P7.6b implementation/tests checkpoint: `3806d0e` on
 `codex/p7-global-leaderboard-records`, based on exact accumulation commit
@@ -5884,7 +5893,14 @@ Limitations and next action:
 
 ### P8.5 — Native-first team creation
 
-Status: **Selected; implementation pending**
+Status: **Implemented locally; Tier-3 review pending; stopped-writer schema
+validation deferred while the durable beta remains active**
+
+Branch/base: `codex/p8-5-team-create` from exact clean accumulation checkpoint
+`d406dee5478360a097e381b5aff20e24d9b5fb9b` on
+`codex/database-slash-modernization`. Implementation/tests checkpoint:
+`eafe219`. Roadmap/taxonomy evidence is intentionally separate from the
+implementation/tests checkpoint.
 
 Risk tier: **Tier 3**. This creates a persistent team identity and audit row
 and introduces a new transactional graph, even though it does not alter ELO or
@@ -5919,6 +5935,72 @@ responsiveness, public attribution/private failures, capability isolation,
 complete offline discovery, and a stopped-writer gated real-schema case before
 integration because this is a new transactional graph. Implementation and
 review do not stop or redeploy the active wider beta.
+
+Implementation and validation evidence:
+
+- `modules/administration.py` registers the exact guild-only `/team create`
+  shape with one required string option, removes the `team_add` command and
+  `team_add_junior` alias registration, preserves the existing `team`
+  capability root, and keeps the effective mod plus `allow_teams` boundary
+  private at the interaction boundary.
+- `modules/team_creation.py` captures actor identity and request values as
+  primitives, sends only committed native success publicly, explains the
+  exact matching Discord-role membership convention, and points staff to the
+  focused `/team` attribute commands. Validation, permission, duplicate,
+  conflict, and database failures remain private; no Discord role/channel or
+  other post-commit effect is created by this unit.
+- `modules/team_creation_workers.py` defines frozen primitive request/result
+  DTOs, revalidates the captured permission/scope snapshot in the worker,
+  trims and bounds names to Discord's 1–100-character role-name boundary,
+  rejects control/invisible formatting and reserved broadcast names, and
+  uses the existing bounded team executor. A worker-local Peewee connection
+  owns one synchronous `db.atomic()` covering exactly `Team.create(name,
+  guild_id, is_hidden=False)` plus the actual-guild actor-attributed
+  `GameLog`; unique-key duplicates/races become a bounded conflict and audit
+  failure rolls the Team back.
+- The shared team-worker cancellation drain was corrected to clear pending
+  cancellation requests while cooperatively yielding for the wrapped thread
+  future, preserving event-loop responsiveness without adding another
+  executor.
+- `tests/test_team_creation.py` and `tests/test_slash_taxonomy.py` cover the
+  exact native shape, required name, prefix/alias retirement, no junior
+  option, permission/scope parity, trimming and bounded safe-name validation,
+  duplicate/racing inserts, frozen DTOs, worker-local connection, atomic
+  audit rollback, cancellation/responsiveness, public actor attribution,
+  private failures, and no public Discord effect after failure.
+- The unchanged gated `tests/test_database_integration.py` gate now includes
+  a commit-and-audit plus audit-failure rollback test for the real Team and
+  GameLog graph, with unique suffix cleanup isolation. It was **not run** in
+  this task because the durable beta remains active; no PostgreSQL connection
+  or fixture mutation occurred.
+- Focused P8 validation passed **89 tests** across team creation, retained
+  team attributes/emoji, taxonomy, capability policy, and command-management
+  coverage. Complete offline discovery passed **789 tests with 21 intentional
+  gated skips**. `compileall` and `git diff --check` passed.
+- No command synchronization, beta inspection/stop/restart, Discord
+  inspection, production checkout/service/database action, dependency
+  installation, schema change, fixture mutation, push, merge, or sudo action
+  occurred.
+
+Compatibility decision: **C-011 is intentional and recorded in the
+compatibility ledger.** The approved `$team_add` and `$team_add_junior`
+retirement is implemented by removing registration, not by leaving a
+deprecated adapter. The alias had no distinct junior behavior, so no native
+junior option was added. The real-schema gate and any native beta sync/smoke
+remain downstream Tier-3 review actions.
+
+Limitations and next action:
+
+- This unit does not create or edit Discord roles/channels, House, tier,
+  emoji, image, external server, players, ELO, fixtures, or other Team
+  attributes. Exact-role membership remains an existing operator convention
+  that staff must establish separately.
+- The native `team` capability remains subject to the existing default-deny
+  explicit guild deployment policy; this code-only unit did not synchronize
+  commands or alter capability assignments.
+- Run the unchanged gated development/polytopia_dev/polybot_dev real-schema
+  test in the next approved stopped-writer validation window before
+  integration. Do not disturb the active beta during review.
 
 ## WB1 — Wider beta operations and structured feedback
 
@@ -7225,9 +7307,40 @@ checkpoint.
   new worker transaction is limited to one visible Team plus actor-attributed
   audit, with the stopped-writer real-schema case deferred to its integration
   gate so the current beta can continue running during implementation/review.
-- Next action: dispatch the bounded implementation from this exact roadmap
-  checkpoint and wait for its explicit completion/blocker handoff without
-  active Sol monitoring.
+- The bounded implementation was dispatched from this exact checkpoint; the
+  resulting local implementation and validation evidence is recorded below.
+
+### 2026-08-04 — P8.5 native team creation implemented locally
+
+- Implemented `/team create name:<required>` on
+  `codex/p8-5-team-create` from exact clean base
+  `d406dee5478360a097e381b5aff20e24d9b5fb9b`. The separate
+  implementation/tests checkpoint is `eafe219`; this evidence update is a
+  separate checkpoint.
+- Retired `$team_add` and `$team_add_junior` by removing their registration.
+  The alias had no distinct junior behavior, so no native junior option was
+  introduced. Native success is public and actor-attributed only after the
+  Team plus actual-guild GameLog transaction commits; validation, permission,
+  conflict, and database failures are private.
+- Kept the write graph intentionally narrow: one visible Team with model
+  defaults and one actor-attributed GameLog. No Discord role/channel, House,
+  tier, emoji, image, external server, players, ELO, fixtures, or other
+  attributes are created or changed.
+- Added bounded frozen primitive DTOs, worker-local connection ownership,
+  duplicate/race translation, safe trimmed 1–100-character role-compatible
+  names, atomic audit rollback, cancellation draining, and public/private
+  boundary regressions. The existing shared team executor remains the only
+  executor used by the new path.
+- Focused P8 validation passed **89 tests**. Complete offline discovery passed
+  **789 tests with 21 intentional skips**; compilation and `git diff --check`
+  passed.
+- Added the unchanged explicit gated real-schema Team+GameLog commit/rollback
+  test with unique cleanup isolation, but did not run it because the durable
+  beta remains active. No PostgreSQL, beta, Discord, command-sync, production,
+  dependency, fixture, push, merge, or sudo action occurred.
+- Next action: Tier-3 review of the full branch, followed by the deferred
+  stopped-writer schema gate before integration; do not disturb the active
+  beta during review.
 
 ### 2026-08-04 — P6.2 opened to wider testers and rollout process tightened
 
