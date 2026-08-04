@@ -9,6 +9,7 @@ from dataclasses import dataclass
 import datetime
 
 from modules import models
+from modules import player_timezone_values
 import settings
 
 
@@ -161,10 +162,7 @@ def load_player_workspace(
                 roster=str(game.get_gamesides_string()),
             ))
 
-        offset = member.timezone_offset
-        timezone = ''
-        if offset is not None:
-            timezone = f'UTC+{offset}' if offset >= 0 else f'UTC{offset}'
+        timezone = player_timezone_values.effective_timezone_offset(member) or ''
         return PlayerWorkspaceSnapshot(
             player_id=int(player.id),
             discord_id=int(member.discord_id),

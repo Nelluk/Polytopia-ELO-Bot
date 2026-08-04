@@ -15,7 +15,7 @@ from playhouse.postgres_ext import *
 from psycopg2.errors import DuplicateObject
 
 import settings
-from modules import channels, exceptions, image_storage
+from modules import channels, exceptions, image_storage, player_timezone_values
 
 logger = logging.getLogger('polybot.' + __name__)
 elo_logger = logging.getLogger('polybot.elo')
@@ -353,9 +353,19 @@ class DiscordMember(BaseModel):
     polytopia_name = TextField(null=True)
     is_banned = BooleanField(default=False)
     timezone_offset = SmallIntegerField(default=None, null=True)
+    # P6.2 canonical fixed-offset storage.  The explicit tombstone prevents
+    # clearing this nullable value from resurrecting the legacy whole-hour
+    # fallback while the old column remains for rollback compatibility.
+    timezone_offset_minutes = SmallIntegerField(default=None, null=True)
+    timezone_offset_cleared = BooleanField(default=False, null=False)
     date_polychamps_invite_sent = DateField(default=None, null=True)
     trophies = BinaryJSONField(null=True, default=None)
     boost_level = SmallIntegerField(default=None, null=True)
+
+    def effective_timezone_offset_minutes(self) -> int | None:
+        """Return canonical minutes, with the bounded legacy fallback."""
+
+        return player_timezone_values.effective_timezone_offset_minutes(self)
 
     def as_json(self, include_games: bool) -> Dict[str, Any]:
         """Get the user as a dict for returning from the API."""
@@ -384,7 +394,11 @@ class DiscordMember(BaseModel):
             'legacy_elo': self.elo,
             'moonrise_elo': self.elo_moonrise,
             'is_banned': self.is_banned,
+            # Keep the legacy API key for compatibility and expose the
+            # minutes-first value additively for modern readers.  The legacy
+            # field itself remains untouched by P6.2 writes.
             'utc_offset': self.timezone_offset,
+            'utc_offset_minutes': self.effective_timezone_offset_minutes(),
             'teams': teams,
             **extra
         }

@@ -106,11 +106,12 @@ class SlashTaxonomyRegistrationTests(unittest.TestCase):
         )
         self.assertEqual(
             {command.name for command in player_group.commands},
-            {'show', 'register'},
+            {'show', 'register', 'timezone'},
         )
 
     def test_typed_shapes_and_prefix_aliases_are_preserved(self):
         game_group = app_group(games.polygames, 'game')
+        player_group = app_group(games.polygames, 'player')
         elo_group = app_group(administration.administration, 'elo')
         team_group = app_group(administration.administration, 'team')
 
@@ -302,6 +303,18 @@ class SlashTaxonomyRegistrationTests(unittest.TestCase):
             [
                 ('team', discord.AppCommandOptionType.string, False),
                 ('image', discord.AppCommandOptionType.attachment, False),
+                ('clear', discord.AppCommandOptionType.boolean, False),
+            ],
+        )
+        self.assertEqual(
+            [
+                (parameter.name, parameter.type, parameter.required)
+                for parameter
+                in player_group.get_command('timezone').parameters
+            ],
+            [
+                ('member', discord.AppCommandOptionType.user, False),
+                ('offset', discord.AppCommandOptionType.string, False),
                 ('clear', discord.AppCommandOptionType.boolean, False),
             ],
         )

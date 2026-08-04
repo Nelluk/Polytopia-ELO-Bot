@@ -1,7 +1,8 @@
 # Player identity and preferences audit
 
 Status: P6.0 complete; all six recommendations accepted on 2026-08-04; P6.1
-Tier-3 reviewed and integrated with beta command deployment still pending
+Tier-3 reviewed/integrated; P6.2 implemented locally with review, schema gate,
+and beta command deployment still pending
 
 Date: 2026-08-04
 
@@ -35,9 +36,10 @@ registration change.
    would preserve a bug.
 6. The recommended timezone transition is a new nullable
    `timezone_offset_minutes` small integer with readers preferring it and
-   temporarily falling back to `timezone_offset * 60`. This supports all
-   civil UTC offsets in 15-minute increments without changing the feature
-   into a location/IANA-timezone system.
+   falling back to `timezone_offset * 60` only while an explicit clear
+   tombstone is false. This supports all civil UTC offsets in 15-minute
+   increments without changing the feature into a location/IANA-timezone
+   system; the tombstone is required so clear cannot resurrect legacy data.
 
 ## Current model and meaning
 
@@ -51,6 +53,7 @@ registration change.
 | `DiscordMember.polytopia_id` | Global Discord account | Legacy 16-character friend code | Preserve dormant during transition |
 | `DiscordMember.timezone_offset` | Global Discord account | Whole-hour UTC offset | Compatibility source only after P6.2 |
 | proposed `timezone_offset_minutes` | Global Discord account | UTC offset in minutes | Canonical timezone preference after P6.2 |
+| proposed `timezone_offset_cleared` | Global Discord account | Non-null clear tombstone for the additive representation | Prevent legacy fallback after an explicit clear; remove only with separately reviewed cleanup |
 
 `discordmember.discord_id` is unique. The live development schema also has
 a unique `player(discord_member_id, guild_id)` index. None of the three
@@ -78,9 +81,12 @@ one synchronous worker-local transaction. Discord member resolution and role
 capture happen before submission; public acknowledgement and any Discord
 effects happen only after commit.
 
-`$settime` performs synchronous Peewee lookup/save on the event-loop thread.
-It allows self-service and staff targeting, parses whole and half-hour text,
-and writes the global `timezone_offset` field without an audit entry.
+P6.2 moves `$settime` behind the shared bounded timezone service. It retains
+self-service and compatible staff targeting, accepts whole/half/quarter-hour
+UTC/GMT text, stores normalized minutes plus an explicit clear tombstone, and
+writes an actor-attributed actual-guild audit entry without touching the
+legacy `timezone_offset` field. The native `/player timezone` path uses strict
+normalized UTC strings and bounded autocomplete.
 
 ## Current readers and compatibility seams
 
@@ -233,7 +239,12 @@ registration was changed during review/integration; P6.2 remains separate.
 
 ## Proposed P6.2 — Timezone preference
 
+Status: **Implemented locally; Tier-3 review, stopped-beta schema gate, and
+beta command deployment remain pending**
+
 Risk: Tier 3 because the preferred design is an additive schema migration.
+Exact clean base: `76b8813`; branch: `codex/p6-2-player-timezone`;
+implementation commits: `b233094`, `2b18eaf`, `e820285`, `871b388`.
 
 Native interface:
 
@@ -243,15 +254,46 @@ Native interface:
 - offset uses bounded autocomplete and accepts normalized `UTC±HH:MM`;
 - reject offset plus `clear:true`;
 - support `UTC-12:00` through `UTC+14:00` in 15-minute increments.
+- successful reads and writes are public and identify actor/target; validation,
+  permission, ambiguity, and database failures are private for native use;
+- `$settime` preserves compatible self and staff-target grammar as a thin
+  adapter and shares the worker/service.
 
 Schema transition:
 
-1. add nullable `timezone_offset_minutes SMALLINT`;
-2. readers prefer minutes, then temporarily fall back to
-   `timezone_offset * 60`;
-3. a separately gated backfill copies existing whole-hour values;
-4. native and shared prefix writes use minutes only;
-5. retain the old column until production canary and rollback windows close.
+1. add nullable `timezone_offset_minutes SMALLINT` and non-null
+   `timezone_offset_cleared BOOLEAN NOT NULL DEFAULT FALSE` through the
+   fail-closed, additive migration plan;
+2. readers prefer minutes, then fall back to `timezone_offset * 60` only when
+   the explicit-clear tombstone is false;
+3. native and shared prefix writes use the new minutes/tombstone
+   representation only; they never overwrite or clear the legacy field;
+4. retain the old column and do not backfill it until production inventory,
+   canary, and rollback windows are separately reviewed;
+5. deploy in this order: stopped beta, gated migration plus exact identity
+   verification, real-schema validation, then restart and separately approved
+   guild-scoped command synchronization. Model code must not start before DDL;
+   startup auto-migration is not used.
+
+P6.2's migration module checks the exact `public.discordmember` schema through
+`information_schema`, requires the fixed development target and explicit
+acknowledgement, commits the two additive columns atomically, and exposes only
+reviewed reverse-order rollback SQL. There is no live rollback API and no
+operator-supplied ownership assertion can authorize a drop. The offline plan
+was run in this work unit; the real-schema gate remains deferred because it
+would require persistent DDL under the separately approved stopped-beta
+procedure.
+
+Worker evidence: requests/results are frozen primitive DTOs; the shared
+bounded P6.1 ordinary-write executor owns the Peewee connection, reloads the
+exact guild Player row, revalidates staff targeting, and uses one atomic
+preference-plus-actual-guild-GameLog transaction. No Discord await occurs in
+the transaction, cancellation drains the synchronous worker, and public
+success is emitted only after commit. Focused timezone/migration/taxonomy
+coverage passed **33 tests**; complete offline discovery passed **777 tests
+with 20 intentional skips**; compile and diff checks passed. No live schema,
+beta, production, fixture, dependency, synchronization, or service action was
+performed.
 
 This preserves the current fixed-offset feature. It does not infer geographic
 location or add daylight-saving behavior. IANA timezone identifiers would be
@@ -276,5 +318,6 @@ The user accepted all six recommendations on 2026-08-04:
 6. implement timezone offset-minutes as an additive schema transition and
    retain `$settime` initially.
 
-After those decisions, P6.1 should be implemented before P6.2. Do not combine
-the identity worker with the timezone schema migration.
+After those decisions, P6.1 was implemented before this separate P6.2 unit.
+Do not combine the identity worker with the timezone schema migration or
+perform the migration before the documented stopped-beta ordering.

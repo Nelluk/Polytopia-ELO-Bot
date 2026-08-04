@@ -4,7 +4,7 @@ Last updated: 2026-08-04
 
 Status: Active
 
-Current branch at last update: `codex/p6-1-player-registration`
+Current branch at last update: `codex/p6-2-player-timezone`
 
 Source task: `thread://019fb4cd-0c73-7700-9988-141f6622d6f7`
 
@@ -360,6 +360,7 @@ would become unavailable if a prefix is retired.
 | C-007 `/staffhelp` / `$staffhelp` / `$helpstaff` | Native `/staffhelp` has no options and opens a requester-bound modal with bounded help/bug/feature category, summary, details, optional context, and up to 10 typed uploads. It is the sole WB1.1 feedback intake for the development wider beta after the legacy prefix adapters were retired. | Legacy recommendation: **retire** — the low-use, redundant prefix intake is clearly superseded by the structured native form. This retirement was explicitly approved by the user before integration; do not restore it. The native JSONL authority and `/staffhelp` intake are development-only and not a production-ready replacement. Before P9, make a separate approved decision on a production-safe authoritative intake/retention path or another production relay design; until then, production communities use their currently deployed support/moderator route. No native attachment gap was required: the installed discord.py 2.7.1 Components v2 API provides the required multi-file upload. | Add retention/redaction operations or a later staff workflow only with a separate privacy and operational review; do not replace the JSONL authority with a Discord-only mirror. | Prefix retirement implemented locally; production-boundary decision required before P9 |
 | C-008 `/team house` / `$team_house` / `$team_edit` house branch | Native `/team house` provides public current-house reads and actor-attributed mod assignment/clear with bounded team/House autocomplete, unambiguous requester-team inference, worker-local atomic Team/Player/preference/GameLog state, and post-commit managed-role reconciliation. | Legacy recommendation: **retire** — explicit user approval retires `$team_house` and removes the house branch from `$team_edit`; the old message-only House mutation path and its message-intent-dependent syntax are no longer available. `$team_tier` and `$team_edit ... ARCHIVE` remain retained. The native path covers the ordinary House workflow within the existing team-enabled PolyChampions/test scope; validation, ambiguity, permission, conflict, and database failures remain private, while committed changes are public and identify the actor. | Revisit only with a separately approved prefix lifecycle decision or if beta evidence shows a material native usability gap; do not restore a compatibility wrapper. | Intentional P8.4 prefix retirement; implementation ready for review |
 | C-009 `/player register` / `$setname` / `$steamname` / `$setcode` / `$getnames` aliases | Native `/player register member:[optional]` uses one account-wide canonical-name modal; `$setname` delegates to the same bounded worker, and the useful name-list aliases remain available for game setup. | Legacy recommendation: **retain** `$setname` through the production canary. `$steamname` and `$setcode` remain registered as non-writing deprecation adapters; `$code`/`$getcode` warn and return the transitional canonical read. Existing `name_steam` and `polytopia_id` values are preserved and are never cleared or backfilled by P6.1. If message content is later retired, the native registration path covers the ordinary workflow while the compact compatibility reads remain a deliberate seam. | Revisit retirement after usage evidence and an explicit compatibility decision; do not delete or migrate stored legacy values in this unit. | Tier-3 reviewed and integrated; beta sync/smoke pending |
+| C-010 `/player timezone` / `$settime` | Native `/player timezone member:[optional] offset:[optional] clear:[optional]` covers effective reads, normalized fixed-offset writes, explicit clear, and staff-targeting. `$settime` delegates to the same bounded worker and retains compatible self/staff-target grammar, including compact UTC/GMT forms. | Legacy recommendation: **retain** `$settime` initially because timezone preference is a day-to-day workflow and the prefix path remains useful while native commands are not synchronized. Native input deliberately requires normalized `UTC±HH:MM`; the shared service corrects legacy half/quarter-hour storage through minutes and never writes the old whole-hour field. | Revisit prefix retirement only after beta usage evidence and a separately approved command/message-intent lifecycle decision; do not remove the legacy column or clear legacy values in this unit. | Implemented locally; Tier-3 review, schema gate, and beta sync/smoke pending |
 
 Every later slash conversion must add a row when parity is intentionally
 reduced. If there is no compromise, its unit evidence should explicitly say
@@ -458,8 +459,8 @@ check:
   `f0429536d7ed899eb356794bcd3558baa9be3d45`.
 - P4.2d roadmap evidence: `e1a0959`; accumulation merge: `7c2269b`.
 
-Current unit: **P6.1 canonical player registration — Tier-3 reviewed and
-integrated; beta command deployment and smoke pending.**
+Current unit: **P6.2 canonical player timezone — implemented locally; Tier-3
+review, schema gate, and beta command deployment remain pending.**
 
 The audit is recorded in
 `docs/PLAYER_IDENTITY_AND_PREFERENCES_AUDIT.md`. It made no command, schema,
@@ -3977,8 +3978,8 @@ branch. Reverify runtime and fixture state before any later beta session.
 
 ## P6 — Registration and player preferences
 
-Status: **In progress; P6.0 complete and P6.1 reviewed/integrated, beta
-acceptance pending**
+Status: **In progress; P6.0 complete, P6.1 reviewed/integrated, and P6.2
+implemented locally; review, schema gate, and beta acceptance pending**
 
 Candidate scope:
 
@@ -4135,10 +4136,111 @@ Tier-3 review and integration evidence:
 Limitations and next action: beta acceptance remains pending. No database
 schema migration, production inventory/data action, process restart, Discord
 command synchronization, fixture mutation, dependency installation, push, or
-production action was performed. P6.2's timezone schema transition remains a
-separate unit. The next operational action is explicit development-guild
-deployment and beta smoke of `/player register`; P6.2 may be implemented as a
-separate Tier-3 branch and batched into that later beta session.
+production action was performed. P6.2 remains a separate unit on its own
+branch; the next actions are its independent Tier-3 review and documented
+schema gate, followed by any separately approved development-guild deployment
+and beta smoke of the two player commands.
+
+### P6.2 — Canonical player timezone preference
+
+Status: **Implemented locally; Tier-3 review and the separately approved
+stopped-beta schema gate are pending**
+
+Risk tier: **Tier 3**. Exact clean base: `76b8813` on
+`codex/database-slash-modernization`. Unit branch/worktree:
+`codex/p6-2-player-timezone` in
+`/home/nelluk/.codex/worktrees/72cf/PolyBot39-dev`. Implementation/tests
+commit: `b233094`; migration-script entrypoint correction: `2b18eaf`; prefix
+attribution correction: `e820285`; migration safety correction: `871b388`.
+
+Interface and compatibility contract:
+
+- `/player timezone member:[optional] offset:[optional] clear:[optional]`
+  defaults to the requester. Omission of both `offset` and `clear` reads the
+  effective account-wide preference. Another member requires the existing
+  `settings.is_staff` parity, checked once for immediate feedback and again
+  from primitive role snapshots in the worker.
+- Native input accepts only normalized `UTC±HH:MM` values. The bounded
+  autocomplete generates at most 25 values from `UTC-12:00` through
+  `UTC+14:00` in 15-minute increments; it does not introduce IANA zones,
+  location inference, daylight-saving rules, or a static choice list. The
+  retained `$settime` adapter keeps compatible self and staff-target grammar,
+  including compact UTC/GMT and half/quarter-hour forms, while normalizing to
+  minutes.
+- `offset` writes and `clear:true` clears; both together are invalid. Reads and
+  committed writes are public. Public write text identifies actor and target
+  and calls the value an account-wide fixed UTC offset. Validation,
+  permission, ambiguity, database, and pre-commit failures remain private in
+  the native interaction; prefix errors stay in the invoking channel for
+  compatibility.
+
+Schema and effective-clear design:
+
+- `DiscordMember` adds nullable `timezone_offset_minutes SMALLINT` and a
+  non-null additive `timezone_offset_cleared BOOLEAN NOT NULL DEFAULT FALSE`.
+  Readers prefer minutes. When minutes is null and the tombstone is false,
+  they fall back to legacy `timezone_offset * 60`. An explicit clear stores
+  minutes as null and sets the tombstone, so clearing cannot resurrect a
+  legacy whole-hour value. New native and prefix writes update only this new
+  representation; `timezone_offset` is never overwritten or cleared.
+- The model/API keeps the legacy `utc_offset` field and adds a minutes-first
+  `utc_offset_minutes` value; removing or backfilling legacy fields is not part
+  of P6.2. Existing legacy values remain compatibility data.
+
+Worker and transaction boundary:
+
+- Requests and results are frozen primitive DTOs. The service captures Discord
+  identity/role snapshots on the event loop; the bounded ordinary player-write
+  executor is the shared P6.1 executor, with worker-local Peewee connections
+  and cancellation draining. The worker reloads `DiscordMember` and the exact
+  `(DiscordMember, guild_id)` `Player` row and revalidates staff permission
+  before a targeted operation.
+- A mutation uses one synchronous `db.atomic()` covering the new preference
+  state and an actor-attributed `GameLog` with the actual guild ID and
+  `game_id=0`. There are no Discord awaits inside the transaction. Public
+  success output occurs only after commit, and database failure has no public
+  success effect.
+
+Migration and deployment boundary:
+
+- `modules/player_timezone_migration.py` and the standalone
+  `scripts/migrate_player_timezone.py` provide an offline default plan and an
+  explicit, idempotent, fail-closed additive apply path. This unit is
+  development-only: apply requires explicit `POLYBOT_ENV=development`, exact
+  profile database `polytopia_dev`, exact role `polybot_dev`, the matching live
+  PostgreSQL session identity, and the exact development acknowledgement
+  token. Production apply and rollback are refused/deferred to P9; no
+  migration was applied in this unit.
+- Rollback is deliberately offline review SQL only. The plan prints reverse
+  order (`timezone_offset_cleared`, then `timezone_offset_minutes`), but there
+  is no live rollback API and no operator-supplied ownership assertion can
+  authorize a drop.
+- Exact deployment order is: stop the beta; run the separately approved
+  migration gate with profile/database/role identity verification; validate
+  the real schema and the worker against that schema; then restart the beta
+  and perform only separately approved guild-scoped command synchronization.
+  Starting model code before the additive DDL can make Peewee reads fail, so
+  this transition has no startup auto-migration path.
+
+Validation evidence:
+
+- Focused timezone, migration, and slash-taxonomy coverage: **33 tests
+  passed**. Complete offline discovery: **777 passed, 20 intentional skips**.
+  Compilation and `git diff --check` passed.
+- The migration tool's direct offline plan printed both additive statements
+  and reverse rollback statements and explicitly performed no connection or
+  DDL. Real-schema coverage is deferred because running it against the
+  current schema would require persistent DDL and the separately approved
+  stopped-beta migration gate; no gate was weakened and no live database was
+  changed.
+
+Limitations and next action: P6.2 has not been Tier-3 reviewed, beta-smoked,
+schema-applied, command-synchronized, or production-deployed. No production
+inventory/backfill, legacy-field removal, fixture mutation, dependency
+installation, service operation, push, merge, or sudo action occurred. Next
+action is independent Sol review of the four implementation commits, followed
+by the separately approved stopped-beta migration/real-schema gate and only
+then beta command deployment/smoke.
 
 ## P7 — Read-heavy commands and analytics
 
@@ -7008,10 +7110,12 @@ explicit conflict review make retirement safe.
 
 The proposed compatibility boundary retains `$setname` through the production
 canary, retains the useful batch `$getnames`/`$names`/`$codes`/`$getcodes`
-workflow with canonical-name output, initially retains `$settime`, and
+workflow with canonical-name output, and initially retains `$settime` through
+the shared timezone service. P6.2 uses offset minutes plus an explicit clear
+tombstone, and
 deprecates or retires the Steam-name and legacy-code-specific prefix paths only
 after explicit approval. `/player register` would use one canonical-name modal
-and a single worker-local transaction; `/player timezone` would be a separate
+and a single worker-local transaction; `/player timezone` is the separate
 schema-backed unit using offset minutes rather than reproducing the current
 fractional-value-to-smallint bug.
 
@@ -7024,6 +7128,49 @@ visibility proposal, timezone range, and accepted decisions are in
 `docs/PLAYER_IDENTITY_AND_PREFERENCES_AUDIT.md`.
 
 ## Progress log
+
+### 2026-08-04 — P6.2 canonical player timezone implemented locally
+
+- Implemented P6.2 on `codex/p6-2-player-timezone` from exact clean base
+  `76b8813`. The implementation/tests commit is `b233094`; the direct-script
+  entrypoint correction is `2b18eaf`; the prefix-attribution correction is
+  `e820285`; the development-only migration safety correction is `871b388`.
+- Added strict native normalized-offset parsing, bounded 15-minute
+  autocomplete, explicit tombstone-backed clear semantics, minutes-first
+  readers with legacy fallback, the public `/player timezone` command, and a
+  shared worker-backed `$settime` adapter with self/staff-target compatibility.
+- Added the primitive-only, bounded worker transaction and actual-guild
+  actor-attributed audit behavior, plus offline migration planning,
+  development-only apply checks, and review-only rollback SQL. Focused
+  coverage passed **33/33** and complete offline discovery passed
+  **777/777 with 20 intentional skips**.
+- Ran only the migration tool's offline plan. The real-schema gate is
+  intentionally deferred until the separately approved stopped-beta gate can
+  add and verify both columns in the actual schema. No database DDL, beta
+  operation, command synchronization, fixture, production, dependency,
+  push, merge, or sudo action occurred.
+- Next action: Sol/Tier-3 review, then the documented stopped-beta migration
+  ordering and real-schema validation before any beta command deployment.
+
+### 2026-08-04 — P6.2 migration safety correction
+
+- Tier-3 review found that the original migration helper inverted the gate:
+  production was allowed by default while the development target was not
+  reachable through the CLI. Corrected this in `871b388`.
+- The tool now refuses every environment except explicit
+  `POLYBOT_ENV=development` with exact `polytopia_dev` / `polybot_dev` profile
+  and matching live session identity. The exact development acknowledgement
+  token is checked before opening a connection; production apply is not
+  supported.
+- Removed automated live rollback and operator-supplied column ownership
+  claims. `--rollback` now prints reviewed reverse SQL only and never loads a
+  profile or opens a connection. Tests explicitly cover unset/production
+  refusal, target/session identity, acknowledgement ordering, and rollback
+  review-only output.
+- Reran focused coverage (**33 passed**) and complete offline discovery
+  (**777 passed, 20 intentional skips**). No DDL, database connection, beta,
+  sync, production, fixture, dependency, service, push, merge, or sudo action
+  occurred.
 
 ### 2026-08-04 — P6.1 Tier-3 reviewed and integrated
 

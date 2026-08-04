@@ -123,21 +123,35 @@ def validate_canonical_name(value: str | None) -> str:
     return value
 
 
-def _snapshot_staff(request: PlayerRegistrationRequest) -> bool:
-    """Recheck staff parity from immutable role snapshots in the worker."""
+def is_staff_snapshot(
+    guild_id: int,
+    requester_id: int,
+    role_names: tuple[str, ...],
+) -> bool:
+    """Apply the shared existing staff rule to primitive role snapshots."""
 
-    if request.requester_id == settings.owner_id:
+    if int(requester_id) == settings.owner_id:
         return True
     try:
-        helper_roles = settings.guild_setting(request.guild_id, 'helper_roles')
-        mod_roles = settings.guild_setting(request.guild_id, 'mod_roles')
+        helper_roles = settings.guild_setting(int(guild_id), 'helper_roles')
+        mod_roles = settings.guild_setting(int(guild_id), 'mod_roles')
     except Exception:
         # A settings failure cannot authorize a staff-targeted write. The
         # event-loop check remains useful for immediate UX, but the worker
         # fails closed at the authoritative boundary.
         return False
     configured_roles = {str(role) for role in (*helper_roles, *mod_roles)}
-    return bool(configured_roles.intersection(request.actor.role_names))
+    return bool(configured_roles.intersection(role_names))
+
+
+def _snapshot_staff(request: PlayerRegistrationRequest) -> bool:
+    """Recheck staff parity from immutable role snapshots in the worker."""
+
+    return is_staff_snapshot(
+        request.guild_id,
+        request.requester_id,
+        request.actor.role_names,
+    )
 
 
 def _ensure_request_is_allowed(request: PlayerRegistrationRequest) -> None:

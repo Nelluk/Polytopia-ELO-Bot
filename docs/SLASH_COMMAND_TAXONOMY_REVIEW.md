@@ -1,6 +1,6 @@
 # Slash Command Taxonomy Review
 
-Last updated: 2026-08-03
+Last updated: 2026-08-04
 
 Status: Taxonomy v2.2 provisionally accepted as the working implementation
 taxonomy; minor pre-deployment wording refinements remain allowed
@@ -239,6 +239,7 @@ Taxonomy v2.2 applies this rule system-wide:
 | `/game record` | game name, one roster string, and optional ranked state | parsed arbitrary sides, native side/member editing, preview, confirmation |
 | `/player show` | optional member; requester by default | Accepted Components v2 overview, ratings, recent/incomplete/completed/season games, results, teams, and permitted profile edits; legacy analytics remain deferred under C-002 |
 | `/player register` | optional staff-selected member | one canonical Polytopia name and review |
+| `/player timezone` | optional member, normalized UTC offset, or clear; requester/member defaults as defined by permission | no options reads the effective fixed offset; bounded UTC-offset autocomplete and explicit clear/write semantics |
 | `/team show` | optional team when requester context is unambiguous | roster, history, attributes, and permitted edits |
 | `/staffhelp` | none | game reference, long description, multiple uploads, review, submit |
 
@@ -403,7 +404,7 @@ operator repair commands stay out of the public tree.
 | `player` | `/player show` | Implemented locally as public Components v2 workspace |
 | `setname`, `steamname`, `setcode` alias behavior | `/player register` | Tier-3 reviewed and integrated with one canonical Polytopia name; requester by default, optional staff target; do not expose platform/name/code type. `$setname` shares the worker; `$steamname`/`$setcode` are non-writing deprecation adapters. Beta command deployment remains pending. |
 | `getname` | `/player show` | Fold the useful canonical name into the normal profile workspace rather than preserving a name/code-specific lookup |
-| `settime` | `/player timezone` | Strong candidate with UTC-offset choices |
+| `settime` | `/player timezone` | P6.2 implemented locally: native normalized UTC±HH:MM input, bounded 15-minute autocomplete, explicit clear, and a shared worker-backed prefix adapter retaining self/staff-target grammar; schema gate and beta smoke remain pending |
 | `team` | `/team show` | Strong candidate |
 | `team_add` | `/team create` | Redesign staff options, including junior-team behavior |
 | `team_emoji` | `/team emoji` | Implemented locally in P8.1: view by default; optional emoji/clear edits with the preserved team-enabled and mod boundary; beta not run |
@@ -853,7 +854,7 @@ The current modernization stack registers:
 - `/game record|open|join|leave|search|show|win|unwin|delete|confirm|unconfirmed|set-ranked|extend|unstart`;
 - `/elo recalculate|status`;
 - `/leaderboard players|activity|squads` with temporary `/lb2` removed;
-- `/player show|register`.
+- `/player show|register|timezone`.
 
 P6.1 implements `/player register member:[optional]` on the accepted
 P6.0 identity contract. It opens exactly one modal field for the account-wide
@@ -863,6 +864,13 @@ The reviewed unit is integrated, but the native command has not been
 synchronized to Discord; `$setname` remains
 the retained compatibility adapter and the legacy platform/code fields remain
 stored but dormant.
+
+P6.2 implements `/player timezone member:[optional] offset:[optional]
+clear:[optional]` locally. Native offset values are canonical `UTC±HH:MM`
+strings with at most 25 bounded autocomplete results; the retained `$settime`
+adapter shares the minutes-backed worker and keeps compatible self/staff-target
+grammar. The additive schema migration and real-schema validation are gated
+separately, so the native command has not been synchronized to Discord.
 
 For the already implemented game/ELO surface, Taxonomy v2.2 would change only
 the slash registration/adapters:
