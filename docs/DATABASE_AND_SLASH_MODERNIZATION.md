@@ -480,13 +480,13 @@ gated schema test. Tier-3 review passed and the branch was integrated as merge
 `37f2a47` after the stopped-writer database gate passed. Command
 synchronization and beta restart/acceptance remain pending.
 
-P8.6 implementation/tests checkpoint: `7716398` on
-`codex/p8-6-team-show`, based on exact clean base
+P8.6 implementation/tests checkpoints: `7716398` and Tier-2 correction
+`644ff95` on `codex/p8-6-team-show`, based on exact clean base
 `8d6d469787475210002098697f0395af0bed5f4a`. The branch is isolated from the
-accumulation and production checkouts; documentation/evidence is intentionally
-kept in a separate follow-up commit. Offline validation is complete, while
-Tier-2 review, the stopped-writer real-schema gate, integration, command
-synchronization, and beta smoke remain pending.
+accumulation and production checkouts; correction documentation/evidence is
+intentionally kept in a separate follow-up commit. Offline validation is
+complete after the correction, while the stopped-writer real-schema gate,
+integration, command synchronization, and beta smoke remain pending.
 
 P7.6b implementation/tests checkpoint: `3806d0e` on
 `codex/p7-global-leaderboard-records`, based on exact accumulation commit
@@ -6029,12 +6029,13 @@ staff smoke remains open.
 
 ### P8.6 — Native team show and asynchronous dense-card rendering
 
-Status: **Implemented locally; Tier-2 review and validation-gate follow-up pending**
+Status: **Implemented locally; Tier-2 corrections complete; validation-gate follow-up pending**
 
 Branch/base: `codex/p8-6-team-show` in the isolated worktree
 `/home/nelluk/.codex/worktrees/4837/PolyBot39-dev`, from exact clean base
 `8d6d469787475210002098697f0395af0bed5f4a`. Implementation/tests checkpoint:
-`7716398`. Documentation/evidence is intentionally separate.
+`7716398`; Tier-2 correction checkpoint: `644ff95`. Documentation/evidence is
+intentionally separate.
 
 Risk tier: **Tier 2**. This is a public read/presentation unit with bounded
 worker and requester-bound component behavior. It performs no database or
@@ -6121,9 +6122,20 @@ Implementation and validation evidence:
   and private failures. The gated
   `test_team_show_worker_reads_real_schema_without_writes` case is present in
   `tests/test_database_integration.py`.
-- Focused P8.6 plus taxonomy validation passed **25 tests**. Complete offline
-  discovery passed **808 tests with 22 intentional gated database skips**.
-  Compileall for touched Python and `git diff --check` passed.
+- Tier-2 correction `644ff95` keeps the worker DTO in captured role-member
+  order and sorts every rendered roster by the metric it displays, with stable
+  ties; the regression covers both initial modes and both requester-button
+  refresh directions. `_render_graph` now owns a Matplotlib `Figure` and
+  `FigureCanvasAgg`, preserving the dense labels and PNG bytes without
+  `pyplot`, `plt.style`, or global plotting-state calls.
+- Focused P8.6 plus taxonomy validation passed **27 tests**. Complete offline
+  discovery passed **810 tests with 22 intentional gated database skips**.
+  Compileall for touched Python and `git diff --check` passed. The required
+  development-worktree setup passed; because its shared development settings
+  currently name a newer `beta_testing` capability absent from this branch's
+  policy vocabulary, offline discovery used a non-writing in-memory settings
+  load scoped to this worktree. It did not connect to PostgreSQL or access
+  fixtures.
 - The gated PostgreSQL suite was **not run** because the durable beta is
   active. The P8.6 real-schema result is therefore deferred; this checkpoint
   claims no successful database evidence and performs no database or fixture
@@ -7496,6 +7508,28 @@ silent mention or omission.
 - Prefix retention means no new compatibility-ledger row is needed. Next action
   is Tier-2 review followed by the separately approved stopped-writer schema
   gate and later integration/smoke decisions.
+
+### 2026-08-04 — P8.6 Tier-2 corrections completed locally
+
+- Addressed review checkpoint `644ff95` on `codex/p8-6-team-show`: each dense
+  card render now stably sorts by its displayed recent/completed metric, so
+  initial recent/completed cards and requester-bound refreshes reorder correctly;
+  the worker preserves captured role order as the stable tie basis.
+- Replaced the remaining pyplot/global-style graph path with an object-owned
+  `FigureCanvasAgg` renderer that returns immutable PNG bytes and preserves the
+  dense ELO labels/appearance; no shared `graph.png` or plotting-global call is
+  used.
+- Fresh focused P8.6/taxonomy validation passed **27 tests** and complete
+  offline discovery passed **810 tests with 22 intentional gated database
+  skips**. Compileall and diff checks passed. The required setup passed; the
+  non-writing in-memory settings load described above was used only to bridge
+  the shared profile's newer capability name during offline imports.
+- The gated read-isolated PostgreSQL case remains deferred until the durable
+  beta is stopped under the approved integration gate; no database or fixture
+  evidence is claimed. No beta/Discord/production/dependency/push/merge/sudo
+  action occurred.
+- Next action: fresh Tier-2 review, then the separately approved stopped-writer
+  schema gate and later integration/smoke decisions.
 
 ### 2026-08-04 — P8.5 deployed for wider-beta staff testing
 
