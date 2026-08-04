@@ -86,13 +86,114 @@ FILTER_KEYS = tuple(
 )
 
 
-def _mode_summary(preset: LeaderboardPreset, population: str) -> str:
-    population_label = (
-        'recently active players'
-        if population == 'active'
-        else 'all registered players'
+FILTER_DIMENSIONS = {
+    'scope': (
+        ('This server', 'local'),
+        ('Global', 'global'),
+    ),
+    'rating': (
+        ('Current', 'current'),
+        ('Peak', 'peak'),
+    ),
+    'era': (
+        ('Current era', 'current'),
+        ('All time', 'all-time'),
+    ),
+    'population': (
+        ('Active', 'active'),
+        ('All registered', 'all'),
+    ),
+}
+
+
+def _preset_for_dimensions(
+    scope: str,
+    rating: str,
+    era: str,
+) -> LeaderboardPreset | None:
+    return next(
+        (
+            preset for preset in PRESETS
+            if (
+                preset.scope,
+                preset.rating,
+                preset.era,
+            ) == (scope, rating, era)
+        ),
+        None,
     )
-    return f'{preset.label} · {population_label}'
+
+
+def _cache_key_for_filters(
+    scope: str,
+    rating: str,
+    era: str,
+    population: str,
+) -> tuple[str, str]:
+    valid_values = {
+        name: {value for _, value in options}
+        for name, options in FILTER_DIMENSIONS.items()
+    }
+    values = {
+        'scope': scope,
+        'rating': rating,
+        'era': era,
+        'population': population,
+    }
+    if any(values[name] not in valid_values[name] for name in values):
+        raise ValueError('Unknown player leaderboard filter.')
+
+    preset = _preset_for_dimensions(scope, rating, era)
+    return (
+        preset.key if preset is not None else f'{scope}:{rating}:{era}',
+        population,
+    )
+
+
+def _filter_dimensions_for_preset(
+    preset_key: str,
+) -> tuple[str, str, str]:
+    preset = PRESET_BY_KEY.get(preset_key)
+    if preset is not None:
+        return preset.scope, preset.rating, preset.era
+    try:
+        scope, rating, era = preset_key.split(':')
+    except ValueError as exc:
+        raise ValueError('Unknown player leaderboard preset.') from exc
+    _cache_key_for_filters(scope, rating, era, 'active')
+    return scope, rating, era
+
+
+def _radio_options(
+    dimension: str,
+    selected: str,
+) -> list[discord.RadioGroupOption]:
+    return [
+        discord.RadioGroupOption(
+            label=label,
+            value=value,
+            default=value == selected,
+        )
+        for label, value in FILTER_DIMENSIONS[dimension]
+    ]
+
+
+def _mode_summary(preset: LeaderboardPreset, population: str) -> str:
+    labels = {
+        name: {value: label for label, value in options}[value]
+        for name, options, value in (
+            ('scope', FILTER_DIMENSIONS['scope'], preset.scope),
+            ('rating', FILTER_DIMENSIONS['rating'], preset.rating),
+            ('era', FILTER_DIMENSIONS['era'], preset.era),
+            ('population', FILTER_DIMENSIONS['population'], population),
+        )
+    }
+    return (
+        f'**Scope:** {labels["scope"]} · '
+        f'**Rating:** {labels["rating"]}\n'
+        f'**Era:** {labels["era"]} · '
+        f'**Population:** {labels["population"]}'
+    )
 
 
 def _rankings_text(
@@ -113,6 +214,106 @@ def _rankings_text(
     if not lines:
         lines.append('*No ranked players match this view.*')
     return '\n'.join(lines), start + 1 if rows else 0, start + len(rows)
+
+
+class PlayerLeaderboardAdvancedFiltersModal(discord.ui.Modal):
+    """Requester-bound modal for the complete legacy filter matrix."""
+
+    def __init__(self, workspace: 'PlayerLeaderboardWorkspace'):
+        super().__init__(title='Advanced leaderboard filters', timeout=60.0)
+        self.workspace = workspace
+        self._submitted = False
+        scope, rating, era = _filter_dimensions_for_preset(
+            workspace.preset_key,
+        )
+
+        self.scope = discord.ui.Label(
+            text='Scope',
+            description='Where to rank players.',
+            component=discord.ui.RadioGroup(
+                custom_id='leaderboard-filters-scope',
+                options=_radio_options('scope', scope),
+            ),
+        )
+        self.rating = discord.ui.Label(
+            text='Rating',
+            description='Which ELO value to rank.',
+            component=discord.ui.RadioGroup(
+                custom_id='leaderboard-filters-rating',
+                options=_radio_options('rating', rating),
+            ),
+        )
+        self.era = discord.ui.Label(
+            text='Era',
+            description='Current reset or permanent history.',
+            component=discord.ui.RadioGroup(
+                custom_id='leaderboard-filters-era',
+                options=_radio_options('era', era),
+            ),
+        )
+        self.population = discord.ui.Label(
+            text='Population',
+            description='Active players or every registration.',
+            component=discord.ui.RadioGroup(
+                custom_id='leaderboard-filters-population',
+                options=_radio_options('population', workspace.population),
+            ),
+        )
+        self.add_item(self.scope)
+        self.add_item(self.rating)
+        self.add_item(self.era)
+        self.add_item(self.population)
+
+    async def _send_private(
+        self,
+        interaction: discord.Interaction,
+        content: str,
+    ) -> None:
+        is_done = getattr(interaction.response, 'is_done', None)
+        if callable(is_done) and is_done():
+            await interaction.followup.send(content, ephemeral=True)
+        else:
+            await interaction.response.send_message(content, ephemeral=True)
+
+    async def on_submit(self, interaction: discord.Interaction) -> None:
+        workspace = self.workspace
+        if interaction.user.id != workspace.requester_id:
+            await self._send_private(
+                interaction,
+                'Only the requester can change this leaderboard filter.',
+            )
+            return
+        if workspace.is_finished():
+            await self._send_private(
+                interaction,
+                workspace.expired_message,
+            )
+            return
+        if self._submitted:
+            await self._send_private(
+                interaction,
+                'This filter form was already submitted. Run the command again '
+                'for a fresh leaderboard.',
+            )
+            return
+
+        values = (
+            self.scope.component.value,
+            self.rating.component.value,
+            self.era.component.value,
+            self.population.component.value,
+        )
+        try:
+            cache_key = _cache_key_for_filters(*values)
+        except ValueError:
+            await self._send_private(
+                interaction,
+                'Choose one option in each leaderboard filter.',
+            )
+            return
+
+        self._submitted = True
+        await workspace._apply_cache_key(interaction, cache_key)
 
 
 class PlayerLeaderboardWorkspace(components_v2.CachedRequesterLayoutView):
@@ -176,14 +377,14 @@ class PlayerLeaderboardWorkspace(components_v2.CachedRequesterLayoutView):
         return await self.result_loader(request)
 
     def _request(self) -> leaderboard_workers.PlayerLeaderboardRequest:
-        preset = PRESET_BY_KEY[self.preset_key]
+        scope, rating, era = _filter_dimensions_for_preset(self.preset_key)
         return leaderboard_workers.PlayerLeaderboardRequest(
             guild_id=self.guild_id,
-            scope=preset.scope,
-            rating=preset.rating,
-            era=preset.era,
+            scope=scope,
+            rating=rating,
             population=self.population,
             active_cutoff=self.active_cutoff,
+            era=era,
         )
 
     async def _load_selected_result(
@@ -199,9 +400,11 @@ class PlayerLeaderboardWorkspace(components_v2.CachedRequesterLayoutView):
         self,
         interaction: discord.Interaction,
     ) -> bool:
-        self.page_index = 0
+        previous_page = self.page_index
         if not await self._load_selected_result(interaction):
+            self.page_index = previous_page
             return False
+        self.page_index = 0
         self.rebuild()
         if interaction.response.is_done():
             await interaction.edit_original_response(view=self)
@@ -209,38 +412,64 @@ class PlayerLeaderboardWorkspace(components_v2.CachedRequesterLayoutView):
             await interaction.response.edit_message(view=self)
         return True
 
+    async def _apply_cache_key(
+        self,
+        interaction: discord.Interaction,
+        cache_key: tuple[str, str],
+    ) -> bool:
+        previous_state = (
+            self.preset_key,
+            self.population,
+            self.page_index,
+            self.result,
+        )
+        self.preset_key, self.population = cache_key
+        if await self._edit_after_selection(interaction):
+            return True
+        (
+            self.preset_key,
+            self.population,
+            self.page_index,
+            self.result,
+        ) = previous_state
+        return False
+
     async def _select_preset(
         self,
         interaction: discord.Interaction,
     ) -> None:
-        previous = self.preset_key
-        self.preset_key = self.preset_select.values[0]
-        if not await self._edit_after_selection(interaction):
-            self.preset_key = previous
-
-    async def _select_advanced(
-        self,
-        interaction: discord.Interaction,
-    ) -> None:
-        previous_preset = self.preset_key
-        previous_population = self.population
-        scope, rating, era, population = (
-            self.advanced_select.values[0].split(':')
+        await self._apply_cache_key(
+            interaction,
+            (self.preset_select.values[0], self.population),
         )
-        self.preset_key = f'{scope}:{rating}:{era}'
-        self.population = population
-        if not await self._edit_after_selection(interaction):
-            self.preset_key = previous_preset
-            self.population = previous_population
 
     async def _toggle_population(
         self,
         interaction: discord.Interaction,
     ) -> None:
-        previous = self.population
-        self.population = 'all' if self.population == 'active' else 'active'
-        if not await self._edit_after_selection(interaction):
-            self.population = previous
+        await self._apply_cache_key(
+            interaction,
+            (
+                self.preset_key,
+                'all' if self.population == 'active' else 'active',
+            ),
+        )
+
+    async def _open_advanced_filters(
+        self,
+        interaction: discord.Interaction,
+    ) -> None:
+        if not await self.authorize(interaction):
+            return
+        if self.is_finished():
+            await interaction.response.send_message(
+                self.expired_message,
+                ephemeral=True,
+            )
+            return
+        await interaction.response.send_modal(
+            PlayerLeaderboardAdvancedFiltersModal(self),
+        )
 
     async def _previous_page(
         self,
@@ -290,7 +519,9 @@ class PlayerLeaderboardWorkspace(components_v2.CachedRequesterLayoutView):
         self.page_index = min(self.page_index, self.page_count - 1)
         preset = PRESET_BY_KEY.get(self.preset_key)
         if preset is None:
-            scope, rating, era = self.preset_key.split(':')
+            scope, rating, era = _filter_dimensions_for_preset(
+                self.preset_key,
+            )
             preset = LeaderboardPreset(
                 self.preset_key,
                 f'{scope.title()} · {rating} · {era}',
@@ -305,36 +536,34 @@ class PlayerLeaderboardWorkspace(components_v2.CachedRequesterLayoutView):
         )
 
         self.preset_select = discord.ui.Select(
-            placeholder='Choose a leaderboard view',
+            placeholder='Common filters',
             options=[
                 discord.SelectOption(
                     label=item.label,
                     value=item.key,
                     description=item.description,
-                    default=item.key == self.preset_key,
+                    default=(
+                        item.key == self.preset_key
+                        or (
+                            item.scope,
+                            item.rating,
+                            item.era,
+                        ) == (
+                            preset.scope,
+                            preset.rating,
+                            preset.era,
+                        )
+                    ),
                 )
                 for item in PRESETS
             ],
         )
         self.preset_select.callback = self._select_preset
-        current_advanced = (
-            f'{preset.scope}:{preset.rating}:{preset.era}:{self.population}'
+        advanced = discord.ui.Button(
+            label='Advanced filters...',
+            style=discord.ButtonStyle.secondary,
         )
-        self.advanced_select = discord.ui.Select(
-            placeholder='Advanced filters · all 16 legacy combinations',
-            options=[
-                discord.SelectOption(
-                    label=(
-                        f'{scope.title()} · {rating} · {era} · {population}'
-                    )[:100],
-                    value=key,
-                    default=key == current_advanced,
-                )
-                for key in FILTER_KEYS
-                for scope, rating, era, population in [key.split(':')]
-            ],
-        )
-        self.advanced_select.callback = self._select_advanced
+        advanced.callback = self._open_advanced_filters
 
         previous = discord.ui.Button(
             label='Previous',
@@ -343,7 +572,7 @@ class PlayerLeaderboardWorkspace(components_v2.CachedRequesterLayoutView):
         )
         previous.callback = self._previous_page
         page = discord.ui.Button(
-            label=f'Page {self.page_index + 1}/{self.page_count}',
+            label=f'Jump to page · {self.page_index + 1}/{self.page_count}',
             style=discord.ButtonStyle.primary,
         )
         page.callback = self._open_page_modal
@@ -372,7 +601,7 @@ class PlayerLeaderboardWorkspace(components_v2.CachedRequesterLayoutView):
         container = discord.ui.Container(
             discord.ui.TextDisplay(
                 '# 🏆 Player Leaderboard\n'
-                f'### {_mode_summary(preset, self.population)}\n'
+                f'{_mode_summary(preset, self.population)}\n'
                 f'-# {self.result.total_ranked} ranked players'
             ),
             discord.ui.Separator(spacing=discord.SeparatorSpacing.small),
@@ -380,10 +609,13 @@ class PlayerLeaderboardWorkspace(components_v2.CachedRequesterLayoutView):
             discord.ui.Separator(spacing=discord.SeparatorSpacing.small),
             discord.ui.TextDisplay(
                 f'-# Page {self.page_index + 1} of {self.page_count} · '
-                f'showing {start}–{end} of {len(self.result.rows)} loaded'
+                f'showing {start}–{end} of {len(self.result.rows)} loaded\n'
+                '-# Rating and Population change the view; they do not '
+                'redefine W–L.'
             ),
+            discord.ui.TextDisplay('**Common filters**'),
             discord.ui.ActionRow(self.preset_select),
-            discord.ui.ActionRow(self.advanced_select),
+            discord.ui.ActionRow(advanced),
             discord.ui.ActionRow(
                 previous,
                 page,
