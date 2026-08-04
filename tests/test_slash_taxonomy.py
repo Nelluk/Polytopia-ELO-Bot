@@ -98,7 +98,16 @@ class SlashTaxonomyRegistrationTests(unittest.TestCase):
         )
         self.assertEqual(
             {command.name for command in team_group.commands},
-            {'create', 'emoji', 'image', 'name', 'server', 'tier', 'house'},
+            {
+                'create',
+                'show',
+                'emoji',
+                'image',
+                'name',
+                'server',
+                'tier',
+                'house',
+            },
         )
         self.assertEqual(
             {command.name for command in leaderboard_group.commands},
@@ -308,6 +317,16 @@ class SlashTaxonomyRegistrationTests(unittest.TestCase):
             [
                 (parameter.name, parameter.type, parameter.required)
                 for parameter
+                in team_group.get_command('show').parameters
+            ],
+            [
+                ('team', discord.AppCommandOptionType.string, False),
+            ],
+        )
+        self.assertEqual(
+            [
+                (parameter.name, parameter.type, parameter.required)
+                for parameter
                 in team_group.get_command('image').parameters
             ],
             [
@@ -335,12 +354,12 @@ class SlashTaxonomyRegistrationTests(unittest.TestCase):
         }
         self.assertEqual(
             set(autocomplete_callbacks),
-            {'emoji', 'image', 'name', 'server', 'tier', 'house'},
+            {'show', 'emoji', 'image', 'name', 'server', 'tier', 'house'},
         )
         self.assertEqual(
             {
                 autocomplete_callbacks[name]
-                for name in {'emoji', 'image', 'name', 'server', 'tier'}
+                for name in {'show', 'emoji', 'image', 'name', 'server', 'tier'}
             },
             {administration.team_attributes_service.autocomplete_teams},
         )
