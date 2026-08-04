@@ -8110,6 +8110,29 @@ component refinements that do not require command re-registration.
   publish the reviewed wider-tester announcement with direct reporter
   attribution.
 
+### 2026-08-04 — Stopped-beta validation accepted showcase team tiers
+
+- Stopped only `polybot-development-beta@main.service` and confirmed through
+  the host-wide audit that no development `bot.py --skip_tasks` writer
+  remained. Production was not inspected or changed.
+- The first gated run passed 24 cases, intentionally skipped the owned-fixture
+  round trip, and exposed one stale WB1.3b expectation: its compatibility gate
+  rejected the Platinum/Gold/Silver tiers deliberately assigned to make
+  `/leaderboard teams` testable.
+- Corrected the setup contract without adding a mutation: WB1.3b continues to
+  seed `league_tier` unset, but accepts either that untouched state or only
+  the reviewed showcase assignments The Ronin=1, The Jets=2, and The
+  Sparkies=3. The harness still rejects other tier drift and does not apply or
+  clear tiers; ownership/cleanup checks remain unchanged.
+- Focused wider-beta setup validation passed 19 tests. The rerun of the
+  unchanged safety-gated PostgreSQL module passed 25 tests with one intentional
+  operator-fixture skip after verifying `development`, `polytopia_dev`, and
+  `polybot_dev`. Complete offline discovery passed 909 tests with 26 gated
+  skips, and `git diff --check` passed.
+- Next action: commit this narrow readiness correction, restart the guarded
+  beta at the resulting clean checkpoint without command synchronization, and
+  publish the prepared wider-tester release as the terminal deployment action.
+
 ### 2026-08-04 — Accepted beta-report parity corrections implemented locally
 
 - Corrected native pending-game guidance so slash-rendered cards use

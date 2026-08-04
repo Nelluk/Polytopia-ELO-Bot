@@ -473,6 +473,36 @@ class WiderBetaSetupTests(unittest.TestCase):
         self.assertEqual(before, (set(database.houses), set(database.teams)))
         self.assertFalse(state_path.exists())
 
+    def test_reviewed_showcase_tiers_are_compatible_without_becoming_seeded_state(self):
+        database = SetupDatabase()
+        for house_name in beta_wider_setup.EXPECTED_HOUSES:
+            database.add_house(house_name)
+        for team_name, house_name, _role_id in beta_wider_setup.EXPECTED_TEAMS:
+            database.add_team(
+                team_name,
+                house_name,
+                league_tier=(
+                    beta_wider_setup.EXPECTED_SHOWCASE_TEAM_TIERS[team_name]
+                ),
+            )
+
+        result = self.seed(database)
+
+        self.assertEqual(result['status'], 'seeded')
+        self.assertEqual(
+            {
+                item['name']: item['baseline']['league_tier']
+                for item in result['state']['teams']
+            },
+            beta_wider_setup.EXPECTED_SHOWCASE_TEAM_TIERS,
+        )
+        self.assertFalse(
+            any(
+                query.startswith('insert into team')
+                for query, _params in database.queries
+            )
+        )
+
     def test_incompatible_existing_rows_refuse_before_mutation(self):
         database = SetupDatabase()
         database.add_house('Beta House Alpha')

@@ -252,7 +252,15 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
                 self.assertEqual(row[0], guild_id)
                 self.assertFalse(row[1])
                 self.assertFalse(row[2])
-                self.assertIsNone(row[3])
+                self.assertIn(
+                    row[3],
+                    (
+                        None,
+                        beta_wider_setup.EXPECTED_SHOWCASE_TEAM_TIERS[
+                            item['name']
+                        ],
+                    ),
+                )
                 self.assertEqual(row[4], item['baseline']['house_name'])
 
             self.assertEqual(

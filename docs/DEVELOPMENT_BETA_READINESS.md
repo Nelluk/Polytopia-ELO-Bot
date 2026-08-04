@@ -170,8 +170,11 @@ them:
   roles. The exact teams are `The Ronin` and `The Jets` in Beta House Alpha,
   and `The Sparkies` in Beta House Beta. Their existing role IDs are pinned as
   `480350546172182530`, `480350570717118465`, and `481210095397634060`,
-  respectively. No duplicate team role or house role is created, and
-  `league_tier` remains unset.
+  respectively. No duplicate team role or house role is created. WB1.3b seeds
+  `league_tier` unset, but the exact post-setup showcase assignments made
+  through `/team tier` are also accepted: The Ronin/Platinum (1), The
+  Jets/Gold (2), and The Sparkies/Silver (3). The setup harness does not apply
+  or clear these tiers.
 - Games `149`–`151` and the 24-player/48-game leaderboard showcase
   (`200`–`247`) remain retained. `Phase7Test`, hidden `Home`, and hidden
   `Away` remain outside the setup scope. No tester invitation is approved.

@@ -43,6 +43,15 @@ EXPECTED_TEAMS = (
     ('The Jets', 'Beta House Alpha', 480350570717118465),
     ('The Sparkies', 'Beta House Beta', 481210095397634060),
 )
+# WB1.3b originally seeded these teams without league tiers. The wider-beta
+# operator may later assign the reviewed showcase tiers through `/team tier`
+# so `/leaderboard teams` is testable. Both the untouched seed state and this
+# exact post-setup state remain compatible; no other tier drift is accepted.
+EXPECTED_SHOWCASE_TEAM_TIERS = {
+    'The Ronin': 1,
+    'The Jets': 2,
+    'The Sparkies': 3,
+}
 EXPECTED_TEAM_ROLE_IDS = {
     name: role_id for name, _house, role_id in EXPECTED_TEAMS
 }
@@ -617,7 +626,12 @@ def _compatibility_issues(records: Mapping[str, Any], guild_id: int) -> list[str
             (record['house_name'] == expected_house, 'house'),
             (not record['hidden'], 'hidden'),
             (not record['archived'], 'archived'),
-            (record['league_tier'] is None, 'league_tier'),
+            (
+                record['league_tier'] in (
+                    None, EXPECTED_SHOWCASE_TEAM_TIERS[team_name]
+                ),
+                'league_tier',
+            ),
             (record['external_server'] is None, 'external_server'),
         )
         for valid, label in checks:
@@ -1387,6 +1401,7 @@ def reconcile_cleanup_evidence(
 __all__ = [
     'DEFAULT_MANIFEST',
     'EXPECTED_HOUSES',
+    'EXPECTED_SHOWCASE_TEAM_TIERS',
     'EXPECTED_TEAM_ROLE_IDS',
     'EXPECTED_TEAMS',
     'SETUP_SCHEMA_VERSION',
