@@ -457,8 +457,8 @@ check:
 - P4.2d roadmap evidence: `e1a0959`; accumulation merge: `7c2269b`.
 
 Current unit: **WB1.3b reviewed wider-beta desired state and gated development
-setup — integrated into the accumulation branch; live apply remains separately
-gated.**
+setup — integrated and applied to the development environment; human smoke and
+wider-tester announcement/invitation remain.**
 
 WB1.3a implementation/tests correction checkpoint: `b19a71c` on branch
 `codex/wb1-3a-beta-readiness-inventory`, based on the exact clean
@@ -5520,7 +5520,7 @@ retirement is separately approved and remains in force.
 
 ### WB1.3 — Wider-tester server readiness and controlled invitation
 
-Status: **In progress; WB1.3a complete, WB1.3b implemented locally, live apply remains planned**
+Status: **In progress; WB1.3a complete and WB1.3b applied; human smoke and controlled invitation remain**
 
 Objective: prepare the development guild for approximately 5–20 wider-beta
 testers without ad hoc roles, database fixtures, capability assignments, or
@@ -5630,7 +5630,7 @@ Known limitations and next action:
 
 #### WB1.3b — Reviewed wider-beta desired state and gated development setup
 
-Status: **Integrated into the accumulation branch; live setup/apply and tester invitation remain separately gated**
+Status: **Integrated and applied to the development environment; tester smoke and invitation remain separately gated**
 
 Branch/base: `codex/wb1-3b-wider-beta-setup` from exact integrated base
 `40b27104f7173c31e2b10e6369f7f19e9dd992b5`; implementation/tests checkpoints
@@ -5706,19 +5706,33 @@ invited; no command sync, capability assignment edit, fixture operation,
 production action, dependency installation, or push occurred. The reviewed
 branch was integrated locally as `c43a9f7`; that merge performed no live apply.
 
-Precise later sequence: stop the one durable beta; run setup `status`/`plan`
-and review any pending evidence. A stale authoritative state may deliberately
-make those commands fail closed; if cleanup previously committed but state
-removal failed, run the exact-confirmation `reconcile-cleanup` operation only
-after its read-only absence and unowned-baseline checks pass. Then, after
-explicit review, run `seed` through the exact gate. Update the ignored
-development capability assignment only through a separately reviewed local
-operator step; run the existing offline command plan and separately approved
-guild-only inspect/apply for the fixed development guild with no global sync;
-restart one beta from known-good checkpoint `d895718`; verify identity, exact
-roots/roles/channels/team bindings, retained fixtures, responsiveness, and
-smoke results; then handle any release announcement and 5–20 tester invitation
-as separate reviewed actions. WB1.3b performs none of those live steps.
+Live development apply evidence (2026-08-03):
+
+- Clean preflight found the expected durable beta application
+  `479029527553638401`; only
+  `polybot-development-beta@main.service` was stopped, and the host-wide
+  development-beta audit then reported no writer process.
+- Gated setup status/plan confirmed `development`, `polytopia_dev`,
+  `polybot_dev`, guild `478571892832206869`, no conflicts, and no pending or
+  authoritative prior state. The approved seed created houses `8`–`9` and
+  teams `229`–`231`, with exact role bindings and no game, fixture, or ELO
+  mutation. Final status reported no conflicts and no pending evidence.
+- The ignored development capability assignment added only `tools_support`.
+  Remote guild inspection showed the existing five roots unchanged and only
+  `/staffhelp` absent. The exact-confirmation guild-only apply created that one
+  root with no removals or updates and no global synchronization. Final remote
+  inspection reported all six desired roots unchanged.
+- The durable beta restarted from clean checkpoint
+  `cd03c781e865767d139e3ae5a6abdb8b66ff8eef` and authenticated as PolyELO Bot
+  Beta (`479029527553638401`). No production operation, global command sync,
+  release announcement, role ping, or tester invitation occurred.
+
+Next action: run the short human smoke checklist against the active beta,
+especially `/staffhelp` and representative team/game flows. Then prepare and
+deliver one reviewed wider-beta announcement to `todo-and-changelog`, ping the
+already pinned `testers` role, and invite the intended 5–20 testers as a
+separate human-facing action. Retain `wb1-3b-setup.json` as cleanup ownership
+evidence; do not run cleanup while the wider beta is using these records.
 
 ## P9 — Production rollout and prefix lifecycle
 
@@ -6524,6 +6538,23 @@ separate explicit reviewed unit. This preserves the single development beta
 writer and prevents a planning snapshot from becoming an implicit rollout.
 
 ## Progress log
+
+### 2026-08-03 — WB1.3b applied to the development environment
+
+- Stopped only the expected durable beta and confirmed no development writer
+  remained. The exact gated setup status/plan was conflict-free, then seeded
+  houses `8`–`9` and teams `229`–`231` in `polytopia_dev` as `polybot_dev`.
+- Added only `tools_support` to the ignored development capability assignment.
+  Guild inspection showed only `/staffhelp` missing; the explicitly confirmed
+  guild-only apply created it without modifying the other five roots or using
+  global synchronization. Final inspection reported the six-root tree fully
+  unchanged against policy.
+- Restarted the durable beta from clean checkpoint `cd03c78`; it authenticated
+  as PolyELO Bot Beta (`479029527553638401`). Final database status found the
+  exact reviewed house/team bindings, no conflicts, and no pending evidence.
+- No production action, global sync, fixture/game/ELO mutation, announcement,
+  tester-role ping, or invitation occurred. Next is a short human smoke test,
+  followed by the separately reviewed wider-beta announcement/invitation.
 
 ### 2026-08-03 — WB1.3b reviewed and integrated
 
