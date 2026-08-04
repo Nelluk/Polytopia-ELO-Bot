@@ -459,9 +459,9 @@ check:
   `f0429536d7ed899eb356794bcd3558baa9be3d45`.
 - P4.2d roadmap evidence: `e1a0959`; accumulation merge: `7c2269b`.
 
-Current unit: **P6.2 canonical player timezone — Tier-3 reviewed, development
-schema applied, and integrated; beta command deployment and smoke remain
-pending.**
+Current unit: **P6.2 canonical player timezone — reviewed, integrated,
+development schema applied, and opened to the wider tester pool; feedback
+acceptance remains pending.**
 
 The audit is recorded in
 `docs/PLAYER_IDENTITY_AND_PREFERENCES_AUDIT.md`. It made no command, schema,
@@ -687,7 +687,7 @@ this decision does not authorize production deployment or synchronization.
 | T1 | Complete | Deterministic development beta fixtures | Gated, idempotent seed/status/cleanup tooling |
 | P4 | In progress | Game correction and metadata mutations | Bounded workers plus slash interfaces for clear typed operations |
 | P5 | In progress | Matchmaking lifecycle | Atomic open/join/leave/kick/start flows and native interactions |
-| P6 | Planned | Registration and player preferences | Worker-safe profile writes and slash UX |
+| P6 | In progress | Registration and player preferences | Worker-safe profile writes and slash UX |
 | P7 | In progress | Read-heavy game, player, and leaderboard commands | Bounded read path and responsive slash queries |
 | P8 | In progress | Guild application-command capability policy, explicit deployment tooling, then league and remaining administration workflows | Audited guild-scoped command policy and subsequent domain workers/native interfaces |
 | WB1 | In progress | Wider beta operations, durable development runtime, and structured tester feedback | Reviewed persistent beta service, explicit guild sync, searchable `/staffhelp` reports, and wider-tester runbook |
@@ -4144,8 +4144,8 @@ and beta smoke of the two player commands.
 
 ### P6.2 — Canonical player timezone preference
 
-Status: **Tier-3 reviewed, development schema applied, and integrated; beta
-command deployment and smoke are pending**
+Status: **Tier-3 reviewed, development schema applied, integrated, and opened
+to the wider tester pool; feedback acceptance is pending**
 
 Risk tier: **Tier 3**. Exact clean base: `76b8813` on
 `codex/database-slash-modernization`. Unit branch/worktree:
@@ -4242,12 +4242,15 @@ corrected focused suite at **33/33**, and passed complete offline discovery at
 **777 with 20 intentional skips**. The reviewed branch was integrated into
 `codex/database-slash-modernization` as merge `63a0424`.
 
-Limitations and next action: P6.2 has not been beta-smoked,
-command-synchronized, or production-deployed. No production inventory or
+Limitations and next action: P6.2 has not been production-deployed or accepted
+from wider-beta feedback. No production inventory or
 data operation, legacy-field removal, fixture mutation, dependency
-installation, push, or sudo action occurred. The next action is the approved
-development-guild command plan/apply, durable-beta restart, and smoke of
-`/player register`, `/player timezone`, and retained `$settime`.
+installation, push, or sudo action occurred. The development guild updated
+only the `player` root; the durable beta runs checkpoint `c6032df`, and release
+`2026-08-04-p6-2-player-preferences` posted once as message
+`1534198493650878756` with the testers role ping. The next action is to ingest
+wider-beta feedback for `/player register`, `/player timezone`, and retained
+`$settime`.
 
 ## P7 — Read-heavy commands and analytics
 
@@ -7134,7 +7137,63 @@ units. The detailed field inventory, migration cases, worker boundary,
 visibility proposal, timezone range, and accepted decisions are in
 `docs/PLAYER_IDENTITY_AND_PREFERENCES_AUDIT.md`.
 
+### D-039 — Supervise Luna through explicit handoffs, not active polling
+
+Status: **Accepted**
+
+Sol verifies the visible Luna/Max configuration, exact worktree/base/branch,
+clean state, and setup once at dispatch. Every worker prompt must require a
+delegation/handoff to the originating Sol task when the unit is complete,
+blocked, or needs a user decision. After setup, Sol ends the dispatch turn and
+does not repeatedly read commentary, watch the terminal, or poll unchanged
+status. Sol resumes on the handoff, an explicit user status request, or a
+reported stopped/failed/approval-needed state.
+
+This keeps oversight tokens focused on unit selection, decisions, Tier-2/3
+review, and integration rather than duplicating the worker's implementation
+effort. Corrections use the same pattern: send one bounded finding, require a
+fresh handoff, and yield.
+
+### D-040 — Make acceptance and announcement disposition part of beta rollout
+
+Status: **Accepted**
+
+Every beta deployment explicitly chooses operator smoke, wider-tester
+acceptance, or no announcement with a reason. Wider-tester acceptance makes a
+reviewed announcement/checklist part of deployment completion and does not
+require Nelluk to perform a personal smoke first. After restart, authenticated
+identity and a successful read-only release-control `status` are mandatory
+before delivery. A failed status may justify one same-checkpoint restart only
+when no delivery has been attempted; uncertain sends follow idempotency
+reconciliation and are never blindly retried.
+
+Schema releases additionally require a unit-specific real-schema verifier
+after the complete gated database suite. Future schema units should ship a
+permanent gated test or read-only verification mode instead of relying on an
+ad hoc interpreter probe. Tracked HEAD remains stable from manifest
+preparation through delivery; ignored release state is the immediate runtime
+authority, and the roadmap records the result at the next appropriate
+checkpoint.
+
 ## Progress log
+
+### 2026-08-04 — P6.2 opened to wider testers and rollout process tightened
+
+- Updated only the development guild's `player` command root, restarted the
+  durable beta at clean checkpoint `c6032df`, and confirmed the beta
+  application, guild, database, role, disabled startup sync, and zero automatic
+  restarts.
+- The first post-restart release-control `status` request did not complete.
+  Because no delivery had been attempted, restarted the identical checkpoint
+  once, verified status, and then posted release
+  `2026-08-04-p6-2-player-preferences` exactly once as message
+  `1534198493650878756` with the pinned testers-role mention.
+- Accepted handoff-driven Luna supervision: verify setup once, require the
+  worker to notify Sol when done/blocked, and do not spend Sol turns actively
+  monitoring routine implementation.
+- Added mandatory announcement disposition, checkpoint-safe release ordering,
+  release-control health checks, and unit-specific post-migration verification
+  to the repository runbooks.
 
 ### 2026-08-04 — P6.2 reviewed, development schema applied, and integrated
 

@@ -1,6 +1,6 @@
 # Modernization collaboration workflow
 
-Last updated: 2026-07-31
+Last updated: 2026-08-04
 
 Status: Active
 
@@ -63,6 +63,30 @@ never silently substitute a subagent, inherited Sol thread, or lower effort.
 If this gate fails after work begins, interrupt the task and inspect its Git
 state. Uncommitted interrupted work is non-authoritative and should normally
 be discarded rather than incorporated without a fresh compliant review.
+
+## Handoff-driven worker supervision
+
+Sol verifies a worker once at dispatch: the visible Luna/Max setting, exact
+worktree/base/branch, clean starting state, and successful worktree setup.
+The implementation prompt must instruct Luna to send a delegation/handoff to
+the originating Sol task when the unit is complete, genuinely blocked, or
+requires a user decision.
+
+After that setup is confirmed, Sol stops the dispatch turn and yields. Do not
+spend Sol turns repeatedly polling the worker task, reading incremental
+commentary, watching its terminal, or narrating unchanged progress. Normal
+implementation duration and silence are not blockers. Sol resumes when:
+
+- Luna sends the requested completion/blocker handoff;
+- the user explicitly asks for a status check;
+- the task reports a stopped/failed/approval-needed state; or
+- an external operational deadline makes a one-time check necessary.
+
+The normal review input is the final handoff packet plus the committed branch,
+not the worker's intermediate reasoning. A correction prompt follows the same
+rule: send the bounded finding, require a fresh handoff, then yield again. This
+keeps the more expensive oversight task focused on decisions and integration
+review rather than duplicating the execution task's work.
 
 ## Worktree layout and ownership
 
@@ -172,8 +196,11 @@ passes.
    are reconciled and clean.
 2. Sol selects a bounded roadmap unit and records its risk tier.
 3. Sol supplies Luna an exact base commit, worktree path, branch name, scope,
-   exclusions, tests, beta requirements, and expected handoff.
-4. Luna creates the unit branch in its worktree and implements it.
+   exclusions, tests, beta requirements, and expected handoff. The prompt
+   requires Luna to notify the originating Sol task when done or blocked.
+4. Sol confirms the visible worker configuration and clean setup once, then
+   ends the dispatch turn without actively monitoring implementation. Luna
+   creates the unit branch in its worktree and implements it.
 5. Luna validates, self-reviews, commits, updates roadmap evidence, and sends
    a handoff packet.
 6. Sol reviews the whole branch at the appropriate depth.
@@ -282,4 +309,6 @@ or synchronize dependencies unless separately approved.
 ```
 
 The remainder of the prompt supplies the selected unit's objective, scope,
-exclusions, tests, approvals, and handoff requirements.
+exclusions, tests, approvals, and handoff requirements. End every worker
+prompt with an instruction to send the completed or blocked handoff directly
+to the originating Sol task; do not rely on Sol polling for completion.

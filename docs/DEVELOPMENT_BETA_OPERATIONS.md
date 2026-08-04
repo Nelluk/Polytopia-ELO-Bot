@@ -174,6 +174,59 @@ Only after the reviewed guild-scoped operation is complete may the service be
 started. A bot restart never implies a command synchronization, and there is
 no global fallback.
 
+## Deployment acceptance and announcement disposition
+
+Every beta deployment must choose and record one acceptance route before the
+service is restarted:
+
+1. operator smoke first, followed by an announcement after acceptance;
+2. wider-tester acceptance, where the reviewed tester announcement and smoke
+   checklist are part of deployment completion and no personal smoke is
+   required; or
+3. no announcement, with an explicit reason and a later acceptance owner.
+
+Do not silently stop at “ready to test.” If wider-tester acceptance is chosen,
+the deployment is not handed off until the announcement is posted or a clear
+delivery blocker is reported. Set `ping_testers` according to that reviewed
+disposition; minor background updates normally omit the ping.
+
+Use this checkpoint-safe order:
+
+1. integrate reviewed code and commit tracked roadmap/schema evidence;
+2. require a clean checkout and record its exact full checkpoint;
+3. stop the beta for any required command sync or database writer gate;
+4. apply only the separately approved guild/schema operations;
+5. start the durable beta at that exact checkpoint and verify identity;
+6. prepare the ignored release manifest against the same clean checkpoint;
+7. validate and deliver it through the running beta; and
+8. fold runtime acceptance evidence into the next appropriate tracked
+   documentation checkpoint.
+
+Do not change tracked HEAD between manifest preparation and delivery. The
+ignored prepared manifest and release state are the immediate operational
+record. If a tracked correction is necessary before delivery, prepare a new
+manifest only after the corrected clean checkpoint is running.
+
+## Schema-bearing beta releases
+
+A schema unit uses a stopped-writer window and must include more than the
+generic integration suite:
+
+1. stop only the durable development beta and require a clear host-wide
+   writer audit;
+2. review the connection-free migration plan;
+3. apply through the exact development/database/role/confirmation gate;
+4. run the complete gated development-database suite;
+5. run a unit-specific real-schema verifier that exercises the new model or
+   worker path and confirms connection cleanup;
+6. integrate only after those checks pass; then synchronize/start using the
+   normal checkpoint order.
+
+Future schema units should ship a permanent gated post-migration test or a
+read-only `verify` mode. An ad hoc interpreter probe is a fallback only and
+must be recorded in the roadmap; it should not become the normal deployment
+interface.
+
 ## Reviewed release manifests
 
 The tracked `release-manifests/template.json` is the schema/template source;
@@ -314,6 +367,14 @@ the WB1.1 post-write mirror. It is not an input to, or fallback destination
 for, the public release announcement in `todo-and-changelog`
 (`481779940124000256`).
 
+Immediately after every service start or restart, wait for the authenticated
+beta identity and run the read-only `status` operation before attempting
+delivery. If `status` cannot complete and no delivery has been attempted,
+restart the same clean checkpoint once and recheck. Do not send while the
+control path is unhealthy. If a delivery request may already have been sent,
+do not use restart/retry as a shortcut; follow the idempotency and uncertain
+outcome rules below.
+
 ## Idempotency, retry, and state
 
 Release state is stored under the ignored development operation root in
@@ -345,6 +406,13 @@ POLYBOT_ENV=development \
 /home/nelluk/PolyBot39-dev/.venv/bin/python \
 scripts/manage_beta_release.py status
 ```
+
+The current `status` output includes the complete prepared/release history and
+can be noisy. Treat a release-specific `--release-id` status/filter as a
+future bounded tooling improvement. Until it exists, use the direct
+`prepare`/`validate`/`deliver` result for the active release and use full
+`status` mainly for health checks or reconciliation; do not weaken the
+one-shot state rules to obtain shorter output.
 
 ## Feedback, fixtures, and incident handling
 
