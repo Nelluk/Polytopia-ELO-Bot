@@ -778,8 +778,10 @@ applied only to guild `478571892832206869`; the beta was restarted from
 `7f4cb11` and announced for wider acceptance. Independent review passed 46
 focused tests and complete offline discovery passed 875 tests with 25 gated
 skips; the gated database suite passed 22 tests with 3 intentional skips.
-The P7.12 real-schema case remains deferred because no squad fixture exists in
-`polytopia_dev`.
+The P7.12 identity-mutation case remains deferred because no persisted squad
+fixture exists in `polytopia_dev`. The later discovery-stall correction adds
+a passing real-schema no-match gate using a registered development player and
+does not require creating a squad fixture.
 
 #### P7.12 `/squad name` implementation state
 
@@ -802,11 +804,12 @@ reported as committed-but-needs-reconciliation rather than a database failure.
 
 Focused identity/show/taxonomy validation passed 20/18/8 tests, and complete
 offline discovery passed 875 tests with 25 intentional gated skips. The
-real-schema commit/rollback test remains behind the unchanged development /
-`polytopia_dev` / `polybot_dev` gate and was skipped because no squad fixture
-exists. The development `squad` capability was assigned, the guild-only root
-was applied, and the beta checklist/release announcement are complete; wider
-acceptance remains open.
+real-schema identity commit/rollback test remains behind the unchanged
+development / `polytopia_dev` / `polybot_dev` gate and is skipped because no
+squad fixture exists; requester discovery is now covered by a passing gated
+no-match test. The development `squad` capability was assigned, the guild-only
+root was applied, and the beta checklist/release announcement are complete;
+wider acceptance remains open.
 
 #### Player leaderboard interaction matrix
 

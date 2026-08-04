@@ -462,16 +462,18 @@ check:
   `f0429536d7ed899eb356794bcd3558baa9be3d45`.
 - P4.2d roadmap evidence: `e1a0959`; accumulation merge: `7c2269b`.
 
-Current unit: **P7.12/P7.11 squad workspace beta correction — discovery and
-publication stall reproduced from live evidence; correction in progress.**
+Current unit: **P7.12/P7.11 squad workspace beta correction — bounded-query
+and publication safeguards validated; corrected beta smoke test pending.**
 
-P7.12 acceptance is blocked until the bounded-query/publication correction is
-validated and deployed. P7.13 `/leaderboard roles` remains the next proposed
-feature unit but must not start on top of this unresolved beta regression.
+P7.12 acceptance remains blocked until the corrected beta path returns either
+an eligible workspace or a prompt “no eligible squads” result. P7.13
+`/leaderboard roles` remains the next proposed feature unit but must not start
+before that smoke result is accepted.
 
-The durable beta is running the P7.12 deployment checkpoint `7f4cb11`; its
-guild-only command tree includes the newly enabled `squad` root. P7.10, P8.6,
-and P7.12 remain open for wider-beta acceptance; no new worker is being
+The durable beta is stopped for the single correction validation/restart
+window. Its guild-only command tree already includes the `squad` root; no
+command synchronization is required for this code-only correction. P7.10,
+P8.6, and P7.12 remain open for wider-beta acceptance; no new worker is being
 actively monitored after its handoff.
 
 P7.10 implementation/test checkpoints: `549bd41` and Tier-2 parity correction
@@ -5731,10 +5733,12 @@ Implementation evidence (local only):
 - Independent Tier-3 review passed the focused identity/show/taxonomy suites
   (46 tests) and complete offline discovery (875 passed, 25 intentional gated
   skips); `compileall` and `git diff --check` passed.
-- With the beta stopped, the unchanged gated development-database suite
-  passed 22 tests with 3 intentional skips. The new P7.12 real-schema case
-  was skipped because `polytopia_dev` currently has no squad fixture; no
-  fixture was created or modified for this deployment.
+- The original P7.12 stopped-beta gate passed 22 tests with 3 intentional
+  skips because `polytopia_dev` had no persisted squad fixture. The later
+  stall correction changed the discovery regression gate to exercise a real
+  registered player even when zero squads exist; the complete gated suite
+  then passed 25 tests with 2 intentional skips. No fixture was created or
+  modified.
 - Added the development-only `squad` capability, planned the exact desired
   guild tree, and applied only to guild `478571892832206869` with explicit
   no-global-sync confirmation. Existing roots were unchanged and the
@@ -7949,7 +7953,7 @@ features are deployed or receive sufficiently broad acceptance.
 
 ## Progress log
 
-### 2026-08-04 — P7.12 live squad discovery stall found; acceptance blocked
+### 2026-08-04 — P7.12 squad discovery stall corrected; beta smoke pending
 
 - A real `/squad show` requester-discovery invocation at 15:09:49 reached the
   worker and PostgreSQL but never resolved the Discord interaction. The event
@@ -7960,22 +7964,26 @@ features are deployed or receive sufficiently broad acceptance.
   a Peewee query; the emitted SQL had no `LIMIT`, after which the worker loaded
   many dense cards and issued a large N+1 query burst. The earlier assumption
   that this was merely an empty fixture result was incorrect.
-- The correction in progress applies the bound through Peewee `.limit()` and
-  adds a timeout around deletion of the private deferred placeholder so public
-  publication cannot wait indefinitely on that cleanup step. Focused tests
-  must prove both boundaries before any restart.
+- Correction `4f2b7a3` applies the bound through Peewee `.limit()` and adds a
+  timeout around deletion of the private deferred placeholder so public
+  publication cannot wait indefinitely on that cleanup step. Regression tests
+  prove both the SQL-query bound and continued public publication when private
+  placeholder deletion hangs.
 - Removed squad testing from the active `/whattotest` list and marked it
-  blocked until the correction is deployed. The current beta remains running;
-  no corrective restart or announcement has yet occurred.
+  blocked until the correction is accepted. The complete offline suite passed
+  878 tests with 25 intentional gated skips. With the beta stopped, the
+  complete development-database suite passed all 25 cases with 2 intentional
+  skips; the real no-squad requester-discovery path completed in under the
+  five-second regression ceiling without creating a fixture.
 - Added durable process rules: tester-pinged workflows must be testable against
   current development state, announcement delivery is the terminal planned
   deployment action, documentation-only follow-up never justifies a restart,
   and Sol/model/context continuity must be re-established from tracked files
   after compaction or a visible model correction.
-- Next action: run focused and complete offline validation, then use one
-  deliberate stopped-beta real-schema/performance gate. If green, commit all
-  tracked evidence before one restart, verify the correction, and only then
-  send a corrective tester notice.
+- Next action: commit this final gate evidence, restart once from the clean
+  correction checkpoint, and have the original reporter retry `/squad show`.
+  Only after that result resolves should squad testing return to
+  `/whattotest` or a corrective tester notice be sent.
 
 ### 2026-08-04 — P7.12 reviewed, integrated, and deployed to development beta
 

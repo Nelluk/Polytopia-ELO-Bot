@@ -426,47 +426,53 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
 
         from modules import squad_show_workers
 
-        squad = self.models.Squad.select().order_by(self.models.Squad.id).first()
-        if squad is None:
-            self.skipTest('development database has no squad fixture')
+        guild_id = self.settings.server_ids['polychampions']
+        player = (
+            self.models.Player
+            .select(self.models.Player, self.models.DiscordMember)
+            .join(self.models.DiscordMember)
+            .where(self.models.Player.guild_id == guild_id)
+            .order_by(self.models.Player.id)
+            .first()
+        )
+        if player is None:
+            self.skipTest('development guild has no registered player fixture')
         before = (
             self.models.Squad.select().count(),
             self.models.SquadMember.select().count(),
             self.models.GameSide.select().count(),
         )
-        result = asyncio.run(
-            squad_show_workers.run_squad_show(
-                squad_show_workers.SquadShowRequest(
-                    guild_id=int(squad.guild_id),
-                    requester_id=1,
-                    member_ids=(1,),
-                    squad_id=int(squad.id),
-                    team_enabled=True,
-                    channel_allowed=True,
-                )
-            )
-        )
-        self.assertIsInstance(result, squad_show_workers.SquadShowResult)
-        self.assertEqual(len(result.cards), 1)
-        self.assertEqual(result.cards[0].squad_id, int(squad.id))
-        self.assertIsInstance(result.cards[0].members, tuple)
-
-        member = (
-            self.models.SquadMember
-            .select(self.models.SquadMember, self.models.Player, self.models.DiscordMember)
-            .join(self.models.Player)
-            .join(self.models.DiscordMember)
-            .where(self.models.SquadMember.squad == squad)
+        squad = (
+            self.models.Squad
+            .select()
+            .where(self.models.Squad.guild_id == guild_id)
+            .order_by(self.models.Squad.id)
             .first()
         )
-        if member is None:
-            self.skipTest('development squad has no member fixture')
-        requester_id = int(member.player.discord_member.discord_id)
+        if squad is not None:
+            result = asyncio.run(
+                squad_show_workers.run_squad_show(
+                    squad_show_workers.SquadShowRequest(
+                        guild_id=guild_id,
+                        requester_id=1,
+                        member_ids=(1,),
+                        squad_id=int(squad.id),
+                        team_enabled=True,
+                        channel_allowed=True,
+                    )
+                )
+            )
+            self.assertIsInstance(result, squad_show_workers.SquadShowResult)
+            self.assertEqual(len(result.cards), 1)
+            self.assertEqual(result.cards[0].squad_id, int(squad.id))
+            self.assertIsInstance(result.cards[0].members, tuple)
+
+        requester_id = int(player.discord_member.discord_id)
         started = time.monotonic()
         discovery = asyncio.run(
             squad_show_workers.run_squad_show(
                 squad_show_workers.SquadShowRequest(
-                    guild_id=int(squad.guild_id),
+                    guild_id=guild_id,
                     requester_id=requester_id,
                     member_ids=(requester_id,),
                     team_enabled=True,
