@@ -459,8 +459,9 @@ check:
   `f0429536d7ed899eb356794bcd3558baa9be3d45`.
 - P4.2d roadmap evidence: `e1a0959`; accumulation merge: `7c2269b`.
 
-Current unit: **P6.2 canonical player timezone — implemented locally; Tier-3
-review, schema gate, and beta command deployment remain pending.**
+Current unit: **P6.2 canonical player timezone — Tier-3 reviewed, development
+schema applied, and integrated; beta command deployment and smoke remain
+pending.**
 
 The audit is recorded in
 `docs/PLAYER_IDENTITY_AND_PREFERENCES_AUDIT.md`. It made no command, schema,
@@ -4143,8 +4144,8 @@ and beta smoke of the two player commands.
 
 ### P6.2 — Canonical player timezone preference
 
-Status: **Implemented locally; Tier-3 review and the separately approved
-stopped-beta schema gate are pending**
+Status: **Tier-3 reviewed, development schema applied, and integrated; beta
+command deployment and smoke are pending**
 
 Risk tier: **Tier 3**. Exact clean base: `76b8813` on
 `codex/database-slash-modernization`. Unit branch/worktree:
@@ -4209,8 +4210,9 @@ Migration and deployment boundary:
   development-only: apply requires explicit `POLYBOT_ENV=development`, exact
   profile database `polytopia_dev`, exact role `polybot_dev`, the matching live
   PostgreSQL session identity, and the exact development acknowledgement
-  token. Production apply and rollback are refused/deferred to P9; no
-  migration was applied in this unit.
+  token. Production apply and rollback are refused/deferred to P9. On
+  2026-08-04, the approved stopped-beta gate added both columns to
+  `polytopia_dev` as `polybot_dev`.
 - Rollback is deliberately offline review SQL only. The plan prints reverse
   order (`timezone_offset_cleared`, then `timezone_offset_minutes`), but there
   is no live rollback API and no operator-supplied ownership assertion can
@@ -4227,20 +4229,25 @@ Validation evidence:
 - Focused timezone, migration, and slash-taxonomy coverage: **33 tests
   passed**. Complete offline discovery: **777 passed, 20 intentional skips**.
   Compilation and `git diff --check` passed.
-- The migration tool's direct offline plan printed both additive statements
-  and reverse rollback statements and explicitly performed no connection or
-  DDL. Real-schema coverage is deferred because running it against the
-  current schema would require persistent DDL and the separately approved
-  stopped-beta migration gate; no gate was weakened and no live database was
-  changed.
+- The reviewed offline plan printed both additive statements and reverse
+  rollback statements without connecting. The approved development apply
+  then committed both additive statements. The unchanged gated PostgreSQL
+  suite passed **20 tests with 1 intentional fixture-preservation skip**, and
+  a read-only P6.2 worker probe loaded an existing development player through
+  the new schema and closed its worker connection.
 
-Limitations and next action: P6.2 has not been Tier-3 reviewed, beta-smoked,
-schema-applied, command-synchronized, or production-deployed. No production
-inventory/backfill, legacy-field removal, fixture mutation, dependency
-installation, service operation, push, merge, or sudo action occurred. Next
-action is independent Sol review of the four implementation commits, followed
-by the separately approved stopped-beta migration/real-schema gate and only
-then beta command deployment/smoke.
+Tier-3 review and integration evidence: Sol returned the unsafe original
+migration gate, accepted corrections `871b388` and `e075bfe`, reproduced the
+corrected focused suite at **33/33**, and passed complete offline discovery at
+**777 with 20 intentional skips**. The reviewed branch was integrated into
+`codex/database-slash-modernization` as merge `63a0424`.
+
+Limitations and next action: P6.2 has not been beta-smoked,
+command-synchronized, or production-deployed. No production inventory or
+data operation, legacy-field removal, fixture mutation, dependency
+installation, push, or sudo action occurred. The next action is the approved
+development-guild command plan/apply, durable-beta restart, and smoke of
+`/player register`, `/player timezone`, and retained `$settime`.
 
 ## P7 — Read-heavy commands and analytics
 
@@ -7128,6 +7135,23 @@ visibility proposal, timezone range, and accepted decisions are in
 `docs/PLAYER_IDENTITY_AND_PREFERENCES_AUDIT.md`.
 
 ## Progress log
+
+### 2026-08-04 — P6.2 reviewed, development schema applied, and integrated
+
+- Completed Tier-3 review, found the original production-permissive migration
+  inversion, and accepted the development-only correction commits `871b388`
+  and `e075bfe`.
+- Stopped only `polybot-development-beta@main.service`, confirmed no other
+  development writer remained, and applied the two additive columns through
+  the exact `POLYBOT_ENV=development` / `polytopia_dev` / `polybot_dev` gate.
+  Production apply and live rollback remained unavailable.
+- Passed the unchanged gated PostgreSQL suite at **20 tests with 1 intentional
+  fixture-preservation skip**. A separate read-only P6.2 worker probe loaded
+  an existing development player and confirmed its worker-local connection
+  closed.
+- Integrated P6.2 into the accumulation branch as merge `63a0424`. Command
+  synchronization, durable-beta restart, and human smoke remain the next
+  approved operational actions.
 
 ### 2026-08-04 — P6.2 canonical player timezone implemented locally
 
