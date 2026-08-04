@@ -101,6 +101,35 @@ rule: send the bounded finding, require a fresh handoff, then yield again. This
 keeps the more expensive oversight task focused on decisions and integration
 review rather than duplicating the execution task's work.
 
+## Repository-first beta feedback triage
+
+Treat a beta report as evidence to investigate, not as a tier-one support
+ticket whose reporter must diagnose the implementation. Before asking the
+reporter for clarification, the oversight task should normally:
+
+1. read the authoritative feedback record and identify the exact command,
+   guild, channel, game, checkpoint, and requester context already captured;
+2. trace the reported output or behavior through the registered adapter,
+   shared service, worker, renderer, permission policy, and nearby tests;
+3. compare native and retained-prefix behavior, roadmap/taxonomy decisions,
+   and analogous commands to infer the intended parity boundary;
+4. inspect available development logs and safe read-only state when they can
+   distinguish a runtime, data, permission, or presentation cause; and
+5. reproduce or encode the inferred behavior in a focused offline test where
+   practical.
+
+Ask the reporter only when a material ambiguity remains after that
+investigation, the answer depends on a subjective product preference, or the
+missing evidence exists only in their client. Do not ask for screenshots,
+command spellings, permission facts, or expected behavior that the repository,
+logs, stored report, or safe development-state inspection can establish.
+
+Once accepted, group only genuinely related findings into a bounded correction
+unit, preserve each authoritative report ID for release attribution, and use
+the stored requester ID for the reviewed beta notification workflow. The
+worker prompt receives the inferred behavior and acceptance criteria, not an
+instruction to rediscover product policy from the reporter.
+
 ## Worktree layout and ownership
 
 The primary planning/integration checkout remains:

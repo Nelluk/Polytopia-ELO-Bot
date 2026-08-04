@@ -4,7 +4,7 @@ Last updated: 2026-08-04
 
 Status: Active
 
-Current branch at last update: `codex/beta-report-parity-corrections`
+Current branch at last update: `codex/database-slash-modernization`
 
 Source task: `thread://019fb4cd-0c73-7700-9988-141f6622d6f7`
 
@@ -8077,6 +8077,38 @@ changes, preserve stable command identities where practical, and prefer
 component refinements that do not require command re-registration.
 
 ## Progress log
+
+### 2026-08-04 — Beta-report parity corrections accepted and integrated
+
+- Tier-2 review accepted implementation `e007c67` and evidence `deb5dfb` on
+  exact accumulation base `80e44ff`; the accumulation branch fast-forwarded
+  to the reviewed correction without conflict.
+- Native pending-game cards now advertise `/game join`, `/game start`, and
+  the surviving `/game show` workflow, while retained prefix cards keep their
+  configured-prefix guidance. `/game record` now enforces staff-only invalid-
+  name override and Mod-only total/per-side size override in the shared
+  synchronous path, returning public warnings only after commit. Legacy
+  `Game.name` title-casing is unchanged. `/squad show` recent games are ordered
+  by descending date and then descending game ID.
+- Independent review passed the 108-test requested focus, 193 adjacent tests,
+  compile/diff checks, and five consecutive isolated runs of the previously
+  reported tribe-executor responsiveness test. The worker's lone complete-
+  suite failure is therefore treated as an unreproduced timing flake rather
+  than masked by unrelated changes; stopped-beta PostgreSQL validation remains
+  the next deployment gate.
+- The tester confirmed that `/leaderboard teams` is populated after assigning
+  configured tiers to The Ronin, The Jets, and The Sparkies. This removes the
+  fixture/readiness blocker for the next tester-pinged release.
+- Added repository-first feedback triage to the collaboration and beta-
+  feedback runbooks: investigate code, tests, logs, and safe development state
+  before asking reporters for details that the model can infer. Human
+  clarification is reserved for subjective, client-only, or materially
+  ambiguous decisions.
+- Next action: stop only the guarded development beta, run the unchanged
+  `development` / `polytopia_dev` / `polybot_dev` integration gate, record the
+  result at a clean checkpoint, restart without command synchronization, and
+  publish the reviewed wider-tester announcement with direct reporter
+  attribution.
 
 ### 2026-08-04 — Accepted beta-report parity corrections implemented locally
 

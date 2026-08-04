@@ -142,6 +142,22 @@ mentions and describes the released behavior through its bounded summary and
 smoke checklist. The private `admin-spam` mirror and authoritative JSONL
 remain the places for report details.
 
+## Repository-first triage
+
+The default response to a new report is code and evidence investigation, not
+immediate reporter questioning. Read the authoritative report, trace the
+registered command through its service/worker/renderer and permission policy,
+compare native and retained-prefix behavior, inspect safe development logs or
+read-only state when useful, and add a focused reproduction before deciding
+that human clarification is required.
+
+Ask the reporter only when the remaining ambiguity is genuinely subjective,
+client-only, or materially changes the product decision. Details that can be
+inferred from the repository, roadmap, tests, logs, or captured report context
+should be inferred by the reviewing model. Accepted related findings may be
+combined into one bounded correction unit, but their report IDs and requester
+attribution remain distinct for release evidence and notification.
+
 ## Validation and boundaries
 
 Focused offline validation is:
