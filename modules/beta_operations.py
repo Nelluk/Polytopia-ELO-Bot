@@ -25,6 +25,7 @@ from typing import Any, Mapping, Sequence
 
 import discord
 
+from modules import beta_readiness
 from runtime_config import RuntimeProfile
 
 
@@ -66,6 +67,10 @@ MAX_SMOKE_TEST_LENGTH = 200
 MAX_ANNOUNCEMENT_LENGTH = 1900
 MAX_HISTORY_SCAN = 100
 MAX_SOCKET_REQUEST_BYTES = 64 * 1024
+MAX_SOCKET_RESPONSE_OVERHEAD_BYTES = 1024
+MAX_SOCKET_RESPONSE_BYTES = (
+    beta_readiness.MAX_SNAPSHOT_BYTES + MAX_SOCKET_RESPONSE_OVERHEAD_BYTES
+)
 
 _RELEASE_ID = re.compile(r'^[a-z0-9][a-z0-9._-]{0,63}$')
 _CHECKPOINT = re.compile(r'^[0-9a-f]{40}$')
@@ -1245,6 +1250,30 @@ class BetaReleaseService:
     def status(self) -> Mapping[str, Any]:
         return _read_release_state(self.paths)
 
+    async def readiness_inventory(self) -> Mapping[str, Any]:
+        """Return a bounded read-only inventory from this authenticated bot."""
+
+        async with self._lock:
+            self._assert_authenticated_identity()
+            binding = _read_role_binding(self.paths)
+            if binding is None:
+                raise ReleaseRoleError(
+                    'The testers role is not pinned; readiness inventory is refused.'
+                )
+            try:
+                return beta_readiness.build_discord_inventory(
+                    bot=self.bot,
+                    profile=self.profile,
+                    pinned_tester_role_id=binding.role_id,
+                    public_channel_id=BETA_PUBLIC_RELEASE_CHANNEL_ID,
+                    public_channel_name=BETA_PUBLIC_RELEASE_CHANNEL_NAME,
+                    staffhelp_channel_id=BETA_STAFFHELP_MIRROR_CHANNEL_ID,
+                    staffhelp_channel_name=BETA_STAFFHELP_MIRROR_CHANNEL_NAME,
+                    tester_role_name=BETA_TESTER_ROLE_NAME,
+                )
+            except beta_readiness.ReadinessInventoryError as exc:
+                raise ReleaseDeliveryError(str(exc)) from exc
+
 
 def beta_control_enabled(environ: Mapping[str, str] | None = None) -> bool:
     values = os.environ if environ is None else environ
@@ -1333,6 +1362,8 @@ class BetaReleaseControl:
             }
         if operation == 'status':
             return dict(self.service.status())
+        if operation == 'readiness-inventory':
+            return dict(await self.service.readiness_inventory())
         raise BetaOperationsError('Unknown beta control operation.')
 
     async def _handle_client(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
@@ -1351,7 +1382,19 @@ class BetaReleaseControl:
                 'error_type': type(exc).__name__,
             }
         try:
-            writer.write(json.dumps(response, ensure_ascii=True).encode('utf-8') + b'\n')
+            payload = json.dumps(
+                response,
+                ensure_ascii=True,
+                sort_keys=True,
+                separators=(',', ':'),
+            ).encode('utf-8') + b'\n'
+            if len(payload) > MAX_SOCKET_RESPONSE_BYTES:
+                payload = json.dumps({
+                    'ok': False,
+                    'error': 'The beta control response is too large.',
+                    'error_type': 'BetaOperationsError',
+                }, separators=(',', ':')).encode('utf-8') + b'\n'
+            writer.write(payload)
             await writer.drain()
         finally:
             writer.close()
@@ -1368,23 +1411,34 @@ async def send_control_request(
     info = _reject_symlink(paths.socket_path, label='release control socket')
     if info is None or not stat.S_ISSOCK(info.st_mode):
         raise BetaOperationsError('The durable beta release control socket is not active.')
+    writer = None
+    raw = b''
     try:
+        request_payload = json.dumps(
+            dict(request), ensure_ascii=True, separators=(',', ':')
+        ).encode('utf-8') + b'\n'
+        if len(request_payload) > MAX_SOCKET_REQUEST_BYTES:
+            raise BetaOperationsError('The beta control request is too large.')
         reader, writer = await asyncio.wait_for(
-            asyncio.open_unix_connection(str(paths.socket_path)),
+            asyncio.open_unix_connection(
+                str(paths.socket_path),
+                limit=MAX_SOCKET_RESPONSE_BYTES,
+            ),
             timeout=timeout,
         )
-        writer.write(json.dumps(dict(request), ensure_ascii=True).encode('utf-8') + b'\n')
+        writer.write(request_payload)
         await writer.drain()
         raw = await asyncio.wait_for(reader.readline(), timeout=timeout)
-    except (OSError, asyncio.TimeoutError) as exc:
+    except (OSError, asyncio.TimeoutError, asyncio.LimitOverrunError) as exc:
         raise BetaOperationsError('The beta release control request did not complete.') from exc
     finally:
-        try:
-            writer.close()
-            await writer.wait_closed()
-        except (UnboundLocalError, OSError):
-            pass
-    if len(raw) > MAX_SOCKET_REQUEST_BYTES or not raw:
+        if writer is not None:
+            try:
+                writer.close()
+                await writer.wait_closed()
+            except OSError:
+                pass
+    if len(raw) > MAX_SOCKET_RESPONSE_BYTES or not raw:
         raise BetaOperationsError('The beta control returned an invalid response.')
     try:
         response = json.loads(raw.decode('utf-8'))

@@ -1,0 +1,189 @@
+{
+  "schema_version": 1,
+  "target": {
+    "environment": "development",
+    "guild_id": 478571892832206869,
+    "application_id": 479029527553638401,
+    "database": "polytopia_dev",
+    "database_role": "polybot_dev"
+  },
+  "discord": {
+    "tester_role": {
+      "name": "testers",
+      "expected_id": 480905534019731476,
+      "required": true
+    },
+    "channels": {
+      "public_release": {
+        "id": 481779940124000256,
+        "name": "todo-and-changelog",
+        "required": true
+      },
+      "staffhelp_mirror": {
+        "id": 480078679930830849,
+        "name": "admin-spam",
+        "required": true
+      }
+    }
+  },
+  "capabilities": {
+    "current": [
+      "core_user",
+      "elo_maintenance",
+      "team"
+    ],
+    "proposed": [
+      "core_user",
+      "elo_maintenance",
+      "team"
+    ],
+    "optional": [
+      {
+        "capability": "tools_support",
+        "decision": "unresolved",
+        "reason": "Decide whether wider testers should receive tools_support and /staffhelp."
+      }
+    ],
+    "unresolved": [
+      "Review capability changes with staff before any guild-scoped command deployment."
+    ]
+  },
+  "database": {
+    "teams": {
+      "proposed": [],
+      "unresolved": [
+        "Choose any development-only team names only after reviewing the database inventory."
+      ]
+    },
+    "houses": {
+      "proposed": [],
+      "unresolved": [
+        "Choose any development-only house names only after reviewing the database inventory."
+      ]
+    },
+    "role_bindings": {
+      "proposed": [],
+      "unresolved": [
+        "Decide which proposed team/house records require exact Discord role bindings."
+      ]
+    },
+    "fixtures": {
+      "retain": [
+        {
+          "family": "beta_games",
+          "ids": [
+            149,
+            150,
+            151
+          ],
+          "player_count": null
+        },
+        {
+          "family": "leaderboard_showcase",
+          "ids": [
+            200,
+            201,
+            202,
+            203,
+            204,
+            205,
+            206,
+            207,
+            208,
+            209,
+            210,
+            211,
+            212,
+            213,
+            214,
+            215,
+            216,
+            217,
+            218,
+            219,
+            220,
+            221,
+            222,
+            223,
+            224,
+            225,
+            226,
+            227,
+            228,
+            229,
+            230,
+            231,
+            232,
+            233,
+            234,
+            235,
+            236,
+            237,
+            238,
+            239,
+            240,
+            241,
+            242,
+            243,
+            244,
+            245,
+            246,
+            247
+          ],
+          "player_count": 24
+        }
+      ],
+      "cleanup": [],
+      "unresolved": [
+        "Review unowned interactive games separately; this manifest owns only the marked fixture families."
+      ]
+    }
+  },
+  "lifecycle": {
+    "cleanup": {
+      "steps": [
+        "Stop the durable beta before any approved fixture cleanup.",
+        "Use only the existing exact development fixture ownership gates.",
+        "Record every disposable Discord resource and interactive game ID before cleanup."
+      ],
+      "unresolved": [
+        "Approve the exact later cleanup scope and retention dates."
+      ]
+    },
+    "rollback": {
+      "steps": [
+        "Stop the single development beta writer and verify its identity.",
+        "Revert only to the reviewed development checkpoint through the normal Git workflow.",
+        "Treat command-tree rollback and database fixture cleanup as separate reviewed actions."
+      ],
+      "unresolved": [
+        "Name the reviewed rollback checkpoint after readiness review."
+      ]
+    }
+  },
+  "smoke": {
+    "checklist": [
+      "Verify the authenticated application, development guild, fixed channels, and pinned testers role.",
+      "Run the approved guild-scoped command plan and inspect the resulting roots before any apply.",
+      "Exercise the bounded public command smoke matrix and confirm private denial visibility.",
+      "Verify /staffhelp only if tools_support is explicitly approved and deployed.",
+      "Confirm the bot remains responsive and no second development writer exists.",
+      "Record fixture final states and any disposable interactive IDs."
+    ],
+    "invitation_prerequisites": [
+      "Staff review of this manifest and its inventory diff is complete.",
+      "The unique testers role is live, pinned, and verified.",
+      "The approved command capability decision is explicit; unresolved tools_support is not implied.",
+      "The durable beta is healthy from the reviewed checkpoint with startup synchronization disabled.",
+      "The bounded smoke checklist is complete and rollback ownership is recorded.",
+      "Invite only 5–20 testers through the separately approved Discord invitation step."
+    ],
+    "tester_range": {
+      "minimum": 5,
+      "maximum": 20
+    },
+    "unresolved": [
+      "Obtain explicit approval before inviting any tester."
+    ]
+  }
+}

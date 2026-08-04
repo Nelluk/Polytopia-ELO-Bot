@@ -37,6 +37,8 @@ logs/development/beta-operations/
 *.json
 !release-manifests/
 !release-manifests/*.json
+!readiness-manifests/
+!readiness-manifests/*.json
 *test.py
 .python-version
 TODO.txt

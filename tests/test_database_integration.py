@@ -134,6 +134,46 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
         actual_tables = {row[0] for row in rows}
         self.assertTrue(expected_tables.issubset(actual_tables))
 
+    def test_readiness_inventory_reads_real_development_database_without_writes(self):
+        from modules import beta_readiness
+
+        result = beta_readiness.read_development_database_inventory(
+            profile=self.profile,
+            guild_id=beta_readiness.BETA_GUILD_ID,
+        )
+        self.assertEqual(
+            result['schema_version'],
+            beta_readiness.DATABASE_INVENTORY_SCHEMA_VERSION,
+        )
+        self.assertEqual(result['kind'], 'development_database_inventory')
+        self.assertEqual(
+            result['target'],
+            {
+                'environment': 'development',
+                'guild_id': beta_readiness.BETA_GUILD_ID,
+                'database': 'polytopia_dev',
+                'database_role': 'polybot_dev',
+            },
+        )
+        self.assertEqual(
+            set(result['counts']),
+            {'players', 'teams', 'houses', 'games'},
+        )
+        self.assertIsInstance(result['teams'], list)
+        self.assertIsInstance(result['houses'], list)
+        self.assertIsInstance(result['role_binding_identifiers'], dict)
+        self.assertIn('beta_games', result['fixtures'])
+        self.assertIn('leaderboard_showcase', result['fixtures'])
+        self.assertFalse(result['privacy']['game_notes_included'])
+        self.assertFalse(result['privacy']['tokens_included'])
+        self.assertFalse(result['role_binding_identifiers']['role_ids_resolved'])
+        self.assertLessEqual(
+            len(result['teams']), beta_readiness.MAX_DATABASE_TEAMS
+        )
+        self.assertLessEqual(
+            len(result['houses']), beta_readiness.MAX_DATABASE_HOUSES
+        )
+
     def test_leaderboard_workers_read_real_schema(self):
         from modules import leaderboard_workers
 
