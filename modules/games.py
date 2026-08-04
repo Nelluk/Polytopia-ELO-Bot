@@ -2950,11 +2950,15 @@ class polygames(commands.Cog):
                 return
 
             async def send_public(message: str):
-                return await confirmation.followup.send(
-                    message,
-                    ephemeral=False,
-                    wait=True,
-                )
+                channel = getattr(confirmation, 'channel', None)
+                if channel is None:
+                    raise RuntimeError(
+                        'The open-game confirmation channel is unavailable.'
+                    )
+                # A public follow-up to an ephemeral component interaction can
+                # render as a reply to a deleted/private message in Discord.
+                # Publish committed effects as standalone channel messages.
+                return await channel.send(message)
 
             await game_open.publish_open_game_result(
                 result,

@@ -700,6 +700,7 @@ class OpenGameViewTests(unittest.IsolatedAsyncioTestCase):
             user=SimpleNamespace(id=100),
             response=SimpleNamespace(defer=mock.AsyncMock()),
             edit_original_response=mock.AsyncMock(),
+            channel=SimpleNamespace(send=mock.AsyncMock()),
             followup=SimpleNamespace(send=mock.AsyncMock()),
         )
         with mock.patch.object(
@@ -715,10 +716,7 @@ class OpenGameViewTests(unittest.IsolatedAsyncioTestCase):
                 await game_open.publish_open_game_result(
                     created,
                     prefix='$',
-                    send=lambda message: confirmation.followup.send(
-                        message,
-                        ephemeral=False,
-                    ),
+                    send=confirmation.channel.send,
                 )
 
             view.confirmer = confirm
@@ -726,10 +724,8 @@ class OpenGameViewTests(unittest.IsolatedAsyncioTestCase):
 
         run_creation.assert_awaited_once()
         confirmation.response.defer.assert_awaited_once_with(ephemeral=True)
-        self.assertEqual(
-            [call.kwargs['ephemeral'] for call in confirmation.followup.send.call_args_list],
-            [False, False],
-        )
+        self.assertEqual(confirmation.channel.send.await_count, 2)
+        confirmation.followup.send.assert_not_awaited()
 
     async def test_shared_join_reaction_helper_uses_configured_emoji(self):
         public_message = SimpleNamespace(add_reaction=mock.AsyncMock())
@@ -1139,6 +1135,9 @@ class OpenGameCommandTests(unittest.IsolatedAsyncioTestCase):
 
         public_message = SimpleNamespace(add_reaction=mock.AsyncMock())
         confirmation = SimpleNamespace(
+            channel=SimpleNamespace(
+                send=mock.AsyncMock(return_value=public_message),
+            ),
             followup=SimpleNamespace(
                 send=mock.AsyncMock(return_value=public_message),
             ),
@@ -1163,11 +1162,8 @@ class OpenGameCommandTests(unittest.IsolatedAsyncioTestCase):
         ):
             await view.confirmer(confirmation, view.draft)
 
-        confirmation.followup.send.assert_awaited_once_with(
-            mock.ANY,
-            ephemeral=False,
-            wait=True,
-        )
+        confirmation.channel.send.assert_awaited_once_with(mock.ANY)
+        confirmation.followup.send.assert_not_awaited()
         public_message.add_reaction.assert_awaited_once_with(
             games.settings.emoji_join_game,
         )
