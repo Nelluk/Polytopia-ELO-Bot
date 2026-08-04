@@ -28,6 +28,18 @@ This is the running wider-beta checklist—not just the newest release. Please u
 - Team permission checks using `@testers` (staff) and `@Mod` roles
 - `/team show`: explicit and inferred-team lookup, dense roster/ELO card, graph and image display, recent/all-completed activity toggle, missing-role warning, and desktop/mobile layout
 
+## Squads
+
+- `/squad show` with an exact squad ID and with no ID (requester discovery)
+- Member-select searches for one, two, and three members; result paging and
+  opening a loaded squad card without a second read
+- Dense squad card: name, members/team emoji, ELO, W-L, rank, and recent games
+- `/squad name` public read, member/staff edit, explicit clear, normalization,
+  and the **Edit name** modal from `/squad show`
+- Verify successful name changes identify who made them, while unauthorized,
+  stale, expired, and invalid interactions remain private
+- Check squad cards and controls on desktop and mobile
+
 ## Maintenance and feedback
 
 - `/elo status` and owner-only `/elo recalculate`
