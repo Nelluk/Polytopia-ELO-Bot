@@ -420,10 +420,17 @@ Nelluk separately approved the production maintenance window. On 2026-07-29:
   `pg_dump` version 18.4.
 - The root filesystem retained approximately 3.2 GiB free after cutover.
 
-The old PostgreSQL 12 cluster and its packages were intentionally retained.
-Their removal is not part of the cutover approval.
+The old PostgreSQL 12 cluster and its packages were intentionally retained at
+cutover. They were later removed through the separately approved cleanup
+recorded in `docs/POST_UPGRADE_CLEANUP.md`.
 
-## Rollback
+## Historical cutover rollback — retired
+
+The physical PostgreSQL 12 rollback described below was available during the
+cutover and settling period. It was retired on 2026-08-04 when `12/main` and
+the PostgreSQL 12 packages were removed. Do not execute these historical
+steps. Current recovery uses a separately approved PostgreSQL 18 logical
+restore from a validated retained archive.
 
 Copy mode leaves PostgreSQL 12 independent. During the task-disabled canary:
 
@@ -460,30 +467,30 @@ approval.
 - Read-only Discord smoke checks and background tasks pass.
 - PostgreSQL and bot processes remain stable for at least ten minutes.
 - Fresh PostgreSQL 18 backups pass validation.
-- PostgreSQL 12 remains stopped and independently recoverable.
+- PostgreSQL 12 remains stopped and independently recoverable through the
+  settling period, then is removed only through a separately approved cleanup.
 
-## Deferred cleanup
+## Post-upgrade cleanup completed
 
-After at least one to two weeks of stable PostgreSQL 18 operation and multiple
-validated backup cycles, request separate approval to:
+On 2026-08-04, after stable PostgreSQL 18 operation and multiple validated
+backup cycles, the separately approved cleanup completed:
 
-- remove the old PostgreSQL 12 cluster with `pg_dropcluster`;
-- remove unsupported PostgreSQL 12 packages;
-- remove PostgreSQL 14 packages if no longer needed;
-- delete disposable rehearsal artifacts;
-- decide whether to retain or delete the `twospies` database;
-- update monitoring and disk-audit expectations.
+- A fresh full production dump, all seven rotating dumps, and both retained
+  full recovery sets validated before deletion.
+- The stopped 1007 MB PostgreSQL `12/main` cluster was removed with
+  `pg_dropcluster`.
+- PostgreSQL 12 and 14 server/client packages and obsolete metapackages were
+  removed and residual server-package records purged. PostgreSQL 18, shared
+  PostgreSQL packages, and `libpq5` remain installed. No autoremove ran.
+- PostgreSQL 18.4 remained online on localhost-only port 5432 without a
+  restart. All expected database identities and owners remained intact.
+- `twospies`, current rotating backups, the PG4 archive, and the final
+  stopped-service archive were deliberately retained.
+- The generic disk audit required no code change and correctly reported the
+  removed cluster. Free space improved from 1.9 GB to 3.4 GB across the full
+  PostgreSQL/Python cleanup.
 
-Do not combine old-cluster removal with the cutover approval.
-
-The repository-backed cleanup procedure is prepared in
-`docs/POST_UPGRADE_CLEANUP.md`. Its current status is **prepared, not
-executed**. It adds a canonical tracked systemd unit before either rollback
-environment is removed, preserves `twospies` and all current recovery
-archives, and requires a fresh backup plus service/database identity checks
-before the separately approved destructive phases.
-
-When cleanup completes, update this section with the actual evidence and mark
-the PostgreSQL 12 rollback section above as historical. Until then, the old
-cluster remains the stopped physical rollback copy described by the cutover
-record.
+The full commands, gates, hashes, service identities, and retained-artifact
+record are in `docs/POST_UPGRADE_CLEANUP.md`. PostgreSQL recovery now requires
+a separately approved logical restore; the removed physical cluster is no
+longer a rollback option.
