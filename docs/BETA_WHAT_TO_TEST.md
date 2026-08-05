@@ -38,13 +38,18 @@ This is the running wider-beta checklist—not just the newest release. Please u
 ## Squads
 
 - `/squad show` with no ID should return **No eligible squads** promptly on
-  the current fixture set rather than leaving the interaction pending.
+  accounts that have no eligible squads rather than leaving the interaction
+  pending.
+- On a public `/squad show` workspace with eligible results, use the member
+  selector with one to three registered members. Repeat from a later result
+  page when available: matching results should replace the same public card,
+  reset to page one, and must not delete the workspace or report that it could
+  not be refreshed.
+- Exact squad cards and `/squad name` read/edit/clear behavior.
 - If stale desktop/mobile command caches leave a newly changed command on
   **Sending command...**, fully restart Discord and retry. Reopening the picker
   or invoking a rendered command may help but did not refresh every tester's
   client cache.
-- Exact squad cards, member search, and `/squad name` remain untestable until
-  the development database has an owned squad fixture.
 
 ## Maintenance and feedback
 
