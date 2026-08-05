@@ -475,3 +475,15 @@ validated backup cycles, request separate approval to:
 - update monitoring and disk-audit expectations.
 
 Do not combine old-cluster removal with the cutover approval.
+
+The repository-backed cleanup procedure is prepared in
+`docs/POST_UPGRADE_CLEANUP.md`. Its current status is **prepared, not
+executed**. It adds a canonical tracked systemd unit before either rollback
+environment is removed, preserves `twospies` and all current recovery
+archives, and requires a fresh backup plus service/database identity checks
+before the separately approved destructive phases.
+
+When cleanup completes, update this section with the actual evidence and mark
+the PostgreSQL 12 rollback section above as historical. Until then, the old
+cluster remains the stopped physical rollback copy described by the cutover
+record.
