@@ -82,6 +82,7 @@ class SlashTaxonomyRegistrationTests(unittest.TestCase):
                 'leave',
                 'search',
                 'show',
+                'ping',
                 'start',
                 'win',
                 'unwin',

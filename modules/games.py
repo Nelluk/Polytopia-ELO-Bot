@@ -33,6 +33,9 @@ from modules import game_notes
 from modules import game_notes_views
 from modules import game_name
 from modules import game_name_views
+from modules import game_ping
+from modules import game_ping_views
+from modules import game_ping_workers
 from modules import game_workers
 from modules import game_open
 from modules import game_open_workers
@@ -2770,6 +2773,119 @@ class polygames(commands.Cog):
             game_id=game_id,
             slash=True,
         )
+
+    @game_group.command(
+        name='ping',
+        description='Compose a private game notification for one or more games.',
+    )
+    @discord.app_commands.checks.cooldown(
+        1,
+        30.0,
+        key=lambda interaction: interaction.user.id,
+    )
+    @discord.app_commands.describe(
+        game_id='Optional incomplete game ID; omit it to infer or choose a game.',
+    )
+    async def game_ping_slash(
+        self,
+        interaction: discord.Interaction,
+        game_id: int | None = None,
+    ):
+        """Open the requester-bound Components v2 game-ping composer."""
+
+        await interaction.response.defer(ephemeral=True)
+        requester = game_ping.capture_member(
+            interaction.user,
+            interaction.guild.id,
+        )
+        channel_id = int(interaction.channel_id or 0)
+
+        async def load_target(target: game_ping_workers.MemberSnapshot):
+            request = game_ping_workers.GamePingLoadRequest(
+                guild_id=int(interaction.guild.id),
+                requester=requester,
+                target_id=int(target.discord_id),
+                explicit_game_id=game_id,
+                channel_id=channel_id,
+                discover_all=True,
+            )
+            loaded = await asyncio.wait_for(
+                game_ping_workers.run_ping_candidates(request),
+                timeout=20.0,
+            )
+            facts = game_ping.capture_channel_facts(interaction, loaded)
+            return loaded, facts
+
+        try:
+            loaded, facts = await load_target(requester)
+        except (
+            game_ping_workers.GamePingValidationError,
+            game_ping_workers.GamePingLookupError,
+            game_ping_workers.GamePingPermissionError,
+            peewee.PeeweeException,
+            asyncio.TimeoutError,
+            ValueError,
+        ) as exc:
+            logger.warning('Native game-ping candidate load failed: %s', exc)
+            return await interaction.followup.send(str(exc), ephemeral=True)
+        except Exception:
+            logger.exception('Unexpected native game-ping candidate load failure')
+            return await interaction.followup.send(
+                'The game-ping composer could not load the eligible games. '
+                'Please try again later.',
+                ephemeral=True,
+            )
+
+        loaded_ids = {candidate.game_id for candidate in loaded.games}
+        selected_game_id = (
+            game_id if game_id in loaded_ids else loaded.inferred_game_id
+        )
+        if selected_game_id is None and loaded.games:
+            selected_game_id = loaded.games[0].game_id
+
+        async def reload_target(
+            target_interaction: discord.Interaction,
+            target: game_ping_workers.MemberSnapshot,
+        ):
+            # The interaction is requester-bound; use its current channel only
+            # as a primitive lookup fact and never pass the live object to the
+            # synchronous worker.
+            return await load_target(target)
+
+        async def confirm(
+            _confirm_interaction: discord.Interaction,
+            view: game_ping_views.GamePingComposerView,
+        ):
+            if view.draft is None:
+                raise game_ping_workers.GamePingValidationError(
+                    'Compose a message or attach a file before confirming.'
+                )
+            request = game_ping.build_commit_request(
+                result=view.result,
+                requester=requester,
+                target=view.target,
+                scope=view.scope,
+                selected_game_id=view.selected_game_id,
+                channel_facts=view.channel_facts,
+                draft=view.draft,
+                invoked_with='/game ping',
+            )
+            return await game_ping.confirm_and_deliver(
+                request,
+                guilds=self.bot.guilds,
+                completion_destination=interaction.channel,
+            )
+
+        view = game_ping_views.GamePingComposerView(
+            requester=requester,
+            target=requester,
+            result=loaded,
+            channel_facts=facts,
+            selected_game_id=selected_game_id,
+            target_loader=reload_target,
+            confirmer=confirm,
+        )
+        view.message = await interaction.edit_original_response(view=view)
 
     @game_group.command(
         name='start',

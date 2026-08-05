@@ -8,7 +8,9 @@ import asyncio
 import modules.exceptions as exceptions
 import datetime
 import random
-from modules.games import PolyGame
+import peewee
+from modules import game_ping
+from modules import game_ping_workers
 from modules import role_leaderboard as role_leaderboard_service
 from modules import role_leaderboard_workers
 from modules import beta_feedback_views
@@ -197,210 +199,77 @@ class misc(commands.Cog):
         embed.add_field(value='\u200b', name=stats_2[:256], inline=False)
         await ctx.send(embed=embed)
 
-    @commands.command(hidden=True, usage='message', aliases=['pingmobile', 'pingsteam'])
+    @commands.command(hidden=True, usage='message')
     @commands.cooldown(1, 30, commands.BucketType.user)
     @settings.in_bot_channel_strict()
     @models.is_registered_member()
     async def pingall(self, ctx, *, message: str = None):
-        """ Ping everyone in all of your incomplete games
-
-        Not useable by all players.
-        You can use `pingsteam` to only ping players in your Steam platform games,
-        or `pingmobile` to only ping players in your Mobile games.
-
-         **Examples**
-        `[p]pingall My phone died and I will make all turns tomorrow`
-        Send a message to everyone in all of your incomplete games
-        `[p]pingall @Glouc3stershire Glouc is in Tahiti and will play again tomorrow`
-        *Staff:* Send a message to everyone in another player's games
-        `[p]pingmobile My phone died but I'm still taking turns on Steam!`
-
-        """
-        if not message:
-            return await ctx.send('Message is required.')
-
-        m = utilities.string_to_user_id(message.split()[0])
-
-        if m:
-            logger.debug(f'Third party use of {ctx.invoked_with}')
-            # Staff member using command on third party
-            if settings.get_user_level(ctx.author) <= 3:
-                logger.debug('insufficient user level')
-                return await ctx.send('You do not have permission to use this command on another player\'s games.')
-            message = ' '.join(message.split()[1:])  # remove @Mention first word of message
-            target = str(m)
-            log_message = f'{models.GameLog.member_string(ctx.author)} used pingall on behalf of player ID `{target}` with message: '
-        else:
-            logger.debug('first party usage of pingall')
-            # Play using command on their own games
-            if settings.get_user_level(ctx.author) <= 2:
-                logger.debug('insufficient user level')
-                return await ctx.send('You do not have permission to use this command. You can ask a server staff member to use this command on your games for you.')
-            target = str(ctx.author.id)
-            log_message = f'{models.GameLog.member_string(ctx.author)} used {ctx.invoked_with} with message: '
+        """Ping all incomplete games through the shared notification worker."""
 
         try:
-            player_match = models.Player.get_or_except(player_string=target, guild_id=ctx.guild.id)
-        except exceptions.NoSingleMatch:
-            return await ctx.send(f'User <@{target}> is not a registered ELO player.')
-
-        if ctx.invoked_with == 'pingall':
-            platform_filter = 2
-            title_str = 'Message to all players in unfinished games'
-        elif ctx.invoked_with == 'pingmobile':
-            platform_filter = 1
-            title_str = 'Message to players in unfinished mobile games'
-        elif ctx.invoked_with == 'pingsteam':
-            platform_filter = 0
-            title_str = 'Message to players in unfinished Steam games'
-        else:
-            raise ValueError(f'{ctx.invoked_with} is not a handled alias for this command')
-
-        game_list = models.Game.search(player_filter=[player_match], status_filter=2, guild_id=ctx.guild.id, platform_filter=platform_filter)
-        logger.debug(f'{len(game_list)} incomplete games for target')
-
-        list_of_players = []
-        for g in game_list:
-            list_of_players += g.mentions()
-
-        list_of_players = list(set(list_of_players))
-        logger.debug(f'{len(list_of_players)} unique opponents for target')
-        clean_message = utilities.escape_role_mentions(message)
-        if len(list_of_players) > 100:
-            await ctx.send('*Warning:* More than 100 unique players are addressed. Only the first 100 will be mentioned.')
-        await ctx.send(f'{title_str} for <@{target}> ({player_match.name}): *{clean_message}*')
-
-        recipient_message = f'Message recipients: {" ".join(list_of_players[:100])}'
-        await ctx.send(recipient_message[:2000])
-
-        for game in game_list:
-            logger.debug(f'Sending message to game channels for game {game.id} from {ctx.invoked_with}')
-            models.GameLog.write(game_id=game, guild_id=ctx.guild.id, message=f'{log_message} *{discord.utils.escape_markdown(clean_message)}*')
-            await game.update_squad_channels(self.bot.guilds, game.guild_id, message=f'{title_str} for **{player_match.name}**: *{clean_message}*')
+            return await game_ping.run_prefix_all(
+                ctx,
+                message,
+                attachments=getattr(getattr(ctx, 'message', None), 'attachments', ()),
+            )
+        except (
+            game_ping_workers.GamePingValidationError,
+            game_ping_workers.GamePingLookupError,
+            game_ping_workers.GamePingPermissionError,
+            game_ping_workers.GamePingConflictError,
+            peewee.PeeweeException,
+            ValueError,
+        ) as exc:
+            logger.warning('Prefix pingall failed: %s', exc)
+            return await ctx.send(str(exc))
+        except Exception:
+            logger.exception('Unexpected prefix pingall failure')
+            return await ctx.send(
+                'The game ping could not be completed. No retry was created '
+                'for a committed notification; check the public reconciliation '
+                'message if one was posted.'
+            )
 
     @commands.command(usage='game_id message')
     @models.is_registered_member()
     @commands.cooldown(1, 20, commands.BucketType.user)
     async def ping(self, ctx, *, args=''):
-        """ Ping everyone in one of your games with a message
+        """Ping one incomplete game through the shared notification worker."""
 
-         **Examples**
-        `[p]ping 100 I won't be able to take my turn today` - Send a message to everyone in game 100
-        `[p]ping This game is amazing!` - You can omit the game ID if you send the command from a game-specific channel
-
-        See `[p]help pingall` for a command to ping ALL incomplete games simultaneously.
-
-        """
-
-        usage = (f'**Example usage:** `{ctx.prefix}ping 100 Here\'s a nice note for everyone in game 100.`\n'
-                    'You can also omit the game ID if you use the command from a game-specific channel.')
-
-        if ctx.message.attachments:
-            attachment_urls = '\n'.join([attachment.url for attachment in ctx.message.attachments])
-            args += f'\n{attachment_urls}'
-
-        if not args:
-            ctx.command.reset_cooldown(ctx)
-            return await ctx.send(usage)
-
-        if settings.is_mod(ctx.author):
-            ctx.command.reset_cooldown(ctx)
-
-        args = args.split()
+        if not str(args or '').strip() and not getattr(
+            getattr(ctx, 'message', None),
+            'attachments',
+            (),
+        ):
+            reset = getattr(getattr(ctx, 'command', None), 'reset_cooldown', None)
+            if callable(reset):
+                reset(ctx)
         try:
-            game_id = int(args[0])
-            message = ' '.join(args[1:])
-        except ValueError:
-            game_id = None
-            message = ' '.join(args)
-
-        inferred_game = None
-        try:
-            inferred_game = models.Game.by_channel_id(chan_id=ctx.message.channel.id)
-        except exceptions.TooManyMatches:
-            if not game_id:
-                logger.error(f'More than one game with matching channel {ctx.message.channel.id}')
-                return await ctx.send('Error looking up game based on current channel - please contact the bot owner.')
-        except exceptions.NoMatches:
-            if not game_id:
-                ctx.command.reset_cooldown(ctx)
-                logger.debug('Could not infer game from current channel.')
-                return await ctx.send(f'Game ID was not included. {usage}')
-
-        if inferred_game:
-            game = inferred_game
-            logger.debug(f'Inferring game {inferred_game.id} from ping command used in channel {ctx.message.channel.id}')
-            if game_id:
-                message = f'{game_id} {message}'
-        else:
-            game = await PolyGame().convert(ctx, int(game_id), allow_cross_guild=True)
-
-        if not message:
-            ctx.command.reset_cooldown(ctx)
-            return await ctx.send(f'Message was not included. {usage}')
-
-        message = utilities.escape_role_mentions(message)
-
-        if not game.player(discord_id=ctx.author.id) and not settings.is_staff(ctx.author):
-            ctx.command.reset_cooldown(ctx)
-            return await ctx.send(f'You are not a player in game {game.id}')
-
-        permitted_channels = settings.guild_setting(game.guild_id, 'bot_channels').copy()
-        if game.game_chan:
-            permitted_channels.append(game.game_chan)
-
-        game_player_ids = [l.player.discord_member.discord_id for l in game.lineup]
-        game_members = [ctx.guild.get_member(p_id) for p_id in game_player_ids]
-        player_mentions = [f'<@{p_id}>' for p_id in game_player_ids]
-
-        game_channels = [gs.team_chan for gs in game.gamesides]
-        game_channels = [chan for chan in game_channels if chan]  # remove Nones
-
-        mention_players_in_current_channel = True  # False when done from game channel, True otherwise
-
-        if ctx.channel.id in game_channels and len(game_channels) >= len(game.gamesides):
-            logger.debug('Allowing ping since it is within a game channel, and all sides have a game channel')
-            mention_players_in_current_channel = False
-        elif settings.is_mod(ctx.author) and len(game_channels) >= len(game.gamesides):
-            logger.debug('Allowing ping since it is from a mod and all sides have a game channel')
-            mention_players_in_current_channel = False
-        elif None not in game_members and all(ctx.channel.permissions_for(member).read_messages for member in game_members):
-            logger.debug('Allowing ping since all members have read access to current channel')
-            mention_players_in_current_channel = True
-        elif ctx.channel.id in permitted_channels:
-            logger.debug('Allowing ping since it is a bot channel or central game channel')
-            mention_players_in_current_channel = True
-        else:
-            logger.debug(f'Not allowing ping in {ctx.channel.id}')
-            if len(game_channels) >= len(game.gamesides):
-                permitted_channels = game_channels + permitted_channels
-
-            channel_tags = [f'<#{chan_id}>' for chan_id in permitted_channels]
-            ctx.command.reset_cooldown(ctx)
-
-            if len(game_channels) < len(game.gamesides):
-                error_str = 'Not all sides have access to a private channel. '
-            else:
-                error_str = ''
-
-            return await ctx.send(f'This command can not be used in this channel. {error_str}Permitted channels: {" ".join(channel_tags)}')
-
-        full_message = f'Message from **{ctx.author.display_name}** regarding game {game.id} **{game.name}**:\n*{message}*'
-        models.GameLog.write(game_id=game, guild_id=game.guild_id, message=f'{models.GameLog.member_string(ctx.author)} pinged the game with message: *{discord.utils.escape_markdown(message)}*')
-
-        try:
-            if mention_players_in_current_channel:
-                logger.debug(f'Ping triggered in non-private channel {ctx.channel.id}')
-                await game.update_squad_channels(self.bot.guilds, ctx.guild.id, message=full_message, suppress_errors=True)
-                await ctx.send(f'{full_message}\n{" ".join(player_mentions)}')
-            else:
-                logger.debug(f'Ping triggered in private channel {ctx.channel.id}')
-                await game.update_squad_channels(self.bot.guilds, game.guild_id, message=f'{full_message}', suppress_errors=False, include_message_mentions=True)
-                if ctx.channel.id not in game_channels:
-                    await ctx.send(f'Sending ping to game channels:\n{full_message}')
-        except exceptions.CheckFailedError as e:
-            channel_tags = [f'<#{chan_id}>' for chan_id in permitted_channels]
-            return await ctx.send(f'{e}\nTry sending `{ctx.prefix}ping` from a public channel that all members can view: {" ".join(channel_tags)}')
+            result = await game_ping.run_prefix_single(
+                ctx,
+                args,
+                attachments=getattr(getattr(ctx, 'message', None), 'attachments', ()),
+            )
+            if settings.is_mod(ctx.author):
+                reset = getattr(getattr(ctx, 'command', None), 'reset_cooldown', None)
+                if callable(reset):
+                    reset(ctx)
+            return result
+        except (
+            game_ping_workers.GamePingValidationError,
+            game_ping_workers.GamePingLookupError,
+            game_ping_workers.GamePingPermissionError,
+            game_ping_workers.GamePingConflictError,
+            peewee.PeeweeException,
+            ValueError,
+        ) as exc:
+            logger.warning('Prefix ping failed: %s', exc)
+            return await ctx.send(str(exc))
+        except Exception:
+            logger.exception('Unexpected prefix ping failure')
+            return await ctx.send(
+                'The game ping could not be completed. Please try again later.'
+            )
 
     @discord.app_commands.command(
         name='staffhelp',
