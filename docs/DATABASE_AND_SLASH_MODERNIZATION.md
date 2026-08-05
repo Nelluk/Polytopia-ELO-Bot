@@ -464,22 +464,34 @@ check:
   `f0429536d7ed899eb356794bcd3558baa9be3d45`.
 - P4.2d roadmap evidence: `e1a0959`; accumulation merge: `7c2269b`.
 
-Current unit: **Accepted beta-report parity corrections implemented locally;
-integration and live acceptance are pending.**
+Current unit: **P7 squad member-search refresh lifecycle correction implemented
+locally; Tier-2 review, integration, and live acceptance are pending.**
 
-This unit is isolated on `codex/beta-report-parity-corrections` from exact base
-`80e44ff2e3afc99237fc395e667559097f5fdedd`; implementation/tests commit
-`e007c67` is complete and the separate roadmap-evidence commit records this
-status. No command synchronization, beta inspection/lifecycle action,
-database gate, announcement, service operation, or production action was
-performed by this unit.
+This unit is isolated on `codex/p7-squad-member-refresh-lifecycle` from exact
+base `489d7ab385995227aa72de404183058c3bdd78cf`; implementation/tests commit
+`e5f199b` is complete and the separate roadmap-evidence commit records this
+status. Accepted reports are `jqiO2uPxCld2amhphEVa-L6K` and
+`K2W6Gi4bklt4f2Xtxg0AoYjS`, both from the great leap forward. No command
+synchronization, beta inspection/lifecycle action, PostgreSQL/fixture access,
+announcement, service operation, production action, dependency installation,
+push, merge, or PR action was performed by this unit.
 
-The correction preserves configured-prefix legacy cards and makes native card
-presentation explicit. It moves `/game record` name-policy authority into the
-worker DTO/transaction boundary, limits size overrides to the existing Mod
-snapshot, publishes committed warnings after the transaction, and makes
-`/squad show` recent-game ordering deterministic by date then game ID. The
-existing legacy `Game.name` title-casing behavior is unchanged.
+The correction is limited to the existing `/squad show` member-search
+interaction lifecycle. In discord.py 2.7, a component `defer()` defaults to
+`deferred_message_update`; `ephemeral=True` does not create a private
+placeholder unless `thinking=True`, and the interaction's original response
+is therefore the public squad workspace. The old success path deleted that
+public original before editing it. The corrected path defers the component
+update and edits the public original directly without deleting it or creating
+a private success placeholder. A valid one-to-three-member search replaces
+the loaded result, resets to page one, and preserves the requester-bound
+workspace. Validation, permission/expiry, lookup, zero-match, and load
+failures stay private and leave the previous public snapshot unchanged; a
+publication exception restores the prior result, selected squad, page, and
+controls, logs the exception with bounded requester/member/page context, and
+keeps concise rerun guidance. Worker/query semantics, connection boundaries,
+squad-name mutation behavior, prefix retirement, and the public-success /
+private-failure policy are unchanged. No schema or data change is included.
 
 P7.10 implementation/test checkpoints: `549bd41` and Tier-2 parity correction
 `b8abcd8`, from exact clean base `026c36cff69d131b43db97acd887debfb8ef499c`.
@@ -8191,6 +8203,41 @@ changes, preserve stable command identities where practical, and prefer
 component refinements that do not require command re-registration.
 
 ## Progress log
+
+### 2026-08-04 — P7 squad member-search refresh lifecycle correction implemented locally
+
+- Accepted reports `jqiO2uPxCld2amhphEVa-L6K` and
+  `K2W6Gi4bklt4f2Xtxg0AoYjS` from the great leap forward. The confirmed cause
+  was the component interaction's default `deferred_message_update`: the old
+  `ephemeral=True` defer did not create a private placeholder, so
+  `delete_original_response()` deleted the public squad workspace before the
+  refresh edit.
+- On `codex/p7-squad-member-refresh-lifecycle` from exact base
+  `489d7ab385995227aa72de404183058c3bdd78cf`, implementation/tests commit
+  `e5f199b` now defers the component update and edits the public original
+  directly. It never deletes the original on member-search success. Searches
+  from any loaded result page reset to page one; zero matches, validation,
+  lookup, permission, expiry, and load failures remain private and preserve
+  the prior public snapshot. A failed public edit rolls back the in-memory
+  result, selected squad, page, and rebuilt controls, logs the actual
+  exception with bounded context, and sends the existing concise rerun
+  guidance.
+- Added a discord.py-shaped component fake and regressions proving no
+  `delete_original_response()` call, successful page-two-to-page-one public
+  refresh, publication rollback, validation privacy, zero-match privacy, and
+  load-failure privacy. Worker/database/query behavior, squad-name mutation,
+  prefix retirement, and taxonomy remain unchanged; no schema/data change was
+  made.
+- Focused squad/show, squad-identity, and taxonomy validation passed **53
+  tests**. Complete offline discovery passed **926 tests with 26 intentional
+  database-gated skips**. Touched Python compilation and `git diff --check`
+  passed.
+- The stopped-writer PostgreSQL gate remains deferred while the durable beta
+  is active, as do beta restart, live component smoke, wider-beta acceptance,
+  and any release announcement. No command schema or capability change is
+  required by this correction; after fresh Tier-2 review, Sol should integrate
+  the two commits separately and use the existing authorized beta/development
+  gate before asking the reporter to retry.
 
 ### 2026-08-04 — WB1.4 Tier-3 reviewed, integrated, and schema-validated
 
