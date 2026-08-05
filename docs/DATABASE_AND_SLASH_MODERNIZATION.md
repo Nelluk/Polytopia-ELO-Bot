@@ -464,17 +464,19 @@ check:
   `f0429536d7ed899eb356794bcd3558baa9be3d45`.
 - P4.2d roadmap evidence: `e1a0959`; accumulation merge: `7c2269b`.
 
-Current unit: **P7 squad member-search refresh lifecycle correction implemented
-locally; Tier-2 review, integration, and live acceptance are pending.**
+Current unit: **P7 squad member-search refresh lifecycle correction reviewed,
+integrated, and deployed; wider-beta acceptance is pending.**
 
 This unit is isolated on `codex/p7-squad-member-refresh-lifecycle` from exact
 base `489d7ab385995227aa72de404183058c3bdd78cf`; implementation/tests commit
-`e5f199b` is complete and the separate roadmap-evidence commit records this
-status. Accepted reports are `jqiO2uPxCld2amhphEVa-L6K` and
+`e5f199b` is complete and the separate roadmap-evidence commit records the
+implementation. Tier-2 review integrated these as accumulation commits
+`54f57ba` and `2d71985`; checklist checkpoint `0f9a12d` is the running beta
+checkpoint. Accepted reports are `jqiO2uPxCld2amhphEVa-L6K` and
 `K2W6Gi4bklt4f2Xtxg0AoYjS`, both from the great leap forward. No command
-synchronization, beta inspection/lifecycle action, PostgreSQL/fixture access,
-announcement, service operation, production action, dependency installation,
-push, merge, or PR action was performed by this unit.
+synchronization or PostgreSQL/fixture access was needed. Targeted release
+`2026-08-04-squad-member-refresh` was posted as message
+`1534362089475407975`; live reporter retry remains the acceptance gate.
 
 The correction is limited to the existing `/squad show` member-search
 interaction lifecycle. In discord.py 2.7, a component `defer()` defaults to
@@ -8204,6 +8206,29 @@ component refinements that do not require command re-registration.
 
 ## Progress log
 
+### 2026-08-04 — P7 squad member-search lifecycle correction deployed
+
+- Tier-2 review accepted the full two-commit branch and confirmed that the
+  discord.py-shaped regression would fail against the former destructive
+  `delete_original_response()` path. Integrated implementation/evidence as
+  accumulation commits `54f57ba` and `2d71985`.
+- Repeated the focused squad-show/squad-identity/taxonomy set (**53 passed**)
+  and complete offline discovery (**926 passed, 26 intentional database-gated
+  skips**). The correction is presentation-only, so the unrelated PostgreSQL
+  gate remained deferred while the durable beta was active.
+- Updated the persistent **WHAT TO TEST** checklist in `0f9a12d`, pushed the
+  clean accumulation checkpoint, and restarted only the guarded development
+  beta with startup synchronization disabled. It authenticated as **PolyELO
+  Bot Beta** (`479029527553638401`) at checkpoint `0f9a12d`; no application
+  command schema changed and no guild/global synchronization was performed.
+- Posted targeted release `2026-08-04-squad-member-refresh` to
+  `todo-and-changelog` as message `1534362089475407975`, notifying the
+  authoritative reporter without a testers-role ping. The requested retry
+  covers one-to-three-member selection and a later-page search refreshing the
+  same public workspace to page one without deleting it.
+- Wider-beta acceptance remains pending. This documentation-only evidence
+  follows the running checkpoint and does not require another restart.
+
 ### 2026-08-04 — P7 squad member-search refresh lifecycle correction implemented locally
 
 - Accepted reports `jqiO2uPxCld2amhphEVa-L6K` and
@@ -8232,12 +8257,10 @@ component refinements that do not require command re-registration.
   tests**. Complete offline discovery passed **926 tests with 26 intentional
   database-gated skips**. Touched Python compilation and `git diff --check`
   passed.
-- The stopped-writer PostgreSQL gate remains deferred while the durable beta
-  is active, as do beta restart, live component smoke, wider-beta acceptance,
-  and any release announcement. No command schema or capability change is
-  required by this correction; after fresh Tier-2 review, Sol should integrate
-  the two commits separately and use the existing authorized beta/development
-  gate before asking the reporter to retry.
+- This was the pre-integration implementation record. The stopped-writer
+  PostgreSQL gate remained deferred because the unit has no database or schema
+  change; the later deployment record above is authoritative for integration,
+  restart, announcement, and acceptance status.
 
 ### 2026-08-04 — WB1.4 Tier-3 reviewed, integrated, and schema-validated
 
