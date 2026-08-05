@@ -320,7 +320,7 @@ class BetaRuntimeGuardTests(unittest.TestCase):
         self.assertIn('Successful announcement delivery is', workflow)
         self.assertIn('**No eligible squads** promptly', checklist)
         self.assertIn('stale desktop/mobile command caches', checklist)
-        self.assertIn('owned squad fixture', checklist)
+        self.assertIn('one to three registered members', checklist)
 
 
 class ReleaseManifestTests(unittest.TestCase):

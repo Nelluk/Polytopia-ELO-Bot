@@ -2,7 +2,7 @@
 
 import asyncio
 from contextlib import AbstractContextManager
-from dataclasses import FrozenInstanceError
+from dataclasses import FrozenInstanceError, replace
 from types import SimpleNamespace
 import time
 import unittest
@@ -287,7 +287,13 @@ class GamePingWorkerTests(unittest.TestCase):
                 mock.patch.object(workers.models.GameLog, 'write') as write:
             result = workers.commit_notification(request)
             self.assertEqual(result.game_ids, (42,))
+            self.assertEqual(result.requester_description, request.requester.description)
+            self.assertEqual(result.target_description, request.target_description)
             self.assertEqual(write.call_count, 1)
+            audit_message = write.call_args.kwargs['message']
+            self.assertIn('committed a game ping notification request', audit_message)
+            self.assertNotIn(' sent a game ping', audit_message)
+            self.assertIn(request.requester.description, audit_message)
         self.assertEqual(database.commits, 1)
         self.assertEqual(database.rollbacks, 0)
         self.assertEqual(database.connection_closed, 1)
@@ -418,6 +424,8 @@ class GamePingPermissionAndDeliveryTests(unittest.IsolatedAsyncioTestCase):
             ),
             text='line one\n@everyone\n' + ('x' * 2500),
             attachments=(attachment,),
+            requester_description='**User 10** (`10`)',
+            target_description='**User 10** (`10`)',
         )
         with mock.patch.object(service.logger, 'exception'):
             delivered = await service.deliver_committed(
@@ -443,6 +451,48 @@ class GamePingPermissionAndDeliveryTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([user.id for user in allowed.users], [10, 20])
         self.assertEqual(len(completion.sent), 1)
         self.assertFalse(completion.sent[0][1]['allowed_mentions'].everyone)
+
+    def test_delivery_content_attributes_self_and_staff_on_behalf(self):
+        destination = workers.GamePingDestination(42, 1, 100, (10, 20), 'central')
+        self_result = workers.GamePingCommitResult(
+            guild_id=1,
+            requester_id=10,
+            target_id=10,
+            scope='single',
+            game_ids=(42,),
+            total_games=1,
+            truncated=False,
+            recipient_ids=(10, 20),
+            recipient_names=('User 10', 'User 20'),
+            destinations=(destination,),
+            text='hello',
+            attachments=(),
+            requester_description='**Actor** (`10`)',
+            target_description='**Actor** (`10`)',
+        )
+        self_content = service.delivery_content(self_result, destination)
+        self.assertIn('Actor: \\*\\*Actor\\*\\* (\\`10\\`)', self_content)
+        self.assertNotIn('On behalf of:', self_content)
+
+        staff_result = replace(
+            self_result,
+            requester_id=99,
+            target_id=20,
+            requester_description='**Staff** (`99`)',
+            target_description='**Target** (`20`)',
+        )
+        staff_content = service.delivery_content(staff_result, destination)
+        self.assertIn('Actor: \\*\\*Staff\\*\\* (\\`99\\`)', staff_content)
+        self.assertIn('On behalf of: \\*\\*Target\\*\\* (\\`20\\`)', staff_content)
+        self.assertNotIn('@everyone', staff_content)
+        completion = service._completion_message(
+            staff_result,
+            (),
+            requester_description=None,
+            delivered_count=1,
+        )
+        self.assertIn('Actor:', completion)
+        self.assertIn('on behalf of:', completion)
 
 
 class GamePingViewLifecycleTests(unittest.IsolatedAsyncioTestCase):
@@ -535,6 +585,40 @@ class GamePingViewLifecycleTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(view.is_finished())
         self.assertIn('terminal', view.status)
         self.assertEqual(view._confirmations, 1)
+
+    async def test_modal_timeout_releases_lock_and_allows_reopen(self):
+        view = views.GamePingComposerView(
+            requester=self.requester,
+            target=self.requester,
+            result=self.result,
+            channel_facts=self.facts,
+            selected_game_id=42,
+            target_loader=None,
+            confirmer=mock.AsyncMock(),
+        )
+        view._modal_open = True
+        modal = views.GamePingComposeModal(view)
+        await modal.on_timeout()
+        self.assertFalse(view._modal_open)
+
+        interaction = SimpleNamespace(
+            user=SimpleNamespace(id=10),
+            guild_id=1,
+            channel_id=100,
+            response=SimpleNamespace(
+                send_modal=mock.AsyncMock(),
+                send_message=mock.AsyncMock(),
+                is_done=mock.Mock(return_value=False),
+            ),
+            followup=SimpleNamespace(send=mock.AsyncMock()),
+        )
+        await view._compose_clicked(interaction)
+        self.assertTrue(view._modal_open)
+        interaction.response.send_modal.assert_awaited_once()
+
+        await view._compose_clicked(interaction)
+        self.assertEqual(interaction.response.send_modal.await_count, 1)
+        interaction.response.send_message.assert_awaited_once()
 
 
 class GamePingPrefixAdapterTests(unittest.IsolatedAsyncioTestCase):
@@ -633,6 +717,29 @@ class GamePingPrefixAdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(captured['candidate'].discover_all)
         self.assertEqual(captured['commit'].scope, 'all')
         self.assertEqual(captured['commit'].invoked_with, 'pingall')
+
+        committed = workers.GamePingCommitResult(
+            guild_id=1,
+            requester_id=captured['commit'].requester.discord_id,
+            target_id=captured['commit'].target_id,
+            scope=captured['commit'].scope,
+            game_ids=captured['commit'].game_ids,
+            total_games=1,
+            truncated=False,
+            recipient_ids=(20, 10),
+            recipient_names=('Target', 'Author'),
+            destinations=(),
+            text=captured['commit'].text,
+            attachments=(),
+            requester_description=captured['commit'].requester.description,
+            target_description=captured['commit'].target_description,
+        )
+        content = service.delivery_content(
+            committed,
+            workers.GamePingDestination(42, 1, 100, (20, 10), 'central'),
+        )
+        self.assertIn('Actor:', content)
+        self.assertIn('On behalf of:', content)
 
 
 if __name__ == '__main__':

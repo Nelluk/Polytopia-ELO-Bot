@@ -200,6 +200,8 @@ class GamePingCommitResult:
     destinations: tuple[GamePingDestination, ...]
     text: str
     attachments: tuple[AttachmentMetadata, ...]
+    requester_description: str = ''
+    target_description: str = ''
 
 
 _ping_read_executor = ThreadPoolExecutor(
@@ -702,7 +704,8 @@ def _audit_message(
         else ''
     )
     return (
-        f'{request.requester.description} sent a game ping{target} using '
+        f'{request.requester.description} committed a game ping notification '
+        f'request{target} using '
         f'`{request.invoked_with}`; scope={request.scope}; '
         f'games={game.game_id}; attachments={attachment_names}; '
         f'message={safe_text}'
@@ -818,6 +821,8 @@ def commit_notification(request: GamePingCommitRequest) -> GamePingCommitResult:
             destinations=tuple(destinations),
             text=request.text,
             attachments=tuple(request.attachments),
+            requester_description=request.requester.description,
+            target_description=request.target_description,
         )
 
 

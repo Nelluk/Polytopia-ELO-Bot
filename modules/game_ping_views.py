@@ -157,6 +157,22 @@ class GamePingComposeModal(discord.ui.Modal, title='Compose game ping'):
                 'if the problem persists.',
             )
 
+    async def on_timeout(self) -> None:
+        """Release the parent view's modal lease when the modal is dismissed."""
+
+        self.stop()
+        self.view._modal_open = False
+
+    async def on_error(self, interaction, error, item) -> None:
+        """Release the modal lease if Discord dispatches an uncaught error."""
+
+        self.stop()
+        self.view._modal_open = False
+        logger.error(
+            'Game-ping compose modal failed during Discord dispatch',
+            exc_info=(type(error), error, getattr(error, '__traceback__', None)),
+        )
+
 
 class GamePingComposerView(discord.ui.LayoutView):
     """One requester-bound, expiry-safe, single-flight notification draft."""

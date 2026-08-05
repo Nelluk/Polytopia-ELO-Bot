@@ -641,7 +641,10 @@ def delivery_content(
         title = 'Game ping for all selected incomplete games'
     else:
         title = f'Game ping for game {destination.game_id}'
-    sections = [title]
+    requester_label, target_label = _attribution_labels(result)
+    sections = [title, f'Actor: {requester_label}']
+    if target_label is not None:
+        sections.append(f'On behalf of: {target_label}')
     if result.text:
         sections.append(utilities.escape_role_mentions(result.text))
     if result.attachments:
@@ -667,14 +670,39 @@ def _safe_delivery_detail(exc: BaseException) -> str:
     return _safe_name(str(exc), fallback=type(exc).__name__, limit=240)
 
 
+def _attribution_labels(
+    result: workers.GamePingCommitResult,
+    *,
+    requester_description: str | None = None,
+) -> tuple[str, str | None]:
+    actor = _safe_name(
+        requester_description or result.requester_description,
+        fallback=f'actor ID {result.requester_id}',
+    )
+    target = None
+    if result.target_id != result.requester_id:
+        target = _safe_name(
+            result.target_description,
+            fallback=f'target ID {result.target_id}',
+        )
+    return actor, target
+
+
 def _completion_message(
     result: workers.GamePingCommitResult,
     failures: tuple[DeliveryFailure, ...],
     *,
-    requester_description: str,
+    requester_description: str | None,
     delivered_count: int,
 ) -> str:
     game_ids = ', '.join(str(game_id) for game_id in result.game_ids)
+    actor, target = _attribution_labels(
+        result,
+        requester_description=requester_description,
+    )
+    attribution = f'Actor: {actor}'
+    if target is not None:
+        attribution += f' on behalf of: {target}'
     if failures:
         failed = '; '.join(
             f'game {failure.game_id if failure.game_id is not None else "all"} '
@@ -682,14 +710,14 @@ def _completion_message(
             for failure in failures
         )
         return (
-            f':warning: {requester_description} committed a game ping for '
+            f':warning: {attribution} committed a game ping for '
             f'game IDs `{game_ids}`, but delivery completed for only '
             f'{delivered_count} destination(s). Failed destinations: {failed}. '
             'Already-delivered notifications were not retried; do not submit '
             'this draft again.'
         )
     return (
-        f'{requester_description} completed a {result.scope} game ping for '
+        f'{attribution} completed a {result.scope} game ping for '
         f'game IDs `{game_ids}` to {len(result.recipient_ids)} resolved '
         f'participant(s) across {delivered_count} destination(s). '
         'The committed notification is terminal; do not retry it.'
@@ -701,7 +729,7 @@ async def deliver_committed(
     *,
     guilds,
     completion_destination=None,
-    requester_description: str = 'The requester',
+    requester_description: str | None = None,
 ) -> DeliveryResult:
     """Deliver a committed plan once and publish reconciliation publicly."""
 
