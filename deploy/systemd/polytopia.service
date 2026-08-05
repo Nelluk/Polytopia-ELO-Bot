@@ -1,0 +1,16 @@
+[Unit]
+Description=Polytopia Discord Bot
+After=multi-user.target
+
+[Service]
+User=nelluk
+Group=nelluk
+Type=idle
+Environment=POLYBOT_ENV=production
+ExecStart=/home/nelluk/PolyBot39/.venv/bin/python /home/nelluk/PolyBot39/bot.py
+WorkingDirectory=/home/nelluk/PolyBot39
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

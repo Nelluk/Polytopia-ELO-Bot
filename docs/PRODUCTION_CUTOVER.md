@@ -123,9 +123,15 @@ port values preserve the current local Unix-socket connection. The
 `spreadsheet_creds.json` file must remain present because the production
 Bullet extension stays enabled.
 
-The service drop-in tracked at
-`deploy/systemd/polytopia.service.d/upgrade.conf` adds the explicit production
-profile and changes only the interpreter used by `polytopia.service`.
+During the cutover, the service drop-in then tracked at
+`deploy/systemd/polytopia.service.d/upgrade.conf` added the explicit production
+profile and changed only the interpreter used by `polytopia.service`.
+
+Post-cutover cleanup replaces that temporary override with the complete unit
+tracked at `deploy/systemd/polytopia.service`. The reviewed cleanup procedure
+is in `docs/POST_UPGRADE_CLEANUP.md`. Its current status is **prepared, not
+executed**; the installed drop-in and legacy Python environment remain in
+place until their separately approved host phases pass.
 
 ## Approval gate
 
@@ -382,6 +388,13 @@ requires its own explicit approval.
 Retain the legacy Python 3.9 environment and private cutover archive through a
 settling period. Their later removal is a separately approved cleanup action,
 not part of the cutover.
+
+The later action is prepared in `docs/POST_UPGRADE_CLEANUP.md`. After it is
+executed, this immediate rollback procedure becomes a historical cutover
+record: removing the installed drop-in will no longer select Python 3.9.
+Recovery will instead use the tracked canonical Python 3.12 unit and locked
+environment, with the retained private archive available only for a separately
+reviewed reconstruction.
 
 ## Separately gated API work
 
