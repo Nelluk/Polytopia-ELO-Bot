@@ -330,7 +330,8 @@ duplicate-prone retry. See Discord's [component
 reference](https://docs.discord.com/developers/components/reference) for the
 platform limits.
 
-P4.3 implementation record (local review checkpoint `e25e441`, branch
+P4.3 implementation record (local review checkpoints `e25e441` and
+correction `bf2275f`, branch
 `codex/p4-3-game-ping-composer`, exact base
 `87b0e8fc1f7fe811ca794d2f71bfdbee5b3167a8`):
 
@@ -345,19 +346,28 @@ P4.3 implementation record (local review checkpoint `e25e441`, branch
   freezes filename/URL/content-type/size primitives without downloading or
   persisting bodies, and escapes authored role/everyone/here text. Sends use
   users-only `AllowedMentions` and mention only resolved game participants.
+- Each recipient-facing delivery identifies the actual actor, and staff
+  on-behalf-of deliveries identify the selected target as well. The same
+  attribution is retained in public completion/reconciliation output without
+  adding actor pings to the explicit user allow-list.
 - Each worker owns a Peewee connection and receives frozen primitive DTOs. A
   dedicated ordinary read/write executor performs bounded/prefetched reads,
   authoritative revalidation, and one synchronous `db.atomic()` containing all
   per-game `GameLog` rows. Discord effects occur only after commit; cancellation
   drains the worker and distinguishes pre-commit failure from committed
   delivery.
+- GameLog records say the actor committed a notification request; they do not
+  claim that post-commit Discord delivery succeeded. Modal timeout/dismissal
+  and dispatch-error callbacks release the compose lease while preserving the
+  single-active-modal guard.
 - `$ping` and `$pingall` remain shared-service immediate adapters. Their
   legacy grammar and attachment URL behavior remain, while `pingmobile` and
   `pingsteam` are removed and their platform-only filtering is intentionally
   lost because platform distinctions are being retired.
-- Focused coverage passed 15 tests; affected game/taxonomy/component coverage
-  passed 109 tests; offline discovery recorded 942 tests with 941 passed, one
-  unrelated untouched-beta-checklist failure, and 27 intentional skips.
+- Focused coverage passed 17 tests; affected game/taxonomy/component coverage
+  passed 111 tests; the stale beta-operations assertion now checks the current
+  member-selector checklist language. Complete offline discovery passed all
+  944 tests with 27 intentional skips.
   The real-schema commit/rollback test is present but deferred behind the
   unchanged development safety gate while the durable beta is active. No beta
   launch, command sync, PostgreSQL, fixture, or production operation occurred.

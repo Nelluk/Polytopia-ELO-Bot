@@ -463,10 +463,10 @@ check:
   `codex/p4-2d-game-tribe`, based on exact clean base
   `f0429536d7ed899eb356794bcd3558baa9be3d45`.
 - P4.2d roadmap evidence: `e1a0959`; accumulation merge: `7c2269b`.
-- P4.3 implementation/tests checkpoint: `e25e441` on
-  `codex/p4-3-game-ping-composer`, based on exact clean base
-  `87b0e8fc1f7fe811ca794d2f71bfdbee5b3167a8`; the separate evidence
-  checkpoint is this roadmap/taxonomy update.
+- P4.3 implementation/tests checkpoint: `e25e441`; Tier-3 correction
+  checkpoint: `bf2275f` on `codex/p4-3-game-ping-composer`, based on exact
+  clean base `87b0e8fc1f7fe811ca794d2f71bfdbee5b3167a8`; the separate
+  evidence checkpoint is this roadmap/taxonomy update.
 
 Current active unit: **P4.3 interactive `/game ping` composer implemented
 locally; review, integration, and deployment gates remain pending.**
@@ -474,7 +474,7 @@ locally; review, integration, and deployment gates remain pending.**
 P4.3 is isolated at `/home/nelluk/.codex/worktrees/796f/PolyBot39-dev` on
 `codex/p4-3-game-ping-composer`. The exact verified base was
 `87b0e8fc1f7fe811ca794d2f71bfdbee5b3167a8`; implementation/tests are
-`e25e441`, and the evidence commit is separate. No beta process, command
+`e25e441` plus correction `bf2275f`, and the evidence commit is separate. No beta process, command
 synchronization, PostgreSQL session, fixture, production checkout, or
 production service was accessed for this unit. The next action is a separate
 approved Tier-3 review and, only after the durable beta is stopped and the
@@ -2876,6 +2876,8 @@ Branch/base: `codex/p4-3-game-ping-composer` in the isolated worktree
 Commits:
 
 - `e25e441` — implementation and focused/offline/gated test coverage.
+- `bf2275f` — Tier-3 actor attribution, modal lease, commit-phase audit,
+  and stale checklist-test corrections with regression coverage.
 - Separate roadmap/taxonomy evidence commit — this documentation update.
 
 Native interface and bounds:
@@ -2917,6 +2919,10 @@ Permission, safety, and compatibility:
 - Only resolved participants are mentioned. Authored role/everyone/here
   text is escaped and every send uses users-only `AllowedMentions`; no role,
   everyone, or here expansion is permitted.
+- Every delivered notification identifies the actual actor; when the actor
+  targets another player it also identifies the on-behalf-of target. These
+  frozen descriptions/IDs are carried in the committed primitive result and
+  are also used by the public completion/reconciliation message.
 - `$ping` and `$pingall` remain immediate shared-service adapters, including
   game-ID/channel inference, message text, attachment URLs, and self/staff-
   target grammar. The obsolete `pingmobile` and `pingsteam` aliases are
@@ -2942,16 +2948,20 @@ Worker, transaction, and lifecycle boundary:
   actor-attributed completion/reconciliation are public; failures log exact
   bounded game/guild/channel IDs and explicitly do not offer a duplicate-safe
   retry.
+- Modal timeout/dismissal and Discord-dispatch errors release the parent
+  compose lease; an active modal still blocks concurrent Compose/Edit opens.
+  GameLog wording records that the actor committed a notification request,
+  not that Discord delivery succeeded.
 
 Validation evidence:
 
-- Focused P4.3 suite: **15 passed**.
-- Affected game/taxonomy/component suites: **109 passed**.
-- Complete offline discovery: **942 tests, 941 passed, 1 unrelated failure,
-  27 intentional skips**. The unrelated failure is
-  `tests.test_beta_operations.BetaRuntimeGuardTests.test_release_process_makes_testability_and_terminal_action_durable`,
-  which expects `owned squad fixture` in the untouched
-  `docs/BETA_WHAT_TO_TEST.md`; this unit did not edit that checklist.
+- Focused P4.3 suite: **17 passed**.
+- Affected game/taxonomy/component suites: **111 passed**.
+- The focused stale-checklist beta-operations assertion passed after changing
+  only its obsolete `owned squad fixture` expectation to the current
+  `one to three registered members` checklist language. The checklist itself
+  was not edited.
+- Complete offline discovery: **944 passed, 27 intentional skips**.
 - The gated real-schema commit/rollback test is present in
   `tests/test_game_ping_integration.py` but was intentionally skipped. It may
   run only under the unchanged `POLYBOT_ENV=development`,
