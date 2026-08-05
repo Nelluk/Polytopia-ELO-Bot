@@ -118,6 +118,61 @@ class FakeResponse:
         return self.done
 
 
+class FakeComponentResponse(FakeResponse):
+    """Model discord.py's component defer/original-response semantics."""
+
+    def __init__(self):
+        super().__init__()
+        self.defer_type = None
+        self.deferred_ephemeral = None
+        self.defer = mock.AsyncMock(side_effect=self._component_defer)
+
+    async def _component_defer(
+        self,
+        *,
+        ephemeral=False,
+        thinking=False,
+    ):
+        self.done = True
+        self.defer_type = (
+            'deferred_channel_message'
+            if thinking
+            else 'deferred_message_update'
+        )
+        self.deferred_ephemeral = bool(ephemeral and thinking)
+
+
+class FakePublicMessage:
+    def __init__(self, view):
+        self.view = view
+        self.edit = mock.AsyncMock()
+
+
+class FakeComponentInteraction:
+    """A component interaction whose original response is the public message."""
+
+    def __init__(self, message, *, edit_error=None):
+        self.user = SimpleNamespace(id=999)
+        self.message = message
+        self.response = FakeComponentResponse()
+        self.followup = SimpleNamespace(send=mock.AsyncMock())
+        self._edit_error = edit_error
+        self.edit_original_response = mock.AsyncMock(
+            side_effect=self._edit_original_response,
+        )
+        self.delete_original_response = mock.AsyncMock(
+            side_effect=AssertionError(
+                'component success must not delete the public original',
+            ),
+        )
+
+    async def _edit_original_response(self, *, view):
+        if self._edit_error is not None:
+            raise self._edit_error
+        self.message.view = view
+        return self.message
+
+
 def interaction(user_id=999):
     response = FakeResponse()
     message = SimpleNamespace(edit=mock.AsyncMock())
@@ -530,22 +585,75 @@ class ServiceAndViewTests(unittest.IsolatedAsyncioTestCase):
         loader.assert_not_awaited()
         select.response.edit_message.assert_awaited_once_with(view=view)
 
-    async def test_member_selection_performs_one_bounded_reload_and_public_update(self):
+    async def test_member_selection_edits_public_original_after_later_page(self):
         replacement = result(2, selected=None)
         loader = mock.AsyncMock(return_value=replacement)
         view = self.make_view(loader=loader)
-        view.message = SimpleNamespace(edit=mock.AsyncMock())
-        select = interaction()
-        select.message = view.message
+        public_message = FakePublicMessage(view)
+        view.message = public_message
+        await view._next_page(interaction())
+        self.assertEqual(view.page_index, 1)
+        previous_result_select = view.result_select
+        select = FakeComponentInteraction(public_message)
         view.member_select._values = [SimpleNamespace(id=10), SimpleNamespace(id=20)]
 
         await view._select_members(select)
 
         loader.assert_awaited_once_with((10, 20))
-        select.response.defer.assert_awaited_once_with(ephemeral=True)
-        select.delete_original_response.assert_awaited_once()
-        view.message.edit.assert_awaited_once_with(view=view)
+        select.response.defer.assert_awaited_once_with()
+        self.assertEqual(select.response.defer_type, 'deferred_message_update')
+        self.assertFalse(select.response.deferred_ephemeral)
+        select.delete_original_response.assert_not_awaited()
+        select.edit_original_response.assert_awaited_once_with(view=view)
+        public_message.edit.assert_not_awaited()
+        self.assertIsNot(view.result_select, previous_result_select)
+        self.assertEqual(view.page_index, 0)
+        page_button = next(
+            child
+            for child in view.walk_children()
+            if isinstance(child, discord.ui.Button)
+            and child.label.startswith('Page ')
+        )
+        self.assertEqual(page_button.label, 'Page 1/1')
         self.assertIs(view.result, replacement)
+
+    async def test_failed_public_refresh_rolls_back_state_and_controls(self):
+        previous = result(1, selected=1001)
+        replacement = result(2, selected=None)
+        publication_error = RuntimeError('public edit failed')
+        loader = mock.AsyncMock(return_value=replacement)
+        view = views.SquadShowWorkspace(
+            requester_id=999,
+            result=previous,
+            member_loader=loader,
+        )
+        public_message = FakePublicMessage(view)
+        view.message = public_message
+        previous_member_select = view.member_select
+        select = FakeComponentInteraction(
+            public_message,
+            edit_error=publication_error,
+        )
+        view.member_select._values = [SimpleNamespace(id=10)]
+
+        with mock.patch.object(views.logger, 'exception') as log:
+            await view._select_members(select)
+
+        loader.assert_awaited_once_with((10,))
+        select.edit_original_response.assert_awaited_once_with(view=view)
+        select.delete_original_response.assert_not_awaited()
+        select.followup.send.assert_awaited_once_with(
+            'The squad workspace could not be refreshed. Please run '
+            '`/squad show` again.',
+            ephemeral=True,
+        )
+        self.assertIs(view.result, previous)
+        self.assertEqual(view.selected_squad_id, 1001)
+        self.assertEqual(view.page_index, 0)
+        self.assertIsNot(view.member_select, previous_member_select)
+        self.assertIsNone(getattr(view, 'result_select', None))
+        self.assertTrue(log.called)
+        self.assertIs(log.call_args.args[1], publication_error)
 
     async def test_zero_match_member_search_stays_private_and_keeps_public_snapshot(self):
         empty = workers.SquadShowResult(
@@ -571,6 +679,47 @@ class ServiceAndViewTests(unittest.IsolatedAsyncioTestCase):
             ephemeral=True,
         )
         view.message.edit.assert_not_awaited()
+
+    async def test_member_search_load_failure_stays_private_and_keeps_public_snapshot(self):
+        previous = result(3)
+        loader = mock.AsyncMock(side_effect=RuntimeError('database unavailable'))
+        view = views.SquadShowWorkspace(
+            requester_id=999,
+            result=previous,
+            member_loader=loader,
+        )
+        view.message = SimpleNamespace(edit=mock.AsyncMock())
+        select = interaction()
+        view.member_select._values = [SimpleNamespace(id=10)]
+
+        await view._select_members(select)
+
+        loader.assert_awaited_once_with((10,))
+        select.response.defer.assert_awaited_once_with()
+        select.followup.send.assert_awaited_once_with(
+            'Could not search squads for those members. Please run '
+            '`/squad show` again.',
+            ephemeral=True,
+        )
+        select.delete_original_response.assert_not_awaited()
+        view.message.edit.assert_not_awaited()
+        self.assertIs(view.result, previous)
+
+    async def test_invalid_member_selection_stays_private_without_loading(self):
+        loader = mock.AsyncMock()
+        view = self.make_view(loader=loader)
+        select = interaction()
+        view.member_select._values = []
+
+        await view._select_members(select)
+
+        select.response.send_message.assert_awaited_once_with(
+            'The member selection is invalid. Choose one to three guild '
+            'members and try again.',
+            ephemeral=True,
+        )
+        select.response.defer.assert_not_awaited()
+        loader.assert_not_awaited()
 
     async def test_invalid_unauthorized_and_expired_controls_are_private(self):
         view = self.make_view(loader=mock.AsyncMock())

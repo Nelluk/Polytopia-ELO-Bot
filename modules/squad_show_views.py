@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
+import logging
 import math
 
 import discord
@@ -12,6 +13,7 @@ from modules import components_v2, squad_identity_views, squad_show_workers
 
 PAGE_SIZE = squad_show_workers.SQUAD_SHOW_PAGE_SIZE
 ACCENT_COLOUR = components_v2.DEFAULT_ACCENT
+logger = logging.getLogger('polybot.' + __name__)
 
 
 def _response_is_done(interaction: discord.Interaction) -> bool:
@@ -173,30 +175,23 @@ class SquadShowWorkspace(components_v2.RequesterLayoutView):
     ) -> None:
         """Replace the public snapshot after one bounded member search."""
 
-        self.result = result
-        self.selected_squad_id = result.selected_squad_id
-        self.page_index = 0
-        self.rebuild()
-
-        delete_original = getattr(
-            interaction,
-            'delete_original_response',
-            None,
-        )
-        if delete_original is not None:
-            try:
-                await delete_original()
-            except Exception:
-                # The private deferred placeholder is best-effort; the public
-                # message remains the authoritative workspace.
-                pass
-
-        message = self.message or getattr(interaction, 'message', None)
-        edit = getattr(message, 'edit', None)
-        if edit is not None:
-            await edit(view=self)
-            return
-        await interaction.edit_original_response(view=self)
+        previous_result = self.result
+        previous_selected_squad_id = self.selected_squad_id
+        previous_page_index = self.page_index
+        try:
+            self.result = result
+            self.selected_squad_id = result.selected_squad_id
+            self.page_index = 0
+            self.rebuild()
+            message = await interaction.edit_original_response(view=self)
+        except Exception:
+            self.result = previous_result
+            self.selected_squad_id = previous_selected_squad_id
+            self.page_index = previous_page_index
+            self.rebuild()
+            raise
+        if message is not None:
+            self.message = message
 
     async def _select_members(self, interaction: discord.Interaction) -> None:
         if not await self.authorize(interaction):
@@ -222,7 +217,11 @@ class SquadShowWorkspace(components_v2.RequesterLayoutView):
                 raise squad_show_workers.SquadShowValidationError(
                     'Every selected Discord member must be valid.'
                 )
-        except (TypeError, ValueError) as exc:
+        except (
+            TypeError,
+            ValueError,
+            squad_show_workers.SquadShowValidationError,
+        ):
             await self._private_error(
                 interaction,
                 'The member selection is invalid. Choose one to three guild '
@@ -237,7 +236,10 @@ class SquadShowWorkspace(components_v2.RequesterLayoutView):
             )
             return
 
-        await interaction.response.defer(ephemeral=True)
+        # Component deferral defaults to deferred_message_update. Its original
+        # response is the public workspace message, so success must edit that
+        # message and must not try to create or delete a private placeholder.
+        await interaction.response.defer()
         try:
             result = await self.member_loader(tuple(member_ids))
         except (
@@ -261,9 +263,22 @@ class SquadShowWorkspace(components_v2.RequesterLayoutView):
             )
             return
 
+        previous_page_index = self.page_index
+        previous_selected_squad_id = self.selected_squad_id
         try:
             await self._publish_member_search(interaction, result)
-        except Exception:
+        except Exception as exc:
+            logger.exception(
+                'Squad member-search public refresh failed: %s; '
+                'requester_id=%s member_ids=%s previous_page=%s '
+                'previous_selected_squad_id=%s loaded_matches=%s',
+                exc,
+                self.requester_id,
+                member_ids,
+                previous_page_index,
+                previous_selected_squad_id,
+                min(len(result.cards), squad_show_workers.MAX_SQUAD_MATCHES),
+            )
             await interaction.followup.send(
                 'The squad workspace could not be refreshed. Please run '
                 '`/squad show` again.',
@@ -420,6 +435,8 @@ class SquadShowWorkspace(components_v2.RequesterLayoutView):
     def rebuild(self) -> None:
         self.clear_items()
         self.page_index = min(self.page_index, self.page_count - 1)
+        self.result_select = None
+        self.edit_name_button = None
         self.member_select = discord.ui.UserSelect(
             placeholder='Search squads by 1–3 members',
             min_values=squad_show_workers.SQUAD_MEMBER_MIN,
@@ -435,7 +452,6 @@ class SquadShowWorkspace(components_v2.RequesterLayoutView):
                 return
             body = self._card_body(card)
             controls = [discord.ui.ActionRow(self.member_select)]
-            self.edit_name_button = None
             if card.can_edit_name and self.name_mutator is not None:
                 self.edit_name_button = discord.ui.Button(
                     label='Edit name',
