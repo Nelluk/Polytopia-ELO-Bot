@@ -470,8 +470,8 @@ check:
   checkpoint is this roadmap/taxonomy update.
 
 Current active unit: **P4.3 interactive `/game ping` composer reviewed,
-development-schema validated, and integrated; guild apply, restart, and wider
-beta announcement are in progress.**
+development-schema validated, integrated, and deployed to the wider beta;
+tester acceptance is open.**
 
 P4.3 was implemented on `codex/p4-3-game-ping-composer` from exact base
 `87b0e8fc1f7fe811ca794d2f71bfdbee5b3167a8`, reviewed through corrections
@@ -479,10 +479,12 @@ P4.3 was implemented on `codex/p4-3-game-ping-composer` from exact base
 `332c2c9` through `c543023`. The stopped-writer gate exposed and corrected two
 test-harness errors without weakening the worker boundary; correction
 `a31cd52` then passed the real-schema rollback/commit/cleanup test under the
-exact development database and role gate. The next action is the already
-approved guild-scoped command plan/apply, durable-beta restart, and targeted
-wider-beta announcement. Production and global synchronization remain out of
-scope.
+exact development database and role gate. Only the development guild's
+existing `game` root was updated; the other seven roots were unchanged and no
+global sync occurred. The durable beta is running checkpoint `02dc5c0` as the
+expected beta application. Release `2026-08-04-game-ping-composer` was posted
+as message `1534387636859568272` with the validated `testers` role ping.
+Production and global synchronization remain out of scope.
 
 The following P7 record is retained as the historical unit context from the
 previous accumulation checkpoint.
@@ -2862,8 +2864,8 @@ with `Ctrl-C`, and no `bot.py` process remained.
 
 #### P4.3 — Interactive `/game ping` notification composer
 
-Status: **Reviewed, development-schema validated, and integrated; beta apply
-and acceptance pending**
+Status: **Reviewed, development-schema validated, integrated, and deployed;
+wider-beta acceptance pending**
 
 Risk tier: **Tier 3**. A confirmed notification writes a guild/game audit
 record and fans out to multiple Discord destinations after commit. The native
@@ -2985,9 +2987,26 @@ Validation evidence:
   installation, beta launch, command sync, production access, push, merge, or
   PR was performed.
 
-Next deployment action: apply only the reviewed development-guild command
-plan, restart the durable beta from the clean integrated checkpoint, and post
-the targeted wider-beta checklist for inference, permissions,
+Deployment evidence:
+
+- Stopped only `polybot-development-beta@main.service` and verified no other
+  development `bot.py --skip_tasks` writer remained.
+- Passed the corrected gated P4.3 real-schema test **1/1** against
+  `polytopia_dev` as `polybot_dev`, including rollback, commit, exact cleanup,
+  and worker-local connection ownership.
+- Integrated P4.3 and its corrections as `332c2c9` through `a31cd52`, added the
+  persistent beta checklist in `02dc5c0`, and pushed the accumulation branch.
+- The explicit remote plan updated only the existing `game` root in guild
+  `478571892832206869`; `elo`, `leaderboard`, `player`, `squad`, `staffhelp`,
+  `team`, and `whattotest` were unchanged. No global synchronization occurred.
+- Restarted the guarded beta at checkpoint `02dc5c0`; it authenticated as
+  `PolyELO Bot Beta` (`479029527553638401`) with PID `2506276` and zero
+  automatic restarts.
+- Posted tester-pinged release `2026-08-04-game-ping-composer` as message
+  `1534387636859568272`. This announcement was the terminal deployment action;
+  no later command apply, database operation, or restart occurred.
+
+Next action: collect wider-beta acceptance for inference, permissions,
 preview/edit/cancel/confirm, modal dismissal/reopen, safe mentions, attachment
 URLs, fanout, prefix parity, and post-commit reconciliation. Keep production
 and global synchronization out of that action.
