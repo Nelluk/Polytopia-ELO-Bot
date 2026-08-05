@@ -586,7 +586,22 @@ class GamePingViewLifecycleTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn('terminal', view.status)
         self.assertEqual(view._confirmations, 1)
 
-    async def test_modal_timeout_releases_lock_and_allows_reopen(self):
+    def _component_interaction(self, *, send_modal=None):
+        response = SimpleNamespace(
+            send_modal=send_modal or mock.AsyncMock(),
+            send_message=mock.AsyncMock(),
+            defer=mock.AsyncMock(),
+            is_done=mock.Mock(return_value=False),
+        )
+        return SimpleNamespace(
+            user=SimpleNamespace(id=10),
+            guild_id=1,
+            channel_id=100,
+            response=response,
+            followup=SimpleNamespace(send=mock.AsyncMock()),
+        )
+
+    def _view(self):
         view = views.GamePingComposerView(
             requester=self.requester,
             target=self.requester,
@@ -596,29 +611,79 @@ class GamePingViewLifecycleTests(unittest.IsolatedAsyncioTestCase):
             target_loader=None,
             confirmer=mock.AsyncMock(),
         )
-        view._modal_open = True
-        modal = views.GamePingComposeModal(view)
-        await modal.on_timeout()
-        self.assertFalse(view._modal_open)
+        return view
 
-        interaction = SimpleNamespace(
-            user=SimpleNamespace(id=10),
-            guild_id=1,
-            channel_id=100,
-            response=SimpleNamespace(
-                send_modal=mock.AsyncMock(),
-                send_message=mock.AsyncMock(),
-                is_done=mock.Mock(return_value=False),
-            ),
-            followup=SimpleNamespace(send=mock.AsyncMock()),
+    async def test_dismissed_modal_without_callback_allows_new_generation(self):
+        view = self._view()
+        first_interaction = self._component_interaction()
+        second_interaction = self._component_interaction()
+
+        await view._compose_clicked(first_interaction)
+        first_modal = first_interaction.response.send_modal.call_args.args[0]
+        first_generation = first_modal.generation
+
+        # Discord supplies no callback when the user closes the modal.  The
+        # next component interaction must still be able to open a fresh one.
+        await view._compose_clicked(second_interaction)
+        second_modal = second_interaction.response.send_modal.call_args.args[0]
+        self.assertGreater(second_modal.generation, first_generation)
+        self.assertEqual(view.current_modal_generation, second_modal.generation)
+
+    async def test_newest_modal_submits_successfully(self):
+        view = self._view()
+        interaction = self._component_interaction()
+        await view._compose_clicked(interaction)
+        modal = interaction.response.send_modal.call_args.args[0]
+        modal.section_one.component._value = 'newest draft'
+
+        await modal.on_submit(self._component_interaction())
+        self.assertIsNotNone(view.draft)
+        self.assertEqual(view.draft.text, 'newest draft')
+        self.assertEqual(view.current_modal_generation, modal.generation)
+
+    async def test_older_modal_submission_is_private_and_cannot_overwrite(self):
+        view = self._view()
+        first_interaction = self._component_interaction()
+        second_interaction = self._component_interaction()
+        await view._compose_clicked(first_interaction)
+        await view._compose_clicked(second_interaction)
+        older_modal = first_interaction.response.send_modal.call_args.args[0]
+        newest_modal = second_interaction.response.send_modal.call_args.args[0]
+
+        newest_modal.section_one.component._value = 'newest draft'
+        await newest_modal.on_submit(self._component_interaction())
+        original_draft = view.draft
+
+        older_modal.section_one.component._value = 'stale overwrite'
+        stale_submit = self._component_interaction()
+        await older_modal.on_submit(stale_submit)
+        self.assertIs(view.draft, original_draft)
+        self.assertEqual(view.draft.text, 'newest draft')
+        stale_submit.response.send_message.assert_awaited_once()
+        self.assertIn('stale', stale_submit.response.send_message.call_args.args[0])
+
+    async def test_modal_dispatch_failure_does_not_block_another_click(self):
+        view = self._view()
+        failed_send = mock.AsyncMock(side_effect=RuntimeError('send failed'))
+        failed_interaction = self._component_interaction(send_modal=failed_send)
+        await view._compose_clicked(failed_interaction)
+        self.assertTrue(failed_interaction.response.send_message.await_count)
+
+        successful_interaction = self._component_interaction()
+        await view._compose_clicked(successful_interaction)
+        successful_interaction.response.send_modal.assert_awaited_once()
+        self.assertEqual(
+            view.current_modal_generation,
+            successful_interaction.response.send_modal.call_args.args[0].generation,
         )
-        await view._compose_clicked(interaction)
-        self.assertTrue(view._modal_open)
-        interaction.response.send_modal.assert_awaited_once()
 
+    async def test_modal_timeout_invalidates_only_its_current_generation(self):
+        view = self._view()
+        interaction = self._component_interaction()
         await view._compose_clicked(interaction)
-        self.assertEqual(interaction.response.send_modal.await_count, 1)
-        interaction.response.send_message.assert_awaited_once()
+        modal = interaction.response.send_modal.call_args.args[0]
+        await modal.on_timeout()
+        self.assertFalse(view.is_current_modal(modal.generation))
 
 
 class GamePingPrefixAdapterTests(unittest.IsolatedAsyncioTestCase):

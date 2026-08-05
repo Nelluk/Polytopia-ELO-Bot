@@ -84,9 +84,18 @@ class GamePingComposeModal(discord.ui.Modal, title='Compose game ping'):
         ),
     )
 
-    def __init__(self, view: 'GamePingComposerView'):
+    def __init__(
+        self,
+        view: 'GamePingComposerView',
+        generation: int | None = None,
+    ):
         super().__init__(timeout=300)
         self.view = view
+        self.generation = int(
+            view.current_modal_generation
+            if generation is None
+            else generation
+        )
         self._submitted = False
         existing = view.draft.sections if view.draft is not None else ()
         values = tuple(existing) + ('', '', '')
@@ -110,6 +119,15 @@ class GamePingComposeModal(discord.ui.Modal, title='Compose game ping'):
                 'This game-ping draft expired. Run `/game ping` again.',
             )
             return
+        if not self.view.is_current_modal(self.generation):
+            self._submitted = True
+            self.stop()
+            await _private(
+                interaction,
+                'This compose modal is stale because a newer draft modal was '
+                'opened. Use the newest modal or choose Edit again.',
+            )
+            return
 
         sections = (
             str(getattr(self.section_one.component, 'value', '') or ''),
@@ -129,14 +147,29 @@ class GamePingComposeModal(discord.ui.Modal, title='Compose game ping'):
                 frozen_attachments = ()
             draft = game_ping.build_draft(sections, frozen_attachments)
         except workers.GamePingValidationError as exc:
-            self.view._modal_open = False
+            self._submitted = True
+            self.stop()
             await _private(interaction, str(exc))
             return
 
         self._submitted = True
-        self.view._modal_open = False
         try:
             await interaction.response.defer(ephemeral=True)
+            if not self.view.is_current_modal(self.generation):
+                self.stop()
+                await _private(
+                    interaction,
+                    'This compose modal became stale while it was being '
+                    'submitted. Use the newest modal or choose Edit again.',
+                )
+                return
+            if self.view.is_finished() or self.view.expired:
+                self.stop()
+                await _private(
+                    interaction,
+                    'This game-ping draft expired. Run `/game ping` again.',
+                )
+                return
             self.view.draft = draft
             self.view.status = (
                 'Draft updated. Review the private preview, then Confirm once '
@@ -149,7 +182,6 @@ class GamePingComposeModal(discord.ui.Modal, title='Compose game ping'):
                 ephemeral=True,
             )
         except Exception:
-            self.view._modal_open = False
             logger.exception('Could not update a game-ping draft from its modal')
             await _private(
                 interaction,
@@ -158,16 +190,16 @@ class GamePingComposeModal(discord.ui.Modal, title='Compose game ping'):
             )
 
     async def on_timeout(self) -> None:
-        """Release the parent view's modal lease when the modal is dismissed."""
+        """Invalidate this generation if it is still the current modal."""
 
         self.stop()
-        self.view._modal_open = False
+        self.view.invalidate_modal_generation(self.generation)
 
     async def on_error(self, interaction, error, item) -> None:
         """Release the modal lease if Discord dispatches an uncaught error."""
 
         self.stop()
-        self.view._modal_open = False
+        self.view.invalidate_modal_generation(self.generation)
         logger.error(
             'Game-ping compose modal failed during Discord dispatch',
             exc_info=(type(error), error, getattr(error, '__traceback__', None)),
@@ -213,9 +245,24 @@ class GamePingComposerView(discord.ui.LayoutView):
         self.expired = False
         self.committed = False
         self._busy = False
-        self._modal_open = False
+        self._modal_generation = 0
         self._confirmations = 0
         self.rebuild()
+
+    @property
+    def current_modal_generation(self) -> int:
+        return self._modal_generation
+
+    def next_modal_generation(self) -> int:
+        self._modal_generation += 1
+        return self._modal_generation
+
+    def is_current_modal(self, generation: int) -> bool:
+        return int(generation) == self._modal_generation
+
+    def invalidate_modal_generation(self, generation: int) -> None:
+        if self.is_current_modal(generation):
+            self._modal_generation += 1
 
     def _target_select_allowed(self) -> bool:
         return self.requester.level > 3 or self.requester.is_staff
@@ -492,20 +539,16 @@ class GamePingComposerView(discord.ui.LayoutView):
     async def _compose_clicked(self, interaction: discord.Interaction) -> None:
         if not await self.authorize(interaction):
             return
-        if self._modal_open:
-            return await _private(
-                interaction,
-                'The composer is already open. Finish that modal before opening another one.',
-            )
         if self.scope == 'single' and not self._selected_game_exists():
             return await _private(interaction, 'Choose one loaded game first.')
         if self.scope == 'all' and not self.result.all_scope_allowed:
             return await _private(interaction, 'The all-games scope is not permitted for this target.')
-        self._modal_open = True
+        generation = self.next_modal_generation()
+        modal = GamePingComposeModal(self, generation)
         try:
-            await interaction.response.send_modal(GamePingComposeModal(self))
+            await interaction.response.send_modal(modal)
         except Exception:
-            self._modal_open = False
+            self.invalidate_modal_generation(generation)
             logger.exception('Could not open the game-ping compose modal')
             await _private(interaction, 'The composer could not be opened. Run `/game ping` again.')
 
