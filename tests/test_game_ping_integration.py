@@ -1,6 +1,5 @@
 """Strictly gated real-schema coverage for P4.3 commit/rollback semantics."""
 
-from contextlib import contextmanager
 import os
 import unittest
 from unittest import mock
@@ -81,21 +80,13 @@ class GamePingDevelopmentSchemaTests(unittest.TestCase):
         ).fetchone()
         self.assertEqual((database, role), ('polytopia_dev', 'polybot_dev'))
 
-    @contextmanager
-    def rollback_scope(self):
-        with self.models.db.atomic() as transaction:
-            try:
-                yield
-            finally:
-                transaction.rollback()
-
     def _request_for_real_incomplete_game(self, nonce):
         lineup = (
             self.models.Lineup
             .select(self.models.Lineup, self.models.Player, self.models.DiscordMember)
             .join(self.models.Player)
             .join(self.models.DiscordMember)
-            .join(self.models.Game)
+            .join_from(self.models.Lineup, self.models.Game)
             .where(
                 (self.models.Game.guild_id == BETA_GUILD_ID)
                 & (self.models.Game.is_confirmed == 0)
@@ -147,22 +138,6 @@ class GamePingDevelopmentSchemaTests(unittest.TestCase):
     def test_commit_and_forced_audit_failure_roll_back_on_real_schema(self):
         nonce = f'p4-3-schema-{uuid.uuid4().hex}'
         request = self._request_for_real_incomplete_game(nonce)
-
-        with self.rollback_scope():
-            result = self.workers.commit_notification(request)
-            self.assertEqual(result.game_ids, request.game_ids)
-            self.assertEqual(
-                self.models.GameLog.select()
-                .where(self.models.GameLog.message.contains(nonce))
-                .count(),
-                1,
-            )
-
-        before_failure = (
-            self.models.GameLog.select()
-            .where(self.models.GameLog.message.contains(nonce))
-            .count()
-        )
         original_write = self.models.GameLog.write
 
         def write_then_fail(*args, **kwargs):
@@ -181,8 +156,26 @@ class GamePingDevelopmentSchemaTests(unittest.TestCase):
             self.models.GameLog.select()
             .where(self.models.GameLog.message.contains(nonce))
             .count(),
-            before_failure,
+            0,
         )
+
+        try:
+            result = self.workers.commit_notification(request)
+            self.assertEqual(result.game_ids, request.game_ids)
+            self.assertEqual(
+                self.models.GameLog.select()
+                .where(self.models.GameLog.message.contains(nonce))
+                .count(),
+                1,
+            )
+        finally:
+            self.models.db.connect(reuse_if_open=True)
+            with self.models.db.atomic():
+                (
+                    self.models.GameLog.delete()
+                    .where(self.models.GameLog.message.contains(nonce))
+                    .execute()
+                )
 
 
 if __name__ == '__main__':
