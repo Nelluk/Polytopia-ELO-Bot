@@ -330,8 +330,8 @@ duplicate-prone retry. See Discord's [component
 reference](https://docs.discord.com/developers/components/reference) for the
 platform limits.
 
-P4.3 implementation record (local review checkpoints `e25e441` and
-correction `bf2275f`, branch
+P4.3 implementation record (local review checkpoints `e25e441`, correction
+`bf2275f`, and modal-generation correction `17a0836`, branch
 `codex/p4-3-game-ping-composer`, exact base
 `87b0e8fc1f7fe811ca794d2f71bfdbee5b3167a8`):
 
@@ -357,17 +357,22 @@ correction `bf2275f`, branch
   drains the worker and distinguishes pre-commit failure from committed
   delivery.
 - GameLog records say the actor committed a notification request; they do not
-  claim that post-commit Discord delivery succeeded. Modal timeout/dismissal
-  and dispatch-error callbacks release the compose lease while preserving the
-  single-active-modal guard.
+  claim that post-commit Discord delivery succeeded. Compose/Edit uses a
+  monotonic generation instead of a Boolean lease: every open captures the
+  next generation, only the newest may update the draft, and stale submissions
+  are private and cannot mutate it. Timeout/error callbacks invalidate only
+  their still-current generation; Discord dismissal has no callback requirement
+  before another Compose/Edit opens, and failed modal dispatch cannot strand the
+  view. Confirm retains its separate single-flight boundary.
 - `$ping` and `$pingall` remain shared-service immediate adapters. Their
   legacy grammar and attachment URL behavior remain, while `pingmobile` and
   `pingsteam` are removed and their platform-only filtering is intentionally
   lost because platform distinctions are being retired.
-- Focused coverage passed 17 tests; affected game/taxonomy/component coverage
-  passed 111 tests; the stale beta-operations assertion now checks the current
-  member-selector checklist language. Complete offline discovery passed all
-  944 tests with 27 intentional skips.
+- Focused coverage passed 21 tests; affected game/taxonomy/component coverage
+  passed 115 tests; the focused beta-operations suite passed 29 tests; the
+  stale beta-operations assertion now checks the current member-selector
+  checklist language. Complete offline discovery passed all 948 tests with 27
+  intentional skips.
   The real-schema commit/rollback test is present but deferred behind the
   unchanged development safety gate while the durable beta is active. No beta
   launch, command sync, PostgreSQL, fixture, or production operation occurred.
