@@ -469,20 +469,20 @@ check:
   `87b0e8fc1f7fe811ca794d2f71bfdbee5b3167a8`; the separate evidence
   checkpoint is this roadmap/taxonomy update.
 
-Current active unit: **P4.3 interactive `/game ping` composer implemented
-locally; review, integration, and deployment gates remain pending.**
+Current active unit: **P4.3 interactive `/game ping` composer reviewed,
+development-schema validated, and integrated; guild apply, restart, and wider
+beta announcement are in progress.**
 
-P4.3 is isolated at `/home/nelluk/.codex/worktrees/796f/PolyBot39-dev` on
-`codex/p4-3-game-ping-composer`. The exact verified base was
-`87b0e8fc1f7fe811ca794d2f71bfdbee5b3167a8`; implementation/tests are
-`e25e441` plus corrections `bf2275f` and `17a0836`, and the evidence commit
-is separate. No beta process, command synchronization, PostgreSQL session,
-fixture, production checkout, or production service was accessed for this
-unit. The next action is fresh management review and, only after the durable
-beta is stopped and the unchanged development safety gate is approved,
-guild-scoped command inspection,
-development-schema commit/rollback coverage, and a short beta smoke. Do not
-launch or synchronize the beta from this checkpoint without that approval.
+P4.3 was implemented on `codex/p4-3-game-ping-composer` from exact base
+`87b0e8fc1f7fe811ca794d2f71bfdbee5b3167a8`, reviewed through corrections
+`bf2275f` and `17a0836`, and integrated into the accumulation branch as
+`332c2c9` through `c543023`. The stopped-writer gate exposed and corrected two
+test-harness errors without weakening the worker boundary; correction
+`a31cd52` then passed the real-schema rollback/commit/cleanup test under the
+exact development database and role gate. The next action is the already
+approved guild-scoped command plan/apply, durable-beta restart, and targeted
+wider-beta announcement. Production and global synchronization remain out of
+scope.
 
 The following P7 record is retained as the historical unit context from the
 previous accumulation checkpoint.
@@ -2862,8 +2862,8 @@ with `Ctrl-C`, and no `bot.py` process remained.
 
 #### P4.3 — Interactive `/game ping` notification composer
 
-Status: **Implemented locally; Tier-3 review, integration, and deployment
-pending**
+Status: **Reviewed, development-schema validated, and integrated; beta apply
+and acceptance pending**
 
 Risk tier: **Tier 3**. A confirmed notification writes a guild/game audit
 record and fans out to multiple Discord destinations after commit. The native
@@ -2973,23 +2973,24 @@ Validation evidence:
   was not edited.
 - Focused beta-operations suite: **29 passed**.
 - Complete offline discovery: **948 passed, 27 intentional skips**.
-- The gated real-schema commit/rollback test is present in
-  `tests/test_game_ping_integration.py` but was intentionally skipped. It may
-  run only under the unchanged `POLYBOT_ENV=development`,
-  `polytopia_dev`/`polybot_dev`, background/API-disabled safety gate after a
-  separately approved stopped-writer window. No PostgreSQL or fixture access
-  occurred here.
+- The stopped-writer real-schema test initially exposed an invalid test join
+  and an outer-transaction harness that contradicted worker-local connection
+  ownership. Correction `a31cd52` uses the proper Lineup-to-Game join, proves
+  forced audit failure rolls back, proves a successful worker-owned commit,
+  and deletes only its nonce-owned audit row in `finally`.
+- The corrected gate passed **1/1** under `POLYBOT_ENV=development`, database
+  `polytopia_dev`, role `polybot_dev`, with background tasks and API disabled.
+  No fixture row remains.
 - Touched Python compileall and `git diff --check` passed. No dependency
   installation, beta launch, command sync, production access, push, merge, or
   PR was performed.
 
-Next deployment action: obtain separate Tier-3 review of both commits; then,
-only with explicit approval and the durable beta stopped, run the existing
-guild-scoped command inspection, the unchanged development-schema commit/
-rollback gate, and a short development-guild smoke of inference, permissions,
-preview/edit/cancel/confirm, safe mentions, attachment URLs, fanout, and
-post-commit reconciliation. Keep production and global synchronization out of
-that action.
+Next deployment action: apply only the reviewed development-guild command
+plan, restart the durable beta from the clean integrated checkpoint, and post
+the targeted wider-beta checklist for inference, permissions,
+preview/edit/cancel/confirm, modal dismissal/reopen, safe mentions, attachment
+URLs, fanout, prefix parity, and post-commit reconciliation. Keep production
+and global synchronization out of that action.
 
 ## P5 — Matchmaking lifecycle
 

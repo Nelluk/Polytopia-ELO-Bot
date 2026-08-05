@@ -13,6 +13,14 @@ This is the running wider-beta checklist—not just the newest release. Please u
 - `/game win`, `/game result confirm`, `/game result undo`, and staff corrections
 - `/game map`, `/game name`, `/game notes`, `/game side`, `/game ranked`, and bulk `/game tribe`
 - `/game manage kick`, `/game manage extend`, `/game manage unstart`, and `/game manage delete`
+- `/game ping`: try inferred and explicit games, Compose/Edit/Cancel, reopening
+  after dismissing a modal, long multi-section text, multiple attachments, and
+  Confirm. Verify recipients see the actor (and any on-behalf-of target), role
+  or `@everyone` text does not ping, delivery is not duplicated, and any
+  partial fanout failure gives a public terminal reconciliation warning.
+- Retained `$ping` and `$pingall` should still use the shared notification
+  behavior; the retired platform-only `pingmobile`/`pingsteam` aliases are not
+  part of beta testing.
 - Check that successful changes are public and identify who made them; failures should remain private
 
 ## Players and leaderboards
