@@ -20,6 +20,9 @@ it is not standing authorization for a future deployment or rollback.
 - The pre-cutover and stopped-service recovery artifacts are stored in the
   private directory
   `/home/nelluk/backups/polybot-cutover-20260728T173159-0400`.
+- The separately approved post-cutover cleanup completed on 2026-08-04. It
+  installed the complete tracked systemd unit, removed the Python 3.9
+  environment, retained the private archive, and caused no bot restart.
 
 ## Scope and fixed boundaries
 
@@ -33,8 +36,8 @@ it is not standing authorization for a future deployment or rollback.
 - Production Discord bot ID: `484067640302764042`
 - Production image root: `/home/nelluk/PolyBot39/data/images`
 - Production log root: `/home/nelluk/PolyBot39/logs`
-- Legacy interpreter retained for rollback:
-  `/home/nelluk/PolyBot39/bin/python3` (Python 3.9.20)
+- Legacy interpreter retained through the settling period, then retired on
+  2026-08-04: `/home/nelluk/PolyBot39/bin/python3` (Python 3.9.20)
 - New interpreter after sync:
   `/home/nelluk/PolyBot39/.venv/bin/python` (Python 3.12.13)
 
@@ -42,10 +45,10 @@ The PostgreSQL server is not upgraded by this runbook. There is no application
 schema migration and no reason to restore the database during a normal code
 rollback.
 
-`polyapi.service` is disabled and inactive. Keep it inactive during this
-cutover. Its old `uvicorn.workers.UvicornWorker` command is not the reviewed
-Gunicorn 26 configuration, so starting it requires a separate API approval and
-service update.
+`polyapi.service` is disabled and inactive. Keep it inactive. Its old
+Python 3.9 `uvicorn.workers.UvicornWorker` command was never the reviewed
+Gunicorn 26 configuration and is unavailable after post-cutover cleanup, so
+starting it requires a separate API approval and Python 3.12 service update.
 
 ## Reviewed state
 
@@ -129,9 +132,9 @@ profile and changed only the interpreter used by `polytopia.service`.
 
 Post-cutover cleanup replaces that temporary override with the complete unit
 tracked at `deploy/systemd/polytopia.service`. The reviewed cleanup procedure
-is in `docs/POST_UPGRADE_CLEANUP.md`. Its current status is **prepared, not
-executed**; the installed drop-in and legacy Python environment remain in
-place until their separately approved host phases pass.
+is in `docs/POST_UPGRADE_CLEANUP.md`. It completed on 2026-08-04: the complete
+unit is installed under `/etc`, the installed drop-in and non-package-owned
+`/lib` unit are absent, and the legacy Python environment is retired.
 
 ## Approval gate
 
@@ -351,7 +354,13 @@ active, repeatedly restarts, authenticates as the wrong bot, loads an
 unauthorized guild, reports database errors, or cannot load the Bullet
 extension.
 
-## Immediate rollback
+## Historical immediate rollback — retired
+
+The commands below record the rollback that was available during the cutover
+and settling period. They are no longer executable because the Python 3.9
+environment, base `/lib` unit, and cutover drop-in were retired on 2026-08-04.
+Do not run them. Current code recovery must retain the canonical Python 3.12
+unit and rebuild the locked `.venv` if necessary.
 
 Rollback the code and interpreter without restoring PostgreSQL:
 
@@ -385,16 +394,15 @@ A database restore is an exceptional data-recovery action, not a dependency
 rollback step. It would discard legitimate activity after the dump and
 requires its own explicit approval.
 
-Retain the legacy Python 3.9 environment and private cutover archive through a
-settling period. Their later removal is a separately approved cleanup action,
-not part of the cutover.
+The legacy Python 3.9 environment and private cutover archive were retained
+through the settling period. The separately approved cleanup later removed
+only the legacy environment; the private archive remains retained.
 
-The later action is prepared in `docs/POST_UPGRADE_CLEANUP.md`. After it is
-executed, this immediate rollback procedure becomes a historical cutover
-record: removing the installed drop-in will no longer select Python 3.9.
-Recovery will instead use the tracked canonical Python 3.12 unit and locked
-environment, with the retained private archive available only for a separately
-reviewed reconstruction.
+That action is complete and recorded in `docs/POST_UPGRADE_CLEANUP.md`. This
+immediate rollback procedure is now a historical cutover record: removing a
+drop-in cannot select Python 3.9. Recovery instead uses the tracked canonical
+Python 3.12 unit and locked environment, with the retained private archive
+available only for a separately reviewed reconstruction.
 
 ## Separately gated API work
 

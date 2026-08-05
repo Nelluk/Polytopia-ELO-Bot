@@ -1,11 +1,49 @@
 # PostgreSQL 18 and Python 3.12 post-upgrade cleanup
 
-Status: **Prepared; no production cleanup executed by this runbook yet**
+Status: **Complete on 2026-08-04**
 
 This runbook retires the rollback-only PostgreSQL 12 cluster and Python 3.9
 environment after the successful PostgreSQL 18 and Python 3.12 cutovers. Each
 host-changing phase requires Nelluk's explicit approval. Completing one phase
 does not authorize the next phase.
+
+## Completion evidence
+
+- Pull request 138 merged the canonical unit and prepared runbook as
+  `be1f6e8ad6fb8c03917bc45f7bf1919f2417e45c` before host cleanup.
+- `/etc/systemd/system/polytopia.service` matches the tracked unit at SHA-256
+  `9e90b085feaac52c5b75171da6732d9a48ec9b3d64b7287f9ad8cfbbb0bb7c8d`.
+  The enablement link points to that `/etc` unit; the cutover drop-in and
+  non-package-owned `/lib` unit are absent. Installing it did not restart the
+  bot.
+- A fresh mode-0600 full production dump was created at 21:26 EDT and passed
+  `pg_restore --list`. All seven rotating dumps passed the same validation.
+  The PG4 and final stopped-service archives passed every recorded checksum,
+  and their `polytopia2`, `polytopia_dev`, and `twospies` dumps passed restore
+  listing.
+- `12/main`, measured at 1007 MB, was removed with `pg_dropcluster`. The
+  PostgreSQL 12 and 14 server/client packages and old metapackages were
+  removed; the residual server-package records were purged. No autoremove ran.
+- PostgreSQL 18.4 remains the only cluster, online on localhost-only port 5432.
+  `polytopia2`, `polytopia_dev`, and `twospies` retain their expected owners.
+- The five explicit Python 3.9 virtual-environment paths were removed,
+  recovering approximately 473 MB. The active mode-0700 `.venv` remains
+  Python 3.12.13, and the live bot executable resolves to the managed Python
+  3.12.13 interpreter.
+- `server_settings.py`, `config.ini`, and `spreadsheet_creds.json` are all
+  mode 0600 and owned by `nelluk:nelluk`.
+- The bot remained PID 2327849 with `NRestarts=1`; PostgreSQL remained PID
+  1532765 with `NRestarts=0`. Cleanup caused no restart and left no failed
+  systemd units.
+- The final 22:11 EDT disk audit reports 3.4 GB free and 84% use, improved
+  from 1.9 GB free and 91% use before cleanup.
+- Current backups, the PG4 archive, final stopped-service archive, Python
+  cutover archive, `twospies`, application data, configuration, images, and
+  logs were retained.
+- `polyapi.service` remains disabled and inactive. Its legacy Python 3.9
+  command is intentionally unusable after cleanup; enabling the API requires
+  the separately reviewed Python 3.12 service work in
+  `docs/PRODUCTION_CUTOVER.md`.
 
 ## Fixed scope
 
@@ -187,10 +225,10 @@ stat -c '%a %U:%G %n' /home/nelluk/PolyBot39/server_settings.py
 
 Record final clusters, listeners, package versions, effective service unit,
 service PID/restarts, backup validation, and disk usage. Do not restart the bot
-solely for cleanup: the reviewed Python 3.12 drop-in has already survived
-normal starts, and C0 changes no live process. A future normal restart will use
+solely for cleanup: the reviewed Python 3.12 configuration has already survived
+normal starts, and C0 changed no live process. A future normal restart will use
 the canonical `/etc` unit.
 
-After every phase passes, update `docs/POSTGRESQL_UPGRADE_PLAN.md` and
-`docs/PRODUCTION_CUTOVER.md` with actual timestamps, commands, results, disk
-recovery, and the retirement of the old physical/interpreter rollback paths.
+After every phase passed, `docs/POSTGRESQL_UPGRADE_PLAN.md` and
+`docs/PRODUCTION_CUTOVER.md` were updated with the actual results, disk
+recovery, and retirement of the old physical/interpreter rollback paths.
