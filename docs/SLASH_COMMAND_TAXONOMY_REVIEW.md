@@ -235,7 +235,7 @@ Taxonomy v2.2 applies this rule system-wide:
 | `/leaderboard players` | none | Implemented Components v2 presets, all 16 advanced-filter combinations, cached paging, and requester rank |
 | `/game search` | optional initial query or player | Implemented Components v2 status/outcome/common-size filters and paging; arbitrary side shapes remain accepted in the query grammar |
 | `/game show` | optional game ID when it cannot be inferred from the channel | Implemented P7.9 classic production-style card over a bounded immutable read; numeric prefixes share it, while Components remain opt-in for a separately justified future need |
-| `/game ping` | optional game ID when it cannot be inferred | audience/scope, long message, multiple uploads, preview, confirmation |
+| `/game ping` | optional integer `game_id` when it cannot be inferred | requester-bound single/all scope and target controls, three-section text modal, up to 10 uploads, private preview, explicit confirmation, bounded post-commit fanout |
 | `/game record` | game name, one roster string, and optional ranked state | parsed arbitrary sides, native side/member editing, preview, confirmation |
 | `/player show` | optional member; requester by default | Accepted Components v2 overview, ratings, recent/incomplete/completed/season games, results, teams, and permitted profile edits; legacy analytics remain deferred under C-002 |
 | `/player register` | optional staff-selected member | one canonical Polytopia name and review |
@@ -310,21 +310,63 @@ equivalent:
    permitted, the requester's incomplete games.
 3. Collect long-form text in one or more modal sections and accept multiple
    uploads.
-4. Show a public-effect preview with the resolved game count, recipient
-   summary, text, and attachments.
-5. Require explicit confirmation before notifications are delivered and
-   audit-log only the confirmed delivery.
+4. Show a private preview of the public effect with the resolved game count,
+   IDs, bounded recipient summary, text, filenames, and destinations.
+5. Require explicit confirmation before the one atomic audit operation and
+   post-commit notification fanout.
 
 Components improve the current limits but do not make Discord messages
-unlimited. A single modal text input accepts at most 4,000 characters and a
-file-upload component accepts at most 10 files. The implementation should
-support a high, explicit aggregate text limit by allowing additional draft
-sections, then deliver a bounded multi-message notification packet when the
-rendered text or files exceed one Discord message. It must define abuse,
-rate-limit, file-size, component-count, partial-delivery, and retry behavior
-before implementation. “Unlimited” is not an exit criterion. See Discord's
-[component reference](https://docs.discord.com/developers/components/reference)
-for the current platform limits.
+unlimited. P4.3 uses three optional paragraph sections at 4,000 characters
+each (12,000 raw characters before bounded role/everyone escaping), one
+FileUpload with at most 10 values, a 25 MiB per-file and 100 MiB aggregate
+bound, and safe Discord HTTPS URL metadata only. Blank sections are omitted
+and remaining text is joined with `\n\n`; delivery preserves all text and
+line breaks by splitting at ordinary Discord's 2,000-character message limit.
+The preview is private, while confirmed audit attribution, notification
+fanout, and post-commit reconciliation are public. Pre-commit failures restore
+the exact draft and are retryable; a committed operation is terminal and
+partial delivery reports exact bounded destination/game IDs without offering a
+duplicate-prone retry. See Discord's [component
+reference](https://docs.discord.com/developers/components/reference) for the
+platform limits.
+
+P4.3 implementation record (local review checkpoint `e25e441`, branch
+`codex/p4-3-game-ping-composer`, exact base
+`87b0e8fc1f7fe811ca794d2f71bfdbee5b3167a8`):
+
+- The native registration has no required option and exactly one optional
+  integer `game_id`. Omitted IDs infer only an unambiguous game channel;
+  otherwise a private requester-bound Components v2 workspace provides
+  single/all scope, a bounded 25-choice single-game select, and a bounded
+  typed target UserSelect for permitted staff-on-behalf use. Loaded games and
+  fanout are capped at 50/256, with truncation explained in the preview.
+- The modal has three long-form sections and one 10-value FileUpload. It
+  rejects an empty text-plus-attachment draft, accepts attachment-only drafts,
+  freezes filename/URL/content-type/size primitives without downloading or
+  persisting bodies, and escapes authored role/everyone/here text. Sends use
+  users-only `AllowedMentions` and mention only resolved game participants.
+- Each worker owns a Peewee connection and receives frozen primitive DTOs. A
+  dedicated ordinary read/write executor performs bounded/prefetched reads,
+  authoritative revalidation, and one synchronous `db.atomic()` containing all
+  per-game `GameLog` rows. Discord effects occur only after commit; cancellation
+  drains the worker and distinguishes pre-commit failure from committed
+  delivery.
+- `$ping` and `$pingall` remain shared-service immediate adapters. Their
+  legacy grammar and attachment URL behavior remain, while `pingmobile` and
+  `pingsteam` are removed and their platform-only filtering is intentionally
+  lost because platform distinctions are being retired.
+- Focused coverage passed 15 tests; affected game/taxonomy/component coverage
+  passed 109 tests; offline discovery recorded 942 tests with 941 passed, one
+  unrelated untouched-beta-checklist failure, and 27 intentional skips.
+  The real-schema commit/rollback test is present but deferred behind the
+  unchanged development safety gate while the durable beta is active. No beta
+  launch, command sync, PostgreSQL, fixture, or production operation occurred.
+
+Next action: Tier-3 review of the implementation and separate evidence
+commit, followed by an explicitly approved stopped-beta guild inspection,
+development-schema commit/rollback gate, and short development-guild smoke.
+Do not globally synchronize, launch the beta, or deploy production from this
+local checkpoint.
 
 ### Focused game attributes
 
@@ -977,6 +1019,15 @@ rationale, and the user approves or revises that recommendation before
 implementation. Existing user-approved preserved commands are not
 retroactively removed by this policy; revisit them only when naturally touched
 or during a later explicit prefix-retirement phase.
+
+P4.3 compatibility disposition: **retain** `$ping` and `$pingall` initially
+because they remain useful day-to-day workflows and now delegate to the shared
+notification service. **Retire** the `pingmobile` and `pingsteam` aliases and
+their platform filters. Losing platform-only filtering is intentional, not an
+accidental parity gap: Mobile/Steam distinctions are being removed from this
+notification workflow. This is the approved D-025 game-ping composer
+disposition and must not be reversed by a later refactor without new
+compatibility evidence.
 
 ### General utilities and support
 

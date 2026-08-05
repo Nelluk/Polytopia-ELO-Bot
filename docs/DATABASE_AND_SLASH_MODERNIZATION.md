@@ -463,8 +463,29 @@ check:
   `codex/p4-2d-game-tribe`, based on exact clean base
   `f0429536d7ed899eb356794bcd3558baa9be3d45`.
 - P4.2d roadmap evidence: `e1a0959`; accumulation merge: `7c2269b`.
+- P4.3 implementation/tests checkpoint: `e25e441` on
+  `codex/p4-3-game-ping-composer`, based on exact clean base
+  `87b0e8fc1f7fe811ca794d2f71bfdbee5b3167a8`; the separate evidence
+  checkpoint is this roadmap/taxonomy update.
 
-Current unit: **P7 squad member-search refresh lifecycle correction reviewed,
+Current active unit: **P4.3 interactive `/game ping` composer implemented
+locally; review, integration, and deployment gates remain pending.**
+
+P4.3 is isolated at `/home/nelluk/.codex/worktrees/796f/PolyBot39-dev` on
+`codex/p4-3-game-ping-composer`. The exact verified base was
+`87b0e8fc1f7fe811ca794d2f71bfdbee5b3167a8`; implementation/tests are
+`e25e441`, and the evidence commit is separate. No beta process, command
+synchronization, PostgreSQL session, fixture, production checkout, or
+production service was accessed for this unit. The next action is a separate
+approved Tier-3 review and, only after the durable beta is stopped and the
+unchanged development safety gate is approved, guild-scoped command inspection,
+development-schema commit/rollback coverage, and a short beta smoke. Do not
+launch or synchronize the beta from this checkpoint without that approval.
+
+The following P7 record is retained as the historical unit context from the
+previous accumulation checkpoint.
+
+Historical unit: **P7 squad member-search refresh lifecycle correction reviewed,
 integrated, and deployed; wider-beta acceptance is pending.**
 
 This unit is isolated on `codex/p7-squad-member-refresh-lifecycle` from exact
@@ -2836,6 +2857,118 @@ Beta result: **accepted.** The user confirmed the read, name, typed-role, and
 clear workflow behaved correctly in the development guild. No follow-up code
 finding was reported. The task-owned foreground beta was then stopped cleanly
 with `Ctrl-C`, and no `bot.py` process remained.
+
+#### P4.3 — Interactive `/game ping` notification composer
+
+Status: **Implemented locally; Tier-3 review, integration, and deployment
+pending**
+
+Risk tier: **Tier 3**. A confirmed notification writes a guild/game audit
+record and fans out to multiple Discord destinations after commit. The native
+draft is requester-bound and uses Components v2; delivery failures are
+reconciled publicly without making a committed operation retryable.
+
+Branch/base: `codex/p4-3-game-ping-composer` in the isolated worktree
+`/home/nelluk/.codex/worktrees/796f/PolyBot39-dev`, from exact clean base
+`87b0e8fc1f7fe811ca794d2f71bfdbee5b3167a8` on
+`codex/database-slash-modernization`.
+
+Commits:
+
+- `e25e441` — implementation and focused/offline/gated test coverage.
+- Separate roadmap/taxonomy evidence commit — this documentation update.
+
+Native interface and bounds:
+
+- Canonical `/game ping` is under the existing `/game` root and registers
+  only one optional typed integer `game_id`. It does not expose scope,
+  recipient, message sections, or attachments as slash options.
+- An omitted ID infers one incomplete game only from an unambiguous game
+  channel. Otherwise the private, requester-bound workspace offers one
+  permitted loaded game or all incomplete games for the selected target.
+  Components are expiry-safe and single-flight; loaded games are capped at
+  50 and the native single-game select at 25, with truncation explained.
+- The workspace has native single/all scope and target controls, a three-part
+  modal (`3 × 4,000` characters, `12,000` raw characters total), and one
+  FileUpload field capped at 10 values. Blank sections are omitted in order
+  and nonblank sections are joined deterministically with `\n\n`; line breaks
+  are preserved. A text-empty, attachment-empty draft is rejected.
+- Attachments are validated as bounded Discord HTTPS URLs and frozen as only
+  filename, URL, content type, and size metadata. Bodies are neither
+  downloaded nor persisted. Each file is at most 25 MiB and the total is at
+  most 100 MiB.
+- The private preview shows target, scope, resolved game count/IDs and
+  truncation, a bounded recipient summary, full/bounded-preview text,
+  filenames, and bounded destination rows. It requires explicit Confirm and
+  includes Edit and Cancel. Delivery text is split losslessly at 2,000
+  characters, preferring newline boundaries, so the practical text ceiling
+  does not claim unlimited Discord messages.
+
+Permission, safety, and compatibility:
+
+- Single-game permission remains participant-or-staff; all-games permission
+  preserves `$pingall`'s own-player and staff-on-behalf level thresholds.
+  Staff targeting is a requester-bound typed member selection. Helpers and
+  non-Mod users gain no broader all-games channel authority.
+- The event-loop captures guild/channel/member/role/readability facts as
+  frozen primitives. The worker reloads guild-scoped Player/Game/Lineup/
+  GameSide state and rechecks registration, target authority, incomplete
+  membership, channel policy, selected game set, and destination limits.
+- Only resolved participants are mentioned. Authored role/everyone/here
+  text is escaped and every send uses users-only `AllowedMentions`; no role,
+  everyone, or here expansion is permitted.
+- `$ping` and `$pingall` remain immediate shared-service adapters, including
+  game-ID/channel inference, message text, attachment URLs, and self/staff-
+  target grammar. The obsolete `pingmobile` and `pingsteam` aliases are
+  removed. Their platform-only filtering is intentionally gone because
+  Mobile/Steam distinctions are being retired; no second platform-specific
+  database implementation remains.
+
+Worker, transaction, and lifecycle boundary:
+
+- A dedicated bounded ordinary read/write executor is used; the ELO executor
+  is not used. Only frozen primitive DTOs cross the boundary, every worker
+  opens/closes its own Peewee connection, and reads are bounded/prefetched
+  rather than N+1 per participant.
+- Confirmation reloads and authoritatively validates state in the worker. All
+  per-game `GameLog` audit rows for one operation are written inside one
+  synchronous `db.atomic()`; no Discord await or live Discord object occurs
+  in that transaction. Cancellation drains a submitted worker and preserves
+  the committed/not-committed distinction.
+- Draft lookup, validation, permission failures, expiry, and pre-commit
+  errors remain private. A pre-commit Confirm failure restores the exact
+  frozen draft and remains retryable. Once the transaction commits, Confirm
+  is terminal even if Discord delivery fails. Post-commit sends and the
+  actor-attributed completion/reconciliation are public; failures log exact
+  bounded game/guild/channel IDs and explicitly do not offer a duplicate-safe
+  retry.
+
+Validation evidence:
+
+- Focused P4.3 suite: **15 passed**.
+- Affected game/taxonomy/component suites: **109 passed**.
+- Complete offline discovery: **942 tests, 941 passed, 1 unrelated failure,
+  27 intentional skips**. The unrelated failure is
+  `tests.test_beta_operations.BetaRuntimeGuardTests.test_release_process_makes_testability_and_terminal_action_durable`,
+  which expects `owned squad fixture` in the untouched
+  `docs/BETA_WHAT_TO_TEST.md`; this unit did not edit that checklist.
+- The gated real-schema commit/rollback test is present in
+  `tests/test_game_ping_integration.py` but was intentionally skipped. It may
+  run only under the unchanged `POLYBOT_ENV=development`,
+  `polytopia_dev`/`polybot_dev`, background/API-disabled safety gate after a
+  separately approved stopped-writer window. No PostgreSQL or fixture access
+  occurred here.
+- Touched Python compileall and `git diff --check` passed. No dependency
+  installation, beta launch, command sync, production access, push, merge, or
+  PR was performed.
+
+Next deployment action: obtain separate Tier-3 review of both commits; then,
+only with explicit approval and the durable beta stopped, run the existing
+guild-scoped command inspection, the unchanged development-schema commit/
+rollback gate, and a short development-guild smoke of inference, permissions,
+preview/edit/cancel/confirm, safe mentions, attachment URLs, fanout, and
+post-commit reconciliation. Keep production and global synchronization out of
+that action.
 
 ## P5 — Matchmaking lifecycle
 
