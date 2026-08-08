@@ -257,13 +257,13 @@ Expanding `/game` must show:
 
 - `/game record`
 - `/game win`
-- `/game unwin`
-- `/game delete`
-- `/game confirm`
-- `/game unconfirmed`
-- `/game set-ranked`
-- `/game unstart`
-- `/game extend`
+- `/game result undo`
+- `/game manage delete`
+- `/game result confirm`
+- `/game search` with `view:Unconfirmed results`
+- `/game ranked`
+- `/game manage unstart`
+- `/game manage extend`
 
 Expanding `/elo` must show:
 
@@ -280,14 +280,15 @@ prefix commands and aliases remain registered.
 Use the three owned fixtures and record every mutation:
 
 1. Run `/elo status`; it should report idle ephemerally.
-2. Run `/game unconfirmed`; it should include the current unconfirmed fixture.
-3. Run `/game set-ranked` on the ready fixture, then reverse the value with
+2. Run `/game search` with `view:Unconfirmed results`; it should include the
+   current unconfirmed fixture.
+3. Run `/game ranked` on the ready fixture, then reverse the value with
    the preserved `$rankset` or `$rankunset` prefix path. Successful native
    output should be public.
 4. Run `/game win` against the ready fixture using one fixture participant as
-   winner, then `/game unwin` to restore it. Confirm both remain responsive
+   winner, then `/game result undo` to restore it. Confirm both remain responsive
    and that the win reversal returns the fixture to incomplete state.
-5. Run `/game confirm` against the unconfirmed fixture. This intentionally
+5. Run `/game result confirm` against the unconfirmed fixture. This intentionally
    changes that fixture to confirmed; record the result.
 6. As owner, run `/elo recalculate` against the confirmed fixture with
    `confirm:false`, then with `confirm:true`. The false case should refuse
@@ -304,7 +305,7 @@ available. They should fail ephemerally before worker submission.
 2. Confirm that the parsed requester-only preview is correct, use Edit sides
    and the native member selector once if useful, then select Confirm record.
 3. Record the returned game ID immediately; it is an ordinary unowned game.
-4. Delete it with `/game delete` and confirm the public result.
+4. Delete it with `/game manage delete` and confirm the public result.
 5. Verify one low-impact preserved prefix creation/deletion or `$help`
    registration case if practical. Do not leave the interactive game
    unrecorded if deletion fails.
@@ -313,19 +314,19 @@ If suitable registered test members are available, also preview an uneven or
 three-sided roster. Existing guild rules may reject an uneven game at final
 validation even when the parser correctly infers its sides.
 
-### 5. Smoke `/game unstart`
+### 5. Smoke `/game manage unstart`
 
 Run these in a bot-command channel that is not associated with the ready
 fixture:
 
-1. If a non-staff account is available, attempt `/game unstart` against the
+1. If a non-staff account is available, attempt `/game manage unstart` against the
    ready game. It should deny ephemerally without changing the game.
-2. As staff, run `/game unstart` against the ready game. Discord should show
+2. As staff, run `/game manage unstart` against the ready game. Discord should show
    an immediate public defer and then a public success message mentioning the
    players.
 3. Confirm the game is now an open matchmaking game and its deadline is at
    least 24 hours in the future.
-4. Repeat `/game unstart` against the same game. It should report
+4. Repeat `/game manage unstart` against the same game. It should report
    ephemerally that the game is already pending.
 5. Run `$unstart READY_ID`; it should reach the preserved prefix path and
    report that the same game is already pending.
@@ -337,14 +338,14 @@ channel reconciliation remain covered by focused offline tests. A separate
 interactive game with disposable beta channels may be used only if those
 resources and its cleanup are recorded.
 
-### 6. Smoke `/game extend`
+### 6. Smoke `/game manage extend`
 
-1. Run `/game extend` against the now-pending ready game. It should defer
+1. Run `/game manage extend` against the now-pending ready game. It should defer
    publicly and report the old and new deadlines publicly.
 2. Verify the new deadline is 24 hours later than the prior future deadline.
 3. Run `$extend READY_ID` once to confirm the preserved prefix path; it should
    add another 24 hours.
-4. If a non-staff account is available, verify `/game extend` denies before
+4. If a non-staff account is available, verify `/game manage extend` denies before
    deferring or changing the deadline.
 5. Run a harmless command such as `/elo status` between mutations to
    confirm the bot remains responsive.

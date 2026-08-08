@@ -147,7 +147,7 @@ class GameExtensionCommandTests(unittest.IsolatedAsyncioTestCase):
             command.name: command
             for command in games.polygames.__cog_app_commands__
         }['game']
-        slash = game_group.get_command('extend')
+        slash = game_group.get_command('manage').get_command('extend')
         self.assertIsNotNone(slash)
         self.assertEqual(
             [(parameter.name, parameter.type) for parameter in slash.parameters],

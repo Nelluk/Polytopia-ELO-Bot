@@ -590,7 +590,7 @@ class DeletionAdapterTests(unittest.IsolatedAsyncioTestCase):
         slash = next(
             command for command in games.polygames.__cog_app_commands__
             if command.name == 'game'
-        ).get_command('delete')
+        ).get_command('manage').get_command('delete')
         with mock.patch.object(
             games.commands.Context,
             'from_interaction',

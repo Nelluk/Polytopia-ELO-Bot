@@ -86,25 +86,34 @@ class SlashTaxonomyRegistrationTests(unittest.TestCase):
                 'ping',
                 'start',
                 'win',
-                'unwin',
-                'delete',
-                'confirm',
-                'unconfirmed',
-                'set-ranked',
+                'ranked',
                 'map',
                 'side',
                 'notes',
                 'name',
                 'tribe',
-                'extend',
-                'unstart',
                 'manage',
+                'result',
             },
         )
         self.assertEqual(
             {command.name for command in game_group.get_command('manage').commands},
-            {'kick'},
+            {'kick', 'delete', 'extend', 'unstart'},
         )
+        self.assertEqual(
+            {command.name for command in game_group.get_command('result').commands},
+            {'undo', 'confirm'},
+        )
+        for retired_direct_name in (
+            'unwin',
+            'delete',
+            'confirm',
+            'unconfirmed',
+            'set-ranked',
+            'extend',
+            'unstart',
+        ):
+            self.assertIsNone(game_group.get_command(retired_direct_name))
         self.assertEqual(
             {command.name for command in elo_group.commands},
             {'recalculate', 'status'},
@@ -199,7 +208,7 @@ class SlashTaxonomyRegistrationTests(unittest.TestCase):
             [
                 (parameter.name, parameter.type)
                 for parameter
-                in game_group.get_command('set-ranked').parameters
+                in game_group.get_command('ranked').parameters
             ],
             [
                 ('game_id', discord.AppCommandOptionType.integer),
@@ -406,6 +415,11 @@ class SlashTaxonomyRegistrationTests(unittest.TestCase):
             command.name: command
             for command in administration.administration.__cog_commands__
         }
+        self.assertEqual(administration_prefix['confirm'].aliases, ['confirmgame'])
+        self.assertIn('extend', administration_prefix)
+        self.assertIn('unstart', administration_prefix)
+        self.assertIn('rankset', administration_prefix)
+        self.assertIn('rankunset', administration_prefix)
         self.assertNotIn('team_add', administration_prefix)
         self.assertFalse(any(
             'team_add_junior' in command.aliases
@@ -435,7 +449,11 @@ class SlashTaxonomyAdapterTests(unittest.IsolatedAsyncioTestCase):
             )
         )
         interaction = SimpleNamespace()
-        command = app_group(games.polygames, 'game').get_command('confirm')
+        command = (
+            app_group(games.polygames, 'game')
+            .get_command('result')
+            .get_command('confirm')
+        )
 
         await command.callback(cog, interaction, 42)
 
@@ -507,7 +525,11 @@ class SlashTaxonomyAdapterTests(unittest.IsolatedAsyncioTestCase):
         cog = SimpleNamespace(unwin=prefix_command)
         context = SimpleNamespace()
         interaction = SimpleNamespace(guild=SimpleNamespace(id=300))
-        command = app_group(games.polygames, 'game').get_command('unwin')
+        command = (
+            app_group(games.polygames, 'game')
+            .get_command('result')
+            .get_command('undo')
+        )
 
         with mock.patch.object(
             games.commands.Context,

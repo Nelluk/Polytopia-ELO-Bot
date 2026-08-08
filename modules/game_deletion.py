@@ -1,6 +1,6 @@
 """Shared application service for every game-deletion entry point.
 
-Prefix commands, ``/game delete``, and the pending-game card all build the
+Prefix commands, ``/game manage delete``, and the pending-game card all build the
 same frozen request, call :func:`delete_game`, and publish the returned
 immutable effect plan through :func:`publish_result`.  Database workers never
 receive Discord objects and never perform Discord I/O.

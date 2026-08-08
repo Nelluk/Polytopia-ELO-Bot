@@ -797,6 +797,9 @@ class HybridUnwinCommandTests(unittest.IsolatedAsyncioTestCase):
         )
         return game_group.get_command(name)
 
+    def game_nested_app_command(self, group_name, command_name):
+        return self.game_app_command(group_name).get_command(command_name)
+
     def elo_app_command(self, name):
         elo_group = next(
             command
@@ -816,8 +819,9 @@ class HybridUnwinCommandTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsInstance(command, commands.Command)
         self.assertNotIsInstance(command, commands.HybridCommand)
         self.assertEqual(command.name, 'unwin')
-        app_command = self.game_app_command('unwin')
+        app_command = self.game_nested_app_command('result', 'undo')
         self.assertIsNotNone(app_command)
+        self.assertEqual(app_command.name, 'undo')
         self.assertEqual(
             app_command.parameters[0].type,
             discord.AppCommandOptionType.integer,
@@ -834,7 +838,7 @@ class HybridUnwinCommandTests(unittest.IsolatedAsyncioTestCase):
             {alias for alias in command.aliases},
             {'delete_game', 'delgame', 'delmatch', 'deletegame'},
         )
-        app_command = self.game_app_command('delete')
+        app_command = self.game_nested_app_command('manage', 'delete')
         self.assertIsNotNone(app_command)
         self.assertEqual(
             app_command.parameters[0].type,
@@ -862,9 +866,9 @@ class HybridUnwinCommandTests(unittest.IsolatedAsyncioTestCase):
             ],
         )
 
-    def test_confirm_and_unconfirmed_slash_commands_are_registered(self):
-        confirm = self.game_app_command('confirm')
-        unconfirmed = self.game_app_command('unconfirmed')
+    def test_confirm_and_search_unconfirmed_slash_commands_are_registered(self):
+        confirm = self.game_nested_app_command('result', 'confirm')
+        search = self.game_app_command('search')
         self.assertEqual(
             [
                 (parameter.name, parameter.type)
@@ -872,7 +876,15 @@ class HybridUnwinCommandTests(unittest.IsolatedAsyncioTestCase):
             ],
             [('game_id', discord.AppCommandOptionType.integer)],
         )
-        self.assertEqual(unconfirmed.parameters, [])
+        self.assertIsNone(self.game_app_command('unconfirmed'))
+        self.assertEqual(
+            [parameter.name for parameter in search.parameters],
+            ['query', 'view'],
+        )
+        self.assertIn(
+            'unconfirmed',
+            [choice.value for choice in search.parameters[1].choices],
+        )
 
     def test_recalculation_prefix_and_maintenance_slash_commands_registered(
         self,
@@ -1445,30 +1457,6 @@ class HybridUnwinCommandTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(events[:2], ['defer', 'confirm'])
         interaction.followup.send.assert_awaited_once_with('not eligible')
-
-    async def test_unconfirmed_slash_rejects_non_staff_ephemerally(self):
-        interaction = SimpleNamespace(
-            user=SimpleNamespace(id=400),
-            response=SimpleNamespace(
-                send_message=mock.AsyncMock(),
-                defer=mock.AsyncMock(),
-            ),
-        )
-        with mock.patch.object(
-            self.administration.settings,
-            'is_staff',
-            return_value=False,
-        ):
-            await self.administration.administration.unconfirmed_slash(
-                SimpleNamespace(),
-                interaction,
-            )
-
-        interaction.response.send_message.assert_awaited_once_with(
-            'You do not have permission to use this command.',
-            ephemeral=True,
-        )
-        interaction.response.defer.assert_not_awaited()
 
     async def test_delete_database_failure_preserves_discord_resources(self):
         class Coordinator:

@@ -241,6 +241,12 @@ class polygames(commands.Cog):
         parent=game_group,
         guild_only=True,
     )
+    game_result_group = discord.app_commands.Group(
+        name='result',
+        description='Review or correct reported game results.',
+        parent=game_group,
+        guild_only=True,
+    )
     leaderboard_group = discord.app_commands.Group(
         name='leaderboard',
         description='View competitive rankings and activity.',
@@ -4270,8 +4276,8 @@ class polygames(commands.Cog):
             )
         await ctx.send(result.message)
 
-    @game_group.command(
-        name='unwin',
+    @game_result_group.command(
+        name='undo',
         description='Reset a win claim or completed game.',
     )
     @discord.app_commands.describe(game_id='Game whose win should be reset.')
@@ -4349,7 +4355,7 @@ class polygames(commands.Cog):
             prefix=ctx.prefix,
         )
 
-    @game_group.command(
+    @game_manage_group.command(
         name='delete',
         description='Delete a game when your permissions allow it.',
     )
@@ -4390,7 +4396,7 @@ class polygames(commands.Cog):
         method = getattr(administration_cog, method_name)
         return await method(interaction, *args)
 
-    @game_group.command(
+    @game_result_group.command(
         name='confirm',
         description='Confirm the claimed winner of a game.',
     )
@@ -4407,20 +4413,7 @@ class polygames(commands.Cog):
         )
 
     @game_group.command(
-        name='unconfirmed',
-        description='List games with claimed but unconfirmed winners.',
-    )
-    async def unconfirmed_slash(
-        self,
-        interaction: discord.Interaction,
-    ):
-        await self._delegate_administration_slash(
-            interaction,
-            'unconfirmed_slash',
-        )
-
-    @game_group.command(
-        name='set-ranked',
+        name='ranked',
         description='Set whether an incomplete game is ranked.',
     )
     @discord.app_commands.describe(
@@ -4440,7 +4433,7 @@ class polygames(commands.Cog):
             ranked,
         )
 
-    @game_group.command(
+    @game_manage_group.command(
         name='unstart',
         description='Return an in-progress game to open matchmaking.',
     )
@@ -4458,7 +4451,7 @@ class polygames(commands.Cog):
             game_id,
         )
 
-    @game_group.command(
+    @game_manage_group.command(
         name='extend',
         description='Extend an open game deadline by 24 hours.',
     )

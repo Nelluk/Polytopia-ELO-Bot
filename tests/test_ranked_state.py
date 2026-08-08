@@ -97,7 +97,7 @@ class RankedStateCommandTests(unittest.IsolatedAsyncioTestCase):
             command.name: command
             for command in games.polygames.__cog_app_commands__
         }['game']
-        slash = game_group.get_command('set-ranked')
+        slash = game_group.get_command('ranked')
         self.assertEqual(
             [(p.name, p.type) for p in slash.parameters],
             [

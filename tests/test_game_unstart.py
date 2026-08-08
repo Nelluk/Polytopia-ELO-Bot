@@ -237,7 +237,7 @@ class GameUnstartCommandTests(unittest.IsolatedAsyncioTestCase):
             command.name: command
             for command in games.polygames.__cog_app_commands__
         }['game']
-        slash = game_group.get_command('unstart')
+        slash = game_group.get_command('manage').get_command('unstart')
         self.assertIsNotNone(slash)
         self.assertEqual(
             [(parameter.name, parameter.type) for parameter in slash.parameters],
@@ -320,7 +320,7 @@ class GameUnstartCommandTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([event[0] for event in events], ['defer', 'pipeline'])
         self.assertEqual(events[0][1], {})
         self.assertEqual(events[1][1]['invocation_channel_id'], 999)
-        self.assertEqual(events[1][1]['invoked_with'], '/game unstart')
+        self.assertEqual(events[1][1]['invoked_with'], '/game manage unstart')
         interaction.followup.send.assert_awaited_once_with(
             'Game 42 is now an open game and no longer in progress.'
         )

@@ -574,48 +574,6 @@ class administration(commands.Cog):
             f'**{result.winner_name}**'
         )
 
-    async def unconfirmed_slash(
-        self,
-        interaction: discord.Interaction,
-    ):
-        if not settings.is_staff(interaction.user):
-            return await interaction.response.send_message(
-                'You do not have permission to use this command.',
-                ephemeral=True,
-            )
-
-        await interaction.response.defer()
-        game_list = await asyncio.get_running_loop().run_in_executor(
-            None,
-            functools.partial(
-                load_unconfirmed_game_summaries,
-                interaction.guild.id,
-            ),
-        )
-        if not game_list:
-            return await interaction.followup.send(
-                'No unconfirmed games found.'
-            )
-
-        for page_start in range(0, len(game_list), 25):
-            page = game_list[page_start:page_start + 25]
-            embed = discord.Embed(
-                title=f'{len(game_list)} unconfirmed games'
-            )
-            for name, value in page:
-                embed.add_field(
-                    name=name[:256],
-                    value=value[:1024],
-                    inline=False,
-                )
-            embed.set_footer(
-                text=(
-                    f'{page_start + 1} - '
-                    f'{page_start + len(page)} of {len(game_list)}'
-                )
-            )
-            await interaction.followup.send(embed=embed)
-
     async def confirm_auto(self, guild, prefix, current_channel):
         logger.info(f'in confirm_auto with guild {guild} prefix {prefix} current_channel {current_channel}')
 
@@ -994,7 +952,7 @@ class administration(commands.Cog):
                 prefix=prefix,
                 requester=interaction.user,
                 invocation_channel_id=interaction.channel_id,
-                invoked_with='/game unstart',
+                invoked_with='/game manage unstart',
             )
         except game_workers.GameUnstartValidationError as exc:
             return await interaction.followup.send(str(exc), ephemeral=True)
