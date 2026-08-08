@@ -475,8 +475,8 @@ check:
 - P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
   checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P8.7 native House show/list reads are in progress under
-the temporary Sol omni workflow.**
+Current active unit: **None. P8.7 native House show/list reads are integrated
+and deployed; wider-beta acceptance is pending.**
 
 P4.3 was implemented on `codex/p4-3-game-ping-composer` from exact base
 `87b0e8fc1f7fe811ca794d2f71bfdbee5b3167a8`, reviewed through corrections
@@ -7093,7 +7093,7 @@ Limitations and next action:
 
 ### P8.7 — Native House show/list and bounded directory reads
 
-Status: **Implemented locally; integration pending**
+Status: **Complete; integrated and deployed, wider-beta acceptance pending**
 
 Branch/base: `codex/p8-7-house-reads` in the isolated omni worktree from exact
 clean accumulation base `8afd1e1`.
@@ -7155,11 +7155,29 @@ remain available over the shared bounded service and native output covers the
 same useful information. House create/name/image mutations remain separate
 future units.
 
-Next action: checkpoint code and roadmap evidence separately, integrate, then
-stop only the guarded beta, run the read-only real-schema gate, apply the
-ignored development-only `house` capability and guild-scoped command root,
-restart, and announce the two native reads. No production or global
-synchronization.
+Implementation/tests checkpoint: `00ba3e2`; roadmap/taxonomy evidence:
+`8527206`; accumulation/checklist checkpoint: `c28c6c6`.
+
+Deployment evidence:
+
+- stopped only `polybot-development-beta@main.service` and confirmed through
+  the host-wide audit that no development writer remained;
+- the unchanged gated suite confirmed `development`, `polytopia_dev`, and
+  `polybot_dev` and passed 28 tests with one intentional retained-fixture
+  skip, including the new read-only House case;
+- added `house` only to the ignored development-guild capability assignment;
+  remote inspection planned exactly one create (`house`), eight unchanged
+  roots, and no removals;
+- applied only guild `478571892832206869` with the explicit no-global-sync
+  confirmations, then verified all nine roots unchanged against policy;
+- restarted the guarded beta at clean checkpoint `c28c6c6`, authenticated as
+  PolyELO Bot Beta `479029527553638401`, and passed release-control status;
+- posted tester-pinged release `2026-08-08-house-reads` to
+  `todo-and-changelog` as message `1535798625387413536`.
+
+No production capability, global command, production service, production
+checkout, or production database was touched. Next action is wider-beta
+acceptance while another bounded unit proceeds.
 
 ## WB1 — Wider beta operations and structured feedback
 
@@ -8626,6 +8644,22 @@ changes, preserve stable command identities where practical, and prefer
 component refinements that do not require command re-registration.
 
 ## Progress log
+
+### 2026-08-08 — P8.7 House reads integrated and deployed
+
+- Integrated implementation `00ba3e2` and evidence `8527206`, added the
+  operator-owned wider-beta checklist, and pushed clean accumulation
+  checkpoint `c28c6c6` before the stopped-writer window.
+- The gated development suite passed **28 tests with one intentional skip**,
+  including the new read-only House worker case.
+- Assigned `house` only to the ignored development-guild profile, applied
+  exactly that new root with eight unchanged roots and no removals, and
+  verified all nine roots matched policy without global synchronization.
+- Restarted the expected beta application at `c28c6c6`, verified release-
+  control health, and posted tester-pinged **WHAT TO TEST** release
+  `2026-08-08-house-reads` as message `1535798625387413536`.
+- Wider-beta acceptance is pending. House create/name/image mutations remain
+  separate possible units.
 
 ### 2026-08-08 — P8.7 House read workspaces implemented
 

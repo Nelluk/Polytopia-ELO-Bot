@@ -1054,6 +1054,11 @@ existing `house` capability is assigned only through the later explicit
 development-guild deployment gate; no global or production registration is
 part of implementation. The affected focused suites passed 94 tests; complete
 offline discovery passed 980 tests with 29 intentional database-gated skips.
+P8.7 was integrated at accumulation checkpoint `c28c6c6`, the development-
+only `house` capability was assigned and synchronized to guild
+`478571892832206869`, and the running beta now exposes exactly `/house show`
+and `/house list` under that root. No global or production registration was
+performed.
 
 ### Legacy modules outside the modernization target
 
