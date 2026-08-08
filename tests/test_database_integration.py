@@ -968,6 +968,58 @@ class DevelopmentDatabaseIntegrationTests(unittest.TestCase):
         self.assertIsInstance(result.recent_games, tuple)
         self.assertIsInstance(result.graph_bytes, bytes)
 
+    def test_house_show_worker_reads_real_schema_without_writes(self):
+        """Read one known House through the P8.7 worker gate."""
+
+        from modules import house_show_workers
+
+        guild_id = self.profile.allowed_guild_ids[0]
+        house = self.models.House.select().order_by(self.models.House.id).first()
+        if house is None:
+            self.skipTest('development database has no House to inspect')
+        before = (
+            self.models.House.select().count(),
+            self.models.Team.select().where(
+                self.models.Team.guild_id == guild_id
+            ).count(),
+            self.models.Player.select().where(
+                self.models.Player.guild_id == guild_id
+            ).count(),
+        )
+        result = asyncio.run(
+            house_show_workers.run_house_show(
+                house_show_workers.HouseShowRequest(
+                    guild_id=guild_id,
+                    requester_id=self.settings.owner_id,
+                    house_lookup=house.name,
+                    require_selection=True,
+                    league_scope=True,
+                    channel_allowed=True,
+                    inactive_role_name=None,
+                    guild_snapshot=house_show_workers.HouseGuildSnapshot(
+                        guild_id=guild_id,
+                        members=(),
+                        role_names=(),
+                    ),
+                )
+            )
+        )
+        self.assertEqual(result.selected_house_id, house.id)
+        self.assertTrue(any(row.house_id == house.id for row in result.houses))
+        self.assertIsInstance(result.houses, tuple)
+        self.assertEqual(
+            before,
+            (
+                self.models.House.select().count(),
+                self.models.Team.select().where(
+                    self.models.Team.guild_id == guild_id
+                ).count(),
+                self.models.Player.select().where(
+                    self.models.Player.guild_id == guild_id
+                ).count(),
+            ),
+        )
+
     def test_development_fixture_seed_status_cleanup_round_trip(self):
         from modules import dev_fixtures
 

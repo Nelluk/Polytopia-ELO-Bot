@@ -18,6 +18,8 @@ import modules.exceptions as exceptions
 # import random
 import modules.imgen as imgen
 import modules.image_storage as image_storage
+import modules.house_show as house_show
+import modules.house_show_workers as house_show_workers
 import modules.models as models
 import modules.utilities as utilities
 import settings
@@ -182,6 +184,12 @@ class league(commands.Cog):
 
     season_standings_cache = {}
     last_team_elos = defaultdict(lambda: [])
+
+    house_group = discord.app_commands.Group(
+        name='house',
+        description='View PolyChampions Houses and their teams.',
+        guild_only=True,
+    )
 
     draft_open_format_str = f'The league is now open for Free Agent signups! {{0}}s can react with a {emoji_draft_signup} below to sign up. {{1}} who have not graduated have until the end of the signup period to meet requirements and sign up. If Free Agents have favorite teams, they may react to the team emojis in <#1489844936202260710> to note those preferences.\n\n{{3}}'
     draft_closed_message = f'The league is closed to new Free Agent signups. Mods can use the {emoji_draft_conclude} reaction to clean up and delete this message.'
@@ -681,60 +689,80 @@ class league(commands.Cog):
         """
 
         if not arg:
-            return await ctx.send(f'House name not provided. *Example:* `{ctx.prefix}{ctx.invoked_with} ronin`')
+            return await ctx.send(
+                f'House name not provided. *Example:* '
+                f'`{ctx.prefix}{ctx.invoked_with} ronin`'
+            )
+        request = house_show.build_request(
+            member=ctx.author,
+            guild=ctx.guild,
+            house_lookup=arg,
+            require_selection=True,
+            channel_id=ctx.channel.id,
+        )
         try:
-            house = models.House.get_or_except(house_name=arg)
-        except (exceptions.TooManyMatches, exceptions.NoMatches) as e:
-            return await ctx.send(e)
-        
-        # members, players = utilities.active_members_and_players(ctx.guild, active_role_name=house.name, inactive_role_name=settings.guild_setting(ctx.guild.id, 'inactive_role'))
+            async with ctx.typing():
+                result = await house_show_workers.run_house_show(request)
+        except house_show_workers.HouseShowError as exc:
+            return await ctx.send(str(exc))
+        except peewee.PeeweeException:
+            logger.exception('Database failure reading House %s', arg)
+            return await ctx.send('House details could not be loaded.')
+        await utilities.buffered_send(
+            destination=ctx,
+            content=house_show.render_prefix_house(result),
+            allowed_mentions=discord.AllowedMentions.none(),
+        )
 
-        leaders, coleaders, recruiters, captains = [], [], [], []
-        
-        house_role = utilities.guild_role_by_name(ctx.guild, name=house.name, allow_partial=False)
-        leader_role = utilities.guild_role_by_name(ctx.guild, name=leader_role_name, allow_partial=False)
-        coleader_role = utilities.guild_role_by_name(ctx.guild, name=coleader_role_name, allow_partial=False)
-        recruiter_role = utilities.guild_role_by_name(ctx.guild, name=recruiter_role_name, allow_partial=False)
-        captain_role = utilities.guild_role_by_name(ctx.guild, name=captain_role_name, allow_partial=False)
-
-        # inactive_role = utilities.guild_role_by_name(ctx.guild, name=settings.guild_setting(ctx.guild.id, 'inactive_role'))
-        
-        message_list = [f'{pc_emoji} {house.emoji} House {house_role.mention if house_role else house.name} {house.emoji} {pc_emoji}']
-        house_teams = models.Team.select().where((models.Team.house == house) & (models.Team.is_archived == 0)).order_by(models.Team.league_tier)
-        
-        def em(text):
-            return discord.utils.escape_markdown(text, as_needed=False)
-            
-        if house_role:
-            for member in house_role.members:
-                if leader_role in member.roles:
-                    leaders.append(f'{em(member.display_name)} ({member.mention})')
-                if coleader_role in member.roles:
-                    coleaders.append(f'{em(member.display_name)} ({member.mention})')
-                if recruiter_role in member.roles:
-                    recruiters.append(f'{em(member.display_name)} ({member.mention})')
-                if captain_role in member.roles:
-                    captains.append(f'{em(member.display_name)} ({member.mention})')
-
-        message_list.append(f'**Leaders**: {", ".join(leaders)}')
-        message_list.append(f'\n**Co-Leaders**: {", ".join(coleaders)}')
-        message_list.append(f'\n**Recruiters**: {", ".join(recruiters)}')
-        if captains:
-            message_list.append(f'\n**Captains**: {", ".join(captains)}')
-
-        for team in house_teams:
-            player_list = []
-            tier_name = settings.tier_lookup(team.league_tier)[1]
-            team_role = utilities.guild_role_by_name(ctx.guild, name=team.name, allow_partial=False)
-            message_list.append(f'\n__{tier_name} Tier Team__ {team_role.mention if team_role else team.name} {team.emoji} `{team.elo} ELO`')
-
-            members, players = await utilities.active_members_and_players(ctx.guild, active_role_name=team.name, inactive_role_name=settings.guild_setting(ctx.guild.id, 'inactive_role'))
-            for member, player in zip(members, players):
-                player_list.append(f'{em(member.display_name)} `{player.elo_moonrise}`')
-            message_list = message_list + player_list
-        
-        async with ctx.typing():
-            await utilities.buffered_send(destination=ctx, content='\n'.join(message_list), allowed_mentions=discord.AllowedMentions(everyone=False, users=False, roles=False))
+    @house_group.command(
+        name='show',
+        description='Show one House, its leadership, teams, ELO, and roster.',
+    )
+    @discord.app_commands.describe(
+        house='House to show; omit to infer your exact House role.',
+    )
+    @discord.app_commands.autocomplete(
+        house=team_attributes_service.autocomplete_houses,
+    )
+    async def house_show_slash(
+        self,
+        interaction: discord.Interaction,
+        house: str | None = None,
+    ):
+        guild = interaction.guild
+        if guild is None:
+            return await interaction.response.send_message(
+                'House commands require a server.', ephemeral=True
+            )
+        error = house_show.native_access_error(
+            interaction.user,
+            guild.id,
+            interaction.channel_id,
+        )
+        if error:
+            return await interaction.response.send_message(error, ephemeral=True)
+        await interaction.response.defer(ephemeral=True)
+        request = house_show.build_request(
+            member=interaction.user,
+            guild=guild,
+            house_lookup=house,
+            require_selection=True,
+            channel_id=interaction.channel_id,
+        )
+        try:
+            result = await house_show_workers.run_house_show(request)
+            await house_show.publish_native(
+                interaction,
+                result,
+                detail_house_id=result.selected_house_id,
+            )
+        except house_show_workers.HouseShowError as exc:
+            await interaction.followup.send(str(exc), ephemeral=True)
+        except peewee.PeeweeException:
+            logger.exception('Database failure in /house show')
+            await interaction.followup.send(
+                'House details could not be loaded.', ephemeral=True
+            )
 
     @commands.command(usage='', aliases=['balance'])
     @settings.in_bot_channel()
@@ -747,30 +775,66 @@ class league(commands.Cog):
         `[p]houses`
         """
         
-        houses_with_teams = peewee.prefetch(models.House.select().order_by(models.House.league_tokens), models.Team.select().order_by(models.Team.league_tier, -models.Team.elo))
-        house_list = [f'{pc_emoji} **PolyChampions Houses** {pc_emoji}']
-        leader_role = utilities.guild_role_by_name(ctx.guild, name=leader_role_name, allow_partial=False)
+        request = house_show.build_request(
+            member=ctx.author,
+            guild=ctx.guild,
+            house_lookup=None,
+            require_selection=False,
+            channel_id=ctx.channel.id,
+        )
+        try:
+            async with ctx.typing():
+                result = await house_show_workers.run_house_show(request)
+        except house_show_workers.HouseShowError as exc:
+            return await ctx.send(str(exc))
+        except peewee.PeeweeException:
+            logger.exception('Database failure reading House directory')
+            return await ctx.send('The House directory could not be loaded.')
+        await utilities.buffered_send(
+            destination=ctx,
+            content=house_show.render_prefix_list(result),
+            allowed_mentions=discord.AllowedMentions.none(),
+        )
 
-        for house in houses_with_teams:
-            team_list, team_message = [], ''
-
-            house_role = utilities.guild_role_by_name(ctx.guild, name=house.name, allow_partial=False)
-            house_leaders = [f'{member.display_name}' for member in leader_role.members if house_role in member.roles] if (house_role and leader_role) else []
-            leaders_str = f'\n**House Leader:** {", ".join(house_leaders)}' if house_leaders else ''
-
-            if house.teams:
-                for hteam in house.teams:
-                    tier_name = settings.tier_lookup(hteam.league_tier)[1]
-                    team_role = utilities.guild_role_by_name(ctx.guild, name=hteam.name, allow_partial=False)
-                    team_list.append(f'- {team_role.mention if team_role else hteam.name} {hteam.emoji} - {tier_name} Tier - ELO: {hteam.elo}')
-                team_message = '\n'.join(team_list)
-            else:
-                team_message = '*No related Teams*'
-            house_message = f'**House** {house_role.mention if house_role else house.name}{leaders_str} \n {team_message}'
-            house_list.append(f'{house_message}\n')
-        
-        async with ctx.typing():
-            await utilities.buffered_send(destination=ctx, content='\n'.join(house_list), allowed_mentions=discord.AllowedMentions(everyone=False, users=False, roles=False))
+    @house_group.command(
+        name='list',
+        description='Browse all configured Houses and their active teams.',
+    )
+    async def house_list_slash(self, interaction: discord.Interaction):
+        guild = interaction.guild
+        if guild is None:
+            return await interaction.response.send_message(
+                'House commands require a server.', ephemeral=True
+            )
+        error = house_show.native_access_error(
+            interaction.user,
+            guild.id,
+            interaction.channel_id,
+        )
+        if error:
+            return await interaction.response.send_message(error, ephemeral=True)
+        await interaction.response.defer(ephemeral=True)
+        request = house_show.build_request(
+            member=interaction.user,
+            guild=guild,
+            house_lookup=None,
+            require_selection=False,
+            channel_id=interaction.channel_id,
+        )
+        try:
+            result = await house_show_workers.run_house_show(request)
+            await house_show.publish_native(
+                interaction,
+                result,
+                detail_house_id=None,
+            )
+        except house_show_workers.HouseShowError as exc:
+            await interaction.followup.send(str(exc), ephemeral=True)
+        except peewee.PeeweeException:
+            logger.exception('Database failure in /house list')
+            await interaction.followup.send(
+                'The House directory could not be loaded.', ephemeral=True
+            )
     
     @commands.command(aliases=['house_rename', 'house_image'], usage='')
     @settings.is_mod_check()
