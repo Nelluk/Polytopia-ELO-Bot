@@ -1,6 +1,6 @@
 # Modernization collaboration workflow
 
-Last updated: 2026-08-04
+Last updated: 2026-08-08
 
 Status: Active
 
@@ -10,6 +10,22 @@ the database/slash modernization program. It supplements
 scope, phase status, decisions, evidence, and the next unit.
 
 ## Roles
+
+### Temporary single-thread omni workflow
+
+When Nelluk explicitly selects a Sol omni thread to conserve quota, that
+thread may own planning, implementation, review, integration, and development
+deployment for one bounded unit end to end. It still uses an isolated Git
+worktree and unit branch so the running beta's accumulation checkout remains
+stable. The thread must self-review the complete diff at the normal risk tier,
+keep implementation and evidence checkpoints distinct where useful, and pass
+the same focused/offline/database/beta gates; the exception removes the Luna
+handoff, not any safety or validation boundary.
+
+Do not spawn or actively monitor a Luna worker while this explicit mode is in
+effect. Return to the ordinary Sol/Luna roles when Nelluk asks. This section is
+process authority only for an explicit current-thread instruction; it is not
+a standing license for future tasks to silently collapse review roles.
 
 ### Sol planning and oversight task
 

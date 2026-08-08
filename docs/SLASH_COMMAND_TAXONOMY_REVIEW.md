@@ -383,6 +383,24 @@ development-schema commit/rollback gate, and short development-guild smoke.
 Do not globally synchronize, launch the beta, or deploy production from this
 local checkpoint.
 
+P4.4 implementation record (`bf56d88` on `codex/p4-4-game-logs`, exact
+base `136ad4d`):
+
+- `/game logs` has exactly one optional integer `game_id`; search, scope, and
+  paging are interactive refinements rather than slash options.
+- Participants can read only a selected same-guild game they played. Staff
+  can read server scope, and only the exact configured owner can read global
+  scope. Protected records never enter the immutable result.
+- Successful views are public with disabled mentions and requester-only
+  controls; validation, permission, lookup, load, and expiry failures are
+  private. Scope/search loads are bounded and cached, while paging is
+  database-free.
+- `$logs`, `$gamelog`, `$gamelogs`, `$log`, and `$global_logs` remain shared-
+  service adapters, so no compatibility-ledger entry is needed.
+- Focused/affected validation passed 80 tests and complete offline discovery
+  passed 969 tests with 28 intentional gated skips. Read-only real-schema and
+  live beta evidence remain behind the approved deployment gate.
+
 ### Focused game attributes
 
 | Proposed native path | Current prefix handler(s) | Purpose / notes |

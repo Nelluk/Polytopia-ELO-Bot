@@ -468,10 +468,13 @@ check:
   `codex/p4-3-game-ping-composer`, based on exact clean base
   `87b0e8fc1f7fe811ca794d2f71bfdbee5b3167a8`; the separate evidence
   checkpoint is this roadmap/taxonomy update.
+- P4.4 implementation/tests checkpoint: `bf56d88` on
+  `codex/p4-4-game-logs`, from exact clean base `136ad4d`.
+- pre-existing canonical service-test correction: `4d0994e`.
 
-Current active unit: **P4.3 interactive `/game ping` composer reviewed,
-development-schema validated, integrated, and deployed to the wider beta;
-tester acceptance is open.**
+Current active unit: **P4.4 permission-aware `/game logs` read workspace
+implemented under the explicitly approved temporary Sol omni workflow;
+stopped-beta database validation, integration, and deployment are pending.**
 
 P4.3 was implemented on `codex/p4-3-game-ping-composer` from exact base
 `87b0e8fc1f7fe811ca794d2f71bfdbee5b3167a8`, reviewed through corrections
@@ -3010,6 +3013,82 @@ Next action: collect wider-beta acceptance for inference, permissions,
 preview/edit/cancel/confirm, modal dismissal/reopen, safe mentions, attachment
 URLs, fanout, prefix parity, and post-commit reconciliation. Keep production
 and global synchronization out of that action.
+
+#### P4.4 — Permission-aware `/game logs` workspace
+
+Status: **Implemented; stopped-beta validation and deployment pending**
+
+Risk tier: **Tier 2**. This is a bounded read-only database and Components v2
+unit. It changes no schema or audit data.
+
+Branch/base: `codex/p4-4-game-logs` in the isolated omni worktree from exact
+clean accumulation base `136ad4d`.
+
+Commits:
+
+- `bf56d88` — shared worker/service, native workspace, retained prefix
+  adapter, and focused/real-schema tests.
+- Separate roadmap/taxonomy evidence commit — this documentation update.
+- `4d0994e` — narrow pre-existing test correction after the post-upgrade
+  cleanup replaced the retired systemd drop-in with the canonical tracked
+  service file.
+
+Interface and permissions:
+
+- `/game logs game_id:[optional integer]` keeps only the target needed at
+  invocation. A non-staff user must provide a same-guild game they
+  participated in. Staff may omit the ID for recent server logs. The exact
+  bot owner may refine to all-server scope.
+- The public requester-bound Components v2 workspace pages immutable results,
+  switches only among authorized scopes, and opens a modal for required terms
+  plus one excluded term. Paging is snapshot-only; each new scope/filter is a
+  bounded cached reload.
+- Protected records are always excluded. Public log text uses
+  `AllowedMentions.none()` so historical audit text cannot notify users or
+  roles. Permission, lookup, validation, timeout, database, expiry, and
+  unauthorized-control failures remain private.
+- `$logs`, `$gamelog`, `$gamelogs`, `$log`, and owner-only `$global_logs`
+  remain registered over the same reader. Numeric participant lookup and the
+  legacy first embedded 4–6 digit exact-marker behavior are preserved. No
+  compatibility-ledger row is required because the retained interface loses
+  no supported behavior.
+
+Worker and bounded-read boundary:
+
+- Frozen primitive request/key/result DTOs cross one dedicated two-thread
+  read executor. Each read opens and closes a worker-local Peewee connection;
+  cancellation drains submitted work before propagating cancellation.
+- Worker validation reloads the exact same-guild game and participant graph
+  for non-staff access. Guild/global access uses frozen Discord permission
+  facts, with the global path additionally requiring the exact configured
+  owner ID.
+- Reads exclude protected rows, use deterministic descending timestamp/log-ID
+  order, load at most 501 rows to report a 500-row truncation boundary, cap
+  each rendered message at 1,500 characters, and accept at most eight
+  80-character required terms plus one excluded term.
+
+Validation evidence:
+
+- Focused P4.4/taxonomy suite: **28 passed** after the legacy-marker and owner
+  boundary additions.
+- Affected P4.4, taxonomy, game-detail, and beta-operations suite:
+  **80 passed**.
+- Complete offline discovery: **969 passed, 28 intentional database-gated
+  skips**.
+- Serialized Components regression proves every Action Row is either one
+  select or buttons-only. Native lifecycle coverage proves a private defer,
+  public no-mention success, and private failure with no public effect.
+- A read-only real-schema test is behind the unchanged `development` /
+  `polytopia_dev` / `polybot_dev` gate and remains pending until the approved
+  stopped-beta deployment window.
+- Touched Python compileall and `git diff --check` passed. No PostgreSQL,
+  Discord command apply, beta lifecycle, fixture, production, dependency, or
+  sudo operation occurred during implementation.
+
+Next action: complete the approved stopped-beta read-only real-schema gate,
+integrate the two P4.4 checkpoints into the accumulation branch, update only
+the development guild's existing `game` root, restart the guarded beta, and
+post one tester-pinged **WHAT TO TEST** announcement as the terminal action.
 
 ## P5 — Matchmaking lifecycle
 
@@ -8379,6 +8458,24 @@ changes, preserve stable command identities where practical, and prefer
 component refinements that do not require command re-registration.
 
 ## Progress log
+
+### 2026-08-08 — P4.4 game-log workspace implemented in Sol omni mode
+
+- Used the explicitly approved temporary single-thread omni workflow while
+  retaining an isolated worktree, unit branch, separate evidence checkpoint,
+  and the normal Tier-2 safety and validation gates.
+- Added permission-aware `/game logs game_id:[optional]` with public
+  requester-bound Components v2 paging, authorized scope refinement, bounded
+  cached search, private failures, protected-record exclusion, and disabled
+  mentions. Retained all prefix log aliases over the same worker.
+- Added worker-local connections, frozen primitive DTOs, participant/staff/
+  owner boundaries, cancellation draining, deterministic bounded ordering,
+  native lifecycle and serialized-payload regressions, and a gated read-only
+  real-schema case.
+- Focused/affected validation passed **80 tests**; complete offline discovery
+  passed **969 tests with 28 intentional gated skips**. The stopped-beta
+  database gate, integration, guild apply, restart, and tester announcement
+  remain the next authorized actions.
 
 ### 2026-08-04 — P7 squad member-search lifecycle correction deployed
 
