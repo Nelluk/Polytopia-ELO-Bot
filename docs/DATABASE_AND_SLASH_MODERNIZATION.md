@@ -473,8 +473,9 @@ check:
 - pre-existing canonical service-test correction: `4d0994e`.
 - P4.4 accumulation/checklist checkpoint: `7595396`.
 
-Current active unit: **P4.4 permission-aware `/game logs` read workspace is
-integrated and deployed; wider-beta acceptance is pending.**
+Current active unit: **P4.5 accepted game result/management taxonomy
+alignment is implemented locally under the temporary Sol omni workflow;
+integration and development-guild deployment are pending.**
 
 P4.3 was implemented on `codex/p4-3-game-ping-composer` from exact base
 `87b0e8fc1f7fe811ca794d2f71bfdbee5b3167a8`, reviewed through corrections
@@ -3118,6 +3119,57 @@ Next action: collect wider-beta evidence for participant/staff/owner scope,
 search/clear, paging, requester-only controls, disabled mentions, prefix
 parity, and private failures. This acceptance is not a blocker for selecting
 the next bounded offline unit.
+
+#### P4.5 — Accepted game result/management taxonomy alignment
+
+Status: **Implemented locally; integration and development-guild deployment
+pending**
+
+Risk tier: **Tier 2**. This is a registration, adapter, test, and current
+operator-documentation unit. It changes no worker, transaction, permission,
+schema, or database behavior.
+
+Branch/base: `codex/p4-5-game-taxonomy` in the isolated omni worktree from
+exact clean accumulation base `2b7e333`.
+
+Interface alignment:
+
+- `/game unwin` becomes `/game result undo`.
+- `/game confirm` becomes `/game result confirm`.
+- `/game delete|extend|unstart` become
+  `/game manage delete|extend|unstart` beside the existing
+  `/game manage kick`.
+- `/game set-ranked` becomes `/game ranked`.
+- The redundant `/game unconfirmed` adapter is removed; the existing
+  staff-gated `/game search` `view:Unconfirmed results` path is authoritative.
+- `/game win` remains direct because reporting a winner is a common player
+  flow. `/game result auto-confirm` is not introduced in this unit.
+
+All prefix commands and aliases remain unchanged, including `$unwin`,
+`$delete` and its aliases, `$confirm`/`$confirmgame`, `$rankset`, `$rankunset`,
+`$extend`, and `$unstart`. The old slash names receive no temporary aliases:
+they existed only in the development guild, have not reached production, and
+would undermine the accepted taxonomy immediately before wider testing.
+
+Validation evidence:
+
+- Focused registration/adapter/search and affected command suites:
+  **107 passed**.
+- Tests prove the exact nested command tree, absence of obsolete direct slash
+  children, unchanged option shapes, retained prefix registrations, shared
+  adapter delegation, and the staff-only unconfirmed search view.
+- Complete offline discovery: **968 passed, 28 intentional database-gated
+  skips**. Touched-Python compilation and `git diff --check` passed.
+- Explicit remote plan, guild-only apply, guarded restart, and tester
+  announcement remain in the authorized integration/deployment sequence.
+- No PostgreSQL gate is required for this registration-only unit. No database
+  code or schema changed; the beta will be stopped only for command-tree apply
+  and restart, not for unrelated database testing.
+
+Next action: complete offline validation, integrate the code/evidence
+checkpoints into the accumulation branch, update the persistent beta test
+list, apply only the development guild's `game` root, restart the guarded
+beta, and announce the renamed paths. No global or production synchronization.
 
 ## P5 — Matchmaking lifecycle
 
@@ -8487,6 +8539,24 @@ changes, preserve stable command identities where practical, and prefer
 component refinements that do not require command re-registration.
 
 ## Progress log
+
+### 2026-08-08 — P4.5 game taxonomy alignment implemented locally
+
+- Moved the existing beta-only result corrections to
+  `/game result undo|confirm`, lifecycle administration to
+  `/game manage delete|extend|unstart`, and ranked state to `/game ranked`.
+- Removed the redundant standalone `/game unconfirmed`; the existing
+  staff-gated `/game search` `Unconfirmed results` view is the native path.
+- Preserved `/game win` as a direct common action and retained all prefix
+  commands/aliases without slash compatibility aliases for the unpublished
+  beta names.
+- Focused affected validation passed **107 tests**; complete offline discovery
+  passed **968 tests with 28 intentional database-gated skips**. Compilation
+  and diff checks passed. No database, Discord, beta, or production operation
+  occurred during implementation.
+- Next: integrate the separate implementation/evidence checkpoints, update
+  the durable beta checklist, apply only the development guild's `game` root,
+  restart the guarded beta, and post the authorized tester announcement.
 
 ### 2026-08-08 — P4.4 game-log workspace integrated and deployed
 

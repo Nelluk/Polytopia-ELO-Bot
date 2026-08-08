@@ -413,7 +413,7 @@ base `136ad4d`):
 | `/game tribe` | `settribe` | View one/all player tribes; optional typed player/tribe edits one |
 | `/game notes` | `gamenotes` | View notes; optional text/modal edits them |
 | `/game side` | `gameside` | View a side; optional name/assignment edits it |
-| `/game ranked` | `rankset`, `rankunset` | View ranked state; optional Boolean changes it with staff permission; Native now as `/game set-ranked` |
+| `/game ranked` | `rankset`, `rankunset` | View ranked state; optional Boolean changes it with staff permission; Native as `/game ranked` in P4.5 |
 
 Bulk tribe assignment remains on the prefix path initially. A later native
 bulk editor should be interaction-driven rather than a long opaque argument.
@@ -431,8 +431,8 @@ native compatibility compromise was introduced.
 
 | Proposed native path | Current prefix behavior | Purpose / notes |
 |---|---|---|
-| `/game result undo` | `unwin` | Remove a reported winner while preserving player-versus-staff behavior; Native now as `/game unwin` |
-| `/game result confirm` | `confirm GAME_ID` | Staff-confirm one result and finalize ELO; Native now as `/game confirm` |
+| `/game result undo` | `unwin` | Remove a reported winner while preserving player-versus-staff behavior; Native as `/game result undo` in P4.5 |
+| `/game result confirm` | `confirm GAME_ID` | Staff-confirm one result and finalize ELO; Native as `/game result confirm` in P4.5 |
 | `/game result auto-confirm` | `confirm auto` | Rare staff batch action with explicit preview/confirmation |
 
 The staff suggestion to group winner operations is sound for the uncommon
@@ -445,9 +445,9 @@ describe the database implementation rather than the user's action.
 | Proposed native path | Current prefix handler | Purpose / notes |
 |---|---|---|
 | `/game manage kick` | `kick` | Native now in P5.3: typed host/staff removal from an open game; uses the shared atomic pending-game worker |
-| `/game manage extend` | `extend` | Staff extension of an open-game deadline; Native now as `/game extend` |
-| `/game manage unstart` | `unstart` | Staff return of a started game to open/pending; Native now as `/game unstart` |
-| `/game manage delete` | `delete` | Permission-sensitive game deletion; Native now as `/game delete` |
+| `/game manage extend` | `extend` | Staff extension of an open-game deadline; Native as `/game manage extend` in P4.5 |
+| `/game manage unstart` | `unstart` | Staff return of a started game to open/pending; Native as `/game manage unstart` in P4.5 |
+| `/game manage delete` | `delete` | Permission-sensitive game deletion; Native as `/game manage delete` in P4.5 |
 
 `manage` is intentionally not named `staff`: some operations may also be
 available to a host or participant, and permissions belong to each command
@@ -1140,11 +1140,13 @@ umbrella and T-C's flat hyphenated commands remain rejected design history:
 the umbrella makes common commands unnecessarily long, while flat names make
 dozens of capabilities harder to scan and organize.
 
-## Effect on the current implementation if approved
+## Current implementation alignment
 
-The current modernization stack registers:
+After P4.5, the current modernization stack registers:
 
-- `/game record|open|join|leave|search|show|win|unwin|delete|confirm|unconfirmed|set-ranked|extend|unstart`;
+- direct `/game record|open|join|leave|search|show|logs|ping|start|win|ranked|map|side|notes|name|tribe`;
+- `/game result undo|confirm`;
+- `/game manage kick|delete|extend|unstart`;
 - `/elo recalculate|status`;
 - `/leaderboard players|activity|squads` with temporary `/lb2` removed;
 - `/player show|register|timezone`.
@@ -1165,10 +1167,10 @@ adapter shares the minutes-backed worker and keeps compatible self/staff-target
 grammar. The additive schema migration and real-schema validation are gated
 separately, so the native command has not been synchronized to Discord.
 
-For the already implemented game/ELO surface, Taxonomy v2.2 would change only
-the slash registration/adapters:
+P4.5 changed only the slash registration/adapters for the previously
+implemented game/ELO surface:
 
-| Current local path | Taxonomy v2.2 path |
+| Former beta path | Current path |
 |---|---|
 | `/game record` | unchanged |
 | `/game show` | unchanged |
@@ -1183,16 +1185,21 @@ the slash registration/adapters:
 | `/elo recalculate` | unchanged |
 | `/elo status` | unchanged |
 
-The accumulation-branch tree has been synchronized only to the development
-guild, and
-none of these slash paths has reached production. Approval therefore still
-allows a clean development rename without production compatibility aliases,
-although the beta runbook must explicitly verify that obsolete guild commands
-were pruned. Prefix commands, permissions, workers, transactions, and
-post-commit effects would remain unchanged. `/game search` itself belongs to
-the P7 bounded-read work; until that exists, the already-tested argument-free
-`$confirm` behavior remains available and the slash list can be temporarily
-omitted rather than shipping a name already marked for replacement.
+The accumulation-branch tree is synchronized only to the development guild,
+and none of these slash paths has reached production. P4.5 therefore performs
+one clean beta rename without compatibility aliases. Prefix commands,
+permissions, workers, transactions, and post-commit effects are unchanged.
+The existing `/game search` workspace supplies the staff-only
+`view:Unconfirmed results` replacement for the removed standalone native
+command. `$confirm` without arguments remains available as retained prefix
+behavior.
+
+P4.5 implementation evidence: the focused nested-registration, adapter,
+permission, and search suites passed 107 tests. Complete offline discovery
+passed 968 tests with 28 intentional database-gated skips; compilation and
+diff checks passed. No database gate is required because this unit changes
+only command registration and current presentation attribution. Development-
+guild application and live acceptance remain separate deployment evidence.
 
 ## Guild capability policy and root-scope implications
 
