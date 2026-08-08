@@ -13,6 +13,12 @@ This is the running wider-beta checklist—not just the newest release. Please u
 - `/game win`, `/game result confirm`, `/game result undo`, and staff corrections
 - `/game map`, `/game name`, `/game notes`, `/game side`, `/game ranked`, and bulk `/game tribe`
 - `/game manage kick`, `/game manage extend`, `/game manage unstart`, and `/game manage delete`
+- The former beta-only direct paths `/game unwin`, `/game confirm`,
+  `/game delete`, `/game unconfirmed`, `/game set-ranked`, `/game extend`, and
+  `/game unstart` should no longer appear. Use `/game search` with
+  `view:Unconfirmed results` for the staff result queue. After this command-
+  tree update, fully restart Discord if a client still shows stale paths or
+  leaves a newly nested command at **Sending command...**.
 - `/game ping`: try inferred and explicit games, Compose/Edit/Cancel, reopening
   after dismissing a modal, long multi-section text, multiple attachments, and
   Confirm. Verify recipients see the actor (and any on-behalf-of target), role
