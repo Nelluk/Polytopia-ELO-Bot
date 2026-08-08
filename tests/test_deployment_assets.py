@@ -6,24 +6,19 @@ import unittest
 class ProductionDeploymentAssetTests(unittest.TestCase):
     root = Path(__file__).resolve().parents[1]
 
-    def test_bot_service_dropin_selects_production_python_312_environment(self):
-        dropin = (
-            self.root
-            / 'deploy/systemd/polytopia.service.d/upgrade.conf'
+    def test_canonical_bot_service_selects_production_python_312_environment(self):
+        service = (
+            self.root / 'deploy/systemd/polytopia.service'
         ).read_text(encoding='utf-8').splitlines()
 
-        self.assertEqual(
-            dropin,
-            [
-                '[Service]',
-                'Environment=POLYBOT_ENV=production',
-                'ExecStart=',
-                (
-                    'ExecStart=/home/nelluk/PolyBot39/.venv/bin/python '
-                    '/home/nelluk/PolyBot39/bot.py'
-                ),
-            ],
+        self.assertIn('[Service]', service)
+        self.assertIn('Environment=POLYBOT_ENV=production', service)
+        self.assertIn(
+            'ExecStart=/home/nelluk/PolyBot39/.venv/bin/python '
+            '/home/nelluk/PolyBot39/bot.py',
+            service,
         )
+        self.assertIn('WorkingDirectory=/home/nelluk/PolyBot39', service)
 
     def test_cutover_runbook_preserves_legacy_rollback(self):
         runbook = (
