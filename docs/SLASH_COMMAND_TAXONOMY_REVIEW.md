@@ -1197,9 +1197,12 @@ behavior.
 P4.5 implementation evidence: the focused nested-registration, adapter,
 permission, and search suites passed 107 tests. Complete offline discovery
 passed 968 tests with 28 intentional database-gated skips; compilation and
-diff checks passed. No database gate is required because this unit changes
-only command registration and current presentation attribution. Development-
-guild application and live acceptance remain separate deployment evidence.
+diff checks passed. No database gate was required because this unit changes
+only command registration and current presentation attribution. The unit was
+integrated at checkpoint `dc80d6c`; only the development guild's existing
+`game` root changed, all eight roots matched policy after apply, and no global
+sync occurred. Tester-pinged release `2026-08-08-game-taxonomy` is posted;
+wider-beta acceptance remains pending.
 
 ## Guild capability policy and root-scope implications
 

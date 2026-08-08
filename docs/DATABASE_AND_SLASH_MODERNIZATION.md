@@ -472,10 +472,12 @@ check:
   `codex/p4-4-game-logs`, from exact clean base `136ad4d`.
 - pre-existing canonical service-test correction: `4d0994e`.
 - P4.4 accumulation/checklist checkpoint: `7595396`.
+- P4.5 implementation/tests checkpoint: `7b66edc`; roadmap/taxonomy evidence
+  checkpoint: `af7af1a`; accumulation/checklist checkpoint: `dc80d6c`.
 
-Current active unit: **P4.5 accepted game result/management taxonomy
-alignment is implemented locally under the temporary Sol omni workflow;
-integration and development-guild deployment are pending.**
+Current active unit: **None. P4.5 accepted game result/management taxonomy
+alignment is complete, integrated, and deployed; wider-beta acceptance is
+pending.**
 
 P4.3 was implemented on `codex/p4-3-game-ping-composer` from exact base
 `87b0e8fc1f7fe811ca794d2f71bfdbee5b3167a8`, reviewed through corrections
@@ -3122,15 +3124,15 @@ the next bounded offline unit.
 
 #### P4.5 — Accepted game result/management taxonomy alignment
 
-Status: **Implemented locally; integration and development-guild deployment
-pending**
+Status: **Complete; integrated and deployed; wider-beta acceptance pending**
 
 Risk tier: **Tier 2**. This is a registration, adapter, test, and current
 operator-documentation unit. It changes no worker, transaction, permission,
 schema, or database behavior.
 
 Branch/base: `codex/p4-5-game-taxonomy` in the isolated omni worktree from
-exact clean accumulation base `2b7e333`.
+exact clean accumulation base `2b7e333`; implementation `7b66edc` and evidence
+`af7af1a` were fast-forwarded into the accumulation branch.
 
 Interface alignment:
 
@@ -3166,10 +3168,26 @@ Validation evidence:
   code or schema changed; the beta will be stopped only for command-tree apply
   and restart, not for unrelated database testing.
 
-Next action: complete offline validation, integrate the code/evidence
-checkpoints into the accumulation branch, update the persistent beta test
-list, apply only the development guild's `game` root, restart the guarded
-beta, and announce the renamed paths. No global or production synchronization.
+Deployment evidence:
+
+- Added the persistent checklist and pushed clean running checkpoint
+  `dc80d6c667d1eace0a6b330291cab4646b98d1ee`.
+- Stopped only `polybot-development-beta@main.service`; it exited cleanly and
+  the host-wide audit found no other development beta writer.
+- Remote planning found exactly one update—the existing `game` root—in guild
+  `478571892832206869`; the other seven roots were unchanged. The explicit
+  guild-only apply completed, and immediate inspection reported all eight
+  roots unchanged against policy. No global synchronization occurred.
+- Restarted the guarded beta at checkpoint `dc80d6c`; it authenticated as
+  **PolyELO Bot Beta** (`479029527553638401`) with PID `2940109`.
+- Posted tester-pinged release `2026-08-08-game-taxonomy` to
+  `todo-and-changelog` as message `1535771660672700562`. Announcement delivery
+  was the terminal runtime action.
+
+Next action: collect wider-beta acceptance for the nested result/manage paths,
+ranked rename, unconfirmed search replacement, permission parity, and Discord
+client-cache recovery. This acceptance does not block selecting the next
+bounded offline unit.
 
 ## P5 — Matchmaking lifecycle
 
@@ -8540,7 +8558,7 @@ component refinements that do not require command re-registration.
 
 ## Progress log
 
-### 2026-08-08 — P4.5 game taxonomy alignment implemented locally
+### 2026-08-08 — P4.5 game taxonomy alignment integrated and deployed
 
 - Moved the existing beta-only result corrections to
   `/game result undo|confirm`, lifecycle administration to
@@ -8552,11 +8570,16 @@ component refinements that do not require command re-registration.
   beta names.
 - Focused affected validation passed **107 tests**; complete offline discovery
   passed **968 tests with 28 intentional database-gated skips**. Compilation
-  and diff checks passed. No database, Discord, beta, or production operation
-  occurred during implementation.
-- Next: integrate the separate implementation/evidence checkpoints, update
-  the durable beta checklist, apply only the development guild's `game` root,
-  restart the guarded beta, and post the authorized tester announcement.
+  and diff checks passed. No PostgreSQL gate was needed because the unit did
+  not change database code or schema.
+- Integrated implementation `7b66edc` and evidence `af7af1a`, added the
+  durable test checklist, and pushed clean checkpoint `dc80d6c`.
+- Stopped only the guarded beta, verified a clear host, applied exactly the
+  development guild's existing `game` root, and confirmed all eight roots
+  matched policy with no global synchronization.
+- Restarted the expected beta application and posted tester-pinged release
+  `2026-08-08-game-taxonomy` as message `1535771660672700562`. Wider-beta
+  acceptance remains pending.
 
 ### 2026-08-08 — P4.4 game-log workspace integrated and deployed
 
