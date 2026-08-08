@@ -18,6 +18,11 @@ This is the running wider-beta checklist—not just the newest release. Please u
   Confirm. Verify recipients see the actor (and any on-behalf-of target), role
   or `@everyone` text does not ping, delivery is not duplicated, and any
   partial fanout failure gives a public terminal reconciliation warning.
+- `/game logs`: as a participant, open a game you played; as staff, try the
+  no-ID server view; use Search, Clear search, scope changes when offered,
+  Previous/Next, and page jump. Successful results should be public without
+  pinging names from old log text; permission/lookup/control failures should
+  be private, and another user must not be able to control your workspace.
 - Retained `$ping` and `$pingall` should still use the shared notification
   behavior; the retired platform-only `pingmobile`/`pingsteam` aliases are not
   part of beta testing.
